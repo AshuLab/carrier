@@ -8,6 +8,9 @@
     "node": "26.x",
     "pnpm": "12.x"
   },
+  "bin": {
+    "carrier": "./src/cli/main.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

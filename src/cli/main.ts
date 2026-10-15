@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { defaults, loadConfig } from '../config/load.ts';
+import { resolveRepoConfig } from '../config/resolve.ts';
 
 const fail = (code: number, ...lines: string[]): never => {
   console.error(lines.join('\n'));
@@ -24,5 +25,7 @@ const result = loadConfig(defaults, user);
 if (!result.ok) {
   fail(1, `Invalid config ${file}:`, ...result.errors.map((e) => `  ${e.path}: ${e.message}`));
 } else {
-  console.log(JSON.stringify(result.config, null, 2));
+  const { config } = result;
+  const effective = { ...config, repos: config.repos.map((repo) => resolveRepoConfig(config, repo)) };
+  console.log(JSON.stringify(effective, null, 2));
 }

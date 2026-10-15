@@ -32,6 +32,14 @@ test('valid config prints the effective config and exits 0', () => {
   expect(JSON.parse(result.stdout)).toMatchObject({ pollIntervalMinutes: 5, repos: valid.repos });
 });
 
+test('prints the effective agents per repo', () => {
+  const repos = [{ name: 'a/b', agents: { reviewer: { model: 'other' } } }, { name: 'c/d' }];
+  const result = run('--config', write('eff.json', { ...valid, repos }));
+  const printed = JSON.parse(result.stdout).repos;
+  expect(printed[0].agents.reviewer).toEqual({ ...valid.agents.reviewer, model: 'other' });
+  expect(printed[1]).toEqual({ name: 'c/d', agents: valid.agents });
+});
+
 test('a relative --config path resolves against the working directory', () => {
   write('rel.json', valid);
   expect(run('--config', 'rel.json').status).toBe(0);

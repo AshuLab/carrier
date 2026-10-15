@@ -32,6 +32,7 @@ El proceso permite seguir preparando nuevas features mientras los agentes trabaj
 - `solve:epic:ready` es la señal suficiente para tomar una épica: el orquestador la registra directamente en la cola, sin una consulta adicional a Solve para habilitarla.
 - Al iniciar la ejecución de una épica, quitar `solve:epic:ready` y agregar `solve:epic:running` en GitHub. Conservar la ejecución en SQLite para retomar sin depender de que el issue siga ready.
 - Al quedar lista para probar, reemplazar `solve:epic:running` por `solve:epic:ready-for-test`. Si requiere intervención, reemplazarla por `solve:epic:needs-human`. Registrar también el resultado en SQLite.
+- Los agentes no corren con los permisos del sistema anfitrión: cada ejecución va en un contenedor con permisos amplios adentro y solo el workspace de la épica montado. Los scopes mínimos del token y la branch protection de los repos son el segundo límite. Ver [ADR 0003](adr/0003-agentes-en-contenedor.md).
 - Ejecutar épicas independientes en paralelo, con un máximo de concurrencia configurable como entero positivo. Valor inicial: tres épicas; puede ser uno, dos, cuatro, ocho u otro valor según la configuración.
 - Tomar épicas ready en orden de llegada a la cola (FIFO), conservando el orden de ingreso al reiniciar.
 - Las dependencias entre épicas quedan fuera de la primera versión y se resolverán en Solve por separado. La regla discutida para una evolución es esperar el merge de los prerequisitos; el MVP no implementa un grafo, un estado de espera por dependencias ni un desbloqueo por merge.
@@ -66,7 +67,7 @@ El proceso permite seguir preparando nuevas features mientras los agentes trabaj
 - Si una sesión guardada no se puede recuperar, iniciar una nueva con el contexto persistido y el estado actual del workspace/GitHub. El agente verifica qué quedó hecho antes de continuar; mantiene la identidad y registra la recuperación en el historial.
 - `Ctrl+C` detiene el orquestador y las ejecuciones activas en ese momento, sin esperar que terminen sus etapas. Conservar sesiones, workspaces y el estado persistido para retomar al reiniciar.
 - Diego adaptará los skills para que las etapas autorizadas puedan ejecutarse sin esperar aprobación.
-- Sandcastle es referencia de diseño; no se incorpora como dependencia.
+- SQLite es la autoridad del estado de cada ejecución; las etiquetas `solve:epic:*` son su reflejo y se reconcilian. Ver [ADR 0002](adr/0002-sqlite-autoridad-etiquetas-reflejo.md).
 - Una UI web o app del OS queda para una evolución posterior.
 
 ## Recorrido de una épica
@@ -241,11 +242,11 @@ Al vencer el límite, detener la ejecución, conservar sesiones y workspaces y r
 
 Un proceso local para macOS, SQLite, logs y panel de terminal. Sin servidor web ni app del OS. Se mantiene portable el núcleo TypeScript/Node.js; Linux y Windows quedan fuera de la validación y soporte inicial. El merge del PR final y la resolución de casos que requieren intervención son humanos. No se agrega comando ni UI de reactivación de esos casos. Las dependencias entre épicas se resolverán por separado en Solve; el MVP toma directamente issues ready. El sistema ejecuta los skills; no reproduce dentro del orquestador su lógica de implementación y review.
 
-La investigación previa está en [autonomous-ship-review.md](research/autonomous-ship-review.md). Sus recomendaciones de reutilizar Sandcastle fueron descartadas durante la conversación.
+La investigación previa está en [autonomous-ship-review.md](research/autonomous-ship-review.md). Su máximo de cuatro reviews fue reemplazado por los cinco configurables de este documento.
 
 ## Proyecto y almacenamiento
 
-El orquestador es una app independiente con repo propio; no se implementa dentro de SecondBrain ni de los repos donde busca épicas. Este documento se conserva en SecondBrain como borrador de trabajo. El código y las pruebas viven en el repo de la app; la configuración y datos de ejecución se ubican bajo la raíz compartida, independientemente de la ubicación del código o la carpeta desde donde se ejecuta el comando. Nombre y ubicación del nuevo repo quedan pendientes.
+El orquestador es una app independiente con repo propio, [AshuLab/carrier](https://github.com/AshuLab/carrier); no se implementa dentro de SecondBrain ni de los repos donde busca épicas. Este documento vive en `docs/` de ese repo como borrador de trabajo. El código y las pruebas viven en el repo de la app; la configuración y datos de ejecución se ubican bajo la raíz compartida, independientemente de la ubicación del código o la carpeta desde donde se ejecuta el comando.
 
 ## Tecnologías y versiones
 

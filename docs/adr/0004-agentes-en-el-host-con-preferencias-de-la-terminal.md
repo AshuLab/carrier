@@ -10,11 +10,9 @@
 
 ## Decision
 
-El orquestador corre en el sistema donde se invoca, y sus agentes (Claude y Codex) corren como procesos de ese mismo sistema, con el usuario, el entorno y las preferencias de la terminal desde la que se ejecuta `carrier`: login, configuración y permisos de cada CLI son los que ya tiene esa terminal. Carrier no define ni endurece el aislamiento en esta versión.
+Los agentes (Claude y Codex) corren como el CLI normal del cliente, en la computadora donde se invoca `carrier`, igual que se ejecutan desde esa terminal: proceso hijo con el usuario, el login, la configuración y los permisos que ese CLI ya tiene. Carrier no añade aislamiento, contenedores ni restricciones propias en esta versión; deja que el CLI corra.
 
-Cada ejecución se lanza como su propio grupo de procesos, para que `stop()` y `Ctrl+C` puedan terminar al agente y a todo su árbol de hijos (sin contenedor, Codex deja huérfano el proceso del comando incluso con `SIGTERM`). El token de GitHub de cada ejecución sigue teniendo los scopes mínimos de su rol y los repos mantienen branch protection como límite.
-
-La seguridad de agentes desatendidos (AFK) queda como trabajo posterior y explícito: se revisará cómo acotar permisos y daño (usuario dedicado, sandbox nativo de los CLIs, contenedores u otra vía) con el flujo ya funcionando.
+La seguridad de agentes desatendidos (AFK) queda como trabajo posterior y explícito, con el flujo ya funcionando. El token de GitHub de cada ejecución sigue teniendo los scopes mínimos de su rol y los repos mantienen branch protection.
 
 ## Alternatives considered
 
@@ -24,4 +22,4 @@ Sandbox nativo de Claude y Codex. Aísla menos y difiere entre proveedores; se e
 
 ## Consequences
 
-Se gana simplicidad: no hay runtime de contenedores, montajes, imágenes ni renovación externa de login, y las sesiones de los CLIs quedan donde ellos las guardan. Se acepta que un agente desatendido corra con los permisos del usuario y la terminal, y por tanto puede tocar archivos, credenciales y otros repos de esa máquina; es un riesgo asumido y temporal hasta definir la seguridad AFK. El runner debe invocar los binarios reales de `claude` y `codex`, no wrappers, y garantizar la detención del árbol de procesos por su cuenta.
+Se gana simplicidad: no hay runtime de contenedores, montajes, imágenes ni renovación externa de login, y las sesiones quedan donde cada CLI las guarda. Se acepta que un agente desatendido corra con los permisos del usuario y puede tocar archivos, credenciales y otros repos de esa máquina; es un riesgo asumido hasta definir la seguridad AFK. El runner invoca los binarios reales de `claude` y `codex`, no wrappers. Sin contenedor, detener un agente no garantiza terminar sus procesos hijos (Codex deja huérfano el proceso del comando incluso con `SIGTERM`, [investigación](../research/headless-agents.md)); queda como limitación conocida a revisar con la seguridad AFK.

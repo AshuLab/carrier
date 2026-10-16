@@ -12,6 +12,7 @@ import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fak
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { epicEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
+import { callerResults } from '../storage/caller-results.ts';
 import { FakeClock, FakeGitHub } from './fake.ts';
 import { GitHubUnavailable } from './github.ts';
 
@@ -308,7 +309,7 @@ test('the session id is saved as soon as the runner reports it, while the execut
 test('a valid completed result moves the epic to review round 1 and records the final PR', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
-  runner.behavior = (task) => ({ sessionId: 's', write: completed(task) });
+  runner.behavior = (task) => (task.stage === 'ship' ? { sessionId: 's', write: completed(task) } : { exit: 'stopped' });
   const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
@@ -326,7 +327,7 @@ test.each([
   github.ready = { 'AshuLab/a': ready(1, 2) };
   if (change) pull(50, change);
   pull(51, {}, 2);
-  runner.behavior = (task) => ({ write: completed(task, { number: task.epic === 1 ? 50 : 51, headSha: SHA }) });
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task, { number: task.epic === 1 ? 50 : 51, headSha: SHA }) } : { exit: 'stopped' });
   const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
@@ -363,7 +364,7 @@ test('a runner that is cut records it and imports nothing', async () => {
 test('GitHub down while validating keeps the result for the next poll, which imports it', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
-  runner.behavior = (task) => ({ write: completed(task) });
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });
   const engine = await start(1);
   github.getPullRequest = async () => {
     throw new GitHubUnavailable();
@@ -376,20 +377,20 @@ test('GitHub down while validating keeps the result for the next poll, which imp
   github.getPullRequest = FakeGitHub.prototype.getPullRequest.bind(github);
   await clock.advance(5 * MIN);
   expect(rows(engine.db)[0]).toMatchObject({ stage: 'review', round: 1 });
-  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks.filter((t) => t.stage === 'ship')).toHaveLength(1);
 });
 
 test('importing the same result twice changes nothing', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
-  runner.behavior = (task) => ({ write: completed(task) });
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });
   const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
   engine.db.update(executions).set({ status: 'interrupted' }).run();
   await clock.advance(5 * MIN);
   expect(rows(engine.db)[0]).toMatchObject({ stage: 'review', round: 1 });
-  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']); // no second reviewer
 });
 
 test('a workspace that cannot be prepared leaves the epic in needs_human and frees the slot', async () => {
@@ -409,7 +410,7 @@ test('a workspace that cannot be prepared leaves the epic in needs_human and fre
 test('a result freeing a slot while another epic is still being reserved never launches its author twice', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   pull(50);
-  runner.behavior = (task) => (task.epic === 1 ? { write: completed(task) } : { write: result(task, { outcome: 'needs_human', reason: 'x' }) });
+  runner.behavior = (task) => (task.epic === 1 && task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
   const setLabels = github.setLabels.bind(github);
@@ -464,11 +465,11 @@ test.each([
 test('the retry that succeeds carries the epic on', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
-  runner.behavior = (task) => (task.resumeSession ? { write: completed(task) } : { sessionId: 's-1', exit: 'failed' });
+  runner.behavior = (task) => (task.stage === 'review' ? { exit: 'stopped' } : task.resumeSession ? { write: completed(task) } : { sessionId: 's-1', exit: 'failed' });
   const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
-  expect(statuses(engine.db)).toEqual(['failed', 'finished']);
+  expect(statuses(engine.db)).toEqual(['failed', 'finished', 'interrupted']);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 1, prNumber: 50 });
   expect(eventsOf(engine.db)[0]?.data.pr).toEqual({ number: 50, state: 'open', headSha: SHA });
 });
@@ -586,4 +587,154 @@ test('after a restart a review failure is retried as a review, with its PR and r
     stage: 'review', profile: 'b', provider: 'codex', workspace: '/work/AshuLab/a/1/reviewer-50', resumeSession: 's-r',
     context: { pr: { number: 50, headSha: SHA }, round: 2, verifyStateFirst: true },
   });
+});
+
+// --- review stage ---
+
+const HEAD2 = 'c'.repeat(40);
+// The author ships PR 50; the reviewer answers with `review(task)`.
+async function reviewing(review: (task: AgentTask) => Behavior, count = 1) {
+  github.ready = { 'AshuLab/a': ready(...Array.from({ length: count }, (_, i) => i + 1)) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : review(task));
+  const engine = await start(count);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  return engine;
+}
+const reviewerTask = () => runner.tasks.find((t) => t.stage === 'review')!;
+
+test('after ship the reviewer runs with its own profile, a separate workspace, the PR, the round and no previous summaries', async () => {
+  const config = [{ name: 'AshuLab/a', agents: { ...agents, reviewer: { profile: 'rev', provider: 'codex' as const, model: 'r' } } }];
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });
+  const engine = await start(1, config);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
+  expect(reviewerTask()).toMatchObject({
+    profile: 'rev', provider: 'codex', model: 'r', workspace: '/work/AshuLab/a/1/reviewer-50',
+    context: { pr: { number: 50, headSha: SHA }, round: 1, previousSummaries: [] },
+  });
+  expect(reviewerTask().resultPath).not.toBe(runner.tasks[0]!.resultPath);
+  expect(executionsOf(engine.db).map((e) => [e.stage, e.status])).toEqual([['ship', 'finished'], ['review', 'interrupted']]);
+});
+
+test('a concluding review on the current head leaves the epic ready for test with the reviewed SHA and verification', async () => {
+  const engine = await reviewing((task) => ({
+    write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'pnpm test ok, repo sin CI' } }),
+  }));
+  expect(rows(engine.db)[0]).toMatchObject({
+    status: 'ready_for_test', reviewedSha: SHA, verification: { ci: 'absent', evidence: 'pnpm test ok, repo sin CI' },
+    finishedAt: 5 * MIN, labelPending: false, needsHumanReason: null,
+  });
+  expect(labelsOf(1)).toEqual(['solve:epic:ready-for-test']);
+});
+
+test('a ready epic frees its slot for the next one', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  pull(50);
+  pull(51, {}, 2);
+  runner.behavior = (task) =>
+    task.stage === 'ship'
+      ? { write: completed(task, { number: 49 + task.epic, headSha: SHA }) }
+      : task.epic === 1 ? { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } }) } : { exit: 'stopped' };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db).map((e) => e.status)).toEqual(['ready_for_test', 'running']);
+});
+
+test('a head that changed during the review sends the epic to needs_human, never ready', async () => {
+  const engine = await reviewing((task) => {
+    pull(50, { headSha: HEAD2 }); // a commit lands while the reviewer works
+    return { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } }) };
+  });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'el head cambió durante la revisión', reviewedSha: null });
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+});
+
+test('a needs_human review, an inconclusive one included, stops the epic with its reason', async () => {
+  const engine = await reviewing((task) => ({ write: result(task, { outcome: 'needs_human', reason: 'revisión inconclusa: falta contexto' }) }));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'revisión inconclusa: falta contexto', reviewedSha: null });
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+});
+
+test('changes_requested is imported and moves the epic to fix on the same round, with no launch and no label change', async () => {
+  const engine = await reviewing((task) => ({
+    write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: 'falta validar la entrada' }] }),
+  }));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'fix', round: 1, finishedAt: null });
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
+  expect(labelsOf(1)).toEqual(['solve:epic:running']);
+  expect(engine.db.select().from(callerResults).all().map((r) => r.outcome)).toEqual(['completed', 'changes_requested']);
+});
+
+test('a technical failure of the reviewer keeps the round, imports nothing and relaunches the review', async () => {
+  const engine = await reviewing((task) => (task.resumeSession ? { exit: 'stopped' } : { sessionId: 's-r', exit: 'failed' }));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 1 });
+  expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['finished', 'failed', 'interrupted']);
+  expect(engine.db.select().from(callerResults).all()).toHaveLength(1);
+});
+
+test('a review for a PR that no longer references the epic goes to needs_human', async () => {
+  const engine = await reviewing((task) => {
+    pull(50, { state: 'closed' });
+    return { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } }) };
+  });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'el PR #50 no está abierto' });
+});
+
+test('a reviewer workspace that cannot be prepared leaves the epic in needs_human', async () => {
+  workspaces.prepareReviewer = async () => {
+    throw new Error('checkout failed');
+  };
+  const engine = await reviewing(() => ({}));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'no se pudo preparar el workspace: checkout failed' });
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+});
+
+test('a ready label that did not reach GitHub is retried on the next poll', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { write: completed(task) } : { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } }) };
+  const engine = await start(1);
+  const setLabels = github.setLabels.bind(github);
+  github.setLabels = async (repo, issue, change) => {
+    if (change.add.includes('solve:epic:ready-for-test')) throw new GitHubUnavailable();
+    return setLabels(repo, issue, change);
+  };
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', labelPending: true });
+
+  github.setLabels = setLabels;
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ labelPending: false });
+  expect(labelsOf(1)).toEqual(['solve:epic:ready-for-test']);
+});
+
+test('the reviewer receives the summaries of earlier review and fix turns, oldest first', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => {
+    if (task.stage !== 'ship') return {};
+    const db = dbs[0]!; // history left by turns before this review
+    db.insert(executions).values([
+      { executionId: 'e-fix', epicId: 1, stage: 'fix', resultPath: 'y', startedAt: 2 },
+      { executionId: 'e-old', epicId: 1, stage: 'review', resultPath: 'x', startedAt: 1 },
+    ]).run();
+    db.insert(callerResults).values([
+      { executionId: 'e-fix', outcome: 'completed', result: JSON.stringify({ summary: 'corregido' }) },
+      { executionId: 'e-old', outcome: 'changes_requested', result: JSON.stringify({ summary: 'ronda uno' }) },
+    ]).run();
+    return { write: completed(task) };
+  };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(reviewerTask().context.previousSummaries).toEqual(['ronda uno', 'corregido']);
 });

@@ -22,6 +22,8 @@ export const epics = sqliteTable(
     round: integer(), // review round, from 1 once the final PR is validated
     prNumber: integer(),
     prHeadSha: text(),
+    reviewedSha: text(), // head the reviewer approved, set when the epic becomes ready_for_test
+    verification: text({ mode: 'json' }).$type<{ ci: 'passed' | 'absent'; evidence: string }>(), // what the reviewer reported about the checks
     needsHumanReason: text(),
     finishedAt: integer(), // ms since epoch, when the epic left `running`
   },

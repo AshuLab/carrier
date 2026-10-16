@@ -13,7 +13,7 @@ import { epicEvents } from '../storage/events.ts';
 import { executions, type executionStates } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
-import { GitHubUnavailable, needsHumanLabel, ownedLabels, readyLabel, runningLabel, type GitHub } from './github.ts';
+import { GitHubUnavailable, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub } from './github.ts';
 import { reserve } from './reserve.ts';
 import { failureStreak } from './retry.ts';
 
@@ -64,7 +64,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // Mirrors the epic's status on its issue.
   const applyLabels = async ({ id, repo, issue, status }: Epic) => {
     const change =
-      status === 'needs_human' ? { add: [needsHumanLabel], remove: [runningLabel] } : { add: [runningLabel], remove: [readyLabel] };
+      status === 'needs_human'
+        ? { add: [needsHumanLabel], remove: [runningLabel] }
+        : status === 'ready_for_test'
+          ? { add: [readyForTestLabel], remove: [runningLabel] }
+          : { add: [runningLabel], remove: [readyLabel] };
     await github.setLabels(repo, issue, change);
     db.update(epics).set({ labelPending: false }).where(eq(epics.id, id)).run();
   };
@@ -78,13 +82,17 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // Mirrors the label, then launches the author unless the epic already has one.
   const begin = async (epic: Epic) => {
     await applyLabels(epic);
-    if (epic.status === 'running' && epic.stage === null) await launch(epic);
+    if (epic.status === 'running' && epic.stage === null) await launch(epic, 'ship');
   };
 
-  async function launch(epic: Epic) {
-    // Claim the launch first: concurrent reconciles (a result freeing a slot, the poll) never start a second author.
-    const claimed = db.update(epics).set({ stage: 'ship' }).where(and(eq(epics.id, epic.id), isNull(epics.stage))).returning().get();
-    if (claimed) await execute(epic, 'ship');
+  // Launches the author (ship) or the reviewer (review) for the epic's current stage.
+  async function launch(epic: Epic, stage: 'ship' | 'review') {
+    if (stage === 'ship') {
+      // Claim the launch first: concurrent reconciles (a result freeing a slot, the poll) never start a second author.
+      const claimed = db.update(epics).set({ stage: 'ship' }).where(and(eq(epics.id, epic.id), isNull(epics.stage))).returning().get();
+      if (!claimed) return;
+    }
+    await execute(epic, stage);
   }
 
   // Starts an execution of the stage; `retryOf` is the failed one it replaces: same session, verify the real state first.
@@ -110,7 +118,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       timeoutMs: maxExecutionHours === 'unlimited' ? null : maxExecutionHours * 3_600_000,
       ...(retryOf?.sessionId && { resumeSession: retryOf.sessionId }),
       context: {
-        previousSummaries: [],
+        previousSummaries: reviewing ? previousSummaries(epic.id) : [],
         ...(retryOf && { verifyStateFirst: true }),
         ...(epic.prNumber && { pr: { number: epic.prNumber, headSha: epic.prHeadSha! } }),
         ...(epic.round && { round: epic.round }),
@@ -170,6 +178,17 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     for (const { id } of db.select({ id: epics.id }).from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) await retry(id);
   }
 
+  // Summaries the caller left in earlier review and fix turns, oldest first.
+  const previousSummaries = (epicId: number) =>
+    db
+      .select({ result: callerResults.result })
+      .from(callerResults)
+      .innerJoin(executions, eq(executions.executionId, callerResults.executionId))
+      .where(and(eq(executions.epicId, epicId), inArray(executions.stage, ['review', 'fix'])))
+      .orderBy(asc(executions.startedAt))
+      .all()
+      .map(({ result }) => (JSON.parse(result) as { summary: string }).summary);
+
   const inflight = new Set<Promise<void>>();
   // GitHub being down is expected (the next poll retries); anything else is a bug and surfaces.
   const track = (work: Promise<void>) => {
@@ -182,13 +201,15 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     inflight.add(tracked);
   };
 
-  // Does the final PR the author reported hold up against GitHub? Returns why not, or null.
-  async function prProblem({ repo, issue }: Epic, pr: { number: number; headSha: string }) {
+  // Does the final PR the caller reported hold up against GitHub? Returns why not, or null.
+  async function prProblem({ repo, issue }: Epic, pr: { number: number; headSha: string }, stage: Execution['stage']) {
     const found = await github.getPullRequest(repo, pr.number);
     if (!found) return `el PR #${pr.number} no existe`;
     if (found.state !== 'open') return `el PR #${pr.number} no está abierto`;
     if (!new RegExp(`\\bcloses #${issue}(?!\\d)`, 'i').test(found.body)) return `el PR #${pr.number} no referencia la épica (falta "Closes #${issue}")`;
-    if (found.headSha !== pr.headSha) return `el head del PR #${pr.number} es ${found.headSha}, no ${pr.headSha}`;
+    if (found.headSha !== pr.headSha) {
+      return stage === 'review' ? 'el head cambió durante la revisión' : `el head del PR #${pr.number} es ${found.headSha}, no ${pr.headSha}`;
+    }
     return null;
   }
 
@@ -207,12 +228,18 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       db.update(executions).set({ status: 'invalid_result', error: parsed.message }).where(eq(executions.executionId, execution.executionId)).run();
       return retry(epic.id);
     }
-    const problem = parsed.result.outcome === 'completed' ? await prProblem(epic, parsed.result.pr) : null;
-    importResult(db, raw, expected, (tx, result) => {
+    const problem = parsed.result.outcome === 'needs_human' ? null : await prProblem(epic, parsed.result.pr, execution.stage);
+    const imported = importResult(db, raw, expected, (tx, result) => {
+      const update = (set: Partial<Epic>) => tx.update(epics).set(set).where(eq(epics.id, epic.id)).run();
       if (result.outcome === 'needs_human') toNeedsHuman(tx, epic.id, result.reason);
       else if (problem) toNeedsHuman(tx, epic.id, problem);
-      else tx.update(epics).set({ stage: 'review', round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha }).where(eq(epics.id, epic.id)).run();
+      else if (execution.stage === 'ship') update({ stage: 'review', round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha });
+      // The round stays: the fix turn answers it, and the next review (a later slice) numbers the following one.
+      else if (result.outcome === 'changes_requested') update({ stage: 'fix' });
+      else update({ status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true });
     });
+    const next = fresh(epic.id);
+    if (!('duplicate' in imported) && execution.stage === 'ship' && next.status === 'running' && next.stage === 'review') await launch(next, 'review');
     await freeSlot();
   }
 
@@ -239,7 +266,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     const pending = db
       .select()
       .from(epics)
-      .where(and(inArray(epics.status, ['running', 'needs_human']), eq(epics.labelPending, true)))
+      .where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), eq(epics.labelPending, true)))
       .orderBy(asc(epics.id))
       .all();
     for (const epic of pending) await begin(epic);

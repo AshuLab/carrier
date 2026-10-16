@@ -8,6 +8,7 @@ export class GitHubUnavailable extends Error {
 export const ownedLabels = ['solve:epic:running', 'solve:epic:ready-for-test', 'solve:epic:needs-human'] as const;
 export const readyLabel = 'solve:epic:ready';
 export const runningLabel = ownedLabels[0];
+export const readyForTestLabel = ownedLabels[1];
 export const needsHumanLabel = ownedLabels[2];
 
 export interface GitHub {

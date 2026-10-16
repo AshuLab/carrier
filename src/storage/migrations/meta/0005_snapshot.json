@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "dee99db6-29ac-44fb-8cc9-e64635eba110",
+  "id": "0c2a0cac-19fa-44f1-a907-957bb3ffb257",
   "prevId": "a26ba666-9f38-4bd3-bf4e-fe5d68fe1622",
   "tables": {
     "epics": {
@@ -96,6 +96,20 @@
         },
         "prHeadSha": {
           "name": "prHeadSha",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reviewedSha": {
+          "name": "reviewedSha",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "verification": {
+          "name": "verification",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -201,13 +215,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "resultPath": {
           "name": "resultPath",
           "type": "text",
@@ -235,65 +242,6 @@
         "executions_epicId_epics_id_fk": {
           "name": "executions_epicId_epics_id_fk",
           "tableFrom": "executions",
-          "tableTo": "epics",
-          "columnsFrom": [
-            "epicId"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "epic_events": {
-      "name": "epic_events",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": true
-        },
-        "epicId": {
-          "name": "epicId",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "at": {
-          "name": "at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "type": {
-          "name": "type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "data": {
-          "name": "data",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "epic_events_epicId_epics_id_fk": {
-          "name": "epic_events_epicId_epics_id_fk",
-          "tableFrom": "epic_events",
           "tableTo": "epics",
           "columnsFrom": [
             "epicId"

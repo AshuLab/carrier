@@ -32,18 +32,18 @@ const printable = (text: string) => text.replace(/[\x00-\x1f\x7f-\x9f]/g, ' ');
 
 // Pure: the same snapshot always gives the same lines, with no ANSI.
 export function renderPanel({ now, slots, queue, epics }: PanelSnapshot): string[] {
-  const lines = [`carrier  slots ${slots.busy}/${slots.total}  cola ${queue.length}${queue.length > 0 ? `: ${queue.map((q) => `${q.repo}#${q.issue}`).join(', ')}` : ''}`];
+  const lines = [`carrier  slots ${slots.busy}/${slots.total}  queue ${queue.length}${queue.length > 0 ? `: ${queue.map((q) => `${q.repo}#${q.issue}`).join(', ')}` : ''}`];
   for (const e of epics) {
     const parts = [
       `${e.repo}#${e.issue}`,
-      e.status === 'needs_human' ? 'NEEDS HUMAN' : (e.stage ?? 'iniciando'),
-      ...(e.round === null ? [] : [`ronda ${e.round}/${e.maxReviews}`]),
+      e.status === 'needs_human' ? 'NEEDS HUMAN' : (e.stage ?? 'starting'),
+      ...(e.round === null ? [] : [`round ${e.round}/${e.maxReviews}`]),
       `blockers ${e.blockers}`,
-      `en etapa ${formatDuration(now - e.stageSince)}`,
-      e.lastActivityAt === null ? 'sin actividad' : `actividad hace ${formatDuration(now - e.lastActivityAt)}`,
+      `in stage ${formatDuration(now - e.stageSince)}`,
+      e.lastActivityAt === null ? 'no activity' : `activity ${formatDuration(now - e.lastActivityAt)} ago`,
     ];
     lines.push(parts.join('  '), `  issue ${e.issueUrl}${e.prUrl ? `  PR ${e.prUrl}` : ''}`);
-    if (e.needsHumanReason) lines.push(`  motivo: ${printable(e.needsHumanReason)}`);
+    if (e.needsHumanReason) lines.push(`  reason: ${printable(e.needsHumanReason)}`);
     if (e.lastError) lines.push(`  error: ${printable(e.lastError)}`);
   }
   return lines;

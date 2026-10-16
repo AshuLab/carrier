@@ -49,7 +49,7 @@ type Epic = typeof epics.$inferSelect;
 type Execution = typeof executions.$inferSelect;
 
 // Technical end of the process; whether the epic moves on depends on its result (retries and timeouts: later slices).
-const sessionLost = 'la sesión del agente no está disponible';
+const sessionLost = 'the agent session is not available';
 
 const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
   ok: 'finished',
@@ -139,12 +139,12 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     try {
       if (stage === 'fix') {
         // Where `ship` left the epic's worktree: a session resumed anywhere else would act in another cwd.
-        if (!epic.workspace) throw new Error('la épica no tiene el worktree guardado');
+        if (!epic.workspace) throw new Error('the epic has no saved worktree');
         workspace = epic.workspace;
       } else workspace = reviewing ? await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!) : await workspaces.prepareAuthor(epic.repo, epic.issue);
     } catch (e) {
       log.error('could not prepare the workspace', e, { repo: epic.repo, epic: epic.issue, stage });
-      toNeedsHuman(db, epic.id, `no se pudo preparar el workspace: ${e instanceof Error ? e.message : String(e)}`);
+      toNeedsHuman(db, epic.id, `could not prepare the workspace: ${e instanceof Error ? e.message : String(e)}`);
       return applyLabels(fresh(epic.id));
     }
     const executionId = randomUUID();
@@ -188,7 +188,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       run.done.then(async ({ exit, sessionId }) => {
         active.delete(executionId);
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
-        const failure = { failed: 'el proceso del agente terminó con error', auth_failed: `error de autenticación del perfil ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
+        const failure = { failed: 'the agent process ended with an error', auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
         db.update(executions)
           .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }), ...(failure && { error: failure }) })
           .where(eq(executions.executionId, executionId))
@@ -199,7 +199,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         else if (exit === 'auth_failed') await stopProfile(task.profile);
         else if (exit === 'timed_out') {
           // Session and workspace stay as they are; a person decides how to go on.
-          toNeedsHuman(db, epic.id, `la ejecución de ${stage} superó el límite de tiempo`);
+          toNeedsHuman(db, epic.id, `the ${stage} execution exceeded the time limit`);
           await freeSlot();
         }
       }),
@@ -212,7 +212,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     for (const epic of db.select().from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
       const { author, reviewer } = epic.config!.agents;
       if (author.profile !== profile && reviewer.profile !== profile) continue;
-      toNeedsHuman(db, epic.id, `error de autenticación del perfil ${profile}`);
+      toNeedsHuman(db, epic.id, `authentication error for profile ${profile}`);
       const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
       await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));
     }
@@ -229,7 +229,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       const [last, ...earlier] = failureStreak(db, epicId);
       if (epic.status !== 'running' || !last) return;
       if (earlier.length >= maxExecutionRetries) {
-        toNeedsHuman(db, epicId, `se agotaron los reintentos de ${last.stage} (${earlier.length + 1} intentos): ${last.error}`);
+        toNeedsHuman(db, epicId, `ran out of ${last.stage} retries (${earlier.length + 1} attempts): ${last.error}`);
         return await freeSlot();
       }
       // Read only: what the failed execution may have left on GitHub. A failed query is not an attempt, the poll tries again.
@@ -283,11 +283,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   // Does the final PR the caller reported hold up against what GitHub says? Returns why not, or null.
   function prProblem({ issue }: Epic, found: Awaited<ReturnType<GitHub['getPullRequest']>>, pr: { number: number; headSha: string }, stage: Execution['stage']) {
-    if (!found) return `el PR #${pr.number} no existe`;
-    if (found.state !== 'open') return `el PR #${pr.number} no está abierto`;
-    if (!new RegExp(`\\bcloses #${issue}(?!\\d)`, 'i').test(found.body)) return `el PR #${pr.number} no referencia la épica (falta "Closes #${issue}")`;
+    if (!found) return `PR #${pr.number} does not exist`;
+    if (found.state !== 'open') return `PR #${pr.number} is not open`;
+    if (!new RegExp(`\\bcloses #${issue}(?!\\d)`, 'i').test(found.body)) return `PR #${pr.number} does not reference the epic (missing "Closes #${issue}")`;
     if (found.headSha !== pr.headSha) {
-      return stage === 'review' ? 'el head cambió durante la revisión' : `el head del PR #${pr.number} es ${found.headSha}, no ${pr.headSha}`;
+      return stage === 'review' ? 'the head changed during the review' : `the head of PR #${pr.number} is ${found.headSha}, not ${pr.headSha}`;
     }
     return null;
   }
@@ -333,7 +333,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         } catch (e) {
           log.error('could not list the worktrees', e, context);
         }
-        if (!workspace) problem = `no se encontró el worktree de la rama ${branch} en el clon de ${epic.repo}`;
+        if (!workspace) problem = `could not find the worktree for branch ${branch} in the clone of ${epic.repo}`;
       }
     }
     const imported = importResult(db, raw, expected, (tx, result) => {
@@ -344,7 +344,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       else if (execution.stage === 'fix') update({ stage: 'review', stageStartedAt: clock.now(), round: (epic.round ?? 0) + 1, prHeadSha: result.pr.headSha });
       // The round stays: the fix turn answers it, and the next review numbers the following one.
       else if (result.outcome === 'changes_requested') {
-        if ((epic.round ?? 0) >= maxReviews) toNeedsHuman(tx, epic.id, `límite de revisiones: la ronda ${epic.round} de ${maxReviews} sigue con cambios pedidos`);
+        if ((epic.round ?? 0) >= maxReviews) toNeedsHuman(tx, epic.id, `review limit: round ${epic.round} of ${maxReviews} still has requested changes`);
         else update({ stage: 'fix', stageStartedAt: clock.now() });
       }
       else update({ status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true });
@@ -442,7 +442,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     const configured = repos.map((r) => r.name);
     const now = clock.now();
     for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['queued', 'running', 'needs_human']), notInArray(epics.repo, configured))).all()) {
-      const reason = 'el repo ya no está en la configuración';
+      const reason = 'the repo is no longer in the configuration';
       db.update(epics).set({ status: 'repo_removed', removedFrom: epic.status, removedReason: reason }).where(eq(epics.id, epic.id)).run();
       db.insert(epicEvents).values({ epicId: epic.id, at: now, type: 'repo_removed', data: { from: epic.status, reason } }).run();
     }

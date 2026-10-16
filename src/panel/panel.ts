@@ -31,7 +31,7 @@ export function startPanel(snapshot: () => PanelSnapshot, out: PanelOutput = pro
     const queue = `${s.slots.busy}/${s.slots.total}|${s.queue.map((q) => `${q.repo}#${q.issue}`).join(',')}`;
     if (queue !== queueSeen) {
       queueSeen = queue;
-      out.write(`${at} slots ${s.slots.busy}/${s.slots.total} cola ${s.queue.length}${s.queue.length > 0 ? `: ${s.queue.map((q) => `${q.repo}#${q.issue}`).join(', ')}` : ''}\n`);
+      out.write(`${at} slots ${s.slots.busy}/${s.slots.total} queue ${s.queue.length}${s.queue.length > 0 ? `: ${s.queue.map((q) => `${q.repo}#${q.issue}`).join(', ')}` : ''}\n`);
     }
     for (const e of s.epics) {
       const key = `${e.repo}#${e.issue}`;

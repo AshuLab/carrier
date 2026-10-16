@@ -7,8 +7,8 @@ import type { GitHub } from './github.ts';
  */
 export async function endOf(github: GitHub, { repo, issue, prNumber }: { repo: string; issue: number; prNumber: number | null }) {
   const pr = prNumber === null ? null : await github.getPullRequest(repo, prNumber);
-  if (pr?.state === 'merged') return { status: 'merged' as const, reason: `el PR final #${prNumber} se mergeó` };
-  if (pr?.state === 'closed') return { status: 'cancelled' as const, reason: `el PR final #${prNumber} se cerró sin merge` };
-  if ((await github.getIssue(repo, issue)).state === 'closed') return { status: 'cancelled' as const, reason: 'el issue de la épica se cerró sin merge' };
+  if (pr?.state === 'merged') return { status: 'merged' as const, reason: `the final PR #${prNumber} was merged` };
+  if (pr?.state === 'closed') return { status: 'cancelled' as const, reason: `the final PR #${prNumber} was closed without merging` };
+  if ((await github.getIssue(repo, issue)).state === 'closed') return { status: 'cancelled' as const, reason: 'the epic issue was closed without merging' };
   return null;
 }

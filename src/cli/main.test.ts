@@ -104,3 +104,34 @@ test('a second carrier on the same root reports it and exits non-zero without pr
 test('missing file exits non-zero', () => {
   expect(run('--config', join(dir, 'nope.json')).status).not.toBe(0);
 });
+
+test('schema prints the JSON Schema of the config as the user writes it', () => {
+  const result = run('schema');
+  expect(result.status).toBe(0);
+  const schema = JSON.parse(result.stdout);
+  expect(schema.properties.repos.minItems).toBe(1);
+  expect(schema.required).toEqual(expect.arrayContaining(['repos', 'profiles', 'agents']));
+  expect(schema.required).not.toContain('root'); // has a default
+  expect(schema.properties.limits.required ?? []).toEqual([]);
+});
+
+test('an unknown command or flag exits 2 with the usage', () => {
+  for (const args of [['frobnicate'], ['--nope']]) {
+    const result = run(...args);
+    expect([result.status, result.stderr]).toEqual([2, expect.stringContaining('carrier init [flags]')]);
+  }
+});
+
+test('init without a terminal names the question a flag has to answer', () => {
+  const result = run('init', '--yes', '--out', join(dir, 'never.json')); // cwd is not a git repo: no repo to suggest
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('Repos to watch');
+  expect(result.stderr).toContain('pass it as a flag');
+});
+
+test('doctor refuses an invalid config like the run command does', () => {
+  const result = run('doctor', '--config', write('doctor-bad.json', { ...valid, orchestratorProfile: 'x' }));
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('orchestratorProfile');
+  expect(run('doctor').stderr).toContain('Usage: carrier doctor --config');
+});

@@ -1,0 +1,154 @@
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { defaults, loadConfig } from '../config/load.ts';
+import { repoNamePattern } from '../config/schema.ts';
+import { runDoctor, type Check } from '../doctor/doctor.ts';
+import { buildConfig, identityText, parseIdentity, parseProviderModel, type Identity, type Role } from './build-config.ts';
+import { readForgeAgents, type ForgeAgent } from './forge-registry.ts';
+
+type Option<T extends string> = { value: T; label: string; hint?: string };
+
+/** What the wizard needs from the terminal. The real one is clack (src/init/clack-ui.ts); tests script it. */
+export interface Ui {
+  intro(title: string): void;
+  outro(message: string): void;
+  note(message: string, title: string): void;
+  warn(message: string): void;
+  check(check: Check): void;
+  text(options: { message: string; placeholder?: string; defaultValue?: string; validate?: (value: string) => string | undefined }): Promise<string>;
+  select<T extends string>(options: { message: string; options: Option<T>[]; initialValue?: T }): Promise<T>;
+  confirm(message: string): Promise<boolean>;
+}
+
+/** Everything that touches the machine, replaceable for tests. */
+export interface InitDeps {
+  which: (command: string) => boolean;
+  forgeAgents: () => ForgeAgent[];
+  ghLogin: () => string | undefined;
+  originRepo: () => string | undefined;
+  codexModel: () => string | undefined;
+  exists: (path: string) => boolean;
+  write: (path: string, content: string) => void;
+  doctor: typeof runDoctor;
+}
+
+/** Flags answer questions ahead of time; whatever is missing is asked. */
+/** `authorProfile` / `reviewerProfile` are `forge:<agent>` or `gh`; `author` / `reviewer` are `<claude|codex>:<model>`. */
+export type InitFlags = { repo?: string[]; authorProfile?: string; reviewerProfile?: string; author?: string; reviewer?: string; out?: string; yes?: boolean };
+
+export const realDeps: InitDeps = {
+  which: (command) => spawnSync('which', [command], { stdio: 'ignore' }).status === 0,
+  forgeAgents: () => readForgeAgents(),
+  ghLogin: () => {
+    try {
+      return execFileSync('gh', ['api', 'user', '--jq', '.login'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || undefined;
+    } catch {
+      return undefined; // not logged in or no gh: the doctor reports it, here it only means no hint
+    }
+  },
+  originRepo: () => {
+    const url = spawnSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }).stdout.trim();
+    const repo = /github\.com[:/]([\w.-]+\/[\w.-]+?)(?:\.git)?$/.exec(url)?.[1];
+    return repo !== undefined && repoNamePattern.test(repo) ? repo : undefined;
+  },
+  codexModel: () => {
+    try {
+      return /^model\s*=\s*"([^"]+)"/m.exec(readFileSync(join(process.env.CODEX_HOME ?? join(homedir(), '.codex'), 'config.toml'), 'utf8'))?.[1];
+    } catch {
+      return undefined;
+    }
+  },
+  exists: existsSync,
+  write: (path, content) => writeFileSync(path, content),
+  doctor: runDoctor,
+};
+
+const claudeDefaultModel = 'sonnet';
+
+export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDeps) {
+  ui.intro('Carrier setup');
+
+  let forge: ForgeAgent[] = [];
+  try {
+    forge = deps.forgeAgents();
+  } catch (error) {
+    ui.warn(`Could not read the Agent Forge registry: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const providers = (['claude', 'codex'] as const).filter((p) => deps.which(p));
+  const login = deps.ghLogin();
+  const mark = (ok: boolean) => (ok ? '✓' : '✗');
+  ui.note(
+    [
+      `claude ${mark(providers.includes('claude'))}   codex ${mark(providers.includes('codex'))}   git ${mark(deps.which('git'))}   gh ${login ? `✓ (${login})` : mark(false)}`,
+      forge.length > 0 ? `Agent Forge agents: ${forge.map((a) => a.name).join(', ')}` : 'Agent Forge agents: none found (run "agent-forge add")',
+    ].join('\n'),
+    'This machine',
+  );
+
+  const repos = flags.repo ?? (await askRepos(ui, deps.originRepo()));
+
+  const authorIdentity = flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, login, []);
+  const reviewerIdentity = flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, login, [authorIdentity]);
+
+  const author = { identity: authorIdentity, ...(await askAgent(ui, 'author', flags.author, providers, deps, 'claude')) };
+  const reviewer = { identity: reviewerIdentity, ...(await askAgent(ui, 'reviewer', flags.reviewer, providers, deps, providers.includes('codex') ? 'codex' : 'claude')) };
+
+  const user = buildConfig({ repos, author, reviewer });
+  const loaded = loadConfig(defaults, user);
+  if (!loaded.ok) throw new Error(`the answers do not make a valid config:\n${loaded.errors.map((e) => `  ${e.path}: ${e.message}`).join('\n')}`);
+
+  const out = resolve(flags.out ?? (await ui.text({ message: 'Where to write the config', defaultValue: 'carrier.config.json', placeholder: 'carrier.config.json' })) ?? 'carrier.config.json');
+  if (deps.exists(out) && !flags.yes && !(await ui.confirm(`${out} exists. Overwrite it?`))) throw new Error(`${out} already exists`);
+  deps.write(out, `${JSON.stringify(user, null, 2)}\n`);
+  ui.note(out, 'Config written');
+
+  const checks = await deps.doctor(loaded.config, {}, ui.check);
+  const failed = checks.filter((c) => c.status === 'fail').length;
+  ui.outro(
+    failed > 0
+      ? `${failed} check${failed === 1 ? '' : 's'} failed. Fix them and run: carrier doctor --config ${out}`
+      : `Ready. Start it with: carrier --config ${out}\nThen mark an epic of ${repos[0]} as solve:epic:ready.`,
+  );
+  return { path: out, checks };
+}
+
+async function askRepos(ui: Ui, origin: string | undefined) {
+  const answer = await ui.text({
+    message: 'Repos to watch (owner/name, comma separated)',
+    placeholder: origin ?? 'AshuLab/my-repo',
+    defaultValue: origin,
+    validate: (value) => {
+      const names = value.split(',').map((s) => s.trim());
+      return names.every((n) => repoNamePattern.test(n)) ? undefined : 'Each repo must be owner/name';
+    },
+  });
+  return answer.split(',').map((s) => s.trim());
+}
+
+async function askIdentity(ui: Ui, role: 'author' | 'reviewer', forge: ForgeAgent[], login: string | undefined, taken: Identity[]): Promise<Identity> {
+  const options: Option<string>[] = [
+    ...forge.map((a) => ({ value: `forge:${a.name}`, label: a.name, hint: a.label && a.label !== a.name ? a.label : 'Agent Forge bot' })),
+    { value: 'gh', label: 'My own gh login', hint: login },
+  ].filter((o) => !taken.some((t) => identityText(t) === o.value));
+  if (options.length === 0) {
+    throw new Error('Author and reviewer need different identities and there is nothing left to pick. Add a bot with "agent-forge add" and run this again.');
+  }
+  const first = options[0]!;
+  if (options.length === 1) {
+    ui.note(`${first.label}${first.hint ? ` (${first.hint})` : ''} — the only identity left`, `GitHub identity for the ${role}`);
+    return parseIdentity(first.value);
+  }
+  return parseIdentity(await ui.select({ message: `GitHub identity for the ${role}`, options, initialValue: first.value }));
+}
+
+async function askAgent(ui: Ui, role: 'author' | 'reviewer', flag: string | undefined, installed: readonly ('claude' | 'codex')[], deps: InitDeps, preferred: 'claude' | 'codex'): Promise<Pick<Role, 'provider' | 'model'>> {
+  if (flag) return parseProviderModel(flag);
+  const options = installed.map((p) => ({ value: p, label: p === 'claude' ? 'Claude' : 'Codex' }));
+  if (options.length === 0) throw new Error('Neither claude nor codex is installed; install one and run this again.');
+  const provider = options.length === 1 ? options[0]!.value : await ui.select({ message: `Which agent CLI runs the ${role}?`, options, initialValue: preferred });
+  const suggestion = provider === 'claude' ? claudeDefaultModel : deps.codexModel();
+  const model = (await ui.text({ message: `Model for the ${role}`, placeholder: suggestion ?? 'model name', defaultValue: suggestion, validate: (v) => (v.trim() ? undefined : 'Required') })).trim();
+  return { provider, model };
+}

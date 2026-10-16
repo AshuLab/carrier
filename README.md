@@ -32,6 +32,7 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 
 ## What's included
 
+- **Setup** — `carrier init` (guided, or all flags) writes the config; `carrier doctor` checks it and the machine; `carrier schema` prints the config's JSON Schema.
 - **Config** — a user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, provider and model; author and reviewer must resolve to different profiles.
 - **Polling and queue** — FIFO across repos with pagination, rate-limit and outage handling; one instance per root folder (an exclusive SQLite lock released by the OS on death).
 - **Scheduler** — atomic reservation, configurable concurrency, label management (`running`, `ready-for-test`, `needs-human` are created in each repo if missing).
@@ -101,7 +102,29 @@ pnpm add -g @ashulab/carrier
 
 Or run it without installing: `pnpm dlx @ashulab/carrier --config ./carrier.config.json`. To work on Carrier itself, clone the repo and run `pnpm install`.
 
-### 3. Write a config
+### 3. Create the config
+
+```bash
+carrier init
+```
+
+It looks at the machine (which of `claude`/`codex` are installed, your `gh` login, the agents in your Agent Forge registry), asks for the repos to watch, the identity of the author and the reviewer, and the CLI and model each one uses, writes `carrier.config.json` and runs the checks below. Every question has a flag (`carrier init --help`), and `--yes` never asks, so an agent can run it too:
+
+```bash
+carrier init --yes --repo AshuLab/my-repo \
+  --author-profile forge:<agent-1> --author claude:<model> \
+  --reviewer-profile forge:<agent-2> --reviewer codex:<model>
+```
+
+Check a config (yours or a hand-written one) at any time:
+
+```bash
+carrier doctor --config ./carrier.config.json
+```
+
+It verifies the tools are installed, that the author and the reviewer really are different identities, that each identity can get a token for each repo, and that the orchestrator can read it. `carrier schema` prints the JSON Schema of the config for your editor.
+
+#### The file, by hand
 
 A JSON file merged over the defaults (objects merge by field, simple values replace, lists replace entirely). Invalid configs print every error with its field and exit without starting anything.
 

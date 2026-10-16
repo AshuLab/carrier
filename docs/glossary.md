@@ -1,45 +1,45 @@
-# Glosario de Carrier
+# Carrier glossary
 
-**Carrier** - Aplicación que descubre épicas listas y coordina agentes de implementación, revisión y corrección hasta dejar el PR final listo para probar o informar que requiere intervención. Agent Forge gestiona las identidades y su autenticación; Solve aporta los skills. El nombre se inspira en la nave de StarCraft que despliega múltiples interceptores.
+**Carrier** - Application that discovers ready epics and coordinates implementation, review and fix agents until the final PR is ready for test or it reports that human intervention is needed. Agent Forge manages the identities and their authentication; Solve provides the skills. The name is inspired by the StarCraft ship that deploys multiple interceptors.
 
-**Listo para probar** - El PR final tiene revisión concluyente sin blockers y verificaciones del repo confirmadas por los agentes sobre el mismo commit. En un repo sin CI, alcanza con la revisión y evidencia de tests reportada por los skills, registrando esa ausencia. Diego todavía debe probarlo y decidir el merge.
-_Avoid_: aprobado para merge, entregado, épica terminada.
+**Ready for test** - The final PR has a conclusive review with no blockers and repo checks confirmed by the agents on the same commit. In a repo without CI, the review and the test evidence reported by the skills are enough, and that absence is recorded. Diego still has to test it and decide the merge.
+_Avoid_: approved for merge, delivered, epic finished.
 
-**Reintento de ejecución** - Nueva ejecución tras un fallo técnico del proceso o infraestructura, después de comprobar sus efectos. No es una corrección de código ni una nueva revisión. El timeout del agente tiene su propia salida de intervención y no se reintenta automáticamente.
-_Avoid_: reintento sin especificar qué falló.
+**Execution retry** - A new execution after a technical failure of the process or infrastructure, once its effects have been checked. It is not a code fix or a new review. The agent timeout has its own human-intervention outcome and is not retried automatically.
+_Avoid_: retry without specifying what failed.
 
-**Corrección de tests/CI** - Trabajo interno del autor y sus skills para resolver verificaciones fallidas antes de reportar el estado de su ejecución. El orquestador no cuenta esos intentos ni agrega un loop para administrarlos.
-_Avoid_: reintento de ejecución, contador de correcciones del orquestador.
+**Test/CI fix** - Internal work by the author and its skills to resolve failed checks before reporting the state of its execution. The orchestrator does not count these attempts or add a loop to manage them.
+_Avoid_: execution retry, orchestrator fix counter.
 
-**Agente caller** - Agente que invoca los skills, interpreta sus informes actuales y aplica las reglas del repo para trabajar como autor o reviewer. Entrega al orquestador una conclusión estructurada por ejecución.
-_Avoid_: skill, orquestador al referirse al agente que interpreta los informes.
+**Caller agent** - Agent that invokes the skills, interprets their current reports and applies the repo's rules to work as author or reviewer. It hands the orchestrator one structured conclusion per execution.
+_Avoid_: skill, orchestrator when referring to the agent that interprets the reports.
 
-**Perfil GitHub** - Referencia configurada por el usuario a una identidad GitHub disponible y su mecanismo de autenticación. Se asigna al orquestador, autor o reviewer; es independiente del proveedor/modelo de IA y de la sesión de trabajo de un agente.
-_Avoid_: modelo, sesión del agente, identidad de IA para una cuenta GitHub.
+**GitHub profile** - User-configured reference to an available GitHub identity and its authentication mechanism. It is assigned to the orchestrator, author or reviewer; it is independent of the AI provider/model and of an agent's working session.
+_Avoid_: model, agent session, AI identity for a GitHub account.
 
-**Épica** - Issue `solve:epic` con spec y tickets preparados; la unidad que Carrier encola, ejecuta y entrega. Se identifica por repo e issue, porque distintos repos repiten números.
-_Avoid_: feature, tarea, job.
+**Epic** - `solve:epic` issue with a spec and prepared tickets; the unit that Carrier queues, executes and delivers. It is identified by repo and issue, because different repos reuse numbers.
+_Avoid_: feature, task, job.
 
-**Etapa** - Tramo de una épica a cargo de un rol: implementación con `ship`, revisión o corrección. El orquestador combina la etapa con el resultado del caller para decidir el siguiente turno.
-_Avoid_: paso, fase, estado de la épica.
+**Stage** - Segment of an epic in charge of one role: implementation with `ship`, review or fix. The orchestrator combines the stage with the caller result to decide the next turn.
+_Avoid_: step, phase, epic state.
 
-**Ronda de revisión** - Cada revisión del PR final por el reviewer, numerada; el límite de cinco cuenta estas revisiones. Un fallo técnico de ejecución no consume una ronda.
-_Avoid_: reintento, iteración.
+**Review round** - Each review of the final PR by the reviewer, numbered; the limit of five counts these reviews. A technical execution failure does not consume a round.
+_Avoid_: retry, iteration.
 
-**Ejecución** - Una invocación de un agente (autor o reviewer) con su sesión, límite de tiempo y resultado. Es la unidad del reintento técnico y del timeout; no representa la duración de la épica.
-_Avoid_: proceso (la terminación técnica es otra cosa), épica.
+**Execution** - One invocation of an agent (author or reviewer) with its session, time limit and result. It is the unit of the technical retry and of the timeout; it does not represent the duration of the epic.
+_Avoid_: process (technical termination is something else), epic.
 
-**Resultado del caller** - Conclusión estructurada de una ejecución, en JSON: `completed`, `changes_requested` o `needs_human`. Es independiente de que el proceso haya terminado bien o mal.
-_Avoid_: éxito/fallo del proceso, estado del CLI.
+**Caller result** - Structured conclusion of an execution, in JSON: `completed`, `changes_requested` or `needs_human`. It is independent of whether the process ended well or badly.
+_Avoid_: process success/failure, CLI state.
 
-**Intervención humana** - Estado de una épica detenida (`solve:epic:needs-human`) por `needs_human`, timeout, límite agotado, revisión inconclusa o error de autenticación. Diego la resuelve fuera de Carrier; no se reactiva desde la app ni al reiniciar.
-_Avoid_: error, fallo, pausa.
+**Human intervention** - State of an epic that is stopped (`solve:epic:needs-human`) by `needs_human`, timeout, exhausted limit, inconclusive review or authentication error. Diego resolves it outside Carrier; it is not reactivated from the app or on restart.
+_Avoid_: error, failure, pause.
 
-**Autor** - Agente que invoca `ship` y atiende los findings; mantiene su identidad durante toda la épica.
-_Avoid_: implementador, developer.
+**Author** - Agent that invokes `ship` and handles the findings; it keeps its identity throughout the epic.
+_Avoid_: implementer, developer.
 
-**Reviewer** - Agente con identidad distinta a la del autor que revisa el PR final en un checkout separado, publica findings y verifica las correcciones.
-_Avoid_: revisor externo, bot de review.
+**Reviewer** - Agent with an identity different from the author's that reviews the final PR in a separate checkout, publishes findings and verifies the fixes.
+_Avoid_: external reviewer, review bot.
 
-**Raíz compartida** - Carpeta (por defecto `~/.solve/`) donde Solve y Carrier guardan `repos/`, `worktrees/` y `orchestrator/`. Es independiente de dónde vive el código de la app o desde dónde se la inicia.
-_Avoid_: workspace (es el checkout de una épica, dentro de `worktrees/`).
+**Shared root** - Folder (by default `~/.solve/`) where Solve and Carrier keep `repos/`, `worktrees/` and `orchestrator/`. It is independent of where the app's code lives or from where it is started.
+_Avoid_: workspace (it is an epic's checkout, inside `worktrees/`).

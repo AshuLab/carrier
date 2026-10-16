@@ -8,6 +8,9 @@ import { eq } from 'drizzle-orm';
 import { epics } from '../storage/schema.ts';
 import { createEngine } from './engine.ts';
 import { reserve } from './reserve.ts';
+import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
+import type { AgentTask } from '../execution/agent-runner.ts';
+import { executions } from '../storage/executions.ts';
 import { FakeClock, FakeGitHub } from './fake.ts';
 import { GitHubUnavailable } from './github.ts';
 
@@ -22,7 +25,11 @@ let dir: string;
 let dbs: Db[];
 let github: FakeGitHub;
 let clock: FakeClock;
+let runner: FakeAgentRunner;
+let workspaces: FakeWorkspaces;
 beforeEach(() => {
+  runner = new FakeAgentRunner();
+  workspaces = new FakeWorkspaces();
   dir = mkdtempSync(join(tmpdir(), 'carrier-'));
   dbs = [];
   github = new FakeGitHub();
@@ -39,9 +46,12 @@ function open() {
   dbs.push(db);
   return db;
 }
-async function start(maxConcurrentEpics = 0, config = repos) {
+async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4) {
   const db = open();
-  const engine = createEngine({ db, github, clock, repos: config, pollIntervalMs: 5 * MIN, maxConcurrentEpics });
+  const engine = createEngine({
+    db, github, clock, repos: config, pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours,
+    runner, workspaces, root: dir,
+  });
   await engine.start();
   return Object.assign(engine, { db });
 }
@@ -246,4 +256,181 @@ test('startup creates only the missing owned labels, never ready, and repeating 
   await start();
   expect(github.created).toHaveLength(5);
   expect(github.repoLabels['AshuLab/a']).toEqual(['solve:epic:running', 'bug', 'solve:epic:ready-for-test', 'solve:epic:needs-human']);
+});
+
+// --- ship stage ---
+
+const SHA = 'a'.repeat(40);
+const result = (task: AgentTask, extra: object): Behavior['write'] => ({
+  executionId: task.executionId, repo: task.repo, epic: task.epic, stage: task.stage, summary: 'done', ...extra,
+});
+const completed = (task: AgentTask, pr = { number: 50, headSha: SHA }) =>
+  result(task, { outcome: 'completed', pr, verification: { ci: 'absent', evidence: 'no CI' } });
+const pull = (number: number, extra: Partial<{ state: 'open' | 'closed'; body: string; headSha: string }> = {}, issue = 1, repo = 'AshuLab/a') => {
+  github.pulls[`${repo}#${number}`] = { state: 'open', body: `Final PR\n\nCloses #${issue}`, headSha: SHA, ...extra };
+};
+const executionsOf = (db: Db) => db.select().from(executions).all();
+
+test('a reserved epic launches the author with its effective config, a unique result path and the time limit', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  const config = [{ name: 'AshuLab/a', agents: { ...agents, author: { profile: 'p', provider: 'codex' as const, model: 'x' } } }];
+  const engine = await start(2, config, 2);
+  await clock.advance(5 * MIN);
+
+  expect(runner.tasks).toHaveLength(2);
+  const [task, other] = runner.tasks as [AgentTask, AgentTask];
+  expect(task).toMatchObject({
+    repo: 'AshuLab/a', epic: 1, stage: 'ship', profile: 'p', provider: 'codex', model: 'x',
+    workspace: '/work/AshuLab/a/1/author', timeoutMs: 2 * 3_600_000, context: { previousSummaries: [] },
+  });
+  expect(task.resultPath).toContain(join(dir, 'orchestrator', 'results'));
+  expect(new Set([task.executionId, other.executionId, task.resultPath, other.resultPath]).size).toBe(4);
+  expect(executionsOf(engine.db).map((e) => [e.epicId, e.stage, e.status])).toEqual([[1, 'ship', 'running'], [2, 'ship', 'running']]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' });
+});
+
+test('unlimited means no timeout', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  await start(1, repos, 'unlimited');
+  await clock.advance(5 * MIN);
+  expect(runner.tasks[0]?.timeoutMs).toBeNull();
+});
+
+test('the session id is saved as soon as the runner reports it, while the execution still runs', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's-1', exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'running', sessionId: 's-1', finishedAt: null });
+});
+
+test('a valid completed result moves the epic to review round 1 and records the final PR', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => ({ sessionId: 's', write: completed(task) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 1, prNumber: 50, prHeadSha: SHA, finishedAt: null });
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'finished', sessionId: 's' });
+  expect(labelsOf(1)).toEqual(['solve:epic:running']);
+});
+
+test.each([
+  ['a missing PR', undefined, 'no existe'],
+  ['a closed PR', { state: 'closed' as const }, 'no está abierto'],
+  ['a PR that does not reference the epic', { body: 'Closes #2' }, 'no referencia la épica'],
+  ['a PR with another head', { headSha: 'b'.repeat(40) }, 'head del PR #50'],
+])('%s leaves only that epic in needs_human with the reason, and the slot goes to the next one', async (_, change, reason) => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  if (change) pull(50, change);
+  pull(51, {}, 2);
+  runner.behavior = (task) => ({ write: completed(task, { number: task.epic === 1 ? 50 : 51, headSha: SHA }) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  const [first, second] = rows(engine.db);
+  expect(first).toMatchObject({ issue: 1, status: 'needs_human', finishedAt: 5 * MIN, labelPending: false });
+  expect(first?.needsHumanReason).toContain(reason);
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+  // The second one started right away, with no new poll, and was not affected.
+  expect(second).toMatchObject({ issue: 2, status: 'running', stage: 'review' });
+  expect(labelsOf(2)).toEqual(['solve:epic:running']);
+});
+
+test('a needs_human result stops the epic with the caller reason and label', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'falta una credencial' }) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'falta una credencial', finishedAt: 5 * MIN });
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+});
+
+test('an invalid or missing result is recorded on the execution and does not move the epic', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  runner.behavior = (task) => (task.epic === 1 ? { write: '{nope' } : {});
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['invalid_result', 'invalid_result']);
+  expect(byStatus(engine.db, 'running')).toEqual([1, 2]);
+});
+
+test('a runner that fails or is cut records it and imports nothing', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2, 3) };
+  runner.behavior = (task) => ({ exit: (['failed', 'timed_out', 'stopped'] as const)[task.epic - 1] });
+  const engine = await start(3);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['failed', 'timed_out', 'interrupted']);
+  expect(byStatus(engine.db, 'running')).toEqual([1, 2, 3]);
+});
+
+test('GitHub down while validating keeps the result for the next poll, which imports it', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => ({ write: completed(task) });
+  const engine = await start(1);
+  github.getPullRequest = async () => {
+    throw new GitHubUnavailable();
+  };
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(engine.error).toBeInstanceOf(GitHubUnavailable);
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'ship' });
+
+  github.getPullRequest = FakeGitHub.prototype.getPullRequest.bind(github);
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'review', round: 1 });
+  expect(runner.tasks).toHaveLength(1);
+});
+
+test('importing the same result twice changes nothing', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => ({ write: completed(task) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  engine.db.update(executions).set({ status: 'finished' }).run();
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'review', round: 1 });
+  expect(runner.tasks).toHaveLength(1);
+});
+
+test('a workspace that cannot be prepared leaves the epic in needs_human and frees the slot', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  const engine = await start(1);
+  const prepare = workspaces.prepareAuthor.bind(workspaces);
+  workspaces.prepareAuthor = async (repo, epic) => {
+    if (epic === 1) throw new Error('clone failed');
+    return prepare(repo, epic);
+  };
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'no se pudo preparar el workspace: clone failed' });
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+  expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
+});
+
+test('a result freeing a slot while another epic is still being reserved never launches its author twice', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  pull(50);
+  runner.behavior = (task) => (task.epic === 1 ? { write: completed(task) } : {});
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const setLabels = github.setLabels.bind(github);
+  github.setLabels = async (repo, issue, change) => {
+    if (issue === 2) await gate;
+    return setLabels(repo, issue, change);
+  };
+  const engine = await start(2);
+  const advancing = clock.advance(5 * MIN);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  release();
+  await advancing;
+  await engine.idle();
+  expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(1);
 });

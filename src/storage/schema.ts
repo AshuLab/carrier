@@ -18,6 +18,12 @@ export const epics = sqliteTable(
     cancelReason: text(),
     // The running label is a reflection of SQLite: true while it has not reached GitHub yet.
     labelPending: integer({ mode: 'boolean' }).notNull().default(false),
+    stage: text({ enum: ['ship', 'review', 'fix'] }), // null until the author is launched
+    round: integer(), // review round, from 1 once the final PR is validated
+    prNumber: integer(),
+    prHeadSha: text(),
+    needsHumanReason: text(),
+    finishedAt: integer(), // ms since epoch, when the epic left `running`
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

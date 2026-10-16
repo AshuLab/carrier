@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, test } from 'vitest';
 import {
   CarrierProcess,
   Evidence,
@@ -17,6 +17,7 @@ import {
   markedProcesses,
   readEnv,
   resultFile,
+  sleep,
   stragglers,
   waitFor,
   writeConfig,
@@ -96,6 +97,13 @@ describe.skipIf(!env)('carrier end to end (real Claude, Codex, Forge and Solve)'
     writeConfig({ root, repo: e.repo, authorAgent: e.authorAgent, reviewerAgent: e.reviewerAgent, author: e.author, reviewer: e.reviewer }, configFile);
   }, minutes(5));
 
+  // A scenario that fails halfway must not leave its carrier holding the instance lock for the next one.
+  afterEach(() => {
+    for (const carrier of carriers.splice(0)) carrier.signal('SIGKILL');
+    killMarked();
+    killStragglers(root);
+  });
+
   afterAll(async () => {
     for (const carrier of carriers) carrier.signal('SIGKILL');
     killMarked();
@@ -163,9 +171,12 @@ describe.skipIf(!env)('carrier end to end (real Claude, Codex, Forge and Solve)'
       sandbox.markReady(x.epic);
       sandbox.markReady(y.epic);
       const carrier = startCarrier();
-      await waitFor('both epics running at once', () => [x, y].every((a) => dbEpic(root, a.epic)?.status === 'running'), minutes(5), 2000);
-      const live = [x, y].map((a) => dbExecutions(root, a.epic).filter((r) => r.status === 'running').length);
-      evidence.log(`b: both running at once; running executions ${live.join(' and ')}; processes ${JSON.stringify(markedProcesses().map((p) => p.pid))}`);
+      const live = await waitFor('an agent of each epic running at once', () => {
+        const running = [x, y].map((a) => dbExecutions(root, a.epic).filter((r) => r.status === 'running').length);
+        return running.every((n) => n === 1) && running;
+      }, minutes(5), 1000);
+      evidence.log(`b: both epics running at once; running executions per epic ${live.join(' and ')}; agent processes ${JSON.stringify(markedProcesses().map((p) => p.pid))}`);
+      expect(markedProcesses()).toHaveLength(2);
       const [rx, ry] = await Promise.all([untilEnded(x.epic, minutes(60)), untilEnded(y.epic, minutes(60))]);
       const ax = sandbox.count(x.epic, x.feature);
       const ay = sandbox.count(y.epic, y.feature);
@@ -273,9 +284,20 @@ describe.skipIf(!env)('carrier end to end (real Claude, Codex, Forge and Solve)'
       const review = await waitFor('the review execution', () => dbExecutions(root, epic.epic).find((r) => r.stage === 'review'), minutes(5), 2000);
       const reviewFile = resultFile(root, review.executionId);
       await waitFor('the review JSON', () => existsSync(reviewFile) && statSync(reviewFile).size > 0, minutes(30), 100);
-      const whole = readFileSync(reviewFile, 'utf8');
-      writeFileSync(reviewFile, whole.slice(0, Math.floor(whole.length / 2)));
-      evidence.log(`d: truncated the review JSON to ${Math.floor(whole.length / 2)} of ${whole.length} bytes`);
+      // The agent may read its file back and rewrite it, so keep cutting it until its process is gone: what carrier finds is a truncated file.
+      let cuts = 0;
+      while (dbExecutions(root, epic.epic).find((r) => r.executionId === review.executionId)?.status === 'running') {
+        const text = readFileSync(reviewFile, 'utf8');
+        try {
+          JSON.parse(text);
+          writeFileSync(reviewFile, text.slice(0, Math.floor(text.length / 2)));
+          cuts++;
+        } catch {
+          // already truncated
+        }
+        await sleep(50);
+      }
+      evidence.log(`d: cut the review JSON ${cuts} time(s) while its agent ran; what carrier found: ${readFileSync(reviewFile, 'utf8').length} bytes`);
 
       const row = await untilEnded(epic.epic, minutes(60));
       const executions = dbExecutions(root, epic.epic);

@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
-import { parseCallerResult } from '../execution/caller-result.ts';
+import { parseCallerResult, type CallerResult } from '../execution/caller-result.ts';
 import { importResult } from '../execution/import-result.ts';
 import type { Workspaces } from '../execution/workspaces.ts';
 import { callerResults } from '../storage/caller-results.ts';
@@ -28,6 +28,8 @@ export type EngineOptions = {
   maxExecutionHours: number | 'unlimited';
   /** Technical failures retried per stage after the first attempt. */
   maxExecutionRetries: number;
+  /** Reviews of the final PR before the epic goes to a person; fix turns do not count. */
+  maxReviews: number;
   runner: AgentRunner;
   workspaces: Workspaces;
   /** Shared root: execution results go under `orchestrator/results/`. */
@@ -47,7 +49,7 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
   session_unavailable: 'failed',
 };
 
-export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, runner, workspaces, root }: EngineOptions) {
+export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, runner, workspaces, root }: EngineOptions) {
   let error: GitHubUnavailable | null = null;
   let cancel: (() => void) | null = null;
   const labelledRepos = new Set<string>();
@@ -90,8 +92,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     if (epic.status === 'running' && epic.stage === null) await launch(epic, 'ship');
   };
 
-  // Launches the author (ship) or the reviewer (review) for the epic's current stage.
-  async function launch(epic: Epic, stage: 'ship' | 'review') {
+  // Launches the author (ship, fix) or the reviewer (review) for the epic's current stage.
+  async function launch(epic: Epic, stage: AgentTask['stage']) {
     if (stage === 'ship') {
       // Claim the launch first: concurrent reconciles (a result freeing a slot, the poll) never start a second author.
       const claimed = db.update(epics).set({ stage: 'ship' }).where(and(eq(epics.id, epic.id), isNull(epics.stage))).returning().get();
@@ -103,6 +105,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // Starts an execution of the stage; `retryOf` is the failed one it replaces: same session, verify the real state first.
   async function execute(epic: Epic, stage: AgentTask['stage'], retryOf?: Execution) {
     const reviewing = stage === 'review';
+    const resumeSession = retryOf?.sessionId ?? (stage === 'fix' ? authorSession(epic.id) : undefined);
     let workspace: string;
     try {
       workspace = reviewing ? await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!) : await workspaces.prepareAuthor(epic.repo, epic.issue);
@@ -121,9 +124,10 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       workspace,
       resultPath,
       timeoutMs: maxExecutionHours === 'unlimited' ? null : maxExecutionHours * 3_600_000,
-      ...(retryOf?.sessionId && { resumeSession: retryOf.sessionId }),
+      ...(resumeSession && { resumeSession }),
       context: {
         previousSummaries: reviewing ? previousSummaries(epic.id) : [],
+        ...(stage === 'fix' && { blockers: latestBlockers(epic.id) }),
         ...(retryOf && { verifyStateFirst: true }),
         ...(epic.prNumber && { pr: { number: epic.prNumber, headSha: epic.prHeadSha! } }),
         ...(epic.round && { round: epic.round }),
@@ -196,6 +200,27 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       .all()
       .map(({ result }) => (JSON.parse(result) as { summary: string }).summary);
 
+  // Where the author left off: the fix turn resumes it.
+  const authorSession = (epicId: number) =>
+    db
+      .select({ sessionId: executions.sessionId })
+      .from(executions)
+      .where(and(eq(executions.epicId, epicId), inArray(executions.stage, ['ship', 'fix']), isNotNull(executions.sessionId)))
+      .orderBy(desc(sql`rowid`))
+      .get()?.sessionId ?? undefined;
+
+  // The blockers of the latest review: what the fix turn has to answer.
+  const latestBlockers = (epicId: number) => {
+    const last = db
+      .select({ result: callerResults.result })
+      .from(callerResults)
+      .innerJoin(executions, eq(executions.executionId, callerResults.executionId))
+      .where(and(eq(executions.epicId, epicId), eq(executions.stage, 'review'), eq(callerResults.outcome, 'changes_requested')))
+      .orderBy(desc(sql`executions.rowid`))
+      .get();
+    return last ? (JSON.parse(last.result) as Extract<CallerResult, { outcome: 'changes_requested' }>).blockers : [];
+  };
+
   const inflight = new Set<Promise<void>>();
   // GitHub being down is expected (the next poll retries); anything else is a bug and surfaces.
   const track = (work: Promise<void>) => {
@@ -242,12 +267,17 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       if (result.outcome === 'needs_human') toNeedsHuman(tx, epic.id, result.reason);
       else if (problem) toNeedsHuman(tx, epic.id, problem);
       else if (execution.stage === 'ship') update({ stage: 'review', round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha });
-      // The round stays: the fix turn answers it, and the next review (a later slice) numbers the following one.
-      else if (result.outcome === 'changes_requested') update({ stage: 'fix' });
+      else if (execution.stage === 'fix') update({ stage: 'review', round: (epic.round ?? 0) + 1, prHeadSha: result.pr.headSha });
+      // The round stays: the fix turn answers it, and the next review numbers the following one.
+      else if (result.outcome === 'changes_requested') {
+        if ((epic.round ?? 0) >= maxReviews) toNeedsHuman(tx, epic.id, `límite de revisiones: la ronda ${epic.round} de ${maxReviews} sigue con cambios pedidos`);
+        else update({ stage: 'fix' });
+      }
       else update({ status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true });
     });
     const next = fresh(epic.id);
-    if (!('duplicate' in imported) && execution.stage === 'ship' && next.status === 'running' && next.stage === 'review') await launch(next, 'review');
+    // ship and fix hand over to the reviewer, a review with changes hands over to the author.
+    if (!('duplicate' in imported) && next.status === 'running' && next.stage && next.stage !== 'ship') await launch(next, next.stage);
     await freeSlot();
   }
 

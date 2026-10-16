@@ -1147,6 +1147,84 @@ test('labels that differ from SQLite on restart are corrected to SQLite', async 
   expect(labelsOf(3)).toEqual(['solve:epic:ready-for-test']);
 });
 
+// --- repo removed from the config ---
+
+const githubRepoCalls = () => {
+  const touched: string[] = [];
+  for (const method of ['listReadyEpics', 'getIssue', 'getPullRequest', 'findPullRequest', 'setLabels', 'listLabels', 'createLabel'] as const) {
+    const original = github[method].bind(github) as (repo: string, ...rest: unknown[]) => Promise<unknown>;
+    (github as unknown as Record<string, unknown>)[method] = (repo: string, ...rest: unknown[]) => (touched.push(`${method} ${repo}`), original(repo, ...rest));
+  }
+  return touched;
+};
+
+test('a repo missing from the config stops its pending epics with the reason and where they were, touching nothing of it', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: 'review', round: 2, prNumber: 50 }); // running
+  seedExecution(db, 'e1', 1, { stage: 'review' });
+  runner.alive.add('e1');
+  seedEpic(db, 2, { status: 'queued', stage: null, config: null, startedAt: null });
+  seedEpic(db, 3, { status: 'needs_human', needsHumanReason: 'hay que decidir' });
+  seedEpic(db, 4, { status: 'ready_for_test' });
+  seedEpic(db, 5, { repo: 'AshuLab/b', status: 'queued', stage: null, config: null, startedAt: null });
+  seedExecution(db, 'f1', 1, { stage: 'ship', status: 'failed', error: 'x' }); // a past failure that must stay as it is
+  github.issues = { 'AshuLab/a#1': { state: 'open', labels: ['solve:epic:running'] }, 'AshuLab/a#3': { state: 'open', labels: ['solve:epic:needs-human'] } };
+  github.ready = { 'AshuLab/a': ready(9), 'AshuLab/b': ready(5) };
+  const touched = githubRepoCalls();
+  const before = executionsOf(db).length;
+
+  const engine = await start(3, [repos[1]!]);
+  await clock.advance(5 * MIN);
+
+  expect(rows(engine.db).map((e) => [e.issue, e.status, e.removedFrom])).toEqual([
+    [1, 'repo_removed', 'running'],
+    [2, 'repo_removed', 'queued'],
+    [3, 'repo_removed', 'needs_human'],
+    [4, 'ready_for_test', null],
+    [5, 'running', null],
+  ]);
+  const stopped = rows(engine.db).find((e) => e.issue === 1)!;
+  expect(stopped).toMatchObject({ removedReason: expect.stringContaining('configuración'), stage: 'review', round: 2, prNumber: 50 });
+  expect(rows(engine.db).find((e) => e.issue === 3)!.needsHumanReason).toBe('hay que decidir');
+  expect(eventTypes(engine.db).filter((t) => t === 'repo_removed')).toHaveLength(3);
+  // Sessions and history stay; the live orphan is stopped, no new execution and no retry for the removed repo.
+  expect(runner.stopped).toEqual(['e1']);
+  expect(statusOf(engine.db, 'e1')).toBe('interrupted');
+  expect(executionsOf(engine.db).filter((e) => e.epicId === 1)).toHaveLength(2);
+  expect(executionsOf(engine.db).find((e) => e.executionId === 'e1')!.sessionId).toBe('s-e1');
+  expect(executionsOf(engine.db).length).toBe(before + 1); // only AshuLab/b#5
+  expect(runner.tasks.map((t) => `${t.repo}#${t.epic}`)).toEqual(['AshuLab/b#5']);
+  expect(touched.filter((c) => c.endsWith('AshuLab/a'))).toEqual([]);
+  expect(labelsOf(1)).toEqual(['solve:epic:running']);
+  expect(labelsOf(3)).toEqual(['solve:epic:needs-human']);
+});
+
+test('a repo configured again resumes its epics where they were, except the ones that needed a person', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA });
+  seedExecution(db, 'e1', 1, { stage: 'review' });
+  seedEpic(db, 2, { status: 'queued', stage: null, config: null, startedAt: null });
+  seedEpic(db, 3, { status: 'needs_human', needsHumanReason: 'hay que decidir' });
+  seedEpic(db, 4, { status: 'queued', stage: null, config: null, startedAt: null });
+  github.issues = { 'AshuLab/a#1': { state: 'open', labels: ['solve:epic:running'] }, 'AshuLab/a#3': { state: 'open', labels: ['solve:epic:needs-human'] } };
+  runner.behavior = () => ({ exit: 'hang' });
+
+  await (await start(2, [repos[1]!])).idle(); // the repo is gone
+  expect(byStatus(db, 'repo_removed')).toEqual([1, 2, 3, 4]);
+  expect(runner.tasks).toEqual([]);
+
+  const engine = await start(2); // and back
+  await clock.advance(5 * MIN);
+  expect(byStatus(engine.db, 'needs_human')).toEqual([3]);
+  expect(byStatus(engine.db, 'running')).toEqual([1, 2]); // 1 resumed, 2 reserved first in queue order
+  expect(byStatus(engine.db, 'queued')).toEqual([4]);
+  expect(runner.tasks[0]).toMatchObject({ epic: 1, stage: 'review', resumeSession: 's-e1', context: { verifyStateFirst: true, round: 2 } });
+  expect(runner.tasks.map((t) => t.epic)).toEqual([1, 2]);
+  expect(rows(engine.db).every((e) => e.removedFrom === null && e.removedReason === null)).toBe(true);
+  expect(eventTypes(engine.db).filter((t) => t === 'repo_restored')).toHaveLength(4);
+  expect(labelsOf(3)).toEqual(['solve:epic:needs-human']);
+});
+
 test('purges expired logs and sessions when the engine starts and every 24 hours after', async () => {
   const db = open();
   const old = db.insert(epics).values({ repo: 'AshuLab/a', issue: 1, status: 'merged', finishedAt: -30 * 24 * 60 * MIN }).returning().get();

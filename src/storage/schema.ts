@@ -25,6 +25,9 @@ export const epics = sqliteTable(
     reviewedSha: text(), // head the reviewer approved, set when the epic becomes ready_for_test
     verification: text({ mode: 'json' }).$type<{ ci: 'passed' | 'absent'; evidence: string }>(), // what the reviewer reported about the checks
     needsHumanReason: text(),
+    // Set while `repo_removed`: where the epic was and why it stopped, so it goes back there when the repo returns.
+    removedFrom: text({ enum: epicStates }),
+    removedReason: text(),
     finishedAt: integer(), // ms since epoch, when the epic left `running`
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],

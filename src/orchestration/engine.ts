@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { parseCallerResult, type CallerResult } from '../execution/caller-result.ts';
@@ -287,7 +287,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   async function settle(execution: Execution) {
     if (stopping) return; // stays `finished` without a result: the next run imports it
     const epic = fresh(execution.epicId);
-    if (epic.status === 'merged' || epic.status === 'cancelled') return; // ended from outside: nothing new moves
+    if (epic.status === 'merged' || epic.status === 'cancelled' || epic.status === 'repo_removed') return; // ended from outside or stopped: nothing new moves
     const expected = expectedOf(epic, execution);
     const raw = readResult(execution);
     const parsed = parseCallerResult(raw, expected);
@@ -398,6 +398,19 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       if (active.has(executionId)) continue;
       db.update(executions).set({ status: 'interrupted', finishedAt: clock.now() }).where(eq(executions.executionId, executionId)).run();
     }
+    // A repo missing from the config stops its pending epics, untouched, with where they were; a repo back resumes them
+    // there (a `needs_human` one stays stopped). No GitHub call, label change, execution or retry for either.
+    const configured = repos.map((r) => r.name);
+    const now = clock.now();
+    for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['queued', 'running', 'needs_human']), notInArray(epics.repo, configured))).all()) {
+      const reason = 'el repo ya no está en la configuración';
+      db.update(epics).set({ status: 'repo_removed', removedFrom: epic.status, removedReason: reason }).where(eq(epics.id, epic.id)).run();
+      db.insert(epicEvents).values({ epicId: epic.id, at: now, type: 'repo_removed', data: { from: epic.status, reason } }).run();
+    }
+    for (const epic of db.select().from(epics).where(and(eq(epics.status, 'repo_removed'), inArray(epics.repo, configured))).all()) {
+      db.update(epics).set({ status: epic.removedFrom!, removedFrom: null, removedReason: null }).where(eq(epics.id, epic.id)).run();
+      db.insert(epicEvents).values({ epicId: epic.id, at: now, type: 'repo_restored', data: { to: epic.removedFrom } }).run();
+    }
     for (const { id } of db.select({ id: epics.id }).from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
       const epic = fresh(id);
       const last = db.select().from(executions).where(eq(executions.epicId, id)).orderBy(desc(sql`rowid`)).get();
@@ -417,7 +430,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       }
     }
     // SQLite is the authority: labels that differ on GitHub are put back.
-    for (const epic of db.select().from(epics).where(inArray(epics.status, ['running', 'needs_human', 'ready_for_test'])).orderBy(asc(epics.id)).all()) {
+    for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, configured))).orderBy(asc(epics.id)).all()) {
       const { labels } = await github.getIssue(epic.repo, epic.issue);
       const wanted = labelOf(epic.status);
       if (ownedLabels.some((l) => labels.includes(l) !== (l === wanted)) || (epic.status === 'running' && labels.includes(readyLabel))) await applyLabels(epic);

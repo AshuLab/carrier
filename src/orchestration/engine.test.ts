@@ -48,10 +48,10 @@ function open() {
   dbs.push(db);
   return db;
 }
-async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4, maxExecutionRetries = 3) {
+async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4, maxExecutionRetries = 3, maxReviews = 5) {
   const db = open();
   const engine = createEngine({
-    db, github, clock, repos: config, pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries,
+    db, github, clock, repos: config, pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews,
     runner, workspaces, root: dir,
   });
   await engine.start();
@@ -662,14 +662,105 @@ test('a needs_human review, an inconclusive one included, stops the epic with it
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
 
-test('changes_requested is imported and moves the epic to fix on the same round, with no launch and no label change', async () => {
-  const engine = await reviewing((task) => ({
-    write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: 'falta validar la entrada' }] }),
-  }));
+test('changes_requested below the limit keeps the round and launches the author fix with its identity, its session and the blockers', async () => {
+  const blockers = [{ title: 'falta validar la entrada', url: 'https://github.com/AshuLab/a/pull/50#discussion_r1' }, { title: 'sin test' }];
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) }
+    : task.stage === 'review' ? { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers }) }
+    : { exit: 'stopped' };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix']);
+  expect(runner.tasks[2]).toMatchObject({
+    profile: 'a', provider: 'claude', workspace: '/work/AshuLab/a/1/author', resumeSession: 's-ship',
+    context: { pr: { number: 50, headSha: SHA }, round: 1, blockers },
+  });
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'fix', round: 1, finishedAt: null });
-  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
   expect(labelsOf(1)).toEqual(['solve:epic:running']);
-  expect(engine.db.select().from(callerResults).all().map((r) => r.outcome)).toEqual(['completed', 'changes_requested']);
+});
+
+// ship -> review (changes_requested up to round `asking`, then it stops) -> fix -> review ...
+async function fixing(fix: (task: AgentTask) => Behavior, maxReviews = 5, asking = 1) {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) }
+    : task.stage === 'review' ? task.context.round! > asking ? { exit: 'stopped' } : { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: `ronda ${task.context.round}` }] }) }
+    : fix(task);
+  const engine = await start(1, repos, 4, 3, maxReviews);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  return engine;
+}
+const fixDone = (task: AgentTask, headSha = SHA) => ({ write: result(task, { outcome: 'completed', pr: { number: 50, headSha }, verification: { ci: 'absent', evidence: 'ok' } }) });
+
+test('a completed fix launches a new review execution with round + 1 and the previous summaries', async () => {
+  const engine = await fixing((task) => (task.context.round === 1 ? fixDone(task) : { exit: 'stopped' }));
+  expect(runner.tasks.map((t) => [t.stage, t.context.round])).toEqual([['ship', undefined], ['review', 1], ['fix', 1], ['review', 2]]);
+  const [, review1, , review2] = runner.tasks as AgentTask[];
+  expect(review2!.executionId).not.toBe(review1!.executionId);
+  expect(review2).toMatchObject({ profile: 'b', workspace: '/work/AshuLab/a/1/reviewer-50', context: { round: 2, previousSummaries: ['done', 'done'] } });
+  expect(review2!.resumeSession).toBeUndefined();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2 });
+});
+
+test('a fix that answers without new commits is valid while its head is the current head', async () => {
+  const engine = await fixing((task) => (task.context.round === 1 ? fixDone(task, SHA) : { exit: 'stopped' }));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2, prHeadSha: SHA });
+});
+
+test('a fix with new commits records the new head for the next review', async () => {
+  const engine = await fixing((task) => {
+    if (task.context.round !== 1) return { exit: 'stopped' };
+    pull(50, { headSha: HEAD2 });
+    return fixDone(task, HEAD2);
+  });
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'review', round: 2, prHeadSha: HEAD2 });
+  expect(runner.tasks[3]!.context.pr).toEqual({ number: 50, headSha: HEAD2 });
+});
+
+test('a fix whose head is not the current one goes to needs_human', async () => {
+  const engine = await fixing((task) => {
+    pull(50, { headSha: HEAD2 });
+    return fixDone(task, SHA);
+  });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' });
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('head del PR #50');
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix']);
+});
+
+test('with maxReviews 2 a changes_requested on the second review needs a human and no third review runs', async () => {
+  const engine = await fixing((task) => fixDone(task), 2, 2);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', round: 2, finishedAt: 5 * MIN, labelPending: false });
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('límite de revisiones');
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+});
+
+test('with maxReviews 1 the first changes_requested is already the limit', async () => {
+  const engine = await fixing((task) => fixDone(task), 1);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', round: 1 });
+});
+
+test('a needs_human of the author in fix stops the epic with its reason', async () => {
+  const engine = await fixing((task) => ({ write: result(task, { outcome: 'needs_human', reason: 'el finding contradice la spec' }) }));
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'el finding contradice la spec' });
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+});
+
+test('fix turns and technical retries do not consume rounds: only reviews count', async () => {
+  // Round 1 review -> fix fails once and is retried -> round 2 review is still within maxReviews 2.
+  let fixes = 0;
+  const engine = await fixing((task) => (++fixes === 1 ? { sessionId: 's-fix', exit: 'failed' } : task.context.round === 1 ? fixDone(task) : { exit: 'stopped' }), 2);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix', 'fix', 'review']);
+  expect(runner.tasks[3]).toMatchObject({ resumeSession: 's-fix', context: { round: 1, verifyStateFirst: true, blockers: [{ title: 'ronda 1' }] } });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2 });
 });
 
 test('a technical failure of the reviewer keeps the round, imports nothing and relaunches the review', async () => {

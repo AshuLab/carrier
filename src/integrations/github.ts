@@ -55,11 +55,11 @@ function retryAfterMs(headers: Record<string, string>) {
   return undefined;
 }
 
-function statusFailure(status: number, headers: Record<string, string>, body: string) {
+function statusFailure(profile: string, status: number, headers: Record<string, string>, body: string) {
   const wait = retryAfterMs(headers);
   const rateLimited = status === 429 || (status === 403 && (wait !== undefined || /rate limit/i.test(body)));
   if (rateLimited || status >= 500) return new GitHubUnavailable(wait, `HTTP ${status}`);
-  if (status === 401) return new AuthError(`GitHub rejected the credentials (HTTP 401)`);
+  if (status === 401) return new AuthError(profile);
   return new HttpError(status, body);
 }
 
@@ -86,6 +86,7 @@ export class GhGitHub implements GitHub {
   private async api(repo: string, args: string[]): Promise<string> {
     if (!repoPattern.test(repo)) throw new Error(`invalid repo "${repo}"`);
     const { profile, executable } = this.options;
+    const profileName = profile.kind === 'forge' ? profile.agent : 'gh';
     const [command, ...prefix] = profile.kind === 'forge' ? [executable ?? 'agent-forge', 'gh', profile.agent] : [executable ?? 'gh'];
     try {
       const { stdout } = await execFileAsync(command!, [...prefix, 'api', '-i', ...args], {
@@ -96,7 +97,7 @@ export class GhGitHub implements GitHub {
       });
       const response = parseResponse(stdout);
       if (!response) throw new Error(`unexpected gh output: ${stdout.slice(0, 200)}`);
-      if (response.status >= 300) throw statusFailure(response.status, response.headers, response.body);
+      if (response.status >= 300) throw statusFailure(profileName, response.status, response.headers, response.body);
       return response.body;
     } catch (error) {
       if (error instanceof GitHubUnavailable || error instanceof AuthError || error instanceof HttpError) throw error;
@@ -104,9 +105,9 @@ export class GhGitHub implements GitHub {
       // Exceeding maxBuffer also kills the child, but that is not a timeout.
       if (failed.killed && failed.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') throw new GitHubUnavailable(undefined, `timed out after ${this.options.timeoutMs} ms`);
       const response = parseResponse(failed.stdout ?? '');
-      if (response) throw statusFailure(response.status, response.headers, response.body);
+      if (response) throw statusFailure(profileName, response.status, response.headers, response.body);
       const stderr = failed.stderr ?? '';
-      if (authStderr.test(stderr)) throw new AuthError(stderr.trim().slice(0, 300));
+      if (authStderr.test(stderr)) throw new AuthError(profileName);
       if (networkStderr.test(stderr)) throw new GitHubUnavailable(undefined, stderr.trim().slice(0, 300));
       throw new Error(`gh failed: ${(stderr || failed.message).trim().slice(0, 300)}`);
     }

@@ -14,7 +14,7 @@ import { epicEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { FakeClock, FakeGitHub } from './fake.ts';
-import { GitHubUnavailable } from './github.ts';
+import { AuthError, GitHubUnavailable } from './github.ts';
 
 const MIN = 60_000;
 const agents = {
@@ -1238,4 +1238,102 @@ test('purges expired logs and sessions when the engine starts and every 24 hours
   await clock.advance(24 * 60 * MIN);
   expect(existsSync(logs)).toBe(false);
   engine.stop();
+});
+
+// --- Forge authentication errors ---
+
+test('an auth_failed stops only the running epics of that profile and their runs; other profiles go on and nothing is relaunched', async () => {
+  const other = { author: { ...agents.author, profile: 'c' }, reviewer: { ...agents.reviewer, profile: 'd' } };
+  const config = [{ name: 'AshuLab/a', agents }, { name: 'AshuLab/b', agents: other }];
+  github.ready = { 'AshuLab/a': ready(1, 2), 'AshuLab/b': ready(3) };
+  let release!: () => void;
+  const bothRunning = new Promise<void>((resolve) => (release = resolve));
+  runner.behavior = (task) => (task.epic === 1 ? { sessionId: 's-1', exit: 'auth_failed', when: bothRunning } : { exit: 'hang' });
+  const engine = await start(3, config);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+  release();
+  await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1, 2]));
+
+  const [first, second, third] = rows(engine.db);
+  expect(first).toMatchObject({ issue: 1, status: 'needs_human', needsHumanReason: 'error de autenticación del perfil a', finishedAt: 5 * MIN, labelPending: false });
+  expect(second).toMatchObject({ issue: 2, status: 'needs_human', needsHumanReason: 'error de autenticación del perfil a' });
+  expect(third).toMatchObject({ issue: 3, status: 'running' });
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+  expect(labelsOf(2)).toEqual(['solve:epic:needs-human']);
+  expect(labelsOf(3, 'AshuLab/b')).toEqual(['solve:epic:running']);
+  // The run of epic 2 was stopped, the one of epic 3 was not.
+  const taskOf = (epic: number) => runner.tasks.find((t) => t.epic === epic)!;
+  expect(runner.stopped).toEqual([taskOf(2).executionId]);
+  expect(executionsOf(engine.db).map((e) => [e.epicId, e.status])).toEqual([[1, 'failed'], [2, 'interrupted'], [3, 'running']]);
+  // Never retried, nor relaunched under another profile.
+  await clock.advance(10 * MIN);
+  expect(runner.tasks.map((t) => [t.epic, t.profile])).toEqual([[1, 'a'], [2, 'a'], [3, 'c']]);
+});
+
+test('an auth_failed of the reviewer profile stops the epic in review', async () => {
+  const engine = await reviewing(() => ({ exit: 'auth_failed' }));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'error de autenticación del perfil b' });
+  expect(runner.tasks.map((t) => t.profile)).toEqual(['a', 'b']);
+});
+
+test('an AuthError of the orchestrator profile suspends every GitHub operation, keeps queue and state, and the next cycle that works resumes them', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  const error = new AuthError('a');
+  // Epic 1 ends technically with a result written while the profile fails: label and PR check must wait.
+  pull(50);
+  runner.behavior = (task) => {
+    github.authError = error;
+    return { sessionId: 's', write: completed(task) };
+  };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(engine.error).toBe(error);
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'finished' });
+  expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'running', stage: 'ship', prNumber: null });
+  expect(ids(engine)).toEqual(['AshuLab/a#2']);
+
+  // From now on only the poll's probe reaches the port, one call per cycle, and nothing else changes.
+  const attempts = github.attempts;
+  for (let i = 1; i <= 3; i++) {
+    await clock.advance(5 * MIN);
+    await engine.idle();
+    expect(github.attempts).toBe(attempts + i);
+    expect(engine.error).toBe(error);
+  }
+  expect(ids(engine)).toEqual(['AshuLab/a#2']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' });
+  expect(runner.tasks).toHaveLength(1);
+
+  github.authError = null;
+  runner.behavior = () => ({ exit: 'hang' });
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  expect(engine.error).toBeNull();
+  expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'running', stage: 'review', prNumber: 50 });
+  expect(runner.tasks.map((t) => [t.epic, t.stage, t.profile])).toEqual([[1, 'ship', 'a'], [1, 'review', 'b']]);
+});
+
+test('a label change that cannot reach GitHub because the orchestrator profile fails waits and is applied once it works', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => {
+    github.authError = new AuthError('a');
+    return { exit: 'timed_out' };
+  };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', labelPending: true });
+  expect(labelsOf(1)).toEqual(['solve:epic:running']);
+
+  const attempts = github.attempts;
+  await clock.advance(5 * MIN);
+  expect(github.attempts).toBe(attempts + 1);
+  expect(labelsOf(1)).toEqual(['solve:epic:running']);
+
+  github.authError = null;
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', labelPending: false });
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });

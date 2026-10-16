@@ -16,7 +16,7 @@ import { executionOutput, taskContext } from '../logging/logger.ts';
 import { epics } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
 import { endOf } from './final-pr.ts';
-import { GitHubUnavailable, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub } from './github.ts';
+import { AuthError, GitHubUnavailable, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub } from './github.ts';
 import { reserve } from './reserve.ts';
 import { startRetention } from './retention.ts';
 import { failureStreak } from './retry.ts';
@@ -57,7 +57,9 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
 };
 
 export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, runner, workspaces, root }: EngineOptions) {
-  let error: GitHubUnavailable | null = null;
+  let error: GitHubUnavailable | AuthError | null = null;
+  // The orchestrator's profile failed: no GitHub call is made until the poll's probe succeeds. Never another profile.
+  let suspended: AuthError | null = null;
   let cancel: (() => void) | null = null;
   let stopRetention: (() => void) | null = null;
   const labelledRepos = new Set<string>();
@@ -83,7 +85,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   // Mirrors the epic's status on its issue: its label, none of the other owned ones, and no `ready` while running.
   const applyLabels = async ({ id, repo, issue, status }: Epic) => {
-    if (stopping) return; // labelPending stays true: the next run reflects it
+    if (stopping || suspended) return; // labelPending stays true: the next run reflects it
     const wanted = labelOf(status);
     await github.setLabels(repo, issue, {
       add: wanted ? [wanted] : [],
@@ -93,6 +95,13 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   };
 
   const fresh = (id: number) => db.select().from(epics).where(eq(epics.id, id)).get()!;
+
+  // GitHub being down is expected (the next poll retries), and so is a failing orchestrator profile; anything else is a bug and surfaces.
+  const failed = (e: unknown) => {
+    if (e instanceof AuthError) suspended = e;
+    else if (!(e instanceof GitHubUnavailable)) throw e;
+    error = e;
+  };
 
   // The epic leaves `running` for `needs_human`; the label follows (labelPending) and the slot is free.
   const toNeedsHuman = (writer: Pick<Db, 'update'>, id: number, reason: string) =>
@@ -168,12 +177,14 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
             finishedAt: clock.now(),
             ...(sessionId && { sessionId }),
             ...(exit === 'failed' && { error: 'el proceso del agente terminó con error' }),
+            ...(exit === 'auth_failed' && { error: `error de autenticación del perfil ${task.profile}` }),
             ...(exit === 'session_unavailable' && { error: sessionLost }),
           })
           .where(eq(executions.executionId, executionId))
           .run();
         if (exit === 'ok') await settle(db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         else if (exit === 'failed' || exit === 'session_unavailable') await retry(epic.id);
+        else if (exit === 'auth_failed') await stopProfile(task.profile);
         else if (exit === 'timed_out') {
           // Session and workspace stay as they are; a person decides how to go on.
           toNeedsHuman(db, epic.id, `la ejecución de ${stage} superó el límite de tiempo`);
@@ -183,10 +194,23 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     );
   }
 
+  // Forge rejected a profile: the running epics that use it stop for a person, with their runs; the others go on.
+  // The profile is never swapped for another one.
+  async function stopProfile(profile: string) {
+    for (const epic of db.select().from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
+      const { author, reviewer } = epic.config!.agents;
+      if (author.profile !== profile && reviewer.profile !== profile) continue;
+      toNeedsHuman(db, epic.id, `error de autenticación del perfil ${profile}`);
+      const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
+      await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));
+    }
+    await freeSlot();
+  }
+
   // Relaunches the stage whose last execution failed technically, until the retries run out.
   const retrying = new Set<number>();
   async function retry(epicId: number) {
-    if (stopping || retrying.has(epicId)) return;
+    if (stopping || suspended || retrying.has(epicId)) return;
     retrying.add(epicId);
     try {
       const epic = fresh(epicId);
@@ -247,13 +271,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   };
 
   const inflight = new Set<Promise<void>>();
-  // GitHub being down is expected (the next poll retries); anything else is a bug and surfaces.
   const track = (work: Promise<void>) => {
     const tracked: Promise<void> = work
       .catch((e) => {
         log.error('stage work failed', e);
-        if (!(e instanceof GitHubUnavailable)) throw e;
-        error = e;
+        failed(e);
       })
       .finally(() => inflight.delete(tracked));
     inflight.add(tracked);
@@ -285,7 +307,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   // Imports the result of a finished execution and moves the epic. Safe to repeat: the import is idempotent.
   async function settle(execution: Execution) {
-    if (stopping) return; // stays `finished` without a result: the next run imports it
+    if (stopping || suspended) return; // stays `finished` without a result: the next run imports it
     const epic = fresh(execution.epicId);
     if (epic.status === 'merged' || epic.status === 'cancelled' || epic.status === 'repo_removed') return; // ended from outside or stopped: nothing new moves
     const expected = expectedOf(epic, execution);
@@ -366,7 +388,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // Starts the oldest queued epics until the concurrency limit or the queue is exhausted.
   async function fillSlots() {
     for (;;) {
-      if (stopping) return;
+      if (stopping || suspended) return;
       const epic = reserve(db, { maxConcurrent: maxConcurrentEpics, now: clock.now(), repos });
       if (!epic) return;
       const cancelWith = (cancelReason: string) =>
@@ -449,6 +471,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       for (const { name: repo } of repos) {
         for (const { issue } of await github.listReadyEpics(repo)) found.push({ repo, issue });
       }
+      suspended = null; // listing worked: the orchestrator's profile is back, the cycle goes on
       const queuedAt = clock.now();
       db.transaction((tx) => {
         for (const epic of found) tx.insert(epics).values({ ...epic, queuedAt }).onConflictDoNothing().run();
@@ -462,9 +485,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       return pollIntervalMs;
     } catch (e) {
       log.error('poll failed', e);
-      if (!(e instanceof GitHubUnavailable)) throw e;
-      error = e;
-      return Math.max(pollIntervalMs, e.retryAfterMs ?? 0);
+      failed(e);
+      return Math.max(pollIntervalMs, (e instanceof GitHubUnavailable && e.retryAfterMs) || 0);
     }
   }
 
@@ -482,8 +504,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
           await step();
         } catch (err) {
           log.error('startup step failed', err);
-          if (!(err instanceof GitHubUnavailable)) throw err;
-          error = err;
+          failed(err);
         }
       }
       schedule(pollIntervalMs);

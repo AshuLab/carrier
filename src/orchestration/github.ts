@@ -8,8 +8,15 @@ export class GitHubUnavailable extends Error {
   }
 }
 
-/** The profile's credentials were rejected or are missing. Stops the work of that profile; the profile is never switched. */
-export class AuthError extends Error {}
+/** Forge reported an authentication error for the profile the port acts as (the orchestrator's). Thrown by any GitHub call. */
+export class AuthError extends Error {
+  readonly profile: string;
+
+  constructor(profile: string) {
+    super('auth error');
+    this.profile = profile;
+  }
+}
 
 // Labels Carrier owns (it creates them) and the one Solve owns (it never does).
 export const ownedLabels = ['solve:epic:running', 'solve:epic:ready-for-test', 'solve:epic:needs-human'] as const;

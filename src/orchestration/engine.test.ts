@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { eq } from 'drizzle-orm';
@@ -10,6 +10,7 @@ import { createEngine } from './engine.ts';
 import { reserve } from './reserve.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
+import { epicEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { FakeClock, FakeGitHub } from './fake.ts';
@@ -47,10 +48,10 @@ function open() {
   dbs.push(db);
   return db;
 }
-async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4) {
+async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4, maxExecutionRetries = 3) {
   const db = open();
   const engine = createEngine({
-    db, github, clock, repos: config, pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours,
+    db, github, clock, repos: config, pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries,
     runner, workspaces, root: dir,
   });
   await engine.start();
@@ -308,7 +309,7 @@ test('the session id is saved as soon as the runner reports it, while the execut
 test('a valid completed result moves the epic to review round 1 and records the final PR', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
-  runner.behavior = (task) => (task.stage === 'ship' ? { sessionId: 's', write: completed(task) } : {});
+  runner.behavior = (task) => (task.stage === 'ship' ? { sessionId: 's', write: completed(task) } : { exit: 'stopped' });
   const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
@@ -326,7 +327,7 @@ test.each([
   github.ready = { 'AshuLab/a': ready(1, 2) };
   if (change) pull(50, change);
   pull(51, {}, 2);
-  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task, { number: task.epic === 1 ? 50 : 51, headSha: SHA }) } : {});
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task, { number: task.epic === 1 ? 50 : 51, headSha: SHA }) } : { exit: 'stopped' });
   const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
@@ -350,30 +351,20 @@ test('a needs_human result stops the epic with the caller reason and label', asy
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
 
-test('an invalid or missing result is recorded on the execution and does not move the epic', async () => {
-  github.ready = { 'AshuLab/a': ready(1, 2) };
-  runner.behavior = (task) => (task.epic === 1 ? { write: '{nope' } : {});
-  const engine = await start(2);
+test('a runner that is cut records it and imports nothing', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ exit: 'stopped' });
+  const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
-  expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['invalid_result', 'invalid_result']);
-  expect(byStatus(engine.db, 'running')).toEqual([1, 2]);
-});
-
-test('a runner that fails or is cut records it and imports nothing', async () => {
-  github.ready = { 'AshuLab/a': ready(1, 2, 3) };
-  runner.behavior = (task) => ({ exit: (['failed', 'timed_out', 'stopped'] as const)[task.epic - 1] });
-  const engine = await start(3);
-  await clock.advance(5 * MIN);
-  await engine.idle();
-  expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['failed', 'timed_out', 'interrupted']);
-  expect(byStatus(engine.db, 'running')).toEqual([1, 2, 3]);
+  expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['interrupted']);
+  expect(byStatus(engine.db, 'running')).toEqual([1]);
 });
 
 test('GitHub down while validating keeps the result for the next poll, which imports it', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
-  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : {});
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });
   const engine = await start(1);
   github.getPullRequest = async () => {
     throw new GitHubUnavailable();
@@ -392,11 +383,11 @@ test('GitHub down while validating keeps the result for the next poll, which imp
 test('importing the same result twice changes nothing', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
-  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : {});
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });
   const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
-  engine.db.update(executions).set({ status: 'finished' }).run();
+  engine.db.update(executions).set({ status: 'interrupted' }).run();
   await clock.advance(5 * MIN);
   expect(rows(engine.db)[0]).toMatchObject({ stage: 'review', round: 1 });
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']); // no second reviewer
@@ -419,7 +410,7 @@ test('a workspace that cannot be prepared leaves the epic in needs_human and fre
 test('a result freeing a slot while another epic is still being reserved never launches its author twice', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   pull(50);
-  runner.behavior = (task) => (task.epic === 1 && task.stage === 'ship' ? { write: completed(task) } : {});
+  runner.behavior = (task) => (task.epic === 1 && task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
   const setLabels = github.setLabels.bind(github);
@@ -434,6 +425,168 @@ test('a result freeing a slot while another epic is still being reserved never l
   await advancing;
   await engine.idle();
   expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(1);
+});
+
+// --- failures: retries and timeout ---
+
+const eventsOf = (db: Db) => db.select().from(epicEvents).all();
+const statuses = (db: Db) => executionsOf(db).map((e) => e.status);
+
+test.each([
+  ['the runner fails', { sessionId: 's-1', exit: 'failed' as const }],
+  ['the result is broken JSON', { sessionId: 's-1', write: '{nope' }],
+  ['the result is missing', { sessionId: 's-1' }],
+  ['the result is for another execution', { sessionId: 's-1', write: { executionId: 'x', repo: 'AshuLab/a', epic: 1, stage: 'ship', summary: 's', outcome: 'needs_human', reason: 'r' } }],
+])('%s: the stage runs again resuming the session, verifying the state first, after reading the PR without creating anything', async (_, first) => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50, { state: 'open' });
+  runner.behavior = (task) => (task.resumeSession ? { exit: 'hang' } : first);
+  const engine = await start(1);
+  const created = github.created.length;
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+
+  expect(runner.tasks).toHaveLength(2);
+  const [initial, again] = runner.tasks as [AgentTask, AgentTask];
+  expect(initial.resumeSession).toBeUndefined();
+  expect(initial.context.verifyStateFirst).toBeUndefined();
+  expect(again).toMatchObject({ stage: 'ship', workspace: initial.workspace, resumeSession: 's-1', context: { verifyStateFirst: true } });
+  expect(again.executionId).not.toBe(initial.executionId);
+  expect(statuses(engine.db)).toEqual(['exit' in first ? 'failed' : 'invalid_result', 'running']);
+  expect(eventsOf(engine.db)).toMatchObject([
+    { epicId: 1, at: 5 * MIN, type: 'execution_retried', data: { stage: 'ship', failed: initial.executionId, attempt: 2, pr: { number: 50, state: 'open', headSha: SHA } } },
+  ]);
+  // Read only, and the epic did not move: same stage, no review round.
+  expect(github.created).toHaveLength(created);
+  expect(labelsOf(1)).toEqual(['solve:epic:running']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', round: null, prNumber: null });
+});
+
+test('the retry that succeeds carries the epic on', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'review' ? { exit: 'stopped' } : task.resumeSession ? { write: completed(task) } : { sessionId: 's-1', exit: 'failed' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(statuses(engine.db)).toEqual(['failed', 'finished', 'interrupted']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 1, prNumber: 50 });
+  expect(eventsOf(engine.db)[0]?.data.pr).toEqual({ number: 50, state: 'open', headSha: SHA });
+});
+
+test('with maxExecutionRetries 3 there are four attempts, then the epic needs a human with the last error and the slot moves on', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  runner.behavior = (task) => (task.epic === 1 ? { sessionId: 's', exit: 'failed' } : { exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.some((t) => t.epic === 2)).toBe(true));
+
+  expect(runner.tasks.filter((t) => t.epic === 1)).toHaveLength(4);
+  expect(executionsOf(engine.db).filter((e) => e.epicId === 1).map((e) => e.status)).toEqual(['failed', 'failed', 'failed', 'failed']);
+  expect(eventsOf(engine.db).map((e) => e.data.attempt)).toEqual([2, 3, 4]);
+  expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', round: null, finishedAt: 5 * MIN });
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe('se agotaron los reintentos de ship (4 intentos): el proceso del agente terminó con error');
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+  expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
+
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.filter((t) => t.epic === 1)).toHaveLength(4);
+});
+
+test('maxExecutionRetries 0 means a single attempt', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ exit: 'failed' });
+  const engine = await start(1, repos, 4, 0);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(runner.tasks).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' });
+});
+
+test('a GitHub query error before a relaunch is not an attempt: the poll relaunches it once GitHub answers', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed' });
+  const down = new GitHubUnavailable();
+  const find = github.findPullRequest.bind(github);
+  github.findPullRequest = async () => {
+    throw down;
+  };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  for (let i = 0; i < 5; i++) await clock.advance(5 * MIN);
+  expect(engine.error).toBe(down);
+  expect(runner.tasks).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running' });
+
+  github.findPullRequest = find;
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  // The five failed queries consumed nothing: the epic still got all four attempts.
+  expect(runner.tasks).toHaveLength(4);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' });
+});
+
+test('an execution that did not fail resets the failure streak', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const engine = await start(1, repos, 4, 1);
+  await clock.advance(5 * MIN);
+  const base = { epicId: 1, stage: 'ship' as const, resultPath: '/r', startedAt: 0 };
+  engine.db.update(executions).set({ status: 'interrupted' }).run();
+  engine.db.insert(executions).values([
+    { ...base, executionId: 'f1', status: 'failed', error: 'x' },
+    { ...base, executionId: 'f2', status: 'failed', error: 'x' },
+    { ...base, executionId: 'ok', status: 'interrupted' },
+    { ...base, executionId: 'f3', status: 'failed', error: 'x' },
+  ]).run();
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  // Three failures in all but one since the last execution that did not fail, and one retry allowed: it goes out.
+  expect(runner.tasks).toHaveLength(2);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running' });
+});
+
+test('timed_out keeps the session, needs a human with the reason and launches nothing new', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  runner.behavior = (task) => (task.epic === 1 ? { sessionId: 's-1', exit: 'timed_out' } : { exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.some((t) => t.epic === 2)).toBe(true));
+
+  expect(executionsOf(engine.db)[0]).toMatchObject({ epicId: 1, status: 'timed_out', sessionId: 's-1', finishedAt: 5 * MIN });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'la ejecución de ship superó el límite de tiempo' });
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+  expect(eventsOf(engine.db)).toEqual([]);
+  await clock.advance(10 * MIN);
+  expect(runner.tasks.filter((t) => t.epic === 1)).toHaveLength(1);
+  expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
+});
+
+test('with unlimited the engine never times an execution out by itself', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's', exit: 'hang' });
+  const engine = await start(1, repos, 'unlimited');
+  await clock.advance(5 * MIN);
+  engine.stop(); // no more polls: a single jump of the clock
+  await clock.advance(1000 * 3_600_000);
+  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks[0]?.timeoutMs).toBeNull();
+  expect(runner.stopped).toEqual([]);
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'running', finishedAt: null });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running' });
+});
+
+test('after a restart a review failure is retried as a review, with its PR and round', async () => {
+  const first = open();
+  first.insert(epics).values({ repo: 'AshuLab/a', issue: 1, status: 'running', config: repos[0], stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA, startedAt: 0 }).run();
+  first.insert(executions).values({ executionId: 'e0', epicId: 1, stage: 'review', status: 'failed', error: 'boom', sessionId: 's-r', resultPath: '/r', startedAt: 0 }).run();
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(1));
+  expect(runner.tasks[0]).toMatchObject({
+    stage: 'review', profile: 'b', provider: 'codex', workspace: '/work/AshuLab/a/1/reviewer-50', resumeSession: 's-r',
+    context: { pr: { number: 50, headSha: SHA }, round: 2, verifyStateFirst: true },
+  });
 });
 
 // --- review stage ---
@@ -455,7 +608,7 @@ test('after ship the reviewer runs with its own profile, a separate workspace, t
   const config = [{ name: 'AshuLab/a', agents: { ...agents, reviewer: { profile: 'rev', provider: 'codex' as const, model: 'r' } } }];
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
-  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : {});
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });
   const engine = await start(1, config);
   await clock.advance(5 * MIN);
   await engine.idle();
@@ -466,7 +619,7 @@ test('after ship the reviewer runs with its own profile, a separate workspace, t
     context: { pr: { number: 50, headSha: SHA }, round: 1, previousSummaries: [] },
   });
   expect(reviewerTask().resultPath).not.toBe(runner.tasks[0]!.resultPath);
-  expect(executionsOf(engine.db).map((e) => [e.stage, e.status])).toEqual([['ship', 'finished'], ['review', 'invalid_result']]);
+  expect(executionsOf(engine.db).map((e) => [e.stage, e.status])).toEqual([['ship', 'finished'], ['review', 'interrupted']]);
 });
 
 test('a concluding review on the current head leaves the epic ready for test with the reviewed SHA and verification', async () => {
@@ -487,7 +640,7 @@ test('a ready epic frees its slot for the next one', async () => {
   runner.behavior = (task) =>
     task.stage === 'ship'
       ? { write: completed(task, { number: 49 + task.epic, headSha: SHA }) }
-      : task.epic === 1 ? { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } }) } : {};
+      : task.epic === 1 ? { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } }) } : { exit: 'stopped' };
   const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
@@ -519,10 +672,11 @@ test('changes_requested is imported and moves the epic to fix on the same round,
   expect(engine.db.select().from(callerResults).all().map((r) => r.outcome)).toEqual(['completed', 'changes_requested']);
 });
 
-test('a technical failure of the reviewer keeps the round and imports nothing', async () => {
-  const engine = await reviewing(() => ({ exit: 'failed' }));
+test('a technical failure of the reviewer keeps the round, imports nothing and relaunches the review', async () => {
+  const engine = await reviewing((task) => (task.resumeSession ? { exit: 'stopped' } : { sessionId: 's-r', exit: 'failed' }));
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 1 });
-  expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['finished', 'failed']);
+  expect(executionsOf(engine.db).map((e) => e.status)).toEqual(['finished', 'failed', 'interrupted']);
+  expect(engine.db.select().from(callerResults).all()).toHaveLength(1);
 });
 
 test('a review for a PR that no longer references the epic goes to needs_human', async () => {

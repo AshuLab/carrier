@@ -9,11 +9,13 @@ import { importResult } from '../execution/import-result.ts';
 import type { Workspaces } from '../execution/workspaces.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
+import { epicEvents } from '../storage/events.ts';
 import { executions, type executionStates } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
 import { GitHubUnavailable, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub } from './github.ts';
 import { reserve } from './reserve.ts';
+import { failureStreak } from './retry.ts';
 
 export type EngineOptions = {
   db: Db;
@@ -23,6 +25,8 @@ export type EngineOptions = {
   pollIntervalMs: number;
   maxConcurrentEpics: number;
   maxExecutionHours: number | 'unlimited';
+  /** Technical failures retried per stage after the first attempt. */
+  maxExecutionRetries: number;
   runner: AgentRunner;
   workspaces: Workspaces;
   /** Shared root: execution results go under `orchestrator/results/`. */
@@ -42,7 +46,7 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
   session_unavailable: 'failed',
 };
 
-export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, runner, workspaces, root }: EngineOptions) {
+export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, runner, workspaces, root }: EngineOptions) {
   let error: GitHubUnavailable | null = null;
   let cancel: (() => void) | null = null;
   const labelledRepos = new Set<string>();
@@ -88,9 +92,15 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       const claimed = db.update(epics).set({ stage: 'ship' }).where(and(eq(epics.id, epic.id), isNull(epics.stage))).returning().get();
       if (!claimed) return;
     }
+    await execute(epic, stage);
+  }
+
+  // Starts an execution of the stage; `retryOf` is the failed one it replaces: same session, verify the real state first.
+  async function execute(epic: Epic, stage: AgentTask['stage'], retryOf?: Execution) {
+    const reviewing = stage === 'review';
     let workspace: string;
     try {
-      workspace = stage === 'ship' ? await workspaces.prepareAuthor(epic.repo, epic.issue) : await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!);
+      workspace = reviewing ? await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!) : await workspaces.prepareAuthor(epic.repo, epic.issue);
     } catch (e) {
       toNeedsHuman(db, epic.id, `no se pudo preparar el workspace: ${e instanceof Error ? e.message : String(e)}`);
       return applyLabels(fresh(epic.id));
@@ -102,14 +112,17 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       repo: epic.repo,
       epic: epic.issue,
       stage,
-      ...(stage === 'ship' ? epic.config!.agents.author : epic.config!.agents.reviewer),
+      ...(reviewing ? epic.config!.agents.reviewer : epic.config!.agents.author),
       workspace,
       resultPath,
       timeoutMs: maxExecutionHours === 'unlimited' ? null : maxExecutionHours * 3_600_000,
-      context:
-        stage === 'ship'
-          ? { previousSummaries: [] }
-          : { pr: { number: epic.prNumber!, headSha: epic.prHeadSha! }, round: epic.round!, previousSummaries: previousSummaries(epic.id) },
+      ...(retryOf?.sessionId && { resumeSession: retryOf.sessionId }),
+      context: {
+        previousSummaries: reviewing ? previousSummaries(epic.id) : [],
+        ...(retryOf && { verifyStateFirst: true }),
+        ...(epic.prNumber && { pr: { number: epic.prNumber, headSha: epic.prHeadSha! } }),
+        ...(epic.round && { round: epic.round }),
+      },
     };
     db.insert(executions).values({ executionId, epicId: epic.id, stage, resultPath, startedAt: clock.now() }).run();
     const run = runner.run(task);
@@ -117,12 +130,52 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     track(
       run.done.then(async ({ exit, sessionId }) => {
         db.update(executions)
-          .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }) })
+          .set({
+            status: executionStatus[exit],
+            finishedAt: clock.now(),
+            ...(sessionId && { sessionId }),
+            ...(exit === 'failed' && { error: 'el proceso del agente terminó con error' }),
+          })
           .where(eq(executions.executionId, executionId))
           .run();
         if (exit === 'ok') await settle(db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
+        else if (exit === 'failed') await retry(epic.id);
+        else if (exit === 'timed_out') {
+          // Session and workspace stay as they are; a person decides how to go on.
+          toNeedsHuman(db, epic.id, `la ejecución de ${stage} superó el límite de tiempo`);
+          await freeSlot();
+        }
       }),
     );
+  }
+
+  // Relaunches the stage whose last execution failed technically, until the retries run out.
+  const retrying = new Set<number>();
+  async function retry(epicId: number) {
+    if (retrying.has(epicId)) return;
+    retrying.add(epicId);
+    try {
+      const epic = fresh(epicId);
+      const [last, ...earlier] = failureStreak(db, epicId);
+      if (epic.status !== 'running' || !last) return;
+      if (earlier.length >= maxExecutionRetries) {
+        toNeedsHuman(db, epicId, `se agotaron los reintentos de ${last.stage} (${earlier.length + 1} intentos): ${last.error}`);
+        return await freeSlot();
+      }
+      // Read only: what the failed execution may have left on GitHub. A failed query is not an attempt, the poll tries again.
+      const pr = await github.findPullRequest(epic.repo, epic.issue);
+      db.insert(epicEvents)
+        .values({ epicId, at: clock.now(), type: 'execution_retried', data: { stage: last.stage, failed: last.executionId, attempt: earlier.length + 2, error: last.error, pr } })
+        .run();
+      await execute(epic, last.stage, last);
+    } finally {
+      retrying.delete(epicId);
+    }
+  }
+
+  // Running epics whose last execution failed and was not relaunched yet (GitHub was down).
+  async function retryPending() {
+    for (const { id } of db.select({ id: epics.id }).from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) await retry(id);
   }
 
   // Summaries the caller left in earlier review and fix turns, oldest first.
@@ -172,8 +225,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     }
     const parsed = parseCallerResult(raw, expected);
     if (!parsed.ok) {
-      db.update(executions).set({ status: 'invalid_result' }).where(eq(executions.executionId, execution.executionId)).run();
-      return;
+      db.update(executions).set({ status: 'invalid_result', error: parsed.message }).where(eq(executions.executionId, execution.executionId)).run();
+      return retry(epic.id);
     }
     const problem = parsed.result.outcome === 'needs_human' ? null : await prProblem(epic, parsed.result.pr, execution.stage);
     const imported = importResult(db, raw, expected, (tx, result) => {
@@ -254,6 +307,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         for (const epic of found) tx.insert(epics).values({ ...epic, queuedAt }).onConflictDoNothing().run();
       });
       await settlePending();
+      await retryPending();
       await reconcileLabels();
       await fillSlots();
       error = null;

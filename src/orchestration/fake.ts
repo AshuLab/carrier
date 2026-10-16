@@ -33,6 +33,14 @@ export class FakeGitHub implements GitHub {
     return this.pulls[`${repo}#${number}`] ?? null;
   }
 
+  async findPullRequest(repo: string, issue: number) {
+    if (this.unavailable) throw this.unavailable;
+    for (const [key, { state, body, headSha }] of Object.entries(this.pulls)) {
+      if (key.startsWith(`${repo}#`) && new RegExp(`\\bcloses #${issue}(?!\\d)`, 'i').test(body)) return { number: Number(key.split('#')[1]), state, headSha };
+    }
+    return null;
+  }
+
   async setLabels(repo: string, issue: number, { add, remove }: { add: string[]; remove: string[] }) {
     if (this.setLabelsUnavailable) throw this.setLabelsUnavailable;
     const found = this.issue(repo, issue);

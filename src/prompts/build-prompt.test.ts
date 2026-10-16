@@ -25,7 +25,7 @@ test('ship prompt', () => {
     Apply the repo's own rules (its docs, agent instructions and conventions) to choose and evaluate tests, CI and blockers. Do not assume commands from other repos.
     Invoke /ship for epic #3 and tell it to worktree this epic, whatever mode the repo's solve.md has: the epic must live in its own git worktree. Leave the final integration PR open.
     Never merge the final PR: a person tests it and decides the merge.
-    Before finishing, write exactly one JSON object to /r/exec-1.json. Repeat executionId, repo, epic and stage as given. Allowed outputs:
+    Before finishing, write exactly one JSON object to /r/exec-1.json. That path is also in the environment variable CARRIER_RESULT_PATH: write to "$CARRIER_RESULT_PATH" instead of retyping it, because a path with one segment missing is a result nobody reads. Repeat executionId, repo, epic and stage as given. Allowed outputs:
     \`\`\`json
     {
       "executionId": "exec-1",
@@ -68,7 +68,7 @@ test('review prompt', () => {
     Review PR #7, round 2. First confirm the PR head is aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; if it is not, return needs_human.
     Invoke /code-review against the epic's spec and tickets, checking that earlier findings were fixed and nothing regressed, then publish the findings with /code-post.
     Return changes_requested with the blockers if there are any. Return completed only if the review is conclusive, there are no blockers and the repo's verifications are confirmed on that same commit. If the review is inconclusive (missing context, cannot verify), return needs_human.
-    Before finishing, write exactly one JSON object to /r/exec-1.json. Repeat executionId, repo, epic and stage as given. Allowed outputs:
+    Before finishing, write exactly one JSON object to /r/exec-1.json. That path is also in the environment variable CARRIER_RESULT_PATH: write to "$CARRIER_RESULT_PATH" instead of retyping it, because a path with one segment missing is a result nobody reads. Repeat executionId, repo, epic and stage as given. Allowed outputs:
     \`\`\`json
     {
       "executionId": "exec-1",
@@ -132,7 +132,7 @@ test('fix prompt', () => {
     Blockers of the last review:
     - null deref (https://github.com/AshuLab/carrier/pull/7#r1)
     - no test
-    Before finishing, write exactly one JSON object to /r/exec-1.json. Repeat executionId, repo, epic and stage as given. Allowed outputs:
+    Before finishing, write exactly one JSON object to /r/exec-1.json. That path is also in the environment variable CARRIER_RESULT_PATH: write to "$CARRIER_RESULT_PATH" instead of retyping it, because a path with one segment missing is a result nobody reads. Repeat executionId, repo, epic and stage as given. Allowed outputs:
     \`\`\`json
     {
       "executionId": "exec-1",

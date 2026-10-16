@@ -112,6 +112,12 @@ describe.skipIf(!env)('carrier end to end (real Claude, Codex, Forge and Solve)'
     if (!process.env.CARRIER_E2E_KEEP) rmSync(root, { recursive: true, force: true });
   });
 
+  /** Fails fast when the epic has already left running (a person is needed): waiting on for its agent's JSON would only hang. */
+  const stillRunning = (issue: number) => {
+    const row = dbEpic(root, issue);
+    if (row && row.status !== 'queued' && row.status !== 'running') throw new Error(`epic #${issue} ended as ${row.status} (${row.needsHumanReason ?? row.lastError ?? 'no reason'})`);
+  };
+
   /** Waits until the epic ends and returns its final row. */
   const untilEnded = (issue: number, timeout: number) =>
     waitFor(`epic #${issue} to leave running`, () => {
@@ -263,7 +269,7 @@ describe.skipIf(!env)('carrier end to end (real Claude, Codex, Forge and Solve)'
       const exec = await waitFor('the ship execution to start', () => dbExecutions(root, epic.epic).find((r) => r.stage === 'ship'), minutes(5), 2000);
       // The agent writes the JSON a few seconds before its process ends: cut carrier in that window.
       const file = resultFile(root, exec.executionId);
-      await waitFor('the ship JSON', () => existsSync(file) && statSync(file).size > 0, minutes(30), 100);
+      await waitFor('the ship JSON', () => (stillRunning(epic.epic), existsSync(file) && statSync(file).size > 0), minutes(30), 100);
       first.signal('SIGKILL');
       await first.stopped(30_000);
       const imported = dbResultCount(root, exec.executionId);
@@ -283,7 +289,7 @@ describe.skipIf(!env)('carrier end to end (real Claude, Codex, Forge and Solve)'
       // Now, with carrier alive, cut the reviewer's JSON in half before its process ends: a technical failure, retried.
       const review = await waitFor('the review execution', () => dbExecutions(root, epic.epic).find((r) => r.stage === 'review'), minutes(5), 2000);
       const reviewFile = resultFile(root, review.executionId);
-      await waitFor('the review JSON', () => existsSync(reviewFile) && statSync(reviewFile).size > 0, minutes(30), 100);
+      await waitFor('the review JSON', () => (stillRunning(epic.epic), existsSync(reviewFile) && statSync(reviewFile).size > 0), minutes(30), 100);
       // The agent may read its file back and rewrite it, so keep cutting it until its process is gone: what carrier finds is a truncated file.
       let cuts = 0;
       while (dbExecutions(root, epic.epic).find((r) => r.executionId === review.executionId)?.status === 'running') {

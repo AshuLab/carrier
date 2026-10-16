@@ -60,7 +60,7 @@ export function buildPrompt(task: AgentTask): string {
   }
 
   lines.push(
-    `Before finishing, write exactly one JSON object to ${resultPath}. Repeat executionId, repo, epic and stage as given. Allowed outputs:`,
+    `Before finishing, write exactly one JSON object to ${resultPath}. That path is also in the environment variable CARRIER_RESULT_PATH: write to "$CARRIER_RESULT_PATH" instead of retyping it, because a path with one segment missing is a result nobody reads. Repeat executionId, repo, epic and stage as given. Allowed outputs:`,
     ...examples.map(json),
     ...(reviewing ? [] : ['Replace pr.number and pr.headSha with the real final PR and its current head (git rev-parse HEAD). A failing CI is not a completed result.']),
     'verification.ci is "absent" when the repo has no CI; say so in evidence.',

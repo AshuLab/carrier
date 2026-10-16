@@ -144,7 +144,7 @@ export const CallerResult = z.discriminatedUnion('outcome', [
 ]);
 ```
 
-**Configuración.** Los defaults de la app incluyen la raíz, el intervalo y los límites; perfiles, repos y asignaciones por rol los declara siempre el usuario. Los perfiles referencian a Forge; su forma exacta se fija tras el spike de Forge. Ejemplo de la forma, no de valores:
+**Configuración.** Los defaults de la app incluyen la raíz, el intervalo, el nivel de log (`logLevel`, `info`) y los límites; perfiles, repos y asignaciones por rol los declara siempre el usuario. Los perfiles referencian a Forge; su forma exacta se fija tras el spike de Forge. Ejemplo de la forma, no de valores:
 
 ```json
 {
@@ -191,6 +191,8 @@ Son validaciones técnicas que solo una prueba con las herramientas reales puede
 
 Claude y Codex headless. Comprobar que ambos ejecutan el flujo de skills sin interacción, exponen y conservan sus sesiones, retoman tras una interrupción y entregan el JSON del caller. Incluir el trabajo delegado por `ship` y comprobar que detener el proceso alcanza a sus procesos hijos sin perder lo necesario para reconstruir el contexto.
 
+Resultado (15/10/2026, [investigación](../research/headless-agents.md)): ambos CLI ejecutan un skill sin interacción, exponen su id de sesión, retoman tras un corte y escriben un JSON que valida contra `CallerResult`. Matar el CLI no mata siempre a sus hijos: Codex deja huérfano el proceso del comando incluso con `SIGTERM`, y ambos con `SIGKILL`, por lo que la detención depende del contenedor ([ADR 0003](../adr/0003-agentes-en-contenedor.md)). El adaptador debe invocar el binario real, cerrar stdin (`</dev/null`), pasar `--add-dir` para rutas fuera del workspace y usar `-c sandbox_mode=...` en `codex exec resume`.
+
 Agentes en contenedores. Probar el runtime de contenedores en macOS con Claude y Codex: montaje del workspace y del clon para que los worktrees de Solve y Git funcionen, login y sesiones persistentes dentro, renovación del token de Forge en ejecuciones de hasta cuatro horas, toolchains para los tests del repo, la salida a red mínima que necesitan y que detener el contenedor termine todos los procesos. Si no es viable, Diego elige entre las alternativas del ADR.
 
 Agent Forge. Validar el adaptador para identidades de bots y personales, especialmente la renovación de credenciales durante ejecuciones largas, y que `gh` vía Forge sirva para las operaciones del orquestador. La [investigación previa](../research/autonomous-ship-review.md) identificó que el launcher observado no implementaba nuestro contrato de tareas headless; la app debe integrar las capacidades de identidad sin asumir que ese launcher ya resuelve el runner.
@@ -200,3 +202,5 @@ Raíz compartida con Solve. Probar la raíz compartida, la creación y reutiliza
 Recuperación ante cortes. Probar interrupciones entre publicación en GitHub y persistencia local, incluyendo un JSON incompleto. Verificar que se importen resultados una sola vez y se retome el trabajo sin duplicar agentes, PRs, comentarios ni cambios de estado.
 
 Logs y panel. Validar cómo dirigir stdout y stderr de `@ashulab/universal-logger` a archivos sin interferir con el panel de terminal. El package revisado escribe por consola y no ofrece un transport general; la integración debe reutilizar la biblioteca como implementación de logging y conservar la salida al detener el proceso.
+
+Resultado (15/10/2026, [investigación](../research/logging-panel.md), `@ashulab/universal-logger` 0.1.1): reemplazar `console.log/info/warn/error/debug` por escrituras síncronas (`writeSync`) a un archivo en append alcanza: el panel recibe solo sus bytes y `Ctrl+C` no pierde logs, con o sin handler de `SIGINT`. `logError` con `Error` conserva el stack en el campo `stack`. La biblioteca no necesita cambios, pero la integración debe fijar `NODE_ENV` distinto de `development` (emite varias líneas por log), agregar el nivel desde el método de `console` (el JSON no lo trae) y usar `logError` o `scoped.error` para errores con stack (`scoped.info/warn` con `Error` lo pierde).

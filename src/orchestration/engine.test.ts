@@ -414,3 +414,23 @@ test('a workspace that cannot be prepared leaves the epic in needs_human and fre
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 });
+
+test('a result freeing a slot while another epic is still being reserved never launches its author twice', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  pull(50);
+  runner.behavior = (task) => (task.epic === 1 ? { write: completed(task) } : {});
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const setLabels = github.setLabels.bind(github);
+  github.setLabels = async (repo, issue, change) => {
+    if (issue === 2) await gate;
+    return setLabels(repo, issue, change);
+  };
+  const engine = await start(2);
+  const advancing = clock.advance(5 * MIN);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  release();
+  await advancing;
+  await engine.idle();
+  expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(1);
+});

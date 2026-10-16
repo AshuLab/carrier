@@ -78,6 +78,9 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   };
 
   async function launch(epic: Epic) {
+    // Claim the launch first: concurrent reconciles (a result freeing a slot, the poll) never start a second author.
+    const claimed = db.update(epics).set({ stage: 'ship' }).where(and(eq(epics.id, epic.id), isNull(epics.stage))).returning().get();
+    if (!claimed) return;
     let workspace: string;
     try {
       workspace = await workspaces.prepareAuthor(epic.repo, epic.issue);
@@ -98,10 +101,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       timeoutMs: maxExecutionHours === 'unlimited' ? null : maxExecutionHours * 3_600_000,
       context: { previousSummaries: [] },
     };
-    db.transaction((tx) => {
-      tx.insert(executions).values({ executionId, epicId: epic.id, stage: 'ship', resultPath, startedAt: clock.now() }).run();
-      tx.update(epics).set({ stage: 'ship' }).where(eq(epics.id, epic.id)).run();
-    });
+    db.insert(executions).values({ executionId, epicId: epic.id, stage: 'ship', resultPath, startedAt: clock.now() }).run();
     const run = runner.run(task);
     run.onSession((sessionId) => db.update(executions).set({ sessionId }).where(eq(executions.executionId, executionId)).run());
     track(
@@ -144,7 +144,9 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     let raw: string | null = null;
     try {
       raw = readFileSync(execution.resultPath, 'utf8');
-    } catch {} // a missing file is reported by the parser
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; // a missing file is reported by the parser
+    }
     const parsed = parseCallerResult(raw, expected);
     if (!parsed.ok) {
       db.update(executions).set({ status: 'invalid_result' }).where(eq(executions.executionId, execution.executionId)).run();

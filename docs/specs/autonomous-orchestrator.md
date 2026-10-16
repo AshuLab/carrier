@@ -48,7 +48,7 @@ Una revisión inconclusa por falta de contexto es `needs_human` del reviewer. Un
 
 Autor y reviewer aplican las reglas del repo para elegir y evaluar tests, CI y blockers; el motor no lo hace ([ADR 0001](../adr/0001-separar-coordinacion-y-evaluacion-del-repo.md)). Las correcciones y repeticiones de tests/CI son trabajo interno del agente y el motor no las cuenta. En un repo sin CI alcanzan la revisión y la evidencia de tests que reportan los skills, y la ausencia de CI queda registrada. Diego prueba el PR y decide el merge.
 
-Fallos técnicos (el proceso o el contenedor termina mal, JSON ausente o inválido, error de transporte) se reintentan hasta el límite configurado, después del intento inicial. El reintento es una ejecución nueva que retoma la sesión (o reconstruye el contexto) con la instrucción de verificar primero el estado real, para no duplicar PRs, comentarios ni commits. No consume rondas de review. Agotar los reintentos, vencer el límite de tiempo de una ejecución o agotar las rondas termina en intervención humana; el timeout no se reintenta. Un finding o un desacuerdo no es un fallo técnico.
+Fallos técnicos (el proceso del agente termina mal, JSON ausente o inválido, error de transporte) se reintentan hasta el límite configurado, después del intento inicial. El reintento es una ejecución nueva que retoma la sesión (o reconstruye el contexto) con la instrucción de verificar primero el estado real, para no duplicar PRs, comentarios ni commits. No consume rondas de review. Agotar los reintentos, vencer el límite de tiempo de una ejecución o agotar las rondas termina en intervención humana; el timeout no se reintenta. Un finding o un desacuerdo no es un fallo técnico.
 
 ### Salidas de la épica
 
@@ -58,9 +58,9 @@ Si el PR final se mergea mientras hay trabajo activo, se detienen sus ejecucione
 
 Un error de autenticación informado por Forge para un perfil detiene las épicas que lo usan, con el motivo en terminal; las demás continúan. Si falla el perfil del orquestador se suspenden sus operaciones GitHub. Nunca se cambia de perfil automáticamente.
 
-### Agentes aislados
+### Agentes en el host
 
-Cada ejecución de agente corre dentro de un contenedor, con permisos amplios adentro y solo el workspace de la épica, lo necesario para Git y las sesiones montados. El contenedor no limita lo que el agente hace en GitHub con su token, así que los scopes mínimos por rol y la branch protection de los repos son el segundo límite. Se descartaron los permisos restringidos del CLI sobre el host y el sandbox nativo de los CLIs como límite principal. Ver [ADR 0003](../adr/0003-agentes-en-contenedor.md).
+El orquestador corre en el sistema donde se invoca y cada ejecución de agente es un proceso de ese mismo sistema, con el usuario, el entorno y las preferencias de la terminal desde la que se ejecuta `carrier` (login, configuración y permisos de cada CLI). Cada ejecución es su propio grupo de procesos para poder detener al agente y a todo su árbol. Los scopes mínimos por rol del token y la branch protection de los repos son el límite en GitHub. Endurecer la seguridad de agentes desatendidos queda como trabajo posterior. Ver [ADR 0004](../adr/0004-agentes-en-el-host-con-preferencias-de-la-terminal.md), que reemplaza al [ADR 0003](../adr/0003-agentes-en-contenedor.md).
 
 El runner es propio, con un adaptador por proveedor que traduce la tarea al CLI, prepara las credenciales de esa ejecución sin mezclarlas con las de otra paralela y captura salida, sesión y errores. Agent Forge es una dependencia externa para identidad y credenciales; no se incorpora una copia. Las operaciones GitHub del orquestador pasan por el perfil elegido, con `gh` vía Forge.
 
@@ -74,7 +74,7 @@ La app usa `@ashulab/universal-logger` como logger, sin construir otro. Una inte
 
 ### Interrupción y recuperación
 
-`Ctrl+C` detiene las ejecuciones activas, con sus contenedores, sin esperar a que terminen las etapas. Se conservan sesiones, contexto, workspaces y trabajo sin commit. Al reiniciar se reconcilian procesos y efectos externos contra GitHub antes de continuar y una etapa interrumpida no se reinicia a ciegas. Si la sesión no se puede recuperar, se abre una nueva con la misma identidad, el contexto persistido y el estado real del workspace y GitHub, y el agente verifica qué quedó hecho; la recuperación queda en el historial.
+`Ctrl+C` detiene las ejecuciones activas, con sus procesos, sin esperar a que terminen las etapas. Se conservan sesiones, contexto, workspaces y trabajo sin commit. Al reiniciar se reconcilian procesos y efectos externos contra GitHub antes de continuar y una etapa interrumpida no se reinicia a ciegas. Si la sesión no se puede recuperar, se abre una nueva con la misma identidad, el contexto persistido y el estado real del workspace y GitHub, y el agente verifica qué quedó hecho; la recuperación queda en el historial.
 
 Si un repo se quitó de la configuración, al reiniciar sus épicas pendientes quedan detenidas con ese motivo, conservando sesiones, workspaces, historial y orden, sin consumir reintentos ni actuar sobre el repo. Al volver a configurarlo se recuperan, salvo las que ya requerían intervención humana.
 
@@ -92,7 +92,7 @@ Un panel informativo dibujado con secuencias ANSI sin dependencias, en la misma 
 6. Si GitHub falla o limita las consultas, la cola y el estado se conservan, el error se muestra y se reintenta en el siguiente intervalo o tras la espera que indique GitHub, sin consumir reintentos de agentes.
 7. Cuando hay un slot libre se inicia la épica más antigua en cola, nunca más de la concurrencia configurada ni dos ejecuciones de la misma épica, y el issue pasa de `ready` a `running`.
 8. Al iniciar, la app crea en cada repo configurado las etiquetas `running`, `ready-for-test` y `needs-human` que falten.
-9. El autor ejecuta `ship` en un contenedor aislado con el workspace de la épica y el motor registra el PR final validado contra GitHub.
+9. El autor ejecuta `ship` como proceso del host con el workspace de la épica y el motor registra el PR final validado contra GitHub.
 10. El reviewer, con otra identidad y un checkout separado, revisa el PR final y su resultado `completed` deja la épica en `ready-for-test` solo si el SHA revisado es el head actual del PR.
 11. Si el reviewer pide cambios y quedan rondas, el autor recibe un turno de corrección y el reviewer vuelve a revisar; con la última ronda agotada la épica pasa a `needs-human`.
 12. Un resultado `needs_human` del autor o del reviewer, incluida una revisión inconclusa, detiene la épica con el motivo mientras las demás siguen.
@@ -102,7 +102,7 @@ Un panel informativo dibujado con secuencias ANSI sin dependencias, en la misma 
 16. Una ejecución que supera el límite de tiempo (o ninguno con `unlimited`) se detiene, conserva sesión y workspace y deja la épica en `needs-human`, sin reintento.
 17. Si el PR final se mergea con trabajo activo la épica se detiene sin lanzar turnos nuevos, y si se cierra sin merge el issue o ese PR la épica se cancela con el motivo en terminal; los merges y cierres de slices no afectan.
 18. Un error de autenticación de Forge detiene solo las épicas del perfil afectado; si es el del orquestador, se suspenden sus operaciones GitHub, y no se cambia de perfil.
-19. Con `Ctrl+C` las ejecuciones activas y sus contenedores se detienen sin esperar y se conservan sesiones, workspaces y trabajo sin commit.
+19. Con `Ctrl+C` las ejecuciones activas y sus procesos se detienen sin esperar y se conservan sesiones, workspaces y trabajo sin commit.
 20. Al reiniciar, las etapas interrumpidas se reconcilian con GitHub y los procesos existentes y se retoman con la sesión, o con un contexto reconstruido si no se puede recuperar, sin duplicar agentes ni acciones; las épicas en `needs-human` no se reactivan.
 21. Si quito un repo de la configuración, al reiniciar sus épicas pendientes quedan detenidas con el motivo y se recuperan al volver a configurarlo, salvo las que requerían intervención.
 22. Veo en el panel slots, cola y, por épica, etapa, ronda, blockers, tiempo en etapa, última actividad, links, errores y motivos de intervención; sin terminal interactiva obtengo líneas simples.
@@ -111,7 +111,7 @@ Un panel informativo dibujado con secuencias ANSI sin dependencias, en la misma 
 
 ## Decisions
 
-Los skills y los repos mantienen sus reglas y formatos; las decisiones de coordinación están en [ADR 0001](../adr/0001-separar-coordinacion-y-evaluacion-del-repo.md), [ADR 0002](../adr/0002-sqlite-autoridad-etiquetas-reflejo.md) y [ADR 0003](../adr/0003-agentes-en-contenedor.md), que no se repiten aquí.
+Los skills y los repos mantienen sus reglas y formatos; las decisiones de coordinación están en [ADR 0001](../adr/0001-separar-coordinacion-y-evaluacion-del-repo.md), [ADR 0002](../adr/0002-sqlite-autoridad-etiquetas-reflejo.md) y [ADR 0004](../adr/0004-agentes-en-el-host-con-preferencias-de-la-terminal.md) (que reemplaza al [ADR 0003](../adr/0003-agentes-en-contenedor.md)), que no se repiten aquí.
 
 **Estructura.** Un único paquete, agrupado por responsabilidad: `cli/`, `config/`, `orchestration/`, `execution/`, `storage/`, `logging/`, `integrations/`, `providers/`, `prompts/`, `shared/` y `test/`. Los archivos se crean al implementar cada responsabilidad. `shared/` solo tiene utilidades realmente compartidas (formateo de duraciones, rutas); no hay un `utils.ts` general. `config/` es dueño del esquema de configuración y `execution/` del del resultado del caller.
 
@@ -170,12 +170,12 @@ export const CallerResult = z.discriminatedUnion('outcome', [
 - Historia 4: la función que toma el bloqueo, sobre una carpeta temporal real, con dos procesos hijos y uno terminado con `kill -9`.
 - Historias 5 a 21, salvo la 9 (que solo cubre aquí la parte de coordinación): el motor por su interfaz pública, con `GitHub` y `AgentRunner` simulados, un reloj inyectado y SQLite temporal real con migraciones. Un fake de `AgentRunner` escribe el JSON, falla, se cuelga o se corta según el caso. Reiniciar el motor sobre la misma base cubre recuperación y reconciliación.
 - Historias 10 a 15: dentro del mismo seam, además de la interfaz pública del motor, `parseCallerResult(raw, expected)` es una función pura con la tabla de casos de la sección de contrato.
-- Historia 9: la coordinación (lanzar la etapa, validar el PR contra GitHub, registrarlo) se prueba en el mismo seam del motor con `AgentRunner` simulado. Correr `ship` en un contenedor real y los adaptadores reales de Claude y Codex, Forge y logs se verifican en la integración aparte, con un repo de prueba y configuración explícita.
+- Historia 9: la coordinación (lanzar la etapa, validar el PR contra GitHub, registrarlo) se prueba en el mismo seam del motor con `AgentRunner` simulado. Correr `ship` con el agente real y los adaptadores reales de Claude y Codex, Forge y logs se verifican en la integración aparte, con un repo de prueba y configuración explícita.
 - Historia 22: `renderPanel(snapshot)` devuelve texto y se prueba por su salida; el dibujo en la terminal real no tiene test.
 - Historia 23: sin tests automáticos en la suite habitual; es una integración fina cuyo comportamiento real se valida en el spike de logs.
 - Historia 24: la función de limpieza con fecha inyectada sobre una carpeta temporal.
 
-La política de tests o CI del repo que los agentes implementen no es parte de estos tests. Las pruebas con Claude, Codex, Forge, contenedores y Solve reales son una integración aparte y no corren en la suite habitual.
+La política de tests o CI del repo que los agentes implementen no es parte de estos tests. Las pruebas con Claude, Codex, Forge y Solve reales son una integración aparte y no corren en la suite habitual.
 
 ## Out of scope
 
@@ -187,13 +187,13 @@ Dependencias entre épicas y desbloqueo por merge. Ese trabajo se resolverá en 
 
 ## Open questions
 
-Son validaciones técnicas que solo una prueba con las herramientas reales puede responder; ninguna es una decisión de producto. Cada una se convierte en un spike con un criterio de éxito claro, y su resultado puede cambiar las decisiones de arriba. Las dos primeras (agentes headless y contenedores) condicionan el resto: si fallan, cambia el diseño del runner o de la identidad.
+Son validaciones técnicas que solo una prueba con las herramientas reales puede responder; ninguna es una decisión de producto. Cada una se convierte en un spike con un criterio de éxito claro, y su resultado puede cambiar las decisiones de arriba. La primera (agentes headless) condiciona el resto: si fallan, cambia el diseño del runner o de la identidad.
 
 Claude y Codex headless. Comprobar que ambos ejecutan el flujo de skills sin interacción, exponen y conservan sus sesiones, retoman tras una interrupción y entregan el JSON del caller. Incluir el trabajo delegado por `ship` y comprobar que detener el proceso alcanza a sus procesos hijos sin perder lo necesario para reconstruir el contexto.
 
-Resultado (15/10/2026, [investigación](../research/headless-agents.md)): ambos CLI ejecutan un skill sin interacción, exponen su id de sesión, retoman tras un corte y escriben un JSON que valida contra `CallerResult`. Matar el CLI no mata siempre a sus hijos: Codex deja huérfano el proceso del comando incluso con `SIGTERM`, y ambos con `SIGKILL`, por lo que la detención depende del contenedor ([ADR 0003](../adr/0003-agentes-en-contenedor.md)). El adaptador debe invocar el binario real, cerrar stdin (`</dev/null`), pasar `--add-dir` para rutas fuera del workspace y usar `-c sandbox_mode=...` en `codex exec resume`.
+Resultado (15/10/2026, [investigación](../research/headless-agents.md)): ambos CLI ejecutan un skill sin interacción, exponen su id de sesión, retoman tras un corte y escriben un JSON que valida contra `CallerResult`. Matar el CLI no mata siempre a sus hijos: Codex deja huérfano el proceso del comando incluso con `SIGTERM`, y ambos con `SIGKILL`, por lo que el runner debe lanzar cada ejecución como su propio grupo de procesos y terminar el árbol completo ([ADR 0004](../adr/0004-agentes-en-el-host-con-preferencias-de-la-terminal.md)). El adaptador debe invocar el binario real, cerrar stdin (`</dev/null`), pasar `--add-dir` para rutas fuera del workspace y usar `-c sandbox_mode=...` en `codex exec resume`.
 
-Agentes en contenedores. Probar el runtime de contenedores en macOS con Claude y Codex: montaje del workspace y del clon para que los worktrees de Solve y Git funcionen, login y sesiones persistentes dentro, renovación del token de Forge en ejecuciones de hasta cuatro horas, toolchains para los tests del repo, la salida a red mínima que necesitan y que detener el contenedor termine todos los procesos. Si no es viable, Diego elige entre las alternativas del ADR.
+Agentes en contenedores. Descartado el 15/10/2026 para esta versión: los agentes corren en el host ([ADR 0004](../adr/0004-agentes-en-el-host-con-preferencias-de-la-terminal.md)). La investigación parcial queda en [agent-containers.md](../research/agent-containers.md) como material para la seguridad de agentes AFK.
 
 Resultado parcial (15/10/2026, [investigación](../research/agent-containers.md), Docker Desktop 4.95.0): viable con condiciones. Con clon y worktree montados en las mismas rutas que en el host, `git worktree list` coincide adentro y afuera; Claude 2.1.301 y Codex 0.153.4 corren en Linux, ejecutan `git status`, commit y push por su herramienta de shell, y su sesión se retoma en un contenedor nuevo si el `CLAUDE_CONFIG_DIR` y el `CODEX_HOME` están en una carpeta del host y el `cwd` no cambia. `pnpm test` corre en una imagen base con Node y pnpm, la red se puede restringir con una red interna y un proxy con lista de permitidos, y `docker kill` no deja procesos (0,09 s), también el que sale del grupo. Condiciones del runner: Codex con `--sandbox danger-full-access` (su `bwrap` no funciona en el contenedor), Claude como usuario que no es root, `safe.directory` en la imagen y un directorio de estado por ejecución. El login de Claude vive en el llavero de macOS, así que el contenedor necesita otra credencial. Sin verificar, por falta de un repo de prueba y de un bot de Forge (slice #7): CLI autenticados de verdad dentro del contenedor, push a GitHub, `gh` más de 70 minutos con renovación del token y la lista de red con login real; las pruebas usaron un modelo simulado y un remoto local.
 

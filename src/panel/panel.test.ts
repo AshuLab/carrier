@@ -42,7 +42,7 @@ test('on a terminal it redraws in place with ANSI every second', () => {
   expect(writes).toHaveLength(2);
   expect(writes[1]).toContain('\x1b[3A'); // back over the 3 lines drawn before (header, epic, links)
   expect(writes[1]).toContain('\x1b[2K');
-  expect(writes[1]).toContain('en etapa 1s');
+  expect(writes[1]).toContain('in stage 1s');
   vi.advanceTimersByTime(2000);
   expect(writes).toHaveLength(4);
   stop();
@@ -59,11 +59,11 @@ test('without a terminal it writes one plain line per state change, no ANSI', ()
   state.epics = [{ ...epic, stage: 'review', round: 1 }];
   vi.advanceTimersByTime(1000);
   expect(writes).toHaveLength(3);
-  expect(writes[2]).toContain('acme/web#12  review  ronda 1/5');
+  expect(writes[2]).toContain('acme/web#12  review  round 1/5');
   state.queue = [{ repo: 'acme/api', issue: 7 }];
   vi.advanceTimersByTime(1000);
   expect(writes).toHaveLength(4);
-  expect(writes[3]).toContain('cola 1: acme/api#7');
+  expect(writes[3]).toContain('queue 1: acme/api#7');
   stop();
   for (const line of writes) {
     expect(line).not.toContain('\x1b');

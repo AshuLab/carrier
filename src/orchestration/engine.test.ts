@@ -329,10 +329,10 @@ test('a valid completed result moves the epic to review round 1 and records the 
 });
 
 test.each([
-  ['a missing PR', undefined, 'no existe'],
-  ['a closed PR', { state: 'closed' as const }, 'no está abierto'],
-  ['a PR that does not reference the epic', { body: 'Closes #2' }, 'no referencia la épica'],
-  ['a PR with another head', { headSha: 'b'.repeat(40) }, 'head del PR #50'],
+  ['a missing PR', undefined, 'does not exist'],
+  ['a closed PR', { state: 'closed' as const }, 'is not open'],
+  ['a PR that does not reference the epic', { body: 'Closes #2' }, 'does not reference the epic'],
+  ['a PR with another head', { headSha: 'b'.repeat(40) }, 'head of PR #50'],
 ])('%s leaves only that epic in needs_human with the reason, and the slot goes to the next one', async (_, change, reason) => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   if (change) pull(50, change);
@@ -353,11 +353,11 @@ test.each([
 
 test('a needs_human result stops the epic with the caller reason and label', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
-  runner.behavior = (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'falta una credencial' }) });
+  runner.behavior = (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'a credential is missing' }) });
   const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'falta una credencial', finishedAt: 5 * MIN });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'a credential is missing', finishedAt: 5 * MIN });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
 
@@ -412,7 +412,7 @@ test('a workspace that cannot be prepared leaves the epic in needs_human and fre
     return prepare(repo, epic);
   };
   await clock.advance(5 * MIN);
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'no se pudo preparar el workspace: clone failed' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'could not prepare the workspace: clone failed' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 });
@@ -495,7 +495,7 @@ test('with maxExecutionRetries 3 there are four attempts, then the epic needs a 
   expect(executionsOf(engine.db).filter((e) => e.epicId === 1).map((e) => e.status)).toEqual(['failed', 'failed', 'failed', 'failed']);
   expect(eventsOf(engine.db).map((e) => e.data.attempt)).toEqual([2, 3, 4]);
   expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', round: null, finishedAt: 5 * MIN });
-  expect(rows(engine.db)[0]?.needsHumanReason).toBe('se agotaron los reintentos de ship (4 intentos): el proceso del agente terminó con error');
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe('ran out of ship retries (4 attempts): the agent process ended with an error');
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 
@@ -564,7 +564,7 @@ test('timed_out keeps the session, needs a human with the reason and launches no
   await vi.waitFor(() => expect(runner.tasks.some((t) => t.epic === 2)).toBe(true));
 
   expect(executionsOf(engine.db)[0]).toMatchObject({ epicId: 1, status: 'timed_out', sessionId: 's-1', finishedAt: 5 * MIN });
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'la ejecución de ship superó el límite de tiempo' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'the ship execution exceeded the time limit' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(eventsOf(engine.db)).toEqual([]);
   await clock.advance(10 * MIN);
@@ -634,10 +634,10 @@ test('after ship the reviewer runs with its own profile, a separate workspace, t
 
 test('a concluding review on the current head leaves the epic ready for test with the reviewed SHA and verification', async () => {
   const engine = await reviewing((task) => ({
-    write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'pnpm test ok, repo sin CI' } }),
+    write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'pnpm test ok, repo without CI' } }),
   }));
   expect(rows(engine.db)[0]).toMatchObject({
-    status: 'ready_for_test', reviewedSha: SHA, verification: { ci: 'absent', evidence: 'pnpm test ok, repo sin CI' },
+    status: 'ready_for_test', reviewedSha: SHA, verification: { ci: 'absent', evidence: 'pnpm test ok, repo without CI' },
     finishedAt: 5 * MIN, labelPending: false, needsHumanReason: null,
   });
   expect(labelsOf(1)).toEqual(['solve:epic:ready-for-test']);
@@ -662,18 +662,18 @@ test('a head that changed during the review sends the epic to needs_human, never
     pull(50, { headSha: HEAD2 }); // a commit lands while the reviewer works
     return { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } }) };
   });
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'el head cambió durante la revisión', reviewedSha: null });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'the head changed during the review', reviewedSha: null });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
 
 test('a needs_human review, an inconclusive one included, stops the epic with its reason', async () => {
-  const engine = await reviewing((task) => ({ write: result(task, { outcome: 'needs_human', reason: 'revisión inconclusa: falta contexto' }) }));
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'revisión inconclusa: falta contexto', reviewedSha: null });
+  const engine = await reviewing((task) => ({ write: result(task, { outcome: 'needs_human', reason: 'inconclusive review: missing context' }) }));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'inconclusive review: missing context', reviewedSha: null });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
 
 test('changes_requested below the limit keeps the round and launches the author fix with its identity, its session and the blockers', async () => {
-  const blockers = [{ title: 'falta validar la entrada', url: 'https://github.com/AshuLab/a/pull/50#discussion_r1' }, { title: 'sin test' }];
+  const blockers = [{ title: 'input validation missing', url: 'https://github.com/AshuLab/a/pull/50#discussion_r1' }, { title: 'no test' }];
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
   runner.behavior = (task) =>
@@ -730,7 +730,7 @@ test('a fix turn for an epic with no saved workspace goes to needs_human instead
   engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'no se pudo preparar el workspace: la épica no tiene el worktree guardado' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'could not prepare the workspace: the epic has no saved worktree' });
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
 });
 
@@ -748,8 +748,8 @@ test('a ship result whose epic worktree git does not list sends the epic to need
   await engine.idle();
 
   expect(rows(engine.db).map((e) => [e.status, e.needsHumanReason, e.workspace, e.prNumber])).toEqual([
-    ['needs_human', 'no se encontró el worktree de la rama feat/demo/epic en el clon de AshuLab/a', null, null],
-    ['needs_human', 'no se encontró el worktree de la rama feat/other/epic en el clon de AshuLab/a', null, null],
+    ['needs_human', 'could not find the worktree for branch feat/demo/epic in the clone of AshuLab/a', null, null],
+    ['needs_human', 'could not find the worktree for branch feat/other/epic in the clone of AshuLab/a', null, null],
   ]);
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'ship']);
 });
@@ -784,7 +784,7 @@ test('last activity is written from the first output and then at most once every
 
   finish('failed');
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(2)); // the retry
-  expect(row()).toMatchObject({ lastError: 'el proceso del agente terminó con error', stage: 'ship', stageStartedAt: 5 * MIN });
+  expect(row()).toMatchObject({ lastError: 'the agent process ended with an error', stage: 'ship', stageStartedAt: 5 * MIN });
 });
 
 test('an invalid result is a retried failure; importing the next result clears the last error and starts the review stage', async () => {
@@ -807,7 +807,7 @@ async function fixing(fix: (task: AgentTask) => Behavior, maxReviews = 5, asking
   pull(50);
   runner.behavior = (task) =>
     task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) }
-    : task.stage === 'review' ? task.context.round! > asking ? { exit: 'stopped' } : { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: `ronda ${task.context.round}` }] }) }
+    : task.stage === 'review' ? task.context.round! > asking ? { exit: 'stopped' } : { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: `round ${task.context.round}` }] }) }
     : fix(task);
   const engine = await start(1, repos, 4, 3, maxReviews);
   await clock.advance(5 * MIN);
@@ -847,7 +847,7 @@ test('a fix whose head is not the current one goes to needs_human', async () => 
     return fixDone(task, SHA);
   });
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' });
-  expect(rows(engine.db)[0]!.needsHumanReason).toContain('head del PR #50');
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('head of PR #50');
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix']);
 });
 
@@ -855,7 +855,7 @@ test('with maxReviews 2 a changes_requested on the second review needs a human a
   const engine = await fixing((task) => fixDone(task), 2, 2);
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix', 'review']);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', round: 2, finishedAt: 5 * MIN, labelPending: false });
-  expect(rows(engine.db)[0]!.needsHumanReason).toContain('límite de revisiones');
+  expect(rows(engine.db)[0]!.needsHumanReason).toContain('review limit');
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
 
@@ -866,9 +866,9 @@ test('with maxReviews 1 the first changes_requested is already the limit', async
 });
 
 test('a needs_human of the author in fix stops the epic with its reason', async () => {
-  const engine = await fixing((task) => ({ write: result(task, { outcome: 'needs_human', reason: 'el finding contradice la spec' }) }));
+  const engine = await fixing((task) => ({ write: result(task, { outcome: 'needs_human', reason: 'the finding contradicts the spec' }) }));
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix']);
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'el finding contradice la spec' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'the finding contradicts the spec' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
 
@@ -877,7 +877,7 @@ test('fix turns and technical retries do not consume rounds: only reviews count'
   let fixes = 0;
   const engine = await fixing((task) => (++fixes === 1 ? { sessionId: 's-fix', exit: 'failed' } : task.context.round === 1 ? fixDone(task) : { exit: 'stopped' }), 2);
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix', 'fix', 'review']);
-  expect(runner.tasks[3]).toMatchObject({ resumeSession: 's-fix', context: { round: 1, verifyStateFirst: true, blockers: [{ title: 'ronda 1' }] } });
+  expect(runner.tasks[3]).toMatchObject({ resumeSession: 's-fix', context: { round: 1, verifyStateFirst: true, blockers: [{ title: 'round 1' }] } });
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2 });
 });
 
@@ -893,7 +893,7 @@ test('a review for a PR that no longer references the epic goes to needs_human',
     pull(50, { state: 'closed' });
     return { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } }) };
   });
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'el PR #50 no está abierto' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'PR #50 is not open' });
 });
 
 test('a reviewer workspace that cannot be prepared leaves the epic in needs_human', async () => {
@@ -901,7 +901,7 @@ test('a reviewer workspace that cannot be prepared leaves the epic in needs_huma
     throw new Error('checkout failed');
   };
   const engine = await reviewing(() => ({}));
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'no se pudo preparar el workspace: checkout failed' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'could not prepare the workspace: checkout failed' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
 
@@ -937,15 +937,15 @@ test('the reviewer receives the summaries of earlier review and fix turns, oldes
       { executionId: 'e-old', epicId: 1, stage: 'review', resultPath: 'x', startedAt: 1 },
     ]).run();
     db.insert(callerResults).values([
-      { executionId: 'e-fix', outcome: 'completed', result: JSON.stringify({ summary: 'corregido' }) },
-      { executionId: 'e-old', outcome: 'changes_requested', result: JSON.stringify({ summary: 'ronda uno' }) },
+      { executionId: 'e-fix', outcome: 'completed', result: JSON.stringify({ summary: 'fixed' }) },
+      { executionId: 'e-old', outcome: 'changes_requested', result: JSON.stringify({ summary: 'round one' }) },
     ]).run();
     return { write: completed(task) };
   };
   const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
-  expect(reviewerTask().context.previousSummaries).toEqual(['ronda uno', 'corregido']);
+  expect(reviewerTask().context.previousSummaries).toEqual(['round one', 'fixed']);
 });
 
 // The epic ends from outside: its final PR is merged or closed, or its issue is closed.
@@ -982,7 +982,7 @@ test('a final PR closed without merge cancels the epic with the reason and stops
   await clock.advance(5 * MIN);
   await engine.idle();
 
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelReason: 'el PR final #50 se cerró sin merge', finishedAt: 10 * MIN });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelReason: 'the final PR #50 was closed without merging', finishedAt: 10 * MIN });
   expect(runner.stopped).toHaveLength(1);
   expect(labelsOf(1)).toEqual([]);
 });
@@ -997,7 +997,7 @@ test('a closed epic issue cancels the epic even before it has a final PR', async
   github.issue('AshuLab/a', 1).state = 'closed';
   await clock.advance(5 * MIN);
   await engine.idle();
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelReason: 'el issue de la épica se cerró sin merge', finishedAt: 10 * MIN });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelReason: 'the epic issue was closed without merging', finishedAt: 10 * MIN });
   expect(runner.stopped).toHaveLength(1);
   expect(labelsOf(1)).toEqual([]);
 });
@@ -1272,7 +1272,7 @@ test('a repo missing from the config stops its pending epics with the reason and
   seedExecution(db, 'e1', 1, { stage: 'review' });
   runner.alive.add('e1');
   seedEpic(db, 2, { status: 'queued', stage: null, config: null, startedAt: null });
-  seedEpic(db, 3, { status: 'needs_human', needsHumanReason: 'hay que decidir' });
+  seedEpic(db, 3, { status: 'needs_human', needsHumanReason: 'needs a decision' });
   seedEpic(db, 4, { status: 'ready_for_test' });
   seedEpic(db, 5, { repo: 'AshuLab/b', status: 'queued', stage: null, config: null, startedAt: null });
   seedExecution(db, 'f1', 1, { stage: 'ship', status: 'failed', error: 'x' }); // a past failure that must stay as it is
@@ -1292,8 +1292,8 @@ test('a repo missing from the config stops its pending epics with the reason and
     [5, 'running', null],
   ]);
   const stopped = rows(engine.db).find((e) => e.issue === 1)!;
-  expect(stopped).toMatchObject({ removedReason: expect.stringContaining('configuración'), stage: 'review', round: 2, prNumber: 50 });
-  expect(rows(engine.db).find((e) => e.issue === 3)!.needsHumanReason).toBe('hay que decidir');
+  expect(stopped).toMatchObject({ removedReason: expect.stringContaining('configuration'), stage: 'review', round: 2, prNumber: 50 });
+  expect(rows(engine.db).find((e) => e.issue === 3)!.needsHumanReason).toBe('needs a decision');
   expect(eventTypes(engine.db).filter((t) => t === 'repo_removed')).toHaveLength(3);
   // Sessions and history stay; the live orphan is stopped, no new execution and no retry for the removed repo.
   expect(runner.stopped).toEqual(['e1']);
@@ -1312,7 +1312,7 @@ test('a repo configured again resumes its epics where they were, except the ones
   seedEpic(db, 1, { stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA });
   seedExecution(db, 'e1', 1, { stage: 'review' });
   seedEpic(db, 2, { status: 'queued', stage: null, config: null, startedAt: null });
-  seedEpic(db, 3, { status: 'needs_human', needsHumanReason: 'hay que decidir' });
+  seedEpic(db, 3, { status: 'needs_human', needsHumanReason: 'needs a decision' });
   seedEpic(db, 4, { status: 'queued', stage: null, config: null, startedAt: null });
   github.issues = { 'AshuLab/a#1': { state: 'open', labels: ['solve:epic:running'] }, 'AshuLab/a#3': { state: 'open', labels: ['solve:epic:needs-human'] } };
   runner.behavior = () => ({ exit: 'hang' });
@@ -1364,8 +1364,8 @@ test('an auth_failed stops only the running epics of that profile and their runs
   await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1, 2]));
 
   const [first, second, third] = rows(engine.db);
-  expect(first).toMatchObject({ issue: 1, status: 'needs_human', needsHumanReason: 'error de autenticación del perfil a', finishedAt: 5 * MIN, labelPending: false });
-  expect(second).toMatchObject({ issue: 2, status: 'needs_human', needsHumanReason: 'error de autenticación del perfil a' });
+  expect(first).toMatchObject({ issue: 1, status: 'needs_human', needsHumanReason: 'authentication error for profile a', finishedAt: 5 * MIN, labelPending: false });
+  expect(second).toMatchObject({ issue: 2, status: 'needs_human', needsHumanReason: 'authentication error for profile a' });
   expect(third).toMatchObject({ issue: 3, status: 'running' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(labelsOf(2)).toEqual(['solve:epic:needs-human']);
@@ -1381,7 +1381,7 @@ test('an auth_failed stops only the running epics of that profile and their runs
 
 test('an auth_failed of the reviewer profile stops the epic in review', async () => {
   const engine = await reviewing(() => ({ exit: 'auth_failed' }));
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'error de autenticación del perfil b' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'authentication error for profile b' });
   expect(runner.tasks.map((t) => t.profile)).toEqual(['a', 'b']);
 });
 

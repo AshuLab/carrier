@@ -17,6 +17,8 @@ export interface GitHub {
   getIssue(repo: string, issue: number): Promise<{ state: 'open' | 'closed'; labels: string[] }>;
   /** Null when the PR does not exist; a merged PR is `closed`. */
   getPullRequest(repo: string, number: number): Promise<{ state: 'open' | 'closed'; body: string; headSha: string } | null>;
+  /** The PR whose body closes the epic issue, null when there is none. Read only: used to check what a failed execution left behind. */
+  findPullRequest(repo: string, issue: number): Promise<{ number: number; state: 'open' | 'closed'; headSha: string } | null>;
   /** Idempotent: adding a label the issue has, or removing one it lacks, changes nothing. */
   setLabels(repo: string, issue: number, change: { add: string[]; remove: string[] }): Promise<void>;
   listLabels(repo: string): Promise<string[]>;

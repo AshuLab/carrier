@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { buildPrompt } from '../prompts/build-prompt.ts';
@@ -62,6 +66,24 @@ test('a bot identity sets author and committer', () => {
     GIT_COMMITTER_EMAIL: '1+artanis-agent[bot]@users.noreply.github.com',
   });
   expect(childEnv(ctx)).not.toHaveProperty('GIT_AUTHOR_NAME');
+});
+
+test('git pushes with the execution token, not with the helpers of the person running carrier', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'carrier-git-'));
+  try {
+    // What the keychain is on a Mac: a global helper that would answer with the person's own credentials.
+    const globalConfig = join(dir, 'gitconfig');
+    writeFileSync(globalConfig, '[credential]\n\thelper = "!f() { echo username=person; echo password=PERSONS_OWN; }; f"\n');
+    const env = childEnv({ ...ctx, githubToken: 'ghs_bot', baseEnv: { PATH: process.env.PATH, HOME: dir, GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: '1' } });
+    const asked = execFileSync('git', ['credential', 'fill'], { env, input: 'protocol=https\nhost=github.com\n\n', encoding: 'utf8' });
+    expect(asked).toContain('password=ghs_bot');
+    expect(asked).not.toContain('PERSONS_OWN');
+    expect(JSON.stringify(env)).not.toContain('PERSONS_OWN');
+    // The token travels in GH_TOKEN, never inside a git config value.
+    expect(Object.entries(env).filter(([k]) => k.startsWith('GIT_CONFIG_VALUE_')).map(([, v]) => v).join()).not.toContain('ghs_bot');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('resolveBinary skips the Superset wrappers', () => {

@@ -1,9 +1,10 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, expect, test } from 'vitest';
+import { afterAll, expect, test, vi } from 'vitest';
+import { acquireLock } from '../storage/lock.ts';
 
 const main = join(import.meta.dirname, 'main.ts');
 const dir = mkdtempSync(join(tmpdir(), 'carrier-cli-'));
@@ -12,7 +13,7 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 const valid = {
   root: dir,
   repos: [{ name: 'AshuLab/carrier' }],
-  profiles: { a: {}, b: {} },
+  profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } },
   orchestratorProfile: 'a',
   agents: {
     author: { profile: 'a', provider: 'claude', model: 'm' },
@@ -28,30 +29,43 @@ const write = (name: string, content: unknown) => {
   return file;
 };
 
-test('valid config prints the effective config and exits 0', () => {
-  const result = run('--config', write('ok.json', valid));
-  expect(result.status).toBe(0);
-  expect(JSON.parse(result.stdout)).toMatchObject({ pollIntervalMinutes: 5, repos: valid.repos });
-});
+// A stand-in for `agent-forge` that answers every GitHub call with an empty 200, so the real process runs the
+// real startup (lock, logging, engine, Forge adapter, panel) without GitHub, Forge or any agent.
+const bin = join(dir, 'bin');
+mkdirSync(bin);
+const calls = join(dir, 'forge-calls.log');
+writeFileSync(
+  join(bin, 'agent-forge'),
+  `#!/usr/bin/env node\nrequire('node:fs').appendFileSync(${JSON.stringify(calls)}, JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd() }) + '\\n');\nprocess.stdout.write('HTTP/2.0 200 OK\\ncontent-type: application/json\\n\\n[]');\n`,
+  { mode: 0o755 },
+);
 
-test('startup logs go to orchestrator/logs/orchestrator.log, not to the terminal', () => {
-  const result = run('--config', write('log.json', { ...valid, logLevel: 'debug' }));
-  expect(() => JSON.parse(result.stdout)).not.toThrow();
-  expect(result.stderr).toBe('');
-  expect(readFileSync(join(dir, 'orchestrator', 'logs', 'orchestrator.log'), 'utf8')).toContain('[info] {"message":"[cli] carrier started"');
-});
-
-test('prints the effective agents per repo', () => {
-  const repos = [{ name: 'a/b', agents: { reviewer: { model: 'other' } } }, { name: 'c/d' }];
-  const result = run('--config', write('eff.json', { ...valid, repos }));
-  const printed = JSON.parse(result.stdout).repos;
-  expect(printed[0].agents.reviewer).toEqual({ ...valid.agents.reviewer, model: 'other' });
-  expect(printed[1]).toEqual({ name: 'c/d', agents: valid.agents });
-});
-
-test('a relative --config path resolves against the working directory', () => {
-  write('rel.json', valid);
-  expect(run('--config', 'rel.json').status).toBe(0);
+test('a valid config starts the engine over Forge, shows the panel as plain lines, and Ctrl+C stops it cleanly', async () => {
+  const root = join(dir, 'run');
+  const config = write('ok.json', { ...valid, root, pollIntervalMinutes: 0.001, logLevel: 'debug', profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk) => (stdout += chunk));
+  child.stderr.on('data', (chunk) => (stderr += chunk));
+  const closed = once(child, 'close');
+  try {
+    // The engine reached GitHub as the orchestrator's profile, from a repo-shaped folder under the root.
+    await vi.waitFor(() => expect(readFileSync(calls, 'utf8')).toContain('/issues?'), { timeout: 15_000 });
+    const [first] = readFileSync(calls, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+    expect(first.args.slice(0, 4)).toEqual(['gh', 'artanis-agent', 'api', '-i']);
+    expect(realpathSync(first.cwd)).toBe(realpathSync(join(root, 'orchestrator', 'forge-cwd', 'AshuLab', 'carrier')));
+    expect(stdout).toContain('slots 0/3');
+    expect(stdout).not.toContain('\x1b['); // not a terminal: plain lines
+  } finally {
+    child.kill('SIGINT');
+  }
+  const [code] = await closed;
+  expect([code, stderr]).toEqual([0, '']);
+  expect(readFileSync(join(root, 'orchestrator', 'logs', 'orchestrator.log'), 'utf8')).toContain('[info] {"message":"[cli] carrier started"');
+  const lock = acquireLock(join(root, 'orchestrator'));
+  expect(lock.ok).toBe(true);
+  if (lock.ok) lock.release();
 });
 
 test('missing --config exits non-zero with usage', () => {

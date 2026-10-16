@@ -45,3 +45,25 @@ test('SIGINT in the middle of two runs stops them fast, keeps epics running and 
   expect(writes).toContain('SIGINT');
   expect(writes.slice(writes.indexOf('SIGINT') + 1)).toEqual([]);
 });
+
+test('restarting after Ctrl+C resumes the interrupted runs with their saved sessions, verifying the real state first, and launches no second author', async () => {
+  const start = async () => {
+    const child = spawn(process.execPath, [holder, dir], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const closed = once(child, 'close');
+    expect(String((await once(child.stdout, 'data'))[0]).trim()).toBe('ready');
+    return { stop: async () => (child.kill('SIGINT'), (await closed)[0]) };
+  };
+  const tasks = () => readFileSync(join(dir, 'tasks.log'), 'utf8').trim().split('\n');
+
+  expect(await (await start()).stop()).toBe(0);
+  expect(tasks()).toEqual(['1:-:-', '2:-:-']);
+
+  const second = await start();
+  expect(tasks()).toEqual(['1:-:-', '2:-:-', '1:s-1:true', '2:s-2:true']); // the third epic stays queued: still two slots
+  expect(await second.stop()).toBe(0);
+
+  const db = new Database(join(dir, 'orchestrator', 'carrier.db'), { readonly: true });
+  expect(db.prepare('select status from epics order by id').pluck().all()).toEqual(['running', 'running', 'queued']);
+  expect(db.prepare('select status from executions order by rowid').pluck().all()).toEqual(['interrupted', 'interrupted', 'interrupted', 'interrupted']);
+  db.close();
+});

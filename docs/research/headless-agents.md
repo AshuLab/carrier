@@ -1,63 +1,63 @@
-# Claude y Codex en modo headless
+# Claude and Codex in headless mode
 
-> Spike del 15/10/2026 (issue #5, épica #3). Responde a la pregunta abierta «Claude y Codex headless» de la [spec](../specs/autonomous-orchestrator.md). Todo se corrió en un repo descartable en `/tmp`, sin remoto, sin credenciales de repos reales y con prompts mínimos. No es una prueba de aislamiento: eso es el spike de contenedores ([ADR 0003](../adr/0003-agentes-en-contenedor.md)).
+> Spike from 2026-10-15 (issue #5, epic #3). Answers the open question "Claude and Codex headless" of the [spec](../specs/autonomous-orchestrator.md). Everything was run in a disposable repo in `/tmp`, with no remote, no credentials of real repos and with minimal prompts. It is not an isolation test: that is the containers spike ([ADR 0003](../adr/0003-agents-in-containers.md)).
 
-## Resultado
+## Result
 
-| Criterio de la Definition of done | Resultado |
+| Definition of done criterion | Result |
 |---|---|
-| 1. Versiones y comando exacto no interactivo que invoca un skill (Claude y Codex) | pasa |
-| 2. Id de sesión, archivos, comando de retomar y evidencia de que recuerda | pasa |
-| 3. JSON escrito en una ruta dada y válido contra `CallerResult` | pasa |
-| 4. Ejecución cortada con `kill`: qué sobrevive, si retoma, procesos hijos (`ps`) | pasa |
-| 5. Delegación en subagentes o hijos y huérfanos al matar al padre | pasa |
-| 6. Cada criterio como pasa/falla, opciones y spec/ADR | pasa (ver [Impacto](#impacto-en-la-spec-y-los-adr)) |
+| 1. Versions and exact non-interactive command that invokes a skill (Claude and Codex) | pass |
+| 2. Session id, files, resume command and evidence that it remembers | pass |
+| 3. JSON written to a given path and valid against `CallerResult` | pass |
+| 4. Execution cut with `kill`: what survives, whether it resumes, child processes (`ps`) | pass |
+| 5. Delegation to subagents or children and orphans when the parent is killed | pass |
+| 6. Each criterion as pass/fail, options and spec/ADR | pass (see [Impact](#impact-on-the-spec-and-the-adrs)) |
 
-Los dos CLI sirven como base del runner. Lo que el runner no puede dar por hecho: matar al CLI no siempre mata a sus hijos (tabla del punto 4 y 5), así que la detención tiene que apoyarse en el contenedor o en matar el grupo de procesos de cada comando, no en la señal al CLI.
+Both CLIs work as a base for the runner. What the runner cannot take for granted: killing the CLI does not always kill its children (table in points 4 and 5), so stopping has to rely on the container or on killing the process group of each command, not on the signal to the CLI.
 
-## Entorno
+## Environment
 
-- macOS (Darwin 27.0.0), Node v25.6.0, pnpm 12.4.1, `zod` 4.6.7 solo en el script de validación.
-- Claude Code **2.1.301**, autenticado con la cuenta claude.ai del operador. Modelo usado: alias `haiku` (`claude-haiku-5-5`). `CLAUDE_CONFIG_DIR=/Users/vemec/.claude-ashu-lab`.
-- Codex CLI **0.153.4**, autenticado con ChatGPT. Modelo: el default de `~/.codex/config.toml` (`gpt-5.6-terra`).
-- Repo descartable: `git init` en `/tmp/carrier-spike5.XXXXXX/repo` con un único commit, sin remoto. El skill de prueba es un `SKILL.md` en `.claude/skills/spike-skill/` y en `.agents/skills/spike-skill/` que escribe `skill-ran.txt` con `SKILL-OK <argumentos>`. No se corrió `ship` ni ningún skill de Solve real (necesitaría GitHub).
-- Trampa de entorno: en esta máquina `claude` y `codex` del `PATH` resuelven a wrappers de Superset (`~/.superset/bin/`). El de Codex es un script bash que agrega `--enable hooks --dangerously-bypass-hook-trust` (de ahí el aviso `--dangerously-bypass-hook-trust is enabled` en el JSONL) e intercepta señales. Los experimentos de kill usan el binario real `~/.local/bin/codex`. El runner debe invocar el binario real, no un wrapper.
-- Trampa de configuración: los CLI cargan la configuración del usuario (hooks de sesión de Claude, plugins de Codex como Slack o Calendar, `CLAUDE.md`). Un runner debe aislar `CLAUDE_CONFIG_DIR` y `CODEX_HOME` por ejecución; esto no se probó aquí.
+- macOS (Darwin 27.0.0), Node v25.6.0, pnpm 12.4.1, `zod` 4.6.7 only in the validation script.
+- Claude Code **2.1.301**, authenticated with the operator's claude.ai account. Model used: alias `haiku` (`claude-haiku-5-5`). `CLAUDE_CONFIG_DIR=/Users/vemec/.claude-ashu-lab`.
+- Codex CLI **0.153.4**, authenticated with ChatGPT. Model: the default from `~/.codex/config.toml` (`gpt-5.6-terra`).
+- Disposable repo: `git init` in `/tmp/carrier-spike5.XXXXXX/repo` with a single commit, no remote. The test skill is a `SKILL.md` in `.claude/skills/spike-skill/` and in `.agents/skills/spike-skill/` that writes `skill-ran.txt` with `SKILL-OK <arguments>`. `ship` and no real Solve skill were run (they would need GitHub).
+- Environment trap: on this machine `claude` and `codex` on the `PATH` resolve to Superset wrappers (`~/.superset/bin/`). The Codex one is a bash script that adds `--enable hooks --dangerously-bypass-hook-trust` (hence the `--dangerously-bypass-hook-trust is enabled` warning in the JSONL) and intercepts signals. The kill experiments use the real binary `~/.local/bin/codex`. The runner must invoke the real binary, not a wrapper.
+- Configuration trap: the CLIs load the user's configuration (Claude session hooks, Codex plugins such as Slack or Calendar, `CLAUDE.md`). A runner must isolate `CLAUDE_CONFIG_DIR` and `CODEX_HOME` per execution; this was not tested here.
 
-## 1. Comando no interactivo que invoca un skill
+## 1. Non-interactive command that invokes a skill
 
-Claude (el skill se invoca con `/nombre argumentos` como prompt):
+Claude (the skill is invoked with `/name arguments` as the prompt):
 
 ```sh
 cd <repo> && claude -p "/spike-skill alpha-42" --permission-mode bypassPermissions --output-format json --model haiku </dev/null
 ```
 
-Salida observada (recortada): `"is_error":false`, `"result":"DONE"`, `"session_id":"91b46ab3-3e4f-4e4d-b258-3ce035154567"`, `"terminal_reason":"completed"`, `exit=0`, y `skill-ran.txt` con `SKILL-OK alpha-42`.
+Observed output (trimmed): `"is_error":false`, `"result":"DONE"`, `"session_id":"91b46ab3-3e4f-4e4d-b258-3ce035154567"`, `"terminal_reason":"completed"`, `exit=0`, and `skill-ran.txt` with `SKILL-OK alpha-42`.
 
-Codex (el skill se invoca con `$nombre argumentos`; descubre skills en `.agents/skills/` del repo):
+Codex (the skill is invoked with `$name arguments`; it discovers skills in the repo's `.agents/skills/`):
 
 ```sh
 cd <repo> && codex exec '$spike-skill alpha-42' --sandbox workspace-write --json </dev/null
 ```
 
-Salida observada: `exit=0`, eventos `thread.started` (`thread_id` `01a141eb-6773-7263-b951-dd09037967bd`), un `agent_message` «Uso `spike-skill` para crear el marcador solicitado.», un `file_change` sobre `skill-ran.txt`, `agent_message` `DONE` y `turn.completed`. `skill-ran.txt` contiene `SKILL-OK alpha-42`.
+Observed output: `exit=0`, events `thread.started` (`thread_id` `01a141eb-6773-7263-b951-dd09037967bd`), an `agent_message` "Uso `spike-skill` para crear el marcador solicitado.", a `file_change` on `skill-ran.txt`, `agent_message` `DONE` and `turn.completed`. `skill-ran.txt` contains `SKILL-OK alpha-42`.
 
-Notas para el adaptador:
+Notes for the adapter:
 
-- Codex, si hay stdin que no es una terminal, imprime `Reading additional input from stdin...` y espera EOF; con `</dev/null` no se cuelga. Hacer lo mismo con Claude.
-- `claude -p` no pregunta permisos con `--permission-mode bypassPermissions` (equivale a `--dangerously-skip-permissions`; es aceptable solo dentro del contenedor del ADR 0003). Codex con `--sandbox workspace-write` escribe dentro del repo sin preguntar; fuera necesita `--add-dir <ruta>` (punto 3).
-- Salida máquina-legible: Claude `--output-format json` (un objeto al final) o `stream-json --verbose` (un evento por línea); Codex `--json` (JSONL de eventos). Ambos CLI aceptan además un esquema de salida estructurada (`claude --json-schema`, `codex exec --output-schema`); no se probó.
-- Solo se verificaron las versiones `2.1.301` y `0.153.4`; los flags pueden cambiar entre versiones, conviene fijarlas.
+- Codex, if there is a stdin that is not a terminal, prints `Reading additional input from stdin...` and waits for EOF; with `</dev/null` it does not hang. Do the same with Claude.
+- `claude -p` does not ask for permissions with `--permission-mode bypassPermissions` (equivalent to `--dangerously-skip-permissions`; acceptable only inside the ADR 0003 container). Codex with `--sandbox workspace-write` writes inside the repo without asking; outside it needs `--add-dir <path>` (point 3).
+- Machine-readable output: Claude `--output-format json` (one object at the end) or `stream-json --verbose` (one event per line); Codex `--json` (JSONL of events). Both CLIs also accept a structured output schema (`claude --json-schema`, `codex exec --output-schema`); not tested.
+- Only versions `2.1.301` and `0.153.4` were verified; flags can change between versions, so pinning them is advisable.
 
-## 2. Sesión: id, archivos y retomar
+## 2. Session: id, files and resume
 
 | | Claude | Codex |
 |---|---|---|
-| Cómo se obtiene el id | campo `session_id` del resultado (`--output-format json`/`stream-json`); también se puede fijar de antemano con `--session-id <uuid>` | primer evento del JSONL: `{"type":"thread.started","thread_id":"..."}` |
-| Dónde vive | `$CLAUDE_CONFIG_DIR/projects/<cwd con / y . como ->/<id>.jsonl` (p. ej. `~/.claude-ashu-lab/projects/-private-tmp-carrier-spike5-4J4kU3-repo/0b8e5745-6b93-4d7a-8a8b-ea52dce13c29.jsonl`) | `$CODEX_HOME/sessions/AAAA/MM/DD/rollout-<fecha>-<id>.jsonl` (p. ej. `~/.codex/sessions/2026/10/15/rollout-2026-10-15T20-35-49-01a141ec-06ab-7c00-80b1-aa33e00f2ae9.jsonl`) |
-| Retomar | `claude -p "<prompt>" --resume <id> ...` | `codex exec resume <id> "<prompt>" ...` |
+| How the id is obtained | `session_id` field of the result (`--output-format json`/`stream-json`); it can also be set in advance with `--session-id <uuid>` | first event of the JSONL: `{"type":"thread.started","thread_id":"..."}` |
+| Where it lives | `$CLAUDE_CONFIG_DIR/projects/<cwd with / and . as ->/<id>.jsonl` (e.g. `~/.claude-ashu-lab/projects/-private-tmp-carrier-spike5-4J4kU3-repo/0b8e5745-6b93-4d7a-8a8b-ea52dce13c29.jsonl`) | `$CODEX_HOME/sessions/YYYY/MM/DD/rollout-<date>-<id>.jsonl` (e.g. `~/.codex/sessions/2026/10/15/rollout-2026-10-15T20-35-49-01a141ec-06ab-7c00-80b1-aa33e00f2ae9.jsonl`) |
+| Resume | `claude -p "<prompt>" --resume <id> ...` | `codex exec resume <id> "<prompt>" ...` |
 
-Evidencia Claude (la sesión se creó diciendo un código y se retomó en un proceso nuevo):
+Claude evidence (the session was created by stating a code and resumed in a new process):
 
 ```
 $ claude -p "Remember the codeword TANGERINE-93. Reply only OK." --permission-mode bypassPermissions --output-format json --model haiku
@@ -66,7 +66,7 @@ $ claude -p "What was the codeword? Reply with only the codeword." --resume 0b8e
 {"session_id":"0b8e5745-6b93-4d7a-8a8b-ea52dce13c29","result":"TANGERINE-93","is_error":false}
 ```
 
-Evidencia Codex:
+Codex evidence:
 
 ```
 $ codex exec "Remember the codeword TANGERINE-93. Reply only OK." --sandbox workspace-write --json
@@ -75,22 +75,22 @@ $ codex exec resume 01a141ec-06ab-7c00-80b1-aa33e00f2ae9 "What was the codeword?
 {"type":"thread.started","thread_id":"01a141ec-06ab-7c00-80b1-aa33e00f2ae9"} ... agent_message "TANGERINE-93"
 ```
 
-Detalles que importan al adaptador:
+Details that matter to the adapter:
 
-- `codex exec resume` no acepta `--sandbox` ni `-C`/`--cd`: el sandbox se pasa con `-c 'sandbox_mode="..."'` y el cwd es el del proceso. La retomada conserva el mismo `thread_id`.
-- Claude conserva el mismo `session_id` al retomar. Retomar desde otra carpeta (`cd <otra> && claude -p ping --resume <id>`) también funcionó: el id se encuentra sin importar el cwd y el archivo original sigue siendo el de la carpeta de origen, así que no hace falta preservar el cwd exacto, pero conviene montar el directorio de sesiones persistente (ADR 0003).
-- Cada ejecución headless de Claude con `-p` crea un archivo de sesión nuevo salvo que se use `--resume`; el runner debe guardar el id de cada ejecución.
+- `codex exec resume` does not accept `--sandbox` or `-C`/`--cd`: the sandbox is passed with `-c 'sandbox_mode="..."'` and the cwd is that of the process. The resume keeps the same `thread_id`.
+- Claude keeps the same `session_id` on resume. Resuming from another folder (`cd <other> && claude -p ping --resume <id>`) also worked: the id is found regardless of the cwd and the original file remains the one in the origin folder, so the exact cwd does not need to be preserved, but mounting the persistent sessions directory is advisable (ADR 0003).
+- Each headless Claude execution with `-p` creates a new session file unless `--resume` is used; the runner must store the id of each execution.
 
-## 3. JSON del caller validado con `CallerResult`
+## 3. Caller JSON validated with `CallerResult`
 
-El prompt pide escribir en una ruta fuera del repo (`/tmp/.../out/<agente>-result.json`) un `completed` con `pr.headSha` real (`git rev-parse HEAD`). Para que Codex pueda escribir fuera del workspace se agrega `--add-dir <carpeta>`; Claude con `--add-dir` también.
+The prompt asks to write, to a path outside the repo (`/tmp/.../out/<agent>-result.json`), a `completed` with a real `pr.headSha` (`git rev-parse HEAD`). For Codex to be able to write outside the workspace, `--add-dir <folder>` is added; Claude with `--add-dir` too.
 
 ```sh
-claude -p "<prompt con OUTPATH>" --permission-mode bypassPermissions --add-dir <out> --output-format json --model haiku </dev/null
-codex exec "<prompt con OUTPATH>" --sandbox workspace-write --add-dir <out> --json </dev/null
+claude -p "<prompt with OUTPATH>" --permission-mode bypassPermissions --add-dir <out> --output-format json --model haiku </dev/null
+codex exec "<prompt with OUTPATH>" --sandbox workspace-write --add-dir <out> --json </dev/null
 ```
 
-Validador descartable (copia de `CallerResult` de la spec, ejecutado con `node validate.mjs <archivo>` en una carpeta aparte con `zod` instalado):
+Disposable validator (copy of the spec's `CallerResult`, run with `node validate.mjs <file>` in a separate folder with `zod` installed):
 
 ```js
 import { z } from 'zod';
@@ -116,83 +116,83 @@ console.log(r.success ? 'VALID outcome=' + r.data.outcome : 'INVALID ' + JSON.st
 process.exit(r.success ? 0 : 1);
 ```
 
-Resultados observados:
+Observed results:
 
 ```
 claude-result.json  ->  VALID outcome=completed
 codex-result.json   ->  VALID outcome=completed
-control negativo (epic 0, headSha "abc") -> INVALID [... "path":["epic"] ... "path":["pr","headSha"] ...]
+negative control (epic 0, headSha "abc") -> INVALID [... "path":["epic"] ... "path":["pr","headSha"] ...]
 ```
 
-El JSON de Claude salió formateado con `summary` y `evidence` redactados por el modelo; el de Codex salió en una línea. Con ambos, el `executionId`, `repo`, `epic` y `stage` repiten lo que el prompt pidió. Ninguno inventó campos. Es un solo intento por agente con un prompt corto: no mide la tasa de JSON inválido, que el spec ya cubre con reintento por fallo técnico.
+Claude's JSON came out formatted, with `summary` and `evidence` written by the model; Codex's came out on one line. With both, the `executionId`, `repo`, `epic` and `stage` repeat what the prompt asked for. Neither invented fields. It is a single attempt per agent with a short prompt: it does not measure the invalid-JSON rate, which the spec already covers with a retry on technical failure.
 
-## 4. Ejecución cortada con `kill`
+## 4. Execution cut with `kill`
 
-Tarea: recordar un código (`KUMQUAT-58`), crear `step1.txt`, ejecutar en foreground `python3 -c 'import time; time.sleep(31x)'` y crear `step3.txt`. A los pocos segundos de empezar el sleep se manda la señal al proceso del CLI (no al wrapper) y se mira qué queda con `ps`. Luego se retoma la sesión pidiendo saltar el sleep y completar el paso 3.
+Task: remember a code (`KUMQUAT-58`), create `step1.txt`, run in the foreground `python3 -c 'import time; time.sleep(31x)'` and create `step3.txt`. A few seconds after the sleep starts, the signal is sent to the CLI process (not the wrapper) and what remains is inspected with `ps`. Then the session is resumed, asking to skip the sleep and complete step 3.
 
-Árbol de procesos antes de matar (Claude): `claude -p` → `codegraph-mcp` (servidor MCP del usuario) y `/bin/zsh -c ...` (la tool Bash) → `Python -c ...sleep`. Codex: `codex exec` → `node_repl` (x2), `codex-code-mode-host` y `Python -c ...sleep` (cada uno con su propio pgid).
+Process tree before killing (Claude): `claude -p` → `codegraph-mcp` (the user's MCP server) and `/bin/zsh -c ...` (the Bash tool) → `Python -c ...sleep`. Codex: `codex exec` → `node_repl` (x2), `codex-code-mode-host` and `Python -c ...sleep` (each with its own pgid).
 
-| Agente | Señal | Archivos y sesión | Hijos tras `ps` | Retomada |
+| Agent | Signal | Files and session | Children after `ps` | Resume |
 |---|---|---|---|---|
-| Claude | `SIGTERM` | `step1.txt` quedó; el `.jsonl` de la sesión (`f485db74-...`) quedó en disco; el stream mostró la tool interrumpida con `Exit code 137`; exit del CLI 143 | ninguno: shell, `python` y `codegraph-mcp` terminaron | `--resume`: recordó `KUMQUAT-58`, vio `step1.txt`, creó `step3.txt` |
-| Claude | `SIGKILL` | igual (`step1.txt`, sesión `4c9033c2-...`); exit 137 | **huérfanos**: `/bin/zsh -c ...` (pid 92565, ppid 1) y `Python -c ...sleep` (pid 92566); `codegraph-mcp` sí terminó | recordó `KUMQUAT-58`, creó `step3.txt` (los huérfanos se mataron antes) |
-| Codex | `SIGTERM` al CLI real | `step1.txt` y el rollout (`01a141f0-f9c7-7f81-876e-a7dae35e24de`) quedaron; exit 143 | **huérfano**: `Python -c ...sleep` (pid 2267, ppid 1); `codex`, `node_repl` y `codex-code-mode-host` terminaron | `exec resume`: recordó `KUMQUAT-58`, creó `step3.txt` |
-| Codex | `SIGKILL` | igual (`01a141f3-6884-7190-a479-7384db9b72ad`); exit 137 | **huérfano**: `Python -c ...sleep` (pid 12705, ppid 1) | recordó `KUMQUAT-58`, creó `step3.txt` |
+| Claude | `SIGTERM` | `step1.txt` remained; the session `.jsonl` (`f485db74-...`) remained on disk; the stream showed the tool interrupted with `Exit code 137`; CLI exit 143 | none: shell, `python` and `codegraph-mcp` terminated | `--resume`: remembered `KUMQUAT-58`, saw `step1.txt`, created `step3.txt` |
+| Claude | `SIGKILL` | same (`step1.txt`, session `4c9033c2-...`); exit 137 | **orphans**: `/bin/zsh -c ...` (pid 92565, ppid 1) and `Python -c ...sleep` (pid 92566); `codegraph-mcp` did terminate | remembered `KUMQUAT-58`, created `step3.txt` (the orphans were killed beforehand) |
+| Codex | `SIGTERM` to the real CLI | `step1.txt` and the rollout (`01a141f0-f9c7-7f81-876e-a7dae35e24de`) remained; exit 143 | **orphan**: `Python -c ...sleep` (pid 2267, ppid 1); `codex`, `node_repl` and `codex-code-mode-host` terminated | `exec resume`: remembered `KUMQUAT-58`, created `step3.txt` |
+| Codex | `SIGKILL` | same (`01a141f3-6884-7190-a479-7384db9b72ad`); exit 137 | **orphan**: `Python -c ...sleep` (pid 12705, ppid 1) | remembered `KUMQUAT-58`, created `step3.txt` |
 
-Salida de `ps` ilustrativa, después de `kill -KILL` del CLI de Claude:
+Illustrative `ps` output, after `kill -KILL` of the Claude CLI:
 
 ```
 92565     1 92565 01:33 /bin/zsh -c source /Users/vemec/.claude-ashu-lab/shell-snapshots/snapshot-zsh-...sh ...
 92566 92565 92565 01:33 /Applications/Xcode.app/.../Python -c import time; time.sleep(312)
 ```
 
-y después de `kill -TERM` del CLI de Codex:
+and after `kill -TERM` of the Codex CLI:
 
 ```
  2267     1  2267       02:11 /Applications/Xcode.app/.../Python -c import time; time.sleep(313)
 ```
 
-Conclusiones:
+Conclusions:
 
-- Lo que sobrevive siempre: los archivos escritos antes de cortar y el archivo de sesión (se escribe incrementalmente). Retomar funciona con ambos CLI, con cualquier señal.
-- Claude con `SIGTERM` limpia a sus hijos; con `SIGKILL` no (nadie puede). Codex no limpia el proceso del comando ni con `SIGTERM`: quedó huérfano en ambos casos.
-- Los hijos están en su propio grupo de procesos, así que matar el grupo del CLI no alcanza; se limpiaron con `kill -TERM <pid>` o `kill -TERM -<pgid>` del huérfano. En el runner, esto lo resuelve el contenedor (ADR 0003: «matar el contenedor alcanza a los procesos hijos»). Sin contenedor habría que registrar los descendientes antes de matar.
-- Mi primer intento de matar a Codex fue sobre el wrapper bash de Superset: el `SIGTERM` no lo terminó (tiene `trap`) y el CLI real siguió corriendo. Matar al wrapper no detiene a Codex; confirmar el pid real.
-- Mi primer intento con Claude y `sleep 311` mostró que Claude 2.1.301 bloquea un `sleep` suelto en foreground y lo manda a background; por eso los experimentos usan `python3 -c 'import time; time.sleep(N)'`.
-- Al retomar tras un corte hay que decirle al agente que verifique el estado real (la sesión no registra el efecto real de la tool interrumpida), tal como ya prevé la spec.
+- What always survives: the files written before the cut and the session file (written incrementally). Resuming works with both CLIs, with any signal.
+- Claude with `SIGTERM` cleans up its children; with `SIGKILL` it does not (nobody can). Codex does not clean up the command's process even with `SIGTERM`: it was left orphaned in both cases.
+- The children are in their own process group, so killing the CLI's group is not enough; they were cleaned up with `kill -TERM <pid>` or `kill -TERM -<pgid>` of the orphan. In the runner, the container solves this (ADR 0003: "killing the container reaches the child processes"). Without a container, descendants would have to be recorded before killing.
+- My first attempt to kill Codex was on Superset's bash wrapper: the `SIGTERM` did not terminate it (it has a `trap`) and the real CLI kept running. Killing the wrapper does not stop Codex; confirm the real pid.
+- My first attempt with Claude and `sleep 311` showed that Claude 2.1.301 blocks a bare foreground `sleep` and sends it to the background; that is why the experiments use `python3 -c 'import time; time.sleep(N)'`.
+- When resuming after a cut, the agent must be told to verify the real state (the session does not record the real effect of the interrupted tool), as the spec already anticipates.
 
-## 5. Delegación en subagentes o procesos hijos
+## 5. Delegation to subagents or child processes
 
-Prompt: «lanzá UN subagente que ejecute en foreground `python3 -c 'import time; time.sleep(N)'` y esperalo». Claude lo hizo con la tool `Agent` (eventos `tool_use` `Agent` y luego `Bash` del subagente); Codex con una `collab_tool_call` (`codex features list`: `multi_agent` está `stable` y activa). En los dos, el sleep corrió en un proceso nieto del CLI.
+Prompt: "launch ONE subagent that runs in the foreground `python3 -c 'import time; time.sleep(N)'` and wait for it". Claude did it with the `Agent` tool (`tool_use` events `Agent` and then the subagent's `Bash`); Codex with a `collab_tool_call` (`codex features list`: `multi_agent` is `stable` and enabled). In both, the sleep ran in a grandchild process of the CLI.
 
-| Agente | Señal al padre | Huérfanos |
+| Agent | Signal to the parent | Orphans |
 |---|---|---|
-| Claude (subagente `Agent`) | `SIGTERM` | ninguno (la shell y el `python` terminaron con el CLI) |
-| Claude (subagente `Agent`) | `SIGKILL` | `/bin/zsh -c ...` (pid 20914, ppid 1) y `Python -c ...sleep(317)` (pid 20915) |
-| Codex (subagente) | `SIGTERM` | `Python -c ...sleep(318)` (pid 26052, ppid 1) |
-| Codex (subagente) | `SIGKILL` | `Python -c ...sleep(319)` (pid 28408, ppid 1) |
+| Claude (`Agent` subagent) | `SIGTERM` | none (the shell and the `python` terminated with the CLI) |
+| Claude (`Agent` subagent) | `SIGKILL` | `/bin/zsh -c ...` (pid 20914, ppid 1) and `Python -c ...sleep(317)` (pid 20915) |
+| Codex (subagent) | `SIGTERM` | `Python -c ...sleep(318)` (pid 26052, ppid 1) |
+| Codex (subagent) | `SIGKILL` | `Python -c ...sleep(319)` (pid 28408, ppid 1) |
 
-Los subagentes no son procesos propios: viven dentro del CLI padre; lo que queda huérfano son los comandos que ejecutaron. Es el mismo comportamiento del punto 4. Se usó un subagente simple, no `ship` real (que despacha hasta tres por batch): el mecanismo de hijos es el mismo, pero la cantidad de huérfanos crecería con el paralelismo.
+Subagents are not processes of their own: they live inside the parent CLI; what is left orphaned are the commands they ran. It is the same behavior as in point 4. A simple subagent was used, not the real `ship` (which dispatches up to three per batch): the child mechanism is the same, but the number of orphans would grow with parallelism.
 
-Todos los huérfanos se documentaron con `ps` y se mataron al terminar; al final no quedó ningún proceso de los experimentos, y se borraron la carpeta temporal y los archivos de sesión de los experimentos (por eso las rutas de ejemplo ya no existen).
+All the orphans were documented with `ps` and killed at the end; at the end no process from the experiments remained, and the temporary folder and the experiments' session files were deleted (which is why the example paths no longer exist).
 
-## Opciones y recomendación
+## Options and recommendation
 
-No hay criterio que falle, pero sí un riesgo operativo: los huérfanos. Opciones para la detención del runner:
+No criterion fails, but there is an operational risk: orphans. Options for the runner's stop:
 
-1. **Contenedor por ejecución, matarlo al detener (ADR 0003, ya decidido).** Cubre todos los casos de arriba sin código extra. Lo que sigue pendiente es probarlo en el spike de contenedores.
-2. Registrar el árbol de procesos (`pgrep -P` recursivo) antes de enviar `SIGTERM` al CLI y matar los restantes después de un plazo. Sirve de red de seguridad en el host y para tests, no reemplaza al contenedor.
-3. Lanzar cada CLI en su propio grupo de sesión (`setsid`) para poder matar por grupo. No alcanza: la shell del comando abre otro grupo (se vio `pgid` distinto) y no hay `setsid` nativo en macOS.
+1. **One container per execution, kill it on stop (ADR 0003, already decided).** It covers all the cases above with no extra code. What remains pending is testing it in the containers spike.
+2. Record the process tree (recursive `pgrep -P`) before sending `SIGTERM` to the CLI and kill the remaining ones after a grace period. It serves as a safety net on the host and for tests, it does not replace the container.
+3. Launch each CLI in its own session group (`setsid`) to be able to kill by group. It is not enough: the command's shell opens another group (a different `pgid` was seen) and there is no native `setsid` on macOS.
 
-Recomendación: mantener la opción 1 y hacer que el runner mande primero `SIGTERM` (Claude limpia sus hijos) y deje la limpieza final al contenedor.
+Recommendation: keep option 1 and have the runner send `SIGTERM` first (Claude cleans up its children) and leave the final cleanup to the container.
 
-## Impacto en la spec y los ADR
+## Impact on the spec and the ADRs
 
-Ningún resultado contradice la spec ni el ADR 0003. Lo observado respalda el ADR: matar el CLI no alcanza a los procesos hijos en el host (Codex ni con `SIGTERM`), así que el supuesto «matar el contenedor termina todos los procesos» es lo que el spike de contenedores debe confirmar. La spec recibió un párrafo breve en la sección de validaciones que enlaza este documento y lista las trampas para el runner (binario real, `</dev/null`, `--add-dir`, `exec resume` sin `--sandbox`).
+No result contradicts the spec or ADR 0003. What was observed supports the ADR: killing the CLI does not reach the child processes on the host (Codex not even with `SIGTERM`), so the assumption "killing the container terminates all processes" is what the containers spike must confirm. The spec received a short paragraph in the validations section that links this document and lists the runner's traps (real binary, `</dev/null`, `--add-dir`, `exec resume` without `--sandbox`).
 
-## Limitaciones
+## Limitations
 
-- Skill de juguete, no `ship`: no se verificó que `ship` real (con `gh`, subagentes en paralelo y sesiones de horas) funcione sin interacción.
-- Un solo intento por caso, sin medir variabilidad entre corridas; Claude se probó con `haiku`, no con el modelo que usaría el autor real.
-- No se probó `--bare`, `--ignore-user-config` ni `--no-session-persistence`, ni el aislamiento de `CLAUDE_CONFIG_DIR`/`CODEX_HOME`, ni límites (`--max-budget-usd`, `--max-turns`).
-- macOS únicamente; el comportamiento de señales y grupos de procesos en el contenedor Linux es del spike de contenedores.
+- Toy skill, not `ship`: it was not verified that the real `ship` (with `gh`, parallel subagents and sessions of hours) works without interaction.
+- A single attempt per case, with no measurement of variability between runs; Claude was tested with `haiku`, not with the model the real author would use.
+- `--bare`, `--ignore-user-config` and `--no-session-persistence` were not tested, nor the isolation of `CLAUDE_CONFIG_DIR`/`CODEX_HOME`, nor limits (`--max-budget-usd`, `--max-turns`).
+- macOS only; the behavior of signals and process groups in the Linux container belongs to the containers spike.

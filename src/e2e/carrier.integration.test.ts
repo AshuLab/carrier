@@ -72,7 +72,8 @@ const epicSpec = (name: string, fn: string, body: string, expected: string, twoS
 });
 
 describe.skipIf(!env)('carrier end to end (real Claude, Codex, Forge and Solve)', () => {
-  const e = env!;
+  // The body of a skipped describe still runs to collect its tests: without the variables it must not touch them.
+  const e = env ?? { repo: '', authorAgent: '', reviewerAgent: '', author: { provider: 'claude' as const, model: '' }, reviewer: { provider: 'codex' as const, model: '' }, scenarios: [] };
   const root = env ? makeRoot() : '';
   const seed = env ? mkdtempSync(join(tmpdir(), 'carrier-e2e-seed-')) : '';
   const evidence = new Evidence(root);
@@ -293,17 +294,17 @@ describe.skipIf(!env)('carrier end to end (real Claude, Codex, Forge and Solve)'
       // The agent may read its file back and rewrite it, so keep cutting it until its process is gone: what carrier finds is a truncated file.
       let cuts = 0;
       while (dbExecutions(root, epic.epic).find((r) => r.executionId === review.executionId)?.status === 'running') {
-        const text = readFileSync(reviewFile, 'utf8');
         try {
+          const text = readFileSync(reviewFile, 'utf8');
           JSON.parse(text);
           writeFileSync(reviewFile, text.slice(0, Math.floor(text.length / 2)));
           cuts++;
         } catch {
-          // already truncated
+          // already truncated, or the agent deleted it to rewrite it: look again
         }
         await sleep(50);
       }
-      evidence.log(`d: cut the review JSON ${cuts} time(s) while its agent ran; what carrier found: ${readFileSync(reviewFile, 'utf8').length} bytes`);
+      evidence.log(`d: cut the review JSON ${cuts} time(s) while its agent ran; what carrier found: ${existsSync(reviewFile) ? readFileSync(reviewFile, 'utf8').length : 0} bytes`);
 
       const row = await untilEnded(epic.epic, minutes(60));
       const executions = dbExecutions(root, epic.epic);
@@ -315,10 +316,14 @@ describe.skipIf(!env)('carrier end to end (real Claude, Codex, Forge and Solve)'
 
       expect(row.status).toBe('ready_for_test');
       expect(dbResultCount(root, exec.executionId)).toBe(1);
-      expect(executions.find((r) => r.executionId === review.executionId)!.status).toBe('invalid_result');
+      // `review` was read when the execution started, before Codex reported its session: the id comes from the final row.
+      const cut = executions.find((r) => r.executionId === review.executionId)!;
+      expect(cut.status).toBe('invalid_result');
+      expect(cut.error).toBe('result is not valid JSON');
       const retried = executions.filter((r) => r.stage === 'review').slice(1);
       expect(retried.length).toBeGreaterThanOrEqual(1);
-      expect(retried[0]!.sessionId).toBe(review.sessionId); // resumed, not rebuilt
+      expect(cut.sessionId).not.toBeNull();
+      expect(retried[0]!.sessionId).toBe(cut.sessionId); // resumed, not rebuilt
       expect(events).toContain('execution_retried');
       expect(row.round).toBe(1); // a technical failure does not spend a review round
       expect(after.integrationPrs).toHaveLength(1);

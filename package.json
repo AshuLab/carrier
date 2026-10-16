@@ -1,22 +1,37 @@
 {
   "name": "@ashulab/carrier",
   "version": "0.1.0",
+  "description": "Autonomous epic orchestrator: ships and reviews Solve epics with AI agents on your machine.",
+  "author": "Diego Ghersi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AshuLab/carrier.git"
+  },
   "type": "module",
   "packageManager": "pnpm@12.11.2",
   "engines": {
-    "node": "26.x",
-    "pnpm": "12.x"
+    "node": ">=22"
   },
   "bin": {
     "carrier": "./dist/cli/main.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -r src/storage/migrations dist/storage/migrations && chmod +x dist/cli/main.js",
-    "prepublishOnly": "pnpm typecheck && pnpm test && pnpm build",
+    "prepublishOnly": "pnpm typecheck && pnpm test",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "prepack": "pnpm build"
   },
   "dependencies": {
     "@ashulab/universal-logger": "^0.1.1",
@@ -30,20 +45,5 @@
     "drizzle-kit": "^0.31.11",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"
-  },
-  "description": "Autonomous epic orchestrator: ships and reviews Solve epics with AI agents on your machine.",
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
-  ],
-  "license": "MIT",
-  "author": "Diego Ghersi",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/AshuLab/carrier.git"
-  },
-  "publishConfig": {
-    "access": "public"
   }
 }

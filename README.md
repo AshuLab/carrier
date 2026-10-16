@@ -87,7 +87,7 @@ carrier/
 
 ### 1. Prerequisites
 
-- macOS, Node.js 26 and pnpm 12.
+- macOS and Node.js 22 or newer. Working from a clone needs Node.js 26 and pnpm 12.
 - `git` and the GitHub CLI (`gh`).
 - The `claude` and/or `codex` CLIs installed and logged in from the terminal where you run Carrier.
 - [Agent Forge](https://github.com/AshuLab/agent-forge) with two bot profiles (one for the author, one for the reviewer), or `gh` profiles for the identities you want to use.

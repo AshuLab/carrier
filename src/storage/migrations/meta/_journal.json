@@ -15,6 +15,13 @@
       "when": 1792110236763,
       "tag": "0001_worried_grey_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792110411080,
+      "tag": "0002_curious_vargas",
+      "breakpoints": true
     }
   ]
 }

@@ -2,11 +2,14 @@ export class GitHubUnavailable extends Error {
   readonly retryAfterMs?: number;
 
   // No parameter property: Node strips types at runtime and cannot run that syntax.
-  constructor(retryAfterMs?: number) {
-    super('GitHub unavailable');
+  constructor(retryAfterMs?: number, cause?: string) {
+    super('GitHub unavailable', { cause });
     this.retryAfterMs = retryAfterMs;
   }
 }
+
+/** The profile's credentials were rejected or are missing. Stops the work of that profile; the profile is never switched. */
+export class AuthError extends Error {}
 
 // Labels Carrier owns (it creates them) and the one Solve owns (it never does).
 export const ownedLabels = ['solve:epic:running', 'solve:epic:ready-for-test', 'solve:epic:needs-human'] as const;

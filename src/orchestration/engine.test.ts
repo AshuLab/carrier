@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -1223,4 +1223,19 @@ test('a repo configured again resumes its epics where they were, except the ones
   expect(rows(engine.db).every((e) => e.removedFrom === null && e.removedReason === null)).toBe(true);
   expect(eventTypes(engine.db).filter((t) => t === 'repo_restored')).toHaveLength(4);
   expect(labelsOf(3)).toEqual(['solve:epic:needs-human']);
+});
+
+test('purges expired logs and sessions when the engine starts and every 24 hours after', async () => {
+  const db = open();
+  const old = db.insert(epics).values({ repo: 'AshuLab/a', issue: 1, status: 'merged', finishedAt: -30 * 24 * 60 * MIN }).returning().get();
+  db.insert(executions).values({ executionId: 'x-old', epicId: old.id, stage: 'ship', sessionId: 's-old', resultPath: 'r', startedAt: 0 }).run();
+  const logs = join(dir, 'orchestrator', 'logs', 'executions', 'x-old');
+  mkdirSync(logs, { recursive: true });
+  const engine = createEngine({ db, github, clock, repos, pollIntervalMs: 5 * MIN, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, runner, workspaces, root: dir });
+  await engine.start();
+  expect(existsSync(logs)).toBe(false);
+  mkdirSync(logs, { recursive: true });
+  await clock.advance(24 * 60 * MIN);
+  expect(existsSync(logs)).toBe(false);
+  engine.stop();
 });

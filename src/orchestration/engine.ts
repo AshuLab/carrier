@@ -18,6 +18,7 @@ import type { Clock } from './clock.ts';
 import { endOf } from './final-pr.ts';
 import { GitHubUnavailable, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub } from './github.ts';
 import { reserve } from './reserve.ts';
+import { startRetention } from './retention.ts';
 import { failureStreak } from './retry.ts';
 
 export type EngineOptions = {
@@ -58,6 +59,7 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
 export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, runner, workspaces, root }: EngineOptions) {
   let error: GitHubUnavailable | null = null;
   let cancel: (() => void) | null = null;
+  let stopRetention: (() => void) | null = null;
   const labelledRepos = new Set<string>();
   // Runs of this process still going, to stop them when the epic ends from outside.
   const active = new Map<string, AgentRun>();
@@ -460,6 +462,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   return {
     async start() {
+      stopRetention = startRetention(db, root, clock);
       // GitHub down: retried every cycle until it works.
       for (const step of [ensureLabels, recover]) {
         try {
@@ -472,7 +475,10 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       }
       schedule(pollIntervalMs);
     },
-    stop: () => cancel?.(),
+    stop() {
+      cancel?.();
+      stopRetention?.();
+    },
     /**
      * Ctrl+C: stops polling and reserving, then stops every active run without waiting for its stage.
      * Their executions end `interrupted` (session ids already saved), the epics stay `running` and
@@ -481,6 +487,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     async shutdown() {
       stopping = true;
       cancel?.();
+      stopRetention?.();
       await Promise.all([...active.values()].map((run) => run.stop()));
       while (inflight.size > 0) await Promise.all([...inflight]);
     },

@@ -94,11 +94,13 @@ carrier/
 - [Agent Forge](https://github.com/AshuLab/agent-forge) with two bot profiles (one for the author, one for the reviewer), or `gh` profiles for the identities you want to use.
 - The target repos use the [Solve](https://github.com/AshuLab/skills) flow.
 
-### 2. Install dependencies
+### 2. Install
 
 ```bash
-pnpm install
+pnpm add -g @ashulab/carrier
 ```
+
+Or run it without installing: `pnpm dlx @ashulab/carrier --config ./carrier.config.json`. To work on Carrier itself, clone the repo and run `pnpm install`.
 
 ### 3. Write a config
 
@@ -124,10 +126,10 @@ Defaults: `root` `~/.solve`, `pollIntervalMinutes` 5, `logLevel` `info`, and `li
 ### 4. Run it
 
 ```bash
-node src/cli/main.ts --config ./carrier.config.json
+carrier --config ./carrier.config.json
 ```
 
-Node 26 runs the TypeScript directly. The package also declares a `carrier` binary, so after `pnpm link --global` you can run `carrier --config ./carrier.config.json` from any folder. It runs until `Ctrl+C`. Only one instance can run per root folder.
+It runs until `Ctrl+C`. Only one instance can run per root folder. From a clone, run `pnpm build` and then `node dist/cli/main.js --config ./carrier.config.json`, or `node src/cli/main.ts --config ...` (Node 26 runs the TypeScript directly).
 
 Mark an epic `solve:epic:ready` in a configured repo and watch the panel.
 
@@ -135,6 +137,7 @@ Mark an epic `solve:epic:ready` in a configured repo and watch the panel.
 
 | Command | What it does |
 |---------|--------------|
+| `pnpm build` | Compile to `dist/` (what gets published) |
 | `pnpm typecheck` | Type-check the project |
 | `pnpm test` | Full unit suite — fakes and a temp SQLite, no network and no real agents |
 | `pnpm test:integration` | Integration and end-to-end tests with real tools; they skip with a clear message unless their environment variables are set |

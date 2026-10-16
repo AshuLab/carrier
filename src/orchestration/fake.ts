@@ -7,7 +7,7 @@ export class FakeGitHub implements GitHub {
   /** Makes setLabels fail while the rest works. */
   setLabelsUnavailable: GitHubUnavailable | null = null;
   issues: Record<string, { state: 'open' | 'closed'; labels: string[] }> = {};
-  pulls: Record<string, { state: 'open' | 'closed'; body: string; headSha: string }> = {};
+  pulls: Record<string, { state: 'open' | 'closed' | 'merged'; body: string; headSha: string }> = {};
   repoLabels: Record<string, string[]> = {};
   created: string[] = [];
   calls = 0;

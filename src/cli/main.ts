@@ -2,8 +2,10 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { createScopedLogger } from '@ashulab/universal-logger';
 import { defaults, loadConfig } from '../config/load.ts';
 import { resolveRepoConfig } from '../config/resolve.ts';
+import { installFileLogging } from '../logging/logger.ts';
 import { acquireLock } from '../storage/lock.ts';
 
 const fail = (code: number, ...lines: string[]): never => {
@@ -33,6 +35,9 @@ if (!result.ok) {
   else fail(1, `Another carrier instance is already running on ${orchestratorDir}`);
 
   const { config } = result;
+  // From here on console.* goes to the log file; the terminal is for the config print and the panel.
+  installFileLogging(join(orchestratorDir, 'logs', 'orchestrator.log'), config.logLevel);
+  createScopedLogger('cli').info('carrier started', { root: config.root, repos: config.repos.length });
   const effective = { ...config, repos: config.repos.map((repo) => resolveRepoConfig(config, repo)) };
-  console.log(JSON.stringify(effective, null, 2));
+  process.stdout.write(`${JSON.stringify(effective, null, 2)}\n`);
 }

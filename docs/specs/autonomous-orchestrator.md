@@ -144,7 +144,7 @@ export const CallerResult = z.discriminatedUnion('outcome', [
 ]);
 ```
 
-**Configuración.** Los defaults de la app incluyen la raíz, el intervalo y los límites; perfiles, repos y asignaciones por rol los declara siempre el usuario. Los perfiles referencian a Forge; su forma exacta se fija tras el spike de Forge. Ejemplo de la forma, no de valores:
+**Configuración.** Los defaults de la app incluyen la raíz, el intervalo, el nivel de log (`logLevel`, `info`) y los límites; perfiles, repos y asignaciones por rol los declara siempre el usuario. Los perfiles referencian a Forge; su forma exacta se fija tras el spike de Forge. Ejemplo de la forma, no de valores:
 
 ```json
 {

@@ -21,6 +21,12 @@ const errorsOf = (user: object) => {
 };
 
 describe('merge', () => {
+  test('logLevel defaults to info, accepts a library level and rejects anything else', () => {
+    expect(load({})).toMatchObject({ ok: true, config: { logLevel: 'info' } });
+    expect(load({ logLevel: 'debug' })).toMatchObject({ ok: true, config: { logLevel: 'debug' } });
+    expect(errorsOf({ logLevel: 'loud' }).map((e) => e.path)).toEqual(['logLevel']);
+  });
+
   test('applies defaults when the user omits them', () => {
     const result = load({});
     expect(result).toMatchObject({ ok: true, config: { pollIntervalMinutes: 5, limits: defaults.limits } });

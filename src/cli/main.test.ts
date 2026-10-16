@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, expect, test } from 'vitest';
@@ -32,6 +32,13 @@ test('valid config prints the effective config and exits 0', () => {
   const result = run('--config', write('ok.json', valid));
   expect(result.status).toBe(0);
   expect(JSON.parse(result.stdout)).toMatchObject({ pollIntervalMinutes: 5, repos: valid.repos });
+});
+
+test('startup logs go to orchestrator/logs/orchestrator.log, not to the terminal', () => {
+  const result = run('--config', write('log.json', { ...valid, logLevel: 'debug' }));
+  expect(() => JSON.parse(result.stdout)).not.toThrow();
+  expect(result.stderr).toBe('');
+  expect(readFileSync(join(dir, 'orchestrator', 'logs', 'orchestrator.log'), 'utf8')).toContain('[info] {"message":"[cli] carrier started"');
 });
 
 test('prints the effective agents per repo', () => {

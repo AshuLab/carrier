@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -304,6 +304,16 @@ test('the session id is saved as soon as the runner reports it, while the execut
   const engine = await start(1);
   await clock.advance(5 * MIN);
   expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'running', sessionId: 's-1', finishedAt: null });
+});
+
+test('the whole output of an execution is saved per stream under its logs folder', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ output: [['stdout', 'one\n'], ['stderr', 'oops\n'], ['stdout', 'two\n']], exit: 'hang' });
+  await start(1);
+  await clock.advance(5 * MIN);
+  const folder = join(dir, 'orchestrator', 'logs', 'executions', runner.tasks[0]!.executionId);
+  expect(readFileSync(join(folder, 'stdout.log'), 'utf8')).toBe('one\ntwo\n');
+  expect(readFileSync(join(folder, 'stderr.log'), 'utf8')).toBe('oops\n');
 });
 
 test('a valid completed result moves the epic to review round 1 and records the final PR', async () => {

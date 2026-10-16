@@ -43,7 +43,7 @@ const pullRow = z.object({
   state: z.enum(['open', 'closed']),
   merged_at: z.string().nullable(),
   body: z.string().nullable(),
-  head: z.object({ sha: z.string().min(1) }),
+  head: z.object({ sha: z.string().min(1), ref: z.string().min(1) }),
 });
 const labelRow = z.object({ name: z.string() });
 
@@ -143,7 +143,7 @@ export class GhGitHub implements GitHub {
   async getPullRequest(repo: string, number: number) {
     try {
       const pull = await this.get(repo, `pulls/${number}`, pullRow);
-      return { state: pull.merged_at === null ? pull.state : ('merged' as const), body: pull.body ?? '', headSha: pull.head.sha };
+      return { state: pull.merged_at === null ? pull.state : ('merged' as const), body: pull.body ?? '', headSha: pull.head.sha, headRef: pull.head.ref };
     } catch (error) {
       if (error instanceof HttpError && error.status === 404) return null;
       throw error;

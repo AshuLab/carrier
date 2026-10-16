@@ -74,4 +74,8 @@ export class FakeWorkspaces implements Workspaces {
   async prepareReviewer(repo: string, epic: number, pr: number) {
     return `/work/${repo}/${epic}/reviewer-${pr}`;
   }
+
+  async findWorktree(repo: string, branch: string): Promise<string | null> {
+    return `/work/${repo}/worktrees/${branch}`;
+  }
 }

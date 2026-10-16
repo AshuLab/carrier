@@ -30,8 +30,8 @@ export interface GitHub {
   listReadyEpics(repo: string): Promise<{ issue: number; title: string }[]>;
   /** Throws GitHubUnavailable like every call below. */
   getIssue(repo: string, issue: number): Promise<{ state: 'open' | 'closed'; labels: string[] }>;
-  /** Null when the PR does not exist; `closed` is closed without merge, a merged PR is `merged`. */
-  getPullRequest(repo: string, number: number): Promise<{ state: 'open' | 'closed' | 'merged'; body: string; headSha: string } | null>;
+  /** Null when the PR does not exist; `closed` is closed without merge, a merged PR is `merged`. `headRef` is the branch it comes from. */
+  getPullRequest(repo: string, number: number): Promise<{ state: 'open' | 'closed' | 'merged'; body: string; headSha: string; headRef: string } | null>;
   /** The PR whose body closes the epic issue, null when there is none. Read only: used to check what a failed execution left behind. */
   findPullRequest(repo: string, issue: number): Promise<{ number: number; state: 'open' | 'closed' | 'merged'; headSha: string } | null>;
   /** Idempotent: adding a label the issue has, or removing one it lacks, changes nothing. */

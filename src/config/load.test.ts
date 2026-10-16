@@ -5,7 +5,7 @@ import { defaults, loadConfig } from './load.ts';
 
 const valid = {
   repos: [{ name: 'AshuLab/carrier' }],
-  profiles: { 'author-bot': {}, 'reviewer-bot': {} },
+  profiles: { 'author-bot': { kind: 'forge', agent: 'artanis-agent' }, 'reviewer-bot': { kind: 'gh' } },
   orchestratorProfile: 'author-bot',
   agents: {
     author: { profile: 'author-bot', provider: 'claude', model: 'm' },
@@ -111,6 +111,28 @@ describe('root', () => {
   test('expands ~', () => {
     expect(load({ root: '~/work' })).toMatchObject({ ok: true, config: { root: join(homedir(), 'work') } });
     expect(load({})).toMatchObject({ ok: true, config: { root: join(homedir(), '.solve') } });
+  });
+});
+
+describe('profiles', () => {
+  const withProfile = (profile: unknown) => ({ profiles: { ...valid.profiles, 'author-bot': profile } });
+
+  test('accepts a forge bot and the gh login', () => {
+    expect(load({}).ok).toBe(true);
+  });
+
+  test.each([
+    ['an empty object', {}],
+    ['an unknown kind', { kind: 'pat', token: 'x' }],
+    ['forge without agent', { kind: 'forge' }],
+    ['forge with an empty agent', { kind: 'forge', agent: '' }],
+    ['gh with an agent', { kind: 'gh', agent: 'x' }],
+    ['a secret next to the kind', { kind: 'forge', agent: 'x', token: 'ghp_secret' }],
+    ['a string', 'forge'],
+  ])('rejects %s, naming the profile', (_name, profile) => {
+    const errors = errorsOf(withProfile(profile));
+    expect(errors.length).toBeGreaterThan(0);
+    for (const e of errors) expect(e.path).toMatch(/^profiles\.author-bot/);
   });
 });
 

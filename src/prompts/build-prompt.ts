@@ -41,7 +41,7 @@ export function buildPrompt(task: AgentTask): string {
 
   if (stage === 'ship') {
     lines.push(
-      `Invoke ${invoke('ship')} for epic #${epic} and leave the final integration PR open.`,
+      `Invoke ${invoke('ship')} for epic #${epic} and tell it to worktree this epic, whatever mode the repo's solve.md has: the epic must live in its own git worktree. Leave the final integration PR open.`,
       'Never merge the final PR: a person tests it and decides the merge.',
     );
   } else if (stage === 'fix') {

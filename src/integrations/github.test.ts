@@ -106,7 +106,7 @@ describe('responses', () => {
   });
 
   test('getIssue, getPullRequest and findPullRequest map the API shape', async () => {
-    const pull = (number: number, body: string | null, merged_at: string | null, state = 'closed') => ({ number, state, merged_at, body, head: { sha: 'a'.repeat(40) } });
+    const pull = (number: number, body: string | null, merged_at: string | null, state = 'closed') => ({ number, state, merged_at, body, head: { sha: 'a'.repeat(40), ref: 'feat/demo/epic' } });
     const { github } = setup([
       { match: 'issues/5', ...ok({ state: 'open', labels: [{ name: 'solve:epic:ready' }] }) },
       { match: 'pulls/10', ...ok(pull(10, null, '2026-01-01T00:00:00Z')) },
@@ -114,7 +114,7 @@ describe('responses', () => {
       { match: 'pulls?', ...ok([pull(30, 'Closes #53', null, 'open'), pull(20, 'Fixes AshuLab/demo#5 and more', '2026-01-01T00:00:00Z')]) },
     ]);
     expect(await github.getIssue(repo, 5)).toEqual({ state: 'open', labels: ['solve:epic:ready'] });
-    expect(await github.getPullRequest(repo, 10)).toEqual({ state: 'merged', body: '', headSha: 'a'.repeat(40) });
+    expect(await github.getPullRequest(repo, 10)).toEqual({ state: 'merged', body: '', headSha: 'a'.repeat(40), headRef: 'feat/demo/epic' });
     expect(await github.getPullRequest(repo, 11)).toBeNull();
     expect(await github.findPullRequest(repo, 5)).toEqual({ number: 20, state: 'merged', headSha: 'a'.repeat(40) });
     expect(await github.findPullRequest(repo, 6)).toBeNull();

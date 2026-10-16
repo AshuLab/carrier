@@ -118,6 +118,19 @@ export class GitWorkspaces implements Workspaces {
     return this.serial(repo, () => this.ensureClone(repo));
   }
 
+  async findWorktree(repo: string, branch: string) {
+    return this.serial(repo, async () => {
+      const list = await git(['worktree', 'list', '--porcelain'], { cwd: this.clonePath(repo) });
+      // One block per worktree: `worktree <path>`, then `branch refs/heads/<name>` unless it is detached.
+      // The first is the clone itself: other epics of the repo share it, so an epic that was not isolated has no workspace.
+      for (const block of list.split('\n\n').slice(1)) {
+        const lines = block.split('\n');
+        if (lines.includes(`branch refs/heads/${branch}`)) return lines.find((l) => l.startsWith('worktree '))!.slice('worktree '.length);
+      }
+      return null;
+    });
+  }
+
   /** A checkout detached at the PR's head, apart from the author's and from Solve's `worktrees/`; each round re-points it. */
   async prepareReviewer(repo: string, epic: number, pr: number) {
     assertCount(epic, 'epic');

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { defaults, loadConfig } from '../config/load.ts';
+import { resolveRepoConfig } from '../config/resolve.ts';
 import { acquireLock } from '../storage/lock.ts';
 
 const fail = (code: number, ...lines: string[]): never => {
@@ -31,5 +32,7 @@ if (!result.ok) {
   if (lock.ok) process.on('exit', lock.release);
   else fail(1, `Another carrier instance is already running on ${orchestratorDir}`);
 
-  console.log(JSON.stringify(result.config, null, 2));
+  const { config } = result;
+  const effective = { ...config, repos: config.repos.map((repo) => resolveRepoConfig(config, repo)) };
+  console.log(JSON.stringify(effective, null, 2));
 }

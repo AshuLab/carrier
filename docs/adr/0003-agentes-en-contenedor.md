@@ -1,6 +1,6 @@
 # 0003 - Los agentes corren aislados en contenedores
 
-- Status: accepted
+- Status: superseded by [0004](0004-agentes-en-el-host-con-preferencias-de-la-terminal.md)
 - Date: 2026-10-15
 
 ## Context

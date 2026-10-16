@@ -1,4 +1,4 @@
-// Proxy CONNECT minimo con allowlist (ALLOW=host1,host2; vacio = permite todo) que registra cada destino.
+// Minimal CONNECT proxy with an allowlist (ALLOW=host1,host2; empty = allow everything) that logs every destination.
 import http from 'node:http';
 import net from 'node:net';
 const allow = (process.env.ALLOW ?? '').split(',').filter(Boolean);

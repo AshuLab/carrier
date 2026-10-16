@@ -1,5 +1,5 @@
-// Mock minimo de las APIs de modelo (Anthropic Messages y OpenAI Responses) para probar los CLI sin credenciales reales.
-// Uso: node mock-llm.mjs <puerto> <log.jsonl>
+// Minimal mock of the model APIs (Anthropic Messages and OpenAI Responses) to test the CLIs without real credentials.
+// Usage: node mock-llm.mjs <port> <log.jsonl>
 import http from 'node:http';
 import { appendFileSync } from 'node:fs';
 const [port, logFile] = [Number(process.argv[2]), process.argv[3]];
@@ -32,7 +32,7 @@ function decide(body, flavor) {
   if (g) return { tool: g[1].trim() };
   if (/RECALL/.test(last)) {
     const hits = [...new Set(raw.match(/TANGERINE-\d+/g) ?? [])];
-    // el prompt actual no contiene el codigo: si aparece, vino del historial de la sesion
+    // the current prompt does not contain the code: if it shows up, it came from the session history
     return { text: 'RECALLED:' + (hits.join(',') || 'NONE') };
   }
   return { text: 'OK' };

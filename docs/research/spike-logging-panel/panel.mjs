@@ -37,7 +37,7 @@ const emit = () => {
 // Panel: redraw in place with ANSI. Never contains the log markers.
 let drawn = 0;
 const frame = () => {
-  const lines = ['== carrier panel ==', `slots 1/3   tick ${drawn}`, `logs emitidos: ${emitted}`, '==================='];
+  const lines = ['== carrier panel ==', `slots 1/3   tick ${drawn}`, `logs emitted: ${emitted}`, '==================='];
   const up = drawn > 0 ? `\x1b[${lines.length}A` : '';
   drawn++;
   writeSync(1, up + lines.map((l) => `\x1b[2K${l}\n`).join(''));

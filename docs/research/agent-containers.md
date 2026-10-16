@@ -1,5 +1,7 @@
 # Claude y Codex dentro de contenedores en macOS
 
+> **Estado: descartado para esta versión (15/10/2026).** Diego decidió que los agentes corren en el host con las preferencias de la terminal ([ADR 0004](../adr/0004-agentes-en-el-host-con-preferencias-de-la-terminal.md), que reemplaza al ADR 0003). Este documento se conserva como material de partida para la seguridad de agentes desatendidos (AFK); las casillas sin verificar no se van a cerrar por ahora.
+
 > Spike del 15/10/2026 (issue #6, épica #3). Responde a la pregunta abierta «Agentes en contenedores» de la [spec](../specs/autonomous-orchestrator.md) y pone a prueba el [ADR 0003](../adr/0003-agentes-en-contenedor.md). Todo se corrió en una carpeta temporal bajo `/tmp`, con un repo descartable y un remoto Git local (`git init --bare`), sin credenciales reales dentro de ningún contenedor y sin tocar GitHub. Los scripts son descartables: [`spike-agent-containers/`](spike-agent-containers/) (`Dockerfile`, `mock-llm.mjs`, `proxy.mjs`).
 
 ## Veredicto

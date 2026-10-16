@@ -1,8 +1,8 @@
 # Raíz compartida con Solve (spike #8)
 
-Fecha: 15/10/2026. Entorno: macOS, git 2.54.0 (Apple Git-157), Claude Code 2.1.301, plugin `solve` 0.24.0 (el más reciente de `~/.claude-ashu-lab/plugins/cache/ashulab/solve/`). Todo lo local se corrió en repos descartables dentro de `mktemp -d` con un remoto bare local (sin GitHub, sin pushes a remotos reales); los temporales se borraron al final.
+Fecha: 15/10/2026 (§1 a §5) y 16/10/2026 (§6). Entorno: macOS, git 2.54.0 (Apple Git-157), gh 2.102.0, Node 26.12.0, pnpm 12.11.2, Claude Code 2.1.301, plugin `solve` 0.24.0 (el más reciente de `~/.claude-ashu-lab/plugins/cache/ashulab/solve/`). §1 a §5 se corrieron en repos descartables dentro de `mktemp -d` con un remoto bare local (sin GitHub); §6 se corrió contra el repo descartable de GitHub `AshuLab/carrier-sandbox` (ver [sandbox-repo.md](sandbox-repo.md)). Los temporales se borraron al final.
 
-Resultado: los criterios 1, 3, 4 y 5 tienen evidencia, cada uno con una condición de diseño nueva; el 2 (dos épicas drenadas por `ship`) **no se pudo verificar** (ver [Lo que no se observó](#lo-que-no-se-observó)). La spec se actualizó en este mismo PR.
+Resultado: los seis criterios tienen evidencia. El 2 (dos épicas drenadas por `ship` desde un clon en `<raíz>/repos/<org>/<repo>/`) se cerró el 16/10 con corridas reales de `ship` (§6) y **confirma lo leído de las fuentes**; solo cambia un detalle del orden de los lanes (ver §6). La spec se actualizó en este mismo PR.
 
 ## 1. Cómo se le comunica la raíz a Solve
 
@@ -130,9 +130,81 @@ Lo que ya establecía el [spike de headless (#5)](headless-agents.md): `claude -
 
 Por tanto una sesión retomada opera en las mismas rutas **si y solo si Carrier la lanza con el `cwd` guardado de la épica**. Condición para el runner: persistir en SQLite la ruta real del workspace (y la del reviewer) junto con el id de sesión, y usar ese `cwd` en cada `--resume` (y cada `codex exec resume`). Esto coincide con la condición de la [investigación de contenedores](agent-containers.md) («si el `cwd` no cambia»). Del lado de Solve, el reinicio no cambia nada: `ship` rederiva la ruta y reutiliza el worktree si ya está en `git worktree list` (§1.5).
 
+## 6. Dos épicas drenadas por `ship` desde un clon administrado (criterio 2)
+
+Corrida real del 16/10/2026 contra `AshuLab/carrier-sandbox` (privado, descartable; cómo se sembró y se reinicia está en [sandbox-repo.md](sandbox-repo.md)). `<root>` es `/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/tmp.uVIZdTien0/solve-root` (un `mktemp -d` fuera de `~/.solve`, para no tocar trabajo real).
+
+**Montaje.** Clon en `<root>/repos/AshuLab/carrier-sandbox` (`gh repo clone`, remoto https sin token en `.git/config`). El `docs/agents/solve.md` del sandbox lo escribió el skill `setup` real (`claude -p "/solve:setup ..." --model sonnet`, con las respuestas en el prompt): Worktrees **on**, path `<root>/worktrees/<repo>/<feature>/` (absoluto, con `<repo>` y `<feature>` literales), base y destino `main`, tipo de rama `feat`. Dos épicas con la forma de `to-spec`/`to-tickets` (`#1 Farewell` y `#2 Shout`, etiqueta `solve:epic`, a mano `solve:epic:ready`; cada una con 2 slices `solve:ticket,solve:refined`, sub-issue de su épica, el segundo `blocked-by` el primero y cada uno con Definition of done). Sus specs (`docs/specs/farewell.md`, `docs/specs/shout.md`) se comitearon y pushearon a `main` antes de poner `ready`.
+
+**Comando** (dos procesos a la vez, mismo clon como cwd, stdin cerrado, binario real `~/.local/bin/claude`, no el wrapper de Superset):
+
+```sh
+cd <root>/repos/AshuLab/carrier-sandbox && ~/.local/bin/claude -p "/solve:ship drain epic #<n> of AshuLab/carrier-sandbox (the repo in the current directory). Worktree this epic. Run unattended: nobody can answer questions, decide from the skill's own rules. Leave the integration PR as a draft and do not merge it." \
+  --model sonnet --permission-mode bypassPermissions --output-format stream-json --verbose --max-budget-usd 4 </dev/null
+```
+
+Identidad: el login de `gh` (`vemec`), sin Forge, como el spike pedía.
+
+**Resultado** (ambas salieron con `exit=0`, `outcome` de `ship`: épica drenada, PR de integración en borrador):
+
+| | `#1 Farewell` | `#2 Shout` |
+|---|---|---|
+| Duración | 186 s | 169 s |
+| Costo (Sonnet 5.5) | USD 0,51 (18 turnos) | USD 0,50 (19 turnos) |
+| Worktree de la épica | `<root>/worktrees/carrier-sandbox/farewell` | `<root>/worktrees/carrier-sandbox/shout` |
+| Lane | `<root>/worktrees/carrier-sandbox/farewell--lane-1` | `<root>/worktrees/carrier-sandbox/shout--lane-1` |
+| PR de slices (mergeados con merge commit) | #8 (slice #3), #10 (slice #4) | #7 (slice #5), #9 (slice #6) |
+| PR de integración (borrador, **sin mergear**) | #12 `feat/farewell/epic` -> `main` | #11 `feat/shout/epic` -> `main` |
+
+El `<repo>` del path es `carrier-sandbox`, el nombre de la carpeta del clon, sin la organización (§1.3 y §4). `<feature>` es el slug del título de la épica y se leyó de la rama `feat/<feature>/epic`. Los tiempos: los worktrees de las épicas aparecieron a los ~38 s del arranque, los PR de slices entre 1 min 10 s y 2 min 20 s y los de integración a los ~2 min 50 s y ~3 min 5 s.
+
+`git worktree list` del clon al terminar (las rutas largas abreviadas con `<root>`):
+
+```
+<root>/repos/AshuLab/carrier-sandbox                          c423756 [main]
+<root>/worktrees/carrier-sandbox/farewell                     4c5302c [feat/farewell/epic]
+<root>/worktrees/carrier-sandbox/farewell--lane-1             4c5302c (detached HEAD)
+<root>/worktrees/carrier-sandbox/shout                        1acb19f [feat/shout/epic]
+<root>/worktrees/carrier-sandbox/shout--lane-1                1acb19f (detached HEAD)
+```
+
+Mientras corrían (a los 45 s) cada lane estaba en su rama de slice (`feat/farewell/003-add-farewell`, `feat/shout/005-add-shout`): al terminar, `ship` los **desacopló** (*Freeing a lane*) y borró las ramas de slice, así que el lane queda «estacionado» en el SHA de la épica. El clon administrado no se movió: sigue en `main`, en `c423756`, con el árbol limpio, y nunca hizo pull.
+
+**Comentarios que `ship` deja en el issue de cada épica**, uno por worktree, con máquina, ruta absoluta, rama y base (épica #1; la #2 es igual con `shout`):
+
+```
+**Epic worktree**
+- Machine: vemec@mac-studio.lan (Darwin arm64)
+- Path: <root>/worktrees/carrier-sandbox/farewell
+- Branch: feat/farewell/epic
+- Base: main
+
+**Lane 1 worktree**
+- Machine: vemec@mac-studio.lan (Darwin arm64)
+- Path: <root>/worktrees/carrier-sandbox/farewell--lane-1
+- Epic branch: feat/farewell/epic
+- First slice: #3 (feat/farewell/003-add-farewell)
+```
+
+Los dos PR de integración nombran las dos rutas y el `git worktree remove <ruta>` de cada una en el cuerpo (`Closes #<épica>`, slices, verificación, worktrees). `ship` no cierra la épica (siguen `OPEN`) ni borra worktrees.
+
+**Lo que se confirmó de §1 y §3 con una corrida real:**
+
+- **Dos drenajes a la vez desde un mismo clon no chocan.** Cada uno cortó su rama de épica y de slice en su propio namespace y ninguno empujó `main`. Cada informe de `ship` dice que vio el drenaje del otro y no lo tocó.
+- **Aislar la épica funciona con la ruta de `solve.md`**, y los lanes son hermanos `<feature>--lane-1` (§1.4). Con Worktrees **on** `ship` crea el worktree solo; **no se probó off + «worktree this epic»** (la consecuencia 2 de §1 sigue sin observación directa; el prompt pedía aislar en ambos casos).
+- **El spec comiteado llega al workspace**: `<root>/worktrees/carrier-sandbox/farewell/docs/specs/farewell.md` (y `shout.md`) existen en el worktree de la épica y en cada lane, porque estaban en `main` antes de `ready` (§3). La épica y los tickets se leyeron por `gh` desde esos mismos árboles.
+- **Reutilización tras relanzar (§1.5).** Se agregó el slice `#13` a la épica `#1` ya drenada (con la etiqueta `ready` puesta) y se volvió a lanzar el mismo comando: `ship` reutilizó el worktree de la épica y el lane estacionado sin crear nada (`git worktree list` idéntico, mismas dos rutas; **no** hubo comentarios nuevos en el issue), construyó el slice en el lane, mergeó el PR #14 y **actualizó el cuerpo del PR de integración #12 existente** en vez de abrir otro. 104 s, USD 0,24.
+- **El conflicto de README es de integración, no del drenaje.** Los dos PR de integración aparecen `MERGEABLE` / `CLEAN` contra `main`, pero `git merge-tree --write-tree --name-only origin/feat/farewell/epic origin/feat/shout/epic` sale con código 1: `CONFLICT (content): Merge conflict in README.md`. Quien se mergee segundo choca; es el aviso del propio `ship` («the conflict is `land`'s to surface»). Carrier debe tratarlo como un blocker de integración, no como un fallo del drenaje.
+
+**Cosas nuevas para el runner:**
+
+- Correr `pnpm test` en cada worktree deja un `pnpm-lock.yaml` sin seguimiento (y `node_modules`, ignorado). `ship` borró el lock sin comitearlo; un reviewer o un chequeo de «árbol limpio» de Carrier que corra después debe tolerarlo o el repo debe ignorarlo.
+- La ruta del worktree vive en el `solve.md` **versionado** del repo, y en el sandbox quedó absoluta y apuntando a un temporal. Borrar el temporal deja un `solve.md` con una ruta muerta; el siguiente sembrado la reescribe (ver [sandbox-repo.md](sandbox-repo.md)). Es la consecuencia 1 de §1 en la práctica: una raíz distinta de `~/.solve/` obliga a editar y pushear el `solve.md` de cada repo.
+- Orden de magnitud por épica de 2 slices triviales: ~3 min y ~USD 0,5 con Sonnet; el setup real costó USD 0,20 y 31 s. Total del spike: ~USD 1,45.
+
 ## Lo que no se observó
 
-- **Dos épicas del repo de prueba drenadas por `ship` desde un clon en `<raíz>/repos/<org>/<repo>/`, con sus worktrees reales** (criterio 2). Requiere un repo de GitHub descartable con épicas y slices reales, corridas reales de `ship` y agentes que abran PRs. Ese repo no existe: `AshuLab/agent-forge` se autorizó solo para la prueba de identidad de Forge, sin épicas ni PRs, y no se corrió `ship` contra ningún repo real ni se creó ninguno. Lo de §1 sale de leer las fuentes de Solve y de simular las rutas con `git worktree`, no de una corrida de `ship`. Para cerrarlo: un repo descartable (p. ej. `AshuLab/carrier-sandbox`) con dos épicas de 2 slices triviales, un clon en `<raíz>/repos/AshuLab/carrier-sandbox`, `solve:epic:ready` puesto a mano, `ship` lanzado dos veces en paralelo pidiendo «worktree this epic», y registrar `git worktree list` y los comentarios de ruta que `ship` deja en cada épica. En esa corrida confirmar también las consecuencias 2 (modo off y pedir aislamiento) y 5 (reuso tras cortar y relanzar).
+- Worktrees en `off` con «worktree this epic» (el sandbox se configuró en `on`; la lectura de `SKILL.md` dice que se respeta en cualquier modo, pero no se corrió).
 - Codex: el cwd de la sesión retomada se tomó de lo observado en #5 (`exec resume` usa el cwd del proceso); no se repitió la prueba del run 3.
 - Un repo con `docs/agents/solve.md` sin `<repo>` en el path (la colisión que `WORKTREES.md` advierte) no se probó.
 

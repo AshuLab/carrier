@@ -4,12 +4,42 @@ import { GitHubUnavailable, type GitHub } from './github.ts';
 export class FakeGitHub implements GitHub {
   ready: Record<string, { issue: number; title: string }[]> = {};
   unavailable: GitHubUnavailable | null = null;
+  /** Makes setLabels fail while the rest works. */
+  setLabelsUnavailable: GitHubUnavailable | null = null;
+  issues: Record<string, { state: 'open' | 'closed'; labels: string[] }> = {};
+  repoLabels: Record<string, string[]> = {};
+  created: string[] = [];
   calls = 0;
+
+  /** An issue not set up by the test is open and ready. */
+  issue(repo: string, issue: number) {
+    return (this.issues[`${repo}#${issue}`] ??= { state: 'open', labels: ['solve:epic:ready'] });
+  }
 
   async listReadyEpics(repo: string) {
     this.calls++;
     if (this.unavailable) throw this.unavailable;
     return this.ready[repo] ?? [];
+  }
+
+  async getIssue(repo: string, issue: number) {
+    const { state, labels } = this.issue(repo, issue);
+    return { state, labels: [...labels] };
+  }
+
+  async setLabels(repo: string, issue: number, { add, remove }: { add: string[]; remove: string[] }) {
+    if (this.setLabelsUnavailable) throw this.setLabelsUnavailable;
+    const found = this.issue(repo, issue);
+    found.labels = [...new Set([...found.labels.filter((l) => !remove.includes(l)), ...add])];
+  }
+
+  async listLabels(repo: string) {
+    return [...(this.repoLabels[repo] ?? [])];
+  }
+
+  async createLabel(repo: string, name: string) {
+    (this.repoLabels[repo] ??= []).push(name);
+    this.created.push(`${repo}:${name}`);
   }
 }
 

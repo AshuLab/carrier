@@ -15,16 +15,23 @@ export type Behavior = {
 export class FakeAgentRunner implements AgentRunner {
   tasks: AgentTask[] = [];
   stopped: string[] = [];
+  /** Executions alive: the running ones, plus whatever a test adds to play a previous process's orphans. */
+  alive = new Set<string>();
   /** What each run does; by default it hangs, so a test sees the execution while it is running. */
   behavior: (task: AgentTask) => Behavior = () => ({ exit: 'hang' });
 
   run(task: AgentTask): AgentRun {
     this.tasks.push(task);
+    this.alive.add(task.executionId);
     const { sessionId, output = [], write, exit = 'ok' } = this.behavior(task);
     const sessions: ((id: string) => void)[] = [];
     const outputs: ((stream: 'stdout' | 'stderr', chunk: string) => void)[] = [];
-    let finish!: (result: { exit: AgentExit; sessionId?: string }) => void;
-    const done = new Promise<{ exit: AgentExit; sessionId?: string }>((resolve) => (finish = resolve));
+    let resolveDone!: (result: { exit: AgentExit; sessionId?: string }) => void;
+    const finish = (result: { exit: AgentExit; sessionId?: string }) => {
+      this.alive.delete(task.executionId);
+      resolveDone(result);
+    };
+    const done = new Promise<{ exit: AgentExit; sessionId?: string }>((resolve) => (resolveDone = resolve));
     // Runs after the caller registered its callbacks.
     queueMicrotask(() => {
       if (sessionId) for (const cb of sessions) cb(sessionId);
@@ -44,6 +51,15 @@ export class FakeAgentRunner implements AgentRunner {
         finish({ exit: 'stopped', sessionId });
       },
     };
+  }
+
+  async listActive() {
+    return [...this.alive];
+  }
+
+  async stop(executionId: string) {
+    this.stopped.push(executionId);
+    this.alive.delete(executionId);
   }
 }
 

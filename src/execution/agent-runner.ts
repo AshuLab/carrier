@@ -32,4 +32,8 @@ export interface AgentRun {
 
 export interface AgentRunner {
   run(task: AgentTask): AgentRun;
+  /** Ids of the executions alive right now, including those a previous process left running. */
+  listActive(): Promise<string[]>;
+  /** Stops a live execution by id; used on orphans no AgentRun handle exists for. */
+  stop(executionId: string): Promise<void>;
 }

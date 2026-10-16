@@ -40,7 +40,7 @@ test('resumeSession uses `exec resume <id>` with the same fixed options', () => 
 
 test('the GitHub token goes only in the child env, replacing an inherited one', () => {
   const command = buildCodexCommand(task, ctx);
-  expect(command.env).toMatchObject({ PATH: '/bin', HOME: '/h', GH_TOKEN: 'ghs_secret', GITHUB_TOKEN: 'ghs_secret' });
+  expect(command.env).toMatchObject({ PATH: '/bin', HOME: '/h', GH_TOKEN: 'ghs_secret', GITHUB_TOKEN: 'ghs_secret', CARRIER_RESULT_PATH: task.resultPath });
   expect(command.env).not.toHaveProperty('UNSET');
   expect(JSON.stringify([command.bin, command.args, command.cwd])).not.toContain('ghs_secret');
 });

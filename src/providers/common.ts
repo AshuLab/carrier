@@ -36,6 +36,11 @@ export interface CommandContext {
 /** Marker in the child's argv, so a later process finds the executions an earlier one left running. */
 export const markerFor = (executionId: string) => `carrier-exec-${executionId}`;
 
+// git over HTTPS ignores GH_TOKEN: it asks the user's credential helpers (on macOS the keychain, i.e. the person's own login),
+// so without this every push and branch operation of a bot would be made as that person. The first entry empties the helper
+// list; the second answers with the execution's token, read from the environment when git asks (the token is not in the value).
+const gitUsesToken = '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f';
+
 export function childEnv({ githubToken, gitIdentity, baseEnv }: CommandContext): Record<string, string> {
   const identity = gitIdentity && {
     GIT_AUTHOR_NAME: gitIdentity.name,
@@ -44,7 +49,17 @@ export function childEnv({ githubToken, gitIdentity, baseEnv }: CommandContext):
     GIT_COMMITTER_EMAIL: gitIdentity.email,
   };
   const inherited = Object.entries(baseEnv).filter((e): e is [string, string] => e[1] !== undefined);
-  return { ...Object.fromEntries(inherited), GH_TOKEN: githubToken, GITHUB_TOKEN: githubToken, ...identity };
+  const env = Object.fromEntries(inherited);
+  // Keeps the config entries the environment already had (GIT_CONFIG_COUNT) and adds ours after them.
+  const first = Number.isInteger(Number(env.GIT_CONFIG_COUNT)) ? Number(env.GIT_CONFIG_COUNT) : 0;
+  const credentialHelper = {
+    GIT_CONFIG_COUNT: String(first + 2),
+    [`GIT_CONFIG_KEY_${first}`]: 'credential.helper',
+    [`GIT_CONFIG_VALUE_${first}`]: '',
+    [`GIT_CONFIG_KEY_${first + 1}`]: 'credential.helper',
+    [`GIT_CONFIG_VALUE_${first + 1}`]: gitUsesToken,
+  };
+  return { ...env, GH_TOKEN: githubToken, GITHUB_TOKEN: githubToken, ...credentialHelper, ...identity };
 }
 
 const isExecutable = (path: string) => {

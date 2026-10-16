@@ -1,309 +1,309 @@
-# Carrier — Orquestador de épicas autónomas
+# Carrier — Autonomous epic orchestrator
 
-El nombre de la aplicación es **Carrier**, inspirado en la nave de StarCraft que despliega múltiples interceptores. Carrier coordina agentes en paralelo; Agent Forge aporta sus identidades y Solve el flujo de skills.
+The application is called **Carrier**, inspired by the StarCraft ship that deploys multiple interceptors. Carrier coordinates agents in parallel; Agent Forge provides their identities and Solve provides the skills flow.
 
-Estado: borrador de requisitos. Registra decisiones de la conversación y propuestas pendientes; no describe un sistema implementado.
+Status: requirements draft. It records decisions from the conversation and pending proposals; it does not describe an implemented system.
 
-El brief de `solve:sharpen` está en [docs/specs/autonomous-orchestrator.md](specs/autonomous-orchestrator.md). Este documento conserva el detalle de la conversación; el brief sintetiza el problema, dirección, alcance y validaciones pendientes.
+The `solve:sharpen` brief is at [docs/specs/autonomous-orchestrator.md](specs/autonomous-orchestrator.md). This document keeps the detail of the conversation; the brief synthesizes the problem, direction, scope and pending validations.
 
-## Objetivo
+## Goal
 
-Diego prepara ideas con `sharpen`, genera specs y tickets, y habilita épicas para ejecución. Un proceso local toma esas épicas, ejecuta `ship` y coordina revisión y correcciones del PR final hasta dejarlo listo para probar o pedir intervención.
+Diego prepares ideas with `sharpen`, generates specs and tickets, and enables epics for execution. A local process picks up those epics, runs `ship`, and coordinates review and fixes of the final PR until it is ready for test or asks for intervention.
 
-El proceso permite seguir preparando nuevas features mientras los agentes trabajan. Diego prueba y mergea el PR final.
+The process lets him keep preparing new features while the agents work. Diego tests and merges the final PR.
 
-## Decisiones acordadas
+## Agreed decisions
 
-- Construir nuestro propio orquestador y runner en TypeScript sobre Node.js.
-- Runtime inicial: Node.js 26, con módulos ESM. Usar pnpm como gestor de paquetes. Incorporar TypeScript, pnpm y cada dependencia de runtime/desarrollo en su última versión estable disponible al implementar o actualizar; excluir prereleases.
-- Es una app independiente, con repositorio propio separado de SecondBrain. La primera interfaz es un comando con panel de terminal; el almacenamiento de ejecución permanece bajo la raíz compartida `~/.solve/` configurable.
-- Plataforma inicial soportada y validada: macOS. TypeScript/Node.js permite mantener el núcleo portable; soporte de Linux/Windows queda para después de validar dependencias, procesos, credenciales y rutas en esas plataformas.
-- Ejecutar el proceso desde cualquier carpeta. Configurar explícitamente los repos GitHub donde busca épicas; el directorio actual no determina qué repos consulta.
-- Al reiniciar, no retomar trabajo de repos que ya no figuren en la configuración. Conservar sus épicas, sesiones, workspaces e historial y mostrar el motivo; no borrar información ni consumir reintentos por esa exclusión.
-- Usar una raíz de almacenamiento compartida entre Solve y el orquestador para clones y worktrees, con ubicación configurable. El orquestador agrega allí su base, sesiones y logs. Solve administra los worktrees y ramas de implementación; ambos reutilizan las mismas rutas de código para retomar.
-- Raíz compartida por defecto: `~/.solve/`, configurable. Organización acordada: `repos/` para clones, `worktrees/` para workspaces de Solve y `orchestrator/` para SQLite, sesiones y logs.
-- Empezar con un comando en la terminal y un panel que muestre el progreso en esa misma terminal.
-- El panel inicial es simple e informativo, sin controles para pausar, reintentar o administrar ejecuciones. Primero validar el flujo; mejorar la interfaz en versiones posteriores.
-- Usar SQLite para el estado y archivos separados para los logs.
-- Usar Drizzle ORM con `better-sqlite3` para esquema y acceso a SQLite, y Drizzle Kit para generar migraciones. Elegir las últimas versiones estables compatibles con Node 26.
-- Usar el package `@ashulab/universal-logger` como dependencia runtime de la app para logging de información, warnings y errores. Importar y configurar su API; no copiar su implementación ni crear un logger o formato propio en su reemplazo.
-- Usar `solve:epic:ready` como etiqueta de entrada a la cola.
-- Solve agrega esa etiqueta automáticamente cuando termina todas las etapas de preparación. El cambio se realiza en los skills de Solve, fuera de este orquestador.
-- `solve:epic:ready` es la señal suficiente para tomar una épica: el orquestador la registra directamente en la cola, sin una consulta adicional a Solve para habilitarla.
-- Al iniciar la ejecución de una épica, quitar `solve:epic:ready` y agregar `solve:epic:running` en GitHub. Conservar la ejecución en SQLite para retomar sin depender de que el issue siga ready.
-- Al quedar lista para probar, reemplazar `solve:epic:running` por `solve:epic:ready-for-test`. Si requiere intervención, reemplazarla por `solve:epic:needs-human`. Registrar también el resultado en SQLite.
-- Los agentes no corren con los permisos del sistema anfitrión: cada ejecución va en un contenedor con permisos amplios adentro y solo el workspace de la épica montado. Los scopes mínimos del token y la branch protection de los repos son el segundo límite. Ver [ADR 0003](adr/0003-agentes-en-contenedor.md).
-- Ejecutar épicas independientes en paralelo, con un máximo de concurrencia configurable como entero positivo. Valor inicial: tres épicas; puede ser uno, dos, cuatro, ocho u otro valor según la configuración.
-- Tomar épicas ready en orden de llegada a la cola (FIFO), conservando el orden de ingreso al reiniciar.
-- Las dependencias entre épicas quedan fuera de la primera versión y se resolverán en Solve por separado. La regla discutida para una evolución es esperar el merge de los prerequisitos; el MVP no implementa un grafo, un estado de espera por dependencias ni un desbloqueo por merge.
-- Revisar el PR final de integración de la épica, como lo produce `ship`.
-- Si se detecta que el PR final de integración de una épica fue mergeado mientras aún hay trabajo activo, detener sus agentes y nuevos turnos, conservar sesiones/logs y registrar el motivo. Esto no aplica a los merges de slices que realiza `ship` como parte de la implementación.
-- Alternar autor y reviewer con identidades GitHub distintas, usando Agent Forge para preparar identidades y credenciales.
-- Agent Forge es una dependencia externa instalada. El runner la utiliza para preparar la identidad y las credenciales GitHub de cada ejecución; no incorpora una copia de Forge dentro del proyecto.
-- Soportar un catálogo de `n` identidades GitHub, incluyendo la de Diego, en lugar de limitarse a dos bots fijos. Identidades y sesiones se distinguen: una misma identidad puede participar en varias épicas con sesiones aisladas.
-- El usuario configura los perfiles GitHub disponibles y elige explícitamente cuál utiliza el propio orquestador para consultar issues y actualizar etiquetas. Puede reutilizar un perfil de agente o asignar otro; no se asume automáticamente que sea el autor.
-- Asignar explícitamente las identidades de autor y reviewer mediante configuración; no seleccionarlas automáticamente de un pool.
-- Permitir elegir proveedor y modelo por rol. Separar identidad GitHub de proveedor/modelo.
-- Definir valores globales de identidad, proveedor y modelo por rol, con overrides por repo. Cada repo hereda los valores globales y reemplaza sólo los que configura explícitamente.
-- Al iniciar una épica, guardar su configuración efectiva de agentes. Cambiar defaults u overrides afecta a las nuevas épicas; las que ya están en curso conservan sus identidades y modelos, incluso al retomar sesiones.
-- El archivo de configuración usa JSON para repos, identidades, modelos, overrides y límites. Validar al arrancar y mostrar errores claros para campos ausentes o valores inválidos.
-- Usar `zod` como dependencia runtime para los esquemas y validación de configuración y resultados del caller. Inferir los tipos TypeScript desde los esquemas para mantener ambos contratos alineados.
-- Usar Vitest como dependencia de desarrollo para los tests de la app. Probar cola, transiciones, persistencia y recuperación con agentes simulados; las pruebas con Claude/Codex reales se mantienen como integración aparte.
-- Incluir una configuración default con la app y permitir un archivo JSON del usuario que la sobrescribe. Merge por campo de objetos; valores simples del usuario reemplazan los defaults; las listas se reemplazan completas, sin concatenarlas. Validar la configuración resultante.
-- Proveedores iniciales: Claude y Codex.
-- Máximo de cinco revisiones por épica, configurable; detener el loop antes cuando no queden blockers y se cumplan los checks.
-- En repos sin CI, alcanza con revisión concluyente sin blockers y evidencia de tests reportada por los skills para quedar listo para probar. Registrar esa evidencia y la ausencia de CI. Si hay checks requeridos, deben estar verdes en el commit revisado.
-- Tres reintentos de fallos de ejecución, configurables, separados de las rondas de revisión.
-- Las correcciones y repeticiones de tests/CI son trabajo interno de los agentes y skills. El orquestador recibe su resultado final y no cuenta esos intentos ni agrega un loop específico para corregir tests.
-- Tiempo máximo inicial por ejecución de agente: cuatro horas, configurable. Admitir una opción explícita sin límite (`unlimited`); cero no se interpreta como infinito. El límite no incluye el tiempo de una épica en cola ni representa una duración máxima de todo el loop.
-- Al vencer el límite de tiempo, detener la ejecución, conservar sesión y workspace, y marcar la épica como requiere intervención. El timeout no dispara un reintento automático.
-- Si el reviewer no puede concluir por falta de contexto, la épica requiere intervención. Registrar el motivo; ausencia de blockers detectados en una revisión incompleta no habilita el PR.
-- Las épicas que requieren intervención las resuelve Diego manualmente. La primera versión registra y muestra el motivo, sin comando ni controles para reactivarlas. Esto se distingue de retomar automáticamente las ejecuciones interrumpidas por `Ctrl+C`.
-- Los skills conservan sus salidas actuales. El agente caller las interpreta como lo haría una persona que invoca el skill.
-- El orquestador coordina sin interpretar el dominio del repo. Autor y reviewer aplican las reglas del repo/Solve, eligen y evalúan tests/checks y determinan blockers. El orquestador valida el contrato JSON y su coherencia técnica, persiste resultados y administra etapas, límites y etiquetas. Ver [ADR 0001](adr/0001-separar-coordinacion-y-evaluacion-del-repo.md).
-- El caller escribe su conclusión por ejecución en un archivo JSON estructurado. El orquestador valida su esquema y guarda la información en SQLite, asociada a la épica, etapa y ejecución, conservando el historial.
-- El JSON del caller tiene tres resultados: `completed`, `changes_requested` y `needs_human`. El motor combina el resultado con la etapa para coordinar el siguiente turno.
-- Conservar las sesiones de los agentes por épica y rol para retomar desde el contexto de una etapa interrumpida, además de continuar las etapas pendientes. Registrar proveedor, identificador y ubicación de la sesión cuando corresponda, y conservar el workspace.
-- Si una sesión guardada no se puede recuperar, iniciar una nueva con el contexto persistido y el estado actual del workspace/GitHub. El agente verifica qué quedó hecho antes de continuar; mantiene la identidad y registra la recuperación en el historial.
-- `Ctrl+C` detiene el orquestador y las ejecuciones activas en ese momento, sin esperar que terminen sus etapas. Conservar sesiones, workspaces y el estado persistido para retomar al reiniciar.
-- Diego adaptará los skills para que las etapas autorizadas puedan ejecutarse sin esperar aprobación.
-- SQLite es la autoridad del estado de cada ejecución; las etiquetas `solve:epic:*` son su reflejo y se reconcilian. Ver [ADR 0002](adr/0002-sqlite-autoridad-etiquetas-reflejo.md).
-- Una UI web o app del OS queda para una evolución posterior.
+- Build our own orchestrator and runner in TypeScript on Node.js.
+- Initial runtime: Node.js 26, with ESM modules. Use pnpm as the package manager. Adopt TypeScript, pnpm and every runtime/development dependency at the latest stable version available at the time of implementing or updating; exclude prereleases.
+- It is a standalone app, with its own repository separate from SecondBrain. The first interface is a command with a terminal panel; execution storage stays under the configurable shared root `~/.solve/`.
+- Initial supported and validated platform: macOS. TypeScript/Node.js keeps the core portable; Linux/Windows support is left for later, after validating dependencies, processes, credentials and paths on those platforms.
+- Run the process from any folder. Explicitly configure the GitHub repos where it looks for epics; the current directory does not determine which repos it queries.
+- On restart, do not resume work from repos that are no longer in the configuration. Keep their epics, sessions, workspaces and history and show the reason; do not delete information or consume retries because of that exclusion.
+- Use a storage root shared between Solve and the orchestrator for clones and worktrees, with a configurable location. The orchestrator adds its database, sessions and logs there. Solve manages the worktrees and implementation branches; both reuse the same code paths to resume.
+- Default shared root: `~/.solve/`, configurable. Agreed layout: `repos/` for clones, `worktrees/` for Solve workspaces and `orchestrator/` for SQLite, sessions and logs.
+- Start with a terminal command and a panel that shows progress in that same terminal.
+- The initial panel is simple and informational, with no controls to pause, retry or manage executions. Validate the flow first; improve the interface in later versions.
+- Use SQLite for state and separate files for logs.
+- Use Drizzle ORM with `better-sqlite3` for the schema and SQLite access, and Drizzle Kit to generate migrations. Pick the latest stable versions compatible with Node 26.
+- Use the `@ashulab/universal-logger` package as a runtime dependency of the app for logging information, warnings and errors. Import and configure its API; do not copy its implementation or create a custom logger or format in its place.
+- Use `solve:epic:ready` as the queue entry label.
+- Solve adds that label automatically when it finishes all the preparation stages. The change is made in the Solve skills, outside this orchestrator.
+- `solve:epic:ready` is a sufficient signal to pick up an epic: the orchestrator registers it directly in the queue, with no additional query to Solve to enable it.
+- When an epic's execution starts, remove `solve:epic:ready` and add `solve:epic:running` on GitHub. Keep the execution in SQLite so it can be resumed without depending on the issue still being ready.
+- When it is ready for test, replace `solve:epic:running` with `solve:epic:ready-for-test`. If it requires intervention, replace it with `solve:epic:needs-human`. Also record the result in SQLite.
+- Agents do not run with the host system's permissions: each execution runs in a container with broad permissions inside and only the epic's workspace mounted. The token's minimum scopes and the repos' branch protection are the second boundary. See [ADR 0003](adr/0003-agents-in-containers.md).
+- Run independent epics in parallel, with a configurable maximum concurrency as a positive integer. Initial value: three epics; it can be one, two, four, eight or another value depending on the configuration.
+- Take ready epics in queue arrival order (FIFO), preserving the order of entry on restart.
+- Dependencies between epics are out of scope for the first version and will be resolved in Solve separately. The rule discussed for a future evolution is to wait for the prerequisites to be merged; the MVP does not implement a graph, a waiting-on-dependencies state or unblocking on merge.
+- Review the epic's final integration PR, as `ship` produces it.
+- If it is detected that an epic's final integration PR was merged while there is still active work, stop its agents and new turns, keep sessions/logs and record the reason. This does not apply to the slice merges that `ship` performs as part of the implementation.
+- Alternate author and reviewer with distinct GitHub identities, using Agent Forge to prepare identities and credentials.
+- Agent Forge is an installed external dependency. The runner uses it to prepare the GitHub identity and credentials of each execution; it does not bundle a copy of Forge inside the project.
+- Support a catalog of `n` GitHub identities, including Diego's, instead of limiting it to two fixed bots. Identities and sessions are distinct: the same identity can take part in several epics with isolated sessions.
+- The user configures the available GitHub profiles and explicitly chooses which one the orchestrator itself uses to query issues and update labels. It may reuse an agent profile or assign another; it is not automatically assumed to be the author.
+- Explicitly assign the author and reviewer identities through configuration; do not select them automatically from a pool.
+- Allow choosing provider and model per role. Separate GitHub identity from provider/model.
+- Define global values for identity, provider and model per role, with per-repo overrides. Each repo inherits the global values and replaces only those it explicitly configures.
+- When an epic starts, save its effective agent configuration. Changing defaults or overrides affects new epics; those already in progress keep their identities and models, including when resuming sessions.
+- The configuration file uses JSON for repos, identities, models, overrides and limits. Validate on startup and show clear errors for missing fields or invalid values.
+- Use `zod` as a runtime dependency for the schemas and validation of configuration and caller results. Infer the TypeScript types from the schemas to keep both contracts aligned.
+- Use Vitest as a development dependency for the app's tests. Test queue, transitions, persistence and recovery with simulated agents; tests with real Claude/Codex remain separate integration tests.
+- Ship a default configuration with the app and allow a user JSON file that overrides it. Objects merge field by field; the user's simple values replace the defaults; lists are replaced whole, never concatenated. Validate the resulting configuration.
+- Initial providers: Claude and Codex.
+- Maximum of five reviews per epic, configurable; stop the loop earlier when no blockers remain and the checks are met.
+- In repos without CI, a conclusive review with no blockers and test evidence reported by the skills is enough to become ready for test. Record that evidence and the absence of CI. If there are required checks, they must be green on the reviewed commit.
+- Three retries for execution failures, configurable, separate from review rounds.
+- Fixing and re-running tests/CI is internal work of the agents and skills. The orchestrator receives their final result and does not count those attempts nor add a specific loop to fix tests.
+- Initial maximum time per agent execution: four hours, configurable. Support an explicit no-limit option (`unlimited`); zero is not interpreted as infinite. The limit does not include the time an epic spends in the queue nor does it represent a maximum duration for the whole loop.
+- When the time limit expires, stop the execution, keep the session and workspace, and mark the epic as requiring intervention. The timeout does not trigger an automatic retry.
+- If the reviewer cannot conclude for lack of context, the epic requires intervention. Record the reason; the absence of blockers detected in an incomplete review does not enable the PR.
+- Epics that require intervention are resolved manually by Diego. The first version records and shows the reason, with no command or controls to reactivate them. This is distinct from automatically resuming executions interrupted by `Ctrl+C`.
+- Skills keep their current outputs. The caller agent interprets them the way a person invoking the skill would.
+- The orchestrator coordinates without interpreting the repo's domain. Author and reviewer apply the repo/Solve rules, choose and evaluate tests/checks and determine blockers. The orchestrator validates the JSON contract and its technical coherence, persists results and manages stages, limits and labels. See [ADR 0001](adr/0001-separate-coordination-from-repo-evaluation.md).
+- The caller writes its conclusion per execution to a structured JSON file. The orchestrator validates its schema and stores the information in SQLite, associated with the epic, stage and execution, keeping the history.
+- The caller's JSON has three results: `completed`, `changes_requested` and `needs_human`. The engine combines the result with the stage to coordinate the next turn.
+- Keep agent sessions per epic and role to resume from the context of an interrupted stage, in addition to continuing the pending stages. Record provider, identifier and location of the session where applicable, and keep the workspace.
+- If a saved session cannot be recovered, start a new one with the persisted context and the current state of the workspace/GitHub. The agent verifies what was done before continuing; it keeps the identity and records the recovery in the history.
+- `Ctrl+C` stops the orchestrator and the executions active at that moment, without waiting for their stages to finish. Keep sessions, workspaces and persisted state to resume on restart.
+- Diego will adapt the skills so that authorized stages can run without waiting for approval.
+- SQLite is the authority for the state of each execution; the `solve:epic:*` labels are its mirror and are reconciled. See [ADR 0002](adr/0002-sqlite-authority-labels-mirror.md).
+- A web UI or OS app is left for a later evolution.
 
-## Recorrido de una épica
+## Walkthrough of an epic
 
-### Repos de trabajo y arranque
+### Working repos and startup
 
-El proceso se ejecuta desde cualquier carpeta y permanece activo. La configuración incluye una lista explícita de repos GitHub donde buscar issues; cada entrada identifica el repo por organización/usuario y nombre. El proceso consulta los repos de esa lista y busca la etiqueta `solve:epic:ready`.
+The process runs from any folder and stays active. The configuration includes an explicit list of GitHub repos in which to look for issues; each entry identifies the repo by organization/user and name. The process queries the repos in that list and looks for the `solve:epic:ready` label.
 
-Sólo se permite una instancia activa por carpeta de datos del orquestador. Antes de iniciar consultas o agentes, el proceso adquiere un bloqueo exclusivo de esa carpeta. Si otra instancia lo mantiene, muestra que el orquestador ya está corriendo y termina sin iniciar trabajo. Un cierre inesperado no debe impedir el próximo arranque: el mecanismo debe distinguir un bloqueo activo de uno residual y evitar que dos arranques simultáneos adquieran la misma carpeta.
+Only one active instance is allowed per orchestrator data folder. Before starting queries or agents, the process acquires an exclusive lock on that folder. If another instance holds it, it shows that the orchestrator is already running and exits without starting work. An unexpected shutdown must not prevent the next startup: the mechanism must distinguish an active lock from a stale one and prevent two simultaneous startups from acquiring the same folder.
 
-El código de cada épica se ejecuta en su propio workspace, separado del directorio donde se inició el proceso. Solve y el orquestador comparten una raíz configurable para clones y worktrees. El orquestador guarda allí también sus sesiones, base y logs. El caller invoca `ship` con aislamiento por épica; Solve crea o reutiliza su worktree, administra sus ramas y registra el PR final. El clon compartido del repo no es un directorio donde varios autores implementan en paralelo.
+Each epic's code runs in its own workspace, separate from the directory where the process was started. Solve and the orchestrator share a configurable root for clones and worktrees. The orchestrator also stores its sessions, database and logs there. The caller invokes `ship` with per-epic isolation; Solve creates or reuses its worktree, manages its branches and records the final PR. The repo's shared clone is not a directory where several authors implement in parallel.
 
-La integración usa la misma ubicación y convención de worktrees que Solve, mediante su mecanismo de configuración/invocación. El orquestador registra el path real y lo reutiliza al retomar; no crea en paralelo una segunda estructura de worktrees de implementación ni elimina los que administra Solve. El checkout separado del reviewer se mantiene bajo la raíz compartida.
+The integration uses the same location and worktree convention as Solve, through its configuration/invocation mechanism. The orchestrator records the real path and reuses it on resume; it does not create a second parallel structure of implementation worktrees nor delete the ones Solve manages. The reviewer's separate checkout is kept under the shared root.
 
-La raíz compartida por defecto es `~/.solve/`, configurable. La organización acordada es `repos/` para clones, `worktrees/` para workspaces de Solve y `orchestrator/` para SQLite, sesiones y logs. Los directorios de repo deben distinguir organización/usuario y nombre para evitar colisiones. Pendiente: la forma de comunicar esta configuración a Solve y comprobar su compatibilidad; es el diseño acordado, no una afirmación de que todos estos directorios ya existan en Solve.
+The default shared root is `~/.solve/`, configurable. The agreed layout is `repos/` for clones, `worktrees/` for Solve workspaces and `orchestrator/` for SQLite, sessions and logs. Repo directories must distinguish organization/user and name to avoid collisions. Pending: how to communicate this configuration to Solve and check its compatibility; it is the agreed design, not a claim that all these directories already exist in Solve.
 
-### 1. Preparar y habilitar
+### 1. Prepare and enable
 
-Diego prepara la idea, spec y tickets con Solve. Al completar todas las etapas de preparación, Solve agrega `solve:epic:ready` automáticamente. La épica debe contener lo necesario para que `ship` pueda trabajar; una idea todavía sin spec o tickets no está lista. La incorporación de la etiqueta se implementa en los skills de Solve, fuera de este proyecto.
+Diego prepares the idea, spec and tickets with Solve. When all the preparation stages are completed, Solve adds `solve:epic:ready` automatically. The epic must contain what `ship` needs to work; an idea still without a spec or tickets is not ready. Adding the label is implemented in the Solve skills, outside this project.
 
-La etiqueta significa que un agente puede tomar la épica directamente. Para una épica nueva, el orquestador comprueba que el issue siga abierto y ready al reservarlo y que no exista una ejecución registrada que deba retomar o respetar. Las ejecuciones existentes se recuperan desde SQLite y no requieren volver a agregar ready. La gestión de dependencias entre épicas es un cambio separado en Solve.
+The label means an agent can pick up the epic directly. For a new epic, the orchestrator checks that the issue is still open and ready when reserving it and that there is no registered execution that must be resumed or respected. Existing executions are recovered from SQLite and do not require adding ready again. Managing dependencies between epics is a separate change in Solve.
 
-### 2. Descubrir y poner en cola
+### 2. Discover and enqueue
 
-El proceso consulta todos los repos configurados y descubre issues abiertos con la etiqueta de entrada. Debe recorrer todos los resultados, aunque haya muchas épicas, y reconocer los que ya están registrados. La identidad de una épica incluye repo e issue, dado que distintos repos pueden tener el mismo número de issue.
+The process queries all the configured repos and discovers open issues with the entry label. It must go through all the results, even if there are many epics, and recognize those already registered. An epic's identity includes repo and issue, since different repos can have the same issue number.
 
-Las consultas periódicas a GitHub usan un intervalo fijo de 5 minutos por defecto, configurable en JSON. La primera consulta también espera ese intervalo desde el arranque. No se usan webhooks, una URL pública ni intervalos adaptativos. Este intervalo no agrega esperas entre turnos de autor y reviewer: el loop avanza al recibir el resultado de cada agente.
+Periodic GitHub queries use a fixed interval of 5 minutes by default, configurable in JSON. The first query also waits for that interval from startup. Webhooks, a public URL and adaptive intervals are not used. This interval does not add waits between author and reviewer turns: the loop advances on receiving each agent's result.
 
-Si GitHub no está disponible o limita las consultas, conservar la cola y el estado persistido, mostrar el error y volver a consultar en el siguiente intervalo configurado. Si GitHub indica una espera mayor, respetarla. Estos fallos de consulta no consumen reintentos de ejecución de los agentes ni convierten una consulta fallida en una lista vacía de épicas. Los errores de autenticación se tratan mediante la integración con Forge según lo definido para los perfiles.
+If GitHub is unavailable or rate-limits queries, keep the queue and persisted state, show the error and query again at the next configured interval. If GitHub indicates a longer wait, respect it. These query failures do not consume execution retries of the agents nor turn a failed query into an empty list of epics. Authentication errors are handled through the Forge integration as defined for profiles.
 
-Las épicas ready nuevas se guardan directamente en SQLite como encoladas. La etiqueta es el contrato de disponibilidad para esta versión; no se consulta otro skill ni se resuelven dependencias entre épicas antes de encolarlas. El orquestador administra reservas y concurrencia sobre esa cola.
+New ready epics are saved directly in SQLite as queued. The label is the availability contract for this version; no other skill is queried nor are dependencies between epics resolved before enqueuing them. The orchestrator manages reservations and concurrency over that queue.
 
-El orden de selección es FIFO entre épicas ready, según su ingreso a la cola persistida. Las épicas que requieren intervención quedan detenidas sin impedir que otras avancen. La representación y resolución de dependencias futuras pertenecen a Solve.
+The selection order is FIFO among ready epics, according to their entry into the persisted queue. Epics that require intervention stay stopped without preventing others from advancing. The representation and resolution of future dependencies belong to Solve.
 
-### 3. Reservar y ejecutar ship
+### 3. Reserve and run ship
 
-Cuando hay un slot disponible, el scheduler reserva una épica mediante una operación atómica en SQLite. Una épica no puede tener dos ejecuciones activas.
+When a slot is available, the scheduler reserves an epic through an atomic operation in SQLite. An epic cannot have two active executions.
 
-Al iniciar su ejecución, quitar `solve:epic:ready` y agregar `solve:epic:running` en GitHub para que sea visible que la épica ya fue tomada. Persistir el inicio y reconciliar el estado de GitHub al retomar; el cambio de etiquetas no reemplaza el registro de ejecución en SQLite.
+When its execution starts, remove `solve:epic:ready` and add `solve:epic:running` on GitHub so it is visible that the epic has already been taken. Persist the start and reconcile the GitHub state on resume; the label change does not replace the execution record in SQLite.
 
-Prepara un workspace aislado y lanza al autor con la identidad, proveedor, modelo, skill y contexto de esa épica. `ship` mantiene el control de sus slices, ramas y PR final; el orquestador coordina la ejecución y registra el resultado.
+It prepares an isolated workspace and launches the author with the identity, provider, model, skill and context of that epic. `ship` keeps control of its slices, branches and final PR; the orchestrator coordinates the execution and records the result.
 
-El caller lee el informe actual de `ship`, identifica el PR final y comunica el resultado al orquestador. Antes de avanzar, el orquestador comprueba que existe y corresponde a la épica. Si `ship` necesita una decisión o no puede completar el trabajo, se registra el motivo y se solicita intervención.
+The caller reads `ship`'s current report, identifies the final PR and communicates the result to the orchestrator. Before advancing, the orchestrator checks that it exists and corresponds to the epic. If `ship` needs a decision or cannot complete the work, the reason is recorded and intervention is requested.
 
-### 4. El agente verifica el código
+### 4. The agent verifies the code
 
-El autor aplica las reglas del repo y de Solve para determinar qué tests y checks corresponden al PR. Ejecuta o consulta esas verificaciones, interpreta sus resultados y espera los checks pendientes cuando corresponda. Resuelve los fallos como parte de su trabajo con los skills y, cuando termina, reporta qué completó y en qué estado quedó. Si no puede terminar, informa el motivo y la necesidad de intervención. El reviewer verifica después la evidencia. El orquestador consume las conclusiones de cada ejecución, sin definir qué checks son obligatorios, reinterpretar sus resultados ni administrar los intentos internos del agente.
+The author applies the repo and Solve rules to determine which tests and checks apply to the PR. It runs or queries those verifications, interprets their results and waits for pending checks when appropriate. It resolves failures as part of its work with the skills and, when it finishes, reports what it completed and in what state it was left. If it cannot finish, it reports the reason and the need for intervention. The reviewer then verifies the evidence. The orchestrator consumes the conclusions of each execution, without defining which checks are mandatory, reinterpreting their results or managing the agent's internal attempts.
 
-Si el repo no tiene CI, el caller recoge la evidencia de tests reportada por los skills y registra que la verificación no incluyó CI. Esa evidencia, junto con el review concluyente sin blockers, alcanza para quedar listo para probar; no se exige incorporar GitHub Actions ni un check externo para utilizar el orquestador.
+If the repo has no CI, the caller collects the test evidence reported by the skills and records that the verification did not include CI. That evidence, together with the conclusive review with no blockers, is enough to become ready for test; it is not required to add GitHub Actions or an external check to use the orchestrator.
 
-El orquestador no tiene un contador ni un límite propio de correcciones de tests/CI. Los tres reintentos configurables siguen siendo para fallos técnicos de ejecución; las cinco reviews limitan el intercambio autor/reviewer. La selección, evaluación y corrección de checks pertenece a los agentes y skills. Este apartado describe trabajo del agente dentro de su turno, no una etapa adicional de control de CI a cargo del motor.
+The orchestrator has no counter or limit of its own for test/CI fixes. The three configurable retries remain for technical execution failures; the five reviews limit the author/reviewer exchange. Selecting, evaluating and fixing checks belongs to the agents and skills. This section describes agent work within its turn, not an additional CI control stage run by the engine.
 
-### 5. Revisar y publicar
+### 5. Review and publish
 
-Lanza al reviewer con otra identidad y un checkout separado del autor. Recibe spec, tickets, PR, SHA y contexto de las rondas anteriores.
+Launches the reviewer with a different identity and a checkout separate from the author's. It receives spec, tickets, PR, SHA and context from previous rounds.
 
-El reviewer invoca los skills de revisión y publicación, interpreta sus informes actuales y comunica si la revisión fue concluyente sin blockers, tuvo blockers o quedó inconclusa.
+The reviewer invokes the review and publishing skills, interprets their current reports and communicates whether the review was conclusive with no blockers, had blockers or was left inconclusive.
 
-El orquestador registra el SHA revisado, findings, links a los comentarios y número de ronda. Un proceso que termina exitosamente no basta para declarar que el código está listo.
+The orchestrator records the reviewed SHA, findings, links to the comments and round number. A process that ends successfully is not enough to declare the code ready.
 
-### 6. Corregir o responder
+### 6. Fix or respond
 
-Si hay blockers y quedan rondas, el proceso activa al autor con los comentarios y evidencia. El autor evalúa cada finding: corrige o responde con razones verificables.
+If there are blockers and rounds remain, the process activates the author with the comments and evidence. The author evaluates each finding: fixes it or responds with verifiable reasons.
 
-Responder o marcar un thread como resuelto no equivale a eliminar el blocker. El reviewer verifica la corrección o acepta la respuesta en la siguiente pasada. La identidad del autor se mantiene durante toda la épica; su sesión puede retomarse o reconstruirse si no está disponible.
+Responding or marking a thread as resolved is not the same as removing the blocker. The reviewer verifies the fix or accepts the response in the next pass. The author's identity is kept throughout the epic; its session can be resumed or rebuilt if it is not available.
 
-El autor verifica el nuevo commit según las reglas del repo y el reviewer vuelve a revisar, verificando evidencia, findings pendientes y posibles regresiones. El orquestador administra el cambio de turno y los límites.
+The author verifies the new commit according to the repo rules and the reviewer reviews again, verifying evidence, pending findings and possible regressions. The orchestrator manages the change of turn and the limits.
 
-### 7. Terminar el loop
+### 7. End the loop
 
-Una épica queda [lista para probar](glossary.md) cuando el reviewer emitió un resultado concluyente sin blockers y los agentes confirmaron las verificaciones requeridas por el repo sobre el mismo commit. En un repo sin CI, alcanza con ese review y la evidencia de tests reportada por los skills, dejando registrada la ausencia de CI. El orquestador consume esa conclusión, comprueba su coherencia técnica con la ejecución/PR/SHA y registra la transición; no decide por sí mismo si el código o CI son correctos. Un cambio posterior de código invalida ese resultado y exige nueva verificación de los agentes.
+An epic becomes [ready for test](glossary.md) when the reviewer issued a conclusive result with no blockers and the agents confirmed the verifications required by the repo on the same commit. In a repo without CI, that review and the test evidence reported by the skills are enough, recording the absence of CI. The orchestrator consumes that conclusion, checks its technical coherence with the execution/PR/SHA and records the transition; it does not decide by itself whether the code or CI are correct. A later code change invalidates that result and requires new verification by the agents.
 
-Máximo acordado: cinco revisiones, configurable. Si la quinta mantiene blockers, se solicita intervención. No se aplica otra corrección para luego declarar listo un commit que no fue revisado. Los errores de ejecución no consumen una ronda de revisión. Si el reviewer no puede concluir por falta de contexto, la épica requiere intervención y se registra el motivo; una revisión incompleta sin blockers detectados no habilita el PR.
+Agreed maximum: five reviews, configurable. If the fifth still has blockers, intervention is requested. No further fix is applied only to then declare ready a commit that was not reviewed. Execution errors do not consume a review round. If the reviewer cannot conclude for lack of context, the epic requires intervention and the reason is recorded; an incomplete review with no blockers detected does not enable the PR.
 
-Tres reintentos de fallos de ejecución, configurables. Se interpretan como hasta tres reintentos después del intento inicial. Antes de relanzar una etapa, comprobar sus efectos para evitar duplicar publicaciones o trabajo. Un finding de código o un desacuerdo no es un fallo de infraestructura que se resuelva repitiendo la misma ejecución.
+Three retries for execution failures, configurable. They are interpreted as up to three retries after the initial attempt. Before relaunching a stage, check its effects to avoid duplicating publications or work. A code finding or a disagreement is not an infrastructure failure that is resolved by repeating the same execution.
 
-Los desacuerdos sobre findings se trabajan entre autor y reviewer dentro del límite de revisiones. Las épicas que requieren intervención quedan detenidas con el motivo registrado para que Diego las resuelva como humano, sin comando de reactivación en esta versión. Otras épicas pueden seguir avanzando. Reiniciar el proceso no reactiva automáticamente estas épicas; es distinto de retomar una ejecución interrumpida por `Ctrl+C`.
+Disagreements about findings are worked out between author and reviewer within the review limit. Epics that require intervention stay stopped with the reason recorded so Diego can resolve them as a human, with no reactivation command in this version. Other epics can keep advancing. Restarting the process does not automatically reactivate these epics; it is different from resuming an execution interrupted by `Ctrl+C`.
 
-La salida queda visible también en el issue de GitHub: reemplazar `solve:epic:running` por `solve:epic:ready-for-test` cuando se cumplan las condiciones de entrega para pruebas, o por `solve:epic:needs-human` al requerir intervención. SQLite conserva el resultado, evidencia e historial; al recuperarse de un fallo durante la actualización de etiquetas, reconciliar ambos registros.
+The outcome is also visible on the GitHub issue: replace `solve:epic:running` with `solve:epic:ready-for-test` when the conditions for delivery to testing are met, or with `solve:epic:needs-human` when intervention is required. SQLite keeps the result, evidence and history; when recovering from a failure during the label update, reconcile both records.
 
-### 8. Probar y mergear
+### 8. Test and merge
 
-Diego prueba el PR y decide el merge. El orquestador continúa buscando nuevos issues ready en los repos configurados; la primera versión no incluye desbloqueo de épicas por merge.
+Diego tests the PR and decides the merge. The orchestrator keeps looking for new ready issues in the configured repos; the first version does not include unblocking epics on merge.
 
-Mientras la épica tenga trabajo activo, comprobar si su PR final ya fue mergeado. Si se detecta ese merge, detener sus ejecuciones y no lanzar otros turnos para esa épica; conservar sesiones, workspace e historial y registrar que se detuvo por merge del PR final. Las demás épicas continúan. Los merges de PRs de slices no disparan esta regla. La comprobación de estado del PR es coordinación técnica, no evaluación de código o CI.
+While the epic has active work, check whether its final PR has already been merged. If that merge is detected, stop its executions and do not launch other turns for that epic; keep sessions, workspace and history and record that it was stopped by the final PR's merge. The other epics continue. Merges of slice PRs do not trigger this rule. Checking the PR's state is technical coordination, not code or CI evaluation.
 
-Si se cierra manualmente el issue de la épica o su PR final sin merge, registrar la épica como cancelada, detener sus agentes y no iniciar nuevos turnos. Conservar el trabajo realizado y mostrar el motivo en terminal; las demás épicas continúan. La cancelación finaliza el trabajo del orquestador y comienza el plazo de retención de 30 días para sus logs y sesiones. La regla no se aplica a los cierres de tickets o PRs de slices realizados por `ship`.
+If the epic's issue or its final PR is closed manually without merge, record the epic as cancelled, stop its agents and do not start new turns. Keep the work done and show the reason in the terminal; the other epics continue. Cancellation ends the orchestrator's work and starts the 30-day retention period for its logs and sessions. The rule does not apply to closures of slice tickets or PRs performed by `ship`.
 
-Para una evolución con dependencias, se conversó que si A crea una API y B la consume, B debería esperar al merge de A. Ese comportamiento se diseñará por separado en Solve.
+For an evolution with dependencies, it was discussed that if A creates an API and B consumes it, B should wait for A's merge. That behavior will be designed separately in Solve.
 
-## Comunicación y resultados
+## Communication and results
 
-Los agentes no necesitan quedar vivos esperando mensajes entre etapas. El orquestador recibe el resultado de una etapa y lanza la siguiente con contexto persistido. GitHub conserva código, PRs, reviews y respuestas; SQLite conserva el estado de coordinación.
+Agents do not need to stay alive waiting for messages between stages. The orchestrator receives a stage's result and launches the next one with persisted context. GitHub keeps code, PRs, reviews and responses; SQLite keeps the coordination state.
 
-Los skills mantienen sus informes actuales. El caller recibe la tarea, invoca el skill, lee el informe y actúa sobre él como una persona: identifica el PR, entiende blockers y respuestas, o detecta que necesita ayuda. La adaptación para invocación sin aprobación sigue a cargo de Diego.
+Skills keep their current reports. The caller receives the task, invokes the skill, reads the report and acts on it like a person: identifies the PR, understands blockers and responses, or detects that it needs help. Adapting them for invocation without approval remains Diego's responsibility.
 
-El caller devuelve una conclusión breve con lo que terminó, PR/SHA cuando corresponda, evidencia, blockers o motivo de intervención. El orquestador valida el contrato y guarda el resultado en SQLite, asociado a la épica, etapa y ejecución; conserva las conclusiones anteriores como historial. El panel consume esas conclusiones y el informe completo del skill queda en los logs. Puede comprobar referencias y vigencia del SHA en GitHub para evitar coordinar sobre otro commit; la evaluación de código, tests, CI y blockers es del autor/reviewer.
+The caller returns a brief conclusion with what it finished, PR/SHA where applicable, evidence, blockers or reason for intervention. The orchestrator validates the contract and stores the result in SQLite, associated with the epic, stage and execution; it keeps previous conclusions as history. The panel consumes those conclusions and the skill's full report stays in the logs. It may check references and SHA currency on GitHub to avoid coordinating over another commit; evaluating code, tests, CI and blockers is the author's/reviewer's job.
 
-Transporte acordado: el caller escribe un archivo JSON estructurado de resultado y el orquestador valida su esquema antes de importarlo a SQLite. La base es el registro persistente. Comprobar campos requeridos según la etapa, tipos, valores permitidos y correspondencia con la épica/ejecución esperada. Guardar el resultado y la transición de estado en una transacción para evitar avances sin información persistida; la importación del mismo resultado debe ser idempotente. Un resultado inválido no habilita avanzar de etapa. Los campos exactos se definen al diseñar el esquema, manteniendo las salidas actuales de los skills.
+Agreed transport: the caller writes a structured JSON result file and the orchestrator validates its schema before importing it into SQLite. The database is the persistent record. Check required fields according to the stage, types, allowed values and correspondence with the expected epic/execution. Save the result and the state transition in one transaction to avoid advancing without persisted information; importing the same result must be idempotent. An invalid result does not allow advancing the stage. The exact fields are defined when designing the schema, keeping the skills' current outputs.
 
-El campo de resultado (`outcome`) admite:
+The result field (`outcome`) supports:
 
-| Resultado | Significado y transición |
+| Result | Meaning and transition |
 | --- | --- |
-| `completed` | El agente terminó su turno correctamente. Si era `ship` o corrección del autor, habilita un review; si era review, significa que concluyó sin blockers y confirmó las verificaciones del repo, y habilita listo para probar. |
-| `changes_requested` | El reviewer concluyó que hay blockers y pide correcciones. Si quedan rondas, habilita al autor; al agotar el límite, requiere intervención. Es válido sólo para un turno de review. |
-| `needs_human` | El agente no puede continuar y explica el motivo. Detener nuevos turnos de la épica y registrar la intervención necesaria. |
+| `completed` | The agent finished its turn successfully. If it was `ship` or an author fix, it enables a review; if it was a review, it means it concluded with no blockers and confirmed the repo's verifications, and it enables ready for test. |
+| `changes_requested` | The reviewer concluded there are blockers and asks for fixes. If rounds remain, it enables the author; when the limit is exhausted, it requires intervention. Valid only for a review turn. |
+| `needs_human` | The agent cannot continue and explains the reason. Stop new turns of the epic and record the intervention needed. |
 
-El runner informa por separado la terminación técnica del proceso. Un fallo de CLI o un JSON ausente/inválido no se convierten en `completed`: se reconcilia lo realizado y se aplica la política de reintentos técnicos. Los tres outcomes son conclusiones del caller, no un catálogo de errores de infraestructura.
+The runner reports the process's technical termination separately. A CLI failure or a missing/invalid JSON is not turned into `completed`: what was done is reconciled and the technical retry policy is applied. The three outcomes are caller conclusions, not a catalog of infrastructure errors.
 
-Los adaptadores de proveedores traducen la tarea al CLI correspondiente, preparan credenciales para esa ejecución y capturan salida, logs y errores. Las credenciales de un agente no deben mezclarse con las de otra ejecución paralela. Debe resolverse su renovación durante trabajos largos.
+Provider adapters translate the task to the corresponding CLI, prepare credentials for that execution and capture output, logs and errors. One agent's credentials must not be mixed with those of another parallel execution. Their renewal during long jobs must be resolved.
 
-Agent Forge se utiliza como dependencia externa instalada, mediante un adaptador del runner. El orquestador conserva la cola y el loop; el runner conserva el lanzamiento de tareas y sesiones con Claude/Codex; Forge prepara identidad y credenciales GitHub. Queda validar el mecanismo concreto de integración y fijar una versión compatible.
+Agent Forge is used as an installed external dependency, through a runner adapter. The orchestrator keeps the queue and the loop; the runner keeps launching tasks and sessions with Claude/Codex; Forge prepares GitHub identity and credentials. What remains is validating the concrete integration mechanism and pinning a compatible version.
 
-El catálogo admite múltiples identidades, incluida la personal de Diego. La configuración asigna explícitamente una identidad al autor y otra al reviewer. Para un mismo PR, deben ser diferentes. Agent Forge es responsable de la autenticación de los perfiles; la app referencia esos perfiles y consume los errores de la integración. Queda validar el soporte concreto de perfiles personales y bots.
+The catalog supports multiple identities, including Diego's personal one. The configuration explicitly assigns one identity to the author and another to the reviewer. For the same PR, they must be different. Agent Forge is responsible for profile authentication; the app references those profiles and consumes the integration's errors. What remains is validating concrete support for personal profiles and bots.
 
-La configuración también selecciona un perfil GitHub para las operaciones del orquestador: descubrimiento de issues, consulta de referencias y actualización de etiquetas. El usuario declara los perfiles que tiene disponibles y los referencia desde la configuración; puede elegir el mismo para distintas responsabilidades cuando corresponda, salvo la separación de autor/reviewer de un mismo PR. Configurar perfiles no implica agregar una UI o wizard en esta versión: el archivo JSON contiene las referencias y Agent Forge resuelve la autenticación.
+The configuration also selects a GitHub profile for the orchestrator's operations: issue discovery, reference queries and label updates. The user declares the profiles they have available and references them from the configuration; they may choose the same one for different responsibilities when appropriate, except for the author/reviewer separation on the same PR. Configuring profiles does not imply adding a UI or wizard in this version: the JSON file contains the references and Agent Forge resolves authentication.
 
-Si Forge informa un error de autenticación, se detienen las épicas que necesitan el perfil afectado y se muestra el motivo en terminal. Las demás pueden continuar. Si el perfil afectado es el del orquestador, se suspenden las operaciones GitHub que dependen de él. La app no implementa un sistema propio de autenticación ni cambia de perfil automáticamente.
+If Forge reports an authentication error, the epics that need the affected profile are stopped and the reason is shown in the terminal. The others can continue. If the affected profile is the orchestrator's, the GitHub operations that depend on it are suspended. The app does not implement its own authentication system nor switch profiles automatically.
 
-## Estado persistido
+## Persisted state
 
-Guardar por épica: repo e issue, fecha de ingreso a la cola, workspace, PR final, etapa, ronda, identidades, configuración elegida, SHA revisado, blockers pendientes, ejecuciones, errores e historial de eventos. No guardar tokens en el estado ni en los logs.
+Save per epic: repo and issue, queue entry date, workspace, final PR, stage, round, identities, chosen configuration, reviewed SHA, pending blockers, executions, errors and event history. Do not store tokens in the state or in the logs.
 
-Los logs y sesiones vinculados a una épica se borran automáticamente 30 días después de que termina la épica. Mientras siga pendiente, incluidos los casos interrumpidos o que requieren intervención, se conservan para permitir retomarla. Esta limpieza no elimina el registro de la épica en SQLite ni sus workspaces.
+Logs and sessions linked to an epic are deleted automatically 30 days after the epic ends. While it remains pending, including interrupted cases or those that require intervention, they are kept to allow resuming it. This cleanup does not delete the epic's record in SQLite nor its workspaces.
 
-Al reiniciar, el proceso reconcilia etapas incompletas con los procesos existentes y con GitHub antes de reintentar. No asume que una etapa falló sólo porque no alcanzó a registrar su resultado; podría haber creado un PR, comentario o commit.
+On restart, the process reconciles incomplete stages with the existing processes and with GitHub before retrying. It does not assume a stage failed just because it did not manage to record its result; it might have created a PR, comment or commit.
 
-Antes de retomar, comprobar que el repo siga en la configuración actual. Si fue quitado, conservar la ejecución, su orden de cola y configuración efectiva, pero dejarla detenida con el motivo repo no configurado. Mantener sesiones, workspace e historial; no consumir reintentos ni ejecutar acciones nuevas sobre ese repo. Si vuelve a configurarse, sus ejecuciones pendientes vuelven a ser elegibles para recuperación, respetando las que ya requerían intervención. Esta regla se evalúa al arrancar; no implica implementar recarga de configuración en caliente.
+Before resuming, check that the repo is still in the current configuration. If it was removed, keep the execution, its queue order and effective configuration, but leave it stopped with the reason repo not configured. Keep sessions, workspace and history; do not consume retries nor run new actions on that repo. If it is configured again, its pending executions become eligible for recovery again, respecting those that already required intervention. This rule is evaluated at startup; it does not imply implementing hot configuration reload.
 
-La continuidad incluye la sesión del autor y del reviewer, el contexto del caller y el workspace con su estado Git, incluyendo trabajo aún sin commit. Los adaptadores de Claude y Codex deben permitir retomar las sesiones conservadas. Reiniciar el orquestador no implica volver a lanzar `ship` desde cero. Al retomar, el agente verifica qué operaciones terminaron y continúa desde el estado real; una sesión recuperada no equivale a reanudar un comando del sistema exactamente en la instrucción donde fue interrumpido.
+Continuity includes the author's and reviewer's session, the caller's context and the workspace with its Git state, including work not yet committed. The Claude and Codex adapters must allow resuming the kept sessions. Restarting the orchestrator does not mean launching `ship` again from scratch. On resume, the agent verifies which operations finished and continues from the real state; a recovered session is not the same as resuming a system command at exactly the instruction where it was interrupted.
 
-Si una sesión no se puede recuperar, el proceso registra el motivo y abre una nueva con la misma identidad, el contexto persistido, conclusiones e informes previos y el estado actual del workspace/GitHub. El agente verifica qué operaciones quedaron realizadas y continúa lo pendiente. La recuperación queda en el historial para distinguir una sesión retomada de un contexto reconstruido.
+If a session cannot be recovered, the process records the reason and opens a new one with the same identity, the persisted context, previous conclusions and reports, and the current state of the workspace/GitHub. The agent verifies which operations were completed and continues what is pending. The recovery is kept in the history to distinguish a resumed session from a rebuilt context.
 
-`Ctrl+C` deja de tomar trabajo y detiene las ejecuciones activas, incluidos los procesos hijos de los agentes, sin esperar la finalización de las etapas. El estado y los identificadores de sesión se registran durante la ejecución, no únicamente al terminarla. Se conservan archivos de sesión, workspaces y logs. Al reiniciar, las etapas interrumpidas se reconcilian antes de continuar; no se duplican agentes que hayan quedado vivos ni acciones externas ya realizadas.
+`Ctrl+C` stops taking work and stops the active executions, including the agents' child processes, without waiting for the stages to finish. State and session identifiers are recorded during execution, not only when it ends. Session files, workspaces and logs are kept. On restart, interrupted stages are reconciled before continuing; agents that were left alive and external actions already performed are not duplicated.
 
-## Panel de terminal
+## Terminal panel
 
-El comando se ejecuta en la terminal que Diego use: Terminal de macOS, iTerm, Ghostty o una terminal integrada. El panel se dibuja en esa misma ventana; el programa no requiere una terminal propia. Los agentes se ejecutan como procesos hijos y su salida se captura para logs y actividad. Propuesta: salida simple si no hay una terminal interactiva.
+The command runs in whatever terminal Diego uses: macOS Terminal, iTerm, Ghostty or an integrated terminal. The panel is drawn in that same window; the program does not require a terminal of its own. Agents run as child processes and their output is captured for logs and activity. Proposal: plain output if there is no interactive terminal.
 
-Mostrar slots ocupados, épicas en cola y etapa de cada ejecución. Para cada épica: ronda, blockers, tiempo en etapa, última actividad y links al issue/PR. Los logs detallados quedan en archivos.
+Show occupied slots, queued epics and each execution's stage. For each epic: round, blockers, time in stage, last activity and links to the issue/PR. Detailed logs stay in files.
 
-La etapa actual y la última actividad son datos distintos: ausencia de salida no significa que el agente esté avanzando. El panel debe mostrar también errores y motivos de intervención.
+The current stage and the last activity are distinct data: absence of output does not mean the agent is making progress. The panel must also show errors and intervention reasons.
 
-El primer panel sólo informa: épicas, etapas, rondas, blockers, actividad, errores y referencias a logs. No incorpora controles de pausa o reintento. `Ctrl+C` detiene el proceso; la configuración y el arranque se realizan desde el comando. Se prioriza probar el flujo completo antes de ampliar la interfaz.
+The first panel only informs: epics, stages, rounds, blockers, activity, errors and references to logs. It does not include pause or retry controls. `Ctrl+C` stops the process; configuration and startup are done from the command. Testing the full flow is prioritized before expanding the interface.
 
-## Configuración propuesta
+## Proposed configuration
 
-Formato acordado: JSON. La app incluye una configuración default y admite una configuración del usuario que sólo necesita declarar los valores que quiere cambiar. Los valores simples del usuario reemplazan los defaults; los objetos se combinan por campo, conservando los campos omitidos; las listas se reemplazan completas, sin concatenación. Un valor de tipo incompatible no debe convertirse silenciosamente para completar el merge.
+Agreed format: JSON. The app ships a default configuration and supports a user configuration that only needs to declare the values it wants to change. The user's simple values replace the defaults; objects are combined field by field, keeping omitted fields; lists are replaced whole, without concatenation. A value of an incompatible type must not be silently converted to complete the merge.
 
-Al arrancar, la aplicación combina defaults y configuración del usuario y valida el resultado, incluyendo campos requeridos, tipos, referencias a identidades y límites permitidos. Los errores deben identificar el campo y problema para que pueda corregirse la configuración. Después se resuelven los overrides por repo sobre los valores globales de agentes; la configuración efectiva de una épica se persiste al iniciarla. La configuración default pertenece al paquete de la app; los datos específicos del usuario se mantienen fuera del código.
+On startup, the application combines defaults and user configuration and validates the result, including required fields, types, references to identities and allowed limits. Errors must identify the field and the problem so the configuration can be fixed. Then the per-repo overrides are resolved over the global agent values; an epic's effective configuration is persisted when it starts. The default configuration belongs to the app package; user-specific data is kept outside the code.
 
-La validación se implementa con Zod, compartiendo los esquemas con los tipos TypeScript inferidos. `config/` mantiene el esquema de configuración y `execution/` el del resultado del caller; cada módulo conserva la propiedad de su contrato. La validación de estructura es distinta de las comprobaciones de coherencia de referencias y de la evaluación del repo que realizan los agentes. [Documentación de Zod](https://zod.dev/).
+Validation is implemented with Zod, sharing the schemas with the inferred TypeScript types. `config/` keeps the configuration schema and `execution/` the caller result schema; each module retains ownership of its contract. Structure validation is distinct from the reference-coherence checks and from the repo evaluation that agents perform. [Zod documentation](https://zod.dev/).
 
-Lista de repos GitHub para buscar épicas y ubicación de código/workspaces; catálogo de perfiles GitHub y perfil seleccionado para el orquestador; identidad, proveedor y modelo por rol de agente; opciones específicas del proveedor; concurrencia; límite de revisiones; frecuencia de consulta; límites de reintentos de ejecución y tiempo. La configuración debe poder usarse independientemente del directorio desde donde se inicia el proceso. Las reglas de validación del repo se consultan desde los agentes y skills.
+List of GitHub repos to look for epics in and location of code/workspaces; catalog of GitHub profiles and the profile selected for the orchestrator; identity, provider and model per agent role; provider-specific options; concurrency; review limit; query frequency; execution retry and time limits. The configuration must be usable independently of the directory from which the process is started. The repo's validation rules are queried from the agents and skills.
 
-Identidad, proveedor y modelo de autor/reviewer tienen valores globales y overrides por repo. Un repo hereda cada campo global que no reemplace explícitamente. La identidad de autor y reviewer para un mismo PR sigue siendo diferente después de resolver esos overrides. El alcance de los overrides acordados no incluye una configuración individual por épica.
+Author/reviewer identity, provider and model have global values and per-repo overrides. A repo inherits each global field it does not explicitly replace. The author and reviewer identity for the same PR remains different after resolving those overrides. The scope of the agreed overrides does not include an individual per-epic configuration.
 
-Valores acordados: Claude y Codex como proveedores iniciales, cinco revisiones, tres reintentos de ejecución, tres épicas simultáneas y cuatro horas por ejecución de agente como valores iniciales, con todos los límites configurables. La duración permite una opción explícita sin límite. La concurrencia interna de `ship` también debe considerarse para controlar la carga real.
+Agreed values: Claude and Codex as initial providers, five reviews, three execution retries, three simultaneous epics and four hours per agent execution as initial values, with all limits configurable. The duration allows an explicit no-limit option. `ship`'s internal concurrency must also be considered to control the real load.
 
-Guardar la configuración efectiva de agentes al iniciar una épica, después de resolver defaults y overrides por repo. Los cambios de configuración se aplican a nuevas épicas; las que están en curso conservan sus identidades, proveedores y modelos, también al retomar una sesión o reconstruir su contexto. La configuración persistida no incluye credenciales secretas. Un cambio de proveedor o fallback durante una ejecución no se deriva automáticamente de modificar los defaults.
+Save the effective agent configuration when an epic starts, after resolving defaults and per-repo overrides. Configuration changes apply to new epics; those in progress keep their identities, providers and models, also when resuming a session or rebuilding its context. The persisted configuration does not include secret credentials. A provider change or fallback during an execution is not automatically derived from modifying the defaults.
 
-### Qué significa un límite de tiempo
+### What a time limit means
 
-Un timeout es un límite para una ejecución o llamada que no termina; no es la frecuencia de polling ni una duración prometida de una épica. Diferenciar llamadas breves a GitHub de un `ship` que puede trabajar durante horas. La ausencia de logs no prueba por sí sola que un agente esté trabado.
+A timeout is a limit for an execution or call that does not finish; it is not the polling frequency nor a promised duration of an epic. Differentiate brief GitHub calls from a `ship` that can work for hours. The absence of logs does not by itself prove that an agent is stuck.
 
-El máximo por ejecución de agente es cuatro horas por defecto, configurable, con una opción explícita sin límite. Propuesta de representación en JSON: `"maxExecutionHours": 4` o `"maxExecutionHours": "unlimited"`; si se omite la configuración, aplicar las cuatro horas por defecto. Cero no significa infinito. Es el límite de una invocación de `ship`, review o corrección, no el de toda la épica ni su espera en cola.
+The maximum per agent execution is four hours by default, configurable, with an explicit no-limit option. Proposed JSON representation: `"maxExecutionHours": 4` or `"maxExecutionHours": "unlimited"`; if the setting is omitted, apply the default four hours. Zero does not mean infinite. It is the limit of one invocation of `ship`, review or fix, not that of the whole epic nor its wait in the queue.
 
-Al vencer el límite, detener la ejecución, conservar sesiones y workspaces y registrar el motivo. La épica queda como requiere intervención para que Diego decida cómo continuar; no se reintenta automáticamente por timeout. Antes de continuar, detener o reconciliar los procesos anteriores; nunca lanzar otro autor mientras el anterior siga actuando sobre el mismo workspace. Pendiente: fijar timeouts para operaciones externas breves.
+When the limit expires, stop the execution, keep sessions and workspaces and record the reason. The epic is left as requiring intervention so Diego decides how to continue; it is not retried automatically on timeout. Before continuing, stop or reconcile the previous processes; never launch another author while the previous one is still acting on the same workspace. Pending: set timeouts for brief external operations.
 
-## Límites de la primera versión
+## First version limits
 
-Un proceso local para macOS, SQLite, logs y panel de terminal. Sin servidor web ni app del OS. Se mantiene portable el núcleo TypeScript/Node.js; Linux y Windows quedan fuera de la validación y soporte inicial. El merge del PR final y la resolución de casos que requieren intervención son humanos. No se agrega comando ni UI de reactivación de esos casos. Las dependencias entre épicas se resolverán por separado en Solve; el MVP toma directamente issues ready. El sistema ejecuta los skills; no reproduce dentro del orquestador su lógica de implementación y review.
+A local process for macOS, SQLite, logs and terminal panel. No web server or OS app. The TypeScript/Node.js core stays portable; Linux and Windows are outside the initial validation and support. Merging the final PR and resolving cases that require intervention are human. No command or UI is added to reactivate those cases. Dependencies between epics will be resolved separately in Solve; the MVP takes ready issues directly. The system runs the skills; it does not reproduce their implementation and review logic inside the orchestrator.
 
-La investigación previa está en [autonomous-ship-review.md](research/autonomous-ship-review.md). Su máximo de cuatro reviews fue reemplazado por los cinco configurables de este documento.
+The prior research is in [autonomous-ship-review.md](research/autonomous-ship-review.md). Its maximum of four reviews was replaced by the five configurable ones in this document.
 
-## Proyecto y almacenamiento
+## Project and storage
 
-El orquestador es una app independiente con repo propio, [AshuLab/carrier](https://github.com/AshuLab/carrier); no se implementa dentro de SecondBrain ni de los repos donde busca épicas. Este documento vive en `docs/` de ese repo como borrador de trabajo. El código y las pruebas viven en el repo de la app; la configuración y datos de ejecución se ubican bajo la raíz compartida, independientemente de la ubicación del código o la carpeta desde donde se ejecuta el comando.
+The orchestrator is a standalone app with its own repo, [AshuLab/carrier](https://github.com/AshuLab/carrier); it is not implemented inside SecondBrain nor inside the repos where it looks for epics. This document lives in that repo's `docs/` as a working draft. Code and tests live in the app's repo; configuration and execution data are placed under the shared root, independently of the code's location or the folder from which the command is run.
 
-## Tecnologías y versiones
+## Technologies and versions
 
-Stack acordado: TypeScript, Node.js 26 y ESM, con pnpm como gestor de paquetes. Dependencias runtime ya elegidas: `zod`, `@ashulab/universal-logger`, `drizzle-orm` y `better-sqlite3`. Drizzle Kit y Vitest se incorporan como tooling de desarrollo para migraciones y tests, junto con los tipos adicionales que requiera el driver. Agent Forge sigue siendo una dependencia externa instalada.
+Agreed stack: TypeScript, Node.js 26 and ESM, with pnpm as the package manager. Runtime dependencies already chosen: `zod`, `@ashulab/universal-logger`, `drizzle-orm` and `better-sqlite3`. Drizzle Kit and Vitest are added as development tooling for migrations and tests, along with any additional types the driver requires. Agent Forge remains an installed external dependency.
 
-Al incorporar o actualizar cada paquete, consultar la última versión estable publicada y comprobar compatibilidad con Node 26. Aplicar también al tooling de desarrollo; excluir versiones alpha, beta, RC, nightly u otras prereleases. Registrar las versiones seleccionadas y versionar `pnpm-lock.yaml`; fijar la versión de pnpm en `packageManager`. Las instalaciones reproducibles usan ese lockfile, y los upgrades se verifican con build, chequeo de tipos y tests. La selección de versiones recientes no implica resolver nuevas versiones diferentes en cada arranque de la app.
+When adding or updating each package, check the latest published stable version and verify compatibility with Node 26. This also applies to development tooling; exclude alpha, beta, RC, nightly or other prerelease versions. Record the selected versions and version `pnpm-lock.yaml`; pin the pnpm version in `packageManager`. Reproducible installs use that lockfile, and upgrades are verified with build, type checking and tests. Selecting recent versions does not imply resolving different new versions on each app startup.
 
-Referencia consultada el 2026-10-15: [Node 26.12.0](https://nodejs.org/en/download), [pnpm 12.11.2](https://registry.npmjs.org/pnpm/latest) y [TypeScript 7.0.2](https://registry.npmjs.org/typescript/latest). Son versiones observadas, no sustituyen volver a consultar las estables al crear el proyecto. La versión de código inspeccionada de universal-logger tampoco debe tomarse automáticamente como la última publicada.
+Reference consulted on 2026-10-15: [Node 26.12.0](https://nodejs.org/en/download), [pnpm 12.11.2](https://registry.npmjs.org/pnpm/latest) and [TypeScript 7.0.2](https://registry.npmjs.org/typescript/latest). These are observed versions; they do not replace checking the stable ones again when creating the project. The inspected code version of universal-logger should likewise not be automatically taken as the latest published.
 
-## Estructura de código en definición
+## Code structure under definition
 
-Un único paquete Node/TypeScript, agrupado por responsabilidad. Crear los archivos concretos al implementar cada responsabilidad.
+A single Node/TypeScript package, grouped by responsibility. Create the concrete files when implementing each responsibility.
 
 ```text
 src/
-  cli/              # arranque, Ctrl+C y panel
-  config/           # lectura, validación y overrides
-  orchestration/    # selección de épicas, etapas, turnos y límites
-  execution/        # procesos, sesiones y contrato de resultados
-  storage/          # esquema Drizzle, SQLite y artefactos de ejecución
-  logging/          # configuración e integración de universal-logger
-  integrations/     # GitHub y Forge
-  providers/        # Claude y Codex
-  prompts/          # instrucciones de autor y reviewer
-  shared/           # helpers reutilizables entre módulos
+  cli/              # startup, Ctrl+C and panel
+  config/           # reading, validation and overrides
+  orchestration/    # epic selection, stages, turns and limits
+  execution/        # processes, sessions and result contract
+  storage/          # Drizzle schema, SQLite and execution artifacts
+  logging/          # universal-logger configuration and integration
+  integrations/     # GitHub and Forge
+  providers/        # Claude and Codex
+  prompts/          # author and reviewer instructions
+  shared/           # helpers reusable across modules
 test/
 ```
 
-`shared/` reúne utilidades generales realmente compartidas, por ejemplo formateadores de duración para panel/logs o helpers de rutas. Puede contener archivos como `formatters.ts` y `paths.ts` cuando sean necesarios. Las normalizaciones específicas de una configuración, un resultado de proveedor o una respuesta de GitHub pertenecen a `config/`, `providers/` o `integrations/`, respectivamente. Los helpers compartidos no dependen del workflow ni de adaptadores concretos. Evitar concentrar funciones sin relación en un único `utils.ts`.
+`shared/` gathers genuinely shared general utilities, for example duration formatters for panel/logs or path helpers. It may contain files such as `formatters.ts` and `paths.ts` when needed. Normalizations specific to a configuration, a provider result or a GitHub response belong to `config/`, `providers/` or `integrations/`, respectively. Shared helpers do not depend on the workflow or on concrete adapters. Avoid concentrating unrelated functions in a single `utils.ts`.
 
-## Acceso a SQLite
+## SQLite access
 
-Usar `drizzle-orm` para definir el esquema en TypeScript y acceder a SQLite, y `drizzle-kit` como dependencia de desarrollo para generar migraciones. Mantener esquema, conexión y consultas en `storage/`. Las migraciones generadas se versionan con el código y forman parte de los artefactos necesarios para ejecutar la app.
+Use `drizzle-orm` to define the schema in TypeScript and access SQLite, and `drizzle-kit` as a development dependency to generate migrations. Keep schema, connection and queries in `storage/`. The generated migrations are versioned with the code and are part of the artifacts needed to run the app.
 
-El driver acordado es `better-sqlite3`, consumido por el adaptador SQLite de Drizzle. La [documentación oficial](https://orm.drizzle.team/docs/sqlite/get-started-sqlite) describe esa combinación. Los ejemplos actuales muestran releases RC: al implementar, consultar las versiones estables publicadas y sus APIs compatibles, respetando la política de excluir prereleases acordada. No asumir que una API disponible en la documentación RC ya existe en la estable. Validar instalación, migraciones y transacciones con Node 26 en macOS antes de probar el flujo de agentes.
+The agreed driver is `better-sqlite3`, consumed by Drizzle's SQLite adapter. The [official documentation](https://orm.drizzle.team/docs/sqlite/get-started-sqlite) describes that combination. The current examples show RC releases: when implementing, check the published stable versions and their compatible APIs, respecting the agreed policy of excluding prereleases. Do not assume an API available in the RC documentation already exists in the stable one. Validate installation, migrations and transactions with Node 26 on macOS before testing the agent flow.
 
-## Logging y errores
+## Logging and errors
 
-Dependencia runtime acordada: `@ashulab/universal-logger`, el package del repo [AshuLab/universal-logger](https://github.com/AshuLab/universal-logger). El [package.json revisado](https://github.com/AshuLab/universal-logger/blob/16eabc1e3d78bf145f6619f60f5419e1565075b7/package.json) declara ese nombre y exports ESM. La versión inspeccionada es 0.1.1; fijar una versión compatible al implementar la app. La decisión es consumir el package instalado, no reproducir su formato ni copiar su código.
+Agreed runtime dependency: `@ashulab/universal-logger`, the package from the [AshuLab/universal-logger](https://github.com/AshuLab/universal-logger) repo. The [reviewed package.json](https://github.com/AshuLab/universal-logger/blob/16eabc1e3d78bf145f6619f60f5419e1565075b7/package.json) declares that name and ESM exports. The inspected version is 0.1.1; pin a compatible version when implementing the app. The decision is to consume the installed package, not to reproduce its format nor copy its code.
 
-Configurar la biblioteca una vez al arrancar y usar su API de niveles y `createScopedLogger` en los módulos. Nivel inicial propuesto: INFO, configurable; la biblioteca usa WARN fuera de desarrollo cuando no se configura un nivel. Para errores, pasar el objeto de error original a `logError` o al método `error` del logger scoped para conservar su información y stack. Adjuntar contexto de repo, épica, ejecución, rol y etapa según corresponda, sin credenciales ni tokens. [API e implementación](https://github.com/AshuLab/universal-logger/blob/16eabc1e3d78bf145f6619f60f5419e1565075b7/src/index.ts).
+Configure the library once at startup and use its levels API and `createScopedLogger` in the modules. Proposed initial level: INFO, configurable; the library uses WARN outside development when no level is configured. For errors, pass the original error object to `logError` or to the scoped logger's `error` method to preserve its information and stack. Attach repo, epic, execution, role and stage context as appropriate, without credentials or tokens. [API and implementation](https://github.com/AshuLab/universal-logger/blob/16eabc1e3d78bf145f6619f60f5419e1565075b7/src/index.ts).
 
-`logging/` sólo integra y configura esa dependencia para la app y su salida. Los logs operativos se guardan bajo `~/.solve/orchestrator/logs/`, siguiendo la raíz configurable. Propuesta de archivos: `orchestrator.log` para el proceso y `executions/<executionId>/stdout.log` y `stderr.log` para conservar las salidas completas de cada agente. SQLite guarda conclusiones e historial de coordinación; los archivos conservan los logs detallados e informes.
+`logging/` only integrates and configures that dependency for the app and its output. Operational logs are saved under `~/.solve/orchestrator/logs/`, following the configurable root. Proposed files: `orchestrator.log` for the process and `executions/<executionId>/stdout.log` and `stderr.log` to keep each agent's full outputs. SQLite keeps coordination conclusions and history; the files keep the detailed logs and reports.
 
-La implementación revisada emite por consola: debug/info usan stdout y warn/error usan stderr. No expone un transport general a archivos; `setErrorReporter` sólo reporta errores y no reemplaza esa salida. Validar la integración de ambos streams con los archivos y el panel de terminal, manteniendo el package como implementación de logging. El panel usa el estado del orquestador y la salida detallada de agentes se captura por separado para no mezclarla con su representación visual.
+The reviewed implementation emits to the console: debug/info use stdout and warn/error use stderr. It does not expose a general file transport; `setErrorReporter` only reports errors and does not replace that output. Validate the integration of both streams with the files and the terminal panel, keeping the package as the logging implementation. The panel uses the orchestrator's state and the agents' detailed output is captured separately so it is not mixed with its visual representation.
 
-## Estrategia de tests de la app
+## App test strategy
 
-Usar Vitest en su última versión estable compatible con el stack. Probar comportamiento de coordinación: merge/validación de configuración, FIFO y concurrencia, transiciones por outcome, límites de reviews/reintentos, importación idempotente de resultados, persistencia y recuperación tras interrupciones. Usar SQLite temporal real cuando se verifiquen migraciones y transacciones, y agentes simulados para controlar respuestas, tiempos y fallos de procesos. La política de tests o CI del repo implementado sigue siendo responsabilidad de los agentes, no del motor ni de sus tests.
+Use Vitest at its latest stable version compatible with the stack. Test coordination behavior: configuration merge/validation, FIFO and concurrency, transitions by outcome, review/retry limits, idempotent result import, persistence and recovery after interruptions. Use a real temporary SQLite when verifying migrations and transactions, and simulated agents to control responses, timings and process failures. The test or CI policy of the implemented repo remains the agents' responsibility, not the engine's nor its tests'.
 
-Las pruebas reales con Claude, Codex, Forge y Solve son integración aparte, con un repo de prueba y configuración explícita; no deben ejecutarse automáticamente en la suite habitual. Deben validar el contrato del runner, sesiones, credenciales, workspaces y entrega de resultados del caller. [Documentación de Vitest](https://vitest.dev/guide/).
+Real tests with Claude, Codex, Forge and Solve are separate integration tests, with a test repo and explicit configuration; they must not run automatically in the usual suite. They must validate the runner contract, sessions, credentials, workspaces and delivery of the caller's results. [Vitest documentation](https://vitest.dev/guide/).
 
-## Detalles técnicos pendientes
+## Pending technical details
 
-1. Cómo comunicar a Solve la raíz compartida y convenciones acordadas; `~/.solve/` configurable, los subdirectorios y el arranque desde cualquier carpeta ya están acordados.
-2. Comprobar que el cambio externo en Solve publique `solve:epic:ready` como señal de toma directa; el MVP no necesita otra consulta de disponibilidad.
-3. Campos y esquema del JSON del caller; el transporte por archivo, validación, almacenamiento en SQLite e historial ya están acordados.
-4. Integración de identidades personales y bots con Forge y renovación de credenciales durante ejecuciones largas. La resolución de casos que requieren intervención queda en manos de Diego, sin comando de reactivación en esta versión.
-5. Estrategia para retomar trabajo interrumpido y pruebas del flujo; el panel inicial ya está definido como informativo y simple.
-6. Integración de la salida de `@ashulab/universal-logger` con archivos y panel de terminal, incluyendo flush al detener el proceso; el package ya está elegido como dependencia runtime.
+1. How to communicate the agreed shared root and conventions to Solve; `~/.solve/` configurable, the subdirectories and starting from any folder are already agreed.
+2. Check that the external change in Solve publishes `solve:epic:ready` as a direct pick-up signal; the MVP needs no other availability query.
+3. Fields and schema of the caller's JSON; the file transport, validation, SQLite storage and history are already agreed.
+4. Integration of personal identities and bots with Forge and credential renewal during long executions. Resolving cases that require intervention stays in Diego's hands, with no reactivation command in this version.
+5. Strategy for resuming interrupted work and flow tests; the initial panel is already defined as informational and simple.
+6. Integration of `@ashulab/universal-logger`'s output with files and the terminal panel, including flush when stopping the process; the package is already chosen as a runtime dependency.

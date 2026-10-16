@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
@@ -964,4 +964,185 @@ test('shutdown stops every active run without waiting for its stage, keeps the e
   expect(runner.tasks).toHaveLength(2);
   expect([labelsOf(1), labelsOf(2), labelsOf(3)]).toEqual(labels);
   expect(byStatus(engine.db, 'queued')).toEqual([3]);
+});
+
+// --- restart: reconcile and resume ---
+
+const seedEpic = (db: Db, issue: number, extra: Partial<typeof epics.$inferInsert> = {}) =>
+  db.insert(epics).values({ repo: 'AshuLab/a', issue, status: 'running', config: repos[0], stage: 'ship', startedAt: 0, ...extra }).run();
+const seedExecution = (db: Db, executionId: string, epicId: number, extra: Partial<typeof executions.$inferInsert> = {}) =>
+  db.insert(executions).values({ executionId, epicId, stage: 'ship', status: 'running', sessionId: `s-${executionId}`, resultPath: join(dir, `${executionId}.json`), startedAt: 0, ...extra }).run();
+const statusOf = (db: Db, executionId: string) => db.select().from(executions).where(eq(executions.executionId, executionId)).get()!.status;
+const eventTypes = (db: Db) => db.select().from(epicEvents).all().map((e) => e.type);
+
+test('a restart stops the live orphan before launching, resumes its session and reserves the next epic after that', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1);
+  runner.alive.add('e0'); // the previous process's agent is still running
+  const aliveAtLaunch: string[][] = [];
+  runner.behavior = () => (aliveAtLaunch.push([...runner.alive]), { exit: 'hang' });
+  github.ready = { 'AshuLab/a': ready(2) };
+
+  const engine = await start(2);
+  expect(runner.stopped).toEqual(['e0']);
+  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks[0]).toMatchObject({ epic: 1, stage: 'ship', resumeSession: 's-e0', context: { verifyStateFirst: true } });
+  expect(aliveAtLaunch).toEqual([[runner.tasks[0]!.executionId]]); // only the new agent is alive on the workspace
+  expect(statusOf(engine.db, 'e0')).toBe('interrupted');
+
+  await clock.advance(5 * MIN);
+  expect(runner.tasks.map((t) => t.epic)).toEqual([1, 2]);
+});
+
+test('a Ctrl+C then a restart resumes each interrupted execution as a new one with its session, never starting the stage over', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  runner.behavior = (task) => ({ sessionId: `s-${task.epic}`, exit: 'hang' });
+  const first = await start(2);
+  await clock.advance(5 * MIN);
+  await first.shutdown();
+  dbs.pop()!.$client.close();
+
+  const second = await start(2);
+  expect(runner.tasks).toHaveLength(4);
+  expect(runner.tasks.slice(2)).toMatchObject([
+    { epic: 1, stage: 'ship', resumeSession: 's-1', context: { verifyStateFirst: true } },
+    { epic: 2, stage: 'ship', resumeSession: 's-2', context: { verifyStateFirst: true } },
+  ]);
+  expect(executionsOf(second.db).map((e) => e.status)).toEqual(['interrupted', 'interrupted', 'running', 'running']);
+  expect(byStatus(second.db, 'running')).toEqual([1, 2]);
+});
+
+test('a running execution a dead process left behind counts as interrupted and is resumed', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA });
+  seedExecution(db, 'e0', 1, { stage: 'review' });
+  await start(1);
+  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks[0]).toMatchObject({ stage: 'review', resumeSession: 's-e0', context: { round: 2, pr: { number: 50, headSha: SHA }, verifyStateFirst: true } });
+});
+
+test('a lost session starts a new one with the same profile and the context rebuilt from SQLite and GitHub, and leaves session_rebuilt', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: 'review', round: 2, prNumber: 50, prHeadSha: SHA });
+  seedExecution(db, 'old', 1, { stage: 'review', status: 'finished' });
+  db.insert(callerResults).values({ executionId: 'old', outcome: 'changes_requested', result: JSON.stringify({ summary: 'round 1 findings' }) }).run();
+  seedExecution(db, 'e0', 1, { stage: 'review', status: 'interrupted' });
+  pull(50, { headSha: HEAD2 }); // the author pushed while the review was cut
+  runner.behavior = (task) => (task.resumeSession ? { exit: 'session_unavailable' } : { exit: 'hang' });
+
+  const engine = await start(1);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  expect(runner.tasks[0]).toMatchObject({ resumeSession: 's-e0' });
+  expect(runner.tasks[1]).toMatchObject({
+    stage: 'review', profile: 'b', provider: 'codex', workspace: '/work/AshuLab/a/1/reviewer-50',
+    context: { pr: { number: 50, headSha: HEAD2 }, round: 2, previousSummaries: ['round 1 findings'], verifyStateFirst: true },
+  });
+  expect(runner.tasks[1]!.resumeSession).toBeUndefined();
+  expect(eventTypes(engine.db)).toEqual(['session_rebuilt']);
+  expect(engine.db.select().from(epicEvents).get()!.data).toMatchObject({ stage: 'review', pr: { number: 50, headSha: HEAD2 } });
+  expect(byStatus(engine.db, 'running')).toEqual([1]);
+});
+
+test('a lost author session is rebuilt too, with the PR GitHub has now', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'interrupted' });
+  pull(50);
+  runner.behavior = (task) => (task.resumeSession ? { exit: 'session_unavailable' } : { exit: 'hang' });
+  await start(1);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  expect(runner.tasks[1]).toMatchObject({ stage: 'ship', profile: 'a', context: { pr: { number: 50, headSha: SHA }, verifyStateFirst: true } });
+  expect(runner.tasks[1]!.resumeSession).toBeUndefined();
+});
+
+test('a result the interrupted agent had written is imported exactly once and the agent is not launched again', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'interrupted' });
+  writeFileSync(join(dir, 'e0.json'), JSON.stringify({
+    executionId: 'e0', repo: 'AshuLab/a', epic: 1, stage: 'ship', summary: 'done', outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'no CI' },
+  }));
+  pull(50);
+
+  const first = await start(1);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['review']); // the next stage, not ship again
+  expect(first.db.select().from(callerResults).all().map((r) => r.executionId)).toEqual(['e0']);
+  expect(rows(first.db)[0]).toMatchObject({ stage: 'review', round: 1, prNumber: 50 });
+  first.stop();
+  dbs.pop()!.$client.close();
+
+  const second = await start(1); // restarting again imports nothing more
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['review', 'review']); // the interrupted review is resumed
+  expect(second.db.select().from(callerResults).all()).toHaveLength(1);
+});
+
+test('an incomplete result of an interrupted agent is not imported nor counted as a failure: the session is resumed', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'interrupted' });
+  writeFileSync(join(dir, 'e0.json'), '{"outcome": "compl');
+  const engine = await start(1, repos, 4, 0); // no technical retries at all
+  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks[0]).toMatchObject({ resumeSession: 's-e0', context: { verifyStateFirst: true } });
+  expect(statusOf(engine.db, 'e0')).toBe('interrupted');
+  expect(engine.db.select().from(callerResults).all()).toEqual([]);
+  expect(byStatus(engine.db, 'running')).toEqual([1]);
+});
+
+test('a stage claimed but never inserted (cut in between) launches its author once, without a session', async () => {
+  const db = open();
+  seedEpic(db, 1); // stage ship, no execution row
+  const engine = await start(1);
+  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks[0]).toMatchObject({ stage: 'ship', context: { previousSummaries: [] } });
+  expect(runner.tasks[0]!.resumeSession).toBeUndefined();
+  expect(executionsOf(engine.db)).toHaveLength(1);
+});
+
+test('a result imported whose next stage never launched launches it on restart', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: 'fix', round: 1, prNumber: 50, prHeadSha: SHA });
+  seedExecution(db, 'r1', 1, { stage: 'review', status: 'finished' });
+  db.insert(callerResults).values({ executionId: 'r1', outcome: 'changes_requested', result: JSON.stringify({ summary: 's', blockers: [{ title: 'fix it' }] }) }).run();
+  await start(1);
+  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks[0]).toMatchObject({ stage: 'fix', context: { blockers: [{ title: 'fix it' }] } });
+});
+
+test('needs_human, cancelled, merged and ready_for_test epics are not reactivated and the queue keeps its order', async () => {
+  const db = open();
+  const finished = { needs_human: 1, cancelled: 2, merged: 3, ready_for_test: 4 } as const;
+  for (const [status, issue] of Object.entries(finished)) {
+    seedEpic(db, issue, { status: status as keyof typeof finished });
+    seedExecution(db, `e${issue}`, issue, { status: 'interrupted' });
+  }
+  db.insert(epics).values([{ repo: 'AshuLab/a', issue: 9 }, { repo: 'AshuLab/b', issue: 5 }, { repo: 'AshuLab/a', issue: 6 }]).run();
+  runner.alive.add('e1'); // even its live agent is stopped, never relaunched
+
+  const engine = await start(5);
+  await clock.advance(5 * MIN);
+  expect(runner.stopped).toEqual(['e1']);
+  expect(runner.tasks.map((t) => t.epic)).toEqual([9, 5, 6]); // only the queue, in order
+  expect(byStatus(engine.db, 'needs_human')).toEqual([1]);
+  expect(byStatus(engine.db, 'cancelled')).toEqual([2]);
+  expect(byStatus(engine.db, 'merged')).toEqual([3]);
+  expect(byStatus(engine.db, 'ready_for_test')).toEqual([4]);
+});
+
+test('labels that differ from SQLite on restart are corrected to SQLite', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: 'review', prNumber: 50 });
+  seedExecution(db, 'e0', 1, { stage: 'review', status: 'finished' });
+  seedEpic(db, 2, { status: 'needs_human' });
+  seedEpic(db, 3, { status: 'ready_for_test' });
+  github.issues = {
+    'AshuLab/a#1': { state: 'open', labels: ['solve:epic:ready', 'solve:epic:ready-for-test', 'unrelated'] },
+    'AshuLab/a#2': { state: 'open', labels: ['solve:epic:running'] },
+    'AshuLab/a#3': { state: 'open', labels: [] },
+  };
+  await start(0);
+  expect(labelsOf(1)).toEqual(['unrelated', 'solve:epic:running']);
+  expect(labelsOf(2)).toEqual(['solve:epic:needs-human']);
+  expect(labelsOf(3)).toEqual(['solve:epic:ready-for-test']);
 });

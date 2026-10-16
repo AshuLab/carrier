@@ -4,12 +4,13 @@ import { dirname } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { claudeAdapter } from './claude.ts';
+import { codexAdapter } from './codex.ts';
 import { resolveBinary, type AgentCommand, type ProviderAdapter } from './common.ts';
 
 const exec = promisify(execFile);
 
 export interface HostRunnerOptions {
-  /** One adapter per provider; Claude's is built in, Codex's is added by its slice. */
+  /** Overrides the built-in adapter of a provider (tests). */
   adapters?: Partial<Record<AgentTask['provider'], ProviderAdapter>>;
   /** Overrides the real binary found on PATH, per provider. */
   binaries?: Partial<Record<AgentTask['provider'], string>>;
@@ -86,11 +87,7 @@ export class HostAgentRunner implements AgentRunner {
     };
 
     const start = async (): Promise<{ exit: AgentExit; sessionId?: string }> => {
-      const adapter = this.options.adapters?.[task.provider] ?? (task.provider === 'claude' ? claudeAdapter : undefined);
-      if (!adapter) {
-        emit('stderr', `carrier: no runner adapter for provider "${task.provider}"\n`);
-        return { exit: 'failed' };
-      }
+      const adapter = this.options.adapters?.[task.provider] ?? { claude: claudeAdapter, codex: codexAdapter }[task.provider];
       let credentials;
       try {
         credentials = await this.options.credentials(task);
@@ -114,7 +111,6 @@ export class HostAgentRunner implements AgentRunner {
 
       let authFailed = false;
       let sessionLost = false;
-      let pending = '';
       const readLine = (line: string) => {
         const signalOfLine = adapter.parseLine(line);
         if (signalOfLine?.session && !sessionId) {
@@ -124,13 +120,25 @@ export class HostAgentRunner implements AgentRunner {
         authFailed ||= signalOfLine?.authFailed === true;
         sessionLost ||= signalOfLine?.sessionUnavailable === true;
       };
-      child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
-        emit('stdout', chunk);
-        const lines = (pending + chunk).split('\n');
-        pending = lines.pop()!;
-        lines.forEach(readLine);
-      });
-      child.stderr.setEncoding('utf8').on('data', (chunk: string) => emit('stderr', chunk));
+      // Some errors (Codex's lost session) only show on stderr, so both streams go through the adapter.
+      const lineReader = (stream: 'stdout' | 'stderr') => {
+        let pending = '';
+        return {
+          push: (chunk: string) => {
+            emit(stream, chunk);
+            const lines = (pending + chunk).split('\n');
+            pending = lines.pop()!;
+            lines.forEach(readLine);
+          },
+          flush: () => {
+            if (pending) readLine(pending);
+          },
+        };
+      };
+      const out = lineReader('stdout');
+      const err = lineReader('stderr');
+      child.stdout.setEncoding('utf8').on('data', out.push);
+      child.stderr.setEncoding('utf8').on('data', err.push);
 
       const timer = task.timeoutMs === null ? undefined : setTimeout(() => {
             reason ??= 'timed_out';
@@ -145,7 +153,8 @@ export class HostAgentRunner implements AgentRunner {
       });
       finished = true;
       clearTimeout(timer);
-      if (pending) readLine(pending);
+      out.flush();
+      err.flush();
 
       const exit: AgentExit = reason ?? (authFailed ? 'auth_failed' : sessionLost ? 'session_unavailable' : code === 0 ? 'ok' : 'failed');
       return { exit, sessionId };

@@ -7,6 +7,7 @@ export class FakeGitHub implements GitHub {
   /** Makes setLabels fail while the rest works. */
   setLabelsUnavailable: GitHubUnavailable | null = null;
   issues: Record<string, { state: 'open' | 'closed'; labels: string[] }> = {};
+  pulls: Record<string, { state: 'open' | 'closed'; body: string; headSha: string }> = {};
   repoLabels: Record<string, string[]> = {};
   created: string[] = [];
   calls = 0;
@@ -25,6 +26,11 @@ export class FakeGitHub implements GitHub {
   async getIssue(repo: string, issue: number) {
     const { state, labels } = this.issue(repo, issue);
     return { state, labels: [...labels] };
+  }
+
+  async getPullRequest(repo: string, number: number) {
+    if (this.unavailable) throw this.unavailable;
+    return this.pulls[`${repo}#${number}`] ?? null;
   }
 
   async setLabels(repo: string, issue: number, { add, remove }: { add: string[]; remove: string[] }) {

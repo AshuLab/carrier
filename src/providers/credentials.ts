@@ -1,13 +1,12 @@
 import { z } from 'zod';
 import type { AgentTask } from '../execution/agent-runner.ts';
-import { profileToken } from '../execution/git-workspaces.ts';
 import type { GitHubProfile } from '../integrations/github.ts';
 import type { HostRunnerOptions } from './host-runner.ts';
 
 export interface CredentialsOptions {
   profiles: Record<string, GitHubProfile>;
   /** A fresh token of the profile; Forge picks the App installation from the owner of `repo`. */
-  mint?: (profile: GitHubProfile, repo: string) => Promise<string>;
+  mint: (profile: GitHubProfile, repo: string) => Promise<string>;
   /** Numeric GitHub id of the bot `<agent>[bot]`: the noreply commit email carries it. */
   botId?: (agent: string, token: string) => Promise<number>;
 }
@@ -37,7 +36,7 @@ export function botIdFromGitHub(fetchImpl: typeof fetch = fetch): (agent: string
  * mode. A `{kind:'gh'}` profile is the user's own login: `gh` as it is, no identity override.
  * Any failure rejects; the runner reports that as `auth_failed`, since the run cannot start without a token.
  */
-export function profileCredentials({ profiles, mint = (profile, repo) => profileToken(profile)(repo), botId = botIdFromGitHub() }: CredentialsOptions): HostRunnerOptions['credentials'] {
+export function profileCredentials({ profiles, mint, botId = botIdFromGitHub() }: CredentialsOptions): HostRunnerOptions['credentials'] {
   return async (task: AgentTask) => {
     const profile = profiles[task.profile];
     if (!profile) throw new Error(`profile "${task.profile}" is not declared`);

@@ -26,6 +26,12 @@ test('before the clone exists it is a stub repo whose origin is the repo, reused
   expect(cwd('AshuLab/carrier')).toBe(clone);
 });
 
+test('a stub left without origin by a killed process is completed', () => {
+  const stub = forgeCwd(root)('AshuLab/carrier');
+  execFileSync('git', ['remote', 'remove', 'origin'], { cwd: stub });
+  expect(origin(forgeCwd(root)('AshuLab/carrier'))).toBe('https://github.com/AshuLab/carrier.git');
+});
+
 test('rejects a repo that is not owner/name before touching the disk', () => {
   for (const bad of ['carrier', '../x', 'a/..', 'a/b/c']) expect(() => forgeCwd(root)(bad)).toThrow('invalid repo');
 });

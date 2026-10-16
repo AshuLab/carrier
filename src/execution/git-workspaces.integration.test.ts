@@ -121,7 +121,7 @@ describe('GitWorkspaces against a local bare remote', () => {
     expect(await ws.findWorktree(repo, 'feat/feature')).toBeNull(); // a prefix is not the branch
     expect(await ws.findWorktree(repo, 'feat/other/epic')).toBeNull();
     git(clone, 'checkout', '-q', '-b', 'feat/inplace/epic');
-    expect(await ws.findWorktree(repo, 'feat/inplace/epic')).toBe(clone); // not isolated: the clone itself
+    expect(await ws.findWorktree(repo, 'feat/inplace/epic')).toBeNull(); // not isolated: the clone is shared, it is nobody's workspace
   });
 
   test('the token never reaches a git config, and a failing minting is reported without leaking', async () => {

@@ -137,12 +137,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     const pr = rebuild?.pr ?? (epic.prNumber ? { number: epic.prNumber, headSha: epic.prHeadSha! } : undefined);
     let workspace: string;
     try {
-      // The fix turn runs where `ship` left the epic's worktree; a session resumed anywhere else would act in another cwd.
-      workspace = reviewing
-        ? await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!)
-        : stage === 'fix' && epic.workspace
-          ? epic.workspace
-          : await workspaces.prepareAuthor(epic.repo, epic.issue);
+      if (stage === 'fix') {
+        // Where `ship` left the epic's worktree: a session resumed anywhere else would act in another cwd.
+        if (!epic.workspace) throw new Error('la épica no tiene el worktree guardado');
+        workspace = epic.workspace;
+      } else workspace = reviewing ? await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!) : await workspaces.prepareAuthor(epic.repo, epic.issue);
     } catch (e) {
       log.error('could not prepare the workspace', e, { repo: epic.repo, epic: epic.issue, stage });
       toNeedsHuman(db, epic.id, `no se pudo preparar el workspace: ${e instanceof Error ? e.message : String(e)}`);

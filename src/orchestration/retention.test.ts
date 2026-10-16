@@ -121,6 +121,23 @@ test('only the sessions of expired epics go: the id decides, other sessions and 
   expect(kept('live')).toBe(true);
 });
 
+test('a folder named like a session id is only removed beside its transcript, and symlinked project folders are not walked', () => {
+  seed('old', 'merged', 0);
+  const lone = join(dirname(claudeSession('s-old')), 's-old-lone');
+  mkdirSync(lone);
+  const outside = join(dir, 'outside');
+  mkdirSync(outside);
+  writeFileSync(join(outside, 's-old.jsonl'), 'precious');
+  symlinkSync(outside, join(dirs.claude, 'projects', '-linked'));
+  db.update(executions).set({ sessionId: 's-old-lone' }).run();
+  purgeExpired(db, dir, 100 * DAY, dirs);
+  expect(existsSync(lone)).toBe(true); // no s-old-lone.jsonl next to it
+  db.update(executions).set({ sessionId: 's-old' }).run();
+  purgeExpired(db, dir, 100 * DAY, dirs);
+  expect(existsSync(join(outside, 's-old.jsonl'))).toBe(true);
+  expect(existsSync(claudeSession('s-old'))).toBe(false);
+});
+
 test('CLAUDE_CONFIG_DIR and CODEX_HOME decide where the CLIs are looked up, with the CLIs\' own defaults', () => {
   expect(sessionDirsFrom({ CLAUDE_CONFIG_DIR: '/c', CODEX_HOME: '/x' })).toEqual({ claude: '/c', codex: '/x' });
   expect(sessionDirsFrom({})).toEqual({ claude: join(homedir(), '.claude'), codex: join(homedir(), '.codex') });

@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoNamePattern } from '../config/schema.ts';
@@ -17,8 +17,9 @@ export function forgeCwd(root: string, remoteUrl: (repo: string) => string = (re
     if (!existsSync(join(stub, '.git'))) {
       mkdirSync(stub, { recursive: true });
       execFileSync('git', ['init', '-q'], { cwd: stub });
-      execFileSync('git', ['remote', 'add', 'origin', remoteUrl(repo)], { cwd: stub });
     }
+    // Separate step: a process killed between init and here leaves a stub that the next call completes.
+    if (spawnSync('git', ['remote', 'get-url', 'origin'], { cwd: stub }).status !== 0) execFileSync('git', ['remote', 'add', 'origin', remoteUrl(repo)], { cwd: stub });
     return stub;
   };
 }

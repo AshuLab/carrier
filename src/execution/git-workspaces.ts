@@ -122,7 +122,8 @@ export class GitWorkspaces implements Workspaces {
     return this.serial(repo, async () => {
       const list = await git(['worktree', 'list', '--porcelain'], { cwd: this.clonePath(repo) });
       // One block per worktree: `worktree <path>`, then `branch refs/heads/<name>` unless it is detached.
-      for (const block of list.split('\n\n')) {
+      // The first is the clone itself: other epics of the repo share it, so an epic that was not isolated has no workspace.
+      for (const block of list.split('\n\n').slice(1)) {
         const lines = block.split('\n');
         if (lines.includes(`branch refs/heads/${branch}`)) return lines.find((l) => l.startsWith('worktree '))!.slice('worktree '.length);
       }

@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { createScopedLogger } from '@ashulab/universal-logger';
 import { defaults, loadConfig } from '../config/load.ts';
 import { InstanceBusy, startCarrier } from './compose.ts';
 
@@ -29,6 +30,7 @@ else {
     await startCarrier(result.config); // runs until Ctrl+C
   } catch (error) {
     if (error instanceof InstanceBusy) fail(1, error.message);
+    createScopedLogger('cli').error('startup failed', error); // logging is installed by now: the stack goes to the log file
     fail(1, `carrier failed to start: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

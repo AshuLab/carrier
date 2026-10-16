@@ -718,6 +718,22 @@ test('the epic worktree is read back from git after ship and kept: the fix turns
   ]);
 });
 
+test('a fix turn for an epic with no saved workspace goes to needs_human instead of running in another cwd', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  let engine!: Awaited<ReturnType<typeof start>>;
+  runner.behavior = (task) => {
+    if (task.stage === 'ship') return { write: completed(task) };
+    engine.db.update(epics).set({ workspace: null }).run(); // as if the row never got it
+    return { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: 'x' }] }) };
+  };
+  engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'no se pudo preparar el workspace: la épica no tiene el worktree guardado' });
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
+});
+
 test('a ship result whose epic worktree git does not list sends the epic to needs_human with the branch', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   pull(50, { headRef: 'feat/demo/epic' });
@@ -1194,7 +1210,7 @@ test('a stage claimed but never inserted (cut in between) launches its author on
 
 test('a result imported whose next stage never launched launches it on restart', async () => {
   const db = open();
-  seedEpic(db, 1, { stage: 'fix', round: 1, prNumber: 50, prHeadSha: SHA });
+  seedEpic(db, 1, { stage: 'fix', round: 1, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic' });
   seedExecution(db, 'r1', 1, { stage: 'review', status: 'finished' });
   db.insert(callerResults).values({ executionId: 'r1', outcome: 'changes_requested', result: JSON.stringify({ summary: 's', blockers: [{ title: 'fix it' }] }) }).run();
   await start(1);

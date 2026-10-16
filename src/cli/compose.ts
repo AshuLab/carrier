@@ -104,6 +104,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
   try {
     await engine.start();
   } catch (error) {
+    await engine.shutdown(); // recovery may have launched agents already
     close();
     throw error;
   }

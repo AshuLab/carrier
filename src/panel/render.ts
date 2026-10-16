@@ -27,6 +27,9 @@ export type PanelSnapshot = {
   epics: PanelEpic[];
 };
 
+// The reason and the error come from the agent's own output: no control character (ESC included) may reach the terminal.
+const printable = (text: string) => text.replace(/[\x00-\x1f\x7f-\x9f]/g, ' ');
+
 // Pure: the same snapshot always gives the same lines, with no ANSI.
 export function renderPanel({ now, slots, queue, epics }: PanelSnapshot): string[] {
   const lines = [`carrier  slots ${slots.busy}/${slots.total}  cola ${queue.length}${queue.length > 0 ? `: ${queue.map((q) => `${q.repo}#${q.issue}`).join(', ')}` : ''}`];
@@ -40,8 +43,8 @@ export function renderPanel({ now, slots, queue, epics }: PanelSnapshot): string
       e.lastActivityAt === null ? 'sin actividad' : `actividad hace ${formatDuration(now - e.lastActivityAt)}`,
     ];
     lines.push(parts.join('  '), `  issue ${e.issueUrl}${e.prUrl ? `  PR ${e.prUrl}` : ''}`);
-    if (e.needsHumanReason) lines.push(`  motivo: ${e.needsHumanReason}`);
-    if (e.lastError) lines.push(`  error: ${e.lastError}`);
+    if (e.needsHumanReason) lines.push(`  motivo: ${printable(e.needsHumanReason)}`);
+    if (e.lastError) lines.push(`  error: ${printable(e.lastError)}`);
   }
   return lines;
 }

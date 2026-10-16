@@ -68,6 +68,11 @@ test('a valid config starts the engine over Forge, shows the panel as plain line
   if (lock.ok) lock.release();
 });
 
+test('a relative --config path resolves against the working directory', () => {
+  write('rel-bad.json', { ...valid, orchestratorProfile: 'x' });
+  expect(run('--config', 'rel-bad.json').stderr).toMatch(/Invalid config \/.*carrier-cli-.*\/rel-bad\.json/); // resolved to an absolute path
+});
+
 test('missing --config exits non-zero with usage', () => {
   const result = run();
   expect(result.status).not.toBe(0);

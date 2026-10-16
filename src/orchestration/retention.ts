@@ -10,8 +10,6 @@ import type { Clock } from './clock.ts';
 
 const DAY = 24 * 60 * 60 * 1000;
 export const retentionMs = 30 * DAY;
-const log = createScopedLogger('retention');
-
 // Only an epic that is over expires; queued, running, needs_human and repo_removed keep everything.
 const finished = ['ready_for_test', 'merged', 'cancelled'] as const;
 // Ids come from SQLite but end up in a path: an allowlist keeps `..` and separators out.
@@ -25,29 +23,42 @@ export const sessionDirsFrom = (env: NodeJS.ProcessEnv = process.env): SessionDi
   codex: env.CODEX_HOME ?? join(homedir(), '.codex'),
 });
 
-const names = (dir: string) => {
+const log = createScopedLogger('retention');
+
+// Entries of a folder; absent means that CLI never ran here, anything else (permissions, IO) is logged: a purge that cannot look is not a clean one.
+const entries = (dir: string) => {
   try {
-    return readdirSync(dir);
-  } catch {
-    return []; // absent: that CLI never ran here
+    return readdirSync(dir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') log.error('cannot list a session folder', error, { dir });
+    return [];
   }
 };
+// Folders to walk down into: a symlink is never followed out of the CLI's own tree.
+const folders = (dir: string) => entries(dir).filter((e) => e.isDirectory()).map((e) => e.name);
+const files = (dir: string) => entries(dir).map((e) => e.name);
 
 /**
  * The files of a session, found by its id (docs/research/headless-agents.md): Claude keeps
- * `projects/<cwd with / and . as ->/<id>.jsonl` (plus `<id>/` for what it spawned), Codex
- * `sessions/YYYY/MM/DD/rollout-<date>-<id>.jsonl`. Nothing a CLI reported is used as a path, only the id.
+ * `projects/<cwd with / and . as ->/<id>.jsonl` (plus `<id>/` for what it spawned, only beside its transcript),
+ * Codex `sessions/YYYY/MM/DD/rollout-<date>-<id>.jsonl`. Nothing a CLI reported is used as a path, only the id.
  */
 function sessionFiles({ claude, codex }: SessionDirs, ids: string[]): string[] {
   const found: string[] = [];
   const wanted = new Set(ids);
   const projects = join(claude, 'projects');
-  for (const folder of names(projects)) {
-    for (const entry of names(join(projects, folder))) if (wanted.has(entry.replace(/\.jsonl$/, ''))) found.push(join(projects, folder, entry));
+  for (const folder of folders(projects)) {
+    const present = files(join(projects, folder));
+    for (const entry of present) {
+      if (!entry.endsWith('.jsonl') || !wanted.has(entry.slice(0, -'.jsonl'.length))) continue;
+      found.push(join(projects, folder, entry));
+      const spawned = entry.slice(0, -'.jsonl'.length);
+      if (present.includes(spawned)) found.push(join(projects, folder, spawned));
+    }
   }
   const sessions = join(codex, 'sessions');
-  for (const year of names(sessions)) for (const month of names(join(sessions, year))) for (const day of names(join(sessions, year, month))) {
-    for (const file of names(join(sessions, year, month, day))) {
+  for (const year of folders(sessions)) for (const month of folders(join(sessions, year))) for (const day of folders(join(sessions, year, month))) {
+    for (const file of files(join(sessions, year, month, day))) {
       const id = /^rollout-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d-(.+)\.jsonl$/.exec(file)?.[1];
       if (id !== undefined && wanted.has(id)) found.push(join(sessions, year, month, day, file));
     }
@@ -74,7 +85,7 @@ export function purgeExpired(db: Db, root: string, now: number, sessionDirs: Ses
     deleted.push(target);
   };
   const sessionIds = rows.flatMap(({ sessionId }) => (sessionId !== null && safeId.test(sessionId) ? [sessionId] : []));
-  if (sessionIds.length > 0) for (const file of sessionFiles(sessionDirs, sessionIds)) remove(file);
+  for (const file of sessionFiles(sessionDirs, sessionIds)) remove(file);
 
   const base = join(root, 'orchestrator');
   let real: string;

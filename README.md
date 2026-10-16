@@ -41,7 +41,7 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 - **Workspaces** — managed clones under a shared root, and a separate detached checkout for the reviewer.
 - **Terminal panel** — a dependency-free ANSI panel (slots, queue, per-epic stage, round, blockers, time in stage, last activity, errors); plain lines when there is no TTY.
 - **Logging** — [`@ashulab/universal-logger`](https://github.com/AshuLab/universal-logger) to files, with token redaction, and 30-day retention of logs and sessions.
-- **Tests** — unit tests with fakes and a temp SQLite; gated integration and end-to-end tests against a disposable sandbox repo with real agents.
+- **Tests** — unit tests with fakes and a temp SQLite; gated integration tests with real tools.
 
 ## Tech stack
 
@@ -57,7 +57,7 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 | Agents | Claude Code CLI and Codex CLI, headless |
 | Workflow | [Solve](https://github.com/AshuLab/skills) skills (`ship`, `code-review`, ...) |
 | Terminal UI | Plain ANSI escape sequences |
-| Testing | Vitest (unit and gated integration/e2e) |
+| Testing | Vitest (unit and gated integration) |
 | Package manager | pnpm 12 |
 
 ## Repository structure
@@ -75,12 +75,11 @@ carrier/
 │   ├── storage/        # SQLite schema, migrations, lock, executions, events, retention
 │   ├── panel/          # terminal panel rendering and snapshot
 │   ├── logging/        # universal-logger integration
-│   ├── format/         # duration formatting
-│   └── e2e/            # gated end-to-end harness against the sandbox repo
+│   └── format/         # duration formatting
 └── docs/
     ├── specs/          # the spec this app was built from
     ├── adr/            # architecture decision records
-    ├── research/       # spike findings and end-to-end findings
+    ├── research/       # spike findings
     └── glossary.md     # domain vocabulary
 ```
 
@@ -140,10 +139,10 @@ Mark an epic `solve:epic:ready` in a configured repo and watch the panel.
 | `pnpm build` | Compile to `dist/` (what gets published) |
 | `pnpm typecheck` | Type-check the project |
 | `pnpm test` | Full unit suite — fakes and a temp SQLite, no network and no real agents |
-| `pnpm test:integration` | Integration and end-to-end tests with real tools; they skip with a clear message unless their environment variables are set |
+| `pnpm test:integration` | Integration tests with real tools; they skip with a clear message unless their environment variables are set |
 | `pnpm db:generate` | Generate a Drizzle migration after changing the schema |
 
-The gated tests use `CARRIER_IT_*`, `CARRIER_TEST_*` and `CARRIER_E2E_*` variables (for example `CARRIER_E2E_REPO`, `CARRIER_E2E_AUTHOR_AGENT`, `CARRIER_E2E_REVIEWER_AGENT`). See [`docs/research/e2e-findings.md`](docs/research/e2e-findings.md) and [`docs/research/sandbox-repo.md`](docs/research/sandbox-repo.md) for how to run them against a disposable repo.
+The gated tests use `CARRIER_IT_*` and `CARRIER_TEST_*` variables; each test file lists the ones it needs in its header.
 
 ## Where it keeps things
 
@@ -161,7 +160,7 @@ Unattended agents run with **your** permissions: Claude with permissions bypasse
 
 - [Spec](docs/specs/autonomous-orchestrator.md) and [glossary](docs/glossary.md).
 - [ADRs](docs/adr/) — coordination vs. evaluation, SQLite as the authority, and agents on the host (which replaces the container ADR 0003).
-- [Research](docs/research/) — headless agents, Agent Forge, logging and panel, shared root, containers (dropped, kept as reference) and the end-to-end findings.
+- [Research](docs/research/) — headless agents, Agent Forge, logging and panel, shared root, containers (dropped, kept as reference).
 - [`AGENTS.md`](AGENTS.md) — entry point for coding agents working in this repo.
 
 ## License

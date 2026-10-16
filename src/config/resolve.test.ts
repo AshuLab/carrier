@@ -4,7 +4,7 @@ import { resolveRepoConfig } from './resolve.ts';
 
 const base = {
   repos: [{ name: 'AshuLab/carrier' }],
-  profiles: { a: {}, b: {}, c: {} },
+  profiles: { a: { kind: 'gh' }, b: { kind: 'gh' }, c: { kind: 'gh' } },
   orchestratorProfile: 'a',
   agents: {
     author: { profile: 'a', provider: 'claude', model: 'm1' },
@@ -44,7 +44,7 @@ describe('resolveRepoConfig', () => {
 
   test('effective config round-trips through JSON and carries no extra data', () => {
     const effective = resolveFirst({
-      profiles: { ...base.profiles, a: { token: 'secret' } },
+      profiles: { ...base.profiles, a: { kind: 'forge', agent: 'secret' } },
       repos: [{ name: 'x/y', agents: { reviewer: { model: 'other' } } }],
     });
     expect(JSON.parse(JSON.stringify(effective))).toEqual(effective);

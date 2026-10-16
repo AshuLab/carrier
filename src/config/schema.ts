@@ -16,6 +16,12 @@ const agent = z.strictObject({
   model: z.string().min(1),
 });
 
+// The two shapes the spike fixed (docs/research/agent-forge.md): a bot through Agent Forge, or the user's own `gh` login. No secrets here.
+const profile = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('forge'), agent: z.string().min(1) }),
+  z.strictObject({ kind: z.literal('gh') }),
+]);
+
 export const configSchema = z
   .strictObject({
     root: z.string().min(1).transform(expandHome),
@@ -29,7 +35,7 @@ export const configSchema = z
         }),
       )
       .min(1),
-    profiles: z.record(z.string(), z.looseObject({})),
+    profiles: z.record(z.string(), profile),
     orchestratorProfile: z.string().min(1),
     agents: z.strictObject({ author: agent, reviewer: agent }),
     limits: z.strictObject({

@@ -1,4 +1,5 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ const dir = mkdtempSync(join(tmpdir(), 'carrier-cli-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 const valid = {
+  root: dir,
   repos: [{ name: 'AshuLab/carrier' }],
   profiles: { a: {}, b: {} },
   orchestratorProfile: 'a',
@@ -57,6 +59,20 @@ test('invalid config lists every error and exits non-zero', () => {
   expect(result.stdout).toBe('');
   expect(result.stderr).toContain('limits.maxConcurrentEpics');
   expect(result.stderr).toContain('orchestratorProfile');
+});
+
+test('a second carrier on the same root reports it and exits non-zero without printing config', async () => {
+  const config = write('busy.json', valid);
+  const holder = spawn(process.execPath, [join(import.meta.dirname, '../storage/lock-holder.fixture.ts'), join(dir, 'orchestrator')]);
+  try {
+    await once(holder.stdout, 'data');
+    const result = run('--config', config);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('already running');
+    expect(result.stdout).toBe('');
+  } finally {
+    holder.kill();
+  }
 });
 
 test('missing file exits non-zero', () => {

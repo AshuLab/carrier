@@ -1,42 +1,42 @@
-# Agent Forge como proveedor de identidad (spike #7)
+# Agent Forge as an identity provider (spike #7)
 
-Fecha: 15/10/2026 (las marcas UTC de abajo ya son 16/10). Entorno: macOS, Node v25.6.0, `gh` 2.102.0. Se ejecutó solo `agent-forge` y `gh`; no se corrió código del repo.
+Date: 2026-10-15 (the UTC timestamps below are already 2026-10-16). Environment: macOS, Node v25.6.0, `gh` 2.102.0. Only `agent-forge` and `gh` were run; no repo code was run.
 
-Resultado: todos los criterios de aceptación tienen evidencia, con una salvedad declarada en [Lo que no se observó](#lo-que-no-se-observó) (perfil realmente revocado o instalación desinstalada: se observó solo el análogo seguro).
+Result: all acceptance criteria have evidence, with one declared caveat in [What was not observed](#what-was-not-observed) (a truly revoked profile or an uninstalled installation: only the safe analogue was observed).
 
-## Versión de Forge usada
+## Forge version used
 
 ```
 $ agent-forge --version
 0.8.0
 ```
 
-Instalado globalmente con pnpm (`@ashulab/agent-forge` 0.8.0). La investigación previa usó el commit `8dee1b0` del repo; este spike lee y ejecuta el `dist/launcher.cjs` instalado (0.8.0). Perfiles registrados (`agent-forge --list`): `artanis-agent` y `tassadar-agent`, dos GitHub Apps instaladas en dos cuentas (`AshuLab`, `vemec`). No se leyó `~/.config/agent-forge/agents.json` (contiene rutas a claves privadas); ningún token ni clave se imprimió, y los tokens de abajo están redactados.
+Installed globally with pnpm (`@ashulab/agent-forge` 0.8.0). The earlier research used commit `8dee1b0` of the repo; this spike reads and runs the installed `dist/launcher.cjs` (0.8.0). Registered profiles (`agent-forge --list`): `artanis-agent` and `tassadar-agent`, two GitHub Apps installed on two accounts (`AshuLab`, `vemec`). `~/.config/agent-forge/agents.json` was not read (it contains paths to private keys); no token or key was printed, and the tokens below are redacted.
 
-## Cómo se invoca `gh` como bot
+## How `gh` is invoked as a bot
 
 ```
-agent-forge gh <agente> <args de gh...>     # acuña un token fresco y ejecuta gh con GH_TOKEN/GITHUB_TOKEN
-agent-forge token --agent <agente>          # imprime solo el token (stdout, sin salto de línea)
+agent-forge gh <agent> <gh args...>     # mints a fresh token and runs gh with GH_TOKEN/GITHUB_TOKEN
+agent-forge token --agent <agent>          # prints only the token (stdout, no newline)
 ```
 
-Reglas observadas:
+Observed rules:
 
-- Debe invocarse con argv separado (`execFile`, `shell:false`). Pasado como un único string (`agent-forge "gh x --version"`) Forge cae al selector interactivo y sale con **exit 0** sin hacer nada.
-- El **cwd importa**: las Apps están instaladas en 2 cuentas; sin `installationId` en el registro, Forge resuelve la instalación por el `origin` del cwd. Desde `/tmp` falló:
+- It must be invoked with separate argv (`execFile`, `shell:false`). Passed as a single string (`agent-forge "gh x --version"`), Forge falls back to the interactive selector and exits with **exit 0** without doing anything.
+- The **cwd matters**: the Apps are installed on 2 accounts; without an `installationId` in the registry, Forge resolves the installation from the cwd's `origin`. From `/tmp` it failed:
   ```
   exit=1  ■  GitHub App 4854138 is installed on 2 accounts (AshuLab, vemec). Launch from inside a repo under one of them.
   ```
-  Desde un cwd con `origin` en `AshuLab/*` (el worktree de carrier) funcionó. El orquestador debe ejecutar Forge con `cwd` dentro de un clon del owner correcto; un cwd bajo `vemec` acuñaría un token de la instalación equivocada.
-- El token queda acotado a la instalación: `GET /installation/repositories` con el token de cada bot lista 8 repos de `AshuLab`, incluido `AshuLab/agent-forge` (verificado antes de actuar).
-- Permisos acuñados (línea en stderr `minted fresh token for ... · scope: ...`): `artanis-agent` = `issues:write contents:write pull_requests:write checks:read actions:read statuses:read metadata:read issue_fields:write issue_types:write organization_projects:write`; `tassadar-agent` = lo mismo sin los tres últimos. Ambos pueden escribir issues, labels, contenido y PRs.
-- Forge añade esa línea propia a stderr, así que el stderr de `gh` no llega limpio.
+  From a cwd with `origin` under `AshuLab/*` (the carrier worktree) it worked. The orchestrator must run Forge with `cwd` inside a clone of the right owner; a cwd under `vemec` would mint a token from the wrong installation.
+- The token is scoped to the installation: `GET /installation/repositories` with each bot's token lists 8 `AshuLab` repos, including `AshuLab/agent-forge` (verified before acting).
+- Minted permissions (stderr line `minted fresh token for ... · scope: ...`): `artanis-agent` = `issues:write contents:write pull_requests:write checks:read actions:read statuses:read metadata:read issue_fields:write issue_types:write organization_projects:write`; `tassadar-agent` = the same without the last three. Both can write issues, labels, content and PRs.
+- Forge adds that line of its own to stderr, so `gh`'s stderr does not arrive clean.
 
-## Evidencia: `gh` como bot en un repo de prueba
+## Evidence: `gh` as a bot in a test repo
 
-Repo de prueba: `AshuLab/agent-forge` (uso autorizado explícitamente por Diego). Huella: un issue, un label temporal y una rama; ver [Huellas](#huellas-en-ashulabagent-forge).
+Test repo: `AshuLab/agent-forge` (use explicitly authorized by Diego). Footprint: one issue, one temporary label and one branch; see [Footprints](#footprints-in-ashulabagent-forge).
 
-Issue creado por el bot autor (`artanis-agent`):
+Issue created by the author bot (`artanis-agent`):
 
 ```
 $ agent-forge gh artanis-agent issue create --repo AshuLab/agent-forge --title "[carrier spike] forge identity test - safe to close" --body "..."
@@ -45,16 +45,16 @@ $ agent-forge gh artanis-agent issue view 27 --repo AshuLab/agent-forge --json a
 author: "app/artanis-agent"  (is_bot: true)
 ```
 
-Label y comentario (el comentario lo hace el segundo bot, `tassadar-agent`):
+Label and comment (the comment is made by the second bot, `tassadar-agent`):
 
 ```
 $ agent-forge gh artanis-agent label create carrier-spike-tmp --repo AshuLab/agent-forge ...   exit=0
 $ agent-forge gh tassadar-agent issue comment 27 --repo AshuLab/agent-forge --body "..."
 exit=0   stdout: https://github.com/AshuLab/agent-forge/issues/27#issuecomment-6205875110
-  (autor del comentario: tassadar-agent)
+  (comment author: tassadar-agent)
 ```
 
-Commit con autoría del bot, en la rama `spike/carrier-forge-20261016012437` (sin PR; `main` siguió en `8dee1b0` antes y después):
+Commit authored by the bot, on branch `spike/carrier-forge-20261016012437` (no PR; `main` stayed at `8dee1b0` before and after):
 
 ```
 git clone --depth 1 https://github.com/AshuLab/agent-forge.git /tmp/spike/clone
@@ -67,75 +67,75 @@ $ gh api repos/AshuLab/agent-forge/commits/5957170...
 author_login: artanis-agent[bot]  author_type: Bot  committer_login: artanis-agent[bot]  parent: 8dee1b0
 ```
 
-(`GH_TOKEN` salió de `agent-forge token --agent artanis-agent` y nunca se imprimió.)
+(`GH_TOKEN` came from `agent-forge token --agent artanis-agent` and was never printed.)
 
-Hallazgo importante: **el token de Forge solo da permiso de push; no fija la autoría**. Forge exporta `GIT_AUTHOR_*`/`GIT_COMMITTER_*` únicamente en el modo interactivo `launchAgent`; los subcomandos `gh` y `token` no lo hacen. El runner debe fijar él mismo, por ejecución, `GIT_AUTHOR_NAME=<agente>[bot]` y `GIT_AUTHOR_EMAIL=<botId>+<agente>[bot]@users.noreply.github.com` (y los de committer). Forge calcula `botId` con `GET /users/<agente>[bot]` (endpoint público; `artanis-agent[bot]` = 325794106); si el agente tiene `botName` o `botId` en el registro, usa esos. El commit no queda firmado (`verification.verified: false`).
+Important finding: **the Forge token only grants push permission; it does not set authorship**. Forge exports `GIT_AUTHOR_*`/`GIT_COMMITTER_*` only in the interactive `launchAgent` mode; the `gh` and `token` subcommands do not. The runner must set, per execution, `GIT_AUTHOR_NAME=<agent>[bot]` and `GIT_AUTHOR_EMAIL=<botId>+<agent>[bot]@users.noreply.github.com` (and the committer ones) itself. Forge computes `botId` with `GET /users/<agent>[bot]` (a public endpoint; `artanis-agent[bot]` = 325794106); if the agent has `botName` or `botId` in the registry, it uses those. The commit is not signed (`verification.verified: false`).
 
-## Evidencia: perfil del orquestador (`gh issue list --label ... --json ...` y cambio de labels)
+## Evidence: orchestrator profile (`gh issue list --label ... --json ...` and label change)
 
-Orquestador = `artanis-agent` (el `author-bot` del spec):
+Orchestrator = `artanis-agent` (the spec's `author-bot`):
 
 ```
 $ agent-forge gh artanis-agent issue edit 27 --repo AshuLab/agent-forge --add-label carrier-spike-tmp      exit=0
 $ agent-forge gh artanis-agent issue list --repo AshuLab/agent-forge --label carrier-spike-tmp --state all --json number,labels
   (+0 s)  []
-  (+3 s)  [{"labels":["carrier-spike-tmp"],"number":27}]       (idem a +8 s y +15 s)
+  (+3 s)  [{"labels":["carrier-spike-tmp"],"number":27}]       (same at +8 s and +15 s)
 $ agent-forge gh artanis-agent issue edit 27 --repo AshuLab/agent-forge --remove-label carrier-spike-tmp   exit=0
 $ agent-forge gh artanis-agent issue list ... --label carrier-spike-tmp --json number
   (+5 s)  []
 ```
 
-Todo con exit 0. Hallazgo: `issue list --label` es **eventualmente consistente**: inmediatamente después de cambiar un label devolvió el estado anterior (lo vimos tras agregar y tras quitar); unos 3 s después ya era correcto. El motor no debe asumir lectura-tras-escritura en `list`; para confirmar un cambio propio hay que leer con `gh issue view --json labels` (devolvió el estado correcto) o tolerar un ciclo de polling.
+All with exit 0. Finding: `issue list --label` is **eventually consistent**: immediately after changing a label it returned the previous state (seen after adding and after removing); about 3 s later it was correct. The engine must not assume read-after-write on `list`; to confirm one's own change, read with `gh issue view --json labels` (it returned the correct state) or tolerate one polling cycle.
 
-## Perfil personal de Diego: no soportado por Forge
+## Diego's personal profile: not supported by Forge
 
-Forge tiene un solo camino de credenciales: tokens de instalación de GitHub App (`generateGithubAppToken`: JWT RS256 con la clave de la App, luego `POST /app/installations/{id}/access_tokens`). No existe modo "usuario"; no hay PAT ni OAuth de usuario. `--help` solo ofrece `token --agent` y `gh <agent>`, ambos sobre Apps. Por eso una identidad personal no puede salir de Forge y no se intentó actuar como Diego. La cuenta personal es el login propio de `gh` (`gh auth status`: cuenta `vemec`, token en keyring) y se usa llamando a `gh` directo, sin Forge. Un token de bot no actúa como persona (los autores figuran como `app/...`) ni tiene los permisos de una persona (p. ej. proyectos de usuario).
+Forge has a single credentials path: GitHub App installation tokens (`generateGithubAppToken`: RS256 JWT with the App's key, then `POST /app/installations/{id}/access_tokens`). There is no "user" mode; no PAT or user OAuth. `--help` only offers `token --agent` and `gh <agent>`, both over Apps. So a personal identity cannot come from Forge and no attempt was made to act as Diego. The personal account is `gh`'s own login (`gh auth status`: account `vemec`, token in keyring) and is used by calling `gh` directly, without Forge. A bot token does not act as a person (authors appear as `app/...`) nor does it have a person's permissions (e.g. user projects).
 
-## Renovación de token
+## Token renewal
 
-No hay caché ni estado: cada `agent-forge token` y cada `agent-forge gh` firman un JWT nuevo y acuñan un token de instalación nuevo (dura ~1 h según GitHub). Renovar = volver a llamar. Prueba (tokens identificados por los 8 primeros hex del sha256, no por valor):
+There is no cache or state: every `agent-forge token` and every `agent-forge gh` signs a new JWT and mints a new installation token (it lasts ~1 h according to GitHub). Renewing = calling again. Proof (tokens identified by the first 8 hex of the sha256, not by value):
 
 ```
 token#1 exit 0 sha256[:8] 55eabaf5   token#2 exit 0 sha256[:8] 91a8de2e   different: true
-GET /rate_limit con #1 -> exit 0     GET /rate_limit con #2 -> exit 0
-DELETE /installation/token con #1 (revoca solo ese token efímero; no la App ni la instalación) -> 204
-#1 muerto: gh api /installation/repositories        -> exit 1  {"message":"Bad credentials","status":"401"}  gh: Bad credentials (HTTP 401)
-#1 muerto: gh issue list --repo AshuLab/agent-forge -> exit 1  HTTP 401: Bad credentials (https://api.github.com/graphql)
-#2 sigue válido -> exit 0 (8 repos)
-token#3 (renovación, con #1 ya muerto) exit 0 sha256[:8] 1379ab24 -> GET /installation/repositories exit 0 (8 repos)
+GET /rate_limit with #1 -> exit 0     GET /rate_limit with #2 -> exit 0
+DELETE /installation/token with #1 (revokes only that ephemeral token; not the App or the installation) -> 204
+#1 dead: gh api /installation/repositories        -> exit 1  {"message":"Bad credentials","status":"401"}  gh: Bad credentials (HTTP 401)
+#1 dead: gh issue list --repo AshuLab/agent-forge -> exit 1  HTTP 401: Bad credentials (https://api.github.com/graphql)
+#2 still valid -> exit 0 (8 repos)
+token#3 (renewal, with #1 already dead) exit 0 sha256[:8] 1379ab24 -> GET /installation/repositories exit 0 (8 repos)
 ```
 
-No se esperó la hora real: el vencimiento se simuló revocando el token (GitHub responde 401 `Bad credentials` igual a un token vencido o revocado) y una nueva llamada devolvió un token válido. Los tokens #2, #3 y otro de prueba se revocaron al terminar; los demás vencen solos.
+The real hour was not waited out: expiry was simulated by revoking the token (GitHub answers 401 `Bad credentials` the same for an expired or a revoked token) and a new call returned a valid token. Tokens #2, #3 and another test one were revoked at the end; the others expire on their own.
 
-Consecuencias para el runner: un proceso al que se le inyectó `GH_TOKEN` no se renueva solo. Para ejecuciones de hasta 4 h, `gh` debe invocarse siempre vía `agent-forge gh` (token fresco por llamada); para procesos de larga vida (agente en contenedor) el adaptador debe reacuñar con `agent-forge token --agent` antes de ~1 h (p. ej. cada ~45 min) y reinyectar el token. Reacuñar crea un token independiente; no invalida los anteriores.
+Consequences for the runner: a process that was injected with `GH_TOKEN` does not renew itself. For executions of up to 4 h, `gh` must always be invoked via `agent-forge gh` (fresh token per call); for long-lived processes (agent in a container) the adapter must re-mint with `agent-forge token --agent` before ~1 h (e.g. every ~45 min) and re-inject the token. Re-minting creates an independent token; it does not invalidate the previous ones.
 
-## Forma observable de los errores (para derivar `AuthError`)
+## Observable shape of errors (to derive `AuthError`)
 
-Los errores propios de Forge salen por el mismo `main().catch`: **exit 1**, stdout vacío, stderr `│` + salto + `■  <mensaje>`. Lo de `gh` se propaga con su propio código, normalmente 1, así que el exit code por sí solo no distingue; hay que clasificar por stderr.
+Forge's own errors go out through the same `main().catch`: **exit 1**, empty stdout, stderr `│` + newline + `■  <message>`. `gh`'s errors are propagated with its own code, normally 1, so the exit code alone does not distinguish; classification must go by stderr.
 
-| Caso | Cómo se obtuvo | exit | stderr (tras `■  `) |
+| Case | How it was obtained | exit | stderr (after `■  `) |
 |---|---|---|---|
-| Perfil inexistente en Forge | real: `agent-forge gh no-such-agent-xyz --version` y `token --agent no-such-agent-xyz` | 1 | `Agent not found: no-such-agent-xyz` |
-| Clave privada no encontrada | `AGENT_FORGE_CONFIG` temporal con `privateKeyPath` inexistente | 1 | `Private key for "<agente>" not found or unreadable: <ruta>` |
-| Clave que no pertenece a la App (análogo de clave revocada/eliminada) | `AGENT_FORGE_CONFIG` temporal: `appId` real, clave RSA recién generada | 1 | `GitHub API /app/installations: 401 A JSON web token could not be decoded — the App JWT was rejected. Check that appId matches privateKeyPath ...` |
-| Varias instalaciones y cwd sin repo del owner | real, desde `/tmp` | 1 | `GitHub App <id> is installed on 2 accounts (AshuLab, vemec). Launch from inside a repo under one of them.` (cwd/config, no auth) |
-| Uso incorrecto | real: `agent-forge gh no-such-agent-xyz` | 1 | `Usage: agent-forge gh <agent-name> <gh args...>` |
-| Token acuñado vencido o revocado, usado por `gh` | real (token revocado) | 1 | `gh: Bad credentials (HTTP 401)` / `HTTP 401: Bad credentials (https://api.github.com/graphql)` |
+| Profile does not exist in Forge | real: `agent-forge gh no-such-agent-xyz --version` and `token --agent no-such-agent-xyz` | 1 | `Agent not found: no-such-agent-xyz` |
+| Private key not found | temporary `AGENT_FORGE_CONFIG` with a nonexistent `privateKeyPath` | 1 | `Private key for "<agent>" not found or unreadable: <path>` |
+| Key that does not belong to the App (analogue of a revoked/deleted key) | temporary `AGENT_FORGE_CONFIG`: real `appId`, freshly generated RSA key | 1 | `GitHub API /app/installations: 401 A JSON web token could not be decoded — the App JWT was rejected. Check that appId matches privateKeyPath ...` |
+| Several installations and cwd without a repo of the owner | real, from `/tmp` | 1 | `GitHub App <id> is installed on 2 accounts (AshuLab, vemec). Launch from inside a repo under one of them.` (cwd/config, not auth) |
+| Incorrect usage | real: `agent-forge gh no-such-agent-xyz` | 1 | `Usage: agent-forge gh <agent-name> <gh args...>` |
+| Minted token expired or revoked, used by `gh` | real (revoked token) | 1 | `gh: Bad credentials (HTTP 401)` / `HTTP 401: Bad credentials (https://api.github.com/graphql)` |
 
-Las simulaciones apuntaron `AGENT_FORGE_CONFIG` a un archivo temporal con perfiles falsos: no se tocó el registro real, no se creó ninguna App ni bot, y la clave de prueba se borró.
+The simulations pointed `AGENT_FORGE_CONFIG` at a temporary file with fake profiles: the real registry was not touched, no App or bot was created, and the test key was deleted.
 
-Regla de clasificación sugerida (validar en el adaptador con fixtures de estos mensajes):
+Suggested classification rule (validate in the adapter with fixtures of these messages):
 
-- `AuthError` (detiene las épicas del perfil): `Agent not found:`, `Private key for ... not found or unreadable`, `GitHub API ...: 401` con "App JWT was rejected", `GitHub App ... has no installations` (leído en el código, no observado), `Bad credentials`/`HTTP 401` de `gh`.
-- No `AuthError`: `installed on N accounts` (error de cwd/configuración del adaptador), `Usage:`, 404/422 de recursos (error normal de la operación).
-- Todos son exit 1: se parsea stderr, no el código. Un `Bad credentials` de `gh` puede ser un token vencido a mitad de ejecución: conviene reacuñar una vez y reintentar antes de declarar `AuthError`.
+- `AuthError` (stops the profile's epics): `Agent not found:`, `Private key for ... not found or unreadable`, `GitHub API ...: 401` with "App JWT was rejected", `GitHub App ... has no installations` (read in the code, not observed), `Bad credentials`/`HTTP 401` from `gh`.
+- Not `AuthError`: `installed on N accounts` (adapter cwd/configuration error), `Usage:`, 404/422 on resources (normal operation error).
+- All are exit 1: parse stderr, not the code. A `Bad credentials` from `gh` can be a token that expired mid-execution: it is advisable to re-mint once and retry before declaring `AuthError`.
 
-## Lo que no se observó
+## What was not observed
 
-- Un perfil **realmente revocado** (instalación desinstalada/suspendida o clave eliminada en la App): no se revoca nada real. Se observó el análogo seguro (clave que no pertenece a la App → 401) y el mensaje de "sin instalaciones" está leído en el código, no observado. Lo cerraría un bot de prueba descartable que Diego pueda desinstalar y reinstalar, repitiendo `agent-forge token --agent <bot>`.
-- El tope real de 1 h del token: se toma de la documentación de GitHub; lo verificado es la renovación.
+- A **truly revoked** profile (installation uninstalled/suspended or key deleted in the App): nothing real is revoked. The safe analogue was observed (key that does not belong to the App → 401) and the "no installations" message is read in the code, not observed. It would be closed by a disposable test bot that Diego can uninstall and reinstall, repeating `agent-forge token --agent <bot>`.
+- The real 1 h cap on the token: taken from GitHub's documentation; what was verified is the renewal.
 
-## Propuesta: forma de `profiles` y comando
+## Proposal: shape of `profiles` and command
 
 ```json
 "profiles": {
@@ -145,21 +145,21 @@ Regla de clasificación sugerida (validar en el adaptador con fixtures de estos 
 }
 ```
 
-- `kind: "forge"`: bot vía Forge; `agent` es el nombre en el registro de Forge. Sin secretos en la config (las claves viven en el registro de Forge).
-- `kind: "gh"`: login propio de `gh` (cuenta personal, que Forge no soporta); se ejecuta `gh` directo.
+- `kind: "forge"`: bot via Forge; `agent` is the name in Forge's registry. No secrets in the config (the keys live in Forge's registry).
+- `kind: "gh"`: `gh`'s own login (personal account, which Forge does not support); `gh` is run directly.
 
-Comando exacto, argv separado y `cwd` dentro de un clon del owner correcto:
+Exact command, separate argv and `cwd` inside a clone of the right owner:
 
 ```ts
 execFile("agent-forge", ["gh", profile.agent, ...ghArgs], { cwd, timeout: githubCallTimeoutSeconds * 1000 })
 ```
 
-Para `kind: "gh"`: `execFile("gh", ghArgs, { cwd, timeout })`. Pasar siempre `--repo <owner>/<repo>` explícito. Para `git` como bot: `agent-forge token --agent <agente>`, exportar `GIT_AUTHOR_*`/`GIT_COMMITTER_*` como arriba y pasar el token al credential helper vía `GH_TOKEN`.
+For `kind: "gh"`: `execFile("gh", ghArgs, { cwd, timeout })`. Always pass an explicit `--repo <owner>/<repo>`. For `git` as a bot: `agent-forge token --agent <agent>`, export `GIT_AUTHOR_*`/`GIT_COMMITTER_*` as above and pass the token to the credential helper via `GH_TOKEN`.
 
-El spec se actualizó en este mismo PR (`docs/specs/autonomous-orchestrator.md`: ejemplo de `profiles` y la frase que decía que la forma se fijaba tras el spike). El esquema actual (`src/config/schema.ts`) acepta cada perfil como `z.looseObject({})`; endurecerlo a estas dos formas queda para la slice de configuración (este PR es solo documentación).
+The spec was updated in this same PR (`docs/specs/autonomous-orchestrator.md`: the `profiles` example and the sentence that said the shape would be fixed after the spike). The current schema (`src/config/schema.ts`) accepts each profile as `z.looseObject({})`; tightening it to these two shapes is left for the configuration slice (this PR is documentation only).
 
-## Huellas en `AshuLab/agent-forge`
+## Footprints in `AshuLab/agent-forge`
 
-Eliminados: la rama `spike/carrier-forge-20261016012437` y el label `carrier-spike-tmp`. Verificado al final: `main` en `8dee1b0` (sin cambios), ramas = `["main"]`, labels = los 7 preexistentes (sin el temporal), sin PR.
+Deleted: the branch `spike/carrier-forge-20261016012437` and the label `carrier-spike-tmp`. Verified at the end: `main` at `8dee1b0` (unchanged), branches = `["main"]`, labels = the 7 pre-existing ones (without the temporary one), no PR.
 
-Permanece: el issue #27 `[carrier spike] forge identity test - safe to close`, **cerrado** (`not planned`), con sus dos comentarios (uno de `tassadar-agent`, otro de cierre de `artanis-agent`) y su historial de eventos (label agregado y quitado); un issue no se puede borrar por API. Actores: solo `artanis-agent` y `tassadar-agent`. No se rotó, revocó ni eliminó ninguna credencial real; solo se revocaron tokens de instalación efímeros acuñados durante la prueba.
+Remaining: issue #27 `[carrier spike] forge identity test - safe to close`, **closed** (`not planned`), with its two comments (one from `tassadar-agent`, one closing comment from `artanis-agent`) and its event history (label added and removed); an issue cannot be deleted via the API. Actors: only `artanis-agent` and `tassadar-agent`. No real credential was rotated, revoked or deleted; only ephemeral installation tokens minted during the test were revoked.

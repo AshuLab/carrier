@@ -113,3 +113,16 @@ describe('root', () => {
     expect(load({})).toMatchObject({ ok: true, config: { root: join(homedir(), '.solve') } });
   });
 });
+
+describe('repos', () => {
+  test('rejects two repos with the same folder name in different organizations', () => {
+    const errors = errorsOf({ repos: [{ name: 'AshuLab/demo' }, { name: 'other/Demo' }] });
+    expect(errors.map((e) => e.path)).toEqual(['repos.1.name']);
+    expect(errors[0]!.message).toContain('AshuLab/demo');
+    expect(load({ repos: [{ name: 'AshuLab/demo' }, { name: 'other/demo2' }] }).ok).toBe(true);
+  });
+
+  test('names must be owner/name with plain folder names', () => {
+    for (const name of ['demo', '../x', 'a/..', 'a/b/c', '/x']) expect(errorsOf({ repos: [{ name }] }).map((e) => e.path)).toEqual(['repos.0.name']);
+  });
+});

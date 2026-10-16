@@ -7,6 +7,9 @@ import { resolveRepoConfig } from './resolve.ts';
 const expandHome = (path: string) =>
   path === '~' || path.startsWith('~/') ? join(homedir(), path.slice(1)) : path;
 
+/** `owner/name`, each part a plain folder name: the managed clone lives in `repos/<owner>/<name>`. */
+export const repoNamePattern = /^(?!\.{1,2}\/)(?!.*\/\.{1,2}$)[\w.-]+\/[\w.-]+$/;
+
 const agent = z.strictObject({
   profile: z.string().min(1),
   provider: z.enum(['claude', 'codex']),
@@ -21,7 +24,7 @@ export const configSchema = z
     repos: z
       .array(
         z.strictObject({
-          name: z.string().min(1),
+          name: z.string().regex(repoNamePattern, 'must be owner/name'),
           agents: z.strictObject({ author: agent.partial(), reviewer: agent.partial() }).partial().optional(),
         }),
       )
@@ -54,6 +57,15 @@ export const configSchema = z
         ctx.addIssue({ code: 'custom', path, message: `profile "${name}" is not declared in profiles` });
       }
     }
+
+    // Solve's worktrees are `worktrees/<repo>/<feature>`, with no owner: same-name repos would share paths.
+    const seen = new Map<string, string>();
+    config.repos.forEach((repo, i) => {
+      const folder = repo.name.split('/').pop()!.toLowerCase();
+      const first = seen.get(folder);
+      if (first === undefined) seen.set(folder, repo.name);
+      else ctx.addIssue({ code: 'custom', path: ['repos', i, 'name'], message: `repo "${repo.name}" has the same folder name as "${first}"; Solve's worktree paths have no owner` });
+    });
 
     // Author and reviewer must differ, globally and for each repo once its overrides are applied.
     // A global clash is reported once, not again for every repo that inherits it.

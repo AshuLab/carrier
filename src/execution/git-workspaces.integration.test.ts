@@ -108,6 +108,22 @@ describe('GitWorkspaces against a local bare remote', () => {
     expect(git(r2, 'rev-parse', 'HEAD')).toBe(sha);
   });
 
+  test('findWorktree reads where a branch is really checked out, from `git worktree list`', async () => {
+    const ws = workspaces();
+    const clone = await ws.prepareAuthor(repo, 3);
+    // What Solve's ship does: the epic branch and a lane get their own worktrees under the shared root.
+    const epicPath = join(root, 'worktrees', 'demo', 'feature');
+    git(clone, 'worktree', 'add', '-q', '-b', 'feat/feature/epic', epicPath, 'origin/main');
+    git(clone, 'worktree', 'add', '-q', '-b', 'feat/feature/001-x', join(root, 'worktrees', 'demo', 'feature--lane-1'), 'origin/main');
+
+    expect(await ws.findWorktree(repo, 'feat/feature/epic')).toBe(epicPath);
+    expect(await ws.findWorktree(repo, 'feat/feature/001-x')).toBe(join(root, 'worktrees', 'demo', 'feature--lane-1'));
+    expect(await ws.findWorktree(repo, 'feat/feature')).toBeNull(); // a prefix is not the branch
+    expect(await ws.findWorktree(repo, 'feat/other/epic')).toBeNull();
+    git(clone, 'checkout', '-q', '-b', 'feat/inplace/epic');
+    expect(await ws.findWorktree(repo, 'feat/inplace/epic')).toBe(clone); // not isolated: the clone itself
+  });
+
   test('the token never reaches a git config, and a failing minting is reported without leaking', async () => {
     const ws = workspaces(async () => 'SECRET-TOKEN-123');
     openPr(7, git(work, 'rev-parse', 'HEAD'));

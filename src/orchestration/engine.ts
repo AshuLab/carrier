@@ -5,7 +5,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
-import { parseCallerResult, type CallerResult } from '../execution/caller-result.ts';
+import { parseCallerResult } from '../execution/caller-result.ts';
 import { importResult } from '../execution/import-result.ts';
 import type { Workspaces } from '../execution/workspaces.ts';
 import { callerResults } from '../storage/caller-results.ts';
@@ -15,10 +15,11 @@ import { executions, type executionStates } from '../storage/executions.ts';
 import { executionOutput, taskContext } from '../logging/logger.ts';
 import { epics } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
+import { latestBlockers } from './blockers.ts';
 import { endOf } from './final-pr.ts';
 import { AuthError, GitHubUnavailable, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub } from './github.ts';
 import { reserve } from './reserve.ts';
-import { startRetention } from './retention.ts';
+import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak } from './retry.ts';
 
 export type EngineOptions = {
@@ -37,9 +38,12 @@ export type EngineOptions = {
   workspaces: Workspaces;
   /** Shared root: execution results go under `orchestrator/results/`. */
   root: string;
+  /** Where the CLIs keep sessions, for the 30-day cleanup; the CLIs' own folders by default. */
+  sessionDirs?: SessionDirs;
 };
 
 const log = createScopedLogger('engine');
+const activityEveryMs = 10_000;
 
 type Epic = typeof epics.$inferSelect;
 type Execution = typeof executions.$inferSelect;
@@ -56,7 +60,7 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
   session_unavailable: 'failed',
 };
 
-export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, runner, workspaces, root }: EngineOptions) {
+export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, runner, workspaces, root, sessionDirs }: EngineOptions) {
   let error: GitHubUnavailable | AuthError | null = null;
   // The orchestrator's profile failed: no GitHub call is made until the poll's probe succeeds. Never another profile.
   let suspended: AuthError | null = null;
@@ -119,7 +123,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     if (stopping) return;
     if (stage === 'ship') {
       // Claim the launch first: concurrent reconciles (a result freeing a slot, the poll) never start a second author.
-      const claimed = db.update(epics).set({ stage: 'ship' }).where(and(eq(epics.id, epic.id), isNull(epics.stage))).returning().get();
+      const claimed = db.update(epics).set({ stage: 'ship', stageStartedAt: clock.now() }).where(and(eq(epics.id, epic.id), isNull(epics.stage))).returning().get();
       if (!claimed) return;
     }
     await execute(epic, stage);
@@ -133,7 +137,12 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     const pr = rebuild?.pr ?? (epic.prNumber ? { number: epic.prNumber, headSha: epic.prHeadSha! } : undefined);
     let workspace: string;
     try {
-      workspace = reviewing ? await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!) : await workspaces.prepareAuthor(epic.repo, epic.issue);
+      // The fix turn runs where `ship` left the epic's worktree; a session resumed anywhere else would act in another cwd.
+      workspace = reviewing
+        ? await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!)
+        : stage === 'fix' && epic.workspace
+          ? epic.workspace
+          : await workspaces.prepareAuthor(epic.repo, epic.issue);
     } catch (e) {
       log.error('could not prepare the workspace', e, { repo: epic.repo, epic: epic.issue, stage });
       toNeedsHuman(db, epic.id, `no se pudo preparar el workspace: ${e instanceof Error ? e.message : String(e)}`);
@@ -153,7 +162,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       ...(resumeSession && { resumeSession }),
       context: {
         previousSummaries: reviewing || rebuild ? previousSummaries(epic.id) : [],
-        ...(stage === 'fix' && { blockers: latestBlockers(epic.id) }),
+        ...(stage === 'fix' && { blockers: latestBlockers(db, epic.id) }),
         ...(retryOf && { verifyStateFirst: true }),
         ...(pr && { pr }),
         ...(epic.round && { round: epic.round }),
@@ -165,23 +174,27 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     log.info('execution started', context);
     const run = runner.run(task);
     active.set(executionId, run);
-    run.onOutput(executionOutput(root, executionId));
+    const writeOutput = executionOutput(root, executionId);
+    // The panel's "last activity": a SQLite write at most every 10 s, not one per chunk.
+    let activityAt: number | null = null;
+    run.onOutput((stream, chunk) => {
+      writeOutput(stream, chunk);
+      const now = clock.now();
+      if (activityAt !== null && now - activityAt < activityEveryMs) return;
+      activityAt = now;
+      db.update(epics).set({ lastActivityAt: now }).where(eq(epics.id, epic.id)).run();
+    });
     run.onSession((sessionId) => db.update(executions).set({ sessionId }).where(eq(executions.executionId, executionId)).run());
     track(
       run.done.then(async ({ exit, sessionId }) => {
         active.delete(executionId);
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
+        const failure = { failed: 'el proceso del agente terminó con error', auth_failed: `error de autenticación del perfil ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
         db.update(executions)
-          .set({
-            status: executionStatus[exit],
-            finishedAt: clock.now(),
-            ...(sessionId && { sessionId }),
-            ...(exit === 'failed' && { error: 'el proceso del agente terminó con error' }),
-            ...(exit === 'auth_failed' && { error: `error de autenticación del perfil ${task.profile}` }),
-            ...(exit === 'session_unavailable' && { error: sessionLost }),
-          })
+          .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }), ...(failure && { error: failure }) })
           .where(eq(executions.executionId, executionId))
           .run();
+        if (failure) db.update(epics).set({ lastError: failure }).where(eq(epics.id, epic.id)).run();
         if (exit === 'ok') await settle(db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         else if (exit === 'failed' || exit === 'session_unavailable') await retry(epic.id);
         else if (exit === 'auth_failed') await stopProfile(task.profile);
@@ -258,18 +271,6 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       .orderBy(desc(sql`rowid`))
       .get()?.sessionId ?? undefined;
 
-  // The blockers of the latest review: what the fix turn has to answer.
-  const latestBlockers = (epicId: number) => {
-    const last = db
-      .select({ result: callerResults.result })
-      .from(callerResults)
-      .innerJoin(executions, eq(executions.executionId, callerResults.executionId))
-      .where(and(eq(executions.epicId, epicId), eq(executions.stage, 'review'), eq(callerResults.outcome, 'changes_requested')))
-      .orderBy(desc(sql`executions.rowid`))
-      .get();
-    return last ? (JSON.parse(last.result) as Extract<CallerResult, { outcome: 'changes_requested' }>).blockers : [];
-  };
-
   const inflight = new Set<Promise<void>>();
   const track = (work: Promise<void>) => {
     const tracked: Promise<void> = work
@@ -281,9 +282,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     inflight.add(tracked);
   };
 
-  // Does the final PR the caller reported hold up against GitHub? Returns why not, or null.
-  async function prProblem({ repo, issue }: Epic, pr: { number: number; headSha: string }, stage: Execution['stage']) {
-    const found = await github.getPullRequest(repo, pr.number);
+  // Does the final PR the caller reported hold up against what GitHub says? Returns why not, or null.
+  function prProblem({ issue }: Epic, found: Awaited<ReturnType<GitHub['getPullRequest']>>, pr: { number: number; headSha: string }, stage: Execution['stage']) {
     if (!found) return `el PR #${pr.number} no existe`;
     if (found.state !== 'open') return `el PR #${pr.number} no está abierto`;
     if (!new RegExp(`\\bcloses #${issue}(?!\\d)`, 'i').test(found.body)) return `el PR #${pr.number} no referencia la épica (falta "Closes #${issue}")`;
@@ -317,22 +317,40 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     if (!parsed.ok) {
       log.warn('invalid caller result', { ...context, reason: parsed.message });
       db.update(executions).set({ status: 'invalid_result', error: parsed.message }).where(eq(executions.executionId, execution.executionId)).run();
+      db.update(epics).set({ lastError: parsed.message }).where(eq(epics.id, epic.id)).run();
       return retry(epic.id);
     }
-    const problem = parsed.result.outcome === 'needs_human' ? null : await prProblem(epic, parsed.result.pr, execution.stage);
+    let problem: string | null = null;
+    let workspace: string | undefined;
+    if (parsed.result.outcome !== 'needs_human') {
+      const { pr } = parsed.result;
+      const found = await github.getPullRequest(epic.repo, pr.number);
+      problem = prProblem(epic, found, pr, execution.stage);
+      if (!problem && execution.stage === 'ship') {
+        // Solve put the epic's worktree where its solve.md says: read it back from git, keep the real path for the fix turns.
+        const branch = found!.headRef;
+        try {
+          workspace = (await workspaces.findWorktree(epic.repo, branch)) ?? undefined;
+        } catch (e) {
+          log.error('could not list the worktrees', e, context);
+        }
+        if (!workspace) problem = `no se encontró el worktree de la rama ${branch} en el clon de ${epic.repo}`;
+      }
+    }
     const imported = importResult(db, raw, expected, (tx, result) => {
       const update = (set: Partial<Epic>) => tx.update(epics).set(set).where(eq(epics.id, epic.id)).run();
       if (result.outcome === 'needs_human') toNeedsHuman(tx, epic.id, result.reason);
       else if (problem) toNeedsHuman(tx, epic.id, problem);
-      else if (execution.stage === 'ship') update({ stage: 'review', round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha });
-      else if (execution.stage === 'fix') update({ stage: 'review', round: (epic.round ?? 0) + 1, prHeadSha: result.pr.headSha });
+      else if (execution.stage === 'ship') update({ stage: 'review', stageStartedAt: clock.now(), round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha, workspace });
+      else if (execution.stage === 'fix') update({ stage: 'review', stageStartedAt: clock.now(), round: (epic.round ?? 0) + 1, prHeadSha: result.pr.headSha });
       // The round stays: the fix turn answers it, and the next review numbers the following one.
       else if (result.outcome === 'changes_requested') {
         if ((epic.round ?? 0) >= maxReviews) toNeedsHuman(tx, epic.id, `límite de revisiones: la ronda ${epic.round} de ${maxReviews} sigue con cambios pedidos`);
-        else update({ stage: 'fix' });
+        else update({ stage: 'fix', stageStartedAt: clock.now() });
       }
       else update({ status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true });
     });
+    if (!('duplicate' in imported)) db.update(epics).set({ lastError: null }).where(eq(epics.id, epic.id)).run();
     log.info('result imported', { ...context, outcome: parsed.result.outcome, duplicate: 'duplicate' in imported });
     const next = fresh(epic.id);
     // ship and fix hand over to the reviewer, a review with changes hands over to the author.
@@ -497,7 +515,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   return {
     async start() {
-      stopRetention = startRetention(db, root, clock);
+      stopRetention = startRetention(db, root, clock, sessionDirs);
       // GitHub down: retried every cycle until it works.
       for (const step of [ensureLabels, recover]) {
         try {

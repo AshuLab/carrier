@@ -268,7 +268,7 @@ const result = (task: AgentTask, extra: object): Behavior['write'] => ({
 });
 const completed = (task: AgentTask, pr = { number: 50, headSha: SHA }) =>
   result(task, { outcome: 'completed', pr, verification: { ci: 'absent', evidence: 'no CI' } });
-const pull = (number: number, extra: Partial<{ state: 'open' | 'closed' | 'merged'; body: string; headSha: string }> = {}, issue = 1, repo = 'AshuLab/a') => {
+const pull = (number: number, extra: Partial<{ state: 'open' | 'closed' | 'merged'; body: string; headSha: string; headRef: string }> = {}, issue = 1, repo = 'AshuLab/a') => {
   github.pulls[`${repo}#${number}`] = { state: 'open', body: `Final PR\n\nCloses #${issue}`, headSha: SHA, ...extra };
 };
 const executionsOf = (db: Db) => db.select().from(executions).all();
@@ -686,11 +686,103 @@ test('changes_requested below the limit keeps the round and launches the author 
 
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix']);
   expect(runner.tasks[2]).toMatchObject({
-    profile: 'a', provider: 'claude', workspace: '/work/AshuLab/a/1/author', resumeSession: 's-ship',
+    profile: 'a', provider: 'claude', workspace: '/work/AshuLab/a/worktrees/feat/epic/epic', resumeSession: 's-ship',
     context: { pr: { number: 50, headSha: SHA }, round: 1, blockers },
   });
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'fix', round: 1, finishedAt: null });
   expect(labelsOf(1)).toEqual(['solve:epic:running']);
+});
+
+test('the epic worktree is read back from git after ship and kept: the fix turns, retries included, run in it; ship ran in the clone', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50, { headRef: 'feat/demo/epic' });
+  const blockers = [{ title: 'x' }];
+  let fixes = 0;
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) }
+    : task.stage === 'review' ? { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers }) }
+    : ++fixes === 1 ? { exit: 'failed' } : { exit: 'stopped' };
+  const asked: string[] = [];
+  workspaces.findWorktree = async (repo, branch) => (asked.push(`${repo}:${branch}`), '/home/me/.solve/worktrees/a/demo');
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(asked).toEqual(['AshuLab/a:feat/demo/epic']);
+  expect(rows(engine.db)[0]).toMatchObject({ workspace: '/home/me/.solve/worktrees/a/demo' });
+  expect(runner.tasks.map((t) => [t.stage, t.workspace])).toEqual([
+    ['ship', '/work/AshuLab/a/1/author'],
+    ['review', '/work/AshuLab/a/1/reviewer-50'],
+    ['fix', '/home/me/.solve/worktrees/a/demo'],
+    ['fix', '/home/me/.solve/worktrees/a/demo'],
+  ]);
+});
+
+test('a ship result whose epic worktree git does not list sends the epic to needs_human with the branch', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  pull(50, { headRef: 'feat/demo/epic' });
+  pull(51, { headRef: 'feat/other/epic' }, 2);
+  runner.behavior = (task) => ({ write: completed(task, { number: 49 + task.epic, headSha: SHA }) });
+  workspaces.findWorktree = async (_repo, branch) => {
+    if (branch === 'feat/other/epic') throw new Error('git broke');
+    return null;
+  };
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(rows(engine.db).map((e) => [e.status, e.needsHumanReason, e.workspace, e.prNumber])).toEqual([
+    ['needs_human', 'no se encontró el worktree de la rama feat/demo/epic en el clon de AshuLab/a', null, null],
+    ['needs_human', 'no se encontró el worktree de la rama feat/other/epic en el clon de AshuLab/a', null, null],
+  ]);
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'ship']);
+});
+
+test('last activity is written from the first output and then at most once every 10 s; stage start and last error follow the stage', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  let emit!: (stream: 'stdout' | 'stderr', chunk: string) => void;
+  let finish!: (exit: 'failed' | 'ok') => void;
+  runner.run = (task) => {
+    runner.tasks.push(task);
+    return {
+      onSession() {},
+      onOutput: (cb) => void (emit = cb),
+      done: new Promise((resolve) => (finish = (exit) => resolve({ exit }))),
+      stop: async () => {},
+    };
+  };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  const row = () => rows(engine.db)[0]!;
+  expect(row()).toMatchObject({ stage: 'ship', stageStartedAt: 5 * MIN, lastActivityAt: null, lastError: null });
+
+  emit('stdout', 'a');
+  expect(row().lastActivityAt).toBe(5 * MIN);
+  await clock.advance(9_999);
+  emit('stdout', 'b');
+  expect(row().lastActivityAt).toBe(5 * MIN);
+  await clock.advance(1);
+  emit('stderr', 'c');
+  expect(row().lastActivityAt).toBe(5 * MIN + 10_000);
+  expect(readFileSync(join(dir, 'orchestrator', 'logs', 'executions', runner.tasks[0]!.executionId, 'stdout.log'), 'utf8')).toBe('ab'); // every chunk is logged, only the write is limited
+
+  finish('failed');
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2)); // the retry
+  expect(row()).toMatchObject({ lastError: 'el proceso del agente terminó con error', stage: 'ship', stageStartedAt: 5 * MIN });
+});
+
+test('an invalid result is a retried failure; importing the next result clears the last error and starts the review stage', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  let attempt = 0;
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? (++attempt === 1 ? { write: '{broken' } : { write: completed(task) }) : { exit: 'stopped' };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'ship', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'review', stageStartedAt: 5 * MIN, lastError: null });
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'invalid_result' });
 });
 
 // ship -> review (changes_requested up to round `asking`, then it stops) -> fix -> review ...

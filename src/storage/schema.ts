@@ -19,6 +19,11 @@ export const epics = sqliteTable(
     // The running label is a reflection of SQLite: true while it has not reached GitHub yet.
     labelPending: integer({ mode: 'boolean' }).notNull().default(false),
     stage: text({ enum: ['ship', 'review', 'fix'] }), // null until the author is launched
+    stageStartedAt: integer(), // ms since epoch, when the epic entered its current stage
+    // Where the author's epic worktree really is (read back from `git worktree list` after ship); fix turns run there.
+    workspace: text(),
+    lastActivityAt: integer(), // ms since epoch of the agent's last output, written at most every 10 s
+    lastError: text(), // the last technical failure of a stage; cleared when a result is imported
     round: integer(), // review round, from 1 once the final PR is validated
     prNumber: integer(),
     prHeadSha: text(),

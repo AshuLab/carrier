@@ -23,7 +23,7 @@ test('ship prompt', () => {
     "You are the author of the final integration PR of epic #3 in AshuLab/carrier. Execution exec-1, stage ship.
     Nobody answers questions during this run: decide, and use needs_human when you cannot.
     Apply the repo's own rules (its docs, agent instructions and conventions) to choose and evaluate tests, CI and blockers. Do not assume commands from other repos.
-    Invoke /ship for epic #3 and leave the final integration PR open.
+    Invoke /ship for epic #3 and tell it to worktree this epic, whatever mode the repo's solve.md has: the epic must live in its own git worktree. Leave the final integration PR open.
     Never merge the final PR: a person tests it and decides the merge.
     Before finishing, write exactly one JSON object to /r/exec-1.json. Repeat executionId, repo, epic and stage as given. Allowed outputs:
     \`\`\`json

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
@@ -11,6 +12,7 @@ import { callerResults } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
 import { epicEvents } from '../storage/events.ts';
 import { executions, type executionStates } from '../storage/executions.ts';
+import { executionOutput, taskContext } from '../logging/logger.ts';
 import { epics } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
 import { endOf } from './final-pr.ts';
@@ -35,6 +37,8 @@ export type EngineOptions = {
   /** Shared root: execution results go under `orchestrator/results/`. */
   root: string;
 };
+
+const log = createScopedLogger('engine');
 
 type Epic = typeof epics.$inferSelect;
 type Execution = typeof executions.$inferSelect;
@@ -120,6 +124,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     try {
       workspace = reviewing ? await workspaces.prepareReviewer(epic.repo, epic.issue, epic.prNumber!) : await workspaces.prepareAuthor(epic.repo, epic.issue);
     } catch (e) {
+      log.error('could not prepare the workspace', e, { repo: epic.repo, epic: epic.issue, stage });
       toNeedsHuman(db, epic.id, `no se pudo preparar el workspace: ${e instanceof Error ? e.message : String(e)}`);
       return applyLabels(fresh(epic.id));
     }
@@ -145,12 +150,16 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     };
     if (stopping) return;
     db.insert(executions).values({ executionId, epicId: epic.id, stage, resultPath, startedAt: clock.now() }).run();
+    const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId, stage, round: epic.round });
+    log.info('execution started', context);
     const run = runner.run(task);
     active.set(executionId, run);
+    run.onOutput(executionOutput(root, executionId));
     run.onSession((sessionId) => db.update(executions).set({ sessionId }).where(eq(executions.executionId, executionId)).run());
     track(
       run.done.then(async ({ exit, sessionId }) => {
         active.delete(executionId);
+        (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
         db.update(executions)
           .set({
             status: executionStatus[exit],
@@ -240,6 +249,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   const track = (work: Promise<void>) => {
     const tracked: Promise<void> = work
       .catch((e) => {
+        log.error('stage work failed', e);
         if (!(e instanceof GitHubUnavailable)) throw e;
         error = e;
       })
@@ -279,7 +289,9 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     const expected = expectedOf(epic, execution);
     const raw = readResult(execution);
     const parsed = parseCallerResult(raw, expected);
+    const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId: execution.executionId, stage: execution.stage, round: epic.round });
     if (!parsed.ok) {
+      log.warn('invalid caller result', { ...context, reason: parsed.message });
       db.update(executions).set({ status: 'invalid_result', error: parsed.message }).where(eq(executions.executionId, execution.executionId)).run();
       return retry(epic.id);
     }
@@ -297,6 +309,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       }
       else update({ status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true });
     });
+    log.info('result imported', { ...context, outcome: parsed.result.outcome, duplicate: 'duplicate' in imported });
     const next = fresh(epic.id);
     // ship and fix hand over to the reviewer, a review with changes hands over to the author.
     if (!('duplicate' in imported) && next.status === 'running' && next.stage && next.stage !== 'ship') await launch(next, next.stage);
@@ -375,7 +388,10 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   let recovered = false;
   async function recover() {
     // Orphans first: no second agent may start on a workspace while the first still acts on it.
-    for (const id of await runner.listActive()) if (!active.has(id)) await runner.stop(id);
+    for (const id of await runner.listActive()) if (!active.has(id)) {
+      log.warn('stopping orphan execution', { executionId: id });
+      await runner.stop(id);
+    }
     for (const { executionId } of db.select().from(executions).where(eq(executions.status, 'running')).all()) {
       if (active.has(executionId)) continue;
       db.update(executions).set({ status: 'interrupted', finishedAt: clock.now() }).where(eq(executions.executionId, executionId)).run();
@@ -383,6 +399,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     for (const { id } of db.select({ id: epics.id }).from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
       const epic = fresh(id);
       const last = db.select().from(executions).where(eq(executions.epicId, id)).orderBy(desc(sql`rowid`)).get();
+      log.info('recovering epic', { repo: epic.repo, epic: epic.issue, stage: epic.stage, lastStatus: last?.status });
       if (!last) {
         // Stopped between claiming the launch and inserting the execution: no agent ever ran, so launching is not a blind restart.
         db.update(epics).set({ stage: null }).where(eq(epics.id, id)).run();
@@ -429,6 +446,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       error = null;
       return pollIntervalMs;
     } catch (e) {
+      log.error('poll failed', e);
       if (!(e instanceof GitHubUnavailable)) throw e;
       error = e;
       return Math.max(pollIntervalMs, e.retryAfterMs ?? 0);
@@ -446,9 +464,10 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       for (const step of [ensureLabels, recover]) {
         try {
           await step();
-        } catch (e) {
-          if (!(e instanceof GitHubUnavailable)) throw e;
-          error = e;
+        } catch (err) {
+          log.error('startup step failed', err);
+          if (!(err instanceof GitHubUnavailable)) throw err;
+          error = err;
         }
       }
       schedule(pollIntervalMs);

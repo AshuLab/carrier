@@ -144,13 +144,17 @@ export const CallerResult = z.discriminatedUnion('outcome', [
 ]);
 ```
 
-**Configuración.** Los defaults de la app incluyen la raíz, el intervalo, el nivel de log (`logLevel`, `info`) y los límites; perfiles, repos y asignaciones por rol los declara siempre el usuario. Los perfiles referencian a Forge; su forma exacta se fija tras el spike de Forge. Ejemplo de la forma, no de valores:
+**Configuración.** Los defaults de la app incluyen la raíz, el intervalo, el nivel de log (`logLevel`, `info`) y los límites; perfiles, repos y asignaciones por rol los declara siempre el usuario. Cada perfil es `{ "kind": "forge", "agent": "<nombre en Forge>" }` (bot, vía Agent Forge) o `{ "kind": "gh" }` (el login propio de `gh`, para la cuenta personal que Forge no soporta); sin secretos en la configuración. La forma la fijó el [spike de Forge](../research/agent-forge.md). Ejemplo de la forma, no de valores:
 
 ```json
 {
   "pollIntervalMinutes": 5,
   "repos": [{ "name": "AshuLab/carrier", "agents": { "reviewer": { "model": "<modelo>" } } }],
-  "profiles": { "author-bot": {}, "reviewer-bot": {}, "diego": {} },
+  "profiles": {
+    "author-bot":   { "kind": "forge", "agent": "<agente-forge-autor>" },
+    "reviewer-bot": { "kind": "forge", "agent": "<agente-forge-reviewer>" },
+    "diego":        { "kind": "gh" }
+  },
   "orchestratorProfile": "author-bot",
   "agents": {
     "author":   { "profile": "author-bot",   "provider": "claude", "model": "<modelo>" },

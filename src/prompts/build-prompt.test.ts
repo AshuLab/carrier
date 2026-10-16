@@ -1,0 +1,195 @@
+import { expect, test } from 'vitest';
+import type { AgentTask } from '../execution/agent-runner.ts';
+import { parseCallerResult } from '../execution/caller-result.ts';
+import { buildPrompt } from './build-prompt.ts';
+
+const pr = { number: 7, headSha: 'a'.repeat(40) };
+const task = (stage: AgentTask['stage'], context: Partial<AgentTask['context']> = {}, provider: AgentTask['provider'] = 'claude'): AgentTask => ({
+  executionId: 'exec-1',
+  repo: 'AshuLab/carrier',
+  epic: 3,
+  stage,
+  profile: 'bot',
+  provider,
+  model: 'm',
+  workspace: '/w',
+  resultPath: '/r/exec-1.json',
+  timeoutMs: null,
+  context: { previousSummaries: [], ...(stage !== 'ship' && { pr }), ...context },
+});
+
+test('ship prompt', () => {
+  expect(buildPrompt(task('ship'))).toMatchInlineSnapshot(`
+    "You are the author of the final integration PR of epic #3 in AshuLab/carrier. Execution exec-1, stage ship.
+    Nobody answers questions during this run: decide, and use needs_human when you cannot.
+    Apply the repo's own rules (its docs, agent instructions and conventions) to choose and evaluate tests, CI and blockers. Do not assume commands from other repos.
+    Invoke /ship for epic #3 and tell it to worktree this epic, whatever mode the repo's solve.md has: the epic must live in its own git worktree. Leave the final integration PR open.
+    Never merge the final PR: a person tests it and decides the merge.
+    Before finishing, write exactly one JSON object to /r/exec-1.json. That path is also in the environment variable CARRIER_RESULT_PATH: write to "$CARRIER_RESULT_PATH" instead of retyping it, because a path with one segment missing is a result nobody reads. Repeat executionId, repo, epic and stage as given. Allowed outputs:
+    \`\`\`json
+    {
+      "executionId": "exec-1",
+      "repo": "AshuLab/carrier",
+      "epic": 3,
+      "stage": "ship",
+      "summary": "<what you did and concluded, in a few lines>",
+      "outcome": "completed",
+      "pr": {
+        "number": 1,
+        "headSha": "0000000000000000000000000000000000000000"
+      },
+      "verification": {
+        "ci": "passed",
+        "evidence": "<which verifications you ran and their result>"
+      }
+    }
+    \`\`\`
+    \`\`\`json
+    {
+      "executionId": "exec-1",
+      "repo": "AshuLab/carrier",
+      "epic": 3,
+      "stage": "ship",
+      "summary": "<what you did and concluded, in a few lines>",
+      "outcome": "needs_human",
+      "reason": "<why a person has to step in>"
+    }
+    \`\`\`
+    Replace pr.number and pr.headSha with the real final PR and its current head (git rev-parse HEAD). A failing CI is not a completed result.
+    verification.ci is "absent" when the repo has no CI; say so in evidence."
+  `);
+});
+
+test('review prompt', () => {
+  expect(buildPrompt(task('review', { round: 2 }))).toMatchInlineSnapshot(`
+    "You are the reviewer of the final integration PR of epic #3 in AshuLab/carrier. Execution exec-1, stage review.
+    Nobody answers questions during this run: decide, and use needs_human when you cannot.
+    Apply the repo's own rules (its docs, agent instructions and conventions) to choose and evaluate tests, CI and blockers. Do not assume commands from other repos.
+    Review PR #7, round 2. First confirm the PR head is aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; if it is not, return needs_human.
+    Invoke /code-review against the epic's spec and tickets, checking that earlier findings were fixed and nothing regressed, then publish the findings with /code-post.
+    Return changes_requested with the blockers if there are any. Return completed only if the review is conclusive, there are no blockers and the repo's verifications are confirmed on that same commit. If the review is inconclusive (missing context, cannot verify), return needs_human.
+    Before finishing, write exactly one JSON object to /r/exec-1.json. That path is also in the environment variable CARRIER_RESULT_PATH: write to "$CARRIER_RESULT_PATH" instead of retyping it, because a path with one segment missing is a result nobody reads. Repeat executionId, repo, epic and stage as given. Allowed outputs:
+    \`\`\`json
+    {
+      "executionId": "exec-1",
+      "repo": "AshuLab/carrier",
+      "epic": 3,
+      "stage": "review",
+      "summary": "<what you did and concluded, in a few lines>",
+      "outcome": "completed",
+      "pr": {
+        "number": 7,
+        "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "verification": {
+        "ci": "passed",
+        "evidence": "<which verifications you confirmed on this commit>"
+      }
+    }
+    \`\`\`
+    \`\`\`json
+    {
+      "executionId": "exec-1",
+      "repo": "AshuLab/carrier",
+      "epic": 3,
+      "stage": "review",
+      "summary": "<what you did and concluded, in a few lines>",
+      "outcome": "changes_requested",
+      "pr": {
+        "number": 7,
+        "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "blockers": [
+        {
+          "title": "<blocker>",
+          "url": "https://github.com/AshuLab/carrier/pull/7#discussion_r123"
+        }
+      ]
+    }
+    \`\`\`
+    \`\`\`json
+    {
+      "executionId": "exec-1",
+      "repo": "AshuLab/carrier",
+      "epic": 3,
+      "stage": "review",
+      "summary": "<what you did and concluded, in a few lines>",
+      "outcome": "needs_human",
+      "reason": "<why a person has to step in>"
+    }
+    \`\`\`
+    verification.ci is "absent" when the repo has no CI; say so in evidence."
+  `);
+});
+
+test('fix prompt', () => {
+  expect(buildPrompt(task('fix', { round: 1, blockers: [{ title: 'null deref', url: 'https://github.com/AshuLab/carrier/pull/7#r1' }, { title: 'no test' }] }))).toMatchInlineSnapshot(`
+    "You are the author of the final integration PR of epic #3 in AshuLab/carrier. Execution exec-1, stage fix.
+    Nobody answers questions during this run: decide, and use needs_human when you cannot.
+    Apply the repo's own rules (its docs, agent instructions and conventions) to choose and evaluate tests, CI and blockers. Do not assume commands from other repos.
+    Invoke /code-resolve on PR #7, answering every finding of the last review and fixing what applies.
+    Never merge the final PR. Leave the blockers open: the reviewer verifies them, you do not resolve them.
+    Blockers of the last review:
+    - null deref (https://github.com/AshuLab/carrier/pull/7#r1)
+    - no test
+    Before finishing, write exactly one JSON object to /r/exec-1.json. That path is also in the environment variable CARRIER_RESULT_PATH: write to "$CARRIER_RESULT_PATH" instead of retyping it, because a path with one segment missing is a result nobody reads. Repeat executionId, repo, epic and stage as given. Allowed outputs:
+    \`\`\`json
+    {
+      "executionId": "exec-1",
+      "repo": "AshuLab/carrier",
+      "epic": 3,
+      "stage": "fix",
+      "summary": "<what you did and concluded, in a few lines>",
+      "outcome": "completed",
+      "pr": {
+        "number": 7,
+        "headSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "verification": {
+        "ci": "passed",
+        "evidence": "<which verifications you ran and their result>"
+      }
+    }
+    \`\`\`
+    \`\`\`json
+    {
+      "executionId": "exec-1",
+      "repo": "AshuLab/carrier",
+      "epic": 3,
+      "stage": "fix",
+      "summary": "<what you did and concluded, in a few lines>",
+      "outcome": "needs_human",
+      "reason": "<why a person has to step in>"
+    }
+    \`\`\`
+    Replace pr.number and pr.headSha with the real final PR and its current head (git rev-parse HEAD). A failing CI is not a completed result.
+    verification.ci is "absent" when the repo has no CI; say so in evidence."
+  `);
+});
+
+test('verifyStateFirst and previous summaries are added only when present', () => {
+  const plain = buildPrompt(task('review'));
+  expect(plain).not.toContain('verify what is already done');
+  expect(plain).not.toContain('Summaries of the previous turns');
+  const rebuilt = buildPrompt(task('review', { verifyStateFirst: true, previousSummaries: ['first round found X', 'fix answered X'] }));
+  expect(rebuilt).toContain('verify what is already done');
+  expect(rebuilt).toContain('1. first round found X\n2. fix answered X');
+});
+
+test('codex invokes skills with $ and claude with /', () => {
+  expect(buildPrompt(task('ship', {}, 'codex'))).toContain('$ship');
+  expect(buildPrompt(task('ship'))).toContain('/ship');
+});
+
+test.each(['ship', 'review', 'fix'] as const)('every JSON example in the %s prompt passes parseCallerResult', (stage) => {
+  const t = task(stage);
+  const examples = [...buildPrompt(t).matchAll(/```json\n([\s\S]*?)\n```/g)].map((m) => m[1]!);
+  expect(examples).toHaveLength(stage === 'review' ? 3 : 2);
+  for (const raw of examples) {
+    expect(parseCallerResult(raw, { executionId: t.executionId, repo: t.repo, epic: t.epic, stage })).toMatchObject({ ok: true });
+  }
+});
+
+test.each(['ship', 'review', 'fix'] as const)('the %s prompt names no repo-specific command', (stage) => {
+  expect(buildPrompt(task(stage))).not.toMatch(/\b(pnpm|npm|yarn|vitest|jest|pytest|make)\b/);
+});

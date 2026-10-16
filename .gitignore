@@ -16,3 +16,6 @@ $RECYCLE.BIN/
 *~
 .directory
 .Trash-*
+
+# Node
+node_modules/

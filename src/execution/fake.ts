@@ -10,6 +10,8 @@ export type Behavior = {
   write?: unknown;
   /** Defaults to 'ok'. 'hang' never ends on its own, only `stop()` does. */
   exit?: AgentExit | 'hang';
+  /** The run ends with `exit` only once this settles, to let other runs start first. */
+  when?: Promise<unknown>;
 };
 
 export class FakeAgentRunner implements AgentRunner {
@@ -23,7 +25,7 @@ export class FakeAgentRunner implements AgentRunner {
   run(task: AgentTask): AgentRun {
     this.tasks.push(task);
     this.alive.add(task.executionId);
-    const { sessionId, output = [], write, exit = 'ok' } = this.behavior(task);
+    const { sessionId, output = [], write, exit = 'ok', when } = this.behavior(task);
     const sessions: ((id: string) => void)[] = [];
     const outputs: ((stream: 'stdout' | 'stderr', chunk: string) => void)[] = [];
     let resolveDone!: (result: { exit: AgentExit; sessionId?: string }) => void;
@@ -40,7 +42,8 @@ export class FakeAgentRunner implements AgentRunner {
         mkdirSync(dirname(task.resultPath), { recursive: true });
         writeFileSync(task.resultPath, typeof write === 'string' ? write : JSON.stringify(write));
       }
-      if (exit !== 'hang') finish({ exit, sessionId });
+      if (when && exit !== 'hang') void when.then(() => finish({ exit, sessionId }));
+      else if (exit !== 'hang') finish({ exit, sessionId });
     });
     return {
       onSession: (cb) => void sessions.push(cb),

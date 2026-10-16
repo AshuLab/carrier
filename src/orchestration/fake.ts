@@ -1,5 +1,5 @@
 import type { Clock } from './clock.ts';
-import { GitHubUnavailable, type GitHub } from './github.ts';
+import { AuthError, GitHubUnavailable, type GitHub } from './github.ts';
 
 export class FakeGitHub implements GitHub {
   ready: Record<string, { issue: number; title: string }[]> = {};
@@ -11,6 +11,15 @@ export class FakeGitHub implements GitHub {
   repoLabels: Record<string, string[]> = {};
   created: string[] = [];
   calls = 0;
+  /** Makes every call fail like Forge rejecting the orchestrator's profile. */
+  authError: AuthError | null = null;
+  /** Every call that reached the port, failed or not. */
+  attempts = 0;
+
+  private guard() {
+    this.attempts++;
+    if (this.authError) throw this.authError;
+  }
 
   /** An issue not set up by the test is open and ready. */
   issue(repo: string, issue: number) {
@@ -18,22 +27,26 @@ export class FakeGitHub implements GitHub {
   }
 
   async listReadyEpics(repo: string) {
+    this.guard();
     this.calls++;
     if (this.unavailable) throw this.unavailable;
     return this.ready[repo] ?? [];
   }
 
   async getIssue(repo: string, issue: number) {
+    this.guard();
     const { state, labels } = this.issue(repo, issue);
     return { state, labels: [...labels] };
   }
 
   async getPullRequest(repo: string, number: number) {
+    this.guard();
     if (this.unavailable) throw this.unavailable;
     return this.pulls[`${repo}#${number}`] ?? null;
   }
 
   async findPullRequest(repo: string, issue: number) {
+    this.guard();
     if (this.unavailable) throw this.unavailable;
     for (const [key, { state, body, headSha }] of Object.entries(this.pulls)) {
       if (key.startsWith(`${repo}#`) && new RegExp(`\\bcloses #${issue}(?!\\d)`, 'i').test(body)) return { number: Number(key.split('#')[1]), state, headSha };
@@ -42,16 +55,19 @@ export class FakeGitHub implements GitHub {
   }
 
   async setLabels(repo: string, issue: number, { add, remove }: { add: string[]; remove: string[] }) {
+    this.guard();
     if (this.setLabelsUnavailable) throw this.setLabelsUnavailable;
     const found = this.issue(repo, issue);
     found.labels = [...new Set([...found.labels.filter((l) => !remove.includes(l)), ...add])];
   }
 
   async listLabels(repo: string) {
+    this.guard();
     return [...(this.repoLabels[repo] ?? [])];
   }
 
   async createLabel(repo: string, name: string) {
+    this.guard();
     (this.repoLabels[repo] ??= []).push(name);
     this.created.push(`${repo}:${name}`);
   }

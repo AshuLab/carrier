@@ -932,3 +932,26 @@ test('a review result still waiting for GitHub is not imported once the epic was
   expect(rows(engine.db)[0]).toMatchObject({ status: 'merged', reviewedSha: null, needsHumanReason: null });
   expect(engine.db.select().from(callerResults).all().map((r) => r.outcome)).toEqual(['completed']); // only ship's
 });
+
+test('shutdown stops every active run without waiting for its stage, keeps the epics running and writes nothing to GitHub', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2, 3) };
+  runner.behavior = (task) => ({ sessionId: `s-${task.epic}`, exit: 'hang' });
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  const calls = github.calls;
+  const labels = [labelsOf(1), labelsOf(2), labelsOf(3)].map((l) => [...l]);
+
+  await engine.shutdown();
+
+  expect(runner.stopped).toHaveLength(2);
+  expect(executionsOf(engine.db).map((e) => [e.status, e.sessionId])).toEqual([['interrupted', 's-1'], ['interrupted', 's-2']]);
+  expect(byStatus(engine.db, 'running')).toEqual([1, 2]);
+  expect(byStatus(engine.db, 'queued')).toEqual([3]);
+
+  // Nothing wakes up afterwards: no poll, no reservation, no GitHub call or label change.
+  await clock.advance(20 * MIN);
+  expect(github.calls).toBe(calls);
+  expect(runner.tasks).toHaveLength(2);
+  expect([labelsOf(1), labelsOf(2), labelsOf(3)]).toEqual(labels);
+  expect(byStatus(engine.db, 'queued')).toEqual([3]);
+});

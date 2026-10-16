@@ -55,10 +55,13 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   const labelledRepos = new Set<string>();
   // Runs of this process still going, to stop them when the epic ends from outside.
   const active = new Map<string, AgentRun>();
+  // Set by shutdown(): from then on nothing polls, reserves, launches or writes to GitHub.
+  let stopping = false;
 
   // Creates the owned labels a repo lacks; never touches existing ones nor creates `ready`.
   async function ensureLabels() {
     for (const { name } of repos) {
+      if (stopping) return;
       if (labelledRepos.has(name)) continue;
       const existing = await github.listLabels(name);
       for (const label of ownedLabels) if (!existing.includes(label)) await github.createLabel(name, label);
@@ -68,6 +71,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   // Mirrors the epic's status on its issue.
   const applyLabels = async ({ id, repo, issue, status }: Epic) => {
+    if (stopping) return; // labelPending stays true: the next run reflects it
     const change =
       status === 'needs_human'
         ? { add: [needsHumanLabel], remove: [runningLabel] }
@@ -88,12 +92,14 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   // Mirrors the label, then launches the author unless the epic already has one.
   const begin = async (epic: Epic) => {
+    if (stopping) return;
     await applyLabels(epic);
     if (epic.status === 'running' && epic.stage === null) await launch(epic, 'ship');
   };
 
   // Launches the author (ship, fix) or the reviewer (review) for the epic's current stage.
   async function launch(epic: Epic, stage: AgentTask['stage']) {
+    if (stopping) return;
     if (stage === 'ship') {
       // Claim the launch first: concurrent reconciles (a result freeing a slot, the poll) never start a second author.
       const claimed = db.update(epics).set({ stage: 'ship' }).where(and(eq(epics.id, epic.id), isNull(epics.stage))).returning().get();
@@ -133,6 +139,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         ...(epic.round && { round: epic.round }),
       },
     };
+    if (stopping) return;
     db.insert(executions).values({ executionId, epicId: epic.id, stage, resultPath, startedAt: clock.now() }).run();
     const run = runner.run(task);
     active.set(executionId, run);
@@ -163,7 +170,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // Relaunches the stage whose last execution failed technically, until the retries run out.
   const retrying = new Set<number>();
   async function retry(epicId: number) {
-    if (retrying.has(epicId)) return;
+    if (stopping || retrying.has(epicId)) return;
     retrying.add(epicId);
     try {
       const epic = fresh(epicId);
@@ -247,6 +254,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   // Imports the result of a finished execution and moves the epic. Safe to repeat: the import is idempotent.
   async function settle(execution: Execution) {
+    if (stopping) return; // stays `finished` without a result: the next run imports it
     const epic = fresh(execution.epicId);
     if (epic.status === 'merged' || epic.status === 'cancelled') return; // ended from outside: nothing new moves
     const expected = { executionId: execution.executionId, repo: epic.repo, epic: epic.issue, stage: execution.stage };
@@ -329,6 +337,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // Starts the oldest queued epics until the concurrency limit or the queue is exhausted.
   async function fillSlots() {
     for (;;) {
+      if (stopping) return;
       const epic = reserve(db, { maxConcurrent: maxConcurrentEpics, now: clock.now(), repos });
       if (!epic) return;
       const cancelWith = (cancelReason: string) =>
@@ -349,6 +358,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   // Returns the wait until the next poll.
   async function poll(): Promise<number> {
+    if (stopping) return pollIntervalMs;
     try {
       // Fetch every repo before writing: a failure on any of them leaves the queue untouched.
       const found: { repo: string; issue: number }[] = [];
@@ -375,6 +385,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   }
 
   const schedule = (ms: number) => {
+    if (stopping) return;
     cancel = clock.after(ms, async () => schedule(await poll()));
   };
 
@@ -389,6 +400,17 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       schedule(pollIntervalMs);
     },
     stop: () => cancel?.(),
+    /**
+     * Ctrl+C: stops polling and reserving, then stops every active run without waiting for its stage.
+     * Their executions end `interrupted` (session ids already saved), the epics stay `running` and
+     * nothing is written to GitHub. Resolves once those states are in SQLite.
+     */
+    async shutdown() {
+      stopping = true;
+      cancel?.();
+      await Promise.all([...active.values()].map((run) => run.stop()));
+      while (inflight.size > 0) await Promise.all([...inflight]);
+    },
     /** Resolves when no execution is being followed any more. */
     async idle() {
       while (inflight.size > 0) await Promise.all([...inflight]);

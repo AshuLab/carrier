@@ -1,6 +1,10 @@
 export class GitHubUnavailable extends Error {
-  constructor(readonly retryAfterMs?: number) {
+  readonly retryAfterMs?: number;
+
+  // No parameter property: Node strips types at runtime and cannot run that syntax.
+  constructor(retryAfterMs?: number) {
     super('GitHub unavailable');
+    this.retryAfterMs = retryAfterMs;
   }
 }
 

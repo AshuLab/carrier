@@ -268,7 +268,7 @@ const result = (task: AgentTask, extra: object): Behavior['write'] => ({
 });
 const completed = (task: AgentTask, pr = { number: 50, headSha: SHA }) =>
   result(task, { outcome: 'completed', pr, verification: { ci: 'absent', evidence: 'no CI' } });
-const pull = (number: number, extra: Partial<{ state: 'open' | 'closed'; body: string; headSha: string }> = {}, issue = 1, repo = 'AshuLab/a') => {
+const pull = (number: number, extra: Partial<{ state: 'open' | 'closed' | 'merged'; body: string; headSha: string }> = {}, issue = 1, repo = 'AshuLab/a') => {
   github.pulls[`${repo}#${number}`] = { state: 'open', body: `Final PR\n\nCloses #${issue}`, headSha: SHA, ...extra };
 };
 const executionsOf = (db: Db) => db.select().from(executions).all();
@@ -828,4 +828,107 @@ test('the reviewer receives the summaries of earlier review and fix turns, oldes
   await clock.advance(5 * MIN);
   await engine.idle();
   expect(reviewerTask().context.previousSummaries).toEqual(['ronda uno', 'corregido']);
+});
+
+// The epic ends from outside: its final PR is merged or closed, or its issue is closed.
+// idle() would wait forever for the hung reviewer, so wait for its launch instead.
+async function reviewingHung() {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { sessionId: 's-r', exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']));
+  return engine;
+}
+
+test('a merged final PR stops the running executions and leaves the epic merged, keeping sessions and history, with no new turn', async () => {
+  const engine = await reviewingHung();
+  const tasks = runner.tasks.length;
+  pull(50, { state: 'merged' });
+  github.issue('AshuLab/a', 1).state = 'closed'; // merging the final PR closes the epic issue too
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'merged', cancelReason: null, finishedAt: 10 * MIN, labelPending: false, stage: 'review', prNumber: 50 });
+  expect(runner.stopped).toEqual([runner.tasks[1]!.executionId]);
+  expect(runner.tasks).toHaveLength(tasks);
+  expect(executionsOf(engine.db).map((e) => [e.status, e.sessionId])).toEqual([['finished', null], ['interrupted', 's-r']]);
+  expect(eventsOf(engine.db).map((e) => e.type)).toEqual(['epic_merged']);
+  expect(labelsOf(1)).toEqual([]); // running removed, nothing added
+});
+
+test('a final PR closed without merge cancels the epic with the reason and stops its executions', async () => {
+  const engine = await reviewingHung();
+  pull(50, { state: 'closed' });
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelReason: 'el PR final #50 se cerró sin merge', finishedAt: 10 * MIN });
+  expect(runner.stopped).toHaveLength(1);
+  expect(labelsOf(1)).toEqual([]);
+});
+
+test('a closed epic issue cancels the epic even before it has a final PR', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', prNumber: null });
+
+  github.issue('AshuLab/a', 1).state = 'closed';
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelReason: 'el issue de la épica se cerró sin merge', finishedAt: 10 * MIN });
+  expect(runner.stopped).toHaveLength(1);
+  expect(labelsOf(1)).toEqual([]);
+});
+
+test('a merged slice PR or a closed slice issue during ship never ends the epic', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+
+  pull(60, { state: 'merged', body: 'Slice\n\nCloses #9' }, 9);
+  github.issue('AshuLab/a', 9).state = 'closed';
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', finishedAt: null });
+  expect(runner.stopped).toEqual([]);
+  expect(labelsOf(1)).toEqual(['solve:epic:running']);
+});
+
+test('an epic that ends from outside frees its slot and the other epics keep going in the same cycle', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2, 3) };
+  pull(50);
+  pull(51, {}, 2);
+  runner.behavior = (task) => (task.stage === 'ship' && task.epic < 3 ? { write: completed(task, { number: 49 + task.epic, headSha: SHA }) } : { exit: 'hang' });
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.filter((t) => t.stage === 'review')).toHaveLength(2));
+  expect(byStatus(engine.db, 'running')).toEqual([1, 2]);
+
+  pull(50, { state: 'merged' });
+  await clock.advance(5 * MIN);
+  expect(byStatus(engine.db, 'merged')).toEqual([1]);
+  expect(byStatus(engine.db, 'running')).toEqual([2, 3]);
+  expect(runner.stopped).toEqual([runner.tasks.find((t) => t.epic === 1 && t.stage === 'review')!.executionId]);
+});
+
+test('a review result still waiting for GitHub is not imported once the epic was merged', async () => {
+  const getPullRequest = github.getPullRequest.bind(github);
+  const engine = await reviewing((task) => {
+    github.getPullRequest = async () => {
+      throw new GitHubUnavailable();
+    };
+    return { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } }) };
+  });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review' });
+
+  github.getPullRequest = getPullRequest;
+  pull(50, { state: 'merged' });
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'merged', reviewedSha: null, needsHumanReason: null });
+  expect(engine.db.select().from(callerResults).all().map((r) => r.outcome)).toEqual(['completed']); // only ship's
 });

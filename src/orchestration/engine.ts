@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
-import type { AgentExit, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
+import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { parseCallerResult, type CallerResult } from '../execution/caller-result.ts';
 import { importResult } from '../execution/import-result.ts';
 import type { Workspaces } from '../execution/workspaces.ts';
@@ -13,6 +13,7 @@ import { epicEvents } from '../storage/events.ts';
 import { executions, type executionStates } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
+import { endOf } from './final-pr.ts';
 import { GitHubUnavailable, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub } from './github.ts';
 import { reserve } from './reserve.ts';
 import { failureStreak } from './retry.ts';
@@ -52,6 +53,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   let error: GitHubUnavailable | null = null;
   let cancel: (() => void) | null = null;
   const labelledRepos = new Set<string>();
+  // Runs of this process still going, to stop them when the epic ends from outside.
+  const active = new Map<string, AgentRun>();
 
   // Creates the owned labels a repo lacks; never touches existing ones nor creates `ready`.
   async function ensureLabels() {
@@ -70,7 +73,9 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         ? { add: [needsHumanLabel], remove: [runningLabel] }
         : status === 'ready_for_test'
           ? { add: [readyForTestLabel], remove: [runningLabel] }
-          : { add: [runningLabel], remove: [readyLabel] };
+          : status === 'merged' || status === 'cancelled'
+            ? { add: [], remove: [runningLabel] } // stopped from outside: no other label
+            : { add: [runningLabel], remove: [readyLabel] };
     await github.setLabels(repo, issue, change);
     db.update(epics).set({ labelPending: false }).where(eq(epics.id, id)).run();
   };
@@ -130,9 +135,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     };
     db.insert(executions).values({ executionId, epicId: epic.id, stage, resultPath, startedAt: clock.now() }).run();
     const run = runner.run(task);
+    active.set(executionId, run);
     run.onSession((sessionId) => db.update(executions).set({ sessionId }).where(eq(executions.executionId, executionId)).run());
     track(
       run.done.then(async ({ exit, sessionId }) => {
+        active.delete(executionId);
         db.update(executions)
           .set({
             status: executionStatus[exit],
@@ -241,6 +248,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // Imports the result of a finished execution and moves the epic. Safe to repeat: the import is idempotent.
   async function settle(execution: Execution) {
     const epic = fresh(execution.epicId);
+    if (epic.status === 'merged' || epic.status === 'cancelled') return; // ended from outside: nothing new moves
     const expected = { executionId: execution.executionId, repo: epic.repo, epic: epic.issue, stage: execution.stage };
     let raw: string | null = null;
     try {
@@ -279,6 +287,22 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     await fillSlots();
   }
 
+  // The final PR was merged or the epic issue / final PR closed without merge: the epic stops and its
+  // executions too. Sessions and history stay; the label follows (labelPending) and the slot is free.
+  async function stopEnded() {
+    for (const epic of db.select().from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
+      const end = await endOf(github, epic);
+      if (!end) continue;
+      db.update(epics)
+        .set({ status: end.status, ...(end.status === 'cancelled' && { cancelReason: end.reason }), finishedAt: clock.now(), labelPending: true })
+        .where(eq(epics.id, epic.id))
+        .run();
+      db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: `epic_${end.status}`, data: { reason: end.reason } }).run();
+      const running = db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all();
+      await Promise.all(running.map(({ executionId }) => active.get(executionId)?.stop()));
+    }
+  }
+
   // Finished executions whose result could not be imported yet (GitHub was down).
   async function settlePending() {
     const pending = db
@@ -296,7 +320,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     const pending = db
       .select()
       .from(epics)
-      .where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), eq(epics.labelPending, true)))
+      .where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test', 'merged', 'cancelled']), eq(epics.labelPending, true)))
       .orderBy(asc(epics.id))
       .all();
     for (const epic of pending) await begin(epic);
@@ -308,7 +332,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       const epic = reserve(db, { maxConcurrent: maxConcurrentEpics, now: clock.now(), repos });
       if (!epic) return;
       const cancelWith = (cancelReason: string) =>
-        db.update(epics).set({ status: 'cancelled', cancelReason, finishedAt: clock.now() }).where(eq(epics.id, epic.id)).run();
+        db.update(epics).set({ status: 'cancelled', cancelReason, finishedAt: clock.now(), labelPending: false }).where(eq(epics.id, epic.id)).run();
       let issue;
       try {
         issue = await github.getIssue(epic.repo, epic.issue);
@@ -336,6 +360,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       db.transaction((tx) => {
         for (const epic of found) tx.insert(epics).values({ ...epic, queuedAt }).onConflictDoNothing().run();
       });
+      await stopEnded();
       await settlePending();
       await retryPending();
       await reconcileLabels();

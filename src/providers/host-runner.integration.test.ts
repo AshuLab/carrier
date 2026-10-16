@@ -4,15 +4,18 @@ import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { AgentRun, AgentTask } from '../execution/agent-runner.ts';
+import { buildPrompt } from '../prompts/build-prompt.ts';
 import { buildClaudeCommand, claudeAdapter } from './claude.ts';
+import { buildCodexCommand, codexAdapter } from './codex.ts';
 import { HostAgentRunner } from './host-runner.ts';
 
 const fakeBinary = join(import.meta.dirname, 'fake-claude.fixture.mjs');
+const fakeCodex = join(import.meta.dirname, 'fake-codex.fixture.mjs');
 const holder = join(import.meta.dirname, 'orphan-holder.fixture.ts');
 let dir: string;
 const tokens: Record<string, string> = { 'author-bot': 'ghs_AUTHOR_TOKEN', 'reviewer-bot': 'ghs_REVIEWER_TOKEN' };
 const runner = new HostAgentRunner({
-  binaries: { claude: fakeBinary },
+  binaries: { claude: fakeBinary, codex: fakeCodex },
   graceMs: 1000,
   credentials: async (task) => ({
     githubToken: tokens[task.profile] ?? '',
@@ -50,6 +53,7 @@ const observe = (run: AgentRun) => {
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'carrier-runner-'));
   chmodSync(fakeBinary, 0o755);
+  chmodSync(fakeCodex, 0o755);
 });
 afterAll(async () => {
   for (const id of await runner.listActive()) await runner.stop(id);
@@ -114,10 +118,14 @@ describe('host runner with a fake claude binary', () => {
     expect(seen.output).toContain('Agent not found: x');
   });
 
-  test('listActive sees an execution orphaned by kill -9 of its carrier, and stop(id) ends it', async () => {
-    const workspace = join(dir, 'orphan');
+  test.each([
+    ['claude', fakeBinary],
+    ['codex', fakeCodex],
+  ] as const)('listActive sees a %s execution orphaned by kill -9 of its carrier, and stop(id) ends it', async (provider, binary) => {
+    const id = `orphan-${provider}`;
+    const workspace = join(dir, id);
     mkdirSync(workspace);
-    const carrier = spawn(process.execPath, [holder, fakeBinary, workspace], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const carrier = spawn(process.execPath, [holder, binary, workspace, provider], { stdio: ['ignore', 'pipe', 'inherit'] });
     await new Promise<void>((resolve, reject) => {
       carrier.stdout.on('data', (d: Buffer) => d.toString().includes('ready') && resolve());
       carrier.on('exit', () => reject(new Error('holder exited before ready')));
@@ -125,9 +133,70 @@ describe('host runner with a fake claude binary', () => {
     carrier.kill('SIGKILL');
     await new Promise((r) => carrier.on('exit', r));
     // A new carrier process: no handle, only what the OS shows.
-    expect(await runner.listActive()).toContain('orphan-1');
-    await runner.stop('orphan-1');
-    expect(await runner.listActive()).not.toContain('orphan-1');
+    expect(await runner.listActive()).toContain(id);
+    await runner.stop(id);
+    expect(await runner.listActive()).not.toContain(id);
+  });
+});
+
+describe('host runner with a fake codex binary', () => {
+  const codexTask = (name: string, over: Partial<AgentTask> = {}) => taskIn(name, { provider: 'codex', ...over });
+
+  test('reports the thread as session while running, the output, and resumes by id', async () => {
+    const run = runner.run(codexTask('codex-basic'));
+    const seen = observe(run);
+    const { exit, sessionId } = await run.done;
+    expect(exit).toBe('ok');
+    expect(seen.sessions).toEqual([sessionId]);
+    expect(seen.output).toContain('"type":"thread.started"');
+
+    const again = runner.run(codexTask('codex-resume', { resumeSession: sessionId }));
+    const seenAgain = observe(again);
+    expect(await again.done).toEqual({ exit: 'ok', sessionId });
+    expect(seenAgain.sessions).toEqual([sessionId]);
+  });
+
+  test('a nonzero exit is failed', async () => {
+    expect((await runner.run(codexTask('codex-fail', { model: 'fail' })).done).exit).toBe('failed');
+  });
+
+  test('the GitHub token reaches the child env only, not argv or output', async () => {
+    const task = codexTask('codex-env', { model: 'env' });
+    const run = runner.run(task);
+    const seen = observe(run);
+    expect((await run.done).exit).toBe('ok');
+    const env = JSON.parse(readFileSync(join(task.workspace, 'env.json'), 'utf8'));
+    expect(env).toMatchObject({ GH_TOKEN: tokens['author-bot'], GITHUB_TOKEN: tokens['author-bot'], GIT_AUTHOR_NAME: 'author-bot[bot]' });
+    expect(JSON.stringify(env.args)).not.toContain('ghs_');
+    expect(seen.output).not.toMatch(/ghs_/);
+  });
+
+  test('stop() ends the agent', async () => {
+    const run = runner.run(codexTask('codex-stop', { model: 'hang' }));
+    const seen = observe(run);
+    await expect.poll(() => seen.sessions.length).toBe(1);
+    const pid = Number(seen.sessions[0]!.replace('session-', ''));
+    expect(await runner.listActive()).toContain('it-codex-stop');
+    await run.stop();
+    expect(await run.done).toMatchObject({ exit: 'stopped' });
+    expect(() => process.kill(pid, 0)).toThrow();
+    expect(await runner.listActive()).not.toContain('it-codex-stop');
+  });
+
+  test('timeoutMs gives timed_out', async () => {
+    const run = runner.run(codexTask('codex-timeout', { model: 'hang', timeoutMs: 500 }));
+    const started = Date.now();
+    expect(await run.done).toMatchObject({ exit: 'timed_out' });
+    expect(Date.now() - started).toBeLessThan(5000);
+  });
+
+  test('a login error shaped like the real one is auth_failed, a 401 retry that recovers is not', async () => {
+    expect((await runner.run(codexTask('codex-auth', { model: 'auth' })).done).exit).toBe('auth_failed');
+    expect((await runner.run(codexTask('codex-retry', { model: 'retry' })).done).exit).toBe('ok');
+  });
+
+  test('a lost session, reported only on stderr, is session_unavailable', async () => {
+    expect((await runner.run(codexTask('codex-lost', { model: 'lost', resumeSession: 'x' })).done).exit).toBe('session_unavailable');
   });
 });
 
@@ -179,4 +248,86 @@ describe.skipIf(!process.env.CARRIER_TEST_CLAUDE)('real claude CLI (set CARRIER_
     const run = real.run(taskIn('real-lost', { model: 'haiku', workspace: repo, resumeSession: '00000000-0000-4000-8000-000000000000', timeoutMs: 60_000 }));
     expect((await run.done).exit).toBe('session_unavailable');
   });
+});
+
+// Real codex against a throwaway local repo: spends a little of the cheapest model, so it is opt-in.
+describe.skipIf(!process.env.CARRIER_TEST_CODEX)('real codex CLI (set CARRIER_TEST_CODEX=1 to run)', () => {
+  let repo: string;
+  let prompt = '';
+  let codexHome: string | undefined;
+  // The real prompt invokes the ship skill; a tiny one keeps the run cheap. Everything else is the real command.
+  const real = new HostAgentRunner({
+    adapters: {
+      codex: {
+        ...codexAdapter,
+        command: (task, ctx) => {
+          const c = buildCodexCommand(task, ctx);
+          c.args[c.args.indexOf(buildPrompt(task))] = prompt;
+          c.args.push('-c', 'model_reasoning_effort="low"');
+          if (codexHome) c.env.CODEX_HOME = codexHome;
+          return c;
+        },
+      },
+    },
+    credentials: async () => ({ githubToken: 'ghs_NOT_A_REAL_TOKEN' }),
+  });
+  const sessionIds: string[] = [];
+
+  beforeAll(() => {
+    repo = join(dir, 'real-codex-repo');
+    mkdirSync(repo);
+    execFileSync('git', ['init', '-q'], { cwd: repo });
+    execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: repo });
+  });
+  afterAll(() => {
+    // Rollouts this test created are named after their thread id.
+    const sessions = join(process.env.CODEX_HOME ?? join(homedir(), '.codex'), 'sessions');
+    for (const id of sessionIds) execFileSync('find', [sessions, '-name', `rollout-*-${id}.jsonl`, '-delete']);
+  });
+
+  const codexModel = 'gpt-5.6-luna';
+  const base = () => ({ provider: 'codex' as const, model: codexModel, workspace: repo, timeoutMs: 180_000 });
+
+  test('runs headless, reports the session while running, writes outside the workspace, then resumes and remembers', async () => {
+    const codeword = `TANGERINE-${Math.floor(Math.random() * 1e6)}`;
+    const first = taskIn('codex-real-1', base());
+    prompt = `Remember the codeword ${codeword}. Write the text OK to the file ${first.resultPath} (create its folder if needed), then reply only OK.`;
+    const run = real.run(first);
+    const seen = observe(run);
+    const { exit, sessionId } = await run.done;
+    sessionIds.push(sessionId!);
+    expect(exit).toBe('ok');
+    expect(seen.sessions).toEqual([sessionId]);
+    expect(seen.output).toContain('"type":"turn.completed"');
+    expect(readFileSync(first.resultPath, 'utf8')).toContain('OK');
+
+    prompt = 'What was the codeword? Reply with only the codeword.';
+    const second = real.run(taskIn('codex-real-2', { ...base(), resumeSession: sessionId }));
+    const again = observe(second);
+    expect((await second.done).exit).toBe('ok');
+    expect(again.sessions).toEqual([sessionId]);
+    expect(again.output).toContain(codeword);
+  }, 400_000);
+
+  test('a resume of a thread that does not exist is session_unavailable', async () => {
+    prompt = 'hi';
+    const run = real.run(taskIn('codex-real-lost', { ...base(), resumeSession: '00000000-0000-4000-8000-000000000000', timeoutMs: 60_000 }));
+    expect((await run.done).exit).toBe('session_unavailable');
+  });
+
+  test('a CODEX_HOME without login is auth_failed', async () => {
+    codexHome = mkdtempSync(join(tmpdir(), 'carrier-codex-home-'));
+    prompt = 'hi';
+    try {
+      const run = real.run(taskIn('codex-real-auth', { ...base(), timeoutMs: 150_000 }));
+      const seen = observe(run);
+      const { exit, sessionId } = await run.done;
+      if (sessionId) sessionIds.push(sessionId);
+      expect(exit).toBe('auth_failed');
+      expect(seen.output).not.toContain('ghs_');
+    } finally {
+      rmSync(codexHome, { recursive: true, force: true });
+      codexHome = undefined;
+    }
+  }, 200_000);
 });

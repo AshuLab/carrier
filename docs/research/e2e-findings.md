@@ -1,58 +1,58 @@
-# Integración end-to-end con el repo de prueba (slice #33)
+# End-to-end integration with the test repo (slice #33)
 
-Fecha: 16/10/2026. Entorno: macOS, Node 26.12.0, pnpm, `agent-forge`, Claude Code (`~/.local/bin/claude`), Codex CLI, `gh` con login de Diego (solo para sembrar y contar). Repo de prueba: `AshuLab/carrier-sandbox` ([sandbox-repo.md](sandbox-repo.md)).
+Date: 2026-10-16. Environment: macOS, Node 26.12.0, pnpm, `agent-forge`, Claude Code (`~/.local/bin/claude`), Codex CLI, `gh` logged in as Diego (only to seed and count). Test repo: `AshuLab/carrier-sandbox` ([sandbox-repo.md](sandbox-repo.md)).
 
-Resultado: los cinco escenarios de la Definition of done corrieron con Carrier (el CLI, como proceso), Claude, Codex, Forge y Solve reales. Se encontraron y arreglaron **dos bugs reales** de Carrier, más varios del arnés; queda un riesgo abierto menor (§4). La evidencia de cada escenario salió de corridas distintas, porque la primera pasada se cortó por un error del arnés y por el primer bug (§3); ver la trazabilidad en §2. No hay desvíos respecto de la spec.
+Result: the five scenarios in the Definition of done ran with the real Carrier (the CLI, as a process), Claude, Codex, Forge and Solve. **Two real Carrier bugs** were found and fixed, plus several harness ones; one minor risk remains open (§4). The evidence for each scenario came from different runs, because the first pass was cut short by a harness error and by the first bug (§3); see the traceability in §2. There are no deviations from the spec.
 
-## 1. Montaje
+## 1. Setup
 
-Código: `src/e2e/harness.ts` y `src/e2e/carrier.integration.test.ts`. Corre con `pnpm test:integration` y **se saltea sola** si faltan las variables, así que no corre en `pnpm test`. Tarda minutos por escenario y gasta plata.
+Code: `src/e2e/harness.ts` and `src/e2e/carrier.integration.test.ts`. It runs with `pnpm test:integration` and **skips itself** if the variables are missing, so it does not run in `pnpm test`. It takes minutes per scenario and costs money.
 
-| Variable | Valor usado | Para qué |
+| Variable | Value used | Purpose |
 | --- | --- | --- |
-| `CARRIER_E2E_REPO` | `AshuLab/carrier-sandbox` | repo descartable; el nombre debe terminar en `sandbox` (el arnés lo rechaza si no) |
-| `CARRIER_E2E_AUTHOR_AGENT` | `artanis-agent` | agente de Forge del autor (también el orquestador) |
-| `CARRIER_E2E_REVIEWER_AGENT` | `tassadar-agent` | agente de Forge del reviewer; tiene que ser otro |
-| `CARRIER_E2E_AUTHOR` | `claude:sonnet` (default) | `<claude\|codex>:<modelo>` |
-| `CARRIER_E2E_REVIEWER` | `codex:gpt-5.6-luna` (default) | idem |
-| `CARRIER_E2E_SCENARIOS` | `a,b,c,d,e` (default) | cuáles escenarios correr |
-| `CARRIER_E2E_SKILLS_DIR` | sin usar | copia `code-review` y `code-post` a `.agents/skills` del sandbox; ya están en su `main` |
-| `CARRIER_E2E_KEEP` | opcional | no borrar la raíz temporal al terminar |
+| `CARRIER_E2E_REPO` | `AshuLab/carrier-sandbox` | disposable repo; the name must end in `sandbox` (the harness rejects it otherwise) |
+| `CARRIER_E2E_AUTHOR_AGENT` | `artanis-agent` | the author's Forge agent (also the orchestrator) |
+| `CARRIER_E2E_REVIEWER_AGENT` | `tassadar-agent` | the reviewer's Forge agent; it has to be a different one |
+| `CARRIER_E2E_AUTHOR` | `claude:sonnet` (default) | `<claude\|codex>:<model>` |
+| `CARRIER_E2E_REVIEWER` | `codex:gpt-5.6-luna` (default) | same |
+| `CARRIER_E2E_SCENARIOS` | `a,b,c,d,e` (default) | which scenarios to run |
+| `CARRIER_E2E_SKILLS_DIR` | unused | copies `code-review` and `code-post` to the sandbox's `.agents/skills`; they are already on its `main` |
+| `CARRIER_E2E_KEEP` | optional | do not delete the temporary root when finished |
 
 ```sh
 CARRIER_E2E_REPO=AshuLab/carrier-sandbox CARRIER_E2E_AUTHOR_AGENT=artanis-agent CARRIER_E2E_REVIEWER_AGENT=tassadar-agent \
   CARRIER_E2E_SCENARIOS=c pnpm test:integration
 ```
 
-Antes de correr: ninguna épica del sandbox con `solve:epic:ready` (el arnés se detiene si hay alguna, porque Carrier la importaría). Perfiles: `author` = Forge `artanis-agent` (Claude `sonnet`), `reviewer` = Forge `tassadar-agent` (Codex `gpt-5.6-luna`). Config generada: `pollIntervalMinutes: 0.2` (12 s, para no esperar 5 min entre consultas), `maxConcurrentEpics: 2`, `maxReviews: 2`, `maxExecutionRetries: 2`, `maxExecutionHours: 1`. El `cwd` de Carrier es una carpeta temporal fuera de cualquier clon, a propósito.
+Before running: no sandbox epic with `solve:epic:ready` (the harness stops if there is one, because Carrier would import it). Profiles: `author` = Forge `artanis-agent` (Claude `sonnet`), `reviewer` = Forge `tassadar-agent` (Codex `gpt-5.6-luna`). Generated config: `pollIntervalMinutes: 0.2` (12 s, to avoid waiting 5 min between polls), `maxConcurrentEpics: 2`, `maxReviews: 2`, `maxExecutionRetries: 2`, `maxExecutionHours: 1`. Carrier's `cwd` is a temporary folder outside any clone, on purpose.
 
-Cada escenario siembra su propia épica (spec comiteada en `main` del sandbox antes de ponerla `ready`, issue de épica, slices con `--parent` y `--blocked-by`), la marca `solve:epic:ready` a mano, arranca `carrier --config` como proceso hijo y cuenta en GitHub **antes y después** con `gh api` (PRs por rama, comentarios de la épica, comentarios y reviews de los PR, commits únicos por SHA de las ramas de la épica). Lee SQLite en modo solo lectura para estados de épica y ejecuciones. Deja `e2e-evidence.log`, `carrier.stdout.log` (el panel) y `carrier.config.json` en la raíz temporal.
+Each scenario seeds its own epic (spec committed to the sandbox's `main` before setting it `ready`, epic issue, slices with `--parent` and `--blocked-by`), marks it `solve:epic:ready` by hand, starts `carrier --config` as a child process and counts on GitHub **before and after** with `gh api` (PRs by branch, epic comments, PR comments and reviews, unique commits by SHA on the epic's branches). It reads SQLite in read-only mode for epic and execution states. It leaves `e2e-evidence.log`, `carrier.stdout.log` (the panel) and `carrier.config.json` in the temporary root.
 
-## 2. Resultados por escenario
+## 2. Results by scenario
 
-Cada fila dice de qué corrida sale. Las raíces temporales (`/var/folders/.../T/carrier-e2e-<id>/`) son descartables; lo que sigue es lo copiado de sus `e2e-evidence.log` y de GitHub.
+Each row says which run it comes from. The temporary roots (`/var/folders/.../T/carrier-e2e-<id>/`) are disposable; what follows is copied from their `e2e-evidence.log` and from GitHub.
 
-### a. Épica de dos slices, `ready` a mano, termina en `ready-for-test`
+### a. Two-slice epic, `ready` by hand, ends in `ready-for-test`
 
-Corridas: la pasada inicial (épica `#21 Reverse x0l7`; su `e2e-evidence.log` ya no existe, queda el rastro en GitHub) y, de nuevo con dos slices, la del escenario c (`#71 Initials nv27`), que además fue cortada con `kill -9`. No se volvió a correr `a` sola por costo: lo que `a` afirma está en el rastro de GitHub de ambas.
+Runs: the initial pass (epic `#21 Reverse x0l7`; its `e2e-evidence.log` no longer exists, the trail remains on GitHub) and, again with two slices, that of scenario c (`#71 Initials nv27`), which was also cut with `kill -9`. `a` was not run alone again because of cost: what `a` asserts is in the GitHub trail of both.
 
-`#71` (eventos del issue, `gh api repos/AshuLab/carrier-sandbox/issues/71/events`):
+`#71` (issue events, `gh api repos/AshuLab/carrier-sandbox/issues/71/events`):
 
 ```
-21:37:55Z labeled   solve:epic:ready            vemec           (a mano)
+21:37:55Z labeled   solve:epic:ready            vemec           (by hand)
 21:38:14Z labeled   solve:epic:running          artanis-agent[bot]
 21:38:19Z unlabeled solve:epic:ready            artanis-agent[bot]
 21:41:55Z labeled   solve:epic:ready-for-test   artanis-agent[bot]
 21:41:57Z unlabeled solve:epic:running          artanis-agent[bot]
 ```
 
-- Etiquetas finales `["solve:epic","solve:epic:ready-for-test"]`; ejecuciones `ship` y `review` terminadas; workspace bajo `<raíz>/worktrees/carrier-sandbox/initials-nv27`.
-- 3 PR: slice 1 (`#74`), slice 2 (`#75`), integración `#76` (`feat/initials-nv27/epic -> main`, borrador, `Closes #71`), uno solo con `Closes #71`. Autor de los PR y de todos los commits: `artanis-agent[bot]`; la review de `#76`: `tassadar-agent`, `COMMENTED`. Perfiles distintos, ninguno es Diego.
-- `#21` (pasada inicial): `#26` integración, borrador, de `artanis-agent`, 2 reviews de `tassadar-agent`; `ready` 20:49:04Z, `ready-for-test` 20:53:43Z (4 min 39 s).
+- Final labels `["solve:epic","solve:epic:ready-for-test"]`; `ship` and `review` executions finished; workspace under `<root>/worktrees/carrier-sandbox/initials-nv27`.
+- 3 PRs: slice 1 (`#74`), slice 2 (`#75`), integration `#76` (`feat/initials-nv27/epic -> main`, draft, `Closes #71`), only one with `Closes #71`. Author of the PRs and of all commits: `artanis-agent[bot]`; the review of `#76`: `tassadar-agent`, `COMMENTED`. Different profiles, neither is Diego.
+- `#21` (initial pass): `#26` integration, draft, by `artanis-agent`, 2 reviews by `tassadar-agent`; `ready` 20:49:04Z, `ready-for-test` 20:53:43Z (4 min 39 s).
 
-### b. Concurrencia 2, dos épicas del mismo repo
+### b. Concurrency 2, two epics of the same repo
 
-Corrida `carrier-e2e-pxhvs7` (`#47 Double lnsx`, `#49 Negate lnsx`, una slice cada una):
+Run `carrier-e2e-pxhvs7` (`#47 Double lnsx`, `#49 Negate lnsx`, one slice each):
 
 ```
 21:08:21Z carrier started pid=15215
@@ -62,11 +62,11 @@ Corrida `carrier-e2e-pxhvs7` (`#47 Double lnsx`, `#49 Negate lnsx`, una slice ca
 21:12:20Z b: files of the integration PRs: #54 ["README.md","double.js","double.test.js"] #53 ["README.md","negate.js","negate.test.js"]
 ```
 
-Dos agentes vivos a la vez (uno por épica), workspaces y carpetas de review separados (`reviews/carrier-sandbox/<épica>`), cada PR de integración toca solo su función, ramas, comentarios y commits propios sin duplicados. El panel muestra `slots 2/2 cola 0` desde 21:08:47Z. Ambas terminaron en unos 4 minutos. El escenario pasó entero.
+Two agents alive at the same time (one per epic), separate workspaces and review folders (`reviews/carrier-sandbox/<epic>`), each integration PR touches only its own function, with its own branches, comments and commits and no duplicates. The panel shows `slots 2/2 cola 0` from 21:08:47Z. Both finished in about 4 minutes. The scenario passed entirely.
 
-### c. `kill -9` en medio de `ship`, reinicio sin duplicados
+### c. `kill -9` in the middle of `ship`, restart without duplicates
 
-Corrida `carrier-e2e-gVWkVE` (`#71 Initials nv27`, dos slices, una sola vez; escenario pasó):
+Run `carrier-e2e-gVWkVE` (`#71 Initials nv27`, two slices, a single time; scenario passed):
 
 ```
 21:39:27Z c: GitHub before kill -9: {"prs":1,"prHeads":["feat/initials-nv27/072-add-initials"],"integrationPrs":[],"epicComments":1,"prComments":0,"reviewComments":0,"reviews":0,"commits":1,"branches":[".../072-add-initials",".../epic"]}
@@ -79,11 +79,11 @@ Corrida `carrier-e2e-gVWkVE` (`#71 Initials nv27`, dos slices, una sola vez; esc
 21:42:05Z c: GitHub after: {"prs":3,"prHeads":[".../072-add-initials",".../073-list-initials-in-the-readme",".../epic"],"integrationPrs":[76],"epicComments":1,"reviews":1,"commits":4,"commitMessages":["Merge pull request #74 ...","Merge pull request #75 ...","docs: list initials in the README","feat: add initials()"]}
 ```
 
-Antes: 1 PR, 1 comentario, 1 commit. Después: 3 PR (2 slices + 1 integración), el mismo único comentario, 4 commits únicos (2 de contenido + 2 merges), 1 review. Cero duplicados por rama, por cuerpo de comentario y por mensaje de commit. La sesión retomada es la misma (`1a5d7943`). El `orchestrator.log` muestra la recuperación: al reiniciar Carrier encontró el agente huérfano (el `claude` seguía vivo tras el `kill -9`), lo detuvo (`[engine] stopping orphan execution`, +1,3 s) y recién después relanzó `ship` en la misma sesión (`recovering epic ... lastStatus interrupted`). Al final no quedó ningún proceso de agente.
+Before: 1 PR, 1 comment, 1 commit. After: 3 PRs (2 slices + 1 integration), the same single comment, 4 unique commits (2 of content + 2 merges), 1 review. Zero duplicates by branch, by comment body and by commit message. The resumed session is the same one (`1a5d7943`). The `orchestrator.log` shows the recovery: on restart Carrier found the orphaned agent (the `claude` was still alive after the `kill -9`), stopped it (`[engine] stopping orphan execution`, +1.3 s) and only then relaunched `ship` in the same session (`recovering epic ... lastStatus interrupted`). In the end no agent process was left.
 
-### d. `kill -9` con el JSON escrito y antes de importar; JSON truncado
+### d. `kill -9` with the JSON written and before importing; truncated JSON
 
-Primera mitad (kill -9 entre el JSON y su importación), observada en las tres corridas. Siempre: JSON en disco, 0 resultados importados, `ship` en `running`, reinicio, 1 importación, `ship` no se relanza:
+First half (kill -9 between the JSON and its import), observed in all three runs. Always: JSON on disk, 0 results imported, `ship` in `running`, restart, 1 import, `ship` is not relaunched:
 
 ```
 pxhvs7  21:14:45Z d: kill -9 with the JSON on disk (1176 bytes) and 0 imported results; ship execution status running
@@ -94,9 +94,9 @@ iWapYE  21:32:42Z d: kill -9 with the JSON on disk (953 bytes) and 0 imported re
         21:32:51Z d: imported 1 time(s); executions [{"stage":"ship","status":"finished"}]
 ```
 
-GitHub antes del reinicio en `iWapYE` (`#67 Clamp eb4m`): `prs 2, epicComments 2, commits 2, reviews 0`; al terminar `prs 2, epicComments 2, commits 2, reviews 1`. Nada duplicado. El `orchestrator.log` registra además `result imported ... "duplicate":false` y, cuando se intenta una segunda vez, `"duplicate":true` (se ignora): la idempotencia por `executionId` funciona.
+GitHub before the restart in `iWapYE` (`#67 Clamp eb4m`): `prs 2, epicComments 2, commits 2, reviews 0`; at the end `prs 2, epicComments 2, commits 2, reviews 1`. Nothing duplicated. The `orchestrator.log` also records `result imported ... "duplicate":false` and, when a second attempt is made, `"duplicate":true` (ignored): idempotency by `executionId` works.
 
-Segunda mitad (JSON del reviewer truncado), corrida `iWapYE`: el arnés cortó el JSON del reviewer a la mitad 38 veces mientras su agente corría, y lo que Carrier encontró al salir el agente fue un archivo de 85 bytes:
+Second half (truncated reviewer JSON), run `iWapYE`: the harness cut the reviewer's JSON in half 38 times while its agent ran, and what Carrier found when the agent exited was an 85-byte file:
 
 ```
 21:36:25Z d: cut the review JSON 38 time(s) while its agent ran; what carrier found: 85 bytes
@@ -107,11 +107,11 @@ Segunda mitad (JSON del reviewer truncado), corrida `iWapYE`: el arnés cortó e
 [warn] [engine] invalid caller result ... "reason":"result is not valid JSON"
 ```
 
-Un JSON truncado es un fallo técnico (`invalid_result`, sin gastar ronda: `round` sigue en 1), se reintenta en la misma sesión (`execution_retried`) y la épica llega a `ready-for-test` con 1 PR de integración y 1 review en GitHub. Esa corrida falló en la última aserción del escenario por un error **del arnés**, no de Carrier: comparaba la sesión del reintento contra la sesión leída cuando la ejecución recién había empezado (Codex todavía no la había informado, `null`). Se corrigió leyéndola de la fila final y se endureció (ahora exige `error = "result is not valid JSON"` y una sesión no nula); los datos de la corrida cumplen la aserción corregida (`01a146a1` en ambas ejecuciones). La corrección no se volvió a correr completa por costo.
+A truncated JSON is a technical failure (`invalid_result`, without spending a round: `round` stays at 1), it is retried in the same session (`execution_retried`) and the epic reaches `ready-for-test` with 1 integration PR and 1 review on GitHub. That run failed on the scenario's last assertion because of a **harness** error, not a Carrier one: it compared the retry's session against the session read when the execution had just started (Codex had not reported it yet, `null`). It was fixed by reading it from the final row and hardened (it now requires `error = "result is not valid JSON"` and a non-null session); the run's data satisfy the corrected assertion (`01a146a1` in both executions). The fix was not run again in full because of cost.
 
-### e. `Ctrl+C` en medio de una ejecución, reinicio retoma la sesión
+### e. `Ctrl+C` in the middle of an execution, restart resumes the session
 
-Corrida `carrier-e2e-myD0QA` (`#63 Square 0wov`, pasó entera):
+Run `carrier-e2e-myD0QA` (`#63 Square 0wov`, passed entirely):
 
 ```
 21:24:25Z e: Ctrl+C (SIGINT) to carrier pid=31503; session 72aa086f-604f-4996-bd1f-c0d96f26aa81 ... 260368 bytes; GitHub before: {"prs":0,...,"commits":0,"branches":[]}
@@ -121,34 +121,34 @@ Corrida `carrier-e2e-myD0QA` (`#63 Square 0wov`, pasó entera):
 21:27:37Z e: GitHub after: {"prs":2,"integrationPrs":[66],"epicComments":1,"reviews":2,"commits":2}
 ```
 
-Salida limpia (código 0), épica sigue `running`/`ship`, ejecución `interrupted`, ningún proceso de agente vivo, la sesión de Claude sobrevivió. El reinicio retomó **la misma** sesión (`72aa086f`) y el archivo de sesión creció (se agregó al mismo historial), 2 PR (slice + integración), sin duplicados. El `Ctrl+C` llegó 8 s después de arrancar `ship`, cuando todavía no había nada en GitHub; la prueba de «sin duplicados con trabajo ya publicado» es la del escenario c.
+Clean exit (code 0), epic still `running`/`ship`, execution `interrupted`, no agent process alive, the Claude session survived. The restart resumed **the same** session (`72aa086f`) and the session file grew (appended to the same history), 2 PRs (slice + integration), no duplicates. The `Ctrl+C` arrived 8 s after `ship` started, when there was still nothing on GitHub; the "no duplicates with already published work" test is the one in scenario c.
 
-## 3. Bugs encontrados y arreglados en este slice
+## 3. Bugs found and fixed in this slice
 
-**1. Git usaba la credencial de la persona, no el token de la ejecución (`0039ad0`).** `GH_TOKEN` lo respeta `gh`, pero `git` por HTTPS pregunta a los credential helpers del usuario (en macOS, el llavero, o sea el login de Diego). Con eso cada push y cada operación de ramas de un bot se haría como la persona. `childEnv` ahora vacía la lista de helpers y agrega uno que responde con el token de la ejecución (leído del entorno cuando git lo pide, el token no queda en el valor) vía `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`, respetando las entradas que el entorno ya tuviera. Verificado en GitHub: los commits de los PR `#74`, `#75`, `#76` tienen autor y committer `artanis-agent[bot]`, y los PR `app/artanis-agent`. Test unitario en `src/providers/claude.test.ts`.
+**1. Git used the person's credential, not the execution's token (`0039ad0`).** `gh` honors `GH_TOKEN`, but `git` over HTTPS asks the user's credential helpers (on macOS, the keychain, i.e. Diego's login). As a result every push and every branch operation by a bot would be made as the person. `childEnv` now empties the helper list and adds one that answers with the execution's token (read from the environment when git asks for it, so the token is not left in the value) via `GIT_CONFIG_COUNT`/`GIT_CONFIG_KEY_n`/`GIT_CONFIG_VALUE_n`, respecting any entries the environment already had. Verified on GitHub: the commits of PRs `#74`, `#75`, `#76` have author and committer `artanis-agent[bot]`, and the PRs are `app/artanis-agent`. Unit test in `src/providers/claude.test.ts`.
 
-**2. Un reviewer Codex escribía su JSON en una ruta con un segmento menos y cada reintento lo repetía (`4d043db`).** En la corrida `pxhvs7` la épica `#55 Clamp lnsx` terminó en `needs-human` (sigue así en el sandbox): el reviewer escribió el JSON en `.../T/orchestrator/results/<id>.json` en lugar de `.../T/carrier-e2e-pxhvs7/orchestrator/results/<id>.json` (se comió el segmento de la raíz), Carrier no lo encontró (`invalid caller result ... "reason":"result file is missing"`) y los tres intentos (`maxExecutionRetries: 2`) repitieron la ruta mal copiada, hasta `se agotaron los reintentos de review (3 intentos)`. Era un bug real, no un fallo del escenario: el comportamiento de Carrier fue el correcto (fallo técnico, reintentos, `needs-human`); la causa era el prompt, que daba una ruta larga para que el modelo la retipee. Arreglo: la ruta también va en la variable de entorno `CARRIER_RESULT_PATH` (en Claude y en Codex) y el prompt manda escribir en `"$CARRIER_RESULT_PATH"` en lugar de retiparla. Con el arreglo, las corridas siguientes (`myD0QA`, `iWapYE`, `gVWkVE`) no repitieron el fallo en el flujo normal. `#55` quedó como estaba por ser evidencia: no es un problema abierto de Carrier.
+**2. A Codex reviewer wrote its JSON to a path with one segment missing and every retry repeated it (`4d043db`).** In run `pxhvs7` epic `#55 Clamp lnsx` ended in `needs-human` (it still is in the sandbox): the reviewer wrote the JSON to `.../T/orchestrator/results/<id>.json` instead of `.../T/carrier-e2e-pxhvs7/orchestrator/results/<id>.json` (it swallowed the root segment), Carrier did not find it (`invalid caller result ... "reason":"result file is missing"`) and the three attempts (`maxExecutionRetries: 2`) repeated the wrongly copied path, until `se agotaron los reintentos de review (3 intentos)`. It was a real bug, not a scenario failure: Carrier's behavior was correct (technical failure, retries, `needs-human`); the cause was the prompt, which gave a long path for the model to retype. Fix: the path is also in the environment variable `CARRIER_RESULT_PATH` (in Claude and in Codex) and the prompt tells it to write to `"$CARRIER_RESULT_PATH"` instead of retyping it. With the fix, the following runs (`myD0QA`, `iWapYE`, `gVWkVE`) did not repeat the failure in the normal flow. `#55` was left as it was, as evidence: it is not an open Carrier problem.
 
-**Arnés** (no son bugs de Carrier): los carriers de un escenario fallido se matan para no dejar el lock tomado al siguiente (`a034932`); el reviewer se corta hasta que su proceso termina y `b` espera a los dos agentes; en `d` el arnés ahora tolera que el agente borre el JSON para reescribirlo (antes `readFileSync` tiraba `ENOENT`; es la causa más probable de que `d` se cortara en `myD0QA`: el reviewer Codex había borrado el archivo, ver su `stderr.log`); la aserción de sesión de `d` (arriba); y sin las variables el cuerpo del `describe` saltado igual se ejecuta al recolectar los tests y tiraba `TypeError`, así que `pnpm test:integration` fallaba sin credenciales en lugar de saltearse (ahora usa un entorno vacío).
+**Harness** (not Carrier bugs): the carriers of a failed scenario are killed so as not to leave the lock held for the next one (`a034932`); the reviewer's JSON is cut until its process ends and `b` waits for both agents; in `d` the harness now tolerates the agent deleting the JSON to rewrite it (before, `readFileSync` threw `ENOENT`; it is the most likely cause of `d` being cut in `myD0QA`: the Codex reviewer had deleted the file, see its `stderr.log`); the session assertion in `d` (above); and without the variables the body of the skipped `describe` still runs when collecting the tests and threw `TypeError`, so `pnpm test:integration` failed without credentials instead of skipping (it now uses an empty environment).
 
-## 4. Abierto o a vigilar
+## 4. Open or to watch
 
-- **Rutas mal retipeadas por Codex, riesgo residual.** Con `CARRIER_RESULT_PATH` el flujo normal anda, pero en `iWapYE`, peleando contra el arnés que le truncaba el archivo, el reviewer escribió dos veces en rutas mal armadas (`.../T/orchestrator/results/...` y `.../gn/orchestrator/results/...`, sin la raíz y sin `T`) antes de acertar. Se absorbe como fallo técnico, pero cada reintento repite el mismo prompt: si el modelo insiste, termina en `needs-human` (el comportamiento previsto). No se tocó el diseño; si en uso real aparece, el reintento podría anteponer al prompt la ruta ya intentada y que falló.
-- **Costo de un reviewer que pelea.** En esa corrida el reviewer gastó 3,5 M de tokens de entrada (contra 0,24 a 0,52 M normales) hasta que su proceso terminó. Es un artefacto del arnés (corta el archivo 38 veces), no de uso real.
-- **Comentarios `Lane 1 worktree`.** Algunas épicas tienen dos comentarios de Solve (`Epic worktree` y `Lane 1 worktree`) con cuerpos distintos: es lo que escribe `ship`, no un duplicado de Carrier (los chequeos comparan cuerpos).
-- **Huérfanos.** Tras `kill -9`, el agente sigue vivo hasta que el reinicio lo detiene (≈1,3 s después de arrancar). Previsto por [ADR 0004](../adr/0004-agentes-en-el-host-con-preferencias-de-la-terminal.md). Con `Ctrl+C` no quedó nada. El arnés mata igual lo que cuelga de la raíz por si Codex orfana su proceso de comando.
-- **Escenario `a` suelto.** No hay un log del arnés para `a`; su evidencia es la de GitHub (§2.a) y la de c.
+- **Paths retyped wrongly by Codex, residual risk.** With `CARRIER_RESULT_PATH` the normal flow works, but in `iWapYE`, fighting the harness that truncated its file, the reviewer wrote twice to badly built paths (`.../T/orchestrator/results/...` and `.../gn/orchestrator/results/...`, without the root and without `T`) before getting it right. It is absorbed as a technical failure, but each retry repeats the same prompt: if the model insists, it ends in `needs-human` (the intended behavior). The design was not touched; if it shows up in real use, the retry could prepend to the prompt the path already tried that failed.
+- **Cost of a reviewer that fights.** In that run the reviewer spent 3.5 M input tokens (versus 0.24 to 0.52 M normally) until its process ended. It is a harness artifact (it cuts the file 38 times), not real use.
+- **`Lane 1 worktree` comments.** Some epics have two Solve comments (`Epic worktree` and `Lane 1 worktree`) with different bodies: that is what `ship` writes, not a Carrier duplicate (the checks compare bodies).
+- **Orphans.** After `kill -9`, the agent stays alive until the restart stops it (≈1.3 s after starting). Anticipated by [ADR 0004](../adr/0004-agents-run-on-host-with-terminal-preferences.md). With `Ctrl+C` nothing was left. The harness kills whatever hangs from the root anyway in case Codex orphans its command process.
+- **Scenario `a` on its own.** There is no harness log for `a`; its evidence is the GitHub one (§2.a) and that of c.
 
-## 5. Costo y tiempo observados
+## 5. Observed cost and time
 
-- Por corrida: `c` 4 min 29 s, `d` 7 min, `e` ≈ 4 min, `b` ≈ 4 min por épica en paralelo; `a` ≈ 4,7 min.
-- `ship` con Sonnet: USD 0,38 a 0,54 por épica (el campo `total_cost_usd` del stream de Claude; la mayor, 2 slices). Un `ship` cortado con `kill -9` cuesta lo que alcanzó a hacer más lo mismo al retomar. Codex no informa USD: 0,24 a 0,52 M tokens de entrada por review normal.
-- Total de lo gastado en este slice: la corrida inicial creó unas 12 épicas (USD 10 a 13 estimados, de la sesión anterior); esta pasada de consolidación sumó 2 épicas más (`d` y `c`, estimado USD 2 a 3). Sin la suite entera.
+- Per run: `c` 4 min 29 s, `d` 7 min, `e` ≈ 4 min, `b` ≈ 4 min per epic in parallel; `a` ≈ 4.7 min.
+- `ship` with Sonnet: USD 0.38 to 0.54 per epic (the `total_cost_usd` field of Claude's stream; the highest, 2 slices). A `ship` cut with `kill -9` costs what it managed to do plus the same again when resumed. Codex does not report USD: 0.24 to 0.52 M input tokens per normal review.
+- Total spent in this slice: the initial run created about 12 epics (USD 10 to 13 estimated, from the previous session); this consolidation pass added 2 more epics (`d` and `c`, estimated USD 2 to 3). Without the entire suite.
 
-## 6. Qué quedó en el sandbox
+## 6. What was left in the sandbox
 
-Todo queda como evidencia, nada borrado ni cerrado, y ninguna épica quedó con `solve:epic:ready`:
+Everything stays as evidence, nothing deleted or closed, and no epic was left with `solve:epic:ready`:
 
-- 14 épicas de Carrier (`#15`, `#21`, `#27`, `#29`, `#35`, `#41`, `#45`, `#47`, `#49`, `#55`, `#59`, `#63`, `#67`, `#71`), sus slices y PR (slices mergeados en la rama de la épica, integración en borrador sin mergear), y las ramas `feat/<feature>/epic`.
-- `#55 Clamp lnsx` en `solve:epic:needs-human` (bug 2); `#15 Reverse r1qe` (primer intento, con su PR de integración cerrado `#20`) y `#45 Square 40vx` (cerrada, un slice abierto) son restos de la primera pasada.
-- `main` con un commit de spec por épica y un `chore: point the solve worktrees at the e2e root` por corrida; el `path` de `docs/agents/solve.md` apunta a la última raíz temporal, ya borrada: el próximo escenario lo reescribe (`Sandbox.prepare`). Para limpiar todo, ver «Reiniciarlo» en [sandbox-repo.md](sandbox-repo.md).
+- 14 Carrier epics (`#15`, `#21`, `#27`, `#29`, `#35`, `#41`, `#45`, `#47`, `#49`, `#55`, `#59`, `#63`, `#67`, `#71`), their slices and PRs (slices merged into the epic branch, draft integration PRs not merged), and the `feat/<feature>/epic` branches.
+- `#55 Clamp lnsx` in `solve:epic:needs-human` (bug 2); `#15 Reverse r1qe` (first attempt, with its integration PR `#20` closed) and `#45 Square 40vx` (closed, one slice open) are leftovers from the first pass.
+- `main` with one spec commit per epic and one `chore: point the solve worktrees at the e2e root` per run; the `path` in `docs/agents/solve.md` points at the last temporary root, already deleted: the next scenario rewrites it (`Sandbox.prepare`). To clean everything up, see "Resetting it" in [sandbox-repo.md](sandbox-repo.md).

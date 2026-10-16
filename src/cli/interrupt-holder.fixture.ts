@@ -3,6 +3,8 @@
 // prints 'ready' once both sessions are saved. Every GitHub write goes to writes.log, after a SIGINT marker.
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { LogLevel } from '@ashulab/universal-logger';
+import { installFileLogging } from '../logging/logger.ts';
 import { FakeAgentRunner, FakeWorkspaces } from '../execution/fake.ts';
 import { createEngine } from '../orchestration/engine.ts';
 import { realClock } from '../orchestration/clock.ts';
@@ -29,6 +31,7 @@ class RecordingGitHub extends FakeGitHub {
   }
 }
 
+installFileLogging(join(orchestratorDir, 'logs', 'orchestrator.log'), LogLevel.INFO); // as main.ts does: the terminal only gets 'ready'
 const lock = acquireLock(orchestratorDir);
 if (!lock.ok) process.exit(1);
 const db = openDatabase(join(orchestratorDir, 'carrier.db'));
@@ -52,6 +55,6 @@ await engine.start();
 const sessions = setInterval(() => {
   if (db.select().from(executions).all().filter((e) => e.sessionId).length === 2) {
     clearInterval(sessions);
-    console.log('ready');
+    process.stdout.write('ready\n');
   }
 }, 10);

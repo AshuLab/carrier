@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { LogLevel } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { resolveRepoConfig } from './resolve.ts';
 
@@ -16,6 +17,7 @@ export const configSchema = z
   .strictObject({
     root: z.string().min(1).transform(expandHome),
     pollIntervalMinutes: z.number().positive(),
+    logLevel: z.enum(LogLevel),
     repos: z
       .array(
         z.strictObject({

@@ -1,6 +1,6 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 
@@ -38,7 +38,7 @@ export function readEnv(env: NodeJS.ProcessEnv = process.env): E2eEnv | null {
     authorAgent,
     reviewerAgent,
     author: providerModel(env.CARRIER_E2E_AUTHOR ?? '', 'claude:sonnet'),
-    reviewer: providerModel(env.CARRIER_E2E_REVIEWER ?? '', 'codex:gpt-6-luna'),
+    reviewer: providerModel(env.CARRIER_E2E_REVIEWER ?? '', 'codex:gpt-5.6-luna'),
     skillsDir: env.CARRIER_E2E_SKILLS_DIR,
     scenarios: (env.CARRIER_E2E_SCENARIOS ?? 'a,b,c,d,e').split(','),
   };
@@ -177,26 +177,32 @@ export class Sandbox {
       reviews += this.api<unknown[]>(`repos/${this.repo}/pulls/${p.number}/reviews?per_page=100`, true).length;
     }
     // Commits of the feature's branches, unique by SHA, as the repo sees them (main excluded).
-    const commits = new Set<string>();
+    const commits = new Map<string, string>();
     const branches = this.api<{ name: string }[]>(`repos/${this.repo}/branches?per_page=100`, true).filter((b) => b.name.startsWith(`feat/${feature}/`));
-    for (const b of branches) for (const sha of this.compareCommits(b.name)) commits.add(sha);
+    for (const b of branches) for (const [sha, message] of this.compareCommits(b.name)) commits.set(sha, message);
     return {
       prs: pulls.length,
       prHeads: pulls.map((p) => p.head.ref).sort(),
       integrationPrs: pulls.filter((p) => /\bcloses #(\d+)/i.exec(p.body ?? '')?.[1] === String(epic)).map((p) => p.number),
       epicComments: epicComments.length,
-      epicCommentBodies: epicComments.map((c) => c.body.slice(0, 60)),
+      epicCommentBodies: epicComments.map((c) => c.body.slice(0, 200)),
       prComments,
       reviewComments,
       reviews,
       commits: commits.size,
+      commitMessages: [...commits.values()].sort(),
       branches: branches.map((b) => b.name).sort(),
     };
   }
 
-  private compareCommits(branch: string): string[] {
-    const { commits } = this.api<{ commits: { sha: string }[] }>(`repos/${this.repo}/compare/main...${encodeURIComponent(branch)}`);
-    return commits.map((c) => c.sha);
+  private compareCommits(branch: string): [string, string][] {
+    const { commits } = this.api<{ commits: { sha: string; commit: { message: string } }[] }>(`repos/${this.repo}/compare/main...${encodeURIComponent(branch)}`);
+    return commits.map((c) => [c.sha, c.commit.message.split('\n')[0]!]);
+  }
+
+  /** Files a PR changes. */
+  prFiles(pr: number): string[] {
+    return this.api<{ filename: string }[]>(`repos/${this.repo}/pulls/${pr}/files?per_page=100`, true).map((f) => f.filename).sort();
   }
 }
 
@@ -347,3 +353,34 @@ export function killMarked() {
 }
 
 export const listDir = (dir: string) => (existsSync(dir) ? readdirSync(dir) : []);
+
+export const resultFile = (root: string, executionId: string) => join(root, 'orchestrator', 'results', `${executionId}.json`);
+
+/** Any process whose command line mentions the run's root: what an agent leaves behind after being stopped (Codex orphans its command process). */
+export function stragglers(root: string): { pid: number; command: string }[] {
+  const out = run('ps', ['-axo', 'pid=,command=']);
+  return out
+    .split('\n')
+    .filter((l) => l.includes(root) && !/\bps -axo\b/.test(l) && !l.includes('vitest'))
+    .map((l) => ({ pid: Number(l.trim().split(/\s+/)[0]), command: l.trim().split(/\s+/).slice(1).join(' ').slice(0, 160) }));
+}
+
+export function killStragglers(root: string) {
+  for (const { pid } of stragglers(root)) {
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch {
+      // already gone
+    }
+  }
+}
+
+/** Where Claude keeps a session, by id; null when it is not there. */
+export function claudeSessionFile(sessionId: string): string | null {
+  const projects = join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), 'projects');
+  for (const dir of listDir(projects)) {
+    const file = join(projects, dir, `${sessionId}.jsonl`);
+    if (existsSync(file)) return file;
+  }
+  return null;
+}

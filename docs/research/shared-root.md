@@ -1,8 +1,8 @@
 # Shared root with Solve (spike #8)
 
-Date: 2026-10-15 (§1 to §5) and 2026-10-16 (§6). Environment: macOS, git 2.54.0 (Apple Git-157), gh 2.102.0, Node 26.12.0, pnpm 12.11.2, Claude Code 2.1.301, `solve` plugin 0.24.0 (the most recent in `~/.claude-ashu-lab/plugins/cache/ashulab/solve/`). §1 to §5 ran in disposable repos inside `mktemp -d` with a local bare remote (no GitHub); §6 ran against the disposable GitHub repo `AshuLab/carrier-sandbox` (see [sandbox-repo.md](sandbox-repo.md)). The temporary directories were deleted at the end.
+Date: 2026-10-15. Environment: macOS, git 2.54.0 (Apple Git-157), gh 2.102.0, Node 26.12.0, pnpm 12.11.2, Claude Code 2.1.301, `solve` plugin 0.24.0 (the most recent in `~/.claude-ashu-lab/plugins/cache/ashulab/solve/`). Everything ran in disposable repos inside `mktemp -d` with a local bare remote (no GitHub). The temporary directories were deleted at the end.
 
-Result: all six criteria have evidence. Criterion 2 (two epics drained by `ship` from a clone in `<root>/repos/<org>/<repo>/`) was closed on 2026-10-16 with real `ship` runs (§6) and **confirms what was read from the sources**; only one detail of the lane order changes (see §6). The spec was updated in this same PR.
+Result: criteria 1 and 3 to 6 have evidence. Criterion 2 (two epics drained by `ship` from a clone in `<root>/repos/<org>/<repo>/`) was read from the sources but not run here. The spec was updated in this same PR.
 
 ## 1. How the root is communicated to Solve
 
@@ -130,81 +130,9 @@ What the [headless spike (#5)](headless-agents.md) already established: `claude 
 
 Therefore a resumed session operates on the same paths **if and only if Carrier launches it with the epic's saved `cwd`**. Condition for the runner: persist in SQLite the real workspace path (and the reviewer's) together with the session id, and use that `cwd` on every `--resume` (and every `codex exec resume`). This matches the condition in the [containers research](agent-containers.md) ("if the `cwd` does not change"). On Solve's side, a restart changes nothing: `ship` rederives the path and reuses the worktree if it is already in `git worktree list` (§1.5).
 
-## 6. Two epics drained by `ship` from a managed clone (criterion 2)
-
-Real run of 2026-10-16 against `AshuLab/carrier-sandbox` (private, disposable; how it was seeded and reset is in [sandbox-repo.md](sandbox-repo.md)). `<root>` is `/var/folders/k_/fjsrsfrd2wg690wbghkg77c80000gn/T/tmp.uVIZdTien0/solve-root` (a `mktemp -d` outside `~/.solve`, so as not to touch real work).
-
-**Setup.** Clone in `<root>/repos/AshuLab/carrier-sandbox` (`gh repo clone`, https remote without a token in `.git/config`). The sandbox's `docs/agents/solve.md` was written by the real `setup` skill (`claude -p "/solve:setup ..." --model sonnet`, with the answers in the prompt): Worktrees **on**, path `<root>/worktrees/<repo>/<feature>/` (absolute, with literal `<repo>` and `<feature>`), base and target `main`, branch type `feat`. Two epics shaped like `to-spec`/`to-tickets` output (`#1 Farewell` and `#2 Shout`, label `solve:epic`, `solve:epic:ready` by hand; each with 2 slices `solve:ticket,solve:refined`, sub-issues of their epic, the second `blocked-by` the first and each with a Definition of done). Their specs (`docs/specs/farewell.md`, `docs/specs/shout.md`) were committed and pushed to `main` before setting `ready`.
-
-**Command** (two processes at once, same clone as cwd, stdin closed, real binary `~/.local/bin/claude`, not the Superset wrapper):
-
-```sh
-cd <root>/repos/AshuLab/carrier-sandbox && ~/.local/bin/claude -p "/solve:ship drain epic #<n> of AshuLab/carrier-sandbox (the repo in the current directory). Worktree this epic. Run unattended: nobody can answer questions, decide from the skill's own rules. Leave the integration PR as a draft and do not merge it." \
-  --model sonnet --permission-mode bypassPermissions --output-format stream-json --verbose --max-budget-usd 4 </dev/null
-```
-
-Identity: the `gh` login (`vemec`), without Forge, as the spike asked.
-
-**Result** (both exited with `exit=0`, `ship` `outcome`: epic drained, draft integration PR):
-
-| | `#1 Farewell` | `#2 Shout` |
-|---|---|---|
-| Duration | 186 s | 169 s |
-| Cost (Sonnet 5.5) | USD 0.51 (18 turns) | USD 0.50 (19 turns) |
-| Epic worktree | `<root>/worktrees/carrier-sandbox/farewell` | `<root>/worktrees/carrier-sandbox/shout` |
-| Lane | `<root>/worktrees/carrier-sandbox/farewell--lane-1` | `<root>/worktrees/carrier-sandbox/shout--lane-1` |
-| Slice PRs (merged with a merge commit) | #8 (slice #3), #10 (slice #4) | #7 (slice #5), #9 (slice #6) |
-| Integration PR (draft, **not merged**) | #12 `feat/farewell/epic` -> `main` | #11 `feat/shout/epic` -> `main` |
-
-The `<repo>` in the path is `carrier-sandbox`, the clone folder's name, without the organization (§1.3 and §4). `<feature>` is the slug of the epic title and was read from the branch `feat/<feature>/epic`. Timings: the epic worktrees appeared ~38 s after start, the slice PRs between 1 min 10 s and 2 min 20 s and the integration PRs at ~2 min 50 s and ~3 min 5 s.
-
-`git worktree list` of the clone at the end (long paths abbreviated with `<root>`):
-
-```
-<root>/repos/AshuLab/carrier-sandbox                          c423756 [main]
-<root>/worktrees/carrier-sandbox/farewell                     4c5302c [feat/farewell/epic]
-<root>/worktrees/carrier-sandbox/farewell--lane-1             4c5302c (detached HEAD)
-<root>/worktrees/carrier-sandbox/shout                        1acb19f [feat/shout/epic]
-<root>/worktrees/carrier-sandbox/shout--lane-1                1acb19f (detached HEAD)
-```
-
-While they ran (at 45 s) each lane was on its slice branch (`feat/farewell/003-add-farewell`, `feat/shout/005-add-shout`): when finished, `ship` **detached** them (*Freeing a lane*) and deleted the slice branches, so the lane ends up "parked" at the epic's SHA. The managed clone did not move: it is still on `main`, at `c423756`, with a clean tree, and never pulled.
-
-**Comments that `ship` leaves on each epic's issue**, one per worktree, with machine, absolute path, branch and base (epic #1; #2 is the same with `shout`):
-
-```
-**Epic worktree**
-- Machine: vemec@mac-studio.lan (Darwin arm64)
-- Path: <root>/worktrees/carrier-sandbox/farewell
-- Branch: feat/farewell/epic
-- Base: main
-
-**Lane 1 worktree**
-- Machine: vemec@mac-studio.lan (Darwin arm64)
-- Path: <root>/worktrees/carrier-sandbox/farewell--lane-1
-- Epic branch: feat/farewell/epic
-- First slice: #3 (feat/farewell/003-add-farewell)
-```
-
-Both integration PRs name the two paths and the `git worktree remove <path>` for each in the body (`Closes #<epic>`, slices, verification, worktrees). `ship` does not close the epic (they remain `OPEN`) nor delete worktrees.
-
-**What a real run confirmed from §1 and §3:**
-
-- **Two drains at once from the same clone do not collide.** Each cut its epic and slice branches in its own namespace and neither pushed `main`. Each `ship` report says it saw the other's drain and did not touch it.
-- **Isolating the epic works with the path from `solve.md`**, and the lanes are siblings `<feature>--lane-1` (§1.4). With Worktrees **on**, `ship` creates the worktree by itself; **off + "worktree this epic" was not tested** (consequence 2 of §1 still has no direct observation; the prompt asked for isolation in both cases).
-- **The committed spec reaches the workspace**: `<root>/worktrees/carrier-sandbox/farewell/docs/specs/farewell.md` (and `shout.md`) exist in the epic worktree and in each lane, because they were on `main` before `ready` (§3). The epic and tickets were read through `gh` from those same trees.
-- **Reuse after relaunching (§1.5).** Slice `#13` was added to the already drained epic `#1` (with the `ready` label set) and the same command was launched again: `ship` reused the epic worktree and the parked lane without creating anything (identical `git worktree list`, same two paths; there were **no** new comments on the issue), built the slice in the lane, merged PR #14 and **updated the body of the existing integration PR #12** instead of opening another. 104 s, USD 0.24.
-- **The README conflict is an integration one, not a drain one.** Both integration PRs show `MERGEABLE` / `CLEAN` against `main`, but `git merge-tree --write-tree --name-only origin/feat/farewell/epic origin/feat/shout/epic` exits with code 1: `CONFLICT (content): Merge conflict in README.md`. Whichever is merged second collides; it is `ship`'s own warning ("the conflict is `land`'s to surface"). Carrier must treat it as an integration blocker, not as a drain failure.
-
-**New things for the runner:**
-
-- Running `pnpm test` in each worktree leaves an untracked `pnpm-lock.yaml` (and `node_modules`, ignored). `ship` deleted the lock without committing it; a reviewer or a Carrier "clean tree" check that runs afterwards must tolerate it or the repo must ignore it.
-- The worktree path lives in the repo's **versioned** `solve.md`, and in the sandbox it ended up absolute and pointing at a temp directory. Deleting the temp directory leaves a `solve.md` with a dead path; the next seeding rewrites it (see [sandbox-repo.md](sandbox-repo.md)). It is consequence 1 of §1 in practice: a root other than `~/.solve/` forces editing and pushing each repo's `solve.md`.
-- Order of magnitude per epic of 2 trivial slices: ~3 min and ~USD 0.5 with Sonnet; the real setup cost USD 0.20 and 31 s. Spike total: ~USD 1.45.
-
 ## What was not observed
 
-- Worktrees `off` with "worktree this epic" (the sandbox was configured `on`; reading `SKILL.md` says it is honored in any mode, but it was not run).
+- Worktrees `off` with "worktree this epic" (the test repo was configured `on`; reading `SKILL.md` says it is honored in any mode, but it was not run).
 - Codex: the resumed session's cwd was taken from what was observed in #5 (`exec resume` uses the process's cwd); the run 3 test was not repeated.
 - A repo with `docs/agents/solve.md` without `<repo>` in the path (the collision `WORKTREES.md` warns about) was not tested.
 

@@ -7,9 +7,9 @@ const placeholderPr = { number: 1, headSha: '0'.repeat(40) };
 const json = (result: CallerResult) => '```json\n' + JSON.stringify(result, null, 2) + '\n```';
 
 export function buildPrompt(task: AgentTask): string {
-  const { executionId, repo, epic, stage, resultPath, provider, context } = task;
+  const { executionId, repo, epic, stage, resultPath, harness, context } = task;
   const { pr = placeholderPr, blockers = [], previousSummaries, verifyStateFirst } = context;
-  const invoke = (skill: string) => `${provider === 'claude' ? '/' : '$'}${skill}`;
+  const invoke = (skill: string) => `${harness === 'codex' ? '$' : '/'}${skill}`; // Claude Code and Antigravity expand /skill, Codex $skill
   const reviewing = stage === 'review';
   const common = { executionId, repo, epic, stage, summary: '<what you did and concluded, in a few lines>' };
 

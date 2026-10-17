@@ -33,12 +33,12 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 ## What's included
 
 - **Setup** — `carrier init` (guided, or all flags) writes the config; `carrier doctor` checks it and the machine; `carrier schema` prints the config's JSON Schema.
-- **Config** — a user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, provider and model; author and reviewer must resolve to different profiles.
+- **Config** — a user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, harness, provider and model; author and reviewer must resolve to different profiles.
 - **Polling and queue** — FIFO across repos with pagination, rate-limit and outage handling; one instance per root folder (an exclusive SQLite lock released by the OS on death).
 - **Scheduler** — atomic reservation, configurable concurrency, label management (`running`, `ready-for-test`, `needs-human` are created in each repo if missing).
 - **Stages** — ship, review and fix loops with a typed caller result (`completed`, `changes_requested`, `needs_human`) imported idempotently in a single transaction.
 - **Failure handling** — execution retries with session resume, per-execution timeouts (or `unlimited`), Forge authentication errors that stop only the affected profile, repos removed from config, and a stop rule when the final PR is merged or the epic is closed.
-- **Agent runners** — real adapters for the Claude and Codex CLIs as child processes (session id, resume, output capture, stop, orphan detection), with per-execution credentials and the bot's git identity.
+- **Agent runners** — real adapters for the Claude, Codex and Antigravity (`agy`) CLIs (cloud models, or local ones from LM Studio or Ollama through Claude and Codex) as child processes (session id, resume, output capture, stop, orphan detection), with per-execution credentials and the bot's git identity.
 - **Workspaces** — managed clones under a shared root, and a separate detached checkout for the reviewer.
 - **Terminal panel** — a dependency-free ANSI panel (slots, queue, per-epic stage, round, blockers, time in stage, last activity, errors); plain lines when there is no TTY.
 - **Logging** — [`@ashulab/universal-logger`](https://github.com/AshuLab/universal-logger) to files, with token redaction, and 30-day retention of logs and sessions.
@@ -70,7 +70,7 @@ carrier/
 │   ├── config/         # config schema, defaults, loading/merging, per-repo resolution
 │   ├── orchestration/  # engine: polling, scheduler, stages, retries, restart, final-PR rules, ports + fakes
 │   ├── execution/      # AgentRunner/Workspaces ports, caller result parsing and idempotent import
-│   ├── providers/      # Claude and Codex runners, credentials, orphan detection
+│   ├── harnesses/      # Claude and Codex runners, credentials, orphan detection
 │   ├── integrations/   # GitHub through Agent Forge (`gh` via execFile)
 │   ├── prompts/        # author and reviewer prompts
 │   ├── storage/        # SQLite schema, migrations, lock, executions, events, retention
@@ -108,7 +108,7 @@ Or run it without installing: `pnpm dlx @ashulab/carrier`. To work on Carrier it
 carrier init
 ```
 
-It looks at the machine (which of `claude`/`codex` are installed, your `gh` login, the agents in your Agent Forge registry), asks for the repos to watch (picked from the repos your `gh` login can push to, grouped by owner), the identity of the author and the reviewer, and the CLI and model each one uses, writes the config to `~/.carrier/config.json` (one global file per user; change it with `--out`) and runs the checks below. Every question has a flag (`carrier init --help`), and `--yes` never asks, so an agent can run it too:
+It looks at the machine (which of `claude`/`codex` are installed, your `gh` login, the agents in your Agent Forge registry), asks for the repos to watch (picked from the repos your `gh` login can push to, grouped by owner), the identity of the author and the reviewer, and the CLI and model each one uses, writes the config to `~/.carrier/config.json` (one global file per user; change it with `--out`) and runs the checks below. Run again on an existing config, it offers to edit it with its answers as the starting points. Before saving it shows a recap to confirm, and when the checks pass it shows how many epics are waiting and offers to start Carrier. If there is no second GitHub identity it can run `agent-forge add` for you on the spot. Every question has a flag (`carrier init --help`), and `--yes` never asks, so an agent can run it too:
 
 ```bash
 carrier init --yes --repo AshuLab/my-repo \
@@ -137,8 +137,8 @@ A JSON file merged over the defaults (objects merge by field, simple values repl
   },
   "orchestratorProfile": "author-bot",
   "agents": {
-    "author": { "profile": "author-bot", "provider": "claude", "model": "<model>" },
-    "reviewer": { "profile": "reviewer-bot", "provider": "codex", "model": "<model>" }
+    "author": { "profile": "author-bot", "harness": "claude", "model": "<model>" },
+    "reviewer": { "profile": "reviewer-bot", "harness": "codex", "model": "<model>" }
   }
 }
 ```

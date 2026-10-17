@@ -10,15 +10,15 @@ export interface AgentCommand {
   env: Record<string, string>;
 }
 
-/** What one stdout line of a provider CLI tells the runner. */
+/** What one stdout line of a harness CLI tells the runner. */
 export interface LineSignal {
   session?: string;
   authFailed?: true;
   sessionUnavailable?: true;
 }
 
-/** The part of the runner that is specific to one provider CLI; Claude and Codex each provide one. */
-export interface ProviderAdapter {
+/** The part of the runner that is specific to one harness CLI; each harness (Claude, Codex, Antigravity) provides one. */
+export interface HarnessAdapter {
   command(task: AgentTask, ctx: CommandContext): AgentCommand;
   parseLine(line: string): LineSignal | undefined;
 }

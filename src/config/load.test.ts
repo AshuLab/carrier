@@ -8,8 +8,8 @@ const valid = {
   profiles: { 'author-bot': { kind: 'forge', agent: 'artanis-agent' }, 'reviewer-bot': { kind: 'gh' } },
   orchestratorProfile: 'author-bot',
   agents: {
-    author: { profile: 'author-bot', provider: 'claude', model: 'm' },
-    reviewer: { profile: 'reviewer-bot', provider: 'codex', model: 'm' },
+    author: { profile: 'author-bot', harness: 'claude', model: 'm' },
+    reviewer: { profile: 'reviewer-bot', harness: 'codex', model: 'm' },
   },
 };
 
@@ -146,5 +146,30 @@ describe('repos', () => {
 
   test('names must be owner/name with plain folder names', () => {
     for (const name of ['demo', '../x', 'a/..', 'a/b/c', '/x']) expect(errorsOf({ repos: [{ name }] }).map((e) => e.path)).toEqual(['repos.0.name']);
+  });
+});
+
+describe('local models', () => {
+  const reviewer = { profile: 'reviewer-bot', harness: 'codex', model: 'google/gemma-4-12b' };
+
+  test('`provider` is optional, per role, and only lmstudio or ollama', () => {
+    expect(load({ agents: { ...valid.agents, reviewer: { ...reviewer, provider: 'lmstudio' } } })).toMatchObject({ ok: true, config: { agents: { reviewer: { provider: 'lmstudio' } } } });
+    expect(load({})).toMatchObject({ ok: true }); // no local anywhere
+    expect(errorsOf({ agents: { ...valid.agents, reviewer: { ...reviewer, provider: 'vllm' } } }).map((e) => e.path)).toEqual(['agents.reviewer.provider']);
+  });
+
+  test('a repo can override it', () => {
+    const result = load({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { model: 'qwen3:8b', provider: 'ollama' } } }] });
+    expect(result).toMatchObject({ ok: true, config: { repos: [{ agents: { reviewer: { provider: 'ollama' } } }] } });
+  });
+});
+
+describe('harness and provider', () => {
+  test('agy is a harness, but it cannot use a local provider (globally or through a repo override)', () => {
+    expect(load({ agents: { ...valid.agents, author: { profile: 'author-bot', harness: 'agy', model: 'gemini-3.8-flash-low' } } })).toMatchObject({ ok: true });
+    const agy = { profile: 'author-bot', harness: 'agy', model: 'm', provider: 'ollama' };
+    expect(errorsOf({ agents: { ...valid.agents, author: agy } })).toEqual([{ path: 'agents.author.provider', message: 'agy cannot use the provider "ollama"' }]);
+    const viaRepo = errorsOf({ agents: { ...valid.agents, author: { profile: 'author-bot', harness: 'codex', model: 'm', provider: 'ollama' } }, repos: [{ name: 'AshuLab/carrier', agents: { author: { harness: 'agy' } } }] });
+    expect(viaRepo.map((e) => e.path)).toEqual(['repos.0.agents.author']);
   });
 });

@@ -22,6 +22,10 @@ Solve does not receive Carrier's `root`: it reads where to put worktrees from th
 - The App must be installed on the account or org that owns the repo. Forge picks the installation from the owner of the repo it is run in; Carrier does that for you.
 - Your own `gh` login can be one of the two roles, never both.
 
+## Antigravity (`agy`) as a harness
+
+Only if you use it as the author or the reviewer. It must be installed and logged in, and the Solve skills (`ship`, `code-review`, `code-post`) must be visible to it **globally**, not through a file inside your repo: a `~/.gemini/config/skills.json` with an entry whose `path` is the Solve plugin's `skills/` folder. That setup was only tested at project level (see [the spike](research/antigravity.md)); check it with a throwaway epic first.
+
 ## Safety net
 
 The agents run on your machine with your permissions ([ADR 0004](adr/0004-agents-run-on-host-with-terminal-preferences.md)). Turn on **branch protection** on the repos you point Carrier at: it never merges the final PR, but the agents can push branches.

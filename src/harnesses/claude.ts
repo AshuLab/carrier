@@ -1,6 +1,7 @@
 import { dirname } from 'node:path';
 import { buildPrompt } from '../prompts/build-prompt.ts';
-import { childEnv, markerFor, type AgentCommand, type CommandContext, type LineSignal, type ProviderAdapter } from './common.ts';
+import { claudeLocalEnv } from './local.ts';
+import { childEnv, markerFor, type AgentCommand, type CommandContext, type LineSignal, type HarnessAdapter } from './common.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
 
 /** Headless Claude as in docs/research/headless-agents.md; stdin is closed by the runner. */
@@ -25,7 +26,7 @@ export function buildClaudeCommand(task: AgentTask, ctx: CommandContext): AgentC
       ...(task.resumeSession ? ['--resume', task.resumeSession] : []),
     ],
     cwd: task.workspace,
-    env: { ...childEnv(ctx), CARRIER_RESULT_PATH: task.resultPath },
+    env: { ...childEnv(ctx), ...(task.provider ? claudeLocalEnv(task.provider) : {}), CARRIER_RESULT_PATH: task.resultPath },
   };
 }
 
@@ -48,4 +49,4 @@ export function parseClaudeLine(line: string): LineSignal | undefined {
   return undefined;
 }
 
-export const claudeAdapter: ProviderAdapter = { command: buildClaudeCommand, parseLine: parseClaudeLine };
+export const claudeAdapter: HarnessAdapter = { command: buildClaudeCommand, parseLine: parseClaudeLine };

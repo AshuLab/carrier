@@ -55,6 +55,7 @@ const fakeDeps = (over: Partial<InitDeps> = {}) => {
     listRepos: () => [],
     originRepo: () => 'AshuLab/carrier',
     codexModel: () => 'gpt-test',
+    codexModels: () => [],
     exists: () => false,
     write: (path, content) => (written[path] = content),
     doctor: async () => [okCheck],
@@ -194,4 +195,36 @@ test('when the repos cannot be listed it says so and falls back to typing', asyn
   await runInit({ out }, ui, deps);
   expect(asked.find((a) => a.startsWith('warn:'))).toBe('warn:Could not list your repos (gh: not logged in); type them instead.');
   expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/carrier' }]);
+});
+
+test('the model is picked from what the CLI offers; Codex starts on the model it already runs with', async () => {
+  const { deps, written } = fakeDeps({ codexModels: () => [{ value: 'gpt-a', label: 'gpt-a' }, { value: 'gpt-test', label: 'gpt-test' }] });
+  const { ui, asked } = quietUi();
+  const out = join(dir, 'm.json');
+  await runInit({ repo: ['A/b'], out }, ui, deps);
+  expect(asked).toContain('Model for the author'); // a select, answered by its initial value
+  expect(JSON.parse(written[out]!).agents).toMatchObject({ author: { model: 'sonnet' }, reviewer: { model: 'gpt-test' } });
+});
+
+test('"Other…" in the model list asks for the id', async () => {
+  const { deps, written } = fakeDeps();
+  const { ui } = quietUi({ 'Model for the author': '\0other' });
+  // the text prompt then answers with its default (none for a claude alias list), so give it one
+  const withText: Ui = { ...ui, text: async (o) => (o.message === 'Model for the author' ? 'claude-x-1' : ui.text(o)) };
+  const out = join(dir, 'n.json');
+  await runInit({ repo: ['A/b'], out }, withText, deps);
+  expect(JSON.parse(written[out]!).agents.author.model).toBe('claude-x-1');
+});
+
+test('the default place is the global ~/.carrier/config.json, and the closing line then needs no --config', async () => {
+  const { deps, written } = fakeDeps();
+  const { ui, asked } = quietUi();
+  process.env.CARRIER_HOME = join(dir, 'home');
+  try {
+    await runInit({ repo: ['A/b'] }, ui, deps); // the scripted ui takes the default for "Where to write the config"
+  } finally {
+    delete process.env.CARRIER_HOME;
+  }
+  expect(Object.keys(written)).toEqual([join(dir, 'home', 'config.json')]);
+  expect(asked.at(-1)).toMatch(/^outro:Ready\. Start it with: carrier\n/);
 });

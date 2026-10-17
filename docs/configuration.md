@@ -1,6 +1,6 @@
 # Configuration
 
-`carrier init` writes this file for you; this page is the reference for editing it by hand. `carrier doctor --config <file>` checks it and `carrier schema` prints its JSON Schema (add it to your editor for completion).
+`carrier init` writes this file for you, by default to `~/.carrier/config.json` (global, one per user; `carrier` and `carrier doctor` read it when you do not pass `--config`); this page is the reference for editing it by hand. `carrier doctor --config <file>` checks it and `carrier schema` prints its JSON Schema (add it to your editor for completion).
 
 The file is a JSON object merged over the defaults: objects merge field by field, simple values replace the default, lists replace it whole. A value of the wrong type is an error, never converted. An invalid config prints every error with its field and exits without starting anything.
 
@@ -28,7 +28,7 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `repos` | yes, at least one | | Repos to watch. Each is `{ "name": "owner/name", "agents"?: ... }`. |
 | `profiles` | yes | | The GitHub identities you can use, by name (below). |
 | `orchestratorProfile` | yes | | Profile used to read issues and PRs and to change labels. It may be the author's. |
-| `agents.author` / `agents.reviewer` | yes | | `{ profile, provider, model }` for each role. `provider` is `claude` or `codex`. |
+| `agents.author` / `agents.reviewer` | yes | | `{ profile, provider, model }` for each role. `provider` is `claude` or `codex`. For Claude prefer an alias (`sonnet`, `opus`, ...): the CLI resolves it to the latest model, so it does not go stale. Codex has no aliases: use an id from `codex`'s own list (`carrier init` offers it). |
 | `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |

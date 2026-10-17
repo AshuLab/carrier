@@ -100,7 +100,7 @@ carrier/
 pnpm add -g @ashulab/carrier
 ```
 
-Or run it without installing: `pnpm dlx @ashulab/carrier --config ./carrier.config.json`. To work on Carrier itself, clone the repo and run `pnpm install`.
+Or run it without installing: `pnpm dlx @ashulab/carrier`. To work on Carrier itself, clone the repo and run `pnpm install`.
 
 ### 3. Create the config
 
@@ -108,7 +108,7 @@ Or run it without installing: `pnpm dlx @ashulab/carrier --config ./carrier.conf
 carrier init
 ```
 
-It looks at the machine (which of `claude`/`codex` are installed, your `gh` login, the agents in your Agent Forge registry), asks for the repos to watch (picked from the repos your `gh` login can push to, grouped by owner), the identity of the author and the reviewer, and the CLI and model each one uses, writes `carrier.config.json` and runs the checks below. Every question has a flag (`carrier init --help`), and `--yes` never asks, so an agent can run it too:
+It looks at the machine (which of `claude`/`codex` are installed, your `gh` login, the agents in your Agent Forge registry), asks for the repos to watch (picked from the repos your `gh` login can push to, grouped by owner), the identity of the author and the reviewer, and the CLI and model each one uses, writes the config to `~/.carrier/config.json` (one global file per user; change it with `--out`) and runs the checks below. Every question has a flag (`carrier init --help`), and `--yes` never asks, so an agent can run it too:
 
 ```bash
 carrier init --yes --repo AshuLab/my-repo \
@@ -119,7 +119,7 @@ carrier init --yes --repo AshuLab/my-repo \
 Check a config (yours or a hand-written one) at any time:
 
 ```bash
-carrier doctor --config ./carrier.config.json
+carrier doctor
 ```
 
 It verifies the tools are installed, that the author and the reviewer really are different identities, that each identity can get a token for each repo, and that the orchestrator can read it. `carrier schema` prints the JSON Schema of the config for your editor.
@@ -148,10 +148,10 @@ Defaults: `root` `~/.solve`, `pollIntervalMinutes` 5, `logLevel` `info`, and `li
 ### 4. Run it
 
 ```bash
-carrier --config ./carrier.config.json
+carrier
 ```
 
-It runs until `Ctrl+C`. Only one instance can run per root folder. From a clone, run `pnpm build` and then `node dist/cli/main.js --config ./carrier.config.json`, or `node src/cli/main.ts --config ...` (Node 26 runs the TypeScript directly).
+`carrier` reads `~/.carrier/config.json`; pass `--config <path>` to use another file. It runs until `Ctrl+C`. Only one instance can run per root folder. From a clone, run `pnpm build` and then `node dist/cli/main.js`, or `node src/cli/main.ts --config ...` (Node 26 runs the TypeScript directly).
 
 Mark an epic `solve:epic:ready` in a configured repo and watch the panel.
 

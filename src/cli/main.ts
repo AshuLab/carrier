@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { createScopedLogger } from '@ashulab/universal-logger';
+import { defaultConfigPath } from '../config/default-path.ts';
 import { defaults, loadConfig } from '../config/load.ts';
 import { userConfigJsonSchema } from '../config/json-schema.ts';
 import { InstanceBusy, startCarrier } from './compose.ts';
@@ -18,11 +19,13 @@ const usage = `Usage: carrier --config <path>          run the orchestrator
        carrier doctor --config <path>    check the config and what this machine needs
        carrier schema                    print the JSON Schema of the config
 
+--config defaults to ${defaultConfigPath()} (where init writes it) when that file exists.
+
 init flags (each one skips its question; --yes never asks):
   --repo <owner/name>            repeat for several repos
   --author-profile <forge:<agent>|gh>   --reviewer-profile <forge:<agent>|gh>
   --author <claude|codex>:<model>       --reviewer <claude|codex>:<model>
-  --out <path>                   default ./carrier.config.json
+  --out <path>                   default is the --config default above
   --yes                          no questions; overwrite the output file`;
 
 function parse() {
@@ -66,6 +69,9 @@ function loadFile(path: string) {
   return result.ok ? result.config : fail(1);
 }
 
+// The explicit flag wins; otherwise the global file `carrier init` writes, if it is there.
+const configPath = typeof values.config === 'string' ? values.config : existsSync(defaultConfigPath()) ? defaultConfigPath() : undefined;
+
 if (command === 'schema') {
   process.stdout.write(`${JSON.stringify(userConfigJsonSchema(), null, 2)}\n`);
 } else if (command === 'init') {
@@ -86,8 +92,8 @@ if (command === 'schema') {
     fail(1, error instanceof Error ? error.message : String(error));
   }
 } else if (command === 'doctor') {
-  if (typeof values.config !== 'string') fail(2, 'Usage: carrier doctor --config <path>');
-  const config = loadFile(String(values.config));
+  if (configPath === undefined) fail(2, 'Usage: carrier doctor --config <path>', `No config at ${defaultConfigPath()}: run "carrier init" to create one.`);
+  const config = loadFile(String(configPath));
   const { runDoctor } = await import('../doctor/doctor.ts');
   const { printCheck } = await import('../init/clack-ui.ts');
   const checks = await runDoctor(config, {}, printCheck);
@@ -95,8 +101,8 @@ if (command === 'schema') {
   process.stdout.write(failed > 0 ? `\n${failed} of ${checks.length} checks failed\n` : `\nAll ${checks.length} checks passed\n`);
   process.exit(failed > 0 ? 1 : 0);
 } else {
-  if (typeof values.config !== 'string') fail(2, usage);
-  const config = loadFile(String(values.config));
+  if (configPath === undefined) fail(2, usage, '', `No config at ${defaultConfigPath()}: run "carrier init" to create one.`);
+  const config = loadFile(String(configPath));
   try {
     await startCarrier(config); // runs until Ctrl+C
   } catch (error) {

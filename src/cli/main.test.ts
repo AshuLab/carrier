@@ -22,7 +22,9 @@ const valid = {
 };
 
 // Runs from another working directory on purpose: nothing may depend on cwd.
-const run = (...args: string[]) => spawnSync(process.execPath, [main, ...args], { cwd: dir, encoding: 'utf8' });
+// CARRIER_HOME keeps the tests away from the real ~/.carrier.
+const home = join(dir, 'carrier-home');
+const run = (...args: string[]) => spawnSync(process.execPath, [main, ...args], { cwd: dir, encoding: 'utf8', env: { ...process.env, CARRIER_HOME: home } });
 const write = (name: string, content: unknown) => {
   const file = join(dir, name);
   writeFileSync(file, JSON.stringify(content));
@@ -134,4 +136,13 @@ test('doctor refuses an invalid config like the run command does', () => {
   expect(result.status).toBe(1);
   expect(result.stderr).toContain('orchestratorProfile');
   expect(run('doctor').stderr).toContain('Usage: carrier doctor --config');
+});
+
+test('without --config the global file is used when it exists, and init is suggested when it does not', () => {
+  const missing = run('doctor');
+  expect([missing.status, missing.stderr]).toEqual([2, expect.stringContaining(`No config at ${join(home, 'config.json')}: run "carrier init"`)]);
+  mkdirSync(home);
+  writeFileSync(join(home, 'config.json'), JSON.stringify({ ...valid, orchestratorProfile: 'x' }));
+  const found = run('doctor');
+  expect([found.status, found.stderr]).toEqual([1, expect.stringContaining(`Invalid config ${join(home, 'config.json')}`)]);
 });

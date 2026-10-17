@@ -1,8 +1,9 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { styleText } from 'node:util';
+import { defaultConfigPath } from '../config/default-path.ts';
 import { defaults, loadConfig } from '../config/load.ts';
 import { repoNamePattern } from '../config/schema.ts';
 import { runDoctor, type Check } from '../doctor/doctor.ts';
@@ -34,6 +35,8 @@ export interface InitDeps {
   listRepos: () => string[];
   originRepo: () => string | undefined;
   codexModel: () => string | undefined;
+  /** The models Codex itself lists as available (its local cache); empty when it has none. */
+  codexModels: () => Option<string>[];
   exists: (path: string) => boolean;
   write: (path: string, content: string) => void;
   doctor: typeof runDoctor;
@@ -69,12 +72,29 @@ export const realDeps: InitDeps = {
       return undefined;
     }
   },
+  codexModels: () => {
+    try {
+      const cache = JSON.parse(readFileSync(join(process.env.CODEX_HOME ?? join(homedir(), '.codex'), 'models_cache.json'), 'utf8')) as { models?: { slug?: string; description?: string; visibility?: string }[] };
+      return (cache.models ?? []).flatMap((m) => (m.visibility === 'list' && m.slug ? [{ value: m.slug, label: m.slug, hint: m.description }] : []));
+    } catch {
+      return []; // no cache yet: the model is typed
+    }
+  },
   exists: existsSync,
-  write: (path, content) => writeFileSync(path, content),
+  write: (path, content) => {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, content);
+  },
   doctor: runDoctor,
 };
 
-const claudeDefaultModel = 'sonnet';
+// Aliases the Claude CLI resolves to the latest model of each family, so they do not go stale like a model id does.
+const claudeModels: Option<string>[] = [
+  { value: 'sonnet', label: 'sonnet', hint: 'latest Sonnet' },
+  { value: 'opus', label: 'opus', hint: 'latest Opus' },
+  { value: 'fable', label: 'fable', hint: 'latest Fable' },
+];
+const otherModel = '\0other';
 
 export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDeps) {
   ui.intro('Carrier setup');
@@ -108,17 +128,19 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   const loaded = loadConfig(defaults, user);
   if (!loaded.ok) throw new Error(`the answers do not make a valid config:\n${loaded.errors.map((e) => `  ${e.path}: ${e.message}`).join('\n')}`);
 
-  const out = resolve(flags.out ?? (await ui.text({ message: 'Where to write the config', defaultValue: 'carrier.config.json', placeholder: 'carrier.config.json' })) ?? 'carrier.config.json');
+  const fallback = defaultConfigPath();
+  const out = resolve(flags.out ?? (await ui.text({ message: 'Where to write the config', defaultValue: fallback, placeholder: fallback })));
   if (deps.exists(out) && !flags.yes && !(await ui.confirm(`${out} exists. Overwrite it?`))) throw new Error(`${out} already exists`);
   deps.write(out, `${JSON.stringify(user, null, 2)}\n`);
   ui.note(out, 'Config written');
 
   const checks = await deps.doctor(loaded.config, {}, ui.check);
+  const use = out === fallback ? '' : ` --config ${out}`; // the default location needs no flag
   const failed = checks.filter((c) => c.status === 'fail').length;
   ui.outro(
     failed > 0
-      ? `${failed} check${failed === 1 ? '' : 's'} failed. Fix them and run: carrier doctor --config ${out}`
-      : `Ready. Start it with: carrier --config ${out}\nThen mark an epic of ${repos[0]} as solve:epic:ready.`,
+      ? `${failed} check${failed === 1 ? '' : 's'} failed. Fix them and run: carrier doctor${use}`
+      : `Ready. Start it with: carrier${use}\nThen mark an epic of ${repos[0]} as solve:epic:ready.`,
   );
   return { path: out, checks };
 }
@@ -180,7 +202,15 @@ async function askAgent(ui: Ui, role: 'author' | 'reviewer', flag: string | unde
   const options = installed.map((p) => ({ value: p, label: p === 'claude' ? 'Claude' : 'Codex' }));
   if (options.length === 0) throw new Error('Neither claude nor codex is installed; install one and run this again.');
   const provider = options.length === 1 ? options[0]!.value : await ui.select({ message: `Which agent CLI runs the ${role}?`, options, initialValue: preferred });
-  const suggestion = provider === 'claude' ? claudeDefaultModel : deps.codexModel();
-  const model = (await ui.text({ message: `Model for the ${role}`, placeholder: suggestion ?? 'model name', defaultValue: suggestion, validate: (v) => (v.trim() ? undefined : 'Required') })).trim();
+  const known = provider === 'claude' ? claudeModels : deps.codexModels();
+  const configured = provider === 'codex' ? deps.codexModel() : undefined; // what the user already runs Codex with
+  const typed = async (suggestion?: string) => (await ui.text({ message: `Model for the ${role}`, placeholder: suggestion ?? 'model name', defaultValue: suggestion, validate: (v) => (v.trim() ? undefined : 'Required') })).trim();
+  let model: string;
+  if (known.length === 0) model = await typed(configured);
+  else {
+    const initial = [configured, 'sonnet'].find((m) => known.some((k) => k.value === m)) ?? known[0]!.value;
+    const choice = await ui.select({ message: `Model for the ${role}`, options: [...known, { value: otherModel, label: 'Other…', hint: 'type a model id' }], initialValue: initial });
+    model = choice === otherModel ? await typed() : choice;
+  }
   return { provider, model };
 }

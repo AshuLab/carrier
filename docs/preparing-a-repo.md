@@ -29,7 +29,7 @@ The agents run on your machine with your permissions ([ADR 0004](adr/0004-agents
 ## Check it
 
 ```bash
-carrier doctor --config ./carrier.config.json
+carrier doctor
 ```
 
 It tells you if a tool is missing, if an identity cannot get a token for a repo, or if the repo is not reachable.

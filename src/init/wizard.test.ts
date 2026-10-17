@@ -56,6 +56,7 @@ const fakeDeps = (over: Partial<InitDeps> = {}) => {
     originRepo: () => 'AshuLab/carrier',
     codexModel: () => 'gpt-test',
     codexModels: () => [],
+    agyModels: () => [],
     localModels: async () => Promise.reject(new Error('not running')),
     exists: () => false,
     write: (path, content) => (written[path] = content),
@@ -265,7 +266,7 @@ test('three questions, each with one meaning: harness, then provider (only when 
   const spy: Ui = { ...ui, select: async (o) => ((selects[o.message] = o.options.map((x) => `${x.value}${x.disabled ? ' (disabled)' : ''}`)), ui.select(o)) };
   const out = join(dir, 'p.json');
   await runInit({ repo: ['A/b'], out }, spy, deps);
-  expect(selects['Which agent CLI runs the reviewer?']).toEqual(['claude', 'codex']); // only harnesses
+  expect(selects['Which agent CLI runs the reviewer?']).toEqual(['claude', 'codex', 'agy']); // only harnesses
   expect(selects['Which provider serves the reviewer\'s model?']).toEqual(['\0native', 'lmstudio', 'ollama (disabled)']); // Ollama is there, not running
   expect(selects['Model for the reviewer']).toEqual(['google/gemma-4-12b', 'qwen/qwen3.8-27b', '\0other']); // only LM Studio's models, no cloud ones
   expect(JSON.parse(written[out]!).agents.reviewer).toEqual({ profile: 'tassadar-agent', harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio' });
@@ -293,4 +294,21 @@ test('--author-provider goes with the flag form and an unknown server is refused
   await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'codex:qwen3:8b', authorProvider: 'ollama', reviewer: 'claude:sonnet', out }, quietUi().ui, deps);
   expect(JSON.parse(written[out]!).agents.author).toEqual({ profile: 'artanis-agent', harness: 'codex', model: 'qwen3:8b', provider: 'ollama' });
   await expect(runInit({ repo: ['A/b'], author: 'codex:m', authorProvider: 'vllm', authorProfile: 'gh', reviewerProfile: 'forge:x', reviewer: 'claude:s', out }, quietUi().ui, deps)).rejects.toThrow('invalid provider');
+});
+
+test('Antigravity: its own models, and no provider question even with a local server running (it cannot use one)', async () => {
+  const { deps, written } = fakeDeps({ ...running, agyModels: () => [{ value: 'gemini-3.8-flash-low', label: 'gemini-3.8-flash-low', hint: 'Gemini 3.8 Flash (Low)' }] });
+  const { ui, asked } = quietUi({ 'Which agent CLI runs the author?': 'agy' });
+  const out = join(dir, 's.json');
+  await runInit({ repo: ['A/b'], out }, ui, deps);
+  expect(asked).not.toContain("Which provider serves the author's model?");
+  expect(JSON.parse(written[out]!).agents.author).toEqual({ profile: 'artanis-agent', harness: 'agy', model: 'gemini-3.8-flash-low' });
+});
+
+test('--author agy:<model> is a valid flag form, and a provider on it is refused by the config', async () => {
+  const { deps, written } = fakeDeps();
+  const out = join(dir, 't.json');
+  await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'agy:gemini-3.8-flash-low', reviewer: 'claude:sonnet', out }, quietUi().ui, deps);
+  expect(JSON.parse(written[out]!).agents.author.harness).toBe('agy');
+  await expect(runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'agy:m', authorProvider: 'lmstudio', reviewer: 'claude:sonnet', out }, quietUi().ui, deps)).rejects.toThrow('agy cannot use the provider "lmstudio"');
 });

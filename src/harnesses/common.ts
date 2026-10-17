@@ -17,7 +17,7 @@ export interface LineSignal {
   sessionUnavailable?: true;
 }
 
-/** The part of the runner that is specific to one harness CLI; Claude and Codex each provide one. */
+/** The part of the runner that is specific to one harness CLI; each harness (Claude, Codex, Antigravity) provides one. */
 export interface HarnessAdapter {
   command(task: AgentTask, ctx: CommandContext): AgentCommand;
   parseLine(line: string): LineSignal | undefined;

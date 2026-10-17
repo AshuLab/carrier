@@ -2,6 +2,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { LogLevel } from '@ashulab/universal-logger';
 import { z } from 'zod';
+import { harnessNames, localProvidersOf } from '../harnesses/names.ts';
 import { resolveRepoConfig } from './resolve.ts';
 
 const expandHome = (path: string) =>
@@ -12,7 +13,7 @@ export const repoNamePattern = /^(?!\.{1,2}\/)(?!.*\/\.{1,2}$)[\w.-]+\/[\w.-]+$/
 
 const agent = z.strictObject({
   profile: z.string().min(1),
-  harness: z.enum(['claude', 'codex']),
+  harness: z.enum(harnessNames),
   model: z.string().min(1),
   /** Run `model` on a local server through the harness's CLI instead of the cloud. A repo override cannot unset it: override the model and harness together. */
   provider: z.enum(['lmstudio', 'ollama']).optional(),
@@ -65,6 +66,19 @@ export const configSchema = z
         ctx.addIssue({ code: 'custom', path, message: `profile "${name}" is not declared in profiles` });
       }
     }
+
+    // A local provider only for a harness that can be pointed at one, globally and per repo once overrides are applied.
+    const providerCheck = (path: (string | number)[], where: string, agent: { harness: keyof typeof localProvidersOf; provider?: string }) => {
+      if (agent.provider !== undefined && !(localProvidersOf[agent.harness] as readonly string[]).includes(agent.provider)) {
+        ctx.addIssue({ code: 'custom', path, message: `${where}${agent.harness} cannot use the provider "${agent.provider}"` });
+      }
+    };
+    for (const role of ['author', 'reviewer'] as const) providerCheck(['agents', role, 'provider'], '', config.agents[role]);
+    config.repos.forEach((repo, i) => {
+      for (const role of ['author', 'reviewer'] as const) {
+        if (repo.agents?.[role]?.provider !== undefined || repo.agents?.[role]?.harness !== undefined) providerCheck(['repos', i, 'agents', role], `repo "${repo.name}": `, resolveRepoConfig(config, repo).agents[role]);
+      }
+    });
 
     // Solve's worktrees are `worktrees/<repo>/<feature>`, with no owner: same-name repos would share paths.
     const seen = new Map<string, string>();

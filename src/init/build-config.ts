@@ -1,7 +1,8 @@
 import { localKinds, type LocalProvider } from '../harnesses/local.ts';
+import { harnessNames, type HarnessName } from '../harnesses/names.ts';
 
 export type Identity = { kind: 'forge'; agent: string } | { kind: 'gh' };
-export type Role = { identity: Identity; harness: 'claude' | 'codex'; model: string; provider?: LocalProvider };
+export type Role = { identity: Identity; harness: HarnessName; model: string; provider?: LocalProvider };
 export type Answers = { repos: string[]; author: Role; reviewer: Role };
 
 /** `forge:<agent>` or `gh`, the form used by flags and by the prompts' values. */
@@ -14,11 +15,11 @@ export function parseIdentity(text: string): Identity {
 
 export const identityText = (identity: Identity) => (identity.kind === 'gh' ? 'gh' : `forge:${identity.agent}`);
 
-/** `<claude|codex>:<model>`. */
+/** `<harness>:<model>`, the harness being one of `harnessNames`. */
 export function parseHarnessModel(text: string): Pick<Role, 'harness' | 'model'> {
-  const match = /^(claude|codex):(.+)$/.exec(text);
-  if (match === null) throw new Error(`invalid agent "${text}", expected "claude:<model>" or "codex:<model>"`);
-  return { harness: match[1] as 'claude' | 'codex', model: match[2]! };
+  const match = new RegExp(`^(${harnessNames.join('|')}):(.+)$`).exec(text);
+  if (match === null) throw new Error(`invalid agent "${text}", expected "<harness>:<model>" with harness one of ${harnessNames.join(", ")}`);
+  return { harness: match[1] as HarnessName, model: match[2]! };
 }
 
 export function parseProvider(text: string): LocalProvider {

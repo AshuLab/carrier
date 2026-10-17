@@ -9,7 +9,7 @@ const json = (result: CallerResult) => '```json\n' + JSON.stringify(result, null
 export function buildPrompt(task: AgentTask): string {
   const { executionId, repo, epic, stage, resultPath, harness, context } = task;
   const { pr = placeholderPr, blockers = [], previousSummaries, verifyStateFirst } = context;
-  const invoke = (skill: string) => `${harness === 'claude' ? '/' : '$'}${skill}`;
+  const invoke = (skill: string) => `${harness === 'codex' ? '$' : '/'}${skill}`; // Claude Code and Antigravity expand /skill, Codex $skill
   const reviewing = stage === 'review';
   const common = { executionId, repo, epic, stage, summary: '<what you did and concluded, in a few lines>' };
 

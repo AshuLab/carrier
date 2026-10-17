@@ -26,6 +26,7 @@ An epic in `needs-human` is not reactivated by Carrier, not even on restart: you
 - **`Another carrier instance is already running on <root>/orchestrator`.** One instance per root. Stop the other one (Ctrl+C). If none is running the lock is released by the OS when a process dies, so this message is real: look for the process (`pgrep -fl carrier`).
 - **`carrier failed to start: GitHub answered HTTP 404`.** The orchestrator's identity cannot see a repo in `repos`: wrong name, or the bot is not installed on that owner. `carrier doctor` names the repo.
 - **`could not mint a token for <agent>`.** Forge could not mint it: agent not in the registry (`agent-forge --list`), private key unreadable, App not installed on the repo's owner.
+- **An `agy` run waits about a minute and fails with `authentication failed or timed out`.** Antigravity is not logged in. Run `agy` once in a terminal and sign in; Carrier cannot shorten that wait.
 - **`agent-forge: command not found`.** Install it (or use only `gh` profiles, with the caveat that author and reviewer then cannot both be `gh`).
 
 - **`LM Studio is not answering at http://localhost:1234` / `... not downloaded there`.** The agent uses a local model (`provider` in the config): start the server (LM Studio: Developer tab, or `lms server start`; Ollama: `ollama serve`) and make sure the model is downloaded. `carrier doctor` repeats the check.

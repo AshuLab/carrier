@@ -163,3 +163,13 @@ describe('local models', () => {
     expect(result).toMatchObject({ ok: true, config: { repos: [{ agents: { reviewer: { provider: 'ollama' } } }] } });
   });
 });
+
+describe('harness and provider', () => {
+  test('agy is a harness, but it cannot use a local provider (globally or through a repo override)', () => {
+    expect(load({ agents: { ...valid.agents, author: { profile: 'author-bot', harness: 'agy', model: 'gemini-3.8-flash-low' } } })).toMatchObject({ ok: true });
+    const agy = { profile: 'author-bot', harness: 'agy', model: 'm', provider: 'ollama' };
+    expect(errorsOf({ agents: { ...valid.agents, author: agy } })).toEqual([{ path: 'agents.author.provider', message: 'agy cannot use the provider "ollama"' }]);
+    const viaRepo = errorsOf({ agents: { ...valid.agents, author: { profile: 'author-bot', harness: 'codex', model: 'm', provider: 'ollama' } }, repos: [{ name: 'AshuLab/carrier', agents: { author: { harness: 'agy' } } }] });
+    expect(viaRepo.map((e) => e.path)).toEqual(['repos.0.agents.author']);
+  });
+});

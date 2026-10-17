@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { claudeAdapter } from './claude.ts';
+import { agyAdapter } from './agy.ts';
 import { codexAdapter } from './codex.ts';
 import { resolveBinary, type AgentCommand, type HarnessAdapter } from './common.ts';
 
@@ -87,7 +88,7 @@ export class HostAgentRunner implements AgentRunner {
     };
 
     const start = async (): Promise<{ exit: AgentExit; sessionId?: string }> => {
-      const adapter = this.options.adapters?.[task.harness] ?? { claude: claudeAdapter, codex: codexAdapter }[task.harness];
+      const adapter = this.options.adapters?.[task.harness] ?? { claude: claudeAdapter, codex: codexAdapter, agy: agyAdapter }[task.harness];
       let credentials;
       try {
         credentials = await this.options.credentials(task);

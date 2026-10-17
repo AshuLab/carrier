@@ -2,9 +2,9 @@
 
 The application is called **Carrier**, inspired by the StarCraft ship that deploys multiple interceptors. Carrier coordinates agents in parallel; Agent Forge provides their identities and Solve provides the skills flow.
 
-Status: requirements draft. It records decisions from the conversation and pending proposals; it does not describe an implemented system.
+Status: historical. The requirements draft the [spec](../specs/autonomous-orchestrator.md) was synthesized from; it records the conversation and proposals at the time, not the implemented system. For how Carrier works today read the [README](../../README.md) and the spec.
 
-The `solve:sharpen` brief is at [docs/specs/autonomous-orchestrator.md](specs/autonomous-orchestrator.md). This document keeps the detail of the conversation; the brief synthesizes the problem, direction, scope and pending validations.
+The `solve:sharpen` brief is at [docs/specs/autonomous-orchestrator.md](../specs/autonomous-orchestrator.md). This document keeps the detail of the conversation; the brief synthesizes the problem, direction, scope and pending validations.
 
 ## Goal
 
@@ -32,7 +32,7 @@ The process lets him keep preparing new features while the agents work. Diego te
 - `solve:epic:ready` is a sufficient signal to pick up an epic: the orchestrator registers it directly in the queue, with no additional query to Solve to enable it.
 - When an epic's execution starts, remove `solve:epic:ready` and add `solve:epic:running` on GitHub. Keep the execution in SQLite so it can be resumed without depending on the issue still being ready.
 - When it is ready for test, replace `solve:epic:running` with `solve:epic:ready-for-test`. If it requires intervention, replace it with `solve:epic:needs-human`. Also record the result in SQLite.
-- Agents do not run with the host system's permissions: each execution runs in a container with broad permissions inside and only the epic's workspace mounted. The token's minimum scopes and the repos' branch protection are the second boundary. See [ADR 0003](adr/0003-agents-in-containers.md).
+- Agents do not run with the host system's permissions: each execution runs in a container with broad permissions inside and only the epic's workspace mounted. The token's minimum scopes and the repos' branch protection are the second boundary. See [ADR 0003](../adr/0003-agents-in-containers.md).
 - Run independent epics in parallel, with a configurable maximum concurrency as a positive integer. Initial value: three epics; it can be one, two, four, eight or another value depending on the configuration.
 - Take ready epics in queue arrival order (FIFO), preserving the order of entry on restart.
 - Dependencies between epics are out of scope for the first version and will be resolved in Solve separately. The rule discussed for a future evolution is to wait for the prerequisites to be merged; the MVP does not implement a graph, a waiting-on-dependencies state or unblocking on merge.
@@ -60,14 +60,14 @@ The process lets him keep preparing new features while the agents work. Diego te
 - If the reviewer cannot conclude for lack of context, the epic requires intervention. Record the reason; the absence of blockers detected in an incomplete review does not enable the PR.
 - Epics that require intervention are resolved manually by Diego. The first version records and shows the reason, with no command or controls to reactivate them. This is distinct from automatically resuming executions interrupted by `Ctrl+C`.
 - Skills keep their current outputs. The caller agent interprets them the way a person invoking the skill would.
-- The orchestrator coordinates without interpreting the repo's domain. Author and reviewer apply the repo/Solve rules, choose and evaluate tests/checks and determine blockers. The orchestrator validates the JSON contract and its technical coherence, persists results and manages stages, limits and labels. See [ADR 0001](adr/0001-separate-coordination-from-repo-evaluation.md).
+- The orchestrator coordinates without interpreting the repo's domain. Author and reviewer apply the repo/Solve rules, choose and evaluate tests/checks and determine blockers. The orchestrator validates the JSON contract and its technical coherence, persists results and manages stages, limits and labels. See [ADR 0001](../adr/0001-separate-coordination-from-repo-evaluation.md).
 - The caller writes its conclusion per execution to a structured JSON file. The orchestrator validates its schema and stores the information in SQLite, associated with the epic, stage and execution, keeping the history.
 - The caller's JSON has three results: `completed`, `changes_requested` and `needs_human`. The engine combines the result with the stage to coordinate the next turn.
 - Keep agent sessions per epic and role to resume from the context of an interrupted stage, in addition to continuing the pending stages. Record provider, identifier and location of the session where applicable, and keep the workspace.
 - If a saved session cannot be recovered, start a new one with the persisted context and the current state of the workspace/GitHub. The agent verifies what was done before continuing; it keeps the identity and records the recovery in the history.
 - `Ctrl+C` stops the orchestrator and the executions active at that moment, without waiting for their stages to finish. Keep sessions, workspaces and persisted state to resume on restart.
 - Diego will adapt the skills so that authorized stages can run without waiting for approval.
-- SQLite is the authority for the state of each execution; the `solve:epic:*` labels are its mirror and are reconciled. See [ADR 0002](adr/0002-sqlite-authority-labels-mirror.md).
+- SQLite is the authority for the state of each execution; the `solve:epic:*` labels are its mirror and are reconciled. See [ADR 0002](../adr/0002-sqlite-authority-labels-mirror.md).
 - A web UI or OS app is left for a later evolution.
 
 ## Walkthrough of an epic
@@ -138,7 +138,7 @@ The author verifies the new commit according to the repo rules and the reviewer 
 
 ### 7. End the loop
 
-An epic becomes [ready for test](glossary.md) when the reviewer issued a conclusive result with no blockers and the agents confirmed the verifications required by the repo on the same commit. In a repo without CI, that review and the test evidence reported by the skills are enough, recording the absence of CI. The orchestrator consumes that conclusion, checks its technical coherence with the execution/PR/SHA and records the transition; it does not decide by itself whether the code or CI are correct. A later code change invalidates that result and requires new verification by the agents.
+An epic becomes [ready for test](../glossary.md) when the reviewer issued a conclusive result with no blockers and the agents confirmed the verifications required by the repo on the same commit. In a repo without CI, that review and the test evidence reported by the skills are enough, recording the absence of CI. The orchestrator consumes that conclusion, checks its technical coherence with the execution/PR/SHA and records the transition; it does not decide by itself whether the code or CI are correct. A later code change invalidates that result and requires new verification by the agents.
 
 Agreed maximum: five reviews, configurable. If the fifth still has blockers, intervention is requested. No further fix is applied only to then declare ready a commit that was not reviewed. Execution errors do not consume a review round. If the reviewer cannot conclude for lack of context, the epic requires intervention and the reason is recorded; an incomplete review with no blockers detected does not enable the PR.
 
@@ -242,7 +242,7 @@ When the limit expires, stop the execution, keep sessions and workspaces and rec
 
 A local process for macOS, SQLite, logs and terminal panel. No web server or OS app. The TypeScript/Node.js core stays portable; Linux and Windows are outside the initial validation and support. Merging the final PR and resolving cases that require intervention are human. No command or UI is added to reactivate those cases. Dependencies between epics will be resolved separately in Solve; the MVP takes ready issues directly. The system runs the skills; it does not reproduce their implementation and review logic inside the orchestrator.
 
-The prior research is in [autonomous-ship-review.md](research/autonomous-ship-review.md). Its maximum of four reviews was replaced by the five configurable ones in this document.
+The prior research is in [autonomous-ship-review.md](autonomous-ship-review.md). Its maximum of four reviews was replaced by the five configurable ones in this document.
 
 ## Project and storage
 

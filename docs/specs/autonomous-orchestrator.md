@@ -6,7 +6,7 @@ Status: spec
 
 Diego wants to spend his time preparing several ideas, specs and tickets with Solve while agents implement the work that is already prepared. Today he has to chain implementation, external review and fixes by hand to reach a PR he can test. The goal is to delegate that coordination without delegating his decision to test and merge the final PR.
 
-The expected result is that an epic marked `solve:epic:ready` enters execution with no manual follow-up between turns, ends with a final PR ready for test or an explicit reason for intervention, and can continue after the process is interrupted. Several epics can advance in parallel within a configured concurrency. The detailed definitions and decisions are in the [working document](../autonomous-orchestrator.md) and the [glossary](../glossary.md).
+The expected result is that an epic marked `solve:epic:ready` enters execution with no manual follow-up between turns, ends with a final PR ready for test or an explicit reason for intervention, and can continue after the process is interrupted. Several epics can advance in parallel within a configured concurrency. The detailed definitions and decisions are in the [working document](../research/working-document.md) and the [glossary](../glossary.md).
 
 ## Solution
 

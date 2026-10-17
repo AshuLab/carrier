@@ -181,6 +181,7 @@ Unattended agents run with **your** permissions: Claude with permissions bypasse
 
 ## Documentation
 
+- Using it: [configuration](docs/configuration.md), [preparing a repo](docs/preparing-a-repo.md) and [troubleshooting](docs/troubleshooting.md).
 - [Spec](docs/specs/autonomous-orchestrator.md) and [glossary](docs/glossary.md).
 - [ADRs](docs/adr/) — coordination vs. evaluation, SQLite as the authority, and agents on the host (which replaces the container ADR 0003).
 - [Research](docs/research/) — headless agents, Agent Forge, logging and panel, shared root, containers (dropped, kept as reference).

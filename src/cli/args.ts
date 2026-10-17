@@ -14,7 +14,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
 init flags (each one skips its question; --yes never asks):
   --repo <owner/name>            repeat for several repos
   --author-profile <forge:<agent>|gh>   --reviewer-profile <forge:<agent>|gh>
-  --author <harness>:<model>            --reviewer <harness>:<model>           harness: claude or codex
+  --author <harness>:<model>            --reviewer <harness>:<model>           harness: claude, codex or agy
   --author-provider <lmstudio|ollama>   --reviewer-provider <lmstudio|ollama>   the model runs on that local server
   --out <path>                   default is the --config default above
   --yes                          no questions; overwrite the output file`;

@@ -225,33 +225,30 @@ async function askIdentity(ui: Ui, role: 'author' | 'reviewer', forge: ForgeAgen
 }
 
 type Cli = 'claude' | 'codex';
-const localValue = (kind: Local) => `local:${kind}`;
+const localModelValue = (kind: Local, model: string) => `local:${kind}:${model}`;
 
 async function askAgent(ui: Ui, role: 'author' | 'reviewer', given: { flag?: string; local?: string }, installed: readonly Cli[], locals: Partial<Record<Local, string[]>>, deps: InitDeps, preferred: Cli): Promise<Pick<Role, 'provider' | 'model' | 'local'>> {
   if (given.flag) return { ...parseProviderModel(given.flag), ...(given.local && { local: parseLocal(given.local) }) };
   if (installed.length === 0) throw new Error('Neither claude nor codex is installed; install one and run this again.');
-  const options: Option<string>[] = [
-    ...installed.map((p) => ({ value: p, label: p === 'claude' ? 'Claude' : 'Codex', hint: 'cloud model' })),
-    ...localKinds.map((kind) => ({ value: localValue(kind), label: `${localLabel[kind]} (local)`, hint: locals[kind] ? `${locals[kind].length} models, runs on this machine` : 'not running: start its server to use it', disabled: !locals[kind] })),
-  ];
-  const picked = await ui.select({ message: `Which agent runs the ${role}?`, options, initialValue: preferred });
-  const local = localKinds.find((kind) => localValue(kind) === picked);
-  if (local) {
-    // A local model still runs through Claude Code or Codex, which talk to the local server.
-    const provider = installed.length === 1 ? installed[0]! : await ui.select<Cli>({ message: `Run the ${role}'s ${localLabel[local]} model through which CLI?`, options: installed.map((p) => ({ value: p, label: p === 'claude' ? 'Claude Code' : 'Codex' })), initialValue: installed.includes('codex') ? 'codex' : 'claude' });
-    const model = await ui.select({ message: `Model for the ${role}`, options: locals[local]!.map((value) => ({ value, label: value })), initialValue: locals[local]![0]! });
-    return { provider, model, local };
-  }
-  const provider = picked as Cli;
-  const known = provider === 'claude' ? claudeModels : deps.codexModels();
+  // The CLI is the harness that runs the loop and the tools; where its model comes from is the next question.
+  const provider: Cli = installed.length === 1 ? installed[0]! : await ui.select<Cli>({ message: `Which agent CLI runs the ${role}?`, options: installed.map((p) => ({ value: p, label: p === 'claude' ? 'Claude Code' : 'Codex' })), initialValue: installed.includes(preferred) ? preferred : installed[0]! });
+
+  const cloud = provider === 'claude' ? claudeModels : deps.codexModels();
   const configured = provider === 'codex' ? deps.codexModel() : undefined; // what the user already runs Codex with
+  const options: Option<string>[] = [
+    ...cloud,
+    // A running server lists its models; one that is not running shows once, disabled, so the choice is discoverable.
+    ...localKinds.flatMap((kind): Option<string>[] => {
+      const models = locals[kind];
+      return models ? models.map((model) => ({ value: localModelValue(kind, model), label: model, hint: `${localLabel[kind]} · local` })) : [{ value: `local:${kind}`, label: `${localLabel[kind]} (local)`, hint: 'not running: start its server to use it', disabled: true }];
+    }),
+  ];
   const typed = async (suggestion?: string) => (await ui.text({ message: `Model for the ${role}`, placeholder: suggestion ?? 'model name', defaultValue: suggestion, validate: (v) => (v.trim() ? undefined : 'Required') })).trim();
-  let model: string;
-  if (known.length === 0) model = await typed(configured);
-  else {
-    const initial = [configured, 'sonnet'].find((m) => known.some((k) => k.value === m)) ?? known[0]!.value;
-    const choice = await ui.select({ message: `Model for the ${role}`, options: [...known, { value: otherModel, label: 'Other…', hint: 'type a model id' }], initialValue: initial });
-    model = choice === otherModel ? await typed() : choice;
-  }
-  return { provider, model };
+  if (options.every((o) => o.disabled)) return { provider, model: await typed(configured) }; // nothing to pick from: type it
+
+  const initial = [configured, 'sonnet'].find((m) => cloud.some((k) => k.value === m)) ?? options.find((o) => !o.disabled)!.value;
+  const choice = await ui.select({ message: `Model for the ${role}`, options: [...options, { value: otherModel, label: 'Other…', hint: 'type a model id' }], initialValue: initial });
+  if (choice === otherModel) return { provider, model: await typed() };
+  const local = /^local:(\w+):(.*)$/.exec(choice);
+  return local ? { provider, model: local[2]!, local: parseLocal(local[1]!) } : { provider, model: choice };
 }

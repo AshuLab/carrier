@@ -251,23 +251,32 @@ test('each role gets its own box, and the author is fully asked before the revie
   await runInit({ repo: ['A/b'], out: join(dir, 'o.json') }, spy, fakeDeps().deps);
   expect(notes.filter((t) => t === 'Author' || t === 'Reviewer')).toEqual(['Author', 'Reviewer']);
   expect(order.filter((m) => /author|reviewer/.test(m))).toEqual([
-    'GitHub identity for the author', 'Which agent runs the author?', 'Model for the author',
-    'GitHub identity for the reviewer', 'Which agent runs the reviewer?', 'Model for the reviewer',
+    'GitHub identity for the author', 'Which agent CLI runs the author?', 'Model for the author',
+    'GitHub identity for the reviewer', 'Which agent CLI runs the reviewer?', 'Model for the reviewer',
   ]);
 });
 
 const running = { localModels: async (local: string) => (local === 'lmstudio' ? ['google/gemma-4-12b', 'qwen/qwen3.8-27b'] : Promise.reject(new Error('down'))) };
 
-test('a local server that is running is offered next to Claude and Codex, and the choice sets `local`', async () => {
+test('the CLI is asked first, and a running local server\'s models are listed with the cloud ones', async () => {
   const { deps, written } = fakeDeps(running);
   const selects: Record<string, string[]> = {};
-  const { ui } = quietUi({ 'Which agent runs the reviewer?': 'local:lmstudio' });
+  const { ui } = quietUi({ 'Model for the reviewer': 'local:lmstudio:google/gemma-4-12b' });
   const spy: Ui = { ...ui, select: async (o) => ((selects[o.message] = o.options.map((x) => `${x.value}${x.disabled ? ' (disabled)' : ''}`)), ui.select(o)) };
   const out = join(dir, 'p.json');
   await runInit({ repo: ['A/b'], out }, spy, deps);
-  expect(selects['Which agent runs the reviewer?']).toEqual(['claude', 'codex', 'local:lmstudio', 'local:ollama (disabled)']); // Ollama is there, but not running
+  expect(selects['Which agent CLI runs the reviewer?']).toEqual(['claude', 'codex']); // only harnesses here
+  expect(selects['Model for the reviewer']).toEqual(['local:lmstudio:google/gemma-4-12b', 'local:lmstudio:qwen/qwen3.8-27b', 'local:ollama (disabled)', '\0other']); // Ollama is there, not running
   expect(JSON.parse(written[out]!).agents.reviewer).toEqual({ profile: 'tassadar-agent', provider: 'codex', model: 'google/gemma-4-12b', local: 'lmstudio' });
   expect(JSON.parse(written[out]!).agents.author).not.toHaveProperty('local');
+});
+
+test('a local model id with a colon (Ollama) keeps it whole', async () => {
+  const { deps, written } = fakeDeps({ localModels: async (local) => (local === 'ollama' ? ['qwen3:8b'] : Promise.reject(new Error('down'))) });
+  const { ui } = quietUi({ 'Model for the author': 'local:ollama:qwen3:8b' });
+  const out = join(dir, 'r.json');
+  await runInit({ repo: ['A/b'], out }, ui, deps);
+  expect(JSON.parse(written[out]!).agents.author).toMatchObject({ model: 'qwen3:8b', local: 'ollama' });
 });
 
 test('--author-local goes with the flag form and an unknown server is refused', async () => {

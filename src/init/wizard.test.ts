@@ -38,7 +38,7 @@ const quietUi = (answers: Record<string, string | boolean> = {}) => {
     multiselect: async ({ message, options, initialValues }) => {
       asked.push(message);
       const answer = answers[message];
-      listed.push(options.map((o) => o.value));
+      listed.push(Object.entries(options).map(([group, items]) => `${group}:${items.map((o) => o.label).join(',')}`));
       return typeof answer === 'string' ? answer.split(',') : (initialValues ?? []);
     },
   };
@@ -156,15 +156,22 @@ test('the Forge registry yields names and labels, and nothing when there is none
   expect(() => readForgeAgents(file)).toThrow();
 });
 
-const repoKey = 'Repos to watch (type to filter, Tab to select)';
+const repoKey = 'Repos to watch';
 
 test('with a list of repos they are picked, not typed; the current folder is first and preselected', async () => {
   const { deps, written } = fakeDeps({ listRepos: () => ['AshuLab/skills', 'AshuLab/carrier', 'vemec/encaja'] });
   const { ui, listed } = quietUi();
   const out = join(dir, 'h.json');
   await runInit({ out }, ui, deps);
-  expect(listed[0]).toEqual(['AshuLab/carrier', 'AshuLab/skills', 'vemec/encaja', '\0other']);
+  expect(listed[0]).toEqual(['AshuLab:carrier,skills', 'vemec:encaja', 'Other:Other…']); // one section per owner, the folder's owner first
   expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/carrier' }]);
+});
+
+test('with one owner the list is flat and shows full names', async () => {
+  const { deps } = fakeDeps({ listRepos: () => ['AshuLab/skills'], originRepo: () => undefined });
+  const { ui, listed } = quietUi({ [repoKey]: 'AshuLab/skills' });
+  await runInit({ out: join(dir, 'l.json') }, ui, deps);
+  expect(listed[0]).toEqual(['AshuLab:AshuLab/skills,Other…']);
 });
 
 test('"Other" asks for the repos that are not on the list and joins them to the picked ones', async () => {

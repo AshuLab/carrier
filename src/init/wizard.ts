@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { styleText } from 'node:util';
 import { defaults, loadConfig } from '../config/load.ts';
 import { repoNamePattern } from '../config/schema.ts';
 import { runDoctor, type Check } from '../doctor/doctor.ts';
@@ -20,8 +21,8 @@ export interface Ui {
   text(options: { message: string; placeholder?: string; defaultValue?: string; validate?: (value: string) => string | undefined }): Promise<string>;
   select<T extends string>(options: { message: string; options: Option<T>[]; initialValue?: T }): Promise<T>;
   confirm(message: string): Promise<boolean>;
-  /** Type to filter, space to mark; at least one. */
-  multiselect(options: { message: string; options: Option<string>[]; initialValues?: string[] }): Promise<string[]>;
+  /** At least one. Several groups are shown as sections; a single group is a plain list to filter by typing. */
+  multiselect(options: { message: string; options: Record<string, Option<string>[]>; initialValues?: string[] }): Promise<string[]>;
 }
 
 /** Everything that touches the machine, replaceable for tests. */
@@ -86,11 +87,11 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   }
   const providers = (['claude', 'codex'] as const).filter((p) => deps.which(p));
   const login = deps.ghLogin();
-  const mark = (ok: boolean) => (ok ? '✓' : '✗');
+  const status = (ok: boolean, label: string) => `${ok ? styleText('green', '✔') : styleText('red', '✖')} ${label}`;
   ui.note(
     [
-      `claude ${mark(providers.includes('claude'))}   codex ${mark(providers.includes('codex'))}   git ${mark(deps.which('git'))}   gh ${login ? `✓ (${login})` : mark(false)}`,
-      forge.length > 0 ? `Agent Forge agents: ${forge.map((a) => a.name).join(', ')}` : 'Agent Forge agents: none found (run "agent-forge add")',
+      [status(providers.includes('claude'), 'claude'), status(providers.includes('codex'), 'codex'), status(deps.which('git'), 'git'), status(login !== undefined, login ? `gh (${login})` : 'gh')].join('   '),
+      forge.length > 0 ? `${styleText('green', '✔')} Agent Forge: ${forge.map((a) => a.name).join(', ')}` : `${styleText('yellow', '▲')} Agent Forge: no agents found (run "agent-forge add")`,
     ].join('\n'),
     'This machine',
   );
@@ -143,13 +144,16 @@ async function askRepos(ui: Ui, deps: InitDeps) {
   };
   if (listed.length === 0) return typed('Repos to watch (owner/name, comma separated)');
 
-  // The folder you are in goes first and marked, even when it is not among the recent ones.
+  // The folder you are in goes first and marked, even when it is not among the recent ones; one section per owner.
   const names = origin === undefined ? listed : [origin, ...listed.filter((n) => n !== origin)];
-  const picked = await ui.multiselect({
-    message: 'Repos to watch (type to filter, Tab to select)',
-    options: [...names.map((value) => ({ value, label: value })), { value: otherRepo, label: 'Other…', hint: 'type owner/name' }],
-    initialValues: origin === undefined ? [] : [origin],
-  });
+  const owners = [...new Set(names.map((n) => n.split('/')[0]!))];
+  const other = { value: otherRepo, label: 'Other…', hint: 'type owner/name' };
+  const groups: Record<string, Option<string>[]> = Object.fromEntries(
+    owners.map((owner) => [owner, names.filter((n) => n.startsWith(`${owner}/`)).map((value) => ({ value, label: owners.length > 1 ? value.slice(owner.length + 1) : value }))]),
+  );
+  if (owners.length > 1) groups.Other = [other];
+  else groups[owners[0]!]!.push(other);
+  const picked = await ui.multiselect({ message: 'Repos to watch', options: groups, initialValues: origin === undefined ? [] : [origin] });
   const chosen = picked.filter((n) => n !== otherRepo);
   const extra = picked.includes(otherRepo) ? await typed('Other repos (owner/name, comma separated)') : [];
   return [...new Set([...chosen, ...extra])];

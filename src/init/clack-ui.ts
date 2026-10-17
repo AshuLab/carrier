@@ -1,5 +1,5 @@
 import { styleText } from 'node:util';
-import { autocompleteMultiselect, cancel, confirm, intro, isCancel, log, note, outro, select, text } from '@clack/prompts';
+import { autocompleteMultiselect, cancel, confirm, groupMultiselect, intro, isCancel, log, note, outro, select, text } from '@clack/prompts';
 import type { Check } from '../doctor/doctor.ts';
 import type { Ui } from './wizard.ts';
 
@@ -28,7 +28,11 @@ export const clackUi: Ui = {
     (keep(await text({ ...options, validate: validate && ((value) => validate(value ?? options.defaultValue ?? '')) })) as string) || options.defaultValue || '',
   select: async (options) => keep(await select(options as Parameters<typeof select>[0])) as never,
   confirm: async (message) => keep<boolean>(await confirm({ message })),
-  multiselect: async ({ message, options, initialValues }) => keep<string[]>(await autocompleteMultiselect({ message, options, initialValues, required: true, placeholder: 'Type to filter…', maxItems: 8 })),
+  multiselect: async ({ message, options, initialValues }) => {
+    const groups = Object.values(options);
+    if (groups.length === 1) return keep<string[]>(await autocompleteMultiselect({ message, options: groups[0]!, initialValues, required: true, placeholder: 'Type to filter…', maxItems: 8 }));
+    return keep<string[]>(await groupMultiselect({ message, options, initialValues, required: true, maxItems: 12 }));
+  },
 };
 
 /** For `--yes` and for pipes: any question that was not answered by a flag is an error that names it. */

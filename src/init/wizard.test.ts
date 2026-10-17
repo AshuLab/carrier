@@ -12,6 +12,7 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 const quietUi = (answers: Record<string, string | boolean> = {}) => {
   const asked: string[] = [];
+  const listed: string[][] = [];
   const ui: Ui = {
     intro: () => {},
     outro: (m) => asked.push(`outro:${m}`),
@@ -34,8 +35,14 @@ const quietUi = (answers: Record<string, string | boolean> = {}) => {
       asked.push(message);
       return answers[message] === true;
     },
+    multiselect: async ({ message, options, initialValues }) => {
+      asked.push(message);
+      const answer = answers[message];
+      listed.push(options.map((o) => o.value));
+      return typeof answer === 'string' ? answer.split(',') : (initialValues ?? []);
+    },
   };
-  return { ui, asked };
+  return { ui, asked, listed };
 };
 
 const okCheck: Check = { name: 'x', status: 'ok' };
@@ -45,6 +52,7 @@ const fakeDeps = (over: Partial<InitDeps> = {}) => {
     which: () => true,
     forgeAgents: () => [{ name: 'artanis-agent', label: 'Artanis' }, { name: 'tassadar-agent' }],
     ghLogin: () => 'diego',
+    listRepos: () => [],
     originRepo: () => 'AshuLab/carrier',
     codexModel: () => 'gpt-test',
     exists: () => false,
@@ -146,4 +154,37 @@ test('the Forge registry yields names and labels, and nothing when there is none
   expect(readForgeAgents(join(dir, 'missing.json'))).toEqual([]);
   writeFileSync(file, '{');
   expect(() => readForgeAgents(file)).toThrow();
+});
+
+const repoKey = 'Repos to watch (type to filter, Tab to select)';
+
+test('with a list of repos they are picked, not typed; the current folder is first and preselected', async () => {
+  const { deps, written } = fakeDeps({ listRepos: () => ['AshuLab/skills', 'AshuLab/carrier', 'vemec/encaja'] });
+  const { ui, listed } = quietUi();
+  const out = join(dir, 'h.json');
+  await runInit({ out }, ui, deps);
+  expect(listed[0]).toEqual(['AshuLab/carrier', 'AshuLab/skills', 'vemec/encaja', '\0other']);
+  expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/carrier' }]);
+});
+
+test('"Other" asks for the repos that are not on the list and joins them to the picked ones', async () => {
+  const { deps, written } = fakeDeps({ listRepos: () => ['AshuLab/skills'], originRepo: () => undefined });
+  const { ui, asked } = quietUi({ [repoKey]: 'AshuLab/skills,\0other', 'Other repos (owner/name, comma separated)': 'x/y, AshuLab/skills' });
+  const out = join(dir, 'i.json');
+  await runInit({ out }, ui, deps);
+  expect(asked).toContain('Other repos (owner/name, comma separated)');
+  expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/skills' }, { name: 'x/y' }]); // no duplicates
+});
+
+test('when the repos cannot be listed it says so and falls back to typing', async () => {
+  const { deps, written } = fakeDeps({
+    listRepos: () => {
+      throw new Error('gh: not logged in\nmore');
+    },
+  });
+  const { ui, asked } = quietUi();
+  const out = join(dir, 'j.json');
+  await runInit({ out }, ui, deps);
+  expect(asked.find((a) => a.startsWith('warn:'))).toBe('warn:Could not list your repos (gh: not logged in); type them instead.');
+  expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/carrier' }]);
 });

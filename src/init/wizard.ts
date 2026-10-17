@@ -20,6 +20,8 @@ export interface Ui {
   text(options: { message: string; placeholder?: string; defaultValue?: string; validate?: (value: string) => string | undefined }): Promise<string>;
   select<T extends string>(options: { message: string; options: Option<T>[]; initialValue?: T }): Promise<T>;
   confirm(message: string): Promise<boolean>;
+  /** Type to filter, space to mark; at least one. */
+  multiselect(options: { message: string; options: Option<string>[]; initialValues?: string[] }): Promise<string[]>;
 }
 
 /** Everything that touches the machine, replaceable for tests. */
@@ -27,6 +29,8 @@ export interface InitDeps {
   which: (command: string) => boolean;
   forgeAgents: () => ForgeAgent[];
   ghLogin: () => string | undefined;
+  /** `owner/name` of the repos the gh login can push to, most recently pushed first. Throws when it cannot list. */
+  listRepos: () => string[];
   originRepo: () => string | undefined;
   codexModel: () => string | undefined;
   exists: (path: string) => boolean;
@@ -48,6 +52,10 @@ export const realDeps: InitDeps = {
       return undefined; // not logged in or no gh: the doctor reports it, here it only means no hint
     }
   },
+  listRepos: () =>
+    execFileSync('gh', ['api', 'user/repos?affiliation=owner,organization_member&sort=pushed&per_page=100', '--jq', '.[] | select(.archived or .disabled | not) | select(.permissions.push) | .full_name'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+      .split('\n')
+      .filter(Boolean),
   originRepo: () => {
     const url = spawnSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }).stdout.trim();
     const repo = /github\.com[:/]([\w.-]+\/[\w.-]+?)(?:\.git)?$/.exec(url)?.[1];
@@ -87,7 +95,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
     'This machine',
   );
 
-  const repos = flags.repo ?? (await askRepos(ui, deps.originRepo()));
+  const repos = flags.repo ?? (await askRepos(ui, deps));
 
   const authorIdentity = flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, login, []);
   const reviewerIdentity = flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, login, [authorIdentity]);
@@ -114,17 +122,37 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   return { path: out, checks };
 }
 
-async function askRepos(ui: Ui, origin: string | undefined) {
-  const answer = await ui.text({
-    message: 'Repos to watch (owner/name, comma separated)',
-    placeholder: origin ?? 'AshuLab/my-repo',
-    defaultValue: origin,
-    validate: (value) => {
-      const names = value.split(',').map((s) => s.trim());
-      return names.every((n) => repoNamePattern.test(n)) ? undefined : 'Each repo must be owner/name';
-    },
+const otherRepo = '\0other';
+
+async function askRepos(ui: Ui, deps: InitDeps) {
+  const origin = deps.originRepo();
+  let listed: string[] = [];
+  try {
+    listed = deps.listRepos();
+  } catch (error) {
+    ui.warn(`Could not list your repos (${error instanceof Error ? error.message.split('\n')[0] : String(error)}); type them instead.`);
+  }
+  const typed = async (message: string) => {
+    const answer = await ui.text({
+      message,
+      placeholder: origin ?? 'AshuLab/my-repo',
+      defaultValue: origin,
+      validate: (value) => (value.split(',').every((n) => repoNamePattern.test(n.trim())) ? undefined : 'Each repo must be owner/name'),
+    });
+    return answer.split(',').map((s) => s.trim());
+  };
+  if (listed.length === 0) return typed('Repos to watch (owner/name, comma separated)');
+
+  // The folder you are in goes first and marked, even when it is not among the recent ones.
+  const names = origin === undefined ? listed : [origin, ...listed.filter((n) => n !== origin)];
+  const picked = await ui.multiselect({
+    message: 'Repos to watch (type to filter, Tab to select)',
+    options: [...names.map((value) => ({ value, label: value })), { value: otherRepo, label: 'Other…', hint: 'type owner/name' }],
+    initialValues: origin === undefined ? [] : [origin],
   });
-  return answer.split(',').map((s) => s.trim());
+  const chosen = picked.filter((n) => n !== otherRepo);
+  const extra = picked.includes(otherRepo) ? await typed('Other repos (owner/name, comma separated)') : [];
+  return [...new Set([...chosen, ...extra])];
 }
 
 async function askIdentity(ui: Ui, role: 'author' | 'reviewer', forge: ForgeAgent[], login: string | undefined, taken: Identity[]): Promise<Identity> {

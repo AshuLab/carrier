@@ -1,5 +1,5 @@
 import { styleText } from 'node:util';
-import { cancel, confirm, intro, isCancel, log, note, outro, select, text } from '@clack/prompts';
+import { autocompleteMultiselect, cancel, confirm, intro, isCancel, log, note, outro, select, text } from '@clack/prompts';
 import type { Check } from '../doctor/doctor.ts';
 import type { Ui } from './wizard.ts';
 
@@ -28,6 +28,7 @@ export const clackUi: Ui = {
     (keep(await text({ ...options, validate: validate && ((value) => validate(value ?? options.defaultValue ?? '')) })) as string) || options.defaultValue || '',
   select: async (options) => keep(await select(options as Parameters<typeof select>[0])) as never,
   confirm: async (message) => keep<boolean>(await confirm({ message })),
+  multiselect: async ({ message, options, initialValues }) => keep<string[]>(await autocompleteMultiselect({ message, options, initialValues, required: true, placeholder: 'Type to filter…', maxItems: 8 })),
 };
 
 /** For `--yes` and for pipes: any question that was not answered by a flag is an error that names it. */
@@ -42,6 +43,10 @@ export const noPromptUi: Ui = {
     throw new Error(`"${message}" needs an answer and there is no terminal to ask: pass it as a flag (carrier init --help)`);
   },
   confirm: async () => false,
+  multiselect: async ({ message, initialValues }) => {
+    if (initialValues?.length) return initialValues; // the repo of the current folder
+    throw new Error(`"${message}" needs an answer and there is no terminal to ask: pass it as a flag (carrier init --help)`);
+  },
 };
 
 export const cancelled = () => cancel('✖  Cancelled');

@@ -108,7 +108,7 @@ Or run it without installing: `pnpm dlx @ashulab/carrier`. To work on Carrier it
 carrier init
 ```
 
-It looks at the machine (which of `claude`/`codex` are installed, your `gh` login, the agents in your Agent Forge registry), asks for the repos to watch (picked from the repos your `gh` login can push to, grouped by owner), the identity of the author and the reviewer, and the CLI and model each one uses, writes the config to `~/.carrier/config.json` (one global file per user; change it with `--out`) and runs the checks below. Every question has a flag (`carrier init --help`), and `--yes` never asks, so an agent can run it too:
+It looks at the machine (which of `claude`/`codex` are installed, your `gh` login, the agents in your Agent Forge registry), asks for the repos to watch (picked from the repos your `gh` login can push to, grouped by owner), the identity of the author and the reviewer, and the CLI and model each one uses, writes the config to `~/.carrier/config.json` (one global file per user; change it with `--out`) and runs the checks below. Run again on an existing config, it offers to edit it with its answers as the starting points. Before saving it shows a recap to confirm, and when the checks pass it shows how many epics are waiting and offers to start Carrier. If there is no second GitHub identity it can run `agent-forge add` for you on the spot. Every question has a flag (`carrier init --help`), and `--yes` never asks, so an agent can run it too:
 
 ```bash
 carrier init --yes --repo AshuLab/my-repo \

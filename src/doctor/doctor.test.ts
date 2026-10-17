@@ -49,7 +49,7 @@ test('everything in place: all checks pass and no token reaches the report', asy
 
 test('a missing harness CLI fails once, by name', async () => {
   const checks = await runDoctor(config(), deps({ which: (command) => command !== 'claude' }));
-  expect(failed(checks)).toEqual([{ name: 'claude installed', status: 'fail', detail: 'not found on PATH' }]);
+  expect(failed(checks)).toMatchObject([{ name: 'claude installed', status: 'fail', detail: 'not found on PATH' }]);
 });
 
 test('only the harnesses in use are required', async () => {
@@ -76,7 +76,7 @@ test('without gh nothing that needs it runs', async () => {
 
 test('two profile names for the same forge agent are one identity', async () => {
   const checks = await runDoctor(config({ profiles: { a: { kind: 'forge', agent: 'bot' }, b: { kind: 'forge', agent: 'bot' } } }), deps());
-  expect(failed(checks)).toEqual([
+  expect(failed(checks)).toMatchObject([
     { name: 'author and reviewer are different identities', status: 'fail', detail: 'AshuLab/carrier: author and reviewer both use forge agent bot' },
   ]);
 });
@@ -100,7 +100,7 @@ test('a token that cannot be minted fails for that repo only', async () => {
     return 't';
   };
   const checks = await runDoctor(config({ repos: [{ name: 'AshuLab/one' }, { name: 'AshuLab/two' }] }), deps({ mint }));
-  expect(failed(checks)).toEqual([{ name: 'forge agent tassadar-agent can mint a token for AshuLab/two', status: 'fail', detail: 'Agent not found: tassadar-agent' }]);
+  expect(failed(checks)).toMatchObject([{ name: 'forge agent tassadar-agent can mint a token for AshuLab/two', status: 'fail', detail: 'Agent not found: tassadar-agent' }]);
 });
 
 test('a repo GitHub answers 404 for fails with the error', async () => {
@@ -108,7 +108,7 @@ test('a repo GitHub answers 404 for fails with the error', async () => {
     throw new Error('GitHub answered HTTP 404: Not Found');
   };
   const checks = await runDoctor(config(), deps({ listLabels }));
-  expect(failed(checks)).toEqual([{ name: 'forge agent artanis-agent can read AshuLab/carrier', status: 'fail', detail: 'GitHub answered HTTP 404: Not Found' }]);
+  expect(failed(checks)).toMatchObject([{ name: 'forge agent artanis-agent can read AshuLab/carrier', status: 'fail', detail: 'GitHub answered HTTP 404: Not Found' }]);
 });
 
 test('each identity is minted once per repo, however many roles it has', async () => {
@@ -138,7 +138,47 @@ test('a local model passes when its server has it', async () => {
 
 test('a local model fails with what the server does have, or when the server is down', async () => {
   const missing = failed(await runDoctor(local(), deps({ localModels: async () => ['other'] })));
-  expect(missing).toEqual([{ name: 'LM Studio has google/gemma-4-12b', status: 'fail', detail: 'not downloaded there (it has: other)' }]);
+  expect(missing).toMatchObject([{ name: 'LM Studio has google/gemma-4-12b', status: 'fail', detail: 'not downloaded there (it has: other)' }]);
   const down = failed(await runDoctor(local(), deps({ localModels: async () => Promise.reject(new Error('ECONNREFUSED')) })));
   expect(down[0]?.detail).toBe('LM Studio is not answering at http://localhost:1234; start its server');
+});
+
+// The remedy of each family of failures; it only names what the check already knew.
+const gh = { a: { kind: 'gh' }, b: { kind: 'forge', agent: 'bot' } };
+const fixOf = async (cfg: Config, d: Partial<DoctorDeps>) => failed(await runDoctor(cfg, deps(d)))[0]?.fix;
+
+test.each([
+  ['a missing tool', () => fixOf(config(), { which: (c) => c !== 'gh' }), 'install the GitHub CLI (https://cli.github.com) and run: gh auth login'],
+  ['agent-forge missing', () => fixOf(config(), { which: (c) => c !== 'agent-forge' }), 'install it: pnpm add -g @ashulab/agent-forge (https://github.com/AshuLab/agent-forge)'],
+  ['an unknown Forge agent', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: Agent not found: artanis-agent')) }), 'agent-forge --list shows your agents; add one with: agent-forge add'],
+  ['no installation', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: has no installations')) }), 'install the GitHub App of that agent on AshuLab'],
+  ['an unreadable key', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: Private key for x not found or unreadable')) }), 'check privateKeyPath of that agent in your Forge registry'],
+  ['any other mint error', () => fixOf(config(), { mint: async () => Promise.reject(new Error('boom')) }), 'run: agent-forge token --agent artanis-agent from a clone of the repo to see the full error'],
+  ['a gh login that cannot mint', () => fixOf(config({ profiles: gh, orchestratorProfile: 'b', agents: { author: { profile: 'a', harness: 'claude', model: 'm' }, reviewer: { profile: 'b', harness: 'codex', model: 'm' } } }), { mint: async (p) => (p.kind === 'gh' ? Promise.reject(new Error('x')) : 't') }), 'run: gh auth login'],
+  ['a 404 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 404: Not Found')) }), 'the repo does not exist or this identity cannot see it: install the App on AshuLab and give it access to AshuLab/carrier'],
+  ['a 401 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 401: Bad credentials')) }), "the identity's credentials were rejected: for gh run gh auth login, for a bot check its App in Forge"],
+  ['the same identity twice', () => fixOf(config({ profiles: { a: { kind: 'forge', agent: 'bot' }, b: { kind: 'forge', agent: 'bot' } } }), {}), 'use two different bots (agent-forge add) or one bot and your gh login'],
+  ['a local server that is down', () => fixOf(local(), { localModels: async () => Promise.reject(new Error('ECONNREFUSED')) }), 'start the server (LM Studio: lms server start, Ollama: ollama serve) and download the model'],
+  ['a missing local model', () => fixOf(local(), { localModels: async () => ['other'] }), 'download it in LM Studio / ollama pull google/gemma-4-12b'],
+])('fix: %s', async (_, run, expected) => {
+  expect(await run()).toBe(expected);
+});
+
+test('an unlisted read failure has no fix, and passing checks never do', async () => {
+  const checks = await runDoctor(config(), deps({ listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 422: x')) }));
+  expect(failed(checks)[0]).not.toHaveProperty('fix');
+  expect((await runDoctor(config(), deps())).filter((c) => 'fix' in c)).toEqual([]);
+});
+
+test('onStart announces each check, in the order and with the name of the check that follows', async () => {
+  const events: string[] = [];
+  const checks = await runDoctor(config(), deps({ mint: async () => 'secret-token' }), (c) => events.push(`done:${c.name}`), (name) => events.push(`start:${name}`));
+  expect(events).toEqual(checks.flatMap((c) => [`start:${c.name}`, `done:${c.name}`]));
+  expect(JSON.stringify(checks)).not.toContain('secret-token');
+});
+
+test('checks skipped because a prerequisite failed announce nothing', async () => {
+  const started: string[] = [];
+  const checks = await runDoctor(config(), deps({ which: (c) => c !== 'gh' }), () => {}, (name) => started.push(name));
+  expect(started).toEqual(checks.map((c) => c.name)); // no start for the mints and reads that were skipped
 });

@@ -23,3 +23,7 @@ Native sandbox of Claude and Codex. It isolates less and differs between provide
 ## Consequences
 
 Simplicity is gained: no container runtime, mounts, images or external login renewal, and sessions stay where each CLI stores them. It is accepted that an unattended agent runs with the user's permissions and can touch files, credentials and other repos on that machine; this is an assumed risk until AFK security is defined. The runner invokes the real `claude` and `codex` binaries, not wrappers. Without a container, stopping an agent does not guarantee its child processes end (Codex leaves the command's process orphaned even with `SIGTERM`, [research](../research/headless-agents.md)); it remains a known limitation to review with AFK security.
+
+## Update (2026-10-17)
+
+Antigravity (`agy`) was added as a third harness under the same decision: its normal CLI as a child process, with `--dangerously-skip-permissions` (it has no sandbox to turn off; `--sandbox` is opt-in). Stopping it does not leave child processes behind on SIGTERM. A model served by LM Studio or Ollama through Claude Code or Codex runs the same way, with the same permissions: the model being local changes where it thinks, not what the agent can touch. See [the spike](../research/antigravity.md).

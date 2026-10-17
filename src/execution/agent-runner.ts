@@ -1,11 +1,14 @@
+import type { HarnessName } from '../harnesses/names.ts';
+
 export interface AgentTask {
   executionId: string;
   repo: string; // "owner/name"
   epic: number;
   stage: 'ship' | 'review' | 'fix';
   profile: string; // GitHub profile of the effective config
-  provider: 'claude' | 'codex';
+  harness: HarnessName;
   model: string;
+  provider?: 'lmstudio' | 'ollama'; // `model` is served by that local server
   workspace: string; // checkout where the agent runs
   resultPath: string; // where the caller writes its JSON
   timeoutMs: number | null; // null = unlimited

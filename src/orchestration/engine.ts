@@ -62,6 +62,7 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
 
 export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, runner, workspaces, root, sessionDirs }: EngineOptions) {
   let error: GitHubUnavailable | AuthError | null = null;
+  let nextPollAt: number | null = null;
   // The orchestrator's profile failed: no GitHub call is made until the poll's probe succeeds. Never another profile.
   let suspended: AuthError | null = null;
   let cancel: (() => void) | null = null;
@@ -509,6 +510,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   const schedule = (ms: number) => {
     if (stopping) return;
+    nextPollAt = clock.now() + ms;
     cancel = clock.after(ms, async () => schedule(await poll()));
   };
 
@@ -545,6 +547,10 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     /** Resolves when no execution is being followed any more. */
     async idle() {
       while (inflight.size > 0) await Promise.all([...inflight]);
+    },
+    /** When the next poll is due (ms since epoch); null before the first one is scheduled. */
+    get nextPollAt() {
+      return nextPollAt;
     },
     /** Last GitHub failure, null once a poll succeeds. */
     get error() {

@@ -1,3 +1,4 @@
+import { renderDashboard } from './dashboard.ts';
 import { renderPanel, type PanelEpic, type PanelSnapshot } from './render.ts';
 
 export interface PanelOutput {
@@ -20,8 +21,8 @@ export function startPanel(snapshot: () => PanelSnapshot, out: PanelOutput = pro
   let queueSeen = '';
 
   const redraw = (s: PanelSnapshot) => {
-    // Lines wider than the terminal would wrap and break the cursor-up count.
-    const lines = renderPanel(s).map((l) => (out.columns ? l.slice(0, out.columns) : l));
+    // Lines wider than the terminal would wrap and break the cursor-up count; the dashboard cuts them itself.
+    const lines = renderDashboard(s, { columns: out.columns });
     out.write(`${drawn > 0 ? `\x1b[${drawn}A` : ''}${lines.map((l) => `\r\x1b[2K${l}\n`).join('')}\x1b[J`);
     drawn = lines.length;
   };

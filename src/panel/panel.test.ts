@@ -27,7 +27,7 @@ const output = (isTTY: boolean) => {
 
 beforeEach(() => {
   vi.useFakeTimers({ now: 0 });
-  state = { now: 0, slots: { busy: 1, total: 2 }, queue: [], epics: [{ ...epic }] };
+  state = { now: 0, slots: { busy: 1, total: 2 }, queue: [], epics: [{ ...epic }], startedAt: 0, repos: 1, nextCheckAt: null, problem: null, done: [] };
 });
 afterEach(() => vi.useRealTimers());
 
@@ -40,9 +40,9 @@ test('on a terminal it redraws in place with ANSI every second', () => {
   expect(writes[0]).not.toContain('\x1b[1A'); // first draw: nothing to overwrite
   vi.advanceTimersByTime(1000);
   expect(writes).toHaveLength(2);
-  expect(writes[1]).toContain('\x1b[3A'); // back over the 3 lines drawn before (header, epic, links)
+  expect(writes[1]).toContain(`\x1b[${writes[0]!.split('\n').length - 1}A`); // back over every line drawn before
   expect(writes[1]).toContain('\x1b[2K');
-  expect(writes[1]).toContain('in stage 1s');
+  expect(writes[1]).toContain('1s in stage');
   vi.advanceTimersByTime(2000);
   expect(writes).toHaveLength(4);
   stop();

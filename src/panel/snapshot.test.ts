@@ -22,7 +22,7 @@ afterEach(() => {
 
 const add = (issue: number, status: (typeof epicStates)[number], extra: Partial<typeof epics.$inferInsert> = {}) =>
   db.insert(epics).values({ repo: 'acme/web', issue, status, ...extra }).returning().get();
-const snapshot = (now = 100_000) => buildSnapshot(db, { now, maxConcurrentEpics: 3, maxReviews: 5 });
+const snapshot = (now = 100_000) => buildSnapshot(db, { now, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null });
 
 test('slots count the running epics, the queue lists the queued ones oldest first, and finished ones do not show', () => {
   add(5, 'queued');
@@ -72,4 +72,12 @@ test('renders through renderPanel: the stage duration and the activity age come 
   expect(lines).toContain('in stage 1m');
   expect(lines).toContain('activity 5s ago');
   expect(lines).toContain('slots 1/3');
+});
+
+test('it carries the process facts and the epics that ended ready for test, most recent first, at most five', () => {
+  for (let i = 1; i <= 7; i += 1) add(i, 'ready_for_test', { finishedAt: i * 1000, prNumber: 100 + i });
+  add(50, 'merged', { finishedAt: 99_000 });
+  const s = snapshot();
+  expect([s.startedAt, s.repos, s.nextCheckAt, s.problem]).toEqual([40_000, 2, 160_000, null]);
+  expect(s.done.map((d) => [d.issue, d.prNumber, d.finishedAt])).toEqual([[7, 107, 7000], [6, 106, 6000], [5, 105, 5000], [4, 104, 4000], [3, 103, 3000]]);
 });

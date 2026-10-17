@@ -25,12 +25,22 @@ export type PanelSnapshot = {
   /** Queued epics, oldest first. */
   queue: { repo: string; issue: number }[];
   epics: PanelEpic[];
+  /** When this carrier process started (ms since epoch). */
+  startedAt: number;
+  /** How many repos are watched. */
+  repos: number;
+  /** When the next poll is due; null before the first is scheduled. */
+  nextCheckAt: number | null;
+  /** Why GitHub work is stalled right now (GitHub down, a profile rejected), null when all is well. */
+  problem: string | null;
+  /** The epics that ended ready for test, most recent first. */
+  done: { repo: string; issue: number; prNumber: number | null; finishedAt: number | null }[];
 };
 
 // The reason and the error come from the agent's own output: no control character (ESC included) may reach the terminal.
 const printable = (text: string) => text.replace(/[\x00-\x1f\x7f-\x9f]/g, ' ');
 
-// Pure: the same snapshot always gives the same lines, with no ANSI.
+// The one-line-per-change form for a pipe (a terminal gets the dashboard). Pure: no ANSI.
 export function renderPanel({ now, slots, queue, epics }: PanelSnapshot): string[] {
   const lines = [`carrier  slots ${slots.busy}/${slots.total}  queue ${queue.length}${queue.length > 0 ? `: ${queue.map((q) => `${q.repo}#${q.issue}`).join(', ')}` : ''}`];
   for (const e of epics) {

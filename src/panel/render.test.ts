@@ -18,10 +18,10 @@ const epic = (over: Partial<PanelEpic> = {}): PanelEpic => ({
   needsHumanReason: null,
   ...over,
 });
-const snapshot = (over: Partial<PanelSnapshot> = {}): PanelSnapshot => ({ now, slots: { busy: 0, total: 3 }, queue: [], epics: [], ...over });
+const snapshot = (over: Partial<PanelSnapshot> = {}): PanelSnapshot => ({ now, slots: { busy: 0, total: 3 }, queue: [], epics: [], startedAt: 0, repos: 1, nextCheckAt: null, problem: null, done: [], ...over });
 
 test('the agent\'s reason and error are shown without control characters', () => {
-  const lines = renderPanel({ now, slots: { busy: 1, total: 1 }, queue: [], epics: [epic({ needsHumanReason: 'a\x1b[2Jb', lastError: 'c\r\nd\x07' })] }).join('\n');
+  const lines = renderPanel(snapshot({ slots: { busy: 1, total: 1 }, epics: [epic({ needsHumanReason: 'a\x1b[2Jb', lastError: 'c\r\nd\x07' })] })).join('\n');
   expect(lines).toContain('reason: a [2Jb');
   expect(lines).toContain('error: c  d ');
   expect(lines).not.toMatch(/[\x07\x1b\r]/);

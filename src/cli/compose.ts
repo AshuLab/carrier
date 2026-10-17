@@ -10,7 +10,7 @@ import { GhGitHub, type GhGitHubOptions } from '../integrations/github.ts';
 import { installFileLogging } from '../logging/logger.ts';
 import { realClock, type Clock } from '../orchestration/clock.ts';
 import { createEngine } from '../orchestration/engine.ts';
-import type { GitHub } from '../orchestration/github.ts';
+import { AuthError, type GitHub } from '../orchestration/github.ts';
 import { sessionDirsFrom, type SessionDirs } from '../orchestration/retention.ts';
 import { startPanel, type PanelOutput } from '../panel/panel.ts';
 import { buildSnapshot } from '../panel/snapshot.ts';
@@ -66,6 +66,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
   deps.installLogging(join(orchestratorDir, 'logs', 'orchestrator.log'), config.logLevel);
   createScopedLogger('cli').info('carrier started', { root: config.root, repos: config.repos.length });
 
+  const startedAt = deps.clock.now();
   const db = openDatabase(join(orchestratorDir, 'carrier.db'));
   const repos = config.repos.map((repo) => resolveRepoConfig(config, repo));
   const { limits } = config;
@@ -109,7 +110,16 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
   // Only now: until the engine is up the terminal belongs to whoever is waiting for it (the "Starting…" spinner).
   deps.onArrived?.();
   stopPanel = startPanel(
-    () => buildSnapshot(db, { now: deps.clock.now(), maxConcurrentEpics: limits.maxConcurrentEpics, maxReviews: limits.maxReviews }),
+    () =>
+      buildSnapshot(db, {
+        now: deps.clock.now(),
+        maxConcurrentEpics: limits.maxConcurrentEpics,
+        maxReviews: limits.maxReviews,
+        startedAt,
+        repos: config.repos.length,
+        nextCheckAt: engine.nextPollAt,
+        problem: engine.error instanceof AuthError ? `authentication error for profile ${engine.error.profile}` : engine.error ? 'GitHub is unavailable: it will be tried again' : null,
+      }),
     deps.panelOut,
     deps.panelIntervalMs,
   );

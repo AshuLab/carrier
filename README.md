@@ -66,17 +66,19 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 ```text
 carrier/
 ├── src/
-│   ├── cli/            # the command line only: args, commands/ (run, init, doctor, schema), config file, composition root, Ctrl+C
-│   ├── ui/             # the terminal contract (`Ui`) and its clack implementation: prompts, spinners, check lines
-│   ├── init/           # `carrier init`: the flow (wizard), what it asks (questions/), what it needs from the machine (deps), the recap
-│   ├── doctor/         # `carrier doctor`: the checks and the remedy for each failure
-│   ├── panel/          # the dashboard: snapshot from SQLite, renderers (dashboard, plain), keys and their state, agent-output tail
+│   ├── terminal/       # everything a terminal user sees; a web UI would be a sibling of this folder
+│   │   ├── cli/        #   the command line: args, commands/ (run, init, doctor, schema), config file, composition root, Ctrl+C
+│   │   ├── prompts/    #   the terminal contract (`Ui`) and its clack implementation: prompts, spinners, check lines
+│   │   ├── wizard/     #   `carrier init`: the flow, what it asks (questions/), what it needs from the machine (deps), the recap
+│   │   └── dashboard/  #   the panel: renderers (dashboard, plain), keys and their state, agent-output tail
+│   ├── status/         # what Carrier is doing right now, read from SQLite (the view any front-end draws)
+│   ├── doctor/         # the checks of `carrier doctor` and the remedy for each failure
 │   ├── config/         # config schema, defaults, loading/merging, per-repo resolution, JSON Schema, default path
 │   ├── orchestration/  # engine: polling, scheduler, stages, retries, restart, final-PR rules, ports + fakes
 │   ├── execution/      # AgentRunner/Workspaces ports, caller result parsing and idempotent import
 │   ├── harnesses/      # Claude, Codex and Antigravity runners, credentials, local providers, orphan detection
 │   ├── integrations/   # GitHub through Agent Forge (`gh` via execFile)
-│   ├── prompts/        # author and reviewer prompts
+│   ├── prompts/        # author and reviewer prompts (what the agents are told, not terminal prompts)
 │   ├── storage/        # SQLite schema, migrations, lock, executions, events, retention
 │   ├── logging/        # universal-logger integration
 │   └── format/         # duration formatting
@@ -154,7 +156,7 @@ Defaults: `root` `~/.solve`, `pollIntervalMinutes` 5, `logLevel` `info`, and `li
 carrier
 ```
 
-`carrier` reads `~/.carrier/config.json`; pass `--config <path>` to use another file. It runs until `Ctrl+C`. Only one instance can run per root folder. From a clone, run `pnpm build` and then `node dist/cli/main.js`, or `node src/cli/main.ts --config ...` (Node 26 runs the TypeScript directly).
+`carrier` reads `~/.carrier/config.json`; pass `--config <path>` to use another file. It runs until `Ctrl+C`. Only one instance can run per root folder. From a clone, run `pnpm build` and then `node dist/terminal/cli/main.js`, or `node src/terminal/cli/main.ts --config ...` (Node 26 runs the TypeScript directly).
 
 Mark an epic `solve:epic:ready` in a configured repo and watch the panel.
 

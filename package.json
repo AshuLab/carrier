@@ -14,7 +14,7 @@
     "node": ">=22"
   },
   "bin": {
-    "carrier": "./dist/cli/main.js"
+    "carrier": "./dist/terminal/cli/main.js"
   },
   "files": [
     "dist",
@@ -25,7 +25,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -r src/storage/migrations dist/storage/migrations && chmod +x dist/cli/main.js",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -r src/storage/migrations dist/storage/migrations && chmod +x dist/terminal/cli/main.js",
     "prepublishOnly": "pnpm typecheck && pnpm test",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

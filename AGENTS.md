@@ -10,18 +10,19 @@ pnpm only (never npm or yarn). Node 26 runs the TypeScript directly.
 - `pnpm test:integration`: real tools, each file skips itself unless its `CARRIER_IT_*` / `CARRIER_TEST_*` variables are set (the header of each file lists them).
 - `pnpm build`: compiles to `dist/` (what is published as `@ashulab/carrier`).
 - `pnpm db:generate`: new Drizzle migration after changing the schema in `src/storage`.
-- Run from source: `node src/cli/main.ts <init|doctor|schema|--config file>`.
+- Run from source: `node src/terminal/cli/main.ts <init|doctor|schema|--config file>`.
 
 ## Layout
 
-Each folder has one job (details in the README):
+Everything a terminal user sees lives under `src/terminal`, so a future web UI is a sibling folder and not a rename. What any front-end would need stays outside it. Each folder has one job (details in the README):
 
-- `cli` is only the command line: `main.ts` parses and dispatches, `args.ts` is the option table, `commands/` has one file per command, `config-file.ts` reads the config, `compose.ts` wires the real engine. A failure to report is a `CliError`; only `main.ts` turns it into an exit code.
-- `ui` is the terminal contract (`Ui`, `Cancelled`) and its clack implementation. Commands depend on the contract, tests script it.
-- `init` is `carrier init`: `wizard.ts` is the flow, `questions/` one file per thing asked, `deps.ts` everything that touches the machine (replaceable in tests), `prior.ts` and `summary.ts` the edit mode and the recap.
-- `doctor` is `carrier doctor`: `doctor.ts` the checks, `fixes.ts` the remedy for each failure.
-- `panel` is the dashboard: `snapshot.ts` reads SQLite, `types.ts` is what it shows, `dashboard.ts` and `plain.ts` draw it, `ui-state.ts` is the pure key reducer, `interactive.ts` wires keys to actions.
-- `config`, `orchestration` (the engine, behind the `GitHub` port), `execution` (the `AgentRunner`/`Workspaces` ports, result import), `harnesses` (Claude/Codex/Antigravity runners), `integrations`, `storage`, `logging`: as their names say.
+- `terminal/cli`: only the command line. `main.ts` parses and dispatches, `args.ts` is the option table, `commands/` one file per command, `config-file.ts` reads the config, `compose.ts` wires the real engine. A failure to report is a `CliError`; only `main.ts` turns it into an exit code.
+- `terminal/prompts`: the terminal contract (`Ui`, `Cancelled`) and its clack implementation. Commands depend on the contract, tests script it.
+- `terminal/wizard`: `carrier init`. `wizard.ts` is the flow, `questions/` one file per thing asked, `deps.ts` everything that touches the machine (replaceable in tests), `prior.ts` and `summary.ts` the edit mode and the recap.
+- `terminal/dashboard`: the panel. `dashboard.ts` and `plain.ts` draw it, `ui-state.ts` is the pure key reducer, `interactive.ts` wires keys to actions.
+- `status`: what the panel shows (`types.ts`) and how it is read from SQLite (`snapshot.ts`), for any front-end.
+- `doctor`: the checks (`doctor.ts`) and the remedy for each failure (`fixes.ts`).
+- `config`, `orchestration` (the engine, behind the `GitHub` port), `execution` (the `AgentRunner`/`Workspaces` ports, result import), `harnesses` (Claude/Codex/Antigravity runners), `integrations`, `prompts` (what the agents are told), `storage`, `logging`: as their names say.
 
 ## Conventions
 

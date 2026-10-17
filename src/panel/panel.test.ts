@@ -46,8 +46,9 @@ test('on a terminal it redraws in place with ANSI every second', () => {
   vi.advanceTimersByTime(2000);
   expect(writes).toHaveLength(4);
   stop();
+  expect(writes.at(-1)).toBe('\x1b[?25h'); // the cursor comes back
   vi.advanceTimersByTime(5000);
-  expect(writes).toHaveLength(4);
+  expect(writes).toHaveLength(5); // and nothing is drawn after stop
 });
 
 test('without a terminal it writes one plain line per state change, no ANSI', () => {
@@ -78,4 +79,22 @@ test('the panel has no controls: it never reads stdin', () => {
   expect(process.stdin.listenerCount('data') + process.stdin.listenerCount('keypress') + process.stdin.listenerCount('readable')).toBe(before);
   expect(process.stdin.isRaw).toBeFalsy();
   stop();
+});
+
+test('the cursor is hidden by the first draw, returned on stop and also if the process exits without it', () => {
+  const { out, writes } = output(true);
+  const before = process.listenerCount('exit');
+  const stop = startPanel(snapshot, out);
+  expect(writes[0]!.startsWith('\x1b[?25l')).toBe(true);
+  expect(writes[1]).toBeUndefined();
+  expect(process.listenerCount('exit')).toBe(before + 1);
+  process.emit('exit', 0); // what Node does on the way out, however the process ended
+  expect(writes.at(-1)).toBe('\x1b[?25h');
+  stop();
+  expect(process.listenerCount('exit')).toBe(before);
+
+  const plain = output(false);
+  const stopPlain = startPanel(snapshot, plain.out);
+  stopPlain();
+  expect(plain.writes.join('')).not.toContain('\x1b[?25'); // a pipe never gets cursor codes
 });

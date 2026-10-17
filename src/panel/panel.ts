@@ -20,10 +20,16 @@ export function startPanel(snapshot: () => PanelSnapshot, out: PanelOutput = pro
   const seen = new Map<string, string>();
   let queueSeen = '';
 
+  // The panel owns the screen, so the cursor is hidden while it runs and always given back, also when the process dies on its own.
+  const hideCursor = '\x1b[?25l';
+  const showCursor = '\x1b[?25h';
+  const restoreOnExit = () => out.write(showCursor);
+  if (out.isTTY) process.once('exit', restoreOnExit);
+
   const redraw = (s: PanelSnapshot) => {
     // Lines wider than the terminal would wrap and break the cursor-up count; the dashboard cuts them itself.
     const lines = renderDashboard(s, { columns: out.columns });
-    out.write(`${drawn > 0 ? `\x1b[${drawn}A` : ''}${lines.map((l) => `\r\x1b[2K${l}\n`).join('')}\x1b[J`);
+    out.write(`${drawn > 0 ? `\x1b[${drawn}A` : hideCursor}${lines.map((l) => `\r\x1b[2K${l}\n`).join('')}\x1b[J`);
     drawn = lines.length;
   };
 
@@ -45,5 +51,11 @@ export function startPanel(snapshot: () => PanelSnapshot, out: PanelOutput = pro
   const tick = () => (out.isTTY ? redraw : emitChanges)(snapshot());
   tick();
   const timer = setInterval(tick, intervalMs);
-  return () => clearInterval(timer);
+  return () => {
+    clearInterval(timer);
+    if (out.isTTY) {
+      process.removeListener('exit', restoreOnExit);
+      out.write(showCursor);
+    }
+  };
 }

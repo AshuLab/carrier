@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img alt="Node.js 26" src="https://img.shields.io/badge/Node.js-26-339933?logo=nodedotjs&logoColor=white" />
+  <img alt="Node.js 22+" src="https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-ESM-3178c6?logo=typescript&logoColor=white" />
   <img alt="SQLite" src="https://img.shields.io/badge/SQLite-better--sqlite3-003b57?logo=sqlite&logoColor=white" />
   <img alt="Drizzle ORM" src="https://img.shields.io/badge/Drizzle-ORM-c5f74f?logo=drizzle&logoColor=black" />
@@ -17,14 +17,14 @@
   <img alt="Codex" src="https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white" />
 </p>
 
-> **Status:** first version, macOS only, built for personal use. Agents run as the regular `claude` and `codex` CLIs with **your permissions** and no isolation. Read [Security](#security) before pointing it at anything you care about.
+> **Status:** first version, macOS only, built for personal use. Agents run as the regular `claude`, `codex` and `agy` CLIs with **your permissions** and no isolation. Read [Security](#security) before pointing it at anything you care about.
 
 ## What it does
 
 Carrier is a long-running terminal app. You start it from any folder with a JSON config; it polls the repos you list and, for every epic labelled `solve:epic:ready`, drives the whole loop without supervision:
 
 1. **Pick up.** Each interval it registers new ready epics in arrival order, and when a slot is free it takes the oldest one and relabels it `solve:epic:running`.
-2. **Ship.** An _author_ agent (Claude or Codex) runs [Solve](https://github.com/AshuLab/skills)'s `ship` on the epic inside a managed clone. Carrier then checks the final integration PR against GitHub: it exists, is open, references the epic, and its head is the expected commit.
+2. **Ship.** An _author_ agent (Claude Code, Codex or Antigravity) runs [Solve](https://github.com/AshuLab/skills)'s `ship` on the epic inside a managed clone. Carrier then checks the final integration PR against GitHub: it exists, is open, references the epic, and its head is the expected commit.
 3. **Review.** A _reviewer_ agent with a **different GitHub identity** reviews that PR in a separate checkout. If it asks for changes, the author gets a fix turn and the reviewer goes again, up to `maxReviews` rounds.
 4. **Hand-off.** The epic ends as `solve:epic:ready-for-test` (a conclusive review on the current head) or `solve:epic:needs-human` (stopped, with the reason shown in the terminal). Carrier never merges the final PR — you test it and decide.
 
@@ -48,16 +48,16 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 
 | Layer | Technology |
 |-------|-----------|
-| Runtime | Node.js 26, ESM, TypeScript run via native type stripping |
+| Runtime | Node.js 22+ for the package (compiled to `dist/`); 26 to work on it, where TypeScript runs via native type stripping. ESM |
 | Language | TypeScript (strict) |
 | State | SQLite via `better-sqlite3`, schema and migrations with Drizzle ORM + Drizzle Kit |
 | Validation | Zod (config, caller result, GitHub responses) |
 | Logging | `@ashulab/universal-logger` |
 | GitHub access | `gh` CLI, authenticated per profile through Agent Forge (GitHub Apps) |
 | Identities | [Agent Forge](https://github.com/AshuLab/agent-forge) bot profiles, or your own `gh` login |
-| Agents | Claude Code CLI and Codex CLI, headless |
+| Agents | Claude Code, Codex and Antigravity (`agy`) CLIs, headless; their models from the cloud or from LM Studio / Ollama |
 | Workflow | [Solve](https://github.com/AshuLab/skills) skills (`ship`, `code-review`, ...) |
-| Terminal UI | Plain ANSI escape sequences |
+| Terminal UI | `@clack/prompts` for `init` and `doctor`; plain ANSI escape sequences for the panel |
 | Testing | Vitest (unit and gated integration) |
 | Package manager | pnpm 12 |
 
@@ -95,7 +95,7 @@ carrier/
 
 - macOS and Node.js 22 or newer. Working from a clone needs Node.js 26 and pnpm 12.
 - `git` and the GitHub CLI (`gh`).
-- The `claude` and/or `codex` CLIs installed and logged in from the terminal where you run Carrier.
+- At least one of the `claude`, `codex` and `agy` (Antigravity) CLIs, installed and logged in from the terminal where you run Carrier. For local models, LM Studio or Ollama running.
 - [Agent Forge](https://github.com/AshuLab/agent-forge) with two bot profiles (one for the author, one for the reviewer), or `gh` profiles for the identities you want to use.
 - The target repos use the [Solve](https://github.com/AshuLab/skills) flow.
 
@@ -148,7 +148,7 @@ A JSON file merged over the defaults (objects merge by field, simple values repl
 }
 ```
 
-Defaults: `root` `~/.solve`, `pollIntervalMinutes` 5, `logLevel` `info`, and `limits` of `maxConcurrentEpics` 3, `maxReviews` 5, `maxExecutionRetries` 3, `maxExecutionHours` 4 (or `"unlimited"`), `githubCallTimeoutSeconds` 30. Identity, provider and model for author and reviewer can be overridden per repo. The file holds no secrets: a profile is `{ "kind": "forge", "agent": ... }` or `{ "kind": "gh" }`.
+Defaults: `root` `~/.solve`, `pollIntervalMinutes` 5, `logLevel` `info`, and `limits` of `maxConcurrentEpics` 3, `maxReviews` 5, `maxExecutionRetries` 3, `maxExecutionHours` 4 (or `"unlimited"`), `githubCallTimeoutSeconds` 30. Identity, harness, provider and model for author and reviewer can be overridden per repo. The file holds no secrets: a profile is `{ "kind": "forge", "agent": ... }` or `{ "kind": "gh" }`.
 
 ### 4. Run it
 
@@ -174,7 +174,7 @@ The gated tests use `CARRIER_IT_*` and `CARRIER_TEST_*` variables; each test fil
 
 ## Where it keeps things
 
-Under `root` (default `~/.solve/`), shared with Solve:
+The config is `~/.carrier/config.json` (override the folder with `CARRIER_HOME`). Everything else is under `root` (default `~/.solve/`), shared with Solve:
 
 - `repos/<org>/<repo>/` — managed clones.
 - `worktrees/<repo>/<feature>/` — workspaces created by Solve; `reviews/<repo>/<epic>/` — the reviewer's separate checkout.
@@ -182,14 +182,14 @@ Under `root` (default `~/.solve/`), shared with Solve:
 
 ## Security
 
-Unattended agents run with **your** permissions: Claude with permissions bypassed and Codex with `--dangerously-bypass-approvals-and-sandbox`, so they can touch files, credentials and other repos on the machine. Carrier adds no isolation in this version ([ADR 0004](docs/adr/0004-agents-run-on-host-with-terminal-preferences.md)); run it on a machine or user account where you accept that. Each execution's GitHub token has the minimum scopes of its role, and your repos should have branch protection. Without a container, stopping an agent does not guarantee that its child processes die. Hardening unattended agents is planned follow-up work.
+Unattended agents run with **your** permissions: Claude with permissions bypassed, Codex with `--dangerously-bypass-approvals-and-sandbox` and Antigravity with `--dangerously-skip-permissions` (a model served locally changes nothing about this), so they can touch files, credentials and other repos on the machine. Carrier adds no isolation in this version ([ADR 0004](docs/adr/0004-agents-run-on-host-with-terminal-preferences.md)); run it on a machine or user account where you accept that. Each execution's GitHub token has the minimum scopes of its role, and your repos should have branch protection. Without a container, stopping an agent does not guarantee that its child processes die. Hardening unattended agents is planned follow-up work.
 
 ## Documentation
 
 - Using it: [configuration](docs/configuration.md), [preparing a repo](docs/preparing-a-repo.md) and [troubleshooting](docs/troubleshooting.md).
 - [Spec](docs/specs/autonomous-orchestrator.md) and [glossary](docs/glossary.md).
 - [ADRs](docs/adr/) — coordination vs. evaluation, SQLite as the authority, and agents on the host (which replaces the container ADR 0003).
-- [Research](docs/research/) — headless agents, Agent Forge, logging and panel, shared root, containers (dropped, kept as reference).
+- [Research](docs/research/) — headless agents, Antigravity, Agent Forge, logging and panel, shared root, containers (dropped, kept as reference).
 - [`AGENTS.md`](AGENTS.md) — entry point for coding agents working in this repo.
 
 ## License

@@ -1,8 +1,8 @@
 # Troubleshooting
 
-First step for almost everything: `carrier doctor --config <file>`.
+First step for almost everything: `carrier doctor` (it reads `~/.carrier/config.json`; pass `--config <file>` for another).
 
-Where to look: the panel in the terminal shows each epic's stage, round and reason. `<root>/orchestrator/logs/orchestrator.log` has the process log and `<root>/orchestrator/logs/executions/<id>/` the full output of each agent run (default root `~/.solve`). Neither contains tokens.
+Where to look: the panel in the terminal shows each epic's stage, round and reason. `<root>/orchestrator/logs/orchestrator.log` has the process log and `<root>/orchestrator/logs/executions/<id>/` the full output of each agent run (default root `~/.solve`). Neither contains tokens. In the panel, select an epic with `↑`/`↓` and press `l` to read what its agent is doing, without leaving it; `?` lists the keys.
 
 ## An epic ends in `solve:epic:needs-human`
 
@@ -28,15 +28,14 @@ An epic in `needs-human` is not reactivated by Carrier, not even on restart: you
 - **`could not mint a token for <agent>`.** Forge could not mint it: agent not in the registry (`agent-forge --list`), private key unreadable, App not installed on the repo's owner.
 - **An `agy` run waits about a minute and fails with `authentication failed or timed out`.** Antigravity is not logged in. Run `agy` once in a terminal and sign in; Carrier cannot shorten that wait.
 - **`agent-forge: command not found`.** Install it (or use only `gh` profiles, with the caveat that author and reviewer then cannot both be `gh`).
-
 - **`LM Studio is not answering at http://localhost:1234` / `... not downloaded there`.** The agent uses a local model (`provider` in the config): start the server (LM Studio: Developer tab, or `lms server start`; Ollama: `ollama serve`) and make sure the model is downloaded. `carrier doctor` repeats the check.
 
 ## While it runs
 
 - **GitHub is down or rate limiting.** Carrier keeps the queue, shows the error and tries again at the next interval or after the wait GitHub indicates. It does not spend agent retries.
-- **An epic is not picked up.** It needs the `solve:epic:ready` label, the issue open, and a free slot (`maxConcurrentEpics`). Epics go FIFO across all repos.
+- **An epic is not picked up.** It needs the `solve:epic:ready` label, the issue open, and a free slot (`maxConcurrentEpics`). Epics go FIFO across all repos. Check that the panel does not say `PAUSED` (`p` pauses and resumes taking epics), and press `r` to check GitHub now instead of waiting for the interval.
 - **A repo was removed from the config.** On restart its pending epics are stopped with that reason and recovered if you add it back (unless they were in `needs-human`).
-- **Ctrl+C.** Stops the agents and keeps everything; the next start reconciles with GitHub and resumes. Known limit: without a container, stopping does not guarantee an agent's child processes die (Codex leaves its command process even on SIGTERM). If you see leftover `codex` or `claude` processes, `pgrep -fl 'codex|claude'` and kill them.
+- **Ctrl+C or `q`.** Stops the agents and keeps everything; the next start reconciles with GitHub and resumes. Known limit: without a container, stopping does not guarantee an agent's child processes die (Codex leaves its command process even on SIGTERM, Claude on SIGKILL; Antigravity cleans up on SIGTERM). If you see leftover `codex`, `claude` or `agy` processes, `pgrep -fl 'codex|claude|agy'` and kill them.
 - **A Codex reviewer ends in `needs-human` after 3 attempts writing its result.** Known residual risk: it can mangle the result path. Look at the execution log, finish the review by hand.
 
 ## Cleaning up

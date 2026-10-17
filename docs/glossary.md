@@ -14,7 +14,7 @@ _Avoid_: execution retry, orchestrator fix counter.
 **Caller agent** - Agent that invokes the skills, interprets their current reports and applies the repo's rules to work as author or reviewer. It hands the orchestrator one structured conclusion per execution.
 _Avoid_: skill, orchestrator when referring to the agent that interprets the reports.
 
-**Harness** - The agent CLI that runs the loop and the tools of an execution (Claude Code, Codex). Carrier launches it as a child process, as the user's normal CLI. It is the `harness` of an agent in the config.
+**Harness** - The agent CLI that runs the loop and the tools of an execution (Claude Code, Codex, Antigravity). Carrier launches it as a child process, as the user's normal CLI. It is the `harness` of an agent in the config.
 _Avoid_: provider, agent (the author and the reviewer are agents; the harness is what runs them), runner.
 
 **Model provider** - Who serves the model the harness uses: the harness's own cloud (Anthropic for Claude Code, OpenAI for Codex) or a local server (LM Studio, Ollama). It is the optional `provider` of an agent; without it, the harness's own cloud.

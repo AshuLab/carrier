@@ -1,6 +1,6 @@
 # Configuration
 
-`carrier init` writes this file for you, by default to `~/.carrier/config.json` (global, one per user; `carrier` and `carrier doctor` read it when you do not pass `--config`); this page is the reference for editing it by hand. `carrier doctor --config <file>` checks it and `carrier schema` prints its JSON Schema (add it to your editor for completion).
+`carrier init` writes this file for you, by default to `~/.carrier/config.json` (global, one per user; `carrier` and `carrier doctor` read it when you do not pass `--config`; `CARRIER_HOME` changes the folder); this page is the reference for editing it by hand. `carrier doctor --config <file>` checks it and `carrier schema` prints its JSON Schema (add it to your editor for completion).
 
 The file is a JSON object merged over the defaults: objects merge field by field, simple values replace the default, lists replace it whole. A value of the wrong type is an error, never converted. An invalid config prints every error with its field and exits without starting anything.
 
@@ -28,7 +28,7 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `repos` | yes, at least one | | Repos to watch. Each is `{ "name": "owner/name", "agents"?: ... }`. |
 | `profiles` | yes | | The GitHub identities you can use, by name (below). |
 | `orchestratorProfile` | yes | | Profile used to read issues and PRs and to change labels. It may be the author's. |
-| `agents.author` / `agents.reviewer` | yes | | `{ profile, harness, model, provider? }` for each role. `harness` is the agent CLI that runs it: `claude` (Claude Code), `codex` or `agy` (Antigravity). For Claude prefer an alias (`sonnet`, `opus`, ...): the CLI resolves it to the latest model, so it does not go stale. Codex has no aliases: use an id from `codex`'s own list (`carrier init` offers it). |
+| `agents.author` / `agents.reviewer` | yes | | `{ profile, harness, model, provider? }` for each role. `harness` is the agent CLI that runs it: `claude` (Claude Code), `codex` or `agy` (Antigravity). For Claude prefer an alias (`sonnet`, `opus`, ...): the CLI resolves it to the latest model, so it does not go stale. Codex has no aliases: use an id from `codex`'s own list; for Antigravity, one from `agy models` (`carrier init` offers all of them). |
 | `agents.<role>.provider` | no | the harness's own cloud | Who serves the model: `lmstudio` or `ollama` for a local server. See [Local models](#local-models). |
 | `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
@@ -62,6 +62,7 @@ Profile names used in an override must exist in `profiles`. The author and the r
 
 - Every profile named anywhere is declared in `profiles`.
 - Repo names are `owner/name`, and no two repos share the same folder name (Solve's worktree paths have no owner).
+- A `provider` is only accepted for a harness that can use it (Claude Code and Codex; not Antigravity), globally and in a per-repo override.
 - The effective configuration of an epic is saved, without credentials, when it starts and kept when it resumes, even if you change the file in between.
 
 ## Local models

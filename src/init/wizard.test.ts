@@ -56,6 +56,7 @@ const fakeDeps = (over: Partial<InitDeps> = {}) => {
     originRepo: () => 'AshuLab/carrier',
     codexModel: () => 'gpt-test',
     codexModels: () => [],
+    localModels: async () => Promise.reject(new Error('not running')),
     exists: () => false,
     write: (path, content) => (written[path] = content),
     doctor: async () => [okCheck],
@@ -250,7 +251,29 @@ test('each role gets its own box, and the author is fully asked before the revie
   await runInit({ repo: ['A/b'], out: join(dir, 'o.json') }, spy, fakeDeps().deps);
   expect(notes.filter((t) => t === 'Author' || t === 'Reviewer')).toEqual(['Author', 'Reviewer']);
   expect(order.filter((m) => /author|reviewer/.test(m))).toEqual([
-    'GitHub identity for the author', 'Which agent CLI runs the author?', 'Model for the author',
-    'GitHub identity for the reviewer', 'Which agent CLI runs the reviewer?', 'Model for the reviewer',
+    'GitHub identity for the author', 'Which agent runs the author?', 'Model for the author',
+    'GitHub identity for the reviewer', 'Which agent runs the reviewer?', 'Model for the reviewer',
   ]);
+});
+
+const running = { localModels: async (local: string) => (local === 'lmstudio' ? ['google/gemma-4-12b', 'qwen/qwen3.8-27b'] : Promise.reject(new Error('down'))) };
+
+test('a local server that is running is offered next to Claude and Codex, and the choice sets `local`', async () => {
+  const { deps, written } = fakeDeps(running);
+  const selects: Record<string, string[]> = {};
+  const { ui } = quietUi({ 'Which agent runs the reviewer?': 'local:lmstudio' });
+  const spy: Ui = { ...ui, select: async (o) => ((selects[o.message] = o.options.map((x) => `${x.value}${x.disabled ? ' (disabled)' : ''}`)), ui.select(o)) };
+  const out = join(dir, 'p.json');
+  await runInit({ repo: ['A/b'], out }, spy, deps);
+  expect(selects['Which agent runs the reviewer?']).toEqual(['claude', 'codex', 'local:lmstudio', 'local:ollama (disabled)']); // Ollama is there, but not running
+  expect(JSON.parse(written[out]!).agents.reviewer).toEqual({ profile: 'tassadar-agent', provider: 'codex', model: 'google/gemma-4-12b', local: 'lmstudio' });
+  expect(JSON.parse(written[out]!).agents.author).not.toHaveProperty('local');
+});
+
+test('--author-local goes with the flag form and an unknown server is refused', async () => {
+  const { deps, written } = fakeDeps();
+  const out = join(dir, 'q.json');
+  await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'codex:qwen3:8b', authorLocal: 'ollama', reviewer: 'claude:sonnet', out }, quietUi().ui, deps);
+  expect(JSON.parse(written[out]!).agents.author).toEqual({ profile: 'artanis-agent', provider: 'codex', model: 'qwen3:8b', local: 'ollama' });
+  await expect(runInit({ repo: ['A/b'], author: 'codex:m', authorLocal: 'vllm', authorProfile: 'gh', reviewerProfile: 'forge:x', reviewer: 'claude:s', out }, quietUi().ui, deps)).rejects.toThrow('invalid local server');
 });

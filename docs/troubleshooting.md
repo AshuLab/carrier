@@ -28,6 +28,8 @@ An epic in `needs-human` is not reactivated by Carrier, not even on restart: you
 - **`could not mint a token for <agent>`.** Forge could not mint it: agent not in the registry (`agent-forge --list`), private key unreadable, App not installed on the repo's owner.
 - **`agent-forge: command not found`.** Install it (or use only `gh` profiles, with the caveat that author and reviewer then cannot both be `gh`).
 
+- **`LM Studio is not answering at http://localhost:1234` / `... not downloaded there`.** The agent uses a local model (`local` in the config): start the server (LM Studio: Developer tab, or `lms server start`; Ollama: `ollama serve`) and make sure the model is downloaded. `carrier doctor` repeats the check.
+
 ## While it runs
 
 - **GitHub is down or rate limiting.** Carrier keeps the queue, shows the error and tries again at the next interval or after the wait GitHub indicates. It does not spend agent retries.

@@ -1,5 +1,7 @@
+import { localKinds, type Local } from '../providers/local.ts';
+
 export type Identity = { kind: 'forge'; agent: string } | { kind: 'gh' };
-export type Role = { identity: Identity; provider: 'claude' | 'codex'; model: string };
+export type Role = { identity: Identity; provider: 'claude' | 'codex'; model: string; local?: Local };
 export type Answers = { repos: string[]; author: Role; reviewer: Role };
 
 /** `forge:<agent>` or `gh`, the form used by flags and by the prompts' values. */
@@ -19,6 +21,12 @@ export function parseProviderModel(text: string): Pick<Role, 'provider' | 'model
   return { provider: match[1] as 'claude' | 'codex', model: match[2]! };
 }
 
+export function parseLocal(text: string): Local {
+  const local = localKinds.find((kind) => kind === text);
+  if (local === undefined) throw new Error(`invalid local server "${text}", expected ${localKinds.join(' or ')}`);
+  return local;
+}
+
 // A forge profile is named after its agent; the user's own login is just "gh".
 const profileName = (identity: Identity) => (identity.kind === 'gh' ? 'gh' : identity.agent);
 
@@ -30,8 +38,8 @@ export function buildConfig({ repos, author, reviewer }: Answers) {
     profiles: { [a]: author.identity, [r]: reviewer.identity },
     orchestratorProfile: a,
     agents: {
-      author: { profile: a, provider: author.provider, model: author.model },
-      reviewer: { profile: r, provider: reviewer.provider, model: reviewer.model },
+      author: { profile: a, provider: author.provider, model: author.model, ...(author.local && { local: author.local }) },
+      reviewer: { profile: r, provider: reviewer.provider, model: reviewer.model, ...(reviewer.local && { local: reviewer.local }) },
     },
   };
 }

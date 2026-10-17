@@ -6,6 +6,7 @@ export interface AgentTask {
   profile: string; // GitHub profile of the effective config
   provider: 'claude' | 'codex';
   model: string;
+  local?: 'lmstudio' | 'ollama'; // `model` is served by that local server
   workspace: string; // checkout where the agent runs
   resultPath: string; // where the caller writes its JSON
   timeoutMs: number | null; // null = unlimited

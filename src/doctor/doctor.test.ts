@@ -24,6 +24,7 @@ const deps = (overrides: Partial<DoctorDeps> = {}): DoctorDeps => ({
   which: () => true,
   mint: async () => 'secret-token',
   listLabels: async () => [],
+  localModels: async () => [],
   ...overrides,
 });
 
@@ -125,4 +126,19 @@ test('onCheck sees every check as it finishes, in the order of the result', asyn
   const seen: Check[] = [];
   const checks = await runDoctor(config(), deps(), (check) => seen.push(check));
   expect(seen).toEqual(checks);
+});
+
+const local = (over: Record<string, unknown> = {}) => config({ agents: { ...base.agents, reviewer: { ...base.agents.reviewer, model: 'google/gemma-4-12b', local: 'lmstudio', ...over } } });
+
+test('a local model passes when its server has it', async () => {
+  const checks = await runDoctor(local(), deps({ localModels: async () => ['google/gemma-4-12b'] }));
+  expect(failed(checks)).toEqual([]);
+  expect(checks.map((c) => c.name)).toContain('LM Studio has google/gemma-4-12b');
+});
+
+test('a local model fails with what the server does have, or when the server is down', async () => {
+  const missing = failed(await runDoctor(local(), deps({ localModels: async () => ['other'] })));
+  expect(missing).toEqual([{ name: 'LM Studio has google/gemma-4-12b', status: 'fail', detail: 'not downloaded there (it has: other)' }]);
+  const down = failed(await runDoctor(local(), deps({ localModels: async () => Promise.reject(new Error('ECONNREFUSED')) })));
+  expect(down[0]?.detail).toBe('LM Studio is not answering at http://localhost:1234; start its server');
 });

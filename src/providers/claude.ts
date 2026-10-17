@@ -1,5 +1,6 @@
 import { dirname } from 'node:path';
 import { buildPrompt } from '../prompts/build-prompt.ts';
+import { claudeLocalEnv } from './local.ts';
 import { childEnv, markerFor, type AgentCommand, type CommandContext, type LineSignal, type ProviderAdapter } from './common.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
 
@@ -25,7 +26,7 @@ export function buildClaudeCommand(task: AgentTask, ctx: CommandContext): AgentC
       ...(task.resumeSession ? ['--resume', task.resumeSession] : []),
     ],
     cwd: task.workspace,
-    env: { ...childEnv(ctx), CARRIER_RESULT_PATH: task.resultPath },
+    env: { ...childEnv(ctx), ...(task.local ? claudeLocalEnv(task.local) : {}), CARRIER_RESULT_PATH: task.resultPath },
   };
 }
 

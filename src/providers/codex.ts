@@ -20,6 +20,8 @@ export function buildCodexCommand(task: AgentTask, ctx: CommandContext): AgentCo
       '--json',
       '--model',
       task.model,
+      // `--oss --local-provider` is refused by `exec resume`; the config key both of them set is accepted by every form.
+      ...(task.local ? ['-c', `model_provider="${task.local}"`] : []),
       '--dangerously-bypass-approvals-and-sandbox',
       // Codex has no flag to name a run; a config key it ignores keeps the marker in argv for listActive/stop.
       '-c',

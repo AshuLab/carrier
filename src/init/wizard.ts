@@ -7,10 +7,11 @@ import { defaultConfigPath } from '../config/default-path.ts';
 import { defaults, loadConfig } from '../config/load.ts';
 import { repoNamePattern } from '../config/schema.ts';
 import { runDoctor, type Check } from '../doctor/doctor.ts';
-import { buildConfig, identityText, parseIdentity, parseProviderModel, type Identity, type Role } from './build-config.ts';
+import { listLocalModels, localKinds, localLabel, type Local } from '../providers/local.ts';
+import { buildConfig, identityText, parseIdentity, parseLocal, parseProviderModel, type Identity, type Role } from './build-config.ts';
 import { readForgeAgents, type ForgeAgent } from './forge-registry.ts';
 
-type Option<T extends string> = { value: T; label: string; hint?: string };
+type Option<T extends string> = { value: T; label: string; hint?: string; disabled?: boolean };
 
 /** What the wizard needs from the terminal. The real one is clack (src/init/clack-ui.ts); tests script it. */
 export interface Ui {
@@ -37,14 +38,16 @@ export interface InitDeps {
   codexModel: () => string | undefined;
   /** The models Codex itself lists as available (its local cache); empty when it has none. */
   codexModels: () => Option<string>[];
+  /** The models a local server has; throws when it is not running. */
+  localModels: (local: Local) => Promise<string[]>;
   exists: (path: string) => boolean;
   write: (path: string, content: string) => void;
   doctor: typeof runDoctor;
 }
 
 /** Flags answer questions ahead of time; whatever is missing is asked. */
-/** `authorProfile` / `reviewerProfile` are `forge:<agent>` or `gh`; `author` / `reviewer` are `<claude|codex>:<model>`. */
-export type InitFlags = { repo?: string[]; authorProfile?: string; reviewerProfile?: string; author?: string; reviewer?: string; out?: string; yes?: boolean };
+/** `authorProfile` / `reviewerProfile` are `forge:<agent>` or `gh`; `author` / `reviewer` are `<claude|codex>:<model>`; `authorLocal` / `reviewerLocal` are `lmstudio` or `ollama` when that model runs there. */
+export type InitFlags = { repo?: string[]; authorProfile?: string; reviewerProfile?: string; author?: string; reviewer?: string; authorLocal?: string; reviewerLocal?: string; out?: string; yes?: boolean };
 
 export const realDeps: InitDeps = {
   which: (command) => spawnSync('which', [command], { stdio: 'ignore' }).status === 0,
@@ -80,6 +83,7 @@ export const realDeps: InitDeps = {
       return []; // no cache yet: the model is typed
     }
   },
+  localModels: (local) => listLocalModels(local),
   exists: existsSync,
   write: (path, content) => {
     mkdirSync(dirname(path), { recursive: true });
@@ -107,10 +111,14 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   }
   const providers = (['claude', 'codex'] as const).filter((p) => deps.which(p));
   const login = deps.ghLogin();
+  // Local model servers are optional: a server that is not running is shown as such, not as a failure.
+  const locals: Partial<Record<Local, string[]>> = {};
+  for (const kind of localKinds) locals[kind] = await deps.localModels(kind).catch(() => undefined);
   const status = (ok: boolean, label: string) => `${ok ? styleText('green', '●') : styleText('red', '○')} ${label}`;
   ui.note(
     [
       [status(providers.includes('claude'), 'claude'), status(providers.includes('codex'), 'codex'), status(deps.which('git'), 'git'), status(login !== undefined, login ? `gh (${login})` : 'gh')].join('   '),
+      localKinds.map((kind) => (locals[kind] ? `${styleText('green', '●')} ${localLabel[kind]} (${locals[kind].length} models)` : `${styleText('dim', '○')} ${localLabel[kind]} not running`)).join('   '),
       forge.length > 0 ? `${styleText('green', '●')} Agent Forge: ${forge.map((a) => a.name).join(', ')}` : `${styleText('yellow', '▲')} Agent Forge: no agents found (run "agent-forge add")`,
     ].join('\n'),
     'This machine',
@@ -121,11 +129,11 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   // One role at a time (who it acts as, which CLI, which model), each under its own box, so the two read as separate things.
   if (!(flags.authorProfile && flags.author)) ui.note('Implements the epic: runs ship, then answers the reviewer.', 'Author');
   const authorIdentity = flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, login, []);
-  const author = { identity: authorIdentity, ...(await askAgent(ui, 'author', flags.author, providers, deps, 'claude')) };
+  const author = { identity: authorIdentity, ...(await askAgent(ui, 'author', { flag: flags.author, local: flags.authorLocal }, providers, locals, deps, 'claude')) };
 
   if (!(flags.reviewerProfile && flags.reviewer)) ui.note('Reviews the final PR. Needs a different GitHub identity from the author.', 'Reviewer');
   const reviewerIdentity = flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, login, [authorIdentity]);
-  const reviewer = { identity: reviewerIdentity, ...(await askAgent(ui, 'reviewer', flags.reviewer, providers, deps, providers.includes('codex') ? 'codex' : 'claude')) };
+  const reviewer = { identity: reviewerIdentity, ...(await askAgent(ui, 'reviewer', { flag: flags.reviewer, local: flags.reviewerLocal }, providers, locals, deps, providers.includes('codex') ? 'codex' : 'claude')) };
 
   const user = buildConfig({ repos, author, reviewer });
   const loaded = loadConfig(defaults, user);
@@ -216,11 +224,25 @@ async function askIdentity(ui: Ui, role: 'author' | 'reviewer', forge: ForgeAgen
   return parseIdentity(await ui.select({ message: `GitHub identity for the ${role}`, options, initialValue: first.value }));
 }
 
-async function askAgent(ui: Ui, role: 'author' | 'reviewer', flag: string | undefined, installed: readonly ('claude' | 'codex')[], deps: InitDeps, preferred: 'claude' | 'codex'): Promise<Pick<Role, 'provider' | 'model'>> {
-  if (flag) return parseProviderModel(flag);
-  const options = installed.map((p) => ({ value: p, label: p === 'claude' ? 'Claude' : 'Codex' }));
-  if (options.length === 0) throw new Error('Neither claude nor codex is installed; install one and run this again.');
-  const provider = options.length === 1 ? options[0]!.value : await ui.select({ message: `Which agent CLI runs the ${role}?`, options, initialValue: preferred });
+type Cli = 'claude' | 'codex';
+const localValue = (kind: Local) => `local:${kind}`;
+
+async function askAgent(ui: Ui, role: 'author' | 'reviewer', given: { flag?: string; local?: string }, installed: readonly Cli[], locals: Partial<Record<Local, string[]>>, deps: InitDeps, preferred: Cli): Promise<Pick<Role, 'provider' | 'model' | 'local'>> {
+  if (given.flag) return { ...parseProviderModel(given.flag), ...(given.local && { local: parseLocal(given.local) }) };
+  if (installed.length === 0) throw new Error('Neither claude nor codex is installed; install one and run this again.');
+  const options: Option<string>[] = [
+    ...installed.map((p) => ({ value: p, label: p === 'claude' ? 'Claude' : 'Codex', hint: 'cloud model' })),
+    ...localKinds.map((kind) => ({ value: localValue(kind), label: `${localLabel[kind]} (local)`, hint: locals[kind] ? `${locals[kind].length} models, runs on this machine` : 'not running: start its server to use it', disabled: !locals[kind] })),
+  ];
+  const picked = await ui.select({ message: `Which agent runs the ${role}?`, options, initialValue: preferred });
+  const local = localKinds.find((kind) => localValue(kind) === picked);
+  if (local) {
+    // A local model still runs through Claude Code or Codex, which talk to the local server.
+    const provider = installed.length === 1 ? installed[0]! : await ui.select<Cli>({ message: `Run the ${role}'s ${localLabel[local]} model through which CLI?`, options: installed.map((p) => ({ value: p, label: p === 'claude' ? 'Claude Code' : 'Codex' })), initialValue: installed.includes('codex') ? 'codex' : 'claude' });
+    const model = await ui.select({ message: `Model for the ${role}`, options: locals[local]!.map((value) => ({ value, label: value })), initialValue: locals[local]![0]! });
+    return { provider, model, local };
+  }
+  const provider = picked as Cli;
   const known = provider === 'claude' ? claudeModels : deps.codexModels();
   const configured = provider === 'codex' ? deps.codexModel() : undefined; // what the user already runs Codex with
   const typed = async (suggestion?: string) => (await ui.text({ message: `Model for the ${role}`, placeholder: suggestion ?? 'model name', defaultValue: suggestion, validate: (v) => (v.trim() ? undefined : 'Required') })).trim();

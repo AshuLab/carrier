@@ -102,3 +102,9 @@ test('parseClaudeLine reads session, auth and lost-session errors', () => {
   expect(parseClaudeLine('{"type":"result","is_error":false,"api_error_status":null,"result":"OK"}')).toBeUndefined();
   expect(parseClaudeLine('not json')).toBeUndefined();
 });
+
+test('a local model points the CLI at that server and keeps a real API key away from it', () => {
+  const { env } = buildClaudeCommand({ ...task, local: 'ollama' }, { ...ctx, baseEnv: { ...ctx.baseEnv, ANTHROPIC_API_KEY: 'sk-real' } });
+  expect(env).toMatchObject({ ANTHROPIC_BASE_URL: 'http://localhost:11434', ANTHROPIC_AUTH_TOKEN: 'ollama', ANTHROPIC_API_KEY: '' });
+  expect(buildClaudeCommand(task, ctx).env).not.toHaveProperty('ANTHROPIC_BASE_URL');
+});

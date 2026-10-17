@@ -148,3 +148,18 @@ describe('repos', () => {
     for (const name of ['demo', '../x', 'a/..', 'a/b/c', '/x']) expect(errorsOf({ repos: [{ name }] }).map((e) => e.path)).toEqual(['repos.0.name']);
   });
 });
+
+describe('local models', () => {
+  const reviewer = { profile: 'reviewer-bot', provider: 'codex', model: 'google/gemma-4-12b' };
+
+  test('`local` is optional, per role, and only lmstudio or ollama', () => {
+    expect(load({ agents: { ...valid.agents, reviewer: { ...reviewer, local: 'lmstudio' } } })).toMatchObject({ ok: true, config: { agents: { reviewer: { local: 'lmstudio' } } } });
+    expect(load({})).toMatchObject({ ok: true }); // no local anywhere
+    expect(errorsOf({ agents: { ...valid.agents, reviewer: { ...reviewer, local: 'vllm' } } }).map((e) => e.path)).toEqual(['agents.reviewer.local']);
+  });
+
+  test('a repo can override it', () => {
+    const result = load({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { model: 'qwen3:8b', local: 'ollama' } } }] });
+    expect(result).toMatchObject({ ok: true, config: { repos: [{ agents: { reviewer: { local: 'ollama' } } }] } });
+  });
+});

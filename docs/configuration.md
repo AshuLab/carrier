@@ -29,6 +29,7 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `profiles` | yes | | The GitHub identities you can use, by name (below). |
 | `orchestratorProfile` | yes | | Profile used to read issues and PRs and to change labels. It may be the author's. |
 | `agents.author` / `agents.reviewer` | yes | | `{ profile, provider, model }` for each role. `provider` is `claude` or `codex`. For Claude prefer an alias (`sonnet`, `opus`, ...): the CLI resolves it to the latest model, so it does not go stale. Codex has no aliases: use an id from `codex`'s own list (`carrier init` offers it). |
+| `agents.<role>.local` | no | | `lmstudio` or `ollama`: the model runs on that local server, through the provider's CLI. See [Local models](#local-models). |
 | `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |
@@ -62,3 +63,16 @@ Profile names used in an override must exist in `profiles`. The author and the r
 - Every profile named anywhere is declared in `profiles`.
 - Repo names are `owner/name`, and no two repos share the same folder name (Solve's worktree paths have no owner).
 - The effective configuration of an epic is saved, without credentials, when it starts and kept when it resumes, even if you change the file in between.
+
+## Local models
+
+An agent can use a model served by [LM Studio](https://lmstudio.ai) or [Ollama](https://ollama.com) on this machine instead of a cloud model. It still runs through the Claude or Codex CLI, which talk to the local server:
+
+```json
+"reviewer": { "profile": "reviewer-bot", "provider": "codex", "model": "google/gemma-4-12b", "local": "lmstudio" }
+```
+
+- **Codex** gets `-c model_provider="lmstudio"` (or `ollama`); **Claude Code** gets `ANTHROPIC_BASE_URL` pointing at the server (and a placeholder token, never your real API key).
+- The servers are expected on their default ports (LM Studio `1234`, Ollama `11434`). Start the server and download the model first; `carrier doctor` checks both, and `carrier init` lists the models the running server has.
+- A per-repo override cannot unset `local`: to go back to a cloud model in one repo, override `provider`, `model` and `local` together.
+- Expect it to be **slow** (a trivial prompt took 15 to 140 s on a laptop, mostly loading the model and the CLI's long system prompt) and **weaker** on long agentic work. `ship` and a full review make hundreds of tool calls; small local models often lose the thread. A local reviewer is the realistic use; test it on a throwaway epic before trusting it.

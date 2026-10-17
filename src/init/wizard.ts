@@ -87,11 +87,11 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   }
   const providers = (['claude', 'codex'] as const).filter((p) => deps.which(p));
   const login = deps.ghLogin();
-  const status = (ok: boolean, label: string) => `${ok ? styleText('green', '✔') : styleText('red', '✖')} ${label}`;
+  const status = (ok: boolean, label: string) => `${ok ? styleText('green', '●') : styleText('red', '○')} ${label}`;
   ui.note(
     [
       [status(providers.includes('claude'), 'claude'), status(providers.includes('codex'), 'codex'), status(deps.which('git'), 'git'), status(login !== undefined, login ? `gh (${login})` : 'gh')].join('   '),
-      forge.length > 0 ? `${styleText('green', '✔')} Agent Forge: ${forge.map((a) => a.name).join(', ')}` : `${styleText('yellow', '▲')} Agent Forge: no agents found (run "agent-forge add")`,
+      forge.length > 0 ? `${styleText('green', '●')} Agent Forge: ${forge.map((a) => a.name).join(', ')}` : `${styleText('yellow', '▲')} Agent Forge: no agents found (run "agent-forge add")`,
     ].join('\n'),
     'This machine',
   );

@@ -17,6 +17,8 @@ export type PanelEpic = {
   prUrl: string | null;
   lastError: string | null;
   needsHumanReason: string | null;
+  /** The latest execution of the epic: where its agent's output is. */
+  executionId: string | null;
 };
 
 export type PanelSnapshot = {
@@ -33,8 +35,10 @@ export type PanelSnapshot = {
   nextCheckAt: number | null;
   /** Why GitHub work is stalled right now (GitHub down, a profile rejected), null when all is well. */
   problem: string | null;
+  /** Intake is paused by the person at the terminal. */
+  paused: boolean;
   /** The epics that ended ready for test, most recent first. */
-  done: { repo: string; issue: number; prNumber: number | null; finishedAt: number | null }[];
+  done: { repo: string; issue: number; prNumber: number | null; finishedAt: number | null; executionId: string | null }[];
 };
 
 // The reason and the error come from the agent's own output: no control character (ESC included) may reach the terminal.

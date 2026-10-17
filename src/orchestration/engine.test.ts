@@ -1445,3 +1445,31 @@ test('a label change that cannot reach GitHub because the orchestrator profile f
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', labelPending: false });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
+
+test('pollNow polls at once and the interval counts from then; a poll that is already running is not doubled', async () => {
+  const engine = await start();
+  await clock.advance(2 * MIN);
+  const calls = github.calls;
+  await Promise.all([engine.pollNow(), engine.pollNow()]);
+  expect(github.calls).toBeGreaterThan(calls); // it polled now, not in 3 minutes
+  const after = github.calls;
+  await clock.advance(5 * MIN - 1);
+  expect(github.calls).toBe(after); // the timer was re-armed from the manual poll
+  await clock.advance(1);
+  expect(github.calls).toBeGreaterThan(after);
+});
+
+test('paused: new epics are queued but not reserved, running ones go on, and resuming starts them at once', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2), 'AshuLab/b': [] };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  expect(byStatus(engine.db, 'running')).toEqual([1]);
+  await engine.setPaused(true);
+  expect(engine.paused).toBe(true);
+  github.ready = { 'AshuLab/a': ready(1, 2, 3), 'AshuLab/b': [] };
+  await clock.advance(5 * MIN);
+  expect(byStatus(engine.db, 'running')).toEqual([1]); // the one that was running still is
+  expect(byStatus(engine.db, 'queued')).toEqual([2, 3]); // queued, not started, even with GitHub polled
+  await engine.setPaused(false);
+  expect(engine.paused).toBe(false);
+});

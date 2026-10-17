@@ -16,6 +16,7 @@ const epic: PanelEpic = {
   prUrl: null,
   lastError: null,
   needsHumanReason: null,
+  executionId: null,
 };
 
 let state: PanelSnapshot;
@@ -27,7 +28,7 @@ const output = (isTTY: boolean) => {
 
 beforeEach(() => {
   vi.useFakeTimers({ now: 0 });
-  state = { now: 0, slots: { busy: 1, total: 2 }, queue: [], epics: [{ ...epic }], startedAt: 0, repos: 1, nextCheckAt: null, problem: null, done: [] };
+  state = { now: 0, slots: { busy: 1, total: 2 }, queue: [], epics: [{ ...epic }], startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, done: [] };
 });
 afterEach(() => vi.useRealTimers());
 

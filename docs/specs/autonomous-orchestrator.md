@@ -84,7 +84,7 @@ If a repo was removed from the configuration, on restart its pending epics are s
 
 ### Terminal panel
 
-An informational panel drawn with ANSI sequences without dependencies, in the same terminal. It shows occupied slots, queued epics and, per epic, stage, round, blockers, time in the stage, last activity, links to the issue and PR, errors and intervention reasons. Stage and last activity are different data. Without an interactive terminal it emits plain lines. It has no controls; `Ctrl+C` stops the process.
+An informational panel drawn with ANSI sequences without dependencies, in the same terminal. It shows occupied slots, queued epics and, per epic, stage, round, blockers, time in the stage, last activity, links to the issue and PR, errors and intervention reasons. Stage and last activity are different data. Without an interactive terminal it emits plain lines. On a terminal it also reads a few keys (select an epic, open its PR or issue, read the output of its agent, check GitHub now, pause or resume taking new epics, help, quit); none of them changes what an epic does, and `Ctrl+C` still stops the process. The cursor is hidden while the panel runs and always given back.
 
 ## Scope
 
@@ -187,7 +187,7 @@ The test or CI policy of the repo that the agents implement is not part of these
 
 ## Out of scope
 
-Web UI, OS app, interactive controls in the panel, reactivation commands for cases that require intervention and initial Linux/Windows support. The engine stays portable, but additional support requires validation.
+Web UI, OS app, keys that act on an epic (stop it, reactivate it, change its stage), reactivation commands for cases that require intervention and initial Linux/Windows support. The engine stays portable, but additional support requires validation.
 
 Automatic merge of the final PR, reproducing repo policies inside the engine, changing the skills' current reports or incorporating a copy of Agent Forge. `ship` keeps its slice flow; this app's review loop works on the epic's final PR.
 

@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { createScopedLogger, type LogLevel } from '@ashulab/universal-logger';
 import type { Config } from '../config/schema.ts';
@@ -12,6 +13,8 @@ import { realClock, type Clock } from '../orchestration/clock.ts';
 import { createEngine } from '../orchestration/engine.ts';
 import { AuthError, type GitHub } from '../orchestration/github.ts';
 import { sessionDirsFrom, type SessionDirs } from '../orchestration/retention.ts';
+import { startInteractivePanel } from '../panel/interactive.ts';
+import { tailExecution } from '../panel/logs.ts';
 import { startPanel, type PanelOutput } from '../panel/panel.ts';
 import { buildSnapshot } from '../panel/snapshot.ts';
 import { profileCredentials, type CredentialsOptions } from '../harnesses/credentials.ts';
@@ -37,6 +40,19 @@ export interface CarrierDeps {
   onSigint: typeof stopOnSigint;
   /** The engine is up, before the panel takes the screen: the moment to say so. Not called when the startup fails. */
   onArrived?: () => void;
+  /** Where keys come from; the panel takes them only when this and the panel's output are both a terminal. */
+  stdin?: Parameters<typeof startInteractivePanel>[0]['stdin'];
+  /** Opens a GitHub page in the browser. */
+  openUrl: (url: string) => void;
+  /** The `q` key: ends the process the same way Ctrl+C would. */
+  quit: () => void;
+}
+
+// Only GitHub issue and PR pages, whatever the row says: the URL goes to `open`, which would take anything.
+const githubPage = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(issues|pull)\/\d+$/;
+function openUrl(url: string) {
+  if (!githubPage.test(url)) return;
+  spawn('open', [url], { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); // macOS; where `open` is missing nothing happens
 }
 
 const realDeps = (): CarrierDeps => ({
@@ -49,6 +65,9 @@ const realDeps = (): CarrierDeps => ({
   sessionDirs: sessionDirsFrom(),
   panelOut: process.stdout,
   onSigint: stopOnSigint,
+  stdin: process.stdin,
+  openUrl,
+  quit: () => process.kill(process.pid, 'SIGINT'),
 });
 
 /**
@@ -109,19 +128,28 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
   }
   // Only now: until the engine is up the terminal belongs to whoever is waiting for it (the "Starting…" spinner).
   deps.onArrived?.();
-  stopPanel = startPanel(
-    () =>
-      buildSnapshot(db, {
-        now: deps.clock.now(),
-        maxConcurrentEpics: limits.maxConcurrentEpics,
-        maxReviews: limits.maxReviews,
-        startedAt,
-        repos: config.repos.length,
-        nextCheckAt: engine.nextPollAt,
-        problem: engine.error instanceof AuthError ? `authentication error for profile ${engine.error.profile}` : engine.error ? 'GitHub is unavailable: it will be tried again' : null,
-      }),
-    deps.panelOut,
-    deps.panelIntervalMs,
-  );
+  const snapshot = () =>
+    buildSnapshot(db, {
+      now: deps.clock.now(),
+      maxConcurrentEpics: limits.maxConcurrentEpics,
+      maxReviews: limits.maxReviews,
+      startedAt,
+      repos: config.repos.length,
+      nextCheckAt: engine.nextPollAt,
+      problem: engine.error instanceof AuthError ? `authentication error for profile ${engine.error.profile}` : engine.error ? 'GitHub is unavailable: it will be tried again' : null,
+      paused: engine.paused,
+    });
+  // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).
+  stopPanel =
+    deps.panelOut.isTTY && deps.stdin?.isTTY
+      ? startInteractivePanel({
+          snapshot,
+          out: deps.panelOut,
+          stdin: deps.stdin,
+          intervalMs: deps.panelIntervalMs,
+          now: () => deps.clock.now(),
+          controls: { poll: () => engine.pollNow(), setPaused: (paused) => engine.setPaused(paused), open: deps.openUrl, quit: deps.quit, logs: (id, count) => tailExecution(config.root, id, count) },
+        })
+      : startPanel(snapshot, deps.panelOut, deps.panelIntervalMs);
   return { engine, db, close };
 }

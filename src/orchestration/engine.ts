@@ -63,6 +63,8 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
 export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, runner, workspaces, root, sessionDirs }: EngineOptions) {
   let error: GitHubUnavailable | AuthError | null = null;
   let nextPollAt: number | null = null;
+  let paused = false; // intake only: nothing new is reserved, what is running goes on
+  let polling = false;
   // The orchestrator's profile failed: no GitHub call is made until the poll's probe succeeds. Never another profile.
   let suspended: AuthError | null = null;
   let cancel: (() => void) | null = null;
@@ -406,7 +408,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // Starts the oldest queued epics until the concurrency limit or the queue is exhausted.
   async function fillSlots() {
     for (;;) {
-      if (stopping || suspended) return;
+      if (stopping || suspended || paused) return;
       const epic = reserve(db, { maxConcurrent: maxConcurrentEpics, now: clock.now(), repos });
       if (!epic) return;
       const cancelWith = (cancelReason: string) =>
@@ -508,10 +510,20 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     }
   }
 
+  // One poll at a time: a poll asked for by a person while the timer's is running is that one.
+  const runPoll = async () => {
+    if (polling) return;
+    polling = true;
+    try {
+      schedule(await poll());
+    } finally {
+      polling = false;
+    }
+  };
   const schedule = (ms: number) => {
     if (stopping) return;
     nextPollAt = clock.now() + ms;
-    cancel = clock.after(ms, async () => schedule(await poll()));
+    cancel = clock.after(ms, runPoll);
   };
 
   return {
@@ -547,6 +559,20 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     /** Resolves when no execution is being followed any more. */
     async idle() {
       while (inflight.size > 0) await Promise.all([...inflight]);
+    },
+    /** Polls now instead of waiting for the interval, then goes on from there. */
+    pollNow() {
+      if (stopping) return Promise.resolve();
+      cancel?.();
+      return runPoll();
+    },
+    /** Stops (or resumes) taking epics from the queue; running epics are not touched. Resuming fills the free slots at once. */
+    setPaused(value: boolean) {
+      paused = value;
+      return value ? Promise.resolve() : this.pollNow();
+    },
+    get paused() {
+      return paused;
     },
     /** When the next poll is due (ms since epoch); null before the first one is scheduled. */
     get nextPollAt() {

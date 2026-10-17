@@ -22,7 +22,7 @@ afterEach(() => {
 
 const add = (issue: number, status: (typeof epicStates)[number], extra: Partial<typeof epics.$inferInsert> = {}) =>
   db.insert(epics).values({ repo: 'acme/web', issue, status, ...extra }).returning().get();
-const snapshot = (now = 100_000) => buildSnapshot(db, { now, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null });
+const snapshot = (now = 100_000) => buildSnapshot(db, { now, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false });
 
 test('slots count the running epics, the queue lists the queued ones oldest first, and finished ones do not show', () => {
   add(5, 'queued');
@@ -52,7 +52,7 @@ test('an epic carries its stage, round, links, activity, error and the blockers 
     {
       repo: 'acme/web', issue: 12, status: 'running', stage: 'fix', round: 2, maxReviews: 5, blockers: 2, stageSince: 40_000, lastActivityAt: 90_000,
       issueUrl: 'https://github.com/acme/web/issues/12', prUrl: 'https://github.com/acme/web/pull/50',
-      lastError: 'the agent process ended with an error', needsHumanReason: null,
+      lastError: 'the agent process ended with an error', needsHumanReason: null, executionId: 'r2',
     },
   ]);
 });
@@ -80,4 +80,17 @@ test('it carries the process facts and the epics that ended ready for test, most
   const s = snapshot();
   expect([s.startedAt, s.repos, s.nextCheckAt, s.problem]).toEqual([40_000, 2, 160_000, null]);
   expect(s.done.map((d) => [d.issue, d.prNumber, d.finishedAt])).toEqual([[7, 107, 7000], [6, 106, 6000], [5, 105, 5000], [4, 104, 4000], [3, 103, 3000]]);
+});
+
+test('an epic and a ready-for-test epic carry the id of their latest execution, where the agent output is', () => {
+  const running = add(1, 'running');
+  const done = add(2, 'ready_for_test', { finishedAt: 5000 });
+  const exec = (executionId: string, epicId: number, startedAt: number) => db.insert(executions).values({ executionId, epicId, stage: 'ship', resultPath: '/r', startedAt }).run();
+  exec('old', running.id, 1000);
+  exec('new', running.id, 2000);
+  exec('done-1', done.id, 1000);
+  const s = snapshot();
+  expect(s.epics[0]?.executionId).toBe('new');
+  expect(s.done[0]?.executionId).toBe('done-1');
+  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: true }).paused).toBe(true);
 });

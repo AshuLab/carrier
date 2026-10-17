@@ -17,6 +17,7 @@ const epic = (over: Partial<PanelEpic> = {}): PanelEpic => ({
   prUrl: null,
   lastError: null,
   needsHumanReason: null,
+  executionId: null,
   ...over,
 });
 const snap = (over: Partial<PanelSnapshot> = {}): PanelSnapshot => ({
@@ -28,6 +29,7 @@ const snap = (over: Partial<PanelSnapshot> = {}): PanelSnapshot => ({
   repos: 2,
   nextCheckAt: now + 192_000,
   problem: null,
+  paused: false,
   done: [],
   ...over,
 });
@@ -61,7 +63,7 @@ test('queue, needs you, ready for test, and a problem banner', () => {
     snap({
       queue: Array.from({ length: 7 }, (_, i) => ({ repo: 'AshuLab/web', issue: 30 + i })),
       epics: [epic({ issue: 29, status: 'needs_human', needsHumanReason: 'inconclusive review: missing context' })],
-      done: [{ repo: 'AshuLab/carrier', issue: 28, prNumber: 44, finishedAt: now - 7_200_000 }],
+      done: [{ repo: 'AshuLab/carrier', issue: 28, prNumber: 44, finishedAt: now - 7_200_000, executionId: null }],
       problem: 'GitHub is unavailable: it will be tried again',
     }),
   );
@@ -97,4 +99,40 @@ test('no line is wider than the terminal, with styling in it, so the redraw can 
   for (const columns of [50, 60, 120]) for (const line of renderDashboard(wide, { columns })) expect(visibleLength(line)).toBeLessThanOrEqual(Math.min(columns, 80));
   expect(fit('\x1b[31mabcdef\x1b[0m', 3)).toBe('\x1b[31mabc\x1b[0m'); // cut by visible characters, style kept and closed
   expect(fit('abc', 10)).toBe('abc');
+});
+
+const keysUi = { selected: null, mode: 'dashboard' as const, toast: null };
+
+test('with keys: the hints replace "Ctrl+C stops it", and the selected row carries the pointer on its first line', () => {
+  const s = snap({ slots: { busy: 1, total: 3 }, epics: [epic()], queue: [{ repo: 'AshuLab/web', issue: 30 }] });
+  const out = plain({ ...s }).split('\n');
+  expect(out.at(-1)).toBe('   Ctrl+C stops it'); // read-only: no hints
+  const withKeys = renderDashboard(s, { color: false, ui: { ...keysUi, selected: 'AshuLab/carrier#31' } }).join('\n');
+  expect(withKeys).toContain(' › AshuLab/carrier #31\n ┃ [ship]'); // the pointer instead of the bar, on the first line only
+  expect(withKeys).toContain('↑↓ select · enter open · l logs · r check now · p pause · ? help · q quit');
+  expect(withKeys).not.toContain('Ctrl+C stops it');
+  const queued = renderDashboard(s, { color: false, ui: { ...keysUi, selected: 'AshuLab/web#30' } }).join('\n');
+  expect(queued).toContain(' › AshuLab/web #30');
+  expect(queued).toContain(' ┃ AshuLab/carrier #31'); // the others keep theirs
+});
+
+test('a toast shows above the hints, and paused is a banner in the header', () => {
+  const out = renderDashboard(snap({ paused: true }), { color: false, ui: { ...keysUi, toast: { text: 'Paused: no new epics will start', until: now + 1 } } }).join('\n');
+  expect(out).toContain('▲ PAUSED: new epics wait in the queue (p resumes)');
+  expect(out).toMatch(/› Paused: no new epics will start\n\n {3}↑↓ select/);
+});
+
+test('the help screen lists the keys, and the logs screen shows the agent output of the selected epic', () => {
+  const help = renderDashboard(snap(), { color: false, ui: { ...keysUi, mode: 'help' } }).join('\n');
+  expect(help).toContain('KEYS');
+  expect(help).toContain('enter  open its PR (or issue) in the browser');
+  expect(help).toContain('esc back · q quit');
+  expect(help).not.toContain('Idle.'); // the help replaces the body
+
+  const s = snap({ slots: { busy: 1, total: 3 }, epics: [epic({ executionId: 'abcdef1234567' })] });
+  const logs = renderDashboard(s, { color: false, ui: { ...keysUi, mode: 'logs', selected: 'AshuLab/carrier#31' }, logLines: ['▸ Bash git status', 'Reading the spec'] }).join('\n');
+  expect(logs).toContain('AGENT OUTPUT · AshuLab/carrier#31 · abcdef12');
+  expect(logs).toContain('   ▸ Bash git status\n   Reading the spec');
+  const empty = renderDashboard(s, { color: false, ui: { ...keysUi, mode: 'logs', selected: 'AshuLab/carrier#31' } }).join('\n');
+  expect(empty).toContain('(nothing written yet)');
 });

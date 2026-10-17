@@ -163,3 +163,31 @@ test('onArrived fires once the engine is up and before the panel draws; a startu
   await expect(startCarrier(config({ root: mkdtempSync(join(tmpdir(), 'carrier-compose2-')) }), { ...failing.deps, onArrived: announced })).rejects.toThrow('boom');
   expect(announced).not.toHaveBeenCalled();
 });
+
+test('with a terminal on both sides the panel takes keys: r polls now, p pauses intake, q quits, and nothing else changes without one', async () => {
+  const { github, seen, deps } = fakes();
+  const { EventEmitter } = await import('node:events');
+  const stdin = Object.assign(new EventEmitter(), { isTTY: true, setRawMode: vi.fn(), resume: vi.fn(), pause: vi.fn() });
+  const quit = vi.fn();
+  const app = await startCarrier(config(), { ...deps, stdin: stdin as never, quit, openUrl: vi.fn(), panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 3_600_000 });
+  closers.push(async () => (await app.engine.shutdown(), app.close()));
+  expect(stdin.setRawMode).toHaveBeenLastCalledWith(true);
+
+  const calls = github.calls;
+  stdin.emit('keypress', 'r', { name: 'r' });
+  await vi.waitFor(() => expect(github.calls).toBeGreaterThan(calls)); // polled without waiting for the interval
+  stdin.emit('keypress', 'p', { name: 'p' });
+  expect(app.engine.paused).toBe(true);
+  stdin.emit('keypress', 'q', { name: 'q' });
+  expect(quit).toHaveBeenCalledTimes(1);
+
+  app.close();
+  expect(stdin.setRawMode).toHaveBeenLastCalledWith(false); // the terminal is given back
+  closers.pop();
+
+  const plain = fakes();
+  const stdin2 = Object.assign(new EventEmitter(), { isTTY: true, setRawMode: vi.fn(), resume: vi.fn(), pause: vi.fn() });
+  const app2 = await startCarrier(config({ root: mkdtempSync(join(tmpdir(), 'carrier-compose3-')) }), { ...plain.deps, stdin: stdin2 as never }); // its panel output is not a terminal
+  closers.push(async () => (await app2.engine.shutdown(), app2.close()));
+  expect(stdin2.setRawMode).not.toHaveBeenCalled();
+});

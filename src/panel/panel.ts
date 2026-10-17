@@ -15,7 +15,13 @@ const stateOf = (e: PanelEpic) => [e.status, e.stage, e.round, e.blockers, e.nee
  * per state change otherwise. No input handling: Ctrl+C is the only way to stop the process.
  * Returns the stop function.
  */
-export function startPanel(snapshot: () => PanelSnapshot, out: PanelOutput = process.stdout, intervalMs = 1000): () => void {
+export function startPanel(
+  snapshot: () => PanelSnapshot,
+  out: PanelOutput = process.stdout,
+  intervalMs = 1000,
+  /** What a terminal is shown; the dashboard unless the caller draws its own (with a selection, say). */
+  render: (s: PanelSnapshot, columns: number | undefined) => string[] = (s, columns) => renderDashboard(s, { columns }),
+): (() => void) & { redraw: () => void } {
   let drawn = 0;
   const seen = new Map<string, string>();
   let queueSeen = '';
@@ -28,7 +34,7 @@ export function startPanel(snapshot: () => PanelSnapshot, out: PanelOutput = pro
 
   const redraw = (s: PanelSnapshot) => {
     // Lines wider than the terminal would wrap and break the cursor-up count; the dashboard cuts them itself.
-    const lines = renderDashboard(s, { columns: out.columns });
+    const lines = render(s, out.columns);
     out.write(`${drawn > 0 ? `\x1b[${drawn}A` : hideCursor}${lines.map((l) => `\r\x1b[2K${l}\n`).join('')}\x1b[J`);
     drawn = lines.length;
   };
@@ -51,11 +57,12 @@ export function startPanel(snapshot: () => PanelSnapshot, out: PanelOutput = pro
   const tick = () => (out.isTTY ? redraw : emitChanges)(snapshot());
   tick();
   const timer = setInterval(tick, intervalMs);
-  return () => {
+  const stop = () => {
     clearInterval(timer);
     if (out.isTTY) {
       process.removeListener('exit', restoreOnExit);
       out.write(showCursor);
     }
   };
+  return Object.assign(stop, { redraw: tick });
 }

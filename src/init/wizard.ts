@@ -118,10 +118,13 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
 
   const repos = flags.repo ?? (await askRepos(ui, deps));
 
+  // One role at a time (who it acts as, which CLI, which model), each under its own box, so the two read as separate things.
+  if (!(flags.authorProfile && flags.author)) ui.note('Implements the epic: runs ship, then answers the reviewer.', 'Author');
   const authorIdentity = flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, login, []);
-  const reviewerIdentity = flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, login, [authorIdentity]);
-
   const author = { identity: authorIdentity, ...(await askAgent(ui, 'author', flags.author, providers, deps, 'claude')) };
+
+  if (!(flags.reviewerProfile && flags.reviewer)) ui.note('Reviews the final PR. Needs a different GitHub identity from the author.', 'Reviewer');
+  const reviewerIdentity = flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, login, [authorIdentity]);
   const reviewer = { identity: reviewerIdentity, ...(await askAgent(ui, 'reviewer', flags.reviewer, providers, deps, providers.includes('codex') ? 'codex' : 'claude')) };
 
   const user = buildConfig({ repos, author, reviewer });
@@ -129,7 +132,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   if (!loaded.ok) throw new Error(`the answers do not make a valid config:\n${loaded.errors.map((e) => `  ${e.path}: ${e.message}`).join('\n')}`);
 
   const fallback = defaultConfigPath();
-  const out = resolve(flags.out ?? (await ui.text({ message: 'Where to write the config', defaultValue: fallback, placeholder: fallback })));
+  const out = resolve(flags.out ?? (await askOut(ui, fallback)));
   if (deps.exists(out) && !flags.yes && !(await ui.confirm(`${out} exists. Overwrite it?`))) throw new Error(`${out} already exists`);
   deps.write(out, `${JSON.stringify(user, null, 2)}\n`);
   ui.note(out, 'Config written');
@@ -145,6 +148,22 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   return { path: out, checks };
 }
 
+const tilde = (path: string) => (path.startsWith(`${homedir()}/`) ? `~${path.slice(homedir().length)}` : path);
+
+async function askOut(ui: Ui, fallback: string) {
+  const choice = await ui.select({
+    message: 'Where should the config be saved?',
+    options: [
+      { value: fallback, label: tilde(fallback), hint: 'global: "carrier" finds it without --config' },
+      { value: otherPath, label: 'Somewhere else…', hint: 'then use --config to point at it' },
+    ],
+    initialValue: fallback,
+  });
+  if (choice !== otherPath) return choice;
+  return ui.text({ message: 'Path of the config file', placeholder: 'carrier.config.json', defaultValue: 'carrier.config.json' });
+}
+
+const otherPath = '\0path';
 const otherRepo = '\0other';
 
 async function askRepos(ui: Ui, deps: InitDeps) {

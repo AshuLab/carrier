@@ -228,3 +228,29 @@ test('the default place is the global ~/.carrier/config.json, and the closing li
   expect(Object.keys(written)).toEqual([join(dir, 'home', 'config.json')]);
   expect(asked.at(-1)).toMatch(/^outro:Ready\. Start it with: carrier\n/);
 });
+
+test('"Somewhere else…" asks for the path, and the closing line then points at it with --config', async () => {
+  const { deps, written } = fakeDeps();
+  const { ui, asked } = quietUi({ 'Where should the config be saved?': '\0path', 'Path of the config file': join(dir, 'elsewhere.json') });
+  await runInit({ repo: ['A/b'] }, ui, deps);
+  expect(Object.keys(written)).toEqual([join(dir, 'elsewhere.json')]);
+  expect(asked.at(-1)).toContain(`carrier --config ${join(dir, 'elsewhere.json')}`);
+});
+
+test('each role gets its own box, and the author is fully asked before the reviewer', async () => {
+  const notes: string[] = [];
+  const order: string[] = [];
+  const { ui } = quietUi();
+  const spy: Ui = {
+    ...ui,
+    note: (_m, title) => notes.push(title),
+    select: async (o) => (order.push(o.message), ui.select(o)),
+    text: async (o) => (order.push(o.message), ui.text(o)),
+  };
+  await runInit({ repo: ['A/b'], out: join(dir, 'o.json') }, spy, fakeDeps().deps);
+  expect(notes.filter((t) => t === 'Author' || t === 'Reviewer')).toEqual(['Author', 'Reviewer']);
+  expect(order.filter((m) => /author|reviewer/.test(m))).toEqual([
+    'GitHub identity for the author', 'Which agent CLI runs the author?', 'Model for the author',
+    'GitHub identity for the reviewer', 'Which agent CLI runs the reviewer?', 'Model for the reviewer',
+  ]);
+});

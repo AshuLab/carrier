@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { fit, renderDashboard, visibleLength } from './dashboard.ts';
-import type { PanelEpic, PanelSnapshot } from './render.ts';
+import type { PanelEpic, PanelSnapshot } from './types.ts';
 
 const now = 10 * 3_600_000;
 const epic = (over: Partial<PanelEpic> = {}): PanelEpic => ({

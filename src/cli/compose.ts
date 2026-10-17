@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { createScopedLogger, type LogLevel } from '@ashulab/universal-logger';
 import type { Config } from '../config/schema.ts';
@@ -22,6 +21,7 @@ import { HostAgentRunner, type HostRunnerOptions } from '../harnesses/host-runne
 import { openDatabase } from '../storage/db.ts';
 import { acquireLock } from '../storage/lock.ts';
 import { stopOnSigint } from './interrupt.ts';
+import { openUrl } from './open-url.ts';
 
 export class InstanceBusy extends Error {}
 
@@ -46,13 +46,6 @@ export interface CarrierDeps {
   openUrl: (url: string) => void;
   /** The `q` key: ends the process the same way Ctrl+C would. */
   quit: () => void;
-}
-
-// Only GitHub issue and PR pages, whatever the row says: the URL goes to `open`, which would take anything.
-const githubPage = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(issues|pull)\/\d+$/;
-function openUrl(url: string) {
-  if (!githubPage.test(url)) return;
-  spawn('open', [url], { stdio: 'ignore', detached: true }).on('error', () => {}).unref(); // macOS; where `open` is missing nothing happens
 }
 
 const realDeps = (): CarrierDeps => ({

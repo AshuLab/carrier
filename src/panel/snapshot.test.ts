@@ -6,7 +6,7 @@ import { callerResults } from '../storage/caller-results.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics, epicStates } from '../storage/schema.ts';
-import { renderPanel } from './render.ts';
+import { renderPanel } from './plain.ts';
 import { buildSnapshot } from './snapshot.ts';
 
 let dir: string;

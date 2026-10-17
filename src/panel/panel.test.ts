@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { startPanel, type PanelOutput } from './panel.ts';
-import type { PanelEpic, PanelSnapshot } from './render.ts';
+import type { PanelEpic, PanelSnapshot } from './types.ts';
 
 const epic: PanelEpic = {
   repo: 'acme/web',

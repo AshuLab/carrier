@@ -1,5 +1,6 @@
 import { renderDashboard } from './dashboard.ts';
-import { renderPanel, type PanelEpic, type PanelSnapshot } from './render.ts';
+import { renderPanel } from './plain.ts';
+import type { PanelEpic, PanelSnapshot } from './types.ts';
 
 export interface PanelOutput {
   write(text: string): unknown;

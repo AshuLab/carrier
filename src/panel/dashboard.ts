@@ -1,12 +1,10 @@
 import { formatDuration } from '../format/duration.ts';
-import type { PanelEpic, PanelSnapshot } from './render.ts';
+import { printable } from './printable.ts';
+import type { PanelEpic, PanelSnapshot } from './types.ts';
 import { maxListed, type UiState } from './ui-state.ts';
 
 type Style = 'bold' | 'dim' | 'red' | 'green' | 'yellow' | 'cyan';
 const codes: Record<Style, number> = { bold: 1, dim: 2, red: 31, green: 32, yellow: 33, cyan: 36 };
-
-// The reason and the error come from the agent's own output: no control character (ESC included) may reach the terminal.
-const printable = (text: string) => text.replace(/[\x00-\x1f\x7f-\x9f]/g, ' ');
 
 // eslint-disable-next-line no-control-regex
 const ansi = /\x1b\[[0-9;]*m/g;

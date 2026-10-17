@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
-import { renderPanel, type PanelEpic, type PanelSnapshot } from './render.ts';
+import { renderPanel } from './plain.ts';
+import type { PanelEpic, PanelSnapshot } from './types.ts';
 
 const now = 1_000_000_000;
 const epic = (over: Partial<PanelEpic> = {}): PanelEpic => ({

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { expect, test, vi } from 'vitest';
 import { startInteractivePanel, type Controls } from './interactive.ts';
-import type { PanelEpic, PanelSnapshot } from './render.ts';
+import type { PanelEpic, PanelSnapshot } from './types.ts';
 
 const epic: PanelEpic = {
   repo: 'A/a', issue: 1, status: 'running', stage: 'ship', round: null, maxReviews: 5, blockers: 0, stageSince: 0, lastActivityAt: null,

@@ -1,13 +1,8 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { parseArgs } from 'node:util';
-import { createScopedLogger } from '@ashulab/universal-logger';
-import { defaultConfigPath } from '../config/default-path.ts';
-import { defaults, loadConfig } from '../config/load.ts';
-import { userConfigJsonSchema } from '../config/json-schema.ts';
-import type { Config } from '../config/schema.ts';
-import { InstanceBusy, startCarrier } from './compose.ts';
+// The entry point: read the command line, hand it to the command, turn a CliError into an exit code. Nothing else lives here.
+import { parseCli, usage } from './args.ts';
+import { CliError } from './cli-error.ts';
+import { configPathFor, loadConfigFile, noConfig } from './config-file.ts';
 
 // Not console.*: once logging is installed that goes to the log file, and these are for the person at the terminal.
 const fail = (code: number, ...lines: string[]): never => {
@@ -15,109 +10,33 @@ const fail = (code: number, ...lines: string[]): never => {
   process.exit(code);
 };
 
-const usage = `Usage: carrier --config <path>          run the orchestrator
-       carrier init [flags]              guided setup: writes the config and checks it
-       carrier doctor --config <path>    check the config and what this machine needs
-       carrier schema                    print the JSON Schema of the config
-
---config defaults to ${defaultConfigPath()} (where init writes it) when that file exists.
-
-init flags (each one skips its question; --yes never asks):
-  --repo <owner/name>            repeat for several repos
-  --author-profile <forge:<agent>|gh>   --reviewer-profile <forge:<agent>|gh>
-  --author <harness>:<model>            --reviewer <harness>:<model>           harness: claude or codex
-  --author-provider <lmstudio|ollama>   --reviewer-provider <lmstudio|ollama>   the model runs on that local server
-  --out <path>                   default is the --config default above
-  --yes                          no questions; overwrite the output file`;
-
-function parse() {
-  try {
-    return parseArgs({
-      allowPositionals: true,
-      options: {
-        config: { type: 'string' },
-        repo: { type: 'string', multiple: true },
-        'author-profile': { type: 'string' },
-        'reviewer-profile': { type: 'string' },
-        author: { type: 'string' },
-        reviewer: { type: 'string' },
-        'author-provider': { type: 'string' },
-        'reviewer-provider': { type: 'string' },
-        out: { type: 'string' },
-        yes: { type: 'boolean' },
-        help: { type: 'boolean', short: 'h' },
-      },
-    });
-  } catch (error) {
-    return fail(2, error instanceof Error ? error.message : String(error), '', usage);
-  }
-}
-const { values, positionals } = parse();
-const [command, ...extra] = positionals;
-if (values.help) {
-  process.stdout.write(`${usage}\n`);
+const cli = parseCli(process.argv.slice(2));
+if (!cli.ok) fail(2, cli.message, '', usage());
+else if (cli.flags.help) {
+  process.stdout.write(`${usage()}\n`);
   process.exit(0);
-}
-if (extra.length > 0 || (command !== undefined && !['init', 'doctor', 'schema'].includes(command))) fail(2, `Unknown command: ${positionals.join(' ')}`, '', usage);
-
-function loadFile(path: string) {
-  const file = resolve(path);
-  let user: unknown;
-  try {
-    user = JSON.parse(readFileSync(file, 'utf8'));
-  } catch (error) {
-    fail(1, `Cannot read config ${file}: ${error instanceof Error ? error.message : String(error)}`);
-  }
-  const result = loadConfig(defaults, user);
-  if (!result.ok) fail(1, `Invalid config ${file}:`, ...result.errors.map((e) => `  ${e.path}: ${e.message}`));
-  return result.ok ? result.config : fail(1);
-}
-
-// The explicit flag wins; otherwise the global file `carrier init` writes, if it is there.
-const configPath = typeof values.config === 'string' ? values.config : existsSync(defaultConfigPath()) ? defaultConfigPath() : undefined;
-
-async function run(config: Config, { framed = false } = {}) {
-  // On a terminal: "Starting…" until the engine is up, then the arrival line, then the panel. Pipes get plain lines.
-  const announce = process.stdout.isTTY ? (await import('../init/clack-ui.ts')).announceStart({ framed }) : undefined;
-  try {
-    await startCarrier(config, { onArrived: announce?.arrived }); // runs until Ctrl+C
-  } catch (error) {
-    announce?.failed();
-    if (error instanceof InstanceBusy) fail(1, error.message);
-    createScopedLogger('cli').error('startup failed', error); // logging is installed by now: the stack goes to the log file
-    fail(1, `carrier failed to start: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-if (command === 'schema') {
-  process.stdout.write(`${JSON.stringify(userConfigJsonSchema(), null, 2)}\n`);
-} else if (command === 'init') {
-  const { cancelled, makeClackUi, noPromptUi } = await import('../init/clack-ui.ts');
-  const { Cancelled, runInit } = await import('../init/wizard.ts');
-  const ui = values.yes || !process.stdin.isTTY ? noPromptUi : makeClackUi({ compact: true });
-  const started = await runInit(
-    { repo: values.repo, authorProfile: values['author-profile'], reviewerProfile: values['reviewer-profile'], author: values.author, reviewer: values.reviewer, authorProvider: values['author-provider'], reviewerProvider: values['reviewer-provider'], out: values.out, yes: values.yes },
-    ui,
-  ).catch((error: unknown) => {
-    if (error instanceof Cancelled) {
-      cancelled();
-      process.exit(0);
-    }
-    return fail(1, error instanceof Error ? error.message : String(error));
-  });
-  if (started.start) await run(started.config, { framed: true }); // "Start Carrier now?" was answered yes: same process, runs until Ctrl+C
-  else process.exit(started.checks.some((c) => c.status === 'fail') ? 1 : 0);
-} else if (command === 'doctor') {
-  if (configPath === undefined) fail(2, 'Usage: carrier doctor --config <path>', `No config at ${defaultConfigPath()}: run "carrier init" to create one.`);
-  const config = loadFile(String(configPath));
-  const { runDoctor } = await import('../doctor/doctor.ts');
-  const { makeClackUi, noPromptUi, printCheck } = await import('../init/clack-ui.ts');
-  const ui = process.stdout.isTTY ? makeClackUi() : { ...noPromptUi, check: printCheck }; // a spinner per check only on a terminal; the command lists every check
-  const checks = await runDoctor(config, {}, ui.check, ui.checkStart);
-  const failed = checks.filter((c) => c.status === 'fail').length;
-  process.stdout.write(failed > 0 ? `\n${failed} of ${checks.length} checks failed\n` : `\nAll ${checks.length} checks passed\n`);
-  process.exit(failed > 0 ? 1 : 0);
 } else {
-  if (configPath === undefined) fail(2, usage, '', `No config at ${defaultConfigPath()}: run "carrier init" to create one.`);
-  await run(loadFile(String(configPath)));
+  try {
+    const configPath = configPathFor(cli.flags.config);
+    let exit: number | undefined;
+    switch (cli.command) {
+      case 'schema':
+        (await import('./commands/schema.ts')).schemaCommand();
+        break;
+      case 'init':
+        exit = await (await import('./commands/init.ts')).initCommand(cli.flags);
+        break;
+      case 'doctor':
+        if (configPath === undefined) throw noConfig('Usage: carrier doctor --config <path>');
+        exit = await (await import('./commands/doctor.ts')).doctorCommand(loadConfigFile(configPath));
+        break;
+      default:
+        if (configPath === undefined) throw noConfig(usage(), '');
+        await (await import('./commands/run.ts')).runCommand(loadConfigFile(configPath)); // runs until Ctrl+C
+    }
+    if (exit !== undefined) process.exit(exit); // otherwise the command keeps the process alive (running), or has nothing left to do
+  } catch (error) {
+    if (error instanceof CliError) fail(error.code, ...error.lines);
+    throw error;
+  }
 }

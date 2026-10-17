@@ -1,4 +1,4 @@
-import type { PanelSnapshot } from './render.ts';
+import type { PanelSnapshot } from './types.ts';
 
 /** A row the person can select, in the order the dashboard shows it. */
 export type Item = { key: string; url: string; executionId: string | null };

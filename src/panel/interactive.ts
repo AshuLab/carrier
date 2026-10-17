@@ -1,7 +1,7 @@
 import { startKeys } from './keys.ts';
 import { startPanel, type PanelOutput } from './panel.ts';
 import { renderDashboard } from './dashboard.ts';
-import type { PanelSnapshot } from './render.ts';
+import type { PanelSnapshot } from './types.ts';
 import { initialUi, itemsOf, onKey, settle, type Action } from './ui-state.ts';
 
 /** What the keys can do. The program decides how: the panel only knows the names. */

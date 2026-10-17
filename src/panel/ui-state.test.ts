@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import type { PanelEpic, PanelSnapshot } from './render.ts';
+import type { PanelEpic, PanelSnapshot } from './types.ts';
 import { initialUi, itemsOf, onKey, settle, type Key, type UiState } from './ui-state.ts';
 
 const now = 1_000_000;

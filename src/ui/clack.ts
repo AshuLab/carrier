@@ -1,9 +1,8 @@
 import { styleText } from 'node:util';
 import { autocomplete, autocompleteMultiselect, cancel, confirm, groupMultiselect, intro, isCancel, log, note, outro, select, spinner, text } from '@clack/prompts';
 import type { Check } from '../doctor/doctor.ts';
-import { Cancelled, type Ui } from './wizard.ts';
+import { Cancelled, type Ui } from './types.ts';
 
-export { Cancelled };
 
 const keep = <T>(value: T | symbol): T => {
   if (isCancel(value)) throw new Cancelled();

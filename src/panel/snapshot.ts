@@ -3,7 +3,7 @@ import { latestBlockers } from '../orchestration/blockers.ts';
 import type { Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
-import type { PanelSnapshot } from './render.ts';
+import type { PanelSnapshot } from './types.ts';
 
 /** What the panel shows, read from SQLite: slots, the queue (oldest first) and each epic that is running or waiting for a person. */
 export function buildSnapshot(

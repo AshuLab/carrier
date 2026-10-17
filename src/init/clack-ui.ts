@@ -38,19 +38,24 @@ export function makeClackUi({ compact = false } = {}): Ui {
     note: (message, title) => note(message, title),
     warn: (message) => log.warn(message),
     checkStart: (name) => {
-      spin = spinner();
-      spin.start(name);
+      // Compact: one spinner for the whole run whose text changes, so the screen does not jump once per check.
+      if (spin === undefined) {
+        spin = spinner();
+        spin.start(name);
+      } else spin.message(name);
     },
     check: (check) => {
       if (spin === undefined) return check.status === 'ok' && compact ? undefined : printCheck(check);
       if (check.status === 'fail') spin.error(checkLine(check));
-      else if (compact) spin.clear();
+      else if (compact) return; // the spinner goes on to the next check
       else spin.stop(checkLine(check));
       spin = undefined;
       if (check.fix) fixLine(check.fix);
     },
     checksEnd: (total, failed) => {
-      if (compact && failed === 0) log.success(`${total} checks passed`);
+      if (!compact || spin === undefined) return;
+      spin.stop(failed === 0 ? `${total} checks passed` : `${total - failed} of ${total} checks passed`);
+      spin = undefined;
     },
     text: async ({ validate, ...options }) =>
       (keep(await text({ ...options, validate: validate && ((value) => validate(value ?? options.defaultValue ?? '')) })) as string) || options.defaultValue || '',

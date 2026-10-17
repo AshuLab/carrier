@@ -1,7 +1,7 @@
-import { localKinds, type Local } from '../providers/local.ts';
+import { localKinds, type LocalProvider } from '../harnesses/local.ts';
 
 export type Identity = { kind: 'forge'; agent: string } | { kind: 'gh' };
-export type Role = { identity: Identity; provider: 'claude' | 'codex'; model: string; local?: Local };
+export type Role = { identity: Identity; harness: 'claude' | 'codex'; model: string; provider?: LocalProvider };
 export type Answers = { repos: string[]; author: Role; reviewer: Role };
 
 /** `forge:<agent>` or `gh`, the form used by flags and by the prompts' values. */
@@ -15,15 +15,15 @@ export function parseIdentity(text: string): Identity {
 export const identityText = (identity: Identity) => (identity.kind === 'gh' ? 'gh' : `forge:${identity.agent}`);
 
 /** `<claude|codex>:<model>`. */
-export function parseProviderModel(text: string): Pick<Role, 'provider' | 'model'> {
+export function parseHarnessModel(text: string): Pick<Role, 'harness' | 'model'> {
   const match = /^(claude|codex):(.+)$/.exec(text);
   if (match === null) throw new Error(`invalid agent "${text}", expected "claude:<model>" or "codex:<model>"`);
-  return { provider: match[1] as 'claude' | 'codex', model: match[2]! };
+  return { harness: match[1] as 'claude' | 'codex', model: match[2]! };
 }
 
-export function parseLocal(text: string): Local {
+export function parseProvider(text: string): LocalProvider {
   const local = localKinds.find((kind) => kind === text);
-  if (local === undefined) throw new Error(`invalid local server "${text}", expected ${localKinds.join(' or ')}`);
+  if (local === undefined) throw new Error(`invalid provider "${text}", expected ${localKinds.join(' or ')}`);
   return local;
 }
 
@@ -38,8 +38,8 @@ export function buildConfig({ repos, author, reviewer }: Answers) {
     profiles: { [a]: author.identity, [r]: reviewer.identity },
     orchestratorProfile: a,
     agents: {
-      author: { profile: a, provider: author.provider, model: author.model, ...(author.local && { local: author.local }) },
-      reviewer: { profile: r, provider: reviewer.provider, model: reviewer.model, ...(reviewer.local && { local: reviewer.local }) },
+      author: { profile: a, harness: author.harness, model: author.model, ...(author.provider && { provider: author.provider }) },
+      reviewer: { profile: r, harness: reviewer.harness, model: reviewer.model, ...(reviewer.provider && { provider: reviewer.provider }) },
     },
   };
 }

@@ -24,7 +24,7 @@ afterEach(() => {
 });
 
 const logs = (id: string) => join(dir, 'orchestrator', 'logs', 'executions', id);
-// Where the CLIs really keep a session (docs/research/headless-agents.md), whichever provider ran it.
+// Where the CLIs really keep a session (docs/research/headless-agents.md), whichever harness ran it.
 const claudeSession = (id: string) => join(dirs.claude, 'projects', '-Users-me-solve-worktrees-demo-feature', `${id}.jsonl`);
 const codexSession = (id: string) => join(dirs.codex, 'sessions', '2026', '10', '15', `rollout-2026-10-15T20-35-49-${id}.jsonl`);
 const session = (id: string) => [claudeSession(id), codexSession(id)];

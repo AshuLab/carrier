@@ -14,7 +14,7 @@ pnpm only (never npm or yarn). Node 26 runs the TypeScript directly.
 
 ## Layout
 
-`src/cli` entry and composition root, `config` schema/defaults/merging, `orchestration` the engine (polling, scheduler, stages, retries, restart) behind the `GitHub` port, `execution` the `AgentRunner`/`Workspaces` ports and result import, `providers` Claude/Codex runners, `integrations` GitHub through Agent Forge, `storage` SQLite, `panel`, `logging`, `init` and `doctor` (the friendly CLI). Details in the README.
+`src/cli` entry and composition root, `config` schema/defaults/merging, `orchestration` the engine (polling, scheduler, stages, retries, restart) behind the `GitHub` port, `execution` the `AgentRunner`/`Workspaces` ports and result import, `harnesses` Claude/Codex runners, `integrations` GitHub through Agent Forge, `storage` SQLite, `panel`, `logging`, `init` and `doctor` (the friendly CLI). Details in the README.
 
 ## Conventions
 

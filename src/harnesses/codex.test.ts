@@ -9,7 +9,7 @@ const task: AgentTask = {
   epic: 3,
   stage: 'ship',
   profile: 'author-bot',
-  provider: 'codex',
+  harness: 'codex',
   model: 'gpt-5.6-luna',
   workspace: '/work/carrier/3',
   resultPath: '/root/orchestrator/results/exec-1.json',
@@ -57,10 +57,10 @@ test('parseCodexLine reads session, login and lost-session errors', () => {
   expect(parseCodexLine('2026-10-16T01:37:13Z ERROR codex_api: HTTP error: 401 Unauthorized')).toBeUndefined();
 });
 
-test('a local model selects its provider with -c, which `exec resume` accepts (it refuses --oss)', () => {
-  const fresh = buildCodexCommand({ ...task, local: 'lmstudio' }, ctx).args;
+test('a local model selects its harness with -c, which `exec resume` accepts (it refuses --oss)', () => {
+  const fresh = buildCodexCommand({ ...task, provider: 'lmstudio' }, ctx).args;
   expect(fresh.slice(fresh.indexOf('-c'))).toEqual(['-c', 'model_provider="lmstudio"', '--dangerously-bypass-approvals-and-sandbox', '-c', 'carrier_marker="carrier-exec-exec-1"']);
-  const resumed = buildCodexCommand({ ...task, resumeSession: 't', local: 'ollama' }, ctx).args;
+  const resumed = buildCodexCommand({ ...task, resumeSession: 't', provider: 'ollama' }, ctx).args;
   expect(resumed).toEqual(expect.arrayContaining(['resume', 't', 'model_provider="ollama"']));
   expect(resumed).not.toContain('--oss');
   expect(buildCodexCommand(task, ctx).args.join(' ')).not.toContain('model_provider'); // cloud models are untouched

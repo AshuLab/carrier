@@ -14,8 +14,8 @@ import type { GitHub } from '../orchestration/github.ts';
 import { sessionDirsFrom, type SessionDirs } from '../orchestration/retention.ts';
 import { startPanel, type PanelOutput } from '../panel/panel.ts';
 import { buildSnapshot } from '../panel/snapshot.ts';
-import { profileCredentials, type CredentialsOptions } from '../providers/credentials.ts';
-import { HostAgentRunner, type HostRunnerOptions } from '../providers/host-runner.ts';
+import { profileCredentials, type CredentialsOptions } from '../harnesses/credentials.ts';
+import { HostAgentRunner, type HostRunnerOptions } from '../harnesses/host-runner.ts';
 import { openDatabase } from '../storage/db.ts';
 import { acquireLock } from '../storage/lock.ts';
 import { stopOnSigint } from './interrupt.ts';
@@ -51,7 +51,7 @@ const realDeps = (): CarrierDeps => ({
 
 /**
  * Starts carrier on a validated config: the instance lock, file logging, the engine with the real GitHub (the
- * orchestrator's profile, through Forge), workspaces and the runner of each provider, the panel, and Ctrl+C.
+ * orchestrator's profile, through Forge), workspaces and the runner of each harness, the panel, and Ctrl+C.
  * Throws InstanceBusy when another carrier holds the `orchestrator/` folder.
  */
 export async function startCarrier(config: Config, overrides: Partial<CarrierDeps> = {}) {

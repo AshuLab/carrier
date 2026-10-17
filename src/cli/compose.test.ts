@@ -9,7 +9,7 @@ import { FakeAgentRunner, FakeWorkspaces } from '../execution/fake.ts';
 import type { GitWorkspacesOptions } from '../execution/git-workspaces.ts';
 import type { GhGitHubOptions } from '../integrations/github.ts';
 import { FakeClock, FakeGitHub } from '../orchestration/fake.ts';
-import type { HostRunnerOptions } from '../providers/host-runner.ts';
+import type { HostRunnerOptions } from '../harnesses/host-runner.ts';
 import { acquireLock } from '../storage/lock.ts';
 import { InstanceBusy, startCarrier, type CarrierDeps } from './compose.ts';
 
@@ -34,8 +34,8 @@ const config = (user: object = {}): Config => {
     profiles: { orchestrator: { kind: 'gh' }, 'author-bot': { kind: 'forge', agent: 'artanis-agent' }, 'reviewer-bot': { kind: 'forge', agent: 'tassadar-agent' } },
     orchestratorProfile: 'orchestrator',
     agents: {
-      author: { profile: 'author-bot', provider: 'claude', model: 'm' },
-      reviewer: { profile: 'reviewer-bot', provider: 'codex', model: 'm' },
+      author: { profile: 'author-bot', harness: 'claude', model: 'm' },
+      reviewer: { profile: 'reviewer-bot', harness: 'codex', model: 'm' },
     },
     limits: { maxConcurrentEpics: 2, maxReviews: 4, maxExecutionRetries: 1, maxExecutionHours: 2, githubCallTimeoutSeconds: 7 },
     ...user,

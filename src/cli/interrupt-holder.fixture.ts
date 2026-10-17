@@ -34,8 +34,8 @@ const loaded = loadConfig(defaults, {
   profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } },
   orchestratorProfile: 'a',
   agents: {
-    author: { profile: 'a', provider: 'claude', model: 'm' },
-    reviewer: { profile: 'b', provider: 'codex', model: 'm' },
+    author: { profile: 'a', harness: 'claude', model: 'm' },
+    reviewer: { profile: 'b', harness: 'codex', model: 'm' },
   },
   limits: { maxConcurrentEpics: 2 },
 });

@@ -4,7 +4,7 @@ import type { Config } from '../config/schema.ts';
 import { profileToken } from '../execution/git-workspaces.ts';
 import { forgeCwd } from '../integrations/forge-cwd.ts';
 import { GhGitHub, type GitHubProfile } from '../integrations/github.ts';
-import { listLocalModels, localLabel, localUrl, type Local } from '../providers/local.ts';
+import { listLocalModels, localLabel, localUrl, type LocalProvider } from '../harnesses/local.ts';
 
 export type Check = { name: string; status: 'ok' | 'warn' | 'fail'; detail?: string };
 
@@ -13,7 +13,7 @@ export interface DoctorDeps {
   mint: (profile: GitHubProfile, repo: string) => Promise<string>;
   listLabels: (config: Config, repo: string) => Promise<string[]>;
   /** What a local model server has; throws when it does not answer. */
-  localModels: (local: Local) => Promise<string[]>;
+  localModels: (local: LocalProvider) => Promise<string[]>;
 }
 
 const realDeps: DoctorDeps = {
@@ -49,19 +49,19 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
 
   const hasGit = installed('git');
   const hasGh = installed('gh');
-  for (const provider of new Set(repos.flatMap((repo) => rolesOf(repo).map((agent) => agent.provider)))) installed(provider);
+  for (const harness of new Set(repos.flatMap((repo) => rolesOf(repo).map((agent) => agent.harness)))) installed(harness);
   const hasForge = profiles.some((profile) => profile.kind === 'forge') ? installed('agent-forge') : true;
 
   // A local model needs its server up and the model downloaded; one check per distinct server and model.
-  const locals = new Map<string, { local: Local; model: string }>();
-  for (const repo of repos) for (const { local, model } of rolesOf(repo)) if (local) locals.set(`${local}|${model}`, { local, model });
-  for (const { local, model } of locals.values()) {
-    const name = `${localLabel[local]} has ${model}`;
+  const locals = new Map<string, { provider: LocalProvider; model: string }>();
+  for (const repo of repos) for (const { provider, model } of rolesOf(repo)) if (provider) locals.set(`${provider}|${model}`, { provider, model });
+  for (const { provider, model } of locals.values()) {
+    const name = `${localLabel[provider]} has ${model}`;
     try {
-      const have = await deps.localModels(local);
+      const have = await deps.localModels(provider);
       report(have.includes(model) ? { name, status: 'ok' } : { name, status: 'fail', detail: `not downloaded there (it has: ${have.join(', ') || 'nothing'})` });
     } catch {
-      report({ name, status: 'fail', detail: `${localLabel[local]} is not answering at ${localUrl[local]}; start its server` });
+      report({ name, status: 'fail', detail: `${localLabel[provider]} is not answering at ${localUrl[provider]}; start its server` });
     }
   }
 

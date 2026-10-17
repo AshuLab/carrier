@@ -7,8 +7,8 @@ import { defaultConfigPath } from '../config/default-path.ts';
 import { defaults, loadConfig } from '../config/load.ts';
 import { repoNamePattern } from '../config/schema.ts';
 import { runDoctor, type Check } from '../doctor/doctor.ts';
-import { listLocalModels, localKinds, localLabel, type Local } from '../providers/local.ts';
-import { buildConfig, identityText, parseIdentity, parseLocal, parseProviderModel, type Identity, type Role } from './build-config.ts';
+import { listLocalModels, localKinds, localLabel, type LocalProvider } from '../harnesses/local.ts';
+import { buildConfig, identityText, parseIdentity, parseProvider, parseHarnessModel, type Identity, type Role } from './build-config.ts';
 import { readForgeAgents, type ForgeAgent } from './forge-registry.ts';
 
 type Option<T extends string> = { value: T; label: string; hint?: string; disabled?: boolean };
@@ -39,15 +39,15 @@ export interface InitDeps {
   /** The models Codex itself lists as available (its local cache); empty when it has none. */
   codexModels: () => Option<string>[];
   /** The models a local server has; throws when it is not running. */
-  localModels: (local: Local) => Promise<string[]>;
+  localModels: (local: LocalProvider) => Promise<string[]>;
   exists: (path: string) => boolean;
   write: (path: string, content: string) => void;
   doctor: typeof runDoctor;
 }
 
 /** Flags answer questions ahead of time; whatever is missing is asked. */
-/** `authorProfile` / `reviewerProfile` are `forge:<agent>` or `gh`; `author` / `reviewer` are `<claude|codex>:<model>`; `authorLocal` / `reviewerLocal` are `lmstudio` or `ollama` when that model runs there. */
-export type InitFlags = { repo?: string[]; authorProfile?: string; reviewerProfile?: string; author?: string; reviewer?: string; authorLocal?: string; reviewerLocal?: string; out?: string; yes?: boolean };
+/** `authorProfile` / `reviewerProfile` are `forge:<agent>` or `gh`; `author` / `reviewer` are `<claude|codex>:<model>`; `authorProvider` / `reviewerProvider` are `lmstudio` or `ollama` when that model runs there. */
+export type InitFlags = { repo?: string[]; authorProfile?: string; reviewerProfile?: string; author?: string; reviewer?: string; authorProvider?: string; reviewerProvider?: string; out?: string; yes?: boolean };
 
 export const realDeps: InitDeps = {
   which: (command) => spawnSync('which', [command], { stdio: 'ignore' }).status === 0,
@@ -109,15 +109,15 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   } catch (error) {
     ui.warn(`Could not read the Agent Forge registry: ${error instanceof Error ? error.message : String(error)}`);
   }
-  const providers = (['claude', 'codex'] as const).filter((p) => deps.which(p));
+  const harnesses = (['claude', 'codex'] as const).filter((p) => deps.which(p));
   const login = deps.ghLogin();
   // Local model servers are optional: a server that is not running is shown as such, not as a failure.
-  const locals: Partial<Record<Local, string[]>> = {};
+  const locals: Partial<Record<LocalProvider, string[]>> = {};
   for (const kind of localKinds) locals[kind] = await deps.localModels(kind).catch(() => undefined);
   const status = (ok: boolean, label: string) => `${ok ? styleText('green', '●') : styleText('red', '○')} ${label}`;
   ui.note(
     [
-      [status(providers.includes('claude'), 'claude'), status(providers.includes('codex'), 'codex'), status(deps.which('git'), 'git'), status(login !== undefined, login ? `gh (${login})` : 'gh')].join('   '),
+      [status(harnesses.includes('claude'), 'claude'), status(harnesses.includes('codex'), 'codex'), status(deps.which('git'), 'git'), status(login !== undefined, login ? `gh (${login})` : 'gh')].join('   '),
       localKinds.map((kind) => (locals[kind] ? `${styleText('green', '●')} ${localLabel[kind]} (${locals[kind].length} models)` : `${styleText('dim', '○')} ${localLabel[kind]} not running`)).join('   '),
       forge.length > 0 ? `${styleText('green', '●')} Agent Forge: ${forge.map((a) => a.name).join(', ')}` : `${styleText('yellow', '▲')} Agent Forge: no agents found (run "agent-forge add")`,
     ].join('\n'),
@@ -129,11 +129,11 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   // One role at a time (who it acts as, which CLI, which model), each under its own box, so the two read as separate things.
   if (!(flags.authorProfile && flags.author)) ui.note('Implements the epic: runs ship, then answers the reviewer.', 'Author');
   const authorIdentity = flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, login, []);
-  const author = { identity: authorIdentity, ...(await askAgent(ui, 'author', { flag: flags.author, local: flags.authorLocal }, providers, locals, deps, 'claude')) };
+  const author = { identity: authorIdentity, ...(await askAgent(ui, 'author', { flag: flags.author, provider: flags.authorProvider }, harnesses, locals, deps, 'claude')) };
 
   if (!(flags.reviewerProfile && flags.reviewer)) ui.note('Reviews the final PR. Needs a different GitHub identity from the author.', 'Reviewer');
   const reviewerIdentity = flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, login, [authorIdentity]);
-  const reviewer = { identity: reviewerIdentity, ...(await askAgent(ui, 'reviewer', { flag: flags.reviewer, local: flags.reviewerLocal }, providers, locals, deps, providers.includes('codex') ? 'codex' : 'claude')) };
+  const reviewer = { identity: reviewerIdentity, ...(await askAgent(ui, 'reviewer', { flag: flags.reviewer, provider: flags.reviewerProvider }, harnesses, locals, deps, harnesses.includes('codex') ? 'codex' : 'claude')) };
 
   const user = buildConfig({ repos, author, reviewer });
   const loaded = loadConfig(defaults, user);
@@ -225,30 +225,35 @@ async function askIdentity(ui: Ui, role: 'author' | 'reviewer', forge: ForgeAgen
 }
 
 type Cli = 'claude' | 'codex';
-const localModelValue = (kind: Local, model: string) => `local:${kind}:${model}`;
+const nativeProvider: Record<Cli, string> = { claude: 'Anthropic', codex: 'OpenAI' };
+const native = '\0native';
 
-async function askAgent(ui: Ui, role: 'author' | 'reviewer', given: { flag?: string; local?: string }, installed: readonly Cli[], locals: Partial<Record<Local, string[]>>, deps: InitDeps, preferred: Cli): Promise<Pick<Role, 'provider' | 'model' | 'local'>> {
-  if (given.flag) return { ...parseProviderModel(given.flag), ...(given.local && { local: parseLocal(given.local) }) };
+// Three questions, each with one meaning: the harness (the CLI that runs the loop and the tools), the provider that
+// serves the model (the harness's own cloud, or a local server) and the model. The provider question only appears
+// when there is a choice, so the common path stays at two.
+async function askAgent(ui: Ui, role: 'author' | 'reviewer', given: { flag?: string; provider?: string }, installed: readonly Cli[], locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps, preferred: Cli): Promise<Pick<Role, 'harness' | 'model' | 'provider'>> {
+  if (given.flag) return { ...parseHarnessModel(given.flag), ...(given.provider && { provider: parseProvider(given.provider) }) };
   if (installed.length === 0) throw new Error('Neither claude nor codex is installed; install one and run this again.');
-  // The CLI is the harness that runs the loop and the tools; where its model comes from is the next question.
-  const provider: Cli = installed.length === 1 ? installed[0]! : await ui.select<Cli>({ message: `Which agent CLI runs the ${role}?`, options: installed.map((p) => ({ value: p, label: p === 'claude' ? 'Claude Code' : 'Codex' })), initialValue: installed.includes(preferred) ? preferred : installed[0]! });
+  const harness: Cli = installed.length === 1 ? installed[0]! : await ui.select<Cli>({ message: `Which agent CLI runs the ${role}?`, options: installed.map((p) => ({ value: p, label: p === 'claude' ? 'Claude Code' : 'Codex' })), initialValue: installed.includes(preferred) ? preferred : installed[0]! });
 
-  const cloud = provider === 'claude' ? claudeModels : deps.codexModels();
-  const configured = provider === 'codex' ? deps.codexModel() : undefined; // what the user already runs Codex with
-  const options: Option<string>[] = [
-    ...cloud,
-    // A running server lists its models; one that is not running shows once, disabled, so the choice is discoverable.
-    ...localKinds.flatMap((kind): Option<string>[] => {
-      const models = locals[kind];
-      return models ? models.map((model) => ({ value: localModelValue(kind, model), label: model, hint: `${localLabel[kind]} · local` })) : [{ value: `local:${kind}`, label: `${localLabel[kind]} (local)`, hint: 'not running: start its server to use it', disabled: true }];
-    }),
-  ];
+  let provider: LocalProvider | undefined;
+  if (localKinds.some((kind) => locals[kind])) {
+    const choice = await ui.select({
+      message: `Which provider serves the ${role}'s model?`,
+      options: [
+        { value: native, label: nativeProvider[harness], hint: 'cloud' },
+        ...localKinds.map((kind) => ({ value: kind as string, label: `${localLabel[kind]} (local)`, hint: locals[kind] ? `${locals[kind].length} models, runs on this machine` : 'not running: start its server to use it', disabled: !locals[kind] })),
+      ],
+      initialValue: native,
+    });
+    if (choice !== native) provider = parseProvider(choice);
+  }
+
   const typed = async (suggestion?: string) => (await ui.text({ message: `Model for the ${role}`, placeholder: suggestion ?? 'model name', defaultValue: suggestion, validate: (v) => (v.trim() ? undefined : 'Required') })).trim();
-  if (options.every((o) => o.disabled)) return { provider, model: await typed(configured) }; // nothing to pick from: type it
-
-  const initial = [configured, 'sonnet'].find((m) => cloud.some((k) => k.value === m)) ?? options.find((o) => !o.disabled)!.value;
-  const choice = await ui.select({ message: `Model for the ${role}`, options: [...options, { value: otherModel, label: 'Other…', hint: 'type a model id' }], initialValue: initial });
-  if (choice === otherModel) return { provider, model: await typed() };
-  const local = /^local:(\w+):(.*)$/.exec(choice);
-  return local ? { provider, model: local[2]!, local: parseLocal(local[1]!) } : { provider, model: choice };
+  const known: Option<string>[] = provider ? locals[provider]!.map((value) => ({ value, label: value })) : harness === 'claude' ? claudeModels : deps.codexModels();
+  const configured = !provider && harness === 'codex' ? deps.codexModel() : undefined; // what the user already runs Codex with
+  if (known.length === 0) return { harness, model: await typed(configured), ...(provider && { provider }) };
+  const initial = [configured, 'sonnet'].find((m) => known.some((k) => k.value === m)) ?? known[0]!.value;
+  const choice = await ui.select({ message: `Model for the ${role}`, options: [...known, { value: otherModel, label: 'Other…', hint: 'type a model id' }], initialValue: initial });
+  return { harness, model: choice === otherModel ? await typed() : choice, ...(provider && { provider }) };
 }

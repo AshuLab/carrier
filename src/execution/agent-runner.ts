@@ -4,9 +4,9 @@ export interface AgentTask {
   epic: number;
   stage: 'ship' | 'review' | 'fix';
   profile: string; // GitHub profile of the effective config
-  provider: 'claude' | 'codex';
+  harness: 'claude' | 'codex';
   model: string;
-  local?: 'lmstudio' | 'ollama'; // `model` is served by that local server
+  provider?: 'lmstudio' | 'ollama'; // `model` is served by that local server
   workspace: string; // checkout where the agent runs
   resultPath: string; // where the caller writes its JSON
   timeoutMs: number | null; // null = unlimited

@@ -5,15 +5,15 @@ import { promisify } from 'node:util';
 import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { claudeAdapter } from './claude.ts';
 import { codexAdapter } from './codex.ts';
-import { resolveBinary, type AgentCommand, type ProviderAdapter } from './common.ts';
+import { resolveBinary, type AgentCommand, type HarnessAdapter } from './common.ts';
 
 const exec = promisify(execFile);
 
 export interface HostRunnerOptions {
-  /** Overrides the built-in adapter of a provider (tests). */
-  adapters?: Partial<Record<AgentTask['provider'], ProviderAdapter>>;
-  /** Overrides the real binary found on PATH, per provider. */
-  binaries?: Partial<Record<AgentTask['provider'], string>>;
+  /** Overrides the built-in adapter of a harness (tests). */
+  adapters?: Partial<Record<AgentTask['harness'], HarnessAdapter>>;
+  /** Overrides the real binary found on PATH, per harness. */
+  binaries?: Partial<Record<AgentTask['harness'], string>>;
   /** Token (and bot commit identity) of the task's GitHub profile, minted for this execution only. */
   credentials: (task: AgentTask) => Promise<{ githubToken: string; gitIdentity?: { name: string; email: string } }>;
   /** Time a stopped agent gets to exit after SIGTERM before SIGKILL. */
@@ -87,7 +87,7 @@ export class HostAgentRunner implements AgentRunner {
     };
 
     const start = async (): Promise<{ exit: AgentExit; sessionId?: string }> => {
-      const adapter = this.options.adapters?.[task.provider] ?? { claude: claudeAdapter, codex: codexAdapter }[task.provider];
+      const adapter = this.options.adapters?.[task.harness] ?? { claude: claudeAdapter, codex: codexAdapter }[task.harness];
       let credentials;
       try {
         credentials = await this.options.credentials(task);
@@ -99,11 +99,11 @@ export class HostAgentRunner implements AgentRunner {
       if (reason) return { exit: reason };
       let command: AgentCommand;
       try {
-        const binary = this.options.binaries?.[task.provider] ?? resolveBinary(task.provider);
+        const binary = this.options.binaries?.[task.harness] ?? resolveBinary(task.harness);
         command = adapter.command(task, { binary, baseEnv: process.env, ...credentials });
         mkdirSync(dirname(task.resultPath), { recursive: true });
       } catch (e) {
-        emit('stderr', `carrier: cannot build the ${task.provider} command: ${e instanceof Error ? e.message : String(e)}\n`);
+        emit('stderr', `carrier: cannot build the ${task.harness} command: ${e instanceof Error ? e.message : String(e)}\n`);
         return { exit: 'failed' };
       }
       const child = spawn(command.bin, command.args, { cwd: command.cwd, env: command.env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });

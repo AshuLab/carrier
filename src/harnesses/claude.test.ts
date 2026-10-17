@@ -14,7 +14,7 @@ const task: AgentTask = {
   epic: 3,
   stage: 'ship',
   profile: 'author-bot',
-  provider: 'claude',
+  harness: 'claude',
   model: 'haiku',
   workspace: '/work/carrier/3',
   resultPath: '/root/orchestrator/results/exec-1.json',
@@ -104,7 +104,7 @@ test('parseClaudeLine reads session, auth and lost-session errors', () => {
 });
 
 test('a local model points the CLI at that server and keeps a real API key away from it', () => {
-  const { env } = buildClaudeCommand({ ...task, local: 'ollama' }, { ...ctx, baseEnv: { ...ctx.baseEnv, ANTHROPIC_API_KEY: 'sk-real' } });
+  const { env } = buildClaudeCommand({ ...task, provider: 'ollama' }, { ...ctx, baseEnv: { ...ctx.baseEnv, ANTHROPIC_API_KEY: 'sk-real' } });
   expect(env).toMatchObject({ ANTHROPIC_BASE_URL: 'http://localhost:11434', ANTHROPIC_AUTH_TOKEN: 'ollama', ANTHROPIC_API_KEY: '' });
   expect(buildClaudeCommand(task, ctx).env).not.toHaveProperty('ANTHROPIC_BASE_URL');
 });

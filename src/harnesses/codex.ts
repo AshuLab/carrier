@@ -1,5 +1,5 @@
 import { buildPrompt } from '../prompts/build-prompt.ts';
-import { childEnv, markerFor, type AgentCommand, type CommandContext, type LineSignal, type ProviderAdapter } from './common.ts';
+import { childEnv, markerFor, type AgentCommand, type CommandContext, type LineSignal, type HarnessAdapter } from './common.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
 
 /**
@@ -21,7 +21,7 @@ export function buildCodexCommand(task: AgentTask, ctx: CommandContext): AgentCo
       '--model',
       task.model,
       // `--oss --local-provider` is refused by `exec resume`; the config key both of them set is accepted by every form.
-      ...(task.local ? ['-c', `model_provider="${task.local}"`] : []),
+      ...(task.provider ? ['-c', `model_provider="${task.provider}"`] : []),
       '--dangerously-bypass-approvals-and-sandbox',
       // Codex has no flag to name a run; a config key it ignores keeps the marker in argv for listActive/stop.
       '-c',
@@ -47,4 +47,4 @@ export function parseCodexLine(line: string): LineSignal | undefined {
   return undefined;
 }
 
-export const codexAdapter: ProviderAdapter = { command: buildCodexCommand, parseLine: parseCodexLine };
+export const codexAdapter: HarnessAdapter = { command: buildCodexCommand, parseLine: parseCodexLine };

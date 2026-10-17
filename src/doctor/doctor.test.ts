@@ -9,8 +9,8 @@ const base = {
   profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'forge', agent: 'tassadar-agent' } },
   orchestratorProfile: 'a',
   agents: {
-    author: { profile: 'a', provider: 'claude', model: 'm' },
-    reviewer: { profile: 'b', provider: 'codex', model: 'm' },
+    author: { profile: 'a', harness: 'claude', model: 'm' },
+    reviewer: { profile: 'b', harness: 'codex', model: 'm' },
   },
 };
 
@@ -47,14 +47,14 @@ test('everything in place: all checks pass and no token reaches the report', asy
   expect(JSON.stringify(checks)).not.toContain('secret-token');
 });
 
-test('a missing provider CLI fails once, by name', async () => {
+test('a missing harness CLI fails once, by name', async () => {
   const checks = await runDoctor(config(), deps({ which: (command) => command !== 'claude' }));
   expect(failed(checks)).toEqual([{ name: 'claude installed', status: 'fail', detail: 'not found on PATH' }]);
 });
 
-test('only the providers in use are required', async () => {
+test('only the harnesses in use are required', async () => {
   const which = vi.fn(() => true);
-  await runDoctor(config({ agents: { author: { profile: 'a', provider: 'claude', model: 'm' }, reviewer: { profile: 'b', provider: 'claude', model: 'm' } } }), deps({ which }));
+  await runDoctor(config({ agents: { author: { profile: 'a', harness: 'claude', model: 'm' }, reviewer: { profile: 'b', harness: 'claude', model: 'm' } } }), deps({ which }));
   expect(which).not.toHaveBeenCalledWith('codex');
 });
 
@@ -128,7 +128,7 @@ test('onCheck sees every check as it finishes, in the order of the result', asyn
   expect(seen).toEqual(checks);
 });
 
-const local = (over: Record<string, unknown> = {}) => config({ agents: { ...base.agents, reviewer: { ...base.agents.reviewer, model: 'google/gemma-4-12b', local: 'lmstudio', ...over } } });
+const local = (over: Record<string, unknown> = {}) => config({ agents: { ...base.agents, reviewer: { ...base.agents.reviewer, model: 'google/gemma-4-12b', provider: 'lmstudio', ...over } } });
 
 test('a local model passes when its server has it', async () => {
   const checks = await runDoctor(local(), deps({ localModels: async () => ['google/gemma-4-12b'] }));

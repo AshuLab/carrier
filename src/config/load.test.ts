@@ -8,8 +8,8 @@ const valid = {
   profiles: { 'author-bot': { kind: 'forge', agent: 'artanis-agent' }, 'reviewer-bot': { kind: 'gh' } },
   orchestratorProfile: 'author-bot',
   agents: {
-    author: { profile: 'author-bot', provider: 'claude', model: 'm' },
-    reviewer: { profile: 'reviewer-bot', provider: 'codex', model: 'm' },
+    author: { profile: 'author-bot', harness: 'claude', model: 'm' },
+    reviewer: { profile: 'reviewer-bot', harness: 'codex', model: 'm' },
   },
 };
 
@@ -150,16 +150,16 @@ describe('repos', () => {
 });
 
 describe('local models', () => {
-  const reviewer = { profile: 'reviewer-bot', provider: 'codex', model: 'google/gemma-4-12b' };
+  const reviewer = { profile: 'reviewer-bot', harness: 'codex', model: 'google/gemma-4-12b' };
 
-  test('`local` is optional, per role, and only lmstudio or ollama', () => {
-    expect(load({ agents: { ...valid.agents, reviewer: { ...reviewer, local: 'lmstudio' } } })).toMatchObject({ ok: true, config: { agents: { reviewer: { local: 'lmstudio' } } } });
+  test('`provider` is optional, per role, and only lmstudio or ollama', () => {
+    expect(load({ agents: { ...valid.agents, reviewer: { ...reviewer, provider: 'lmstudio' } } })).toMatchObject({ ok: true, config: { agents: { reviewer: { provider: 'lmstudio' } } } });
     expect(load({})).toMatchObject({ ok: true }); // no local anywhere
-    expect(errorsOf({ agents: { ...valid.agents, reviewer: { ...reviewer, local: 'vllm' } } }).map((e) => e.path)).toEqual(['agents.reviewer.local']);
+    expect(errorsOf({ agents: { ...valid.agents, reviewer: { ...reviewer, provider: 'vllm' } } }).map((e) => e.path)).toEqual(['agents.reviewer.provider']);
   });
 
   test('a repo can override it', () => {
-    const result = load({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { model: 'qwen3:8b', local: 'ollama' } } }] });
-    expect(result).toMatchObject({ ok: true, config: { repos: [{ agents: { reviewer: { local: 'ollama' } } }] } });
+    const result = load({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { model: 'qwen3:8b', provider: 'ollama' } } }] });
+    expect(result).toMatchObject({ ok: true, config: { repos: [{ agents: { reviewer: { provider: 'ollama' } } }] } });
   });
 });

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, expect, test } from 'vitest';
 import type { Check } from '../doctor/doctor.ts';
-import { buildConfig, parseIdentity, parseProviderModel } from './build-config.ts';
+import { buildConfig, parseIdentity, parseHarnessModel } from './build-config.ts';
 import { readForgeAgents } from './forge-registry.ts';
 import { runInit, type InitDeps, type Ui } from './wizard.ts';
 
@@ -77,8 +77,8 @@ test('the questions fill a config that has only what defaults lack, and the doct
     profiles: { 'artanis-agent': { kind: 'forge', agent: 'artanis-agent' }, 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' } },
     orchestratorProfile: 'artanis-agent',
     agents: {
-      author: { profile: 'artanis-agent', provider: 'claude', model: 'sonnet' },
-      reviewer: { profile: 'tassadar-agent', provider: 'codex', model: 'gpt-test' }, // author's bot is not offered again; codex default from ~/.codex
+      author: { profile: 'artanis-agent', harness: 'claude', model: 'sonnet' },
+      reviewer: { profile: 'tassadar-agent', harness: 'codex', model: 'gpt-test' }, // author's bot is not offered again; codex default from ~/.codex
     },
   });
   expect(doctored).toMatchObject({ pollIntervalMinutes: 5 }); // the doctor gets the merged config
@@ -93,8 +93,8 @@ test('every flag skips its question', async () => {
   await runInit({ repo: ['AshuLab/x'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'codex:m1', reviewer: 'claude:m2', out, yes: true }, ui, deps);
   expect(asked.filter((a) => !a.startsWith('outro'))).toEqual([]);
   expect(JSON.parse(written[out]!).agents).toEqual({
-    author: { profile: 'artanis-agent', provider: 'codex', model: 'm1' },
-    reviewer: { profile: 'gh', provider: 'claude', model: 'm2' },
+    author: { profile: 'artanis-agent', harness: 'codex', model: 'm1' },
+    reviewer: { profile: 'gh', harness: 'claude', model: 'm2' },
   });
 });
 
@@ -140,13 +140,13 @@ test('failed checks are reported in the closing line', async () => {
 test('buildConfig names a forge profile after its agent and the login "gh"', () => {
   const config = buildConfig({
     repos: ['A/b'],
-    author: { identity: parseIdentity('gh'), ...parseProviderModel('claude:sonnet') },
-    reviewer: { identity: parseIdentity('forge:bot'), ...parseProviderModel('codex:x:y') },
+    author: { identity: parseIdentity('gh'), ...parseHarnessModel('claude:sonnet') },
+    reviewer: { identity: parseIdentity('forge:bot'), ...parseHarnessModel('codex:x:y') },
   });
   expect(config.profiles).toEqual({ gh: { kind: 'gh' }, bot: { kind: 'forge', agent: 'bot' } });
-  expect(config.agents.reviewer).toEqual({ profile: 'bot', provider: 'codex', model: 'x:y' });
+  expect(config.agents.reviewer).toEqual({ profile: 'bot', harness: 'codex', model: 'x:y' });
   expect(() => parseIdentity('forge')).toThrow('invalid identity');
-  expect(() => parseProviderModel('gpt:4')).toThrow('invalid agent');
+  expect(() => parseHarnessModel('gpt:4')).toThrow('invalid agent');
 });
 
 test('the Forge registry yields names and labels, and nothing when there is none', () => {
@@ -258,31 +258,39 @@ test('each role gets its own box, and the author is fully asked before the revie
 
 const running = { localModels: async (local: string) => (local === 'lmstudio' ? ['google/gemma-4-12b', 'qwen/qwen3.8-27b'] : Promise.reject(new Error('down'))) };
 
-test('the CLI is asked first, and a running local server\'s models are listed with the cloud ones', async () => {
+test('three questions, each with one meaning: harness, then provider (only when there is a choice), then that provider\'s models', async () => {
   const { deps, written } = fakeDeps(running);
   const selects: Record<string, string[]> = {};
-  const { ui } = quietUi({ 'Model for the reviewer': 'local:lmstudio:google/gemma-4-12b' });
+  const { ui } = quietUi({ 'Which provider serves the reviewer\'s model?': 'lmstudio' });
   const spy: Ui = { ...ui, select: async (o) => ((selects[o.message] = o.options.map((x) => `${x.value}${x.disabled ? ' (disabled)' : ''}`)), ui.select(o)) };
   const out = join(dir, 'p.json');
   await runInit({ repo: ['A/b'], out }, spy, deps);
-  expect(selects['Which agent CLI runs the reviewer?']).toEqual(['claude', 'codex']); // only harnesses here
-  expect(selects['Model for the reviewer']).toEqual(['local:lmstudio:google/gemma-4-12b', 'local:lmstudio:qwen/qwen3.8-27b', 'local:ollama (disabled)', '\0other']); // Ollama is there, not running
-  expect(JSON.parse(written[out]!).agents.reviewer).toEqual({ profile: 'tassadar-agent', provider: 'codex', model: 'google/gemma-4-12b', local: 'lmstudio' });
-  expect(JSON.parse(written[out]!).agents.author).not.toHaveProperty('local');
+  expect(selects['Which agent CLI runs the reviewer?']).toEqual(['claude', 'codex']); // only harnesses
+  expect(selects['Which provider serves the reviewer\'s model?']).toEqual(['\0native', 'lmstudio', 'ollama (disabled)']); // Ollama is there, not running
+  expect(selects['Model for the reviewer']).toEqual(['google/gemma-4-12b', 'qwen/qwen3.8-27b', '\0other']); // only LM Studio's models, no cloud ones
+  expect(JSON.parse(written[out]!).agents.reviewer).toEqual({ profile: 'tassadar-agent', harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio' });
+  expect(JSON.parse(written[out]!).agents.author).not.toHaveProperty('provider');
+});
+
+test('with no local server running there is no provider question', async () => {
+  const { deps } = fakeDeps();
+  const { ui, asked } = quietUi();
+  await runInit({ repo: ['A/b'], out: join(dir, 'p2.json') }, ui, deps);
+  expect(asked.some((q) => q.startsWith('Which provider'))).toBe(false);
 });
 
 test('a local model id with a colon (Ollama) keeps it whole', async () => {
   const { deps, written } = fakeDeps({ localModels: async (local) => (local === 'ollama' ? ['qwen3:8b'] : Promise.reject(new Error('down'))) });
-  const { ui } = quietUi({ 'Model for the author': 'local:ollama:qwen3:8b' });
+  const { ui } = quietUi({ 'Which provider serves the author\'s model?': 'ollama', 'Model for the author': 'qwen3:8b' });
   const out = join(dir, 'r.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  expect(JSON.parse(written[out]!).agents.author).toMatchObject({ model: 'qwen3:8b', local: 'ollama' });
+  expect(JSON.parse(written[out]!).agents.author).toMatchObject({ model: 'qwen3:8b', provider: 'ollama' });
 });
 
-test('--author-local goes with the flag form and an unknown server is refused', async () => {
+test('--author-provider goes with the flag form and an unknown server is refused', async () => {
   const { deps, written } = fakeDeps();
   const out = join(dir, 'q.json');
-  await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'codex:qwen3:8b', authorLocal: 'ollama', reviewer: 'claude:sonnet', out }, quietUi().ui, deps);
-  expect(JSON.parse(written[out]!).agents.author).toEqual({ profile: 'artanis-agent', provider: 'codex', model: 'qwen3:8b', local: 'ollama' });
-  await expect(runInit({ repo: ['A/b'], author: 'codex:m', authorLocal: 'vllm', authorProfile: 'gh', reviewerProfile: 'forge:x', reviewer: 'claude:s', out }, quietUi().ui, deps)).rejects.toThrow('invalid local server');
+  await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'codex:qwen3:8b', authorProvider: 'ollama', reviewer: 'claude:sonnet', out }, quietUi().ui, deps);
+  expect(JSON.parse(written[out]!).agents.author).toEqual({ profile: 'artanis-agent', harness: 'codex', model: 'qwen3:8b', provider: 'ollama' });
+  await expect(runInit({ repo: ['A/b'], author: 'codex:m', authorProvider: 'vllm', authorProfile: 'gh', reviewerProfile: 'forge:x', reviewer: 'claude:s', out }, quietUi().ui, deps)).rejects.toThrow('invalid provider');
 });

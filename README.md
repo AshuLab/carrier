@@ -33,7 +33,7 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 ## What's included
 
 - **Setup** — `carrier init` (guided, or all flags) writes the config; `carrier doctor` checks it and the machine; `carrier schema` prints the config's JSON Schema.
-- **Config** — a user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, provider and model; author and reviewer must resolve to different profiles.
+- **Config** — a user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, harness, provider and model; author and reviewer must resolve to different profiles.
 - **Polling and queue** — FIFO across repos with pagination, rate-limit and outage handling; one instance per root folder (an exclusive SQLite lock released by the OS on death).
 - **Scheduler** — atomic reservation, configurable concurrency, label management (`running`, `ready-for-test`, `needs-human` are created in each repo if missing).
 - **Stages** — ship, review and fix loops with a typed caller result (`completed`, `changes_requested`, `needs_human`) imported idempotently in a single transaction.
@@ -70,7 +70,7 @@ carrier/
 │   ├── config/         # config schema, defaults, loading/merging, per-repo resolution
 │   ├── orchestration/  # engine: polling, scheduler, stages, retries, restart, final-PR rules, ports + fakes
 │   ├── execution/      # AgentRunner/Workspaces ports, caller result parsing and idempotent import
-│   ├── providers/      # Claude and Codex runners, credentials, orphan detection
+│   ├── harnesses/      # Claude and Codex runners, credentials, orphan detection
 │   ├── integrations/   # GitHub through Agent Forge (`gh` via execFile)
 │   ├── prompts/        # author and reviewer prompts
 │   ├── storage/        # SQLite schema, migrations, lock, executions, events, retention
@@ -137,8 +137,8 @@ A JSON file merged over the defaults (objects merge by field, simple values repl
   },
   "orchestratorProfile": "author-bot",
   "agents": {
-    "author": { "profile": "author-bot", "provider": "claude", "model": "<model>" },
-    "reviewer": { "profile": "reviewer-bot", "provider": "codex", "model": "<model>" }
+    "author": { "profile": "author-bot", "harness": "claude", "model": "<model>" },
+    "reviewer": { "profile": "reviewer-bot", "harness": "codex", "model": "<model>" }
   }
 }
 ```

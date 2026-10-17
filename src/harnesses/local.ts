@@ -1,20 +1,20 @@
 export const localKinds = ['lmstudio', 'ollama'] as const;
-export type Local = (typeof localKinds)[number];
+export type LocalProvider = (typeof localKinds)[number];
 
-export const localLabel: Record<Local, string> = { lmstudio: 'LM Studio', ollama: 'Ollama' };
+export const localLabel: Record<LocalProvider, string> = { lmstudio: 'LM Studio', ollama: 'Ollama' };
 
 // ponytail: default ports only; a server on another port needs a base-URL setting when someone runs one.
-export const localUrl: Record<Local, string> = { lmstudio: 'http://localhost:1234', ollama: 'http://localhost:11434' };
+export const localUrl: Record<LocalProvider, string> = { lmstudio: 'http://localhost:1234', ollama: 'http://localhost:11434' };
 
 /** The environment that points the Claude CLI at a local server, which speaks the Anthropic API on its root URL. */
-export const claudeLocalEnv = (local: Local): Record<string, string> => ({
+export const claudeLocalEnv = (local: LocalProvider): Record<string, string> => ({
   ANTHROPIC_BASE_URL: localUrl[local],
   ANTHROPIC_AUTH_TOKEN: local, // any non-empty value: the local server does not check it
   ANTHROPIC_API_KEY: '', // a real key in the user's environment must not be sent to a local server
 });
 
 /** The chat models the server has. Throws when it does not answer, which is how callers tell "not running". */
-export async function listLocalModels(local: Local, fetchJson: (url: string) => Promise<unknown> = defaultFetch): Promise<string[]> {
+export async function listLocalModels(local: LocalProvider, fetchJson: (url: string) => Promise<unknown> = defaultFetch): Promise<string[]> {
   if (local === 'ollama') {
     const body = (await fetchJson(`${localUrl.ollama}/api/tags`)) as { models?: { name?: string }[] };
     return (body.models ?? []).flatMap((m) => (m.name ? [m.name] : []));

@@ -12,10 +12,10 @@ export const repoNamePattern = /^(?!\.{1,2}\/)(?!.*\/\.{1,2}$)[\w.-]+\/[\w.-]+$/
 
 const agent = z.strictObject({
   profile: z.string().min(1),
-  provider: z.enum(['claude', 'codex']),
+  harness: z.enum(['claude', 'codex']),
   model: z.string().min(1),
-  /** Run `model` on a local server through the provider's CLI instead of the cloud. A repo override cannot unset it: override the model and provider together. */
-  local: z.enum(['lmstudio', 'ollama']).optional(),
+  /** Run `model` on a local server through the harness's CLI instead of the cloud. A repo override cannot unset it: override the model and harness together. */
+  provider: z.enum(['lmstudio', 'ollama']).optional(),
 });
 
 // The two shapes the spike fixed (docs/research/agent-forge.md): a bot through Agent Forge, or the user's own `gh` login. No secrets here.

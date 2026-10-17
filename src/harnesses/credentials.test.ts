@@ -6,7 +6,7 @@ import { botIdFromGitHub, profileCredentials } from './credentials.ts';
 import { HostAgentRunner } from './host-runner.ts';
 
 const task = (profile: string, repo = 'AshuLab/carrier'): AgentTask => ({
-  executionId: `exec-${profile}`, repo, epic: 3, stage: 'ship', profile, provider: 'claude', model: 'm',
+  executionId: `exec-${profile}`, repo, epic: 3, stage: 'ship', profile, harness: 'claude', model: 'm',
   workspace: '/work', resultPath: '/root/orchestrator/results/x.json', timeoutMs: null, context: { previousSummaries: [] },
 });
 const profiles: Record<string, GitHubProfile> = {

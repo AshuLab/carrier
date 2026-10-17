@@ -3,19 +3,19 @@
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { HostAgentRunner } from './host-runner.ts';
 
-const [binary, workspace, provider = 'claude'] = process.argv.slice(2) as [string, string, AgentTask['provider']?];
+const [binary, workspace, harness = 'claude'] = process.argv.slice(2) as [string, string, AgentTask['harness']?];
 const task: AgentTask = {
-  executionId: `orphan-${provider}`,
+  executionId: `orphan-${harness}`,
   repo: 'AshuLab/carrier',
   epic: 3,
   stage: 'ship',
   profile: 'bot',
-  provider,
+  harness,
   model: 'hang',
   workspace,
   resultPath: `${workspace}/result.json`,
   timeoutMs: null,
   context: { previousSummaries: [] },
 };
-const runner = new HostAgentRunner({ binaries: { [provider]: binary }, credentials: async () => ({ githubToken: 'ghs_holder' }) });
+const runner = new HostAgentRunner({ binaries: { [harness]: binary }, credentials: async () => ({ githubToken: 'ghs_holder' }) });
 runner.run(task).onSession(() => console.log('ready'));

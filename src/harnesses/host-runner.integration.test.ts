@@ -32,7 +32,7 @@ const taskIn = (name: string, over: Partial<AgentTask> = {}): AgentTask => {
     epic: 3,
     stage: 'ship',
     profile: 'author-bot',
-    provider: 'claude',
+    harness: 'claude',
     model: 'ok',
     workspace,
     resultPath: join(dir, 'results', `${name}.json`),
@@ -121,11 +121,11 @@ describe('host runner with a fake claude binary', () => {
   test.each([
     ['claude', fakeBinary],
     ['codex', fakeCodex],
-  ] as const)('listActive sees a %s execution orphaned by kill -9 of its carrier, and stop(id) ends it', async (provider, binary) => {
-    const id = `orphan-${provider}`;
+  ] as const)('listActive sees a %s execution orphaned by kill -9 of its carrier, and stop(id) ends it', async (harness, binary) => {
+    const id = `orphan-${harness}`;
     const workspace = join(dir, id);
     mkdirSync(workspace);
-    const carrier = spawn(process.execPath, [holder, binary, workspace, provider], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const carrier = spawn(process.execPath, [holder, binary, workspace, harness], { stdio: ['ignore', 'pipe', 'inherit'] });
     await new Promise<void>((resolve, reject) => {
       carrier.stdout.on('data', (d: Buffer) => d.toString().includes('ready') && resolve());
       carrier.on('exit', () => reject(new Error('holder exited before ready')));
@@ -140,7 +140,7 @@ describe('host runner with a fake claude binary', () => {
 });
 
 describe('host runner with a fake codex binary', () => {
-  const codexTask = (name: string, over: Partial<AgentTask> = {}) => taskIn(name, { provider: 'codex', ...over });
+  const codexTask = (name: string, over: Partial<AgentTask> = {}) => taskIn(name, { harness: 'codex', ...over });
 
   test('reports the thread as session while running, the output, and resumes by id', async () => {
     const run = runner.run(codexTask('codex-basic'));
@@ -286,7 +286,7 @@ describe.skipIf(!process.env.CARRIER_TEST_CODEX)('real codex CLI (set CARRIER_TE
   });
 
   const codexModel = 'gpt-5.6-luna';
-  const base = () => ({ provider: 'codex' as const, model: codexModel, workspace: repo, timeoutMs: 180_000 });
+  const base = () => ({ harness: 'codex' as const, model: codexModel, workspace: repo, timeoutMs: 180_000 });
 
   test('runs headless, reports the session while running, writes outside the workspace, then resumes and remembers', async () => {
     const codeword = `TANGERINE-${Math.floor(Math.random() * 1e6)}`;

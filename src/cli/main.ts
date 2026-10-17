@@ -24,8 +24,8 @@ const usage = `Usage: carrier --config <path>          run the orchestrator
 init flags (each one skips its question; --yes never asks):
   --repo <owner/name>            repeat for several repos
   --author-profile <forge:<agent>|gh>   --reviewer-profile <forge:<agent>|gh>
-  --author <claude|codex>:<model>       --reviewer <claude|codex>:<model>
-  --author-local <lmstudio|ollama>      --reviewer-local <lmstudio|ollama>   (the model runs on that local server)
+  --author <harness>:<model>            --reviewer <harness>:<model>           harness: claude or codex
+  --author-provider <lmstudio|ollama>   --reviewer-provider <lmstudio|ollama>   the model runs on that local server
   --out <path>                   default is the --config default above
   --yes                          no questions; overwrite the output file`;
 
@@ -40,8 +40,8 @@ function parse() {
         'reviewer-profile': { type: 'string' },
         author: { type: 'string' },
         reviewer: { type: 'string' },
-        'author-local': { type: 'string' },
-        'reviewer-local': { type: 'string' },
+        'author-provider': { type: 'string' },
+        'reviewer-provider': { type: 'string' },
         out: { type: 'string' },
         yes: { type: 'boolean' },
         help: { type: 'boolean', short: 'h' },
@@ -83,7 +83,7 @@ if (command === 'schema') {
   const ui = values.yes || !process.stdin.isTTY ? noPromptUi : clackUi;
   try {
     const { checks } = await runInit(
-      { repo: values.repo, authorProfile: values['author-profile'], reviewerProfile: values['reviewer-profile'], author: values.author, reviewer: values.reviewer, authorLocal: values['author-local'], reviewerLocal: values['reviewer-local'], out: values.out, yes: values.yes },
+      { repo: values.repo, authorProfile: values['author-profile'], reviewerProfile: values['reviewer-profile'], author: values.author, reviewer: values.reviewer, authorProvider: values['author-provider'], reviewerProvider: values['reviewer-provider'], out: values.out, yes: values.yes },
       ui,
     );
     process.exit(checks.some((c) => c.status === 'fail') ? 1 : 0);

@@ -5,7 +5,7 @@ import { afterAll, expect, test } from 'vitest';
 import type { Check } from '../doctor/doctor.ts';
 import { buildConfig, parseIdentity, parseHarnessModel } from './build-config.ts';
 import { readForgeAgents } from './forge-registry.ts';
-import { runInit, type InitDeps, type Ui } from './wizard.ts';
+import { Cancelled, runInit, type InitDeps, type Ui } from './wizard.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'carrier-init-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -14,6 +14,8 @@ const quietUi = (answers: Record<string, string | boolean> = {}) => {
   const asked: string[] = [];
   const listed: string[][] = [];
   const ui: Ui = {
+    interactive: true,
+    checkStart: () => {},
     intro: () => {},
     outro: (m) => asked.push(`outro:${m}`),
     note: () => {},
@@ -33,7 +35,8 @@ const quietUi = (answers: Record<string, string | boolean> = {}) => {
     },
     confirm: async (message) => {
       asked.push(message);
-      return answers[message] === true;
+      const answer = answers[message];
+      return typeof answer === 'boolean' ? answer : message === 'Save it?'; // the final recap is accepted unless a test declines it
     },
     multiselect: async ({ message, options, initialValues }) => {
       asked.push(message);
@@ -61,6 +64,9 @@ const fakeDeps = (over: Partial<InitDeps> = {}) => {
     exists: () => false,
     write: (path, content) => (written[path] = content),
     doctor: async () => [okCheck],
+    readConfig: () => ({}),
+    forgeAdd: () => false,
+    readyEpics: async () => ({}),
     ...over,
   };
   return { deps, written };
@@ -106,7 +112,7 @@ test('the repo of the current folder is the suggested answer', async () => {
 });
 
 test('with no Forge agents the reviewer has nothing left, and the error says what to do', async () => {
-  const { deps } = fakeDeps({ forgeAgents: () => [] });
+  const { deps } = fakeDeps({ forgeAgents: () => [], which: (c) => c !== 'agent-forge' }); // and no way to add one from here
   await expect(runInit({ out: join(dir, 'd.json') }, quietUi().ui, deps)).rejects.toThrow('agent-forge add');
 });
 
@@ -311,4 +317,129 @@ test('--author agy:<model> is a valid flag form, and a provider on it is refused
   await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'agy:gemini-3.8-flash-low', reviewer: 'claude:sonnet', out }, quietUi().ui, deps);
   expect(JSON.parse(written[out]!).agents.author.harness).toBe('agy');
   await expect(runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'agy:m', authorProvider: 'lmstudio', reviewer: 'claude:sonnet', out }, quietUi().ui, deps)).rejects.toThrow('agy cannot use the provider "lmstudio"');
+});
+
+const withHome = async <T>(run: () => Promise<T>) => {
+  process.env.CARRIER_HOME = join(dir, 'home');
+  try {
+    return await run();
+  } finally {
+    delete process.env.CARRIER_HOME;
+  }
+};
+const existingKey = `A config already exists at ${join(dir, 'home', 'config.json')}`;
+const existing = {
+  repos: [{ name: 'X/y' }, { name: 'X/z' }],
+  profiles: { 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' }, gh: { kind: 'gh' } },
+  orchestratorProfile: 'tassadar-agent',
+  agents: { author: { profile: 'tassadar-agent', harness: 'claude', model: 'opus' }, reviewer: { profile: 'gh', harness: 'codex', model: 'gpt-test' } },
+};
+
+test('the recap lists what will be saved, and declining it writes nothing', async () => {
+  const { deps, written } = fakeDeps();
+  const notes: Record<string, string> = {};
+  const { ui } = quietUi({ 'Save it?': false });
+  const spy: Ui = { ...ui, note: (m, title) => void (notes[title] = m) };
+  await expect(runInit({ repo: ['A/b'], out: join(dir, 'u.json') }, spy, deps)).rejects.toBeInstanceOf(Cancelled);
+  expect(written).toEqual({});
+  expect(notes['This is what will be saved']).toMatch(/Repos {5}A\/b\nAuthor {4}artanis-agent · Claude Code · sonnet\nReviewer {2}tassadar-agent · Codex · gpt-test\nSaved to {2}/);
+});
+
+test('--yes skips the recap and the start question', async () => {
+  const { deps } = fakeDeps();
+  const { ui, asked } = quietUi();
+  await runInit({ repo: ['A/b'], out: join(dir, 'v.json'), yes: true }, ui, deps);
+  expect(asked).not.toContain('Save it?');
+  expect(asked.some((q) => q.startsWith('Start Carrier'))).toBe(false);
+});
+
+test('an existing config can be edited: its answers are the starting points and no question about the file is asked', async () => {
+  const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => existing });
+  const { ui, asked } = quietUi();
+  await withHome(() => runInit({}, ui, deps));
+  const [path] = Object.keys(written);
+  expect(path).toBe(join(dir, 'home', 'config.json'));
+  expect(JSON.parse(written[path!]!)).toEqual({
+    repos: [{ name: 'X/y' }, { name: 'X/z' }],
+    profiles: { 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' }, gh: { kind: 'gh' } },
+    orchestratorProfile: 'tassadar-agent',
+    agents: { author: { profile: 'tassadar-agent', harness: 'claude', model: 'opus' }, reviewer: { profile: 'gh', harness: 'codex', model: 'gpt-test' } },
+  });
+  expect(asked).not.toContain('Where should the config be saved?');
+  expect(asked.some((q) => q.endsWith('exists. Overwrite it?'))).toBe(false);
+});
+
+test('"Start over" ignores the old answers but still replaces that file without asking again', async () => {
+  const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => existing });
+  const { ui } = quietUi({ [existingKey]: 'fresh' });
+  await withHome(() => runInit({}, ui, deps));
+  expect(JSON.parse(written[join(dir, 'home', 'config.json')]!).repos).toEqual([{ name: 'AshuLab/carrier' }]); // the origin suggestion, not the old repos
+});
+
+test('"Leave it as it is" cancels, and an unreadable config is said so instead of crashing', async () => {
+  const left = fakeDeps({ exists: () => true });
+  await expect(withHome(() => runInit({}, quietUi({ [existingKey]: 'cancel' }).ui, left.deps))).rejects.toBeInstanceOf(Cancelled);
+  expect(left.written).toEqual({});
+  const broken = fakeDeps({ exists: () => true, readConfig: () => ({ nope: 1 }) });
+  const { ui, asked } = quietUi();
+  await withHome(() => runInit({}, ui, broken.deps));
+  expect(asked.some((q) => q.startsWith('warn:') && q.includes('is not a valid config'))).toBe(true);
+});
+
+test('when the reviewer has no identity left, a bot can be added right there and the list is read again', async () => {
+  let added = 0;
+  let registry = [{ name: 'artanis-agent' }];
+  const { deps, written } = fakeDeps({
+    forgeAgents: () => registry,
+    forgeAdd: () => {
+      added += 1;
+      registry = [...registry, { name: 'new-bot' }];
+      return true;
+    },
+  });
+  const answers: string[] = ['forge:artanis-agent', 'gh', '\0add', 'forge:new-bot']; // author, then the reviewer tries "gh"... scripted below
+  const { ui } = quietUi();
+  let reviewerAsks = 0;
+  const scripted: Ui = {
+    ...ui,
+    select: async (o) => {
+      if (o.message === 'GitHub identity for the author') return 'forge:artanis-agent' as never;
+      if (o.message === 'GitHub identity for the reviewer') return ((reviewerAsks += 1) === 1 ? '\0add' : 'forge:new-bot') as never;
+      return ui.select(o);
+    },
+  };
+  void answers;
+  const out = join(dir, 'w.json');
+  await runInit({ repo: ['A/b'], out }, scripted, deps);
+  expect(added).toBe(1);
+  expect(JSON.parse(written[out]!).agents.reviewer.profile).toBe('new-bot');
+});
+
+test('a failed `agent-forge add` warns and asks again; without a terminal it is not offered', async () => {
+  const offered: string[][] = [];
+  const { deps } = fakeDeps({ forgeAdd: () => false });
+  const { ui, asked } = quietUi();
+  let n = 0;
+  const spy: Ui = { ...ui, select: async (o) => (o.message === 'GitHub identity for the reviewer' ? (offered.push(o.options.map((x) => x.value)), ((n += 1) === 1 ? '\0add' : 'gh') as never) : ui.select(o)) };
+  await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', author: 'claude:sonnet', out: join(dir, 'x.json') }, spy, deps);
+  expect(asked.some((q) => q.startsWith('warn:agent-forge add did not finish'))).toBe(true);
+  expect(offered.length).toBe(2);
+  const withYes: string[][] = [];
+  const quiet = quietUi();
+  await runInit({ repo: ['A/b'], out: join(dir, 'y.json'), yes: true }, { ...quiet.ui, select: async (o) => (o.message.startsWith('GitHub identity') && withYes.push(o.options.map((x) => x.value)), quiet.ui.select(o)) }, fakeDeps().deps);
+  expect(withYes.flat()).not.toContain('\0add'); // --yes: no "add a bot" option in the way
+});
+
+test('after good checks it shows what is waiting and offers to start; with failed checks it does neither', async () => {
+  const notes: Record<string, string> = {};
+  const good = fakeDeps({ readyEpics: async () => ({ 'AshuLab/carrier': 2, 'AshuLab/x': undefined }) });
+  const { ui } = quietUi({ 'Start Carrier now? (Ctrl+C stops it)': true });
+  const result = await runInit({ repo: ['A/b'], out: join(dir, 'z.json') }, { ...ui, note: (m, t) => void (notes[t] = m) }, good.deps);
+  expect(result.start).toBe(true);
+  expect(notes['Waiting for Carrier']).toBe('AshuLab/carrier: 2 epics marked ready\nAshuLab/x: could not read');
+
+  let asked = 0;
+  const bad = fakeDeps({ doctor: async () => [{ name: 'gh installed', status: 'fail' }], readyEpics: async () => (asked += 1, {}) });
+  const failed = await runInit({ repo: ['A/b'], out: join(dir, 'z2.json') }, quietUi().ui, bad.deps);
+  expect([failed.start, asked]).toEqual([false, 0]);
 });

@@ -252,7 +252,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   const waiting = Object.entries(ready).map(([repo, count]) => `${repo}: ${count === undefined ? 'could not read' : `${count} epic${count === 1 ? '' : 's'} marked ready`}`);
   ui.note(waiting.join('\n'), 'Waiting for Carrier');
   const start = interactive && (await ui.confirm('Start Carrier now? (Ctrl+C stops it)'));
-  ui.outro(start ? 'Starting…' : `Ready. Start it with: carrier${use}\nThen mark an epic of ${repos[0]} as solve:epic:ready.`);
+  if (!start) ui.outro(`Ready. Start it with: carrier${use}\nThen mark an epic of ${repos[0]} as solve:epic:ready.`); // otherwise the caller carries on in the same frame
   return { path: out, checks, config: loaded.config, start };
 }
 

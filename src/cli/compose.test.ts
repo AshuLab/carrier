@@ -146,3 +146,20 @@ test('a startup failure releases the lock', async () => {
   expect(again.ok).toBe(true);
   if (again.ok) again.release();
 });
+
+test('onArrived fires once the engine is up and before the panel draws; a startup failure never announces it', async () => {
+  const order: string[] = [];
+  const { seen, deps } = fakes();
+  const app = await startCarrier(config(), { ...deps, onArrived: () => order.push(`arrived (panel drawn: ${seen.panel.length > 0})`) });
+  closers.push(async () => (await app.engine.shutdown(), app.close()));
+  expect(order).toEqual(['arrived (panel drawn: false)']);
+  await vi.waitFor(() => expect(seen.panel.length).toBeGreaterThan(0)); // and the panel does start
+
+  const failing = fakes();
+  failing.github.listLabels = async () => {
+    throw new Error('boom');
+  };
+  const announced = vi.fn();
+  await expect(startCarrier(config({ root: mkdtempSync(join(tmpdir(), 'carrier-compose2-')) }), { ...failing.deps, onArrived: announced })).rejects.toThrow('boom');
+  expect(announced).not.toHaveBeenCalled();
+});

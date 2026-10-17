@@ -96,6 +96,20 @@ export const noPromptUi: Ui = {
   },
 };
 
+/** "Starting…" while the engine comes up, then the line Carrier arrives with. Only on a terminal. */
+export function announceStart({ framed }: { framed: boolean }) {
+  if (!framed) intro('Carrier');
+  const spin = spinner();
+  spin.start('Starting…');
+  return {
+    arrived: () => {
+      spin.stop('Carrier has arrived.');
+      outro(styleText('dim', 'Ctrl+C stops it'));
+    },
+    failed: () => spin.error('Carrier could not start'),
+  };
+}
+
 export const clackUi = makeClackUi();
 
 export const cancelled = () => cancel('✖  Cancelled');

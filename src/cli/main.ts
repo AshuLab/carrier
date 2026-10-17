@@ -76,10 +76,13 @@ function loadFile(path: string) {
 // The explicit flag wins; otherwise the global file `carrier init` writes, if it is there.
 const configPath = typeof values.config === 'string' ? values.config : existsSync(defaultConfigPath()) ? defaultConfigPath() : undefined;
 
-async function run(config: Config) {
+async function run(config: Config, { framed = false } = {}) {
+  // On a terminal: "Starting…" until the engine is up, then the arrival line, then the panel. Pipes get plain lines.
+  const announce = process.stdout.isTTY ? (await import('../init/clack-ui.ts')).announceStart({ framed }) : undefined;
   try {
-    await startCarrier(config); // runs until Ctrl+C
+    await startCarrier(config, { onArrived: announce?.arrived }); // runs until Ctrl+C
   } catch (error) {
+    announce?.failed();
     if (error instanceof InstanceBusy) fail(1, error.message);
     createScopedLogger('cli').error('startup failed', error); // logging is installed by now: the stack goes to the log file
     fail(1, `carrier failed to start: ${error instanceof Error ? error.message : String(error)}`);
@@ -102,7 +105,7 @@ if (command === 'schema') {
     }
     return fail(1, error instanceof Error ? error.message : String(error));
   });
-  if (started.start) await run(started.config); // "Start Carrier now?" was answered yes: same process, runs until Ctrl+C
+  if (started.start) await run(started.config, { framed: true }); // "Start Carrier now?" was answered yes: same process, runs until Ctrl+C
   else process.exit(started.checks.some((c) => c.status === 'fail') ? 1 : 0);
 } else if (command === 'doctor') {
   if (configPath === undefined) fail(2, 'Usage: carrier doctor --config <path>', `No config at ${defaultConfigPath()}: run "carrier init" to create one.`);

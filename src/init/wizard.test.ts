@@ -434,9 +434,10 @@ test('a failed `agent-forge add` warns and asks again; without a terminal it is 
 test('after good checks it shows what is waiting and offers to start; with failed checks it does neither', async () => {
   const notes: Record<string, string> = {};
   const good = fakeDeps({ readyEpics: async () => ({ 'AshuLab/carrier': 2, 'AshuLab/x': undefined }) });
-  const { ui } = quietUi({ 'Start Carrier now? (Ctrl+C stops it)': true });
+  const { ui, asked: started } = quietUi({ 'Start Carrier now? (Ctrl+C stops it)': true });
   const result = await runInit({ repo: ['A/b'], out: join(dir, 'z.json') }, { ...ui, note: (m, t) => void (notes[t] = m) }, good.deps);
   expect(result.start).toBe(true);
+  expect(started.some((m) => m.startsWith('outro:'))).toBe(false); // the frame stays open for the arrival line
   expect(notes['Waiting for Carrier']).toBe('AshuLab/carrier: 2 epics marked ready\nAshuLab/x: could not read');
 
   let asked = 0;

@@ -35,6 +35,8 @@ export interface CarrierDeps {
   panelOut: PanelOutput;
   panelIntervalMs?: number;
   onSigint: typeof stopOnSigint;
+  /** The engine is up, before the panel takes the screen: the moment to say so. Not called when the startup fails. */
+  onArrived?: () => void;
 }
 
 const realDeps = (): CarrierDeps => ({
@@ -88,11 +90,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     root: config.root,
     sessionDirs: deps.sessionDirs,
   });
-  const stopPanel = startPanel(
-    () => buildSnapshot(db, { now: deps.clock.now(), maxConcurrentEpics: limits.maxConcurrentEpics, maxReviews: limits.maxReviews }),
-    deps.panelOut,
-    deps.panelIntervalMs,
-  );
+  let stopPanel = () => {}; // the panel starts once the engine is up
   const close = () => {
     stopPanel();
     engine.stop();
@@ -108,5 +106,12 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     close();
     throw error;
   }
+  // Only now: until the engine is up the terminal belongs to whoever is waiting for it (the "Starting…" spinner).
+  deps.onArrived?.();
+  stopPanel = startPanel(
+    () => buildSnapshot(db, { now: deps.clock.now(), maxConcurrentEpics: limits.maxConcurrentEpics, maxReviews: limits.maxReviews }),
+    deps.panelOut,
+    deps.panelIntervalMs,
+  );
   return { engine, db, close };
 }

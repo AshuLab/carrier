@@ -24,7 +24,11 @@ export function printCheck(check: Check) {
 // Past this many options a plain list is a chore to scroll: type to filter instead.
 const longList = 10;
 
-export function makeClackUi(): Ui {
+/**
+ * `compact`: what passes leaves no trace but a final count, only failures are printed (init: nobody needs eight lines
+ * that say everything is fine). Not compact: one line per check (the `doctor` command, which is asked for them).
+ */
+export function makeClackUi({ compact = false } = {}): Ui {
   // A check that takes a while (a token from Forge, a call to GitHub) shows a spinner until its result arrives.
   let spin: ReturnType<typeof spinner> | undefined;
   return {
@@ -38,11 +42,15 @@ export function makeClackUi(): Ui {
       spin.start(name);
     },
     check: (check) => {
-      if (spin === undefined) return printCheck(check);
+      if (spin === undefined) return check.status === 'ok' && compact ? undefined : printCheck(check);
       if (check.status === 'fail') spin.error(checkLine(check));
+      else if (compact) spin.clear();
       else spin.stop(checkLine(check));
       spin = undefined;
       if (check.fix) fixLine(check.fix);
+    },
+    checksEnd: (total, failed) => {
+      if (compact && failed === 0) log.success(`${total} checks passed`);
     },
     text: async ({ validate, ...options }) =>
       (keep(await text({ ...options, validate: validate && ((value) => validate(value ?? options.defaultValue ?? '')) })) as string) || options.defaultValue || '',
@@ -64,7 +72,10 @@ export const noPromptUi: Ui = {
   ...makeClackUi(),
   interactive: false,
   checkStart: () => {},
-  check: printCheck,
+  check: (check) => (check.status === 'ok' ? undefined : printCheck(check)), // like the compact one: failures only
+  checksEnd: (total, failed) => {
+    if (failed === 0) log.success(`${total} checks passed`);
+  },
   text: async ({ message, defaultValue }) => {
     if (defaultValue !== undefined) return defaultValue;
     throw new Error(`"${message}" needs an answer and there is no terminal to ask: pass it as a flag (carrier init --help)`);

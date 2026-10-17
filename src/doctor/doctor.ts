@@ -30,7 +30,7 @@ const realDeps: DoctorDeps = {
 };
 
 // Every remedy lives here. They only repeat what a check already knows (names, owners): nothing from a child's output.
-const installFix: Record<string, string> = {
+export const installFix: Record<string, string> = {
   git: 'install git (xcode-select --install on macOS)',
   gh: 'install the GitHub CLI (https://cli.github.com) and run: gh auth login',
   claude: 'install Claude Code (https://claude.com/claude-code) and sign in once',

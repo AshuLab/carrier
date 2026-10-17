@@ -9,7 +9,7 @@ import type { Config } from '../config/schema.ts';
 import { forgeCwd } from '../integrations/forge-cwd.ts';
 import { GhGitHub } from '../integrations/github.ts';
 import { repoNamePattern } from '../config/schema.ts';
-import { runDoctor, type Check } from '../doctor/doctor.ts';
+import { installFix, runDoctor, type Check } from '../doctor/doctor.ts';
 import { listLocalModels, localKinds, localLabel, type LocalProvider } from '../harnesses/local.ts';
 import { harnessLabel, harnessNames, localProvidersOf, nativeProvider, type HarnessName } from '../harnesses/names.ts';
 import { buildConfig, identityText, parseIdentity, parseProvider, parseHarnessModel, type Identity, type Role } from './build-config.ts';
@@ -31,6 +31,8 @@ export interface Ui {
   /** A check is about to run (the UI may show a spinner); `check` follows with its result. */
   checkStart(name: string): void;
   check(check: Check): void;
+  /** All the checks ran: `total` of them, `failed` of which failed. */
+  checksEnd(total: number, failed: number): void;
   text(options: { message: string; placeholder?: string; defaultValue?: string; validate?: (value: string) => string | undefined }): Promise<string>;
   select<T extends string>(options: { message: string; options: Option<T>[]; initialValue?: T }): Promise<T>;
   confirm(message: string): Promise<boolean>;
@@ -173,15 +175,14 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   // Local model servers are optional: a server that is not running is shown as such, not as a failure.
   const locals: Partial<Record<LocalProvider, string[]>> = {};
   for (const kind of localKinds) locals[kind] = await deps.localModels(kind).catch(() => undefined);
-  const status = (ok: boolean, label: string) => `${ok ? styleText('green', '●') : styleText('red', '○')} ${label}`;
-  ui.note(
-    [
-      [...harnessNames.map((h) => status(harnesses.includes(h), h)), status(deps.which('git'), 'git'), status(login !== undefined, login ? `gh (${login})` : 'gh')].join('   '),
-      localKinds.map((kind) => (locals[kind] ? `${styleText('green', '●')} ${localLabel[kind]} (${locals[kind].length} models)` : `${styleText('dim', '○')} ${localLabel[kind]} not running`)).join('   '),
-      forge.agents.length > 0 ? `${styleText('green', '●')} Agent Forge: ${forge.agents.map((a) => a.name).join(', ')}` : `${styleText('yellow', '▲')} Agent Forge: no agents found (run "agent-forge add")`,
-    ].join('\n'),
-    'This machine',
-  );
+
+  // Nothing is shown when the machine is fine. What cannot work at all stops here, with how to fix it.
+  const lacking = [
+    ...(['git', 'gh'] as const).filter((tool) => !deps.which(tool)).map((tool) => `${tool}: ${installFix[tool]}`),
+    ...(harnesses.length === 0 ? ['an agent CLI, any of these:', ...harnessNames.map((h) => `  ${h}: ${installFix[h]}`)] : []),
+  ];
+  if (lacking.length > 0) throw new Error(`Carrier needs these before it can run:\n${lacking.map((line) => `  ${line}`).join('\n')}`);
+  if (login === undefined) ui.warn('gh is not logged in (run: gh auth login): your repos cannot be listed, and a "my own gh login" identity will not work.');
 
   // A config that is already there: edit it (its answers become the starting points), start over, or leave it.
   const fallback = defaultConfigPath();
@@ -241,6 +242,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   const checks = await deps.doctor(loaded.config, {}, ui.check, ui.checkStart);
   const use = out === fallback ? '' : ` --config ${out}`; // the default location needs no flag
   const failed = checks.filter((c) => c.status === 'fail').length;
+  ui.checksEnd(checks.length, failed);
   if (failed > 0) {
     ui.outro(`${failed} check${failed === 1 ? '' : 's'} failed. Fix them and run: carrier doctor${use}`);
     return { path: out, checks, config: loaded.config, start: false };

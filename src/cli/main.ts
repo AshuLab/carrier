@@ -91,7 +91,7 @@ if (command === 'schema') {
 } else if (command === 'init') {
   const { cancelled, makeClackUi, noPromptUi } = await import('../init/clack-ui.ts');
   const { Cancelled, runInit } = await import('../init/wizard.ts');
-  const ui = values.yes || !process.stdin.isTTY ? noPromptUi : makeClackUi();
+  const ui = values.yes || !process.stdin.isTTY ? noPromptUi : makeClackUi({ compact: true });
   const started = await runInit(
     { repo: values.repo, authorProfile: values['author-profile'], reviewerProfile: values['reviewer-profile'], author: values.author, reviewer: values.reviewer, authorProvider: values['author-provider'], reviewerProvider: values['reviewer-provider'], out: values.out, yes: values.yes },
     ui,
@@ -108,8 +108,8 @@ if (command === 'schema') {
   if (configPath === undefined) fail(2, 'Usage: carrier doctor --config <path>', `No config at ${defaultConfigPath()}: run "carrier init" to create one.`);
   const config = loadFile(String(configPath));
   const { runDoctor } = await import('../doctor/doctor.ts');
-  const { makeClackUi, noPromptUi } = await import('../init/clack-ui.ts');
-  const ui = process.stdout.isTTY ? makeClackUi() : noPromptUi; // a spinner per check only on a terminal
+  const { makeClackUi, noPromptUi, printCheck } = await import('../init/clack-ui.ts');
+  const ui = process.stdout.isTTY ? makeClackUi() : { ...noPromptUi, check: printCheck }; // a spinner per check only on a terminal; the command lists every check
   const checks = await runDoctor(config, {}, ui.check, ui.checkStart);
   const failed = checks.filter((c) => c.status === 'fail').length;
   process.stdout.write(failed > 0 ? `\n${failed} of ${checks.length} checks failed\n` : `\nAll ${checks.length} checks passed\n`);

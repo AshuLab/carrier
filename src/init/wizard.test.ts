@@ -16,6 +16,7 @@ const quietUi = (answers: Record<string, string | boolean> = {}) => {
   const ui: Ui = {
     interactive: true,
     checkStart: () => {},
+    checksEnd: (total, failed) => void asked.push(`checks:${total}/${failed}`),
     intro: () => {},
     outro: (m) => asked.push(`outro:${m}`),
     note: () => {},
@@ -98,7 +99,7 @@ test('every flag skips its question', async () => {
   const { ui, asked } = quietUi();
   const out = join(dir, 'b.json');
   await runInit({ repo: ['AshuLab/x'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'codex:m1', reviewer: 'claude:m2', out, yes: true }, ui, deps);
-  expect(asked.filter((a) => !a.startsWith('outro'))).toEqual([]);
+  expect(asked.filter((a) => !a.startsWith('outro') && !a.startsWith('checks:'))).toEqual([]);
   expect(JSON.parse(written[out]!).agents).toEqual({
     author: { profile: 'artanis-agent', harness: 'codex', model: 'm1' },
     reviewer: { profile: 'gh', harness: 'claude', model: 'm2' },
@@ -442,4 +443,26 @@ test('after good checks it shows what is waiting and offers to start; with faile
   const bad = fakeDeps({ doctor: async () => [{ name: 'gh installed', status: 'fail' }], readyEpics: async () => (asked += 1, {}) });
   const failed = await runInit({ repo: ['A/b'], out: join(dir, 'z2.json') }, quietUi().ui, bad.deps);
   expect([failed.start, asked]).toEqual([false, 0]);
+});
+
+test('a machine that is fine shows nothing about itself, and the checks end with one count', async () => {
+  const notes: string[] = [];
+  const { ui, asked } = quietUi();
+  await runInit({ repo: ['A/b'], out: join(dir, 'm1.json') }, { ...ui, note: (_m, t) => void notes.push(t) }, fakeDeps().deps);
+  expect(notes).not.toContain('This machine');
+  expect(asked).toContain('checks:1/0'); // the fake doctor ran one check
+  expect(asked.some((q) => q.startsWith('warn:'))).toBe(false);
+});
+
+test('what cannot work at all stops before any question, each with how to fix it', async () => {
+  const { ui, asked } = quietUi();
+  await expect(runInit({ repo: ['A/b'] }, ui, fakeDeps({ which: (c) => c !== 'gh' }).deps)).rejects.toThrow(/Carrier needs these before it can run:\n {2}gh: install the GitHub CLI/);
+  await expect(runInit({ repo: ['A/b'] }, ui, fakeDeps({ which: (c) => c === 'git' || c === 'gh' }).deps)).rejects.toThrow(/an agent CLI, any of these:\n {4}claude: install Claude Code .*\n {4}codex: .*\n {4}agy: /);
+  expect(asked).toEqual([]); // nothing was asked
+});
+
+test('gh without a login is a warning, not a stop', async () => {
+  const { ui, asked } = quietUi();
+  await runInit({ repo: ['A/b'], out: join(dir, 'm2.json') }, ui, fakeDeps({ ghLogin: () => undefined }).deps);
+  expect(asked.find((q) => q.startsWith('warn:gh is not logged in'))).toContain('gh auth login');
 });

@@ -38,7 +38,7 @@ _Avoid_: process (technical termination is something else), epic.
 **Caller result** - Structured conclusion of an execution, in JSON: `completed`, `changes_requested` or `needs_human`. It is independent of whether the process ended well or badly.
 _Avoid_: process success/failure, CLI state.
 
-**Human intervention** - State of an epic that is stopped (`solve:epic:needs-human`) by `needs_human`, timeout, exhausted limit, inconclusive review or authentication error. Diego resolves it outside Carrier; it is not reactivated from the app or on restart.
+**Human intervention** - State of an epic that is stopped (`solve:epic:needs-human`) by `needs_human`, timeout, exhausted limit, inconclusive review or authentication error. Diego resolves it outside Carrier; Carrier takes it back only when he puts `solve:epic:ready` on the issue again.
 _Avoid_: error, failure, pause.
 
 **Author** - Agent that invokes `ship` and handles the findings; it keeps its identity throughout the epic.

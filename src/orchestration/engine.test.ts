@@ -224,7 +224,12 @@ test('GitHubUnavailable on the label change keeps the epic reserved and the next
 test('a closed issue is cancelled, a lost ready too, and the slot goes to the next epic', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2, 3) };
   github.issue('AshuLab/a', 1).state = 'closed';
-  github.issue('AshuLab/a', 2).labels = [];
+  const list = github.listReadyEpics.bind(github);
+  github.listReadyEpics = async (repo) => {
+    const listed = await list(repo);
+    github.issue('AshuLab/a', 2).labels = []; // the label goes after the listing, before the slot is reserved
+    return listed;
+  };
   const engine = await start(1);
   await clock.advance(5 * MIN);
   expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason])).toEqual([
@@ -359,6 +364,27 @@ test('a needs_human result stops the epic with the caller reason and label', asy
   await engine.idle();
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'a credential is missing', finishedAt: 5 * MIN });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+});
+
+test('`ready` put back on a needs_human epic starts it again from ship, and a stopped one without it stays stopped', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'the CI is red' }) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' });
+
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'the CI is red' });
+
+  runner.behavior = (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'still red' }) });
+  github.issues['AshuLab/a#1']!.labels.push('solve:epic:ready');
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'still red', stage: 'ship' });
+  expect(runner.tasks.filter((t) => t.stage === 'ship')).toHaveLength(2);
 });
 
 test('a runner that is cut records it and imports nothing', async () => {

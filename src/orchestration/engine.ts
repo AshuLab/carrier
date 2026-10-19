@@ -90,6 +90,13 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   const labelOf = (status: Epic['status']) =>
     ({ running: runningLabel, needs_human: needsHumanLabel, ready_for_test: readyForTestLabel })[status as 'running'] as string | undefined;
 
+  // An epic a person sent back to the queue: nothing of the previous attempt is kept, the executions stay as history.
+  const restart = (queuedAt: number) => ({
+    status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
+    lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, reviewedSha: null, verification: null,
+    needsHumanReason: null, finishedAt: null,
+  });
+
   // Mirrors the epic's status on its issue: its label, none of the other owned ones, and no `ready` while running.
   const applyLabels = async ({ id, repo, issue, status }: Epic) => {
     if (stopping || suspended) return; // labelPending stays true: the next run reflects it
@@ -494,7 +501,12 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       suspended = null; // listing worked: the orchestrator's profile is back, the cycle goes on
       const queuedAt = clock.now();
       db.transaction((tx) => {
-        for (const epic of found) tx.insert(epics).values({ ...epic, queuedAt }).onConflictDoNothing().run();
+        for (const epic of found) {
+          tx.insert(epics).values({ ...epic, queuedAt }).onConflictDoNothing().run();
+          // Carrier never leaves `ready` on a stopped epic, so finding it on a `needs_human` one is a person saying "go on":
+          // it starts again from ship, which reuses the epic's worktree and PR.
+          tx.update(epics).set(restart(queuedAt)).where(and(eq(epics.repo, epic.repo), eq(epics.issue, epic.issue), eq(epics.status, 'needs_human'))).run();
+        }
       });
       await stopEnded();
       await settlePending();

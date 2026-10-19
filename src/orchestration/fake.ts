@@ -30,7 +30,7 @@ export class FakeGitHub implements GitHub {
     this.guard();
     this.calls++;
     if (this.unavailable) throw this.unavailable;
-    return this.ready[repo] ?? [];
+    return (this.ready[repo] ?? []).filter((e) => this.issue(repo, e.issue).labels.includes('solve:epic:ready')); // like GitHub: the label decides
   }
 
   async getIssue(repo: string, issue: number) {

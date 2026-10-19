@@ -56,7 +56,7 @@ Technical failures (the agent process ends badly, missing or invalid JSON, trans
 
 ### Epic outcomes
 
-`solve:epic:ready-for-test` and `solve:epic:needs-human` replace `solve:epic:running` on the issue. An epic in human intervention stays stopped with its reason while the others advance; Diego resolves it outside Carrier and it is not reactivated from the app or on restart.
+`solve:epic:ready-for-test` and `solve:epic:needs-human` replace `solve:epic:running` on the issue. An epic in human intervention stays stopped with its reason while the others advance; Diego resolves it outside Carrier. Carrier does not reactivate it on its own, nor on restart, and the app has no key or command for it: it goes back to the queue only when Diego puts `solve:epic:ready` on the issue again (Carrier never leaves that label on a stopped epic), and then it starts from `ship`, reusing its worktree and PR, with the rounds reset.
 
 If the final PR is merged while there is active work, its executions are stopped, sessions and history are kept and no new turns are launched. If the epic's issue or its final PR is closed without merge, the epic is cancelled: its agents are stopped, what was done is kept and the reason is shown in the terminal. Neither merges nor closures of slices done by `ship` trigger these rules. The PR state check is technical coordination, not code evaluation.
 
@@ -111,7 +111,7 @@ An informational panel drawn with ANSI sequences without dependencies, in the sa
 17. If the final PR is merged with active work the epic is stopped without launching new turns, and if the issue or that PR is closed without merge the epic is cancelled with the reason in the terminal; merges and closures of slices have no effect.
 18. A Forge authentication error stops only the epics of the affected profile; if it is the orchestrator's, its GitHub operations are suspended, and the profile is not switched.
 19. With `Ctrl+C` the active executions and their processes are stopped without waiting and sessions, workspaces and uncommitted work are kept.
-20. On restart, interrupted stages are reconciled with GitHub and the existing processes and are resumed with the session, or with a rebuilt context if it cannot be recovered, without duplicating agents or actions; epics in `needs-human` are not reactivated.
+20. On restart, interrupted stages are reconciled with GitHub and the existing processes and are resumed with the session, or with a rebuilt context if it cannot be recovered, without duplicating agents or actions; epics in `needs-human` are not reactivated unless `solve:epic:ready` is back on the issue.
 21. If I remove a repo from the configuration, on restart its pending epics are stopped with the reason and are recovered when it is configured again, except those that required intervention.
 22. I see in the panel slots, queue and, per epic, stage, round, blockers, time in stage, last activity, links, errors and intervention reasons; without an interactive terminal I get plain lines.
 23. Process logs and the full output of each execution end up in files under the root, without tokens and without interfering with the panel.
@@ -191,7 +191,7 @@ The test or CI policy of the repo that the agents implement is not part of these
 
 ## Out of scope
 
-Web UI, OS app, keys that act on an epic (stop it, reactivate it, change its stage), reactivation commands for cases that require intervention and initial Linux/Windows support. The engine stays portable, but additional support requires validation.
+Web UI, OS app, keys that act on an epic (stop it, reactivate it, change its stage), reactivation commands or keys (the `solve:epic:ready` label does it) for cases that require intervention and initial Linux/Windows support. The engine stays portable, but additional support requires validation.
 
 Automatic merge of the final PR, reproducing repo policies inside the engine, changing the skills' current reports or incorporating a copy of Agent Forge. `ship` keeps its slice flow; this app's review loop works on the epic's final PR.
 

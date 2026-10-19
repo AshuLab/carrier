@@ -9,7 +9,8 @@ Carrier runs the [Solve](https://github.com/AshuLab/skills) skills (`ship`, `cod
 ## The epic is ready
 
 - Solve marks an epic `solve:epic:ready` when its preparation is finished. You can also add the label by hand.
-- The spec, ADRs and glossary of the epic must be **committed and pushed** before that. Carrier works in a fresh clone and a file that only exists in your working copy does not reach it.
+- The spec, ADRs and glossary of the epic must be **on the remote** before that, because Carrier works in its own clone, maybe on another machine, and a file that only exists in your working copy never reaches it. The right place is the **epic branch** (`feat/<feature>/epic`, where `<feature>` is the slug of the epic issue's title), as its first commit: `ship` reuses that branch if it exists. Until Solve has a step that does it ([AshuLab/skills#34](https://github.com/AshuLab/skills/issues/34)), do it by hand, or merge the docs into the base branch with a small PR.
+- If the author cannot find what the epic refers to, it stops the epic with `needs-human` and says what is missing. It does not search your disk.
 - Slices are real sub-issues of the epic with their dependencies (`--parent`, `--blocked-by`), as Solve creates them.
 
 ## Paths match the shared root

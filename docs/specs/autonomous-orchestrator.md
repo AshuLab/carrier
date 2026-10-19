@@ -74,7 +74,7 @@ Solve and the app share a configurable root, by default `~/.solve/`: `repos/` fo
 
 Solve does not receive the root: it has no variable, flag or key for it. It derives the workspace from the Worktrees line of each repo's `docs/agents/solve.md` (by default `~/.solve/worktrees/<repo>/<feature>/`, with lanes `<feature>--lane-<N>`) and works in the clone where it is invoked, without managing clones. `repos/`, `orchestrator/` and `reviews/` belong to the app. That is why the app derives the workspace path, verifies it with `git worktree list` and saves the real one; it does not assume it. With a root different from the one in `solve.md`, each repo's `path` must match. Because the repo's folder name does not include the organization, the configuration rejects two repos with the same folder name. The `ship` task always asks to isolate the epic in a worktree, whatever the mode in `solve.md`.
 
-The reviewer uses `<root>/reviews/<repo>/<epic>/` (the epic's issue number), a detached worktree (`--detach`) of the managed clone at the reviewed SHA, which each round repoints, outside `worktrees/` so as not to collide with Solve's paths. Agents are launched, and resumed, with the workspace's saved `cwd`: a resumed session operates in the `cwd` of the new process, not the original one. Spec, ADR and glossary prepared as files must be committed and pushed before setting `solve:epic:ready`; the epic and the tickets are read through `gh`. See [research](../research/shared-root.md).
+The reviewer uses `<root>/reviews/<repo>/<epic>/` (the epic's issue number), a detached worktree (`--detach`) of the managed clone at the reviewed SHA, which each round repoints, outside `worktrees/` so as not to collide with Solve's paths. Agents are launched, and resumed, with the workspace's saved `cwd`: a resumed session operates in the `cwd` of the new process, not the original one. Spec, ADR and glossary prepared as files must be on the remote (the epic branch, as its first commit, or the base branch) before setting `solve:epic:ready`: Carrier may run on another machine, so a file that only exists in someone's working copy is not a source, and the author is told to return `needs_human` naming what is missing instead of searching the disk; the epic and the tickets are read through `gh`. See [research](../research/shared-root.md).
 
 SQLite, with Drizzle ORM, `better-sqlite3` and versioned Drizzle Kit migrations, is the authority for state; labels are its mirror and are reconciled at startup and after a failure ([ADR 0002](../adr/0002-sqlite-authority-labels-mirror.md)). Stored per epic: repo and issue, queue entry, workspace, final PR, stage, round, effective configuration, reviewed SHA, blockers, executions with their session, errors, caller results and event history. Importing a result and recording the transition happen in a single transaction and are idempotent. No tokens are stored in the state or in the logs.
 
@@ -99,7 +99,7 @@ An informational panel drawn with ANSI sequences without dependencies, in the sa
 5. Every interval the app records, once and in order of arrival, the open epics with `solve:epic:ready` from all configured repos, even if there is more than one page of results.
 6. If GitHub fails or rate-limits requests, the queue and state are kept, the error is shown and the query is retried at the next interval or after the wait GitHub indicates, without consuming agent retries.
 7. When a slot is free the oldest queued epic is started, never more than the configured concurrency nor two executions of the same epic, and the issue goes from `ready` to `running`.
-8. On startup, the app creates in each configured repo the `running`, `ready-for-test` and `needs-human` labels that are missing.
+8. On startup, the app creates in each configured repo the `running`, `ready-for-test` and `needs-human` labels that are missing, with their colour and description.
 9. The author runs `ship` as a host process with the epic's workspace and the engine records the final PR validated against GitHub.
 10. The reviewer, with another identity and a separate checkout, reviews the final PR and its `completed` result leaves the epic in `ready-for-test` only if the reviewed SHA is the PR's current head.
 11. If the reviewer requests changes and rounds remain, the author gets a fix turn and the reviewer reviews again; with the last round exhausted the epic goes to `needs-human`.
@@ -172,7 +172,7 @@ export const CallerResult = z.discriminatedUnion('outcome', [
 }
 ```
 
-**Labels.** Carrier owns `solve:epic:running`, `solve:epic:ready-for-test` and `solve:epic:needs-human` and creates them in the configured repos if missing; `solve:epic:ready` belongs to Solve and is not created.
+**Labels.** Carrier owns `solve:epic:running`, `solve:epic:ready-for-test` and `solve:epic:needs-human` and creates them in the configured repos if missing; `solve:epic:ready` belongs to Solve and is not created. Carrier creates its three with a colour and a description (`running` blue `0969da`, `ready-for-test` purple `8957e5`, `needs-human` orange-red `d93f0b`, loud on purpose) and never changes one that already exists; `ready` is created by Solve's hand-off step ([AshuLab/skills#34](https://github.com/AshuLab/skills/issues/34)).
 
 **Panel.** Drawn with ANSI sequences from the standard library, without TUI dependencies.
 

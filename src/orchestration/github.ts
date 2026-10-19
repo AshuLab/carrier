@@ -21,6 +21,14 @@ export class AuthError extends Error {
 // Labels Carrier owns (it creates them) and the one Solve owns (it never does).
 export const ownedLabels = ['solve:epic:running', 'solve:epic:ready-for-test', 'solve:epic:needs-human'] as const;
 export const readyLabel = 'solve:epic:ready';
+
+export type LabelStyle = { color: string; description: string };
+/** How Carrier creates its labels (GitHub limits a description to 100 characters). `needs-human` is the loud one: it is the state that most needs to be seen. */
+export const labelStyles = {
+  'solve:epic:running': { color: '0969da', description: 'An orchestrator is building this epic' },
+  'solve:epic:ready-for-test': { color: '8957e5', description: 'Reviewed on the current head; a person tests and merges' },
+  'solve:epic:needs-human': { color: 'd93f0b', description: 'Stopped: a person has to step in (reason in the issue or PR)' },
+} as const satisfies Record<(typeof ownedLabels)[number], LabelStyle>;
 export const runningLabel = ownedLabels[0];
 export const readyForTestLabel = ownedLabels[1];
 export const needsHumanLabel = ownedLabels[2];
@@ -37,5 +45,6 @@ export interface GitHub {
   /** Idempotent: adding a label the issue has, or removing one it lacks, changes nothing. */
   setLabels(repo: string, issue: number, change: { add: string[]; remove: string[] }): Promise<void>;
   listLabels(repo: string): Promise<string[]>;
-  createLabel(repo: string, name: string): Promise<void>;
+  /** Idempotent: a label that exists is left as it is, colour and description included. */
+  createLabel(repo: string, name: string, style: LabelStyle): Promise<void>;
 }

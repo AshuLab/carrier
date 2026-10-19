@@ -1,5 +1,5 @@
 import type { Clock } from './clock.ts';
-import { AuthError, GitHubUnavailable, type GitHub } from './github.ts';
+import { AuthError, GitHubUnavailable, type GitHub, type LabelStyle } from './github.ts';
 
 export class FakeGitHub implements GitHub {
   ready: Record<string, { issue: number; title: string }[]> = {};
@@ -10,6 +10,8 @@ export class FakeGitHub implements GitHub {
   pulls: Record<string, { state: 'open' | 'closed' | 'merged'; body: string; headSha: string; headRef?: string }> = {};
   repoLabels: Record<string, string[]> = {};
   created: string[] = [];
+  /** The colour and description each label was created with. */
+  styles: Record<string, LabelStyle> = {};
   calls = 0;
   /** Makes every call fail like Forge rejecting the orchestrator's profile. */
   authError: AuthError | null = null;
@@ -67,8 +69,9 @@ export class FakeGitHub implements GitHub {
     return [...(this.repoLabels[repo] ?? [])];
   }
 
-  async createLabel(repo: string, name: string) {
+  async createLabel(repo: string, name: string, style: LabelStyle) {
     this.guard();
+    this.styles[name] = style;
     (this.repoLabels[repo] ??= []).push(name);
     this.created.push(`${repo}:${name}`);
   }

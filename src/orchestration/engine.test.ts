@@ -18,8 +18,8 @@ import { AuthError, GitHubUnavailable } from './github.ts';
 
 const MIN = 60_000;
 const agents = {
-  author: { profile: 'a', provider: 'claude' as const, model: 'm' },
-  reviewer: { profile: 'b', provider: 'codex' as const, model: 'm' },
+  author: { profile: 'a', harness: 'claude' as const, model: 'm' },
+  reviewer: { profile: 'b', harness: 'codex' as const, model: 'm' },
 };
 const repos: EffectiveRepoConfig[] = ['AshuLab/a', 'AshuLab/b'].map((name) => ({ name, agents }));
 
@@ -224,7 +224,12 @@ test('GitHubUnavailable on the label change keeps the epic reserved and the next
 test('a closed issue is cancelled, a lost ready too, and the slot goes to the next epic', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2, 3) };
   github.issue('AshuLab/a', 1).state = 'closed';
-  github.issue('AshuLab/a', 2).labels = [];
+  const list = github.listReadyEpics.bind(github);
+  github.listReadyEpics = async (repo) => {
+    const listed = await list(repo);
+    github.issue('AshuLab/a', 2).labels = []; // the label goes after the listing, before the slot is reserved
+    return listed;
+  };
   const engine = await start(1);
   await clock.advance(5 * MIN);
   expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason])).toEqual([
@@ -275,14 +280,14 @@ const executionsOf = (db: Db) => db.select().from(executions).all();
 
 test('a reserved epic launches the author with its effective config, a unique result path and the time limit', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
-  const config = [{ name: 'AshuLab/a', agents: { ...agents, author: { profile: 'p', provider: 'codex' as const, model: 'x' } } }];
+  const config = [{ name: 'AshuLab/a', agents: { ...agents, author: { profile: 'p', harness: 'codex' as const, model: 'x' } } }];
   const engine = await start(2, config, 2);
   await clock.advance(5 * MIN);
 
   expect(runner.tasks).toHaveLength(2);
   const [task, other] = runner.tasks as [AgentTask, AgentTask];
   expect(task).toMatchObject({
-    repo: 'AshuLab/a', epic: 1, stage: 'ship', profile: 'p', provider: 'codex', model: 'x',
+    repo: 'AshuLab/a', epic: 1, stage: 'ship', profile: 'p', harness: 'codex', model: 'x',
     workspace: '/work/AshuLab/a/1/author', timeoutMs: 2 * 3_600_000, context: { previousSummaries: [] },
   });
   expect(task.resultPath).toContain(join(dir, 'orchestrator', 'results'));
@@ -359,6 +364,27 @@ test('a needs_human result stops the epic with the caller reason and label', asy
   await engine.idle();
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'a credential is missing', finishedAt: 5 * MIN });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+});
+
+test('`ready` put back on a needs_human epic starts it again from ship, and a stopped one without it stays stopped', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'the CI is red' }) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' });
+
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'the CI is red' });
+
+  runner.behavior = (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'still red' }) });
+  github.issues['AshuLab/a#1']!.labels.push('solve:epic:ready');
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'still red', stage: 'ship' });
+  expect(runner.tasks.filter((t) => t.stage === 'ship')).toHaveLength(2);
 });
 
 test('a runner that is cut records it and imports nothing', async () => {
@@ -594,7 +620,7 @@ test('after a restart a review failure is retried as a review, with its PR and r
   await clock.advance(5 * MIN);
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(1));
   expect(runner.tasks[0]).toMatchObject({
-    stage: 'review', profile: 'b', provider: 'codex', workspace: '/work/AshuLab/a/1/reviewer-50', resumeSession: 's-r',
+    stage: 'review', profile: 'b', harness: 'codex', workspace: '/work/AshuLab/a/1/reviewer-50', resumeSession: 's-r',
     context: { pr: { number: 50, headSha: SHA }, round: 2, verifyStateFirst: true },
   });
 });
@@ -615,7 +641,7 @@ async function reviewing(review: (task: AgentTask) => Behavior, count = 1) {
 const reviewerTask = () => runner.tasks.find((t) => t.stage === 'review')!;
 
 test('after ship the reviewer runs with its own profile, a separate workspace, the PR, the round and no previous summaries', async () => {
-  const config = [{ name: 'AshuLab/a', agents: { ...agents, reviewer: { profile: 'rev', provider: 'codex' as const, model: 'r' } } }];
+  const config = [{ name: 'AshuLab/a', agents: { ...agents, reviewer: { profile: 'rev', harness: 'codex' as const, model: 'r' } } }];
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
   runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });
@@ -625,7 +651,7 @@ test('after ship the reviewer runs with its own profile, a separate workspace, t
 
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
   expect(reviewerTask()).toMatchObject({
-    profile: 'rev', provider: 'codex', model: 'r', workspace: '/work/AshuLab/a/1/reviewer-50',
+    profile: 'rev', harness: 'codex', model: 'r', workspace: '/work/AshuLab/a/1/reviewer-50',
     context: { pr: { number: 50, headSha: SHA }, round: 1, previousSummaries: [] },
   });
   expect(reviewerTask().resultPath).not.toBe(runner.tasks[0]!.resultPath);
@@ -686,7 +712,7 @@ test('changes_requested below the limit keeps the round and launches the author 
 
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix']);
   expect(runner.tasks[2]).toMatchObject({
-    profile: 'a', provider: 'claude', workspace: '/work/AshuLab/a/worktrees/feat/epic/epic', resumeSession: 's-ship',
+    profile: 'a', harness: 'claude', workspace: '/work/AshuLab/a/worktrees/feat/epic/epic', resumeSession: 's-ship',
     context: { pr: { number: 50, headSha: SHA }, round: 1, blockers },
   });
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'fix', round: 1, finishedAt: null });
@@ -1143,7 +1169,7 @@ test('a lost session starts a new one with the same profile and the context rebu
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
   expect(runner.tasks[0]).toMatchObject({ resumeSession: 's-e0' });
   expect(runner.tasks[1]).toMatchObject({
-    stage: 'review', profile: 'b', provider: 'codex', workspace: '/work/AshuLab/a/1/reviewer-50',
+    stage: 'review', profile: 'b', harness: 'codex', workspace: '/work/AshuLab/a/1/reviewer-50',
     context: { pr: { number: 50, headSha: HEAD2 }, round: 2, previousSummaries: ['round 1 findings'], verifyStateFirst: true },
   });
   expect(runner.tasks[1]!.resumeSession).toBeUndefined();
@@ -1444,4 +1470,32 @@ test('a label change that cannot reach GitHub because the orchestrator profile f
   await clock.advance(5 * MIN);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', labelPending: false });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+});
+
+test('pollNow polls at once and the interval counts from then; a poll that is already running is not doubled', async () => {
+  const engine = await start();
+  await clock.advance(2 * MIN);
+  const calls = github.calls;
+  await Promise.all([engine.pollNow(), engine.pollNow()]);
+  expect(github.calls).toBeGreaterThan(calls); // it polled now, not in 3 minutes
+  const after = github.calls;
+  await clock.advance(5 * MIN - 1);
+  expect(github.calls).toBe(after); // the timer was re-armed from the manual poll
+  await clock.advance(1);
+  expect(github.calls).toBeGreaterThan(after);
+});
+
+test('paused: new epics are queued but not reserved, running ones go on, and resuming starts them at once', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2), 'AshuLab/b': [] };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  expect(byStatus(engine.db, 'running')).toEqual([1]);
+  await engine.setPaused(true);
+  expect(engine.paused).toBe(true);
+  github.ready = { 'AshuLab/a': ready(1, 2, 3), 'AshuLab/b': [] };
+  await clock.advance(5 * MIN);
+  expect(byStatus(engine.db, 'running')).toEqual([1]); // the one that was running still is
+  expect(byStatus(engine.db, 'queued')).toEqual([2, 3]); // queued, not started, even with GitHub polled
+  await engine.setPaused(false);
+  expect(engine.paused).toBe(false);
 });

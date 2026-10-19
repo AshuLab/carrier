@@ -6,7 +6,7 @@ Status: spec
 
 Diego wants to spend his time preparing several ideas, specs and tickets with Solve while agents implement the work that is already prepared. Today he has to chain implementation, external review and fixes by hand to reach a PR he can test. The goal is to delegate that coordination without delegating his decision to test and merge the final PR.
 
-The expected result is that an epic marked `solve:epic:ready` enters execution with no manual follow-up between turns, ends with a final PR ready for test or an explicit reason for intervention, and can continue after the process is interrupted. Several epics can advance in parallel within a configured concurrency. The detailed definitions and decisions are in the [working document](../autonomous-orchestrator.md) and the [glossary](../glossary.md).
+The expected result is that an epic marked `solve:epic:ready` enters execution with no manual follow-up between turns, ends with a final PR ready for test or an explicit reason for intervention, and can continue after the process is interrupted. Several epics can advance in parallel within a configured concurrency. The detailed definitions and decisions are in the [working document](../research/working-document.md) and the [glossary](../glossary.md).
 
 ## Solution
 
@@ -18,9 +18,13 @@ One active instance per `orchestrator/` folder: before starting work the app tak
 
 The app ships a default configuration and accepts a user JSON file that overrides it: objects are merged field by field, the user's simple values replace the defaults, and lists are replaced whole; an incompatible type is not silently converted. The resulting configuration is validated at startup with Zod, with errors that name the field and the problem, and the TypeScript types are inferred from those schemas. Required fields, types, allowed limits and references between profiles, repos and roles are validated.
 
-Identity (GitHub profile), provider and model of author and reviewer have global values and per-repo overrides; each repo inherits whatever it does not replace. The author and the reviewer of the same PR must have different profiles after the overrides are resolved. The user declares the available profiles, including Diego's personal one, and chooses the orchestrator's profile for reading issues and updating labels; it can reuse one of the agents' profiles. Agent Forge resolves the authentication of each profile. When an epic starts, its effective configuration is saved, without credentials, and kept when it resumes even if the defaults change. The initial providers are Claude and Codex.
+Identity (GitHub profile), harness and model of author and reviewer have global values and per-repo overrides; each repo inherits whatever it does not replace. The author and the reviewer of the same PR must have different profiles after the overrides are resolved. The user declares the available profiles, including Diego's personal one, and chooses the orchestrator's profile for reading issues and updating labels; it can reuse one of the agents' profiles. Agent Forge resolves the authentication of each profile. When an epic starts, its effective configuration is saved, without credentials, and kept when it resumes even if the defaults change. A harness is the agent CLI that runs the loop and the tools: Claude Code and Codex at first, Antigravity (`agy`) added later. The model it uses comes from the harness's own cloud or, optionally, from a local server (LM Studio or Ollama) through Claude Code or Codex: an agent is a harness, a model provider and a model, three separate things ([glossary](../glossary.md)).
 
 The initial limits, all configurable, are three simultaneous epics, five reviews, three execution retries, four hours per agent execution (or `unlimited`; zero does not mean infinite) and 30 s per short call to GitHub or Forge.
+
+### Setup, checks and the terminal
+
+`carrier init` writes the configuration: it looks at the machine, asks only what it cannot infer (repos, the identity, harness, model provider and model of each role), shows a recap, saves it to `~/.carrier/config.json` (the file `carrier` reads when there is no `--config`) and runs the checks. `carrier doctor` runs them on any config: the tools are installed, author and reviewer are really different identities, each identity can get a token for each repo, the orchestrator can read it, and a local model's server has the model; each failure comes with its remedy. `carrier schema` prints the JSON Schema of the file. Every question of `init` has a flag and `--yes` never asks, so an agent can set Carrier up too.
 
 ### Discovery and queue
 
@@ -32,7 +36,7 @@ If GitHub is down or rate-limits requests, the queue and state are kept, the err
 
 When a slot is free, the scheduler reserves the oldest epic with an atomic SQLite operation; an epic never has two active executions. On reserving it, it checks that the issue is still open and ready, moves it to `solve:epic:running` and persists the start. Time in the queue does not count toward the execution limit.
 
-The author invokes `ship` with the epic's identity, provider, model and context and leaves the final integration PR. Then the reviewer, with another identity and a separate checkout, receives spec, tickets, PR, SHA and context from earlier rounds, reviews with `code-review` and publishes the findings with `code-post`. If there are blockers and rounds remain, the author fixes or answers each finding and the reviewer reviews again, verifying fixes and regressions. The skills keep their reports; the caller agent interprets them and hands over one result JSON file per execution. The loop advances when that result arrives, without waiting for the polling interval.
+The author invokes `ship` with the epic's identity, harness, model and context and leaves the final integration PR. Then the reviewer, with another identity and a separate checkout, receives spec, tickets, PR, SHA and context from earlier rounds, reviews with `code-review` and publishes the findings with `code-post`. If there are blockers and rounds remain, the author fixes or answers each finding and the reviewer reviews again, verifying fixes and regressions. The skills keep their reports; the caller agent interprets them and hands over one result JSON file per execution. The loop advances when that result arrives, without waiting for the polling interval.
 
 The engine combines the stage with the caller result:
 
@@ -52,7 +56,7 @@ Technical failures (the agent process ends badly, missing or invalid JSON, trans
 
 ### Epic outcomes
 
-`solve:epic:ready-for-test` and `solve:epic:needs-human` replace `solve:epic:running` on the issue. An epic in human intervention stays stopped with its reason while the others advance; Diego resolves it outside Carrier and it is not reactivated from the app or on restart.
+`solve:epic:ready-for-test` and `solve:epic:needs-human` replace `solve:epic:running` on the issue. An epic in human intervention stays stopped with its reason while the others advance; Diego resolves it outside Carrier. Carrier does not reactivate it on its own, nor on restart, and the app has no key or command for it: it goes back to the queue only when Diego puts `solve:epic:ready` on the issue again (Carrier never leaves that label on a stopped epic), and then it starts from `ship`, reusing its worktree and PR, with the rounds reset.
 
 If the final PR is merged while there is active work, its executions are stopped, sessions and history are kept and no new turns are launched. If the epic's issue or its final PR is closed without merge, the epic is cancelled: its agents are stopped, what was done is kept and the reason is shown in the terminal. Neither merges nor closures of slices done by `ship` trigger these rules. The PR state check is technical coordination, not code evaluation.
 
@@ -62,7 +66,7 @@ An authentication error reported by Forge for a profile stops the epics that use
 
 The orchestrator runs on the system where it is invoked and the agents are the client's normal CLI (Claude, Codex) run as a child process on that same computer, with the user, login and permissions it already has, without additional isolation. The token's minimum scopes per role and the repos' branch protection are the boundary on GitHub. Hardening the security of unattended agents is left as later work. See [ADR 0004](../adr/0004-agents-run-on-host-with-terminal-preferences.md), which supersedes [ADR 0003](../adr/0003-agents-in-containers.md).
 
-The runner is our own, with one adapter per provider that translates the task into the CLI, prepares that execution's credentials without mixing them with those of a parallel one, and captures output, session and errors. Agent Forge is an external dependency for identity and credentials; no copy is incorporated. The orchestrator's GitHub operations go through the chosen profile, with `gh` via Forge.
+The runner is our own, with one adapter per harness that translates the task into the CLI, prepares that execution's credentials without mixing them with those of a parallel one, and captures output, session and errors. Agent Forge is an external dependency for identity and credentials; no copy is incorporated. The orchestrator's GitHub operations go through the chosen profile, with `gh` via Forge.
 
 ### Shared root, state and logs
 
@@ -84,13 +88,13 @@ If a repo was removed from the configuration, on restart its pending epics are s
 
 ### Terminal panel
 
-An informational panel drawn with ANSI sequences without dependencies, in the same terminal. It shows occupied slots, queued epics and, per epic, stage, round, blockers, time in the stage, last activity, links to the issue and PR, errors and intervention reasons. Stage and last activity are different data. Without an interactive terminal it emits plain lines. It has no controls; `Ctrl+C` stops the process.
+An informational panel drawn with ANSI sequences without dependencies, in the same terminal. It shows occupied slots, queued epics and, per epic, stage, round, blockers, time in the stage, last activity, links to the issue and PR, errors and intervention reasons. Stage and last activity are different data. Without an interactive terminal it emits plain lines. On a terminal it also reads a few keys, always has one row selected and highlighted, shows on each running card what its agent is doing now (three lines for the selected one) and lists in the footer only the keys that apply (select an epic, open its PR or issue, read the output of its agent, check GitHub now, pause or resume taking new epics, help, quit); none of them changes what an epic does, and `Ctrl+C` still stops the process. The cursor is hidden while the panel runs and always given back.
 
 ## Scope
 
 1. I run `carrier` from any folder with my configuration file and the app starts with the effective configuration (defaults plus mine), without depending on the current directory.
 2. If the configuration is invalid (missing field, wrong type, reference to a nonexistent profile, author and reviewer with the same profile), the app prints each error with the field and exits without starting work.
-3. I define identity, provider and model overrides per repo and the epic keeps the effective configuration it started with, also when resuming after the configuration changes.
+3. I define identity, harness and model overrides per repo and the epic keeps the effective configuration it started with, also when resuming after the configuration changes.
 4. If an instance is already running on the same folder, the second one reports and exits; if the previous one was closed abruptly, the next one starts.
 5. Every interval the app records, once and in order of arrival, the open epics with `solve:epic:ready` from all configured repos, even if there is more than one page of results.
 6. If GitHub fails or rate-limits requests, the queue and state are kept, the error is shown and the query is retried at the next interval or after the wait GitHub indicates, without consuming agent retries.
@@ -107,7 +111,7 @@ An informational panel drawn with ANSI sequences without dependencies, in the sa
 17. If the final PR is merged with active work the epic is stopped without launching new turns, and if the issue or that PR is closed without merge the epic is cancelled with the reason in the terminal; merges and closures of slices have no effect.
 18. A Forge authentication error stops only the epics of the affected profile; if it is the orchestrator's, its GitHub operations are suspended, and the profile is not switched.
 19. With `Ctrl+C` the active executions and their processes are stopped without waiting and sessions, workspaces and uncommitted work are kept.
-20. On restart, interrupted stages are reconciled with GitHub and the existing processes and are resumed with the session, or with a rebuilt context if it cannot be recovered, without duplicating agents or actions; epics in `needs-human` are not reactivated.
+20. On restart, interrupted stages are reconciled with GitHub and the existing processes and are resumed with the session, or with a rebuilt context if it cannot be recovered, without duplicating agents or actions; epics in `needs-human` are not reactivated unless `solve:epic:ready` is back on the issue.
 21. If I remove a repo from the configuration, on restart its pending epics are stopped with the reason and are recovered when it is configured again, except those that required intervention.
 22. I see in the panel slots, queue and, per epic, stage, round, blockers, time in stage, last activity, links, errors and intervention reasons; without an interactive terminal I get plain lines.
 23. Process logs and the full output of each execution end up in files under the root, without tokens and without interfering with the panel.
@@ -117,7 +121,7 @@ An informational panel drawn with ANSI sequences without dependencies, in the sa
 
 The skills and the repos keep their rules and formats; the coordination decisions are in [ADR 0001](../adr/0001-separate-coordination-from-repo-evaluation.md), [ADR 0002](../adr/0002-sqlite-authority-labels-mirror.md) and [ADR 0004](../adr/0004-agents-run-on-host-with-terminal-preferences.md) (which supersedes [ADR 0003](../adr/0003-agents-in-containers.md)), and are not repeated here.
 
-**Structure.** A single package, grouped by responsibility: `cli/`, `config/`, `orchestration/`, `execution/`, `storage/`, `logging/`, `integrations/`, `providers/`, `prompts/`, `shared/` and `test/`. Files are created when each responsibility is implemented. `shared/` only holds truly shared utilities (duration formatting, paths); there is no general `utils.ts`. `config/` owns the configuration schema and `execution/` the caller-result schema.
+**Structure.** A single package, grouped by responsibility (the current folders are in the README). Everything a terminal user sees (the command line, the prompts, the setup wizard and the panel) lives under `terminal/`, so another front-end, a web UI say, is a sibling folder; what any front-end needs (the view of what Carrier is doing, `status/`, and the checks, `doctor/`) stays outside it. `config/` owns the configuration schema and `execution/` the caller-result schema; there is no general `utils.ts`.
 
 **Versions.** The latest stable version of TypeScript, pnpm and each dependency is taken when implementing or updating, without prereleases, compatibility with Node 26 is checked and `pnpm-lock.yaml` is versioned with `packageManager` pinned. The runtime dependencies are `zod`, `@ashulab/universal-logger`, `drizzle-orm` and `better-sqlite3`; the tooling includes `drizzle-kit` and `vitest`. Drizzle, Drizzle Kit and `better-sqlite3` are installed and tested on macOS before building on them, because their current documentation shows RC releases.
 
@@ -161,8 +165,8 @@ export const CallerResult = z.discriminatedUnion('outcome', [
   },
   "orchestratorProfile": "author-bot",
   "agents": {
-    "author":   { "profile": "author-bot",   "provider": "claude", "model": "<model>" },
-    "reviewer": { "profile": "reviewer-bot", "provider": "codex",  "model": "<model>" }
+    "author":   { "profile": "author-bot",   "harness": "claude", "model": "<model>" },
+    "reviewer": { "profile": "reviewer-bot", "harness": "codex",  "model": "<model>" }
   },
   "limits": { "maxConcurrentEpics": 3, "maxReviews": 5, "maxExecutionRetries": 3, "maxExecutionHours": 4, "githubCallTimeoutSeconds": 30 }
 }
@@ -187,7 +191,7 @@ The test or CI policy of the repo that the agents implement is not part of these
 
 ## Out of scope
 
-Web UI, OS app, interactive controls in the panel, reactivation commands for cases that require intervention and initial Linux/Windows support. The engine stays portable, but additional support requires validation.
+Web UI, OS app, keys that act on an epic (stop it, reactivate it, change its stage), reactivation commands or keys (the `solve:epic:ready` label does it) for cases that require intervention and initial Linux/Windows support. The engine stays portable, but additional support requires validation.
 
 Automatic merge of the final PR, reproducing repo policies inside the engine, changing the skills' current reports or incorporating a copy of Agent Forge. `ship` keeps its slice flow; this app's review loop works on the epic's final PR.
 

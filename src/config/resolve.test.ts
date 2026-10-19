@@ -7,8 +7,8 @@ const base = {
   profiles: { a: { kind: 'gh' }, b: { kind: 'gh' }, c: { kind: 'gh' } },
   orchestratorProfile: 'a',
   agents: {
-    author: { profile: 'a', provider: 'claude', model: 'm1' },
-    reviewer: { profile: 'b', provider: 'codex', model: 'm2' },
+    author: { profile: 'a', harness: 'claude', model: 'm1' },
+    reviewer: { profile: 'b', harness: 'codex', model: 'm2' },
   },
 };
 
@@ -29,17 +29,17 @@ describe('resolveRepoConfig', () => {
     expect(resolveFirst({}).agents).toEqual(base.agents);
   });
 
-  test('a model-only override keeps the global profile and provider', () => {
+  test('a model-only override keeps the global profile and harness', () => {
     const { agents } = resolveFirst({ repos: [{ name: 'x/y', agents: { reviewer: { model: 'other' } } }] });
-    expect(agents.reviewer).toEqual({ profile: 'b', provider: 'codex', model: 'other' });
+    expect(agents.reviewer).toEqual({ profile: 'b', harness: 'codex', model: 'other' });
     expect(agents.author).toEqual(base.agents.author);
   });
 
   test('overrides replace every field they set', () => {
     const { agents } = resolveFirst({
-      repos: [{ name: 'x/y', agents: { author: { profile: 'c', provider: 'codex', model: 'z' } } }],
+      repos: [{ name: 'x/y', agents: { author: { profile: 'c', harness: 'codex', model: 'z' } } }],
     });
-    expect(agents.author).toEqual({ profile: 'c', provider: 'codex', model: 'z' });
+    expect(agents.author).toEqual({ profile: 'c', harness: 'codex', model: 'z' });
   });
 
   test('effective config round-trips through JSON and carries no extra data', () => {
@@ -76,9 +76,9 @@ describe('override validation', () => {
     ]);
   });
 
-  test('unknown override fields and bad providers are rejected', () => {
-    expect(errorsOf({ repos: [{ name: 'x/y', agents: { author: { provider: 'gpt' } } }] }).map((e) => e.path)).toEqual([
-      'repos.0.agents.author.provider',
+  test('unknown override fields and bad harnesses are rejected', () => {
+    expect(errorsOf({ repos: [{ name: 'x/y', agents: { author: { harness: 'gpt' } } }] }).map((e) => e.path)).toEqual([
+      'repos.0.agents.author.harness',
     ]);
     expect(errorsOf({ repos: [{ name: 'x/y', agents: { judge: {} } }] })).toHaveLength(1);
   });

@@ -1,0 +1,9 @@
+import type { AgentTask } from '../execution/agent-runner.ts';
+import { invoke } from './invoke.ts';
+
+/** Stage `review`: judge the final PR with a different identity than the author's. */
+export const review = (task: AgentTask, pr: { number: number; headSha: string }): string[] => [
+  `Review PR #${pr.number}${task.context.round ? `, round ${task.context.round}` : ''}. First confirm the PR head is ${pr.headSha}; if it is not, return needs_human.`,
+  `Invoke ${invoke(task, 'code-review')} against the epic's spec and tickets, checking that earlier findings were fixed and nothing regressed, then publish the findings with ${invoke(task, 'code-post')}.`,
+  'Return changes_requested with the blockers if there are any. Return completed only if the review is conclusive, there are no blockers and the repo\'s verifications are confirmed on that same commit. If the review is inconclusive (missing context, cannot verify), return needs_human.',
+];

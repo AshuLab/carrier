@@ -4,13 +4,13 @@ import { parseCallerResult } from '../execution/caller-result.ts';
 import { buildPrompt } from './build-prompt.ts';
 
 const pr = { number: 7, headSha: 'a'.repeat(40) };
-const task = (stage: AgentTask['stage'], context: Partial<AgentTask['context']> = {}, provider: AgentTask['provider'] = 'claude'): AgentTask => ({
+const task = (stage: AgentTask['stage'], context: Partial<AgentTask['context']> = {}, harness: AgentTask['harness'] = 'claude'): AgentTask => ({
   executionId: 'exec-1',
   repo: 'AshuLab/carrier',
   epic: 3,
   stage,
   profile: 'bot',
-  provider,
+  harness,
   model: 'm',
   workspace: '/w',
   resultPath: '/r/exec-1.json',

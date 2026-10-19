@@ -99,7 +99,7 @@ An informational panel drawn with ANSI sequences without dependencies, in the sa
 5. Every interval the app records, once and in order of arrival, the open epics with `solve:epic:ready` from all configured repos, even if there is more than one page of results.
 6. If GitHub fails or rate-limits requests, the queue and state are kept, the error is shown and the query is retried at the next interval or after the wait GitHub indicates, without consuming agent retries.
 7. When a slot is free the oldest queued epic is started, never more than the configured concurrency nor two executions of the same epic, and the issue goes from `ready` to `running`.
-8. On startup, the app creates in each configured repo the `running`, `ready-for-test` and `needs-human` labels that are missing.
+8. On startup, the app creates in each configured repo the `running`, `ready-for-test` and `needs-human` labels that are missing, with their colour and description.
 9. The author runs `ship` as a host process with the epic's workspace and the engine records the final PR validated against GitHub.
 10. The reviewer, with another identity and a separate checkout, reviews the final PR and its `completed` result leaves the epic in `ready-for-test` only if the reviewed SHA is the PR's current head.
 11. If the reviewer requests changes and rounds remain, the author gets a fix turn and the reviewer reviews again; with the last round exhausted the epic goes to `needs-human`.
@@ -172,7 +172,7 @@ export const CallerResult = z.discriminatedUnion('outcome', [
 }
 ```
 
-**Labels.** Carrier owns `solve:epic:running`, `solve:epic:ready-for-test` and `solve:epic:needs-human` and creates them in the configured repos if missing; `solve:epic:ready` belongs to Solve and is not created. Solve's `setup` is meant to create all four with colour and description ([AshuLab/skills#34](https://github.com/AshuLab/skills/issues/34)); Carrier only creates its three when missing, bare, and never overwrites one that exists.
+**Labels.** Carrier owns `solve:epic:running`, `solve:epic:ready-for-test` and `solve:epic:needs-human` and creates them in the configured repos if missing; `solve:epic:ready` belongs to Solve and is not created. Carrier creates its three with a colour and a description (`running` blue `0969da`, `ready-for-test` purple `8957e5`, `needs-human` orange-red `d93f0b`, loud on purpose) and never changes one that already exists; `ready` is created by Solve's hand-off step ([AshuLab/skills#34](https://github.com/AshuLab/skills/issues/34)).
 
 **Panel.** Drawn with ANSI sequences from the standard library, without TUI dependencies.
 

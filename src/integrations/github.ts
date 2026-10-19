@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
-import { AuthError, GitHubUnavailable, readyLabel, type GitHub } from '../orchestration/github.ts';
+import { AuthError, GitHubUnavailable, readyLabel, type GitHub, type LabelStyle } from '../orchestration/github.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -180,9 +180,9 @@ export class GhGitHub implements GitHub {
     return names;
   }
 
-  async createLabel(repo: string, name: string) {
+  async createLabel(repo: string, name: string, { color, description }: LabelStyle) {
     try {
-      await this.api(repo, ['-X', 'POST', `repos/${repo}/labels`, '-f', `name=${name}`]);
+      await this.api(repo, ['-X', 'POST', `repos/${repo}/labels`, '-f', `name=${name}`, '-f', `color=${color}`, '-f', `description=${description}`]);
     } catch (error) {
       if (!(error instanceof HttpError && error.status === 422 && /already_exists/.test(error.message))) throw error;
     }

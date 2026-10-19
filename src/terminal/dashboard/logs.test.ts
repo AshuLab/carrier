@@ -15,6 +15,11 @@ const j = (o: object) => JSON.stringify(o);
 test('what each harness said and ran, and nothing of its bookkeeping', () => {
   expect(summarizeLogLine(j({ type: 'assistant', message: { content: [{ type: 'text', text: 'Reading the spec' }, { type: 'tool_use', name: 'Bash', input: { command: 'git status' } }] } }))).toBe('Reading the spec ▸ Bash {"command":"git status"}');
   expect(summarizeLogLine(j({ type: 'system', subtype: 'init' }))).toBeNull();
+  expect(summarizeLogLine(j({ type: 'system', subtype: 'code_change_published', identifier: '663', action: 'created' }))).toBe('▲ PR #663 created');
+  expect(summarizeLogLine(j({ type: 'system', subtype: 'vcs_state_changed', kind: 'push' }))).toBe('▲ pushed');
+  expect(summarizeLogLine(j({ type: 'system', subtype: 'task_notification', status: 'completed', summary: '{"slice": "#653", "outcome": "ready-to-merge", "branch": "x"}' }))).toBe('✓ slice #653 ready-to-merge');
+  expect(summarizeLogLine(j({ type: 'system', subtype: 'task_notification', status: 'failed', summary: 'cat > /tmp/x' }))).toBe('✗ cat > /tmp/x');
+  expect(summarizeLogLine(j({ type: 'system', subtype: 'task_notification', status: 'completed', summary: 'cd /tmp' }))).toBeNull();
   expect(summarizeLogLine(j({ type: 'result', result: 'done' }))).toBe('result: done');
   expect(summarizeLogLine(j({ type: 'item.completed', item: { type: 'agent_message', text: 'Done.' } }))).toBe('Done.');
   expect(summarizeLogLine(j({ type: 'item.started', item: { type: 'command_execution', command: 'pnpm test' } }))).toBe('$ pnpm test');

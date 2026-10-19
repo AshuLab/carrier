@@ -8,6 +8,18 @@ const brief = (value: unknown, max = 60) => {
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 };
 
+// Claude's own notices: what it published and which of its background jobs ended. Starts, progress and usage are noise.
+function summarizeNotice(e: Record<string, any>): string | null {
+  if (e.subtype === 'code_change_published') return `▲ PR #${e.identifier} ${e.action}`;
+  if (e.subtype === 'vcs_state_changed' && e.kind === 'push') return '▲ pushed';
+  if (e.subtype !== 'task_notification') return null;
+  const summary = String(e.summary ?? '');
+  if (e.status === 'failed') return `✗ ${brief(summary, 80)}`;
+  // a sub-agent (one `ship` slice) reports its result as JSON; a finished shell command is already in the log as the line that started it
+  const slice = /"slice":\s*"([^"]+)",\s*"outcome":\s*"([^"]+)"/.exec(summary);
+  return slice ? `✓ slice ${slice[1]} ${slice[2]}` : null;
+}
+
 export function summarizeLogLine(line: string): string | null {
   if (line.trim() === '') return null;
   let e: Record<string, any>;
@@ -24,6 +36,7 @@ export function summarizeLogLine(line: string): string | null {
     return out.length > 0 ? out.join(' ') : null;
   }
   if (e.type === 'result') return `result: ${brief(e.result ?? e.subtype ?? e.status ?? '', 100)}`;
+  if (e.type === 'system') return summarizeNotice(e);
   // Codex (--json)
   if (e.item?.type === 'agent_message') return String(e.item.text).trim();
   if (e.item?.type === 'command_execution' && e.type === 'item.started') return `$ ${brief(e.item.command, 90)}`;

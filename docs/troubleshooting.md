@@ -15,6 +15,7 @@ The reason is in the panel and the logs. Carrier stops the epic and leaves every
 | `the ship execution exceeded the time limit` | One execution went past `maxExecutionHours`. Not retried. | Look at what it was doing; raise the limit or use `"unlimited"` for the next epic. |
 | review rounds exhausted | The reviewer still asked for changes after `maxReviews` rounds. | Read the open findings on the PR and decide. |
 | `PR #N is not open`, `the head changed during the review`, a PR that references another epic | The PR does not match what Carrier expected. Repeating would not fix it. | Check the PR and its commits. |
+| a reason saying the spec, an ADR or the glossary is missing | The epic refers to files that are not on the remote (they only exist in someone's working copy). | Commit them as the first commit of the epic branch (or merge them into the base branch), push, then put `solve:epic:ready` back. |
 | `could not prepare the workspace: ...` | Clone, checkout or worktree failed. | Check disk, git credentials and `<root>/worktrees`. |
 | `authentication error for profile X` | Forge could not authenticate that profile. Only epics using it stop. | `agent-forge token --agent <name>` from a clone of the repo; fix the App, key or installation. |
 

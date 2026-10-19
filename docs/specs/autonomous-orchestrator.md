@@ -88,7 +88,7 @@ If a repo was removed from the configuration, on restart its pending epics are s
 
 ### Terminal panel
 
-An informational panel drawn with ANSI sequences without dependencies, in the same terminal. It shows occupied slots, queued epics and, per epic, stage, round, blockers, time in the stage, last activity, links to the issue and PR, errors and intervention reasons. Stage and last activity are different data. Without an interactive terminal it emits plain lines. On a terminal it also reads a few keys (select an epic, open its PR or issue, read the output of its agent, check GitHub now, pause or resume taking new epics, help, quit); none of them changes what an epic does, and `Ctrl+C` still stops the process. The cursor is hidden while the panel runs and always given back.
+An informational panel drawn with ANSI sequences without dependencies, in the same terminal. It shows occupied slots, queued epics and, per epic, stage, round, blockers, time in the stage, last activity, links to the issue and PR, errors and intervention reasons. Stage and last activity are different data. Without an interactive terminal it emits plain lines. On a terminal it also reads a few keys, always has one row selected and highlighted, shows on each running card what its agent is doing now (three lines for the selected one) and lists in the footer only the keys that apply (select an epic, open its PR or issue, read the output of its agent, check GitHub now, pause or resume taking new epics, help, quit); none of them changes what an epic does, and `Ctrl+C` still stops the process. The cursor is hidden while the panel runs and always given back.
 
 ## Scope
 

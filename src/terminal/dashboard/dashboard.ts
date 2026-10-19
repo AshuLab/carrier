@@ -1,10 +1,10 @@
 import { formatDuration } from '../../format/duration.ts';
 import { printable } from './printable.ts';
 import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
-import { maxListed, type UiState } from './ui-state.ts';
+import { itemsOf, maxListed, type UiState } from './ui-state.ts';
 
-type Style = 'bold' | 'dim' | 'red' | 'green' | 'yellow' | 'cyan';
-const codes: Record<Style, number> = { bold: 1, dim: 2, red: 31, green: 32, yellow: 33, cyan: 36 };
+type Style = 'bold' | 'dim' | 'inverse' | 'red' | 'green' | 'yellow' | 'cyan';
+const codes: Record<Style, number> = { bold: 1, dim: 2, inverse: 7, red: 31, green: 32, yellow: 33, cyan: 36 };
 
 // eslint-disable-next-line no-control-regex
 const ansi = /\x1b\[[0-9;]*m/g;
@@ -38,13 +38,15 @@ export type DashboardOptions = {
   ui?: UiState;
   /** The agent output shown in the logs screen. */
   logLines?: string[];
+  /** The last lines an execution's agent wrote: what a running card shows as "now". */
+  activity?: (executionId: string, count: number) => string[];
 };
 
 /**
  * The panel for a terminal: header, slots, then one section per kind of epic (running, queued, needing a person, ready
  * for test). Pure: the same snapshot gives the same lines; `color: false` gives them with no ANSI.
  */
-export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, ui, logLines = [] }: DashboardOptions = {}): string[] {
+export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, ui, logLines = [], activity }: DashboardOptions = {}): string[] {
   const paint = (text: string, ...styles: Style[]) => (color && styles.length > 0 ? `\x1b[${styles.map((x) => codes[x]).join(';')}m${text}\x1b[0m` : text);
   const width = Math.min(Math.max(columns, 50), 80) - 2;
   const ago = (at: number | null) => (at === null ? 'a while' : `${formatDuration(Math.max(0, s.now - at))} ago`);
@@ -73,15 +75,21 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
   // The first line of the selected row carries the pointer where the others have the bar or the indent.
   const lead = (repo: string, issue: number, plain: string) => (selected(repo, issue) ? ` ${pointer} ` : plain);
 
+  // Only the keys that do something now: no ↑↓ with one row, no logs for a row with no agent.
+  const hints = () => {
+    const items = itemsOf(s);
+    const current = items.find((i) => i.key === ui?.selected);
+    return [items.length > 1 && '↑↓ select', current && 'enter open', current?.executionId && 'l logs', 'r check now', s.paused ? 'p resume' : 'p pause', '? help', 'q quit'].filter(Boolean).join(' · ');
+  };
   const footer = () => {
     if (ui?.toast) add(`   ${paint(`› ${printable(ui.toast.text)}`, 'cyan')}`);
     add();
-    add(`   ${paint(ui === undefined ? 'Ctrl+C stops it' : ui.mode === 'dashboard' ? '↑↓ select · enter open · l logs · r check now · p pause · ? help · q quit' : 'esc back · q quit', 'dim')}`);
+    add(`   ${paint(ui === undefined ? 'Ctrl+C stops it' : ui.mode === 'dashboard' ? hints() : 'esc back · q quit', 'dim')}`);
   };
 
   if (ui?.mode === 'help') {
     section('KEYS');
-    for (const [key, what] of [['↑ ↓', 'select an epic'], ['enter', 'open its PR (or issue) in the browser'], ['l', 'agent output of the selected epic'], ['r', 'check GitHub now'], ['p', 'pause or resume taking new epics'], ['?', 'this help'], ['esc', 'back'], ['q', 'stop Carrier (same as Ctrl+C)']]) add(`   ${paint(key!.padEnd(6), 'bold', 'cyan')} ${what}`);
+    for (const [key, what] of [['↑ ↓ j k', 'select an epic'], ['enter', 'open its PR (or issue) in the browser'], ['l', 'agent output of the selected epic'], ['r', 'check GitHub now'], ['p', 'pause or resume taking new epics'], ['?', 'this help'], ['esc', 'back'], ['q', 'stop Carrier (same as Ctrl+C)']]) add(`   ${paint(key!.padEnd(9), 'bold', 'cyan')} ${what}`);
     footer();
     return lines.map((line) => fit(line, width + 2));
   }
@@ -98,16 +106,20 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
   const needsYou = s.epics.filter((e) => e.status === 'needs_human');
 
   const card = (e: PanelEpic, first: boolean) => {
-    const bar = paint('┃', 'cyan');
+    const chosen = selected(e.repo, e.issue);
+    const bar = chosen ? paint('▌', 'bold', 'cyan') : paint('┃', 'dim');
     const chain = e.stage === null ? paint('starting', 'dim') : stages.map((st) => (st === e.stage ? paint(`[${st}]`, 'bold', 'cyan') : paint(st, 'dim'))).join(paint(' ▸ ', 'dim'));
     const round = e.round === null ? '' : ` · round ${Array.from({ length: e.maxReviews }, (_, i) => (i < e.round! ? '●' : '○')).join('')}`;
     if (!first) add();
-    add(`${lead(e.repo, e.issue, ` ${bar} `)}${paint(`${e.repo} #${e.issue}`, 'bold')}`);
+    add(chosen ? ` ${pointer}${paint(` ${e.repo} #${e.issue} `, 'bold', 'inverse')}` : ` ${bar} ${paint(`${e.repo} #${e.issue}`, 'bold')}`); // the selected card's title is a highlighted label
     add(` ${bar} ${chain}${round}`);
     const blockers = e.blockers > 0 ? paint(` · blockers ${e.blockers}`, 'yellow') : '';
     add(` ${bar} ${formatDuration(s.now - e.stageSince)} in stage · ${e.lastActivityAt === null ? 'no activity yet' : `active ${ago(e.lastActivityAt)}`}${blockers}`);
     add(` ${bar} ${paint(e.prUrl ?? e.issueUrl, 'dim')}`);
     if (e.lastError) add(` ${bar} ${paint(`error: ${printable(e.lastError)}`, 'red')}`);
+    // What the agent is doing: three lines for the selected card, one for the others.
+    const now = e.executionId && activity ? activity(e.executionId, chosen ? 3 : 1) : [];
+    now.forEach((l, i) => add(` ${bar} ${i === 0 ? paint('now', 'dim') : '   '}  ${paint(printable(l), 'dim')}`));
   };
   if (running.length > 0) {
     section('RUNNING', 'cyan');

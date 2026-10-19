@@ -72,6 +72,8 @@ test('q and Ctrl+C quit, from any screen', () => {
 test('settle drops a selection that vanished, an expired toast, and logs of nothing', () => {
   const ui: UiState = { selected: 'A/a#1', mode: 'logs', toast: { text: 'x', until: now + 1 } };
   expect(settle(ui, snap(), now)).toEqual(ui);
-  expect(settle(ui, snap({ epics: [] }), now)).toEqual({ selected: null, mode: 'dashboard', toast: ui.toast });
+  expect(settle(ui, snap({ epics: [], queue: [], done: [] }), now)).toEqual({ selected: null, mode: 'dashboard', toast: ui.toast });
+  expect(settle({ ...ui, selected: null }, snap(), now).selected).toBe('A/a#1'); // something is always selected
+  expect(settle({ ...ui, selected: 'gone#9' }, snap(), now).selected).toBe('A/a#1');
   expect(settle(ui, snap(), now + 1).toast).toBeNull();
 });

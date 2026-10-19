@@ -37,7 +37,8 @@ const toastFor = 3000;
 export function onKey(ui: UiState, key: Key, s: PanelSnapshot, now: number): { ui: UiState; action?: Action } {
   const items = itemsOf(s);
   const say = (text: string): UiState => ({ ...ui, toast: { text, until: now + toastFor } });
-  const name = key.sequence === '?' ? '?' : key.name;
+  const raw = key.sequence === '?' ? '?' : key.name;
+  const name = raw === 'j' ? 'down' : raw === 'k' ? 'up' : raw; // vim keys move too
 
   if ((key.ctrl && name === 'c') || name === 'q') return { ui, action: { type: 'quit' } };
   if (name === '?') return { ui: { ...ui, mode: ui.mode === 'help' ? 'dashboard' : 'help' } };
@@ -67,12 +68,12 @@ export function onKey(ui: UiState, key: Key, s: PanelSnapshot, now: number): { u
   }
 }
 
-/** The state to draw with: a selection that no longer exists is dropped, a toast past its time too, logs of nothing go back. */
+/** The state to draw with: a selection that no longer exists moves to the first row, a toast past its time is dropped, logs of nothing go back. */
 export function settle(ui: UiState, s: PanelSnapshot, now: number): UiState {
   const items = itemsOf(s);
   const current = items.find((i) => i.key === ui.selected);
   return {
-    selected: current ? ui.selected : null,
+    selected: current ? ui.selected : (items[0]?.key ?? null), // something is always selected, so the keys always act on a visible row
     mode: ui.mode === 'logs' && !current?.executionId ? 'dashboard' : ui.mode,
     toast: ui.toast && ui.toast.until > now ? ui.toast : null,
   };

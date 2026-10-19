@@ -108,24 +108,24 @@ test('with keys: the hints replace "Ctrl+C stops it", and the selected row carri
   const out = plain({ ...s }).split('\n');
   expect(out.at(-1)).toBe('   Ctrl+C stops it'); // read-only: no hints
   const withKeys = renderDashboard(s, { color: false, ui: { ...keysUi, selected: 'AshuLab/carrier#31' } }).join('\n');
-  expect(withKeys).toContain(' › AshuLab/carrier #31\n ┃ [ship]'); // the pointer instead of the bar, on the first line only
-  expect(withKeys).toContain('↑↓ select · enter open · l logs · r check now · p pause · ? help · q quit');
+  expect(withKeys).toContain(' › AshuLab/carrier #31 \n ▌ [ship]'); // the pointer and a heavier bar on the selected card
+  expect(withKeys).toContain('↑↓ select · enter open · r check now · p pause · ? help · q quit'); // no `l`: that epic has no agent output
   expect(withKeys).not.toContain('Ctrl+C stops it');
   const queued = renderDashboard(s, { color: false, ui: { ...keysUi, selected: 'AshuLab/web#30' } }).join('\n');
   expect(queued).toContain(' › AshuLab/web #30');
-  expect(queued).toContain(' ┃ AshuLab/carrier #31'); // the others keep theirs
+  expect(queued).toContain(' ┃ AshuLab/carrier #31'); // the others keep the light bar
 });
 
 test('a toast shows above the hints, and paused is a banner in the header', () => {
   const out = renderDashboard(snap({ paused: true }), { color: false, ui: { ...keysUi, toast: { text: 'Paused: no new epics will start', until: now + 1 } } }).join('\n');
   expect(out).toContain('▲ PAUSED: new epics wait in the queue (p resumes)');
-  expect(out).toMatch(/› Paused: no new epics will start\n\n {3}↑↓ select/);
+  expect(out).toMatch(/› Paused: no new epics will start\n\n {3}r check now · p resume/);
 });
 
 test('the help screen lists the keys, and the logs screen shows the agent output of the selected epic', () => {
   const help = renderDashboard(snap(), { color: false, ui: { ...keysUi, mode: 'help' } }).join('\n');
   expect(help).toContain('KEYS');
-  expect(help).toContain('enter  open its PR (or issue) in the browser');
+  expect(help).toContain('enter     open its PR (or issue) in the browser');
   expect(help).toContain('esc back · q quit');
   expect(help).not.toContain('Idle.'); // the help replaces the body
 
@@ -135,4 +135,17 @@ test('the help screen lists the keys, and the logs screen shows the agent output
   expect(logs).toContain('   ▸ Bash git status\n   Reading the spec');
   const empty = renderDashboard(s, { color: false, ui: { ...keysUi, mode: 'logs', selected: 'AshuLab/carrier#31' } }).join('\n');
   expect(empty).toContain('(nothing written yet)');
+});
+
+test('a running card says what its agent is doing: three lines when selected, one when not; ↑↓ is not offered with a single row', () => {
+  const s = snap({ slots: { busy: 2, total: 3 }, epics: [epic({ executionId: 'e1' }), epic({ issue: 32, executionId: 'e2' })] });
+  const activity = (id: string, count: number) => ['one', 'two', 'three'].map((l) => `${id} ${l}`).slice(-count);
+  const out = renderDashboard(s, { color: false, ui: { ...keysUi, selected: 'AshuLab/carrier#31' }, activity }).join('\n');
+  expect(out).toContain('now  e1 one\n ▌      e1 two\n ▌      e1 three');
+  expect(out).toContain('now  e2 three'); // the other card: the last line only
+  expect(out).not.toContain('e2 two');
+  expect(out).toContain('l logs');
+
+  const alone = renderDashboard(snap({ epics: [epic({ executionId: 'e1' })] }), { color: false, ui: { ...keysUi, selected: 'AshuLab/carrier#31' } }).join('\n');
+  expect(alone).not.toContain('↑↓');
 });

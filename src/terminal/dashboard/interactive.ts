@@ -36,7 +36,7 @@ export function startInteractivePanel({ snapshot, out, stdin, controls, now = Da
     (s, columns) => {
       ui = settle(ui, s, now());
       const executionId = ui.mode === 'logs' ? itemsOf(s).find((i) => i.key === ui.selected)?.executionId : undefined;
-      return renderDashboard(s, { columns, ui, logLines: executionId ? controls.logs(executionId, logRows) : [] });
+      return renderDashboard(s, { columns, ui, logLines: executionId ? controls.logs(executionId, logRows) : [], activity: controls.logs });
     },
   );
   const perform = (action: Action | undefined) => {

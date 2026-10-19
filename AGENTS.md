@@ -22,7 +22,8 @@ Everything a terminal user sees lives under `src/terminal`, so a future web UI i
 - `terminal/dashboard`: the panel. `dashboard.ts` and `plain.ts` draw it, `ui-state.ts` is the pure key reducer, `interactive.ts` wires keys to actions.
 - `status`: what the panel shows (`types.ts`) and how it is read from SQLite (`snapshot.ts`), for any front-end.
 - `doctor`: the checks (`doctor.ts`) and the remedy for each failure (`fixes.ts`).
-- `config`, `orchestration` (the engine, behind the `GitHub` port), `execution` (the `AgentRunner`/`Workspaces` ports, result import), `harnesses` (Claude/Codex/Antigravity runners), `integrations`, `prompts` (what the agents are told), `storage`, `logging`: as their names say.
+- `prompts`: what the agents are told, one file per part. `build-prompt.ts` joins `intro.ts` (role, rules, earlier turns), one stage (`ship.ts`, `fix.ts`, `review.ts`) and `result.ts` (the JSON contract). To change what an agent is asked, edit the stage file.
+- `config`, `orchestration` (the engine, behind the `GitHub` port), `execution` (the `AgentRunner`/`Workspaces` ports, result import), `harnesses` (Claude/Codex/Antigravity runners), `integrations`, `storage`, `logging`: as their names say.
 
 ## Conventions
 

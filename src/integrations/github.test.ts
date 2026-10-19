@@ -121,14 +121,15 @@ describe('responses', () => {
   });
 
   test('labels: listing pages, removing a label the issue lacks and re-creating an existing one are no-ops', async () => {
-    const { github } = setup([
+    const { github, calls } = setup([
       { match: 'labels?', ...ok([{ name: 'a' }]) },
       { match: 'DELETE', ...failure(404, { message: 'Label does not exist' }) },
       { match: 'name=taken', ...failure(422, { message: 'Validation Failed', errors: [{ code: 'already_exists' }] }) },
     ]);
     expect(await github.listLabels(repo)).toEqual(['a']);
     await github.setLabels(repo, 1, { add: [], remove: ['gone'] });
-    await github.createLabel(repo, 'taken');
+    await github.createLabel(repo, 'taken', { color: 'd93f0b', description: 'x' });
+    expect(calls().at(-1)?.args.slice(-7)).toEqual(['repos/AshuLab/demo/labels', '-f', 'name=taken', '-f', 'color=d93f0b', '-f', 'description=x']);
   });
 
   test('other HTTP errors (404 on an issue, 422) throw a plain error, not Unavailable', async () => {

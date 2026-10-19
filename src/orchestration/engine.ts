@@ -17,7 +17,7 @@ import { epics } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
 import { latestBlockers } from './blockers.ts';
 import { endOf } from './final-pr.ts';
-import { AuthError, GitHubUnavailable, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub } from './github.ts';
+import { AuthError, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub } from './github.ts';
 import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak } from './retry.ts';
@@ -75,13 +75,13 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // Set by shutdown(): from then on nothing polls, reserves, launches or writes to GitHub.
   let stopping = false;
 
-  // Creates the owned labels a repo lacks; never touches existing ones nor creates `ready`.
+  // Creates the owned labels a repo lacks, with their colour and description; never touches existing ones nor creates `ready` (Solve's).
   async function ensureLabels() {
     for (const { name } of repos) {
       if (stopping) return;
       if (labelledRepos.has(name)) continue;
       const existing = await github.listLabels(name);
-      for (const label of ownedLabels) if (!existing.includes(label)) await github.createLabel(name, label);
+      for (const label of ownedLabels) if (!existing.includes(label)) await github.createLabel(name, label, labelStyles[label]);
       labelledRepos.add(name);
     }
   }

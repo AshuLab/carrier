@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { describe, expect, test } from 'vitest';
-import { ownedLabels, readyLabel, runningLabel } from '../orchestration/github.ts';
+import { labelStyles, ownedLabels, readyLabel, runningLabel } from '../orchestration/github.ts';
 import { GhGitHub } from './github.ts';
 
 // Runs against a real repo through Forge, so it only runs when all three are set explicitly:
@@ -23,13 +23,13 @@ describe.skipIf(!enabled)('GhGitHub against a real repo', () => {
         const existing = await github.listLabels(repo!);
         for (const label of [readyLabel, ...ownedLabels]) {
           if (existing.includes(label)) continue;
-          await github.createLabel(repo!, label);
+          await github.createLabel(repo!, label, label === readyLabel ? { color: '0e8a16', description: 'Epic ready to run' } : labelStyles[label as keyof typeof labelStyles]);
           created.push(label);
         }
         const labels = await github.listLabels(repo!);
         for (const label of [readyLabel, ...ownedLabels]) expect(labels).toContain(label);
         // Creating one that exists is a no-op.
-        await github.createLabel(repo!, runningLabel);
+        await github.createLabel(repo!, runningLabel, labelStyles[runningLabel]);
 
         const title = '[carrier spike] adapter test - safe to close';
         issue = (JSON.parse(forge(['api', '-X', 'POST', `repos/${repo}/issues`, '-f', `title=${title}`, '-f', 'body=Throwaway issue from the Carrier adapter integration test.'])) as { number: number }).number;

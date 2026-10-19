@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { defaults, loadConfig } from '../../config/load.ts';
 import { FakeAgentRunner, FakeWorkspaces } from '../../execution/fake.ts';
 import { FakeGitHub } from '../../orchestration/fake.ts';
+import type { LabelStyle } from '../../orchestration/github.ts';
 import { executions } from '../../storage/executions.ts';
 import { startCarrier } from './compose.ts';
 import { stopOnSigint } from './interrupt.ts';
@@ -21,9 +22,9 @@ class RecordingGitHub extends FakeGitHub {
     return super.setLabels(repo, issue, change);
   }
 
-  override async createLabel(repo: string, name: string) {
+  override async createLabel(repo: string, name: string, style: LabelStyle) {
     log(`createLabel ${repo}:${name}`);
-    return super.createLabel(repo, name);
+    return super.createLabel(repo, name, style);
   }
 }
 

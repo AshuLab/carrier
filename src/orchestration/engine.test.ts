@@ -260,6 +260,7 @@ test('startup creates only the missing owned labels, never ready, and repeating 
     'AshuLab/b:solve:epic:ready-for-test',
     'AshuLab/b:solve:epic:needs-human',
   ]);
+  expect(github.styles['solve:epic:needs-human']).toEqual({ color: 'd93f0b', description: expect.stringContaining('person') }); // created with a colour and a description
   await start();
   expect(github.created).toHaveLength(5);
   expect(github.repoLabels['AshuLab/a']).toEqual(['solve:epic:running', 'bug', 'solve:epic:ready-for-test', 'solve:epic:needs-human']);

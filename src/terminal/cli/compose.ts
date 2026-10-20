@@ -5,6 +5,7 @@ import { resolveRepoConfig } from '../../config/resolve.ts';
 import type { AgentRunner } from '../../execution/agent-runner.ts';
 import { GitWorkspaces, profileToken, type GitWorkspacesOptions } from '../../execution/git-workspaces.ts';
 import type { Workspaces } from '../../execution/workspaces.ts';
+import { startControlServer } from '../../control/server.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
 import { GhGitHub, type GhGitHubOptions } from '../../integrations/github.ts';
 import { installFileLogging } from '../../logging/logger.ts';
@@ -104,7 +105,9 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     sessionDirs: deps.sessionDirs,
   });
   let stopPanel = () => {}; // the panel starts once the engine is up
+  let stopControl = () => {};
   const close = () => {
+    stopControl(); // before the lock goes: a socket without the lock is what a takeover looks like
     stopPanel();
     engine.stop();
     db.$client.close();
@@ -132,6 +135,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
       problem: engine.error instanceof AuthError ? `authentication error for profile ${engine.error.profile}` : engine.error ? 'GitHub is unavailable: it will be tried again' : null,
       paused: engine.paused,
     });
+  stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt })).close;
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).
   stopPanel =
     deps.panelOut.isTTY && deps.stdin?.isTTY

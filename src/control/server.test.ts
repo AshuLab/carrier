@@ -1,0 +1,197 @@
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { connect, type Socket } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { acquireLock } from '../storage/lock.ts';
+import { startControlServer } from './server.ts';
+
+let dir: string;
+let sockets: Socket[];
+let closers: (() => void)[];
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), 'cs-')) // short: a socket path holds 103 bytes on macOS;
+  sockets = [];
+  closers = [];
+});
+afterEach(() => {
+  for (const socket of sockets) socket.destroy();
+  for (const close of closers) close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+const snapshotData = { now: 1, epics: [{ repo: 'AshuLab/a', issue: 5 }] };
+const path = () => join(dir, 'control.sock');
+
+async function open(snapshot: () => unknown = () => snapshotData) {
+  const server = await startControlServer({ orchestratorDir: dir, snapshot, startedAt: 1234 });
+  closers.push(server.close);
+  return server;
+}
+
+// A plain client: the lines it sends are the ones the app sends, and `next()` resolves with the next line received.
+async function client() {
+  const socket = connect(path());
+  sockets.push(socket);
+  socket.setEncoding('utf8');
+  const lines: string[] = [];
+  const waiting: ((line: string) => void)[] = [];
+  let buffer = '';
+  let closed = false;
+  socket.on('data', (chunk: string) => {
+    buffer += chunk;
+    for (let end = buffer.indexOf('\n'); end >= 0; end = buffer.indexOf('\n')) {
+      const line = buffer.slice(0, end);
+      buffer = buffer.slice(end + 1);
+      (waiting.shift() ?? ((l) => lines.push(l)))(line);
+    }
+  });
+  socket.on('close', () => (closed = true));
+  socket.on('error', () => {});
+  const next = () => new Promise<any>((resolve) => (lines.length > 0 ? resolve(JSON.parse(lines.shift()!)) : waiting.push((line) => resolve(JSON.parse(line)))));
+  const hello = await next();
+  return {
+    hello,
+    socket,
+    next,
+    ask: async (line: string) => (socket.write(`${line}\n`), next()),
+    isClosed: () => closed,
+    closedEvent: () => new Promise<void>((resolve) => (closed ? resolve() : socket.once('close', () => resolve()))),
+  };
+}
+
+test('a client gets a hello, and the snapshot as JSON when it asks', async () => {
+  await open();
+  const c = await client();
+  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234 });
+  expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: true, data: snapshotData });
+  expect(await c.ask('{"id":7,"cmd":"snapshot"}')).toMatchObject({ id: 7, ok: true });
+});
+
+test('several requests in one write get one reply each, in order, and a request split across writes is one request', async () => {
+  await open();
+  const c = await client();
+  c.socket.write('{"id":1,"cmd":"snapshot"}\n{"id":2,"cmd":"snap');
+  expect((await c.next()).id).toBe(1);
+  c.socket.write('shot"}\n');
+  expect((await c.next()).id).toBe(2);
+});
+
+test('the commands of later slices are valid and say they are not supported', async () => {
+  await open();
+  const c = await client();
+  const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
+  for (const [n, body] of [['pause'], ['resume'], ['checkNow'], ['stop'], ['tail', `,"executionId":"${executionId}","lines":20`]].entries()) {
+    expect(await c.ask(`{"id":${n + 1},"cmd":"${body[0]}"${body[1] ?? ''}}`)).toEqual({ id: n + 1, ok: false, error: 'not supported' });
+  }
+});
+
+test.each([
+  ['not JSON', 'hello', null],
+  ['an empty line', '', null],
+  ['{}', '{}', null],
+  ['null', 'null', null],
+  ['an array', '[{"id":1,"cmd":"snapshot"}]', null],
+  ['a number', '5', null],
+  ['a missing id', '{"cmd":"snapshot"}', null],
+  ['a zero id', '{"id":0,"cmd":"snapshot"}', null],
+  ['a negative id', '{"id":-1,"cmd":"snapshot"}', null],
+  ['a fractional id', '{"id":1.5,"cmd":"snapshot"}', null],
+  ['a string id', '{"id":"1","cmd":"snapshot"}', null],
+  ['a huge id', '{"id":1e400,"cmd":"snapshot"}', null],
+  ['an unsafe integer id', '{"id":99999999999999999999,"cmd":"snapshot"}', null],
+  ['a null id', '{"id":null,"cmd":"snapshot"}', null],
+  ['a missing command', '{"id":3}', 3],
+  ['an unknown command', '{"id":3,"cmd":"reboot"}', 3],
+  ['an inherited name', '{"id":3,"cmd":"toString"}', 3],
+  ['another inherited name', '{"id":3,"cmd":"constructor"}', 3],
+  ['a command that is not a string', '{"id":3,"cmd":["snapshot"]}', 3],
+  ['an extra field', '{"id":3,"cmd":"snapshot","extra":1}', 3],
+  ['a __proto__ key', '{"id":3,"cmd":"snapshot","__proto__":{"cmd":"stop"}}', 3],
+  ['a tail without its fields', '{"id":3,"cmd":"tail"}', 3],
+  ['a tail with an id that is not a UUID', '{"id":3,"cmd":"tail","executionId":"../../etc/passwd","lines":5}', 3],
+  ['a tail with too many lines', '{"id":3,"cmd":"tail","executionId":"3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c","lines":501}', 3],
+  ['a snapshot with tail fields', '{"id":3,"cmd":"snapshot","executionId":"3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c","lines":5}', 3],
+])('%s gets an error reply, the connection stays open and the snapshot is never taken', async (_name, line, id) => {
+  const snapshot = vi.fn(() => snapshotData);
+  await open(snapshot);
+  const c = await client();
+  const reply = await c.ask(line);
+  expect(reply).toMatchObject({ id, ok: false });
+  expect(typeof reply.error).toBe('string');
+  expect(snapshot).not.toHaveBeenCalled();
+  // still usable
+  expect(await c.ask('{"id":9,"cmd":"snapshot"}')).toMatchObject({ id: 9, ok: true });
+});
+
+test('a line over 16 KiB gets the error reply and the connection is closed', async () => {
+  const snapshot = vi.fn(() => snapshotData);
+  await open(snapshot);
+  const c = await client();
+  c.socket.write(`{"id":1,"cmd":"snapshot","pad":"${'x'.repeat(16 * 1024)}"}\n`);
+  expect(await c.next()).toEqual({ id: null, ok: false, error: 'line too long' });
+  await c.closedEvent();
+  expect(snapshot).not.toHaveBeenCalled();
+});
+
+test('a client that never sends a newline cannot grow the buffer past 16 KiB either', async () => {
+  await open();
+  const c = await client();
+  c.socket.write('x'.repeat(16 * 1024 + 1));
+  expect(await c.next()).toMatchObject({ ok: false, error: 'line too long' });
+  await c.closedEvent();
+});
+
+test('a failing snapshot is an error reply, not a dead server', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  let fail = true;
+  await open(() => {
+    if (fail) throw new Error('db is gone');
+    return snapshotData;
+  });
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: false, error: 'internal error' });
+  fail = false;
+  expect(await c.ask('{"id":2,"cmd":"snapshot"}')).toMatchObject({ id: 2, ok: true });
+});
+
+test('the socket is 0600 and orchestrator/ is 0700, also when the folder existed with a looser mode', async () => {
+  const folder = join(dir, 'orchestrator');
+  mkdirSync(folder);
+  chmodSync(folder, 0o755);
+  const lock = acquireLock(folder);
+  expect(lock.ok).toBe(true);
+  const server = await startControlServer({ orchestratorDir: folder, snapshot: () => snapshotData, startedAt: 1 });
+  expect(statSync(folder).mode & 0o777).toBe(0o700);
+  expect(statSync(join(folder, 'control.sock')).mode & 0o777).toBe(0o600);
+  server.close();
+  if (lock.ok) lock.release();
+});
+
+test('the umask is back as it was once the socket is open', async () => {
+  const before = process.umask();
+  await open();
+  expect(process.umask()).toBe(before);
+});
+
+test('closing removes the socket file at once and drops the connections', async () => {
+  const server = await open();
+  const c = await client();
+  expect(existsSync(path())).toBe(true);
+  server.close();
+  // synchronous: it is gone before the next line of the caller, which is where the lock is released
+  expect(existsSync(path())).toBe(false);
+  await c.closedEvent();
+});
+
+test('a leftover socket file is replaced by a new one that works', async () => {
+  writeFileSync(path(), 'leftover of a crash');
+  await open();
+  expect((await client()).hello.event).toBe('hello');
+});
+
+test('a socket that cannot open is logged and leaves a server that closes without failing', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  const server = await startControlServer({ orchestratorDir: join(dir, 'missing', 'folder'), snapshot: () => snapshotData, startedAt: 1 });
+  expect(() => server.close()).not.toThrow();
+});

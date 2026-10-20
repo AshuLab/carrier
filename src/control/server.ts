@@ -1,0 +1,104 @@
+import { rmSync } from 'node:fs';
+import { createServer, type Socket } from 'node:net';
+import { join } from 'node:path';
+import { createScopedLogger } from '@ashulab/universal-logger';
+import { z } from 'zod';
+
+const log = createScopedLogger('control');
+
+const MAX_LINE_BYTES = 16 * 1024;
+
+const id = z.number().int().positive();
+// An allowlist: any other command, field or type is rejected before anything acts on it.
+export const request = z.union([
+  z.strictObject({ id, cmd: z.enum(['snapshot', 'pause', 'resume', 'checkNow', 'stop']) }),
+  z.strictObject({ id, cmd: z.literal('tail'), executionId: z.uuid(), lines: z.number().int().min(1).max(500) }),
+]);
+
+export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number };
+export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
+
+/** The reply to one line. */
+function answer(line: string, snapshot: () => unknown): Reply {
+  let value: unknown;
+  try {
+    value = JSON.parse(line);
+  } catch {
+    return { id: null, ok: false, error: 'invalid JSON' };
+  }
+  const parsed = request.safeParse(value);
+  if (parsed.success === false) {
+    // the id is echoed only when it is a valid one, so the client can match the error
+    const given = typeof value === 'object' && value !== null ? id.safeParse((value as { id?: unknown }).id) : null;
+    return { id: given?.success ? given.data : null, ok: false, error: 'invalid request' };
+  }
+  if (parsed.data.cmd === 'snapshot') {
+    try {
+      return { id: parsed.data.id, ok: true, data: snapshot() };
+    } catch (error) {
+      log.error('snapshot failed', error);
+      return { id: parsed.data.id, ok: false, error: 'internal error' };
+    }
+  }
+  return { id: parsed.data.id, ok: false, error: 'not supported' };
+}
+
+/**
+ * Opens `orchestrator/control.sock`: newline-delimited JSON, a hello on connect and one reply per request. The caller
+ * must hold the instance lock: that is what makes any socket file already there a leftover of a crash, safe to replace.
+ * A socket that cannot open is logged and Carrier goes on without it. `close()` is synchronous and removes the file.
+ */
+export async function startControlServer({ orchestratorDir, snapshot, startedAt }: { orchestratorDir: string; snapshot: () => unknown; startedAt: number }): Promise<{ close: () => void }> {
+  const path = join(orchestratorDir, 'control.sock');
+  const sockets = new Set<Socket>();
+  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt };
+  const send = (socket: Socket, message: Hello | Reply) => void socket.write(`${JSON.stringify(message)}\n`);
+
+  const server = createServer((socket) => {
+    sockets.add(socket);
+    socket.setEncoding('utf8');
+    // a client that goes away mid-write is routine, not a failure
+    socket.on('error', (error) => log.debug('control connection error', error));
+    socket.on('close', () => sockets.delete(socket));
+    send(socket, hello);
+    let pending = '';
+    socket.on('data', (chunk: string) => {
+      pending += chunk;
+      for (let end = pending.indexOf('\n'); end >= 0; end = pending.indexOf('\n')) {
+        const line = pending.slice(0, end);
+        pending = pending.slice(end + 1);
+        if (Buffer.byteLength(line) > MAX_LINE_BYTES) return tooLong(socket);
+        send(socket, answer(line, snapshot));
+      }
+      if (Buffer.byteLength(pending) > MAX_LINE_BYTES) tooLong(socket);
+    });
+  });
+  const tooLong = (socket: Socket) => {
+    socket.removeAllListeners('data'); // nothing more is read from this client
+    socket.end(`${JSON.stringify({ id: null, ok: false, error: 'line too long' })}\n`);
+  };
+  server.on('error', (error) => log.error('control socket error', error));
+
+  const close = () => {
+    server.close();
+    for (const socket of sockets) socket.destroy();
+    rmSync(path, { force: true });
+  };
+  try {
+    rmSync(path, { force: true });
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      // bind is synchronous: with this umask the file is born 0600, and the umask is back before anything else runs
+      const umask = process.umask(0o177);
+      try {
+        server.listen(path, resolve);
+      } finally {
+        process.umask(umask);
+      }
+    });
+  } catch (error) {
+    log.error('control socket not opened', error);
+    return { close: () => {} };
+  }
+  return { close };
+}

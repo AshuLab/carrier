@@ -85,6 +85,10 @@ private struct EpicCard: View {
             HStack {
                 Text("\(epic.repo) #\(epic.issue)").font(.headline)
                 Spacer()
+                if epic.status == .running {
+                    Button("Output") { if let id = epic.executionId { AgentOutputWindow.show(title: "\(epic.repo) #\(epic.issue)", executionId: id) } }
+                        .controlSize(.small).disabled(epic.executionId == nil)
+                }
                 OpenButton(title: "Open PR", url: epic.prUrl)
                 OpenButton(title: "Open issue", url: epic.issueUrl)
             }

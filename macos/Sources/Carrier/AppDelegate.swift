@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // no action, so the menu leaves it disabled: a line to read, not a button
         let stateLine = menu.addItem(withTitle: ConnectionState.stopped.menuLine, action: nil, keyEquivalent: "")
         menu.addItem(.separator())
+        WindowController.shared.addMenuItem(to: menu)
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
         statusItem = item
@@ -69,6 +70,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 menu.update()
                 return "\(menu.item(withTitle: "Quit")?.isEnabled == true)"
             }),
+            ("open window", { WindowController.shared.open(); return WindowController.shared.status }),
+            ("close window", { WindowController.shared.close(); return WindowController.shared.status }),
+            ("reopen window", { WindowController.shared.open(); return WindowController.shared.status }),
         ]
         write("start")
         for (index, step) in steps.enumerated() {

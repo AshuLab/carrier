@@ -12,13 +12,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.image = icon
 
         let menu = NSMenu()
+        // no action, so the menu leaves it disabled: a line to read, not a button
+        let stateLine = menu.addItem(withTitle: ConnectionState.stopped.menuLine, action: nil, keyEquivalent: "")
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
         statusItem = item
+        watchCarrier(stateLine)
 
         if let path = Self.selfTestPath() {
             selfTest(logPath: path)
         }
+    }
+
+    /// Keeps the menu line current from a thread of its own; the title is set on the main queue, which also runs while the menu is open.
+    private func watchCarrier(_ line: NSMenuItem) {
+        let monitor = ControlMonitor(socketPath: controlSocketPath()) { state in
+            DispatchQueue.main.async { line.title = state.menuLine }
+        }
+        Thread.detachNewThread { monitor.run() }
     }
 
     // A menu bar app keeps running with no windows.

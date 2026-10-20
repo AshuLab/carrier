@@ -61,9 +61,10 @@ public final class ControlClient {
     }
 
     /// Sends the command with the next id and waits for its reply; returns the reply's `data`, as JSON bytes, `null` when it has none.
-    public func request(_ command: String) throws -> Data {
+    /// `fields` is more of the request object, already JSON (`,"lines":60`); only this file's callers build it, from checked values.
+    public func request(_ command: String, fields: String = "") throws -> Data {
         lastId += 1
-        try write(Data("{\"id\":\(lastId),\"cmd\":\"\(command)\"}\n".utf8))
+        try write(Data("{\"id\":\(lastId),\"cmd\":\"\(command)\"\(fields)}\n".utf8))
         while true {
             let reply = try json(readLine())
             let id = reply["id"] as? Int
@@ -73,6 +74,14 @@ public final class ControlClient {
             guard let data = reply["data"] else { return Data("null".utf8) }
             return try JSONSerialization.data(withJSONObject: data, options: .fragmentsAllowed)
         }
+    }
+
+    /// The last `lines` meaningful lines of an execution's output. Only a UUID goes on the wire, as Carrier accepts nothing else.
+    public func tail(executionId: String, lines: Int) throws -> [String] {
+        guard let id = UUID(uuidString: executionId)?.uuidString.lowercased() else { throw ControlError.remote("not a valid execution id") }
+        let data = try request("tail", fields: ",\"executionId\":\"\(id)\",\"lines\":\(lines)")
+        guard let output = try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? [String] else { throw ControlError.badLine }
+        return output
     }
 
     private func json(_ line: Data) throws -> [String: Any] {

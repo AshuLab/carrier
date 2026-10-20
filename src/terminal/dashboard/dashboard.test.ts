@@ -17,6 +17,7 @@ const epic = (over: Partial<PanelEpic> = {}): PanelEpic => ({
   prUrl: null,
   lastError: null,
   needsHumanReason: null,
+  slices: null,
   executionId: null,
   ...over,
 });
@@ -56,6 +57,13 @@ test('a running epic shows its stage in the chain, rounds as dots, blockers, tim
   expect(out).toContain('┃ ship ▸ [review] ▸ fix · round ●●○○○');
   expect(out).toContain('3m 02s in stage · active 21s ago · blockers 1');
   expect(out).toContain('┃ https://github.com/AshuLab/api/pull/9'); // the PR once there is one
+});
+
+test('a running epic shows its slices closed out of the total, and nothing when unknown or without sub-issues', () => {
+  expect(plain(snap({ epics: [epic({ slices: { done: 3, total: 5 } })] }))).toContain('in stage · active 8s ago · slices 3/5');
+  expect(plain(snap({ epics: [epic({ blockers: 1, slices: { done: 0, total: 2 } })] }))).toContain(' · blockers 1 · slices 0/2');
+  expect(plain(snap({ epics: [epic()] }))).not.toContain('slices');
+  expect(plain(snap({ epics: [epic({ slices: { done: 0, total: 0 } })] }))).not.toContain('slices');
 });
 
 test('queue, needs you, ready for test, and a problem banner', () => {

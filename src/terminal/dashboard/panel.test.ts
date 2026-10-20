@@ -16,6 +16,7 @@ const epic: PanelEpic = {
   prUrl: null,
   lastError: null,
   needsHumanReason: null,
+  slices: null,
   executionId: null,
 };
 

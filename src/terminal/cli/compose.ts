@@ -131,6 +131,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
       nextCheckAt: engine.nextPollAt,
       problem: engine.error instanceof AuthError ? `authentication error for profile ${engine.error.profile}` : engine.error ? 'GitHub is unavailable: it will be tried again' : null,
       paused: engine.paused,
+      slices: engine.slices,
     });
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).
   stopPanel =

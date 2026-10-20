@@ -17,6 +17,7 @@ const epic = (over: Partial<PanelEpic> = {}): PanelEpic => ({
   prUrl: null,
   lastError: null,
   needsHumanReason: null,
+  slices: null,
   executionId: null,
   ...over,
 });
@@ -27,6 +28,13 @@ test('the agent\'s reason and error are shown without control characters', () =>
   expect(lines).toContain('reason: a [2Jb');
   expect(lines).toContain('error: c  d ');
   expect(lines).not.toMatch(/[\x07\x1b\r]/);
+});
+
+test('slices show next to the round when GitHub reports some, and nothing when it sends none or the epic has no sub-issues', () => {
+  const line = (slices: PanelEpic['slices']) => renderPanel(snapshot({ epics: [epic({ round: 2, slices })] }))[1];
+  expect(line({ done: 3, total: 5 })).toContain('round 2/5  slices 3/5  blockers 0');
+  expect(line(null)).not.toContain('slices');
+  expect(line({ done: 0, total: 0 })).not.toContain('slices');
 });
 
 test('empty queue', () => {

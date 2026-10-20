@@ -5,7 +5,7 @@ import { initialUi, itemsOf, onKey, settle, type Key, type UiState } from './ui-
 const now = 1_000_000;
 const epic = (over: Partial<PanelEpic> = {}): PanelEpic => ({
   repo: 'A/a', issue: 1, status: 'running', stage: 'ship', round: null, maxReviews: 5, blockers: 0, stageSince: 0, lastActivityAt: null,
-  issueUrl: 'https://github.com/A/a/issues/1', prUrl: null, lastError: null, needsHumanReason: null, executionId: 'exec-1', ...over,
+  issueUrl: 'https://github.com/A/a/issues/1', prUrl: null, lastError: null, needsHumanReason: null, slices: null, executionId: 'exec-1', ...over,
 });
 const snap = (over: Partial<PanelSnapshot> = {}): PanelSnapshot => ({
   now, slots: { busy: 1, total: 3 }, queue: [{ repo: 'B/b', issue: 5 }], startedAt: 0, repos: 2, nextCheckAt: null, problem: null, paused: false,

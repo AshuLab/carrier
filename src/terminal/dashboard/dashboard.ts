@@ -114,7 +114,8 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     add(chosen ? ` ${pointer}${paint(` ${e.repo} #${e.issue} `, 'bold', 'inverse')}` : ` ${bar} ${paint(`${e.repo} #${e.issue}`, 'bold')}`); // the selected card's title is a highlighted label
     add(` ${bar} ${chain}${round}`);
     const blockers = e.blockers > 0 ? paint(` · blockers ${e.blockers}`, 'yellow') : '';
-    add(` ${bar} ${formatDuration(s.now - e.stageSince)} in stage · ${e.lastActivityAt === null ? 'no activity yet' : `active ${ago(e.lastActivityAt)}`}${blockers}`);
+    const slices = e.slices && e.slices.total > 0 ? ` · slices ${e.slices.done}/${e.slices.total}` : '';
+    add(` ${bar} ${formatDuration(s.now - e.stageSince)} in stage · ${e.lastActivityAt === null ? 'no activity yet' : `active ${ago(e.lastActivityAt)}`}${blockers}${slices}`);
     add(` ${bar} ${paint(e.prUrl ?? e.issueUrl, 'dim')}`);
     if (e.lastError) add(` ${bar} ${paint(`error: ${printable(e.lastError)}`, 'red')}`);
     // What the agent is doing: three lines for the selected card, one for the others.

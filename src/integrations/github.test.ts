@@ -105,6 +105,29 @@ describe('responses', () => {
     expect(calls()[0]?.args.at(-1)).toContain('labels=solve%3Aepic%3Aready');
   });
 
+  test('listOpenEpics reads sub_issues_summary when GitHub sends it, null when it does not, and skips pull requests', async () => {
+    const { github, calls } = setup([
+      {
+        match: 'labels=solve%3Aepic&',
+        ...ok([
+          { number: 31, title: 'done epic', sub_issues_summary: { total: 31, completed: 31, percent_completed: 100 } },
+          { number: 32, title: 'half', sub_issues_summary: { total: 4, completed: 1, percent_completed: 25 } },
+          { number: 33, title: 'no summary' },
+          { number: 34, title: 'not an epic', pull_request: {}, sub_issues_summary: { total: 1, completed: 0, percent_completed: 0 } },
+        ]),
+      },
+    ]);
+    expect(await github.listOpenEpics(repo)).toEqual([
+      { issue: 31, slices: { done: 31, total: 31 } },
+      { issue: 32, slices: { done: 1, total: 4 } },
+      { issue: 33, slices: null },
+    ]);
+    expect(calls()).toHaveLength(1);
+    expect(calls()[0]?.args.at(-1)).toContain('state=open');
+    const wrong = setup([{ match: 'issues', ...ok([{ number: 1, title: 't', sub_issues_summary: { total: 'x' } }]) }]);
+    await expect(wrong.github.listOpenEpics(repo)).rejects.toThrow();
+  });
+
   test('getIssue, getPullRequest and findPullRequest map the API shape', async () => {
     const pull = (number: number, body: string | null, merged_at: string | null, state = 'closed') => ({ number, state, merged_at, body, head: { sha: 'a'.repeat(40), ref: 'feat/demo/epic' } });
     const { github } = setup([

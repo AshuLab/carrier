@@ -22,7 +22,8 @@ afterEach(() => {
 
 const add = (issue: number, status: (typeof epicStates)[number], extra: Partial<typeof epics.$inferInsert> = {}) =>
   db.insert(epics).values({ repo: 'acme/web', issue, status, ...extra }).returning().get();
-const snapshot = (now = 100_000) => buildSnapshot(db, { now, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false });
+let slices: Parameters<typeof buildSnapshot>[1]['slices'] = () => null;
+const snapshot = (now = 100_000) => buildSnapshot(db, { now, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false, slices });
 
 test('slots count the running epics, the queue lists the queued ones oldest first, and finished ones do not show', () => {
   add(5, 'queued');
@@ -52,7 +53,7 @@ test('an epic carries its stage, round, links, activity, error and the blockers 
     {
       repo: 'acme/web', issue: 12, status: 'running', stage: 'fix', round: 2, maxReviews: 5, blockers: 2, stageSince: 40_000, lastActivityAt: 90_000,
       issueUrl: 'https://github.com/acme/web/issues/12', prUrl: 'https://github.com/acme/web/pull/50',
-      lastError: 'the agent process ended with an error', needsHumanReason: null, executionId: 'r2',
+      lastError: 'the agent process ended with an error', needsHumanReason: null, slices: null, executionId: 'r2',
     },
   ]);
 });
@@ -92,5 +93,13 @@ test('an epic and a ready-for-test epic carry the id of their latest execution, 
   const s = snapshot();
   expect(s.epics[0]?.executionId).toBe('new');
   expect(s.done[0]?.executionId).toBe('done-1');
-  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: true }).paused).toBe(true);
+  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: true, slices }).paused).toBe(true);
+});
+
+test('an epic carries its slices once they are known and null before', () => {
+  add(12, 'running');
+  add(13, 'running');
+  expect(snapshot().epics.map((e) => e.slices)).toEqual([null, null]);
+  slices = (repo, issue) => (repo === 'acme/web' && issue === 12 ? { done: 3, total: 5 } : null);
+  expect(snapshot().epics.map((e) => e.slices)).toEqual([{ done: 3, total: 5 }, null]);
 });

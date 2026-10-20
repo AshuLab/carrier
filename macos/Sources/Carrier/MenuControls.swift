@@ -8,15 +8,16 @@ final class MenuControls: NSObject, NSMenuItemValidation {
 
     private let socketPath = controlSocketPath()
     private let pauseItem = NSMenuItem(title: "Pause intake", action: #selector(pauseOrResume), keyEquivalent: "")
+    private let startMenuItem = NSMenuItem(title: "Start Carrier", action: #selector(startCarrier), keyEquivalent: "")
     private var state = ConnectionState.stopped
     private var wasPausedAtSelfTest = false
 
-    /// Puts the three items right after `line`.
+    /// Puts the four items right after `line`.
     func install(in menu: NSMenu, after line: NSMenuItem) {
         let checkItem = NSMenuItem(title: "Check GitHub now", action: #selector(checkNow), keyEquivalent: "")
         let stopItem = NSMenuItem(title: "Stop Carrier", action: #selector(stopCarrier), keyEquivalent: "")
         var index = menu.index(of: line)
-        for item in [pauseItem, checkItem, stopItem] {
+        for item in [startMenuItem, pauseItem, checkItem, stopItem] {
             item.target = self
             index += 1
             menu.insertItem(item, at: index)
@@ -31,6 +32,12 @@ final class MenuControls: NSObject, NSMenuItemValidation {
 
     /// Enabled only while Carrier is running and compatible; a stopped or incompatible one has nothing to listen.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item === startMenuItem {
+            // the settings can change while the menu is closed, so the title is worked out each time it opens
+            let start = startMenuState(state: state, starting: StartController.shared.starting, missing: StartController.shared.missing)
+            item.title = start.title
+            return start.enabled
+        }
         if case .running = state { return true }
         return false
     }
@@ -39,6 +46,8 @@ final class MenuControls: NSObject, NSMenuItemValidation {
         if case .running(let snapshot) = state { return snapshot.paused }
         return false
     }
+
+    @objc private func startCarrier() { StartController.shared.start() }
 
     @objc private func pauseOrResume() { sendInBackground(paused ? .resume : .pause) }
 
@@ -76,12 +85,14 @@ final class MenuControls: NSObject, NSMenuItemValidation {
     /// What the self-test logs for one action. Pause and resume are sent, resume putting back what was there before the
     /// test; check now is sent; stop is only checked, like Quit: sent, it would end the Carrier under test.
     func selfTest(_ command: Command) -> String {
-        guard case .running(let snapshot) = state else { return "disabled, Carrier is not running" }
+        // the start is only checked, like stop: pressing it would start the real Carrier
+        let start = command == .stop ? "; " + StartController.shared.selfTest(state: state) : ""
+        guard case .running(let snapshot) = state else { return "disabled, Carrier is not running" + start }
         var command = command
         switch command {
         case .pause: wasPausedAtSelfTest = snapshot.paused
         case .resume: command = wasPausedAtSelfTest ? .pause : .resume
-        case .stop: return "enabled, would ask first: \(snapshot.stopNeedsConfirmation), epics running: \(snapshot.runningEpics)"
+        case .stop: return "enabled, would ask first: \(snapshot.stopNeedsConfirmation), epics running: \(snapshot.runningEpics)" + start
         case .checkNow: break
         }
         do {

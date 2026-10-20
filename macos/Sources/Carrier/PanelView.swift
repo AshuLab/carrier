@@ -14,6 +14,7 @@ struct PanelView: View {
                 case .stopped?, .incompatible?:
                     // Carrier is not answering: nothing else to show
                     Label(model.state?.menuLine ?? "", systemImage: "stop.circle").font(.title3)
+                    if model.state == .stopped { StartCarrierButton() }
                 case .running(let snapshot)?:
                     Running(snapshot: snapshot)
                 }

@@ -1,0 +1,93 @@
+import Foundation
+import Testing
+@testable import CarrierCore
+
+private let complete = SetupSettings(
+    carrier: "/n/bin/carrier", node: "/n/bin/node", path: "/usr/bin:/n/bin:/bin", configPath: "/h/.carrier/config.json", root: "/h/.solve"
+)
+
+@Test func theCommandLineIsNodeCarrierAndTheConfig() throws {
+    let command = try #require(startCommand(settings: complete, environment: ["HOME": "/h", "PATH": "/usr/bin"]))
+    #expect(command.node == "/n/bin/node")
+    #expect(command.arguments == ["/n/bin/carrier", "--config", "/h/.carrier/config.json"])
+}
+
+@Test func theEnvironmentGetsTheEnginePathAndKeepsTheRest() throws {
+    let command = try #require(startCommand(settings: complete, environment: ["HOME": "/h", "PATH": "/usr/bin"]))
+    // node's directory first, then the rest of the detected one without repeating it
+    #expect(command.environment["PATH"] == "/n/bin:/usr/bin:/bin")
+    #expect(command.environment["HOME"] == "/h")
+}
+
+@Test func theLogAndTheSocketLiveUnderTheRootsOrchestratorFolder() throws {
+    let command = try #require(startCommand(settings: complete, environment: [:]))
+    #expect(command.orchestratorDir == "/h/.solve/orchestrator")
+    #expect(command.logsDir == "/h/.solve/orchestrator/logs")
+    #expect(command.logPath == "/h/.solve/orchestrator/logs/app-start.log")
+    #expect(command.socketPath == "/h/.solve/orchestrator/control.sock")
+}
+
+@Test func withoutNodeCarrierOrAConfigPathThereIsNoCommandAndTheMissingOnesAreNamed() {
+    var settings = complete
+    settings.node = ""
+    settings.configPath = ""
+    #expect(startMissing(settings) == ["node", "config path"])
+    #expect(startCommand(settings: settings, environment: [:]) == nil)
+    settings.carrier = ""
+    #expect(startMissing(settings) == ["node", "carrier", "config path"])
+    #expect(startMissing(complete).isEmpty)
+}
+
+@Test func theSocketAnsweringMeansRunning() {
+    #expect(startOutcome(exitCode: nil, socketAnswered: true, elapsed: 2) == .running)
+}
+
+@Test func theSocketAnsweringWhileTheProcessIsStillRunningIsRunningNotAWaitForTheTimeout() {
+    #expect(startOutcome(exitCode: nil, socketAnswered: true, elapsed: 14.9) == .running)
+}
+
+@Test func theSocketAnsweringAfterTheProcessExitedIsRunningBecauseAnotherCarrierCameUp() {
+    // started elsewhere in the meantime: ours quit because the folder was taken, the one that holds it answers
+    #expect(startOutcome(exitCode: 1, socketAnswered: true, elapsed: 1) == .running)
+}
+
+@Test func anExitBeforeTheSocketFailsWithItsCode() {
+    #expect(startOutcome(exitCode: 1, socketAnswered: false, elapsed: 0.3) == .failed(.exited(1)))
+    #expect(startOutcome(exitCode: 137, socketAnswered: false, elapsed: 9) == .failed(.exited(137)))
+}
+
+@Test func anExitWithCodeZeroBeforeTheSocketStillFails() {
+    #expect(startOutcome(exitCode: 0, socketAnswered: false, elapsed: 0.3) == .failed(.exited(0)))
+}
+
+@Test func fifteenSecondsWithoutTheSocketFailsWhileTheProcessRuns() {
+    #expect(startOutcome(exitCode: nil, socketAnswered: false, elapsed: 15) == .failed(.noSocket))
+    #expect(startOutcome(exitCode: nil, socketAnswered: false, elapsed: 40) == .failed(.noSocket))
+}
+
+@Test func beforeFifteenSecondsAProcessWithoutTheSocketKeepsWaiting() {
+    #expect(startOutcome(exitCode: nil, socketAnswered: false, elapsed: 0) == nil)
+    #expect(startOutcome(exitCode: nil, socketAnswered: false, elapsed: 14.9) == nil)
+}
+
+@Test func theFailureTextsSayWhatHappened() {
+    #expect(startFailureText(.exited(0)).contains("code 0"))
+    #expect(startFailureText(.noSocket).contains("15 seconds"))
+}
+
+@Test func theTailOfTheLogIsItsLastLinesAndAnErrorCarrierPrintedIsInIt() {
+    let log = (1...50).map { "line \($0)" }.joined(separator: "\n") + "\nconfig invalid: github.token is required\n\n"
+    #expect(logTail(Data(log.utf8), lines: 3) == "line 49\nline 50\nconfig invalid: github.token is required")
+}
+
+@Test func anEmptyLogSaysSo() {
+    #expect(logTail(Data()) == "(the start log is empty)")
+}
+
+@Test func theMenuItemIsEnabledOnlyWhenStoppedAndCompleteAndNotStarting() {
+    #expect(startMenuState(state: .stopped, starting: false, missing: []) == ("Start Carrier", true))
+    #expect(startMenuState(state: .stopped, starting: true, missing: []).enabled == false)
+    #expect(startMenuState(state: .incompatible, starting: false, missing: []).enabled == false)
+    #expect(startMenuState(state: .stopped, starting: false, missing: ["node", "config path"])
+        == ("Start Carrier (missing: node, config path)", false))
+}

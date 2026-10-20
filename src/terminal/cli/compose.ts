@@ -136,7 +136,8 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
       paused: engine.paused,
       slices: engine.slices,
     });
-  stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt })).close;
+  const controls = { poll: () => engine.pollNow(), setPaused: (paused: boolean) => engine.setPaused(paused), open: deps.openUrl, quit: deps.quit, logs: (id: string, count: number) => tailExecution(config.root, id, count) };
+  stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls })).close;
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).
   stopPanel =
     deps.panelOut.isTTY && deps.stdin?.isTTY
@@ -146,7 +147,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
           stdin: deps.stdin,
           intervalMs: deps.panelIntervalMs,
           now: () => deps.clock.now(),
-          controls: { poll: () => engine.pollNow(), setPaused: (paused) => engine.setPaused(paused), open: deps.openUrl, quit: deps.quit, logs: (id, count) => tailExecution(config.root, id, count) },
+          controls,
         })
       : startPanel(snapshot, deps.panelOut, deps.panelIntervalMs);
   return { engine, db, close };

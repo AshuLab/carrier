@@ -65,3 +65,21 @@ private func snapshot(_ epics: [PanelEpic] = [], problem: String? = nil) -> Conn
     let state = IconState(snapshot([epic(.needsHuman, slices: .init(done: 1, total: 3))]))
     #expect(state == IconState(connected: true, attention: 1))
 }
+
+@Test func theSegmentTravelsTheUnfilledPartMinusItsOwnLength() {
+    let state = IconState(connected: true, working: 1, done: 1, total: 2)
+    #expect(state.segmentTravel(trackWidth: 18) == 5)
+    #expect(IconState(connected: true, working: 1).segmentTravel(trackWidth: 18) == 14)
+}
+
+@Test func theSegmentStaysOutWhenTheUnfilledPartIsAsLongAsItOrShorter() {
+    #expect(IconState(connected: true, working: 1, done: 7, total: 9).segmentTravel(trackWidth: 18) == nil)   // 4 left
+    #expect(IconState(connected: true, working: 1, done: 8, total: 9).segmentTravel(trackWidth: 18) == nil)   // 2 left
+    #expect(IconState(connected: true, working: 1, done: 9, total: 9).segmentTravel(trackWidth: 18) == nil)
+}
+
+@Test func theSegmentStaysOutUnlessEpicsAreRunning() {
+    #expect(IconState(connected: true).segmentTravel(trackWidth: 18) == nil)
+    #expect(IconState(connected: true, attention: 1).segmentTravel(trackWidth: 18) == nil)
+    #expect(IconState(connected: false, working: 1).segmentTravel(trackWidth: 18) == nil)
+}

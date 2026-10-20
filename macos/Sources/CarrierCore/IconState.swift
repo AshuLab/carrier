@@ -33,4 +33,15 @@ public struct IconState: Equatable {
 
     /// How much of the bar is filled, 0 to 1.
     public var fraction: Double { total > 0 ? min(1, Double(done) / Double(total)) : 0 }
+
+    /// Length in points of the segment that bounces over the unfilled part of the bar.
+    public static let segmentLength = 4.0
+
+    /// How far the segment can travel in a bar `trackWidth` points wide, or nil when it should not move: not working, or
+    /// the unfilled part is no longer than the segment.
+    public func segmentTravel(trackWidth: Double) -> Double? {
+        let room = trackWidth - trackWidth * fraction
+        guard connected, working > 0, room > Self.segmentLength else { return nil }
+        return room - Self.segmentLength
+    }
 }

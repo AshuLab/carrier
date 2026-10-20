@@ -1,0 +1,66 @@
+import Foundation
+import Testing
+@testable import CarrierCore
+
+private let fixtureURL = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json")
+
+private func fixtureData() throws -> Data { try Data(contentsOf: fixtureURL) }
+
+/// The fixture as JSON with `change` applied, re-encoded.
+private func edited(_ change: (inout [String: Any]) -> Void) throws -> Data {
+    var json = try #require(JSONSerialization.jsonObject(with: fixtureData()) as? [String: Any])
+    change(&json)
+    return try JSONSerialization.data(withJSONObject: json)
+}
+
+private func firstEpic(_ json: inout [String: Any], _ change: (inout [String: Any]) -> Void) {
+    var epics = json["epics"] as! [[String: Any]]
+    change(&epics[0])
+    json["epics"] = epics
+}
+
+@Test func decodesEveryFieldOfTheFixture() throws {
+    let s = try decodeSnapshot(fixtureData())
+    #expect(s.now == 100_000)
+    #expect(s.startedAt == 40_000)
+    #expect(s.repos == 2)
+    #expect(s.nextCheckAt == 160_000)
+    #expect(s.problem == "GitHub is not answering")
+    #expect(s.paused)
+    #expect(s.slots == .init(busy: 2, total: 3))
+    #expect(s.queue == [.init(repo: "acme/web", issue: 20), .init(repo: "acme/api", issue: 21)])
+    #expect(s.done == [
+        .init(repo: "acme/web", issue: 30, prNumber: 77, finishedAt: 95_000, executionId: "exec-ship-30"),
+        .init(repo: "acme/api", issue: 31, prNumber: nil, finishedAt: 80_000, executionId: nil),
+    ])
+
+    #expect(s.epics.count == 3)
+    #expect(s.epics[0] == PanelEpic(
+        repo: "acme/web", issue: 12, status: .running, stage: .review, round: 2, maxReviews: 5, blockers: 2, stageSince: 40_000,
+        lastActivityAt: 90_000, issueUrl: "https://github.com/acme/web/issues/12", prUrl: "https://github.com/acme/web/pull/50",
+        lastError: "the agent process ended with an error", needsHumanReason: nil, slices: .init(done: 3, total: 5), executionId: "exec-review-12"))
+    #expect(s.epics[1] == PanelEpic(
+        repo: "acme/web", issue: 13, status: .running, stage: nil, round: nil, maxReviews: 5, blockers: 0, stageSince: 7_000,
+        lastActivityAt: nil, issueUrl: "https://github.com/acme/web/issues/13", prUrl: nil,
+        lastError: nil, needsHumanReason: nil, slices: nil, executionId: nil))
+    #expect(s.epics[2].status == .needsHuman)
+    #expect(s.epics[2].stage == .fix)
+    #expect(s.epics[2].needsHumanReason == "review limit")
+    #expect(s.epics[2].prUrl == "https://github.com/acme/api/pull/9")
+}
+
+@Test func aMissingRequiredFieldNamesTheField() throws {
+    #expect(throws: SnapshotError.missingField("paused")) { try decodeSnapshot(edited { $0["paused"] = nil }) }
+    #expect(throws: SnapshotError.missingField("epics.0.issueUrl")) { try decodeSnapshot(edited { firstEpic(&$0) { $0["issueUrl"] = nil } }) }
+}
+
+@Test func aWrongTypedFieldNamesTheField() throws {
+    #expect(throws: SnapshotError.wrongType("repos")) { try decodeSnapshot(edited { $0["repos"] = "two" }) }
+    #expect(throws: SnapshotError.wrongType("epics.0.status")) { try decodeSnapshot(edited { firstEpic(&$0) { $0["status"] = "paused" } }) }
+    #expect(throws: SnapshotError.wrongType("epics.0.slices.total")) { try decodeSnapshot(edited { firstEpic(&$0) { $0["slices"] = ["done": 3, "total": "5"] } }) }
+}
+
+@Test func textThatIsNotJSONIsMalformed() {
+    #expect(throws: SnapshotError.malformed) { try decodeSnapshot(Data("nope".utf8)) }
+}

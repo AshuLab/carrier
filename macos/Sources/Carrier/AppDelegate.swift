@@ -6,10 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        // Static placeholder: the real icon comes in a later slice.
-        let icon = NSImage(systemSymbolName: "shippingbox", accessibilityDescription: "Carrier")
-        icon?.isTemplate = true
-        item.button?.image = icon
+        IconController.install(on: item)
 
         let menu = NSMenu()
         // no action, so the menu leaves it disabled: a line to read, not a button
@@ -28,7 +25,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Keeps the menu line current from a thread of its own; the title is set on the main queue, which also runs while the menu is open.
     private func watchCarrier(_ line: NSMenuItem) {
         let monitor = ControlMonitor(socketPath: controlSocketPath()) { state in
-            DispatchQueue.main.async { line.title = state.menuLine }
+            DispatchQueue.main.async {
+                IconController.shared?.show(state)
+                line.title = state.menuLine
+            }
         }
         Thread.detachNewThread { monitor.run() }
     }
@@ -58,6 +58,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         let steps: [(String, () -> String)] = [
+            ("icon state", { IconController.shared?.summary ?? "no icon" }),
+            ("icon hit test passes clicks", { "\(IconController.shared.map { $0.host.hitTest(NSPoint(x: 2, y: 2)) == nil } ?? false)" }),
             ("status item present", { "\(self.statusItem != nil)" }),
             ("menu titles", { (self.statusItem?.menu?.items.map(\.title) ?? []).joined(separator: ", ") }),
             ("activation policy accessory", { "\(NSApp.activationPolicy() == .accessory)" }),

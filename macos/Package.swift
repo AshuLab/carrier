@@ -8,5 +8,6 @@ let package = Package(
         .target(name: "CarrierCore"),
         .executableTarget(name: "Carrier", dependencies: ["CarrierCore"]),
         .testTarget(name: "CarrierCoreTests", dependencies: ["CarrierCore"]),
+        .testTarget(name: "CarrierTests", dependencies: ["Carrier"]),
     ]
 )

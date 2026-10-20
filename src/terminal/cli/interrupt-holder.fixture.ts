@@ -1,7 +1,7 @@
 // Child process for interrupt.test.ts: the real startup (startCarrier: lock, logging, SQLite, engine, panel, signal handlers)
 // with fake GitHub, workspaces and runner. Two epics start, each run hangs with its session reported, and it
 // prints 'ready' once both sessions are saved. Every GitHub write goes to writes.log, after the marker of the signal
-// that arrived; every launched task goes to tasks.log. With a third argument 'hang' the runner never finishes
+// that arrived (or of 'shutdown', each time the engine is asked to stop); every launched task goes to tasks.log. With a third argument 'hang' the runner never finishes
 // stopping, and the fourth is the shutdown's time limit in ms.
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -64,7 +64,8 @@ const app = await startCarrier(loaded.config, {
   panelOut: { write: () => {} }, // the terminal only gets 'ready'
   onSigint: (target) => {
     for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => log(signal)); // registered first: runs before the shutdown handler
-    stopOnSigint(target, { timeoutMs });
+    // 'shutdown' marks every time the engine is asked to stop, whatever started it (a signal or the socket)
+    return stopOnSigint({ ...target, engine: { shutdown: () => (log('shutdown'), target.engine.shutdown()) } }, { timeoutMs });
   },
 });
 

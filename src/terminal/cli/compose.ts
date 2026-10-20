@@ -38,7 +38,7 @@ export interface CarrierDeps {
   sessionDirs: SessionDirs;
   panelOut: PanelOutput;
   panelIntervalMs?: number;
-  onSigint: typeof stopOnSigint;
+  onSigint: (...args: Parameters<typeof stopOnSigint>) => () => Promise<void>;
   /** The engine is up, before the panel takes the screen: the moment to say so. Not called when the startup fails. */
   onArrived?: () => void;
   /** Where keys come from; the panel takes them only when this and the panel's output are both a terminal. */
@@ -114,7 +114,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     lock.release();
   };
   // Before the engine starts: its recovery may launch agents already, and Ctrl+C has to stop them.
-  deps.onSigint({ engine, close });
+  const shutdown = deps.onSigint({ engine, close });
   try {
     await engine.start();
   } catch (error) {
@@ -136,7 +136,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
       paused: engine.paused,
       slices: engine.slices,
     });
-  stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt })).close;
+  stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, stop: shutdown })).close;
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).
   stopPanel =
     deps.panelOut.isTTY && deps.stdin?.isTTY

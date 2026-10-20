@@ -19,7 +19,7 @@ export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: numbe
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
 
 /** The reply to one line. */
-function answer(line: string, snapshot: () => unknown): Reply {
+function answer(line: string, snapshot: () => unknown, stopAfterReply?: () => void): Reply {
   let value: unknown;
   try {
     value = JSON.parse(line);
@@ -40,6 +40,10 @@ function answer(line: string, snapshot: () => unknown): Reply {
       return { id: parsed.data.id, ok: false, error: 'internal error' };
     }
   }
+  if (parsed.data.cmd === 'stop' && stopAfterReply) {
+    stopAfterReply();
+    return { id: parsed.data.id, ok: true };
+  }
   return { id: parsed.data.id, ok: false, error: 'not supported' };
 }
 
@@ -48,11 +52,11 @@ function answer(line: string, snapshot: () => unknown): Reply {
  * must hold the instance lock: that is what makes any socket file already there a leftover of a crash, safe to replace.
  * A socket that cannot open is logged and Carrier goes on without it. `close()` is synchronous and removes the file.
  */
-export async function startControlServer({ orchestratorDir, snapshot, startedAt }: { orchestratorDir: string; snapshot: () => unknown; startedAt: number }): Promise<{ close: () => void }> {
+export async function startControlServer({ orchestratorDir, snapshot, startedAt, stop }: { orchestratorDir: string; snapshot: () => unknown; startedAt: number; stop?: () => Promise<void> }): Promise<{ close: () => void }> {
   const path = join(orchestratorDir, 'control.sock');
   const sockets = new Set<Socket>();
   const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt };
-  const send = (socket: Socket, message: Hello | Reply) => void socket.write(`${JSON.stringify(message)}\n`);
+  const send = (socket: Socket, message: Hello | Reply, written?: () => void) => void socket.write(`${JSON.stringify(message)}\n`, written);
 
   const server = createServer((socket) => {
     sockets.add(socket);
@@ -68,7 +72,10 @@ export async function startControlServer({ orchestratorDir, snapshot, startedAt 
         const line = pending.slice(0, end);
         pending = pending.slice(end + 1);
         if (Buffer.byteLength(line) > MAX_LINE_BYTES) return tooLong(socket);
-        send(socket, answer(line, snapshot));
+        // `stop`: the reply is flushed first, then the shared shutdown runs and ends with the connection closing
+        let afterReply: (() => void) | undefined;
+        const stopAfterReply = stop && (() => void (afterReply = () => void stop().catch((error) => log.error('stop failed', error))));
+        send(socket, answer(line, snapshot, stopAfterReply), afterReply);
       }
       if (Buffer.byteLength(pending) > MAX_LINE_BYTES) tooLong(socket);
     });

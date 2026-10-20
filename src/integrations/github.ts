@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
-import { AuthError, GitHubUnavailable, readyLabel, type GitHub, type LabelStyle } from '../orchestration/github.ts';
+import { AuthError, GitHubUnavailable, epicLabel, readyLabel, type GitHub, type LabelStyle, type Slices } from '../orchestration/github.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -37,6 +37,8 @@ class HttpError extends Error {
 }
 
 const issueRow = z.object({ number: z.int().positive(), title: z.string(), pull_request: z.unknown().optional() });
+// GitHub does not require `sub_issues_summary` on an issue.
+const epicRow = issueRow.extend({ sub_issues_summary: z.object({ total: z.int().nonnegative(), completed: z.int().nonnegative() }).optional() });
 const issueDetail = z.object({ state: z.enum(['open', 'closed']), labels: z.array(z.object({ name: z.string() })) });
 const pullRow = z.object({
   number: z.int().positive(),
@@ -131,6 +133,16 @@ export class GhGitHub implements GitHub {
     const epics: { issue: number; title: string }[] = [];
     for await (const rows of this.pages(repo, 'issues', { labels: readyLabel, state: 'open' }, issueRow)) {
       for (const row of rows) if (row.pull_request === undefined) epics.push({ issue: row.number, title: row.title });
+    }
+    return epics;
+  }
+
+  async listOpenEpics(repo: string) {
+    const epics: { issue: number; slices: Slices | null }[] = [];
+    for await (const rows of this.pages(repo, 'issues', { labels: epicLabel, state: 'open' }, epicRow)) {
+      for (const row of rows) {
+        if (row.pull_request === undefined) epics.push({ issue: row.number, slices: row.sub_issues_summary ? { done: row.sub_issues_summary.completed, total: row.sub_issues_summary.total } : null });
+      }
     }
     return epics;
   }

@@ -85,6 +85,44 @@ test('first poll waits one full interval, then repeats every interval', async ()
   expect(github.calls).toBe(4);
 });
 
+test('every poll refreshes the slice progress by repo and issue; a failed read keeps the last values and the epics are still picked up', async () => {
+  github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }] };
+  github.openEpics = { 'AshuLab/a': [{ issue: 1, slices: { done: 1, total: 3 } }, { issue: 2, slices: null }], 'AshuLab/b': [{ issue: 1, slices: { done: 0, total: 0 } }] };
+  const engine = await start();
+  expect(engine.slices('AshuLab/a', 1)).toBeNull(); // before the first read
+
+  await clock.advance(5 * MIN);
+  expect(engine.slices('AshuLab/a', 1)).toEqual({ done: 1, total: 3 });
+  expect(engine.slices('AshuLab/a', 2)).toBeNull();
+  expect(engine.slices('AshuLab/b', 1)).toEqual({ done: 0, total: 0 });
+
+  github.openEpics['AshuLab/a'] = [{ issue: 1, slices: { done: 2, total: 3 } }];
+  await clock.advance(5 * MIN);
+  expect(engine.slices('AshuLab/a', 1)).toEqual({ done: 2, total: 3 });
+
+  github.openEpicsUnavailable = new GitHubUnavailable();
+  github.openEpics['AshuLab/a'] = [{ issue: 1, slices: { done: 3, total: 3 } }];
+  github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }, { issue: 5, title: '' }] };
+  await clock.advance(5 * MIN);
+  expect(engine.slices('AshuLab/a', 1)).toEqual({ done: 2, total: 3 }); // the stale value stays
+  expect(engine.error).toBeNull();
+  expect(ids(engine)).toEqual(['AshuLab/a#1', 'AshuLab/a#5']); // and the poll went on
+
+  github.openEpicsUnavailable = null;
+  await clock.advance(5 * MIN);
+  expect(engine.slices('AshuLab/a', 1)).toEqual({ done: 3, total: 3 });
+});
+
+test('a rejected profile on the progress read still suspends the poll', async () => {
+  const engine = await start();
+  const rejected = new AuthError('a');
+  github.listOpenEpics = async () => {
+    throw rejected;
+  };
+  await clock.advance(5 * MIN);
+  expect(engine.error).toBe(rejected);
+});
+
 test('FIFO order survives a restart on the same SQLite file, and later epics go after', async () => {
   github.ready = { 'AshuLab/a': [{ issue: 9, title: '' }], 'AshuLab/b': [{ issue: 2, title: '' }] };
   const first = await start();

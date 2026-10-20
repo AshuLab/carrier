@@ -21,6 +21,10 @@ export class AuthError extends Error {
 // Labels Carrier owns (it creates them) and the one Solve owns (it never does).
 export const ownedLabels = ['solve:epic:running', 'solve:epic:ready-for-test', 'solve:epic:needs-human'] as const;
 export const readyLabel = 'solve:epic:ready';
+export const epicLabel = 'solve:epic';
+
+/** Slices closed out of the total, as GitHub reports them. */
+export type Slices = { done: number; total: number };
 
 export type LabelStyle = { color: string; description: string };
 /** How Carrier creates its labels (GitHub limits a description to 100 characters). `needs-human` is the loud one: it is the state that most needs to be seen. */
@@ -36,6 +40,8 @@ export const needsHumanLabel = ownedLabels[2];
 export interface GitHub {
   /** All ready epics of the repo, every page. Throws GitHubUnavailable when GitHub is down or rate limiting. */
   listReadyEpics(repo: string): Promise<{ issue: number; title: string }[]>;
+  /** The open `solve:epic` issues of the repo, every page, each with the slice progress GitHub reports (`null` when it sends none). Throws GitHubUnavailable like the call above. */
+  listOpenEpics(repo: string): Promise<{ issue: number; slices: Slices | null }[]>;
   /** Throws GitHubUnavailable like every call below. */
   getIssue(repo: string, issue: number): Promise<{ state: 'open' | 'closed'; labels: string[] }>;
   /** Null when the PR does not exist; `closed` is closed without merge, a merged PR is `merged`. `headRef` is the branch it comes from. */

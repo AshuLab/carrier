@@ -3,12 +3,12 @@ import { latestBlockers } from '../orchestration/blockers.ts';
 import type { Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
-import type { PanelSnapshot } from './types.ts';
+import type { PanelEpic, PanelSnapshot } from './types.ts';
 
 /** What the panel shows, read from SQLite: slots, the queue (oldest first) and each epic that is running or waiting for a person. */
 export function buildSnapshot(
   db: Db,
-  { now, maxConcurrentEpics, maxReviews, startedAt, repos, nextCheckAt, problem, paused }: { now: number; maxConcurrentEpics: number; maxReviews: number; startedAt: number; repos: number; nextCheckAt: number | null; problem: string | null; paused: boolean },
+  { now, maxConcurrentEpics, maxReviews, startedAt, repos, nextCheckAt, problem, paused, slices }: { now: number; maxConcurrentEpics: number; maxReviews: number; startedAt: number; repos: number; nextCheckAt: number | null; problem: string | null; paused: boolean; slices: (repo: string, issue: number) => PanelEpic['slices'] },
 ): PanelSnapshot {
   const busy = db.select({ n: count() }).from(epics).where(eq(epics.status, 'running')).get()!.n;
   const queue = db.select({ repo: epics.repo, issue: epics.issue }).from(epics).where(eq(epics.status, 'queued')).orderBy(asc(epics.id)).all();
@@ -40,6 +40,7 @@ export function buildSnapshot(
       prUrl: e.prNumber === null ? null : `https://github.com/${e.repo}/pull/${e.prNumber}`,
       lastError: e.lastError,
       needsHumanReason: e.needsHumanReason,
+      slices: slices(e.repo, e.issue),
       executionId: lastExecution(e.id),
     })),
   };

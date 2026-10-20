@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         // no action, so the menu leaves it disabled: a line to read, not a button
         let stateLine = menu.addItem(withTitle: ConnectionState.stopped.menuLine, action: nil, keyEquivalent: "")
+        MenuControls.shared.install(in: menu, after: stateLine)
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
@@ -28,7 +29,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Keeps the menu line current from a thread of its own; the title is set on the main queue, which also runs while the menu is open.
     private func watchCarrier(_ line: NSMenuItem) {
         let monitor = ControlMonitor(socketPath: controlSocketPath()) { state in
-            DispatchQueue.main.async { line.title = state.menuLine }
+            DispatchQueue.main.async {
+                line.title = state.menuLine
+                MenuControls.shared.react(to: state)
+            }
         }
         Thread.detachNewThread { monitor.run() }
     }
@@ -60,6 +64,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let steps: [(String, () -> String)] = [
             ("status item present", { "\(self.statusItem != nil)" }),
             ("menu titles", { (self.statusItem?.menu?.items.map(\.title) ?? []).joined(separator: ", ") }),
+            ("pause intake", { MenuControls.shared.selfTest(.pause) }),
+            ("resume intake", { MenuControls.shared.selfTest(.resume) }),
+            ("check GitHub now", { MenuControls.shared.selfTest(.checkNow) }),
+            ("stop Carrier", { MenuControls.shared.selfTest(.stop) }),
             ("activation policy accessory", { "\(NSApp.activationPolicy() == .accessory)" }),
             ("app windows open", { "\(NSApp.windows.filter { $0.isVisible && $0.level != .statusBar }.count)" }),
             ("quit enabled", {

@@ -103,3 +103,23 @@ test('a socket file left by a crash is replaced once the lock is held', async ()
   closers.push(() => app.close());
   expect((await ask())[0]).toContain('"event":"hello"');
 });
+
+test('the socket pauses and resumes the engine the panel pauses', async () => {
+  const app = await startCarrier(config(), deps());
+  closers.push(() => app.close());
+
+  const lines = await new Promise<string[]>((resolve, reject) => {
+    const socket = connect(sock());
+    let text = '';
+    socket.on('error', reject);
+    socket.on('connect', () => socket.write('{"id":1,"cmd":"pause"}\n{"id":2,"cmd":"snapshot"}\n'));
+    socket.on('data', (chunk) => {
+      text += chunk;
+      if (text.split('\n').length > 3) (socket.destroy(), resolve(text.trim().split('\n')));
+    });
+  });
+  const [, pause, snapshot] = lines.map((line) => JSON.parse(line));
+  expect(pause).toEqual({ id: 1, ok: true });
+  expect(snapshot.data.paused).toBe(true);
+  expect(app.engine.paused).toBe(true);
+});

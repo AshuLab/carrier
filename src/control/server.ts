@@ -18,8 +18,24 @@ export const request = z.union([
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
 
+/** What the socket does for the client: the same controls the interactive panel's keys use. */
+export type Controls = { poll(): unknown; setPaused(paused: boolean): unknown; logs(executionId: string, count: number): string[] };
+
+/** pause, resume, checkNow and tail. Like the panel's keys, a check is started and not waited for: its failure is the engine's to report. */
+function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | 'stop' }>, controls: Controls): Reply {
+  try {
+    if (command.cmd === 'tail') return { id: command.id, ok: true, data: controls.logs(command.executionId, command.lines) };
+    if (command.cmd === 'checkNow') void Promise.resolve(controls.poll()).catch((error) => log.error('check now failed', error));
+    else void Promise.resolve(controls.setPaused(command.cmd === 'pause')).catch((error) => log.error(`${command.cmd} failed`, error));
+    return { id: command.id, ok: true };
+  } catch (error) {
+    log.error(`${command.cmd} failed`, error);
+    return { id: command.id, ok: false, error: 'internal error' };
+  }
+}
+
 /** The reply to one line. */
-function answer(line: string, snapshot: () => unknown): Reply {
+function answer(line: string, snapshot: () => unknown, controls: Controls): Reply {
   let value: unknown;
   try {
     value = JSON.parse(line);
@@ -40,6 +56,7 @@ function answer(line: string, snapshot: () => unknown): Reply {
       return { id: parsed.data.id, ok: false, error: 'internal error' };
     }
   }
+  if (parsed.data.cmd !== 'stop') return control(parsed.data, controls);
   return { id: parsed.data.id, ok: false, error: 'not supported' };
 }
 
@@ -48,7 +65,7 @@ function answer(line: string, snapshot: () => unknown): Reply {
  * must hold the instance lock: that is what makes any socket file already there a leftover of a crash, safe to replace.
  * A socket that cannot open is logged and Carrier goes on without it. `close()` is synchronous and removes the file.
  */
-export async function startControlServer({ orchestratorDir, snapshot, startedAt }: { orchestratorDir: string; snapshot: () => unknown; startedAt: number }): Promise<{ close: () => void }> {
+export async function startControlServer({ orchestratorDir, snapshot, startedAt, controls }: { orchestratorDir: string; snapshot: () => unknown; startedAt: number; controls: Controls }): Promise<{ close: () => void }> {
   const path = join(orchestratorDir, 'control.sock');
   const sockets = new Set<Socket>();
   const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt };
@@ -68,7 +85,7 @@ export async function startControlServer({ orchestratorDir, snapshot, startedAt 
         const line = pending.slice(0, end);
         pending = pending.slice(end + 1);
         if (Buffer.byteLength(line) > MAX_LINE_BYTES) return tooLong(socket);
-        send(socket, answer(line, snapshot));
+        send(socket, answer(line, snapshot, controls));
       }
       if (Buffer.byteLength(pending) > MAX_LINE_BYTES) tooLong(socket);
     });

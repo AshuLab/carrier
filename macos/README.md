@@ -11,7 +11,7 @@ cd macos
 open Carrier.app
 ```
 
-`Carrier.app` has no Dock icon: it shows one menu bar item, and its menu has Quit. Check the signature with `codesign --verify Carrier.app` and `codesign -dv Carrier.app` (it should say `Signature=adhoc`).
+`Carrier.app` has no Dock icon: it shows one menu bar item. Its menu has a line saying whether Carrier is stopped, running (epics and busy/total slots) or an incompatible version, and Quit. The line comes from Carrier's control socket, `<root>/orchestrator/control.sock`, where `<root>` is the `root` of `$CARRIER_HOME/config.json` (else `~/.carrier/config.json`), `~/.solve` when there is none; the app asks for the snapshot every second while connected and tries to connect every three seconds while not. Check the signature with `codesign --verify Carrier.app` and `codesign -dv Carrier.app` (it should say `Signature=adhoc`).
 
 ## Test
 

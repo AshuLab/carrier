@@ -1,0 +1,106 @@
+import Foundation
+
+public enum ControlError: Error, Equatable {
+    case closed
+    case timeout
+    case badLine
+    case remote(String)
+}
+
+/// One connection to Carrier's control socket: newline-delimited JSON, blocking, so it belongs on its own thread.
+/// A POSIX socket rather than Network.framework: a missing or stale socket fails at once instead of waiting and retrying,
+/// and a path that does not fit is refused here instead of crashing the process.
+public final class ControlClient {
+    private let fd: Int32
+    private var buffer = Data()
+    private var lastId = 0
+    private let maxLineBytes = 8 * 1024 * 1024
+
+    private init(fd: Int32) { self.fd = fd }
+
+    deinit { close() }
+
+    /// nil when there is no one to talk to: no socket file, nobody listening on it, or a path longer than `sun_path` holds.
+    public static func connect(path: String, timeout: TimeInterval = 5) -> ControlClient? {
+        var address = sockaddr_un()
+        let capacity = MemoryLayout.size(ofValue: address.sun_path)
+        guard path.utf8.count < capacity else { return nil }
+        address.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &address.sun_path) { $0.copyBytes(from: path.utf8) }
+
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard fd >= 0 else { return nil }
+        // a write to a Carrier that just quit must fail, not raise SIGPIPE; a Carrier that stops answering must not block the read for good
+        var on: Int32 = 1
+        var limit = timeval(tv_sec: Int(timeout), tv_usec: Int32((timeout - timeout.rounded(.down)) * 1_000_000))
+        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &limit, socklen_t(MemoryLayout<timeval>.size))
+        let connected = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        guard connected == 0 else {
+            Darwin.close(fd)
+            return nil
+        }
+        return ControlClient(fd: fd)
+    }
+
+    public func close() { Darwin.close(fd) }
+
+    /// The protocol version of the hello Carrier sends on connect.
+    public func hello() throws -> Int {
+        let hello = try json(readLine())
+        guard hello["event"] as? String == "hello", let version = hello["protocol"] as? Int else { throw ControlError.badLine }
+        return version
+    }
+
+    /// Sends the command with the next id and waits for its reply; returns the reply's `data`, as JSON bytes, `null` when it has none.
+    public func request(_ command: String) throws -> Data {
+        lastId += 1
+        try write(Data("{\"id\":\(lastId),\"cmd\":\"\(command)\"}\n".utf8))
+        while true {
+            let reply = try json(readLine())
+            let id = reply["id"] as? Int
+            // a reply to an earlier request that gave up is skipped; an error with no id can only be about this one
+            guard id == lastId || (id == nil && reply["ok"] as? Bool == false) else { continue }
+            guard reply["ok"] as? Bool == true else { throw ControlError.remote(reply["error"] as? String ?? "unknown error") }
+            guard let data = reply["data"] else { return Data("null".utf8) }
+            return try JSONSerialization.data(withJSONObject: data, options: .fragmentsAllowed)
+        }
+    }
+
+    private func json(_ line: Data) throws -> [String: Any] {
+        guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { throw ControlError.badLine }
+        return object
+    }
+
+    private func write(_ data: Data) throws {
+        var sent = 0
+        while sent < data.count {
+            let n = data.withUnsafeBytes { Darwin.write(fd, $0.baseAddress! + sent, data.count - sent) }
+            if n > 0 { sent += n } else if n < 0 && errno == EINTR { continue } else { throw ControlError.closed }
+        }
+    }
+
+    private func readLine() throws -> Data {
+        while true {
+            if let end = buffer.firstIndex(of: 0x0A) {
+                let line = buffer[buffer.startIndex..<end]
+                buffer.removeSubrange(buffer.startIndex...end)
+                return Data(line)
+            }
+            guard buffer.count <= maxLineBytes else { throw ControlError.badLine }
+            var chunk = [UInt8](repeating: 0, count: 4096)
+            let n = read(fd, &chunk, chunk.count)
+            if n > 0 {
+                buffer.append(contentsOf: chunk[..<n])
+            } else if n < 0 && errno == EINTR {
+                continue
+            } else if n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) {
+                throw ControlError.timeout
+            } else {
+                throw ControlError.closed
+            }
+        }
+    }
+}

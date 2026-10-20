@@ -44,7 +44,7 @@ const deps = (): Partial<CarrierDeps> => ({
   sessionDirs: { claude: join(root, 'claude'), codex: join(root, 'codex') },
   panelOut: { write: () => {}, isTTY: false },
   panelIntervalMs: 1000,
-  onSigint: () => {},
+  onSigint: () => async () => {},
 });
 const config = () => {
   const result = loadConfig(defaults, {

@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -48,7 +49,7 @@ test.each(['SIGINT', 'SIGTERM', 'SIGHUP'] as const)('%s in the middle of two run
 
   const writes = readFileSync(join(dir, 'writes.log'), 'utf8').trim().split('\n');
   expect(writes).toContain(sent);
-  expect(writes.slice(writes.indexOf(sent) + 1)).toEqual([]);
+  expect(writes.slice(writes.indexOf(sent) + 1).filter((line) => line !== 'shutdown')).toEqual([]);
 });
 
 test('a runner whose stop never finishes: the shutdown gives up after its time limit, frees the lock and exits with 1, leaving the epics running', async () => {
@@ -112,4 +113,59 @@ test('restarting after Ctrl+C resumes the interrupted runs with their saved sess
   expect(db.prepare('select status from epics order by id').pluck().all()).toEqual(['running', 'running', 'queued']);
   expect(db.prepare('select status from executions order by rowid').pluck().all()).toEqual(['interrupted', 'interrupted', 'interrupted', 'interrupted']);
   db.close();
+});
+
+// A socket client of the real process: `ask` sends a line and resolves with the next reply (the hello is skipped).
+async function socketClient() {
+  const socket = connect(join(dir, 'orchestrator', 'control.sock'));
+  socket.setEncoding('utf8');
+  let buffer = '';
+  const lines: string[] = [];
+  socket.on('data', (chunk: string) => lines.push(...(buffer += chunk).split('\n').slice(0, -1)) && (buffer = buffer.slice(buffer.lastIndexOf('\n') + 1)));
+  socket.on('error', () => {});
+  const closed = once(socket, 'close');
+  await vi.waitFor(() => expect(lines.shift()).toContain('hello'));
+  const ask = async (line: string) => (socket.write(`${line}\n`), await vi.waitFor(() => (expect(lines.length).toBeGreaterThan(0), JSON.parse(lines.shift()!))));
+  return { ask, closed };
+}
+
+test('stop through the socket: the reply arrives every time, then the same shutdown runs and the connection closes', async () => {
+  for (let round = 0; round < 5; round++) {
+    const { closed } = await startHolder();
+    const client = await socketClient();
+
+    expect(await client.ask('{"id":7,"cmd":"stop"}')).toEqual({ id: 7, ok: true });
+    await client.closed;
+    expect((await closed)[0]).toBe(0);
+
+    const db = new Database(join(dir, 'orchestrator', 'carrier.db'), { readonly: true });
+    expect(db.prepare('select status from epics order by id').pluck().all()).toEqual(['running', 'running', 'queued']);
+    expect(db.prepare('select status, sessionId from executions order by rowid').all()).toEqual([
+      { status: 'interrupted', sessionId: 's-1' },
+      { status: 'interrupted', sessionId: 's-2' },
+    ]);
+    db.close();
+    expect(existsSync(join(dir, 'orchestrator', 'control.sock'))).toBe(false);
+    const lock = acquireLock(join(dir, 'orchestrator'));
+    expect(lock.ok).toBe(true);
+    if (lock.ok) lock.release();
+    const writes = readFileSync(join(dir, 'writes.log'), 'utf8').trim().split('\n');
+    expect(writes.filter((line) => line === 'shutdown')).toHaveLength(1);
+    expect(writes.slice(writes.indexOf('shutdown') + 1)).toEqual([]); // nothing to GitHub after the stop
+    rmSync(dir, { recursive: true, force: true });
+    dir = mkdtempSync(join(tmpdir(), 'carrier-sigint-'));
+  }
+});
+
+test('a second stop, or a snapshot, while it is shutting down is answered and starts no second shutdown', async () => {
+  const { child, closed } = await startHolder('hang', '60000');
+  const client = await socketClient();
+
+  expect(await client.ask('{"id":1,"cmd":"stop"}')).toEqual({ id: 1, ok: true });
+  expect(await client.ask('{"id":2,"cmd":"stop"}')).toEqual({ id: 2, ok: true });
+  expect(await client.ask('{"id":3,"cmd":"snapshot"}')).toMatchObject({ id: 3, ok: true });
+  expect(readFileSync(join(dir, 'writes.log'), 'utf8').match(/^shutdown$/gm)).toHaveLength(1);
+
+  child.kill('SIGINT'); // the shutdown is under way and cannot end: the signal handler sees it running and exits at once
+  expect((await closed)[0]).toBe(130);
 });

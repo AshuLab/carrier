@@ -44,4 +44,5 @@ export function stopOnSigint(target: Target, { exit = process.exit, ...options }
   for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) {
     process.on(signal, () => (shutdown.running ? exit(130) : void shutdown()));
   }
+  return shutdown;
 }

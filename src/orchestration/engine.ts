@@ -17,7 +17,7 @@ import { epics } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
 import { latestBlockers } from './blockers.ts';
 import { endOf } from './final-pr.ts';
-import { AuthError, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub } from './github.ts';
+import { AuthError, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub, type Slices } from './github.ts';
 import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak } from './retry.ts';
@@ -70,6 +70,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   let cancel: (() => void) | null = null;
   let stopRetention: (() => void) | null = null;
   const labelledRepos = new Set<string>();
+  // Slice progress GitHub reported on the last good read, by repo and issue; not stored, so it is empty until the first poll after a start.
+  const progress = new Map<string, Map<number, Slices | null>>();
   // Runs of this process still going, to stop them when the epic ends from outside.
   const active = new Map<string, AgentRun>();
   // Set by shutdown(): from then on nothing polls, reserves, launches or writes to GitHub.
@@ -487,6 +489,16 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     recovered = true;
   }
 
+  // A failed read keeps the last known values and the poll goes on: progress is only for show. A rejected profile is not "only for show".
+  async function refreshProgress(repo: string) {
+    try {
+      progress.set(repo, new Map((await github.listOpenEpics(repo)).map(({ issue, slices }) => [issue, slices])));
+    } catch (e) {
+      if (e instanceof AuthError) throw e;
+      log.error('slice progress read failed, keeping the last values', e);
+    }
+  }
+
   // Returns the wait until the next poll.
   async function poll(): Promise<number> {
     if (stopping) return pollIntervalMs;
@@ -497,6 +509,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       if (!recovered) await recover();
       for (const { name: repo } of repos) {
         for (const { issue } of await github.listReadyEpics(repo)) found.push({ repo, issue });
+        await refreshProgress(repo);
       }
       suspended = null; // listing worked: the orchestrator's profile is back, the cycle goes on
       const queuedAt = clock.now();
@@ -594,6 +607,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     get error() {
       return error;
     },
+    /** Slices closed out of the total on the last good read; null until the first one or when GitHub sends none. */
+    slices: (repo: string, issue: number) => progress.get(repo)?.get(issue) ?? null,
     /** Queued epics, oldest first. */
     queue: () => db.select().from(epics).where(eq(epics.status, 'queued')).orderBy(asc(epics.id)).all(),
   };

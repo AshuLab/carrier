@@ -1,9 +1,13 @@
 import type { Clock } from './clock.ts';
-import { AuthError, GitHubUnavailable, type GitHub, type LabelStyle } from './github.ts';
+import { AuthError, GitHubUnavailable, type GitHub, type LabelStyle, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
   ready: Record<string, { issue: number; title: string }[]> = {};
   unavailable: GitHubUnavailable | null = null;
+  /** The open epics with their slice progress, by repo. */
+  openEpics: Record<string, { issue: number; slices: Slices | null }[]> = {};
+  /** Makes listOpenEpics fail while the rest works. */
+  openEpicsUnavailable: GitHubUnavailable | null = null;
   /** Makes setLabels fail while the rest works. */
   setLabelsUnavailable: GitHubUnavailable | null = null;
   issues: Record<string, { state: 'open' | 'closed'; labels: string[] }> = {};
@@ -33,6 +37,13 @@ export class FakeGitHub implements GitHub {
     this.calls++;
     if (this.unavailable) throw this.unavailable;
     return (this.ready[repo] ?? []).filter((e) => this.issue(repo, e.issue).labels.includes('solve:epic:ready')); // like GitHub: the label decides
+  }
+
+  async listOpenEpics(repo: string) {
+    this.guard();
+    const failure = this.unavailable ?? this.openEpicsUnavailable;
+    if (failure) throw failure;
+    return (this.openEpics[repo] ?? []).map((epic) => ({ ...epic }));
   }
 
   async getIssue(repo: string, issue: number) {

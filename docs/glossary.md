@@ -49,3 +49,9 @@ _Avoid_: external reviewer, review bot.
 
 **Shared root** - Folder (by default `~/.solve/`) where Solve and Carrier keep `repos/`, `worktrees/` and `orchestrator/`. It is independent of where the app's code lives or from where it is started.
 _Avoid_: workspace (it is an epic's checkout, inside `worktrees/`).
+
+**Control socket** - Local channel (a Unix socket in `orchestrator/`) a running Carrier opens so another process can watch it and drive it: the snapshot and the agent's output come out, and pause, check now and stop go in. The macOS app is a client of it. See [0005](adr/0005-engine-independent-of-the-macos-app.md).
+_Avoid_: API, daemon, IPC.
+
+**Slice progress** - How many of an epic's slices (its sub-issues) are closed out of the total, read from GitHub. Carrier does not store it today: the agent running `ship` works the slices inside its own session.
+_Avoid_: ticket progress, issue status.

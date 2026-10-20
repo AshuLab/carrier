@@ -21,6 +21,7 @@ Everything a terminal user sees lives under `src/terminal`, so a future web UI i
 - `terminal/wizard`: `carrier init`. `wizard.ts` is the flow, `questions/` one file per thing asked, `deps.ts` everything that touches the machine (replaceable in tests), `prior.ts` and `summary.ts` the edit mode and the recap.
 - `terminal/dashboard`: the panel. `dashboard.ts` and `plain.ts` draw it, `ui-state.ts` is the pure key reducer, `interactive.ts` wires keys to actions.
 - `status`: what the panel shows (`types.ts`) and how it is read from SQLite (`snapshot.ts`), for any front-end.
+- `control`: the control socket (`orchestrator/control.sock`), newline-delimited JSON for a local client such as the macOS app. `server.ts` holds the request schema and the server; `terminal/cli/compose.ts` starts it once the engine is up.
 - `doctor`: the checks (`doctor.ts`) and the remedy for each failure (`fixes.ts`).
 - `prompts`: what the agents are told, one file per part. `build-prompt.ts` joins `intro.ts` (role, rules, earlier turns), one stage (`ship.ts`, `fix.ts`, `review.ts`) and `result.ts` (the JSON contract). To change what an agent is asked, edit the stage file.
 - `config`, `orchestration` (the engine, behind the `GitHub` port), `execution` (the `AgentRunner`/`Workspaces` ports, result import), `harnesses` (Claude/Codex/Antigravity runners), `integrations`, `storage`, `logging`: as their names say.

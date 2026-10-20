@@ -16,6 +16,8 @@ export type PanelEpic = {
   prUrl: string | null;
   lastError: string | null;
   needsHumanReason: string | null;
+  /** Slices closed out of the total as GitHub reports them; null until the first read or when GitHub sends none. */
+  slices: { done: number; total: number } | null;
   /** The latest execution of the epic: where its agent's output is. */
   executionId: string | null;
 };

@@ -1,0 +1,38 @@
+# Carrier.app
+
+Menu bar app for Carrier. A SwiftPM package for macOS 13 or later: `CarrierCore` (library), `Carrier` (the AppKit shell), `CarrierCoreTests` and `CarrierTests` (Swift Testing). The Command Line Tools are enough, Xcode is not needed.
+
+## Build and open
+
+```sh
+cd macos
+./build-app.sh          # release build wrapped in Carrier.app (bundle id dev.ashulab.carrier), signed ad hoc
+./build-app.sh --open   # same, then opens it
+open Carrier.app
+```
+
+`Carrier.app` has no Dock icon: it shows one menu bar item. Its menu has a line saying whether Carrier is stopped, running (epics and busy/total slots) or an incompatible version, then Start Carrier (enabled only while Carrier is stopped and the settings have `node`, `carrier` and a config path; it says what is missing otherwise), Pause intake (Resume intake while paused), Check GitHub now and Stop Carrier, which are disabled unless Carrier is running, and Quit. Stop Carrier asks first when epics are running, since it interrupts them (they resume on the next start), and stops straight away when none are. The line comes from Carrier's control socket, `<root>/orchestrator/control.sock`, where `<root>` is the `root` of `$CARRIER_HOME/config.json` (else `~/.carrier/config.json`), `~/.solve` when there is none; the app asks for the snapshot every second while connected and tries to connect every three seconds while not. Check the signature with `codesign --verify Carrier.app` and `codesign -dv Carrier.app` (it should say `Signature=adhoc`).
+
+## Settings
+
+The menu's Settings… opens the values the app starts Carrier with: `carrier`, `node`, the `PATH`, the config path and the shared root, each editable and marked "not found" when empty. On the first launch (nothing saved in user defaults) the app asks the user's shell once, `zsh -ilc` with markers around what it prints and a 10 second limit, for `carrier`, `node` and the `PATH`; the config path and root come from where Carrier keeps them, not from the shell. "Detect again" repeats the run. With saved values the shell is never started. The `PATH` the engine will get is the detected one with node's directory first.
+
+## Start Carrier
+
+Start Carrier (the menu item, and a button in the window while Carrier is stopped) runs `node <carrier> --config <config path>` with that `PATH`, in its own session (`posix_spawn` with `POSIX_SPAWN_SETSID`, so quitting the app leaves Carrier running), stdin from `/dev/null` and stdout and stderr in `<root>/orchestrator/logs/app-start.log`, which it creates (the `orchestrator/` folder with mode 0700) when missing. It is never started on its own when the app opens. When the control socket answers within 15 seconds the state becomes running (the next connect attempt shows it, within 3 seconds); when the process exits first, or 15 seconds pass without the socket, an alert shows the end of `app-start.log`. A second press while it starts does nothing. The decision and the command line are in `CarrierCore/StartCarrier.swift`; the spawn and the alert have no automated test. The self-test only checks the start (what it would run), as it does for Stop.
+
+## Test
+
+```sh
+cd macos
+swift build && swift test
+```
+
+The shell's layers have no automated tests (`CarrierTests` only checks that the icon's layer host takes no clicks); the logic behind them is tested in `CarrierCoreTests`. Its smoke check is the self-test flag: it runs the menu's actions from code, one a second (pause, resume and check now are sent to a running Carrier, resume putting back the pause state it found; Stop is only checked, as it would end the Carrier under test), appends a line per step to the file and ends with a line saying the process was still alive.
+
+```sh
+./Carrier.app/Contents/MacOS/Carrier --selftest /tmp/carrier-selftest.log
+cat /tmp/carrier-selftest.log   # last line: "end: process still alive ..."
+```
+
+The app keeps running afterwards; quit it from the menu or with `osascript -e 'tell application id "dev.ashulab.carrier" to quit'`.

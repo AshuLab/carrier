@@ -5,6 +5,7 @@ import { resolveRepoConfig } from '../../config/resolve.ts';
 import type { AgentRunner } from '../../execution/agent-runner.ts';
 import { GitWorkspaces, profileToken, type GitWorkspacesOptions } from '../../execution/git-workspaces.ts';
 import type { Workspaces } from '../../execution/workspaces.ts';
+import { startControlServer } from '../../control/server.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
 import { GhGitHub, type GhGitHubOptions } from '../../integrations/github.ts';
 import { installFileLogging } from '../../logging/logger.ts';
@@ -37,7 +38,7 @@ export interface CarrierDeps {
   sessionDirs: SessionDirs;
   panelOut: PanelOutput;
   panelIntervalMs?: number;
-  onSigint: typeof stopOnSigint;
+  onSigint: (...args: Parameters<typeof stopOnSigint>) => () => Promise<void>;
   /** The engine is up, before the panel takes the screen: the moment to say so. Not called when the startup fails. */
   onArrived?: () => void;
   /** Where keys come from; the panel takes them only when this and the panel's output are both a terminal. */
@@ -104,14 +105,16 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     sessionDirs: deps.sessionDirs,
   });
   let stopPanel = () => {}; // the panel starts once the engine is up
+  let stopControl = () => {};
   const close = () => {
+    stopControl(); // before the lock goes: a socket without the lock is what a takeover looks like
     stopPanel();
     engine.stop();
     db.$client.close();
     lock.release();
   };
   // Before the engine starts: its recovery may launch agents already, and Ctrl+C has to stop them.
-  deps.onSigint({ engine, close });
+  const shutdown = deps.onSigint({ engine, close });
   try {
     await engine.start();
   } catch (error) {
@@ -131,7 +134,10 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
       nextCheckAt: engine.nextPollAt,
       problem: engine.error instanceof AuthError ? `authentication error for profile ${engine.error.profile}` : engine.error ? 'GitHub is unavailable: it will be tried again' : null,
       paused: engine.paused,
+      slices: engine.slices,
     });
+  const controls = { poll: () => engine.pollNow(), setPaused: (paused: boolean) => engine.setPaused(paused), open: deps.openUrl, quit: deps.quit, logs: (id: string, count: number) => tailExecution(config.root, id, count) };
+  stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop: shutdown })).close;
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).
   stopPanel =
     deps.panelOut.isTTY && deps.stdin?.isTTY
@@ -141,7 +147,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
           stdin: deps.stdin,
           intervalMs: deps.panelIntervalMs,
           now: () => deps.clock.now(),
-          controls: { poll: () => engine.pollNow(), setPaused: (paused) => engine.setPaused(paused), open: deps.openUrl, quit: deps.quit, logs: (id, count) => tailExecution(config.root, id, count) },
+          controls,
         })
       : startPanel(snapshot, deps.panelOut, deps.panelIntervalMs);
   return { engine, db, close };

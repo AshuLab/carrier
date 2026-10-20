@@ -61,7 +61,7 @@ function fakes() {
     sessionDirs: { claude: join(root, 'claude'), codex: join(root, 'codex') },
     panelOut: { write: (text) => seen.panel.push(String(text)), isTTY: false },
     panelIntervalMs: 10,
-    onSigint: () => void seen.sigint++,
+    onSigint: () => (seen.sigint++, async () => {}),
   };
   return { seen, github, runner, clock, deps };
 }

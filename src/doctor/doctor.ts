@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import { join } from 'node:path';
+import { socketPathFits } from '../control/server.ts';
 import { resolveRepoConfig } from '../config/resolve.ts';
 import type { Config } from '../config/schema.ts';
 import { profileToken } from '../execution/git-workspaces.ts';
@@ -7,7 +9,7 @@ import { GhGitHub, type GitHubProfile } from '../integrations/github.ts';
 import { listLocalModels, localLabel, localUrl, type LocalProvider } from '../harnesses/local.ts';
 import { fixes, installFix } from './fixes.ts';
 
-/** `fix` is one remedy line for the person at the terminal; only failures have one. */
+/** `fix` is one remedy line for the person at the terminal; only failures and warnings have one. */
 export type Check = { name: string; status: 'ok' | 'warn' | 'fail'; detail?: string; fix?: string };
 
 export interface DoctorDeps {
@@ -53,6 +55,11 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
   const orchestrator = config.profiles[config.orchestratorProfile]!;
   const rolesOf = (repo: (typeof repos)[number]) => [repo.agents.author, repo.agents.reviewer];
   const profiles = [orchestrator, ...repos.flatMap((repo) => rolesOf(repo).map((agent) => config.profiles[agent.profile]!))];
+
+  // Only a path that does not fit is reported: Carrier works without the socket, it just has none for the app to use.
+  const socket = join(config.root, 'orchestrator', 'control.sock');
+  const { fits, bytes } = socketPathFits(socket);
+  if (fits === false) report({ name: 'control socket path fits', status: 'warn', detail: `${socket} is ${bytes} bytes and a socket path holds 103, so Carrier starts without its control socket`, fix: fixes.socketPath });
 
   const hasGit = installed('git');
   const hasGh = installed('gh');

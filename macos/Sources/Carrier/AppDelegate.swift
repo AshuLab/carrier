@@ -14,10 +14,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MenuControls.shared.install(in: menu, after: stateLine)
         menu.addItem(.separator())
         WindowController.shared.addMenuItem(to: menu)
+        SettingsWindowController.shared.addMenuItem(to: menu)
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
         statusItem = item
         watchCarrier(stateLine)
+        SetupController.shared.detectIfFirstLaunch()
 
         if let path = Self.selfTestPath() {
             selfTest(logPath: path)
@@ -71,6 +73,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("check GitHub now", { MenuControls.shared.selfTest(.checkNow) }),
             ("stop Carrier", { MenuControls.shared.selfTest(.stop) }),
             ("activation policy accessory", { "\(NSApp.activationPolicy() == .accessory)" }),
+            ("setup", { SetupController.shared.summary }),
+            ("open settings", { SettingsWindowController.shared.open(); return SettingsWindowController.shared.status }),
+            ("close settings", { SettingsWindowController.shared.close(); return SettingsWindowController.shared.status }),
             ("app windows open", { "\(NSApp.windows.filter { $0.isVisible && $0.level != .statusBar }.count)" }),
             ("quit enabled", {
                 guard let menu = self.statusItem?.menu else { return "false" }

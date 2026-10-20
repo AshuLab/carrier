@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -122,4 +122,19 @@ test('the socket pauses and resumes the engine the panel pauses', async () => {
   expect(pause).toEqual({ id: 1, ok: true });
   expect(snapshot.data.paused).toBe(true);
   expect(app.engine.paused).toBe(true);
+});
+
+test('a root whose socket path does not fit still starts Carrier, with a warning and no socket', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const long = join(root, 'r'.repeat(90));
+  const result = loadConfig(defaults, { ...config(), root: long });
+  if (!result.ok) throw new Error(JSON.stringify(result.errors));
+
+  const app = await startCarrier(result.config, deps());
+  closers.push(() => app.close());
+
+  expect(app.engine.paused).toBe(false);
+  expect(readdirSync(join(long, 'orchestrator')).filter((name) => name.startsWith('control'))).toEqual([]);
+  expect(warn.mock.calls.flat().join(' ')).toContain(join(long, 'orchestrator', 'control.sock'));
+  await app.engine.shutdown();
 });

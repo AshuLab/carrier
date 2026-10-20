@@ -7,6 +7,13 @@ import { z } from 'zod';
 const log = createScopedLogger('control');
 
 const MAX_LINE_BYTES = 16 * 1024;
+const MAX_SOCKET_PATH_BYTES = 103; // macOS: sun_path holds 104 with its terminator
+
+/** Measured in bytes, never left to Node: 22.22.0 truncates a longer path and binds a mangled name, 24 to 26 throw EINVAL. */
+export function socketPathFits(path: string): { fits: boolean; bytes: number } {
+  const bytes = Buffer.byteLength(path);
+  return { fits: bytes <= MAX_SOCKET_PATH_BYTES, bytes };
+}
 
 const id = z.number().int().positive();
 // An allowlist: any other command, field or type is rejected before anything acts on it.
@@ -64,10 +71,15 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
 /**
  * Opens `orchestrator/control.sock`: newline-delimited JSON, a hello on connect and one reply per request. The caller
  * must hold the instance lock: that is what makes any socket file already there a leftover of a crash, safe to replace.
- * A socket that cannot open is logged and Carrier goes on without it. `close()` is synchronous and removes the file.
+ * A path that does not fit, or a socket that cannot open, is logged and Carrier goes on without it. `close()` is synchronous and removes the file.
  */
 export async function startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop }: { orchestratorDir: string; snapshot: () => unknown; startedAt: number; controls: Controls; stop: () => Promise<void> }): Promise<{ close: () => void }> {
   const path = join(orchestratorDir, 'control.sock');
+  const { fits, bytes } = socketPathFits(path);
+  if (fits === false) {
+    log.warn(`control socket not opened: ${path} is ${bytes} bytes, the limit is ${MAX_SOCKET_PATH_BYTES}; use a shorter shared root`);
+    return { close: () => {} };
+  }
   const sockets = new Set<Socket>();
   const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt };
   const send = (socket: Socket, message: Hello | Reply, written?: () => void) => void socket.write(`${JSON.stringify(message)}\n`, written);

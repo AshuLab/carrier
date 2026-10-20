@@ -22,6 +22,7 @@ export const fixes = {
     if (detail.includes('401')) return "the identity's credentials were rejected: for gh run gh auth login, for a bot check its App in Forge";
     return undefined;
   },
+  socketPath: 'move the shared root to a shorter path (root in the config, at most 77 bytes)',
   clash: 'use two different bots (agent-forge add) or one bot and your gh login',
   serverDown: 'start the server (LM Studio: lms server start, Ollama: ollama serve) and download the model',
   modelMissing: (model: string) => `download it in LM Studio / ollama pull ${model}`,

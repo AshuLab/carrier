@@ -1,10 +1,10 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { connect, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { acquireLock } from '../storage/lock.ts';
-import { startControlServer } from './server.ts';
+import { socketPathFits, startControlServer } from './server.ts';
 
 let dir: string;
 let sockets: Socket[];
@@ -269,5 +269,39 @@ test('a leftover socket file is replaced by a new one that works', async () => {
 test('a socket that cannot open is logged and leaves a server that closes without failing', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
   const server = await startControlServer({ orchestratorDir: join(dir, 'missing', 'folder'), snapshot: () => snapshotData, startedAt: 1, controls: fakeControls().controls, stop });
+  expect(() => server.close()).not.toThrow();
+});
+
+// A root under `dir` whose socket path is `socketBytes` long, padded with `fill`; the folder exists, so a truncated name would be created in it.
+const rootOf = (socketBytes: number, fill: string) => {
+  const suffix = '/orchestrator/control.sock'.length;
+  const pad = Math.ceil((socketBytes - suffix - dir.length - 1) / Buffer.byteLength(fill));
+  return join(dir, fill.repeat(pad));
+};
+
+test('the path fits up to 103 bytes, counted in bytes and not in characters', () => {
+  expect(socketPathFits('a'.repeat(103))).toEqual({ fits: true, bytes: 103 });
+  expect(socketPathFits('a'.repeat(104))).toEqual({ fits: false, bytes: 104 });
+  expect(socketPathFits('é'.repeat(52))).toEqual({ fits: false, bytes: 104 }); // 52 characters
+});
+
+test.each([
+  ['a long root', 'x', 120],
+  ['a root of multi-byte characters under 103 characters but over 103 bytes', 'é', 110],
+])('%s: no socket file anywhere and a warning with the path and its length', async (_name, fill, bytes) => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const orchestratorDir = join(rootOf(bytes, fill), 'orchestrator');
+  mkdirSync(orchestratorDir, { recursive: true });
+  const before = readdirSync(dir, { recursive: true }).sort();
+  const full = join(orchestratorDir, 'control.sock');
+  expect(Buffer.byteLength(full)).toBeGreaterThan(103);
+  if (fill === 'é') expect(full.length).toBeLessThan(103);
+
+  const server = await startControlServer({ orchestratorDir, snapshot: () => snapshotData, startedAt: 1, controls: fakeControls().controls, stop });
+
+  expect(readdirSync(dir, { recursive: true }).sort()).toEqual(before);
+  const logged = warn.mock.calls.flat().join(' ');
+  expect(logged).toContain(full);
+  expect(logged).toContain(`${Buffer.byteLength(full)} bytes`);
   expect(() => server.close()).not.toThrow();
 });

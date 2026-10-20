@@ -47,6 +47,21 @@ test('everything in place: all checks pass and no token reaches the report', asy
   expect(JSON.stringify(checks)).not.toContain('secret-token');
 });
 
+test('a root whose socket path does not fit is a warning with a shorter root as the remedy', async () => {
+  const root = `/tmp/${'é'.repeat(40)}`; // 45 characters, 85 bytes: 111 with /orchestrator/control.sock
+  const checks = await runDoctor(config({ root }), deps());
+  expect(failed(checks)).toEqual([]);
+  expect(checks.filter((check) => check.status === 'warn')).toMatchObject([
+    { name: 'control socket path fits', detail: expect.stringContaining(`${root}/orchestrator/control.sock is 111 bytes`), fix: expect.stringContaining('shorter') },
+  ]);
+});
+
+test('a root whose socket path fits, up to 103 bytes, reports nothing about it', async () => {
+  const root = `/tmp/${'r'.repeat(103 - '/orchestrator/control.sock'.length - 5)}`;
+  const checks = await runDoctor(config({ root }), deps());
+  expect(checks.map((check) => check.name)).not.toContain('control socket path fits');
+});
+
 test('a missing harness CLI fails once, by name', async () => {
   const checks = await runDoctor(config(), deps({ which: (command) => command !== 'claude' }));
   expect(failed(checks)).toMatchObject([{ name: 'claude installed', status: 'fail', detail: 'not found on PATH' }]);

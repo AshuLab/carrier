@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 IconController.shared?.show(state)
                 line.title = state.menuLine
                 MenuControls.shared.react(to: state)
+                NotificationWatcher.app.react(to: state)
             }
         }
         Thread.detachNewThread { monitor.run() }
@@ -79,6 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("open window", { WindowController.shared.open(); return WindowController.shared.status }),
             ("close window", { WindowController.shared.close(); return WindowController.shared.status }),
             ("reopen window", { WindowController.shared.open(); return WindowController.shared.status }),
+            ("notifications", { SystemNotificationCentre.selfTestSummary }),
         ]
         write("start")
         for (index, step) in steps.enumerated() {

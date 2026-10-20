@@ -1,0 +1,94 @@
+import AppKit
+import CarrierCore
+
+/// The menu's controls: pause or resume intake, check GitHub now, stop Carrier. All on the main thread, except the
+/// sending, which blocks on the socket and so runs on a queue of its own.
+final class MenuControls: NSObject, NSMenuItemValidation {
+    static let shared = MenuControls()
+
+    private let socketPath = controlSocketPath()
+    private let pauseItem = NSMenuItem(title: "Pause intake", action: #selector(pauseOrResume), keyEquivalent: "")
+    private var state = ConnectionState.stopped
+    private var wasPausedAtSelfTest = false
+
+    /// Puts the three items right after `line`.
+    func install(in menu: NSMenu, after line: NSMenuItem) {
+        let checkItem = NSMenuItem(title: "Check GitHub now", action: #selector(checkNow), keyEquivalent: "")
+        let stopItem = NSMenuItem(title: "Stop Carrier", action: #selector(stopCarrier), keyEquivalent: "")
+        var index = menu.index(of: line)
+        for item in [pauseItem, checkItem, stopItem] {
+            item.target = self
+            index += 1
+            menu.insertItem(item, at: index)
+        }
+    }
+
+    /// The latest state of Carrier: the pause item says what clicking it would do.
+    func react(to state: ConnectionState) {
+        self.state = state
+        pauseItem.title = paused ? "Resume intake" : "Pause intake"
+    }
+
+    /// Enabled only while Carrier is running and compatible; a stopped or incompatible one has nothing to listen.
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if case .running = state { return true }
+        return false
+    }
+
+    private var paused: Bool {
+        if case .running(let snapshot) = state { return snapshot.paused }
+        return false
+    }
+
+    @objc private func pauseOrResume() { sendInBackground(paused ? .resume : .pause) }
+
+    @objc private func checkNow() { sendInBackground(.checkNow) }
+
+    @objc private func stopCarrier() {
+        guard case .running(let snapshot) = state else { return }
+        if snapshot.stopNeedsConfirmation {
+            guard confirmStop(interrupting: snapshot.runningEpics) else { return }
+        }
+        sendInBackground(.stop)
+    }
+
+    private func confirmStop(interrupting running: Int) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Stop Carrier?"
+        alert.informativeText = "\(running) \(running == 1 ? "epic" : "epics") will be interrupted. "
+            + "\(running == 1 ? "It resumes" : "They resume") on the next start, but what \(running == 1 ? "it was" : "they were") doing right now is lost."
+        alert.addButton(withTitle: "Stop Carrier")
+        alert.addButton(withTitle: "Cancel")
+        // an accessory app is not frontmost, and its alert would open behind the other windows
+        NSApp.activate(ignoringOtherApps: true)
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func sendInBackground(_ command: Command) {
+        let path = socketPath
+        DispatchQueue.global().async {
+            do { try send(command, socketPath: path) } catch {
+                FileHandle.standardError.write(Data("carrier: \(command.rawValue) failed: \(error)\n".utf8))
+            }
+        }
+    }
+
+    /// What the self-test logs for one action. Pause and resume are sent, resume putting back what was there before the
+    /// test; check now is sent; stop is only checked, like Quit: sent, it would end the Carrier under test.
+    func selfTest(_ command: Command) -> String {
+        guard case .running(let snapshot) = state else { return "disabled, Carrier is not running" }
+        var command = command
+        switch command {
+        case .pause: wasPausedAtSelfTest = snapshot.paused
+        case .resume: command = wasPausedAtSelfTest ? .pause : .resume
+        case .stop: return "enabled, would ask first: \(snapshot.stopNeedsConfirmation), epics running: \(snapshot.runningEpics)"
+        case .checkNow: break
+        }
+        do {
+            try send(command, socketPath: socketPath)
+            return "sent \(command.rawValue)"
+        } catch {
+            return "\(command.rawValue) failed: \(error)"
+        }
+    }
+}

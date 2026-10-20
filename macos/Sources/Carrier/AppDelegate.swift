@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         // no action, so the menu leaves it disabled: a line to read, not a button
         let stateLine = menu.addItem(withTitle: ConnectionState.stopped.menuLine, action: nil, keyEquivalent: "")
+        MenuControls.shared.install(in: menu, after: stateLine)
         menu.addItem(.separator())
         WindowController.shared.addMenuItem(to: menu)
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -29,6 +30,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 IconController.shared?.show(state)
                 line.title = state.menuLine
+                MenuControls.shared.react(to: state)
             }
         }
         Thread.detachNewThread { monitor.run() }
@@ -63,6 +65,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("icon hit test passes clicks", { "\(IconController.shared.map { $0.host.hitTest(NSPoint(x: 2, y: 2)) == nil } ?? false)" }),
             ("status item present", { "\(self.statusItem != nil)" }),
             ("menu titles", { (self.statusItem?.menu?.items.map(\.title) ?? []).joined(separator: ", ") }),
+            ("pause intake", { MenuControls.shared.selfTest(.pause) }),
+            ("resume intake", { MenuControls.shared.selfTest(.resume) }),
+            ("check GitHub now", { MenuControls.shared.selfTest(.checkNow) }),
+            ("stop Carrier", { MenuControls.shared.selfTest(.stop) }),
             ("activation policy accessory", { "\(NSApp.activationPolicy() == .accessory)" }),
             ("app windows open", { "\(NSApp.windows.filter { $0.isVisible && $0.level != .statusBar }.count)" }),
             ("quit enabled", {

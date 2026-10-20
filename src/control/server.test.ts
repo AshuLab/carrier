@@ -23,8 +23,18 @@ afterEach(() => {
 const snapshotData = { now: 1, epics: [{ repo: 'AshuLab/a', issue: 5 }] };
 const path = () => join(dir, 'control.sock');
 
-async function open(snapshot: () => unknown = () => snapshotData) {
-  const server = await startControlServer({ orchestratorDir: dir, snapshot, startedAt: 1234 });
+// Fake controls: a pause flag the snapshot reads, a counter of checks, and one execution with output.
+const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
+function fakeControls() {
+  const state = { paused: false, polls: 0 };
+  const logs = vi.fn((id: string, count: number) => (id === executionId ? ['one', 'two', 'three'].slice(-count) : []));
+  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs } };
+}
+
+const stop = async () => {};
+
+async function open(snapshot: () => unknown = () => snapshotData, controls = fakeControls().controls) {
+  const server = await startControlServer({ orchestratorDir: dir, snapshot, startedAt: 1234, controls, stop });
   closers.push(server.close);
   return server;
 }
@@ -77,13 +87,79 @@ test('several requests in one write get one reply each, in order, and a request 
   expect((await c.next()).id).toBe(2);
 });
 
-test('the commands of later slices are valid and say they are not supported', async () => {
-  await open();
+test('every command in the schema gets a real reply, none is "not supported"', async () => {
+  const stopped = vi.fn(async () => {});
+  const server = await startControlServer({ orchestratorDir: dir, snapshot: () => snapshotData, startedAt: 1234, controls: fakeControls().controls, stop: stopped });
+  closers.push(server.close);
   const c = await client();
-  const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
-  for (const [n, body] of [['pause'], ['resume'], ['checkNow'], ['stop'], ['tail', `,"executionId":"${executionId}","lines":20`]].entries()) {
-    expect(await c.ask(`{"id":${n + 1},"cmd":"${body[0]}"${body[1] ?? ''}}`)).toEqual({ id: n + 1, ok: false, error: 'not supported' });
-  }
+  const commands = [
+    '{"id":1,"cmd":"snapshot"}',
+    '{"id":2,"cmd":"pause"}',
+    '{"id":3,"cmd":"resume"}',
+    '{"id":4,"cmd":"checkNow"}',
+    `{"id":5,"cmd":"tail","executionId":"${executionId}","lines":1}`,
+    '{"id":6,"cmd":"stop"}',
+  ];
+  for (const [index, line] of commands.entries()) expect(await c.ask(line)).toMatchObject({ id: index + 1, ok: true });
+  await vi.waitFor(() => expect(stopped).toHaveBeenCalledTimes(1));
+});
+
+test('pause and resume reply ok and the next snapshot shows it', async () => {
+  const fake = fakeControls();
+  await open(() => ({ paused: fake.state.paused }), fake.controls);
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"pause"}')).toEqual({ id: 1, ok: true });
+  expect((await c.ask('{"id":2,"cmd":"snapshot"}')).data).toEqual({ paused: true });
+  expect(await c.ask('{"id":3,"cmd":"resume"}')).toEqual({ id: 3, ok: true });
+  expect((await c.ask('{"id":4,"cmd":"snapshot"}')).data).toEqual({ paused: false });
+});
+
+test('checkNow replies ok and starts one GitHub check', async () => {
+  const fake = fakeControls();
+  await open(undefined, fake.controls);
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"checkNow"}')).toEqual({ id: 1, ok: true });
+  expect(fake.state.polls).toBe(1);
+});
+
+test('tail replies the lines the panel shows, and an empty array for an execution with no output', async () => {
+  const fake = fakeControls();
+  await open(undefined, fake.controls);
+  const c = await client();
+  expect(await c.ask(`{"id":1,"cmd":"tail","executionId":"${executionId}","lines":2}`)).toEqual({ id: 1, ok: true, data: ['two', 'three'] });
+  expect(fake.logs).toHaveBeenCalledWith(executionId, 2);
+  expect(await c.ask('{"id":2,"cmd":"tail","executionId":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","lines":500}')).toEqual({ id: 2, ok: true, data: [] });
+});
+
+test.each([
+  ['a path', '"../../etc/passwd"', 5],
+  ['an empty id', '""', 5],
+  ['a UUID with a suffix', `"${executionId}/.."`, 5],
+  ['no id', 'null', 5],
+  ['zero lines', `"${executionId}"`, 0],
+  ['501 lines', `"${executionId}"`, 501],
+  ['a fractional count', `"${executionId}"`, 1.5],
+  ['a string count', `"${executionId}"`, '"5"'],
+  ['no count', `"${executionId}"`, undefined],
+])('a tail with %s is a validation error and reads nothing', async (_name, id, lines) => {
+  const fake = fakeControls();
+  await open(undefined, fake.controls);
+  const c = await client();
+  const count = lines === undefined ? '' : `,"lines":${lines}`;
+  expect(await c.ask(`{"id":3,"cmd":"tail","executionId":${id}${count}}`)).toEqual({ id: 3, ok: false, error: 'invalid request' });
+  expect(fake.logs).not.toHaveBeenCalled();
+});
+
+test('a control that throws is an error reply, not a dead server', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  const fake = fakeControls();
+  fake.logs.mockImplementationOnce(() => {
+    throw new Error('disk is gone');
+  });
+  await open(undefined, fake.controls);
+  const c = await client();
+  expect(await c.ask(`{"id":1,"cmd":"tail","executionId":"${executionId}","lines":5}`)).toEqual({ id: 1, ok: false, error: 'internal error' });
+  expect(await c.ask('{"id":2,"cmd":"snapshot"}')).toMatchObject({ id: 2, ok: true });
 });
 
 test.each([
@@ -161,7 +237,7 @@ test('the socket is 0600 and orchestrator/ is 0700, also when the folder existed
   chmodSync(folder, 0o755);
   const lock = acquireLock(folder);
   expect(lock.ok).toBe(true);
-  const server = await startControlServer({ orchestratorDir: folder, snapshot: () => snapshotData, startedAt: 1 });
+  const server = await startControlServer({ orchestratorDir: folder, snapshot: () => snapshotData, startedAt: 1, controls: fakeControls().controls, stop });
   expect(statSync(folder).mode & 0o777).toBe(0o700);
   expect(statSync(join(folder, 'control.sock')).mode & 0o777).toBe(0o600);
   server.close();
@@ -192,6 +268,6 @@ test('a leftover socket file is replaced by a new one that works', async () => {
 
 test('a socket that cannot open is logged and leaves a server that closes without failing', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
-  const server = await startControlServer({ orchestratorDir: join(dir, 'missing', 'folder'), snapshot: () => snapshotData, startedAt: 1 });
+  const server = await startControlServer({ orchestratorDir: join(dir, 'missing', 'folder'), snapshot: () => snapshotData, startedAt: 1, controls: fakeControls().controls, stop });
   expect(() => server.close()).not.toThrow();
 });

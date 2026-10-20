@@ -13,6 +13,10 @@ open Carrier.app
 
 `Carrier.app` has no Dock icon: it shows one menu bar item. Its menu has a line saying whether Carrier is stopped, running (epics and busy/total slots) or an incompatible version, then Pause intake (Resume intake while paused), Check GitHub now and Stop Carrier, which are disabled unless Carrier is running, and Quit. Stop Carrier asks first when epics are running, since it interrupts them (they resume on the next start), and stops straight away when none are. The line comes from Carrier's control socket, `<root>/orchestrator/control.sock`, where `<root>` is the `root` of `$CARRIER_HOME/config.json` (else `~/.carrier/config.json`), `~/.solve` when there is none; the app asks for the snapshot every second while connected and tries to connect every three seconds while not. Check the signature with `codesign --verify Carrier.app` and `codesign -dv Carrier.app` (it should say `Signature=adhoc`).
 
+## Settings
+
+The menu's Settings… opens the values the app starts Carrier with: `carrier`, `node`, the `PATH`, the config path and the shared root, each editable and marked "not found" when empty. On the first launch (nothing saved in user defaults) the app asks the user's shell once, `zsh -ilc` with markers around what it prints and a 10 second limit, for `carrier`, `node` and the `PATH`; the config path and root come from where Carrier keeps them, not from the shell. "Detect again" repeats the run. With saved values the shell is never started. The `PATH` the engine will get is the detected one with node's directory first.
+
 ## Test
 
 ```sh

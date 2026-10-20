@@ -14,6 +14,7 @@ public final class ControlClient {
     private let fd: Int32
     private var buffer = Data()
     private var lastId = 0
+    private var isOpen = true
     private let maxLineBytes = 8 * 1024 * 1024
 
     private init(fd: Int32) { self.fd = fd }
@@ -45,7 +46,12 @@ public final class ControlClient {
         return ControlClient(fd: fd)
     }
 
-    public func close() { Darwin.close(fd) }
+    /// Safe to call twice (and again by `deinit`): closing an fd a second time could close one another thread has since been given.
+    public func close() {
+        guard isOpen else { return }
+        isOpen = false
+        Darwin.close(fd)
+    }
 
     /// The protocol version of the hello Carrier sends on connect.
     public func hello() throws -> Int {

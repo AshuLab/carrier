@@ -6,16 +6,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        // Static placeholder: the real icon comes in a later slice.
-        let icon = NSImage(systemSymbolName: "shippingbox", accessibilityDescription: "Carrier")
-        icon?.isTemplate = true
-        item.button?.image = icon
+        IconController.install(on: item)
 
         let menu = NSMenu()
         // no action, so the menu leaves it disabled: a line to read, not a button
         let stateLine = menu.addItem(withTitle: ConnectionState.stopped.menuLine, action: nil, keyEquivalent: "")
         MenuControls.shared.install(in: menu, after: stateLine)
         menu.addItem(.separator())
+        WindowController.shared.addMenuItem(to: menu)
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
         statusItem = item
@@ -30,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func watchCarrier(_ line: NSMenuItem) {
         let monitor = ControlMonitor(socketPath: controlSocketPath()) { state in
             DispatchQueue.main.async {
+                IconController.shared?.show(state)
                 line.title = state.menuLine
                 MenuControls.shared.react(to: state)
             }
@@ -62,6 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         let steps: [(String, () -> String)] = [
+            ("icon state", { IconController.shared?.summary ?? "no icon" }),
+            ("icon hit test passes clicks", { "\(IconController.shared.map { $0.host.hitTest(NSPoint(x: 2, y: 2)) == nil } ?? false)" }),
             ("status item present", { "\(self.statusItem != nil)" }),
             ("menu titles", { (self.statusItem?.menu?.items.map(\.title) ?? []).joined(separator: ", ") }),
             ("pause intake", { MenuControls.shared.selfTest(.pause) }),
@@ -75,6 +76,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 menu.update()
                 return "\(menu.item(withTitle: "Quit")?.isEnabled == true)"
             }),
+            ("open window", { WindowController.shared.open(); return WindowController.shared.status }),
+            ("close window", { WindowController.shared.close(); return WindowController.shared.status }),
+            ("reopen window", { WindowController.shared.open(); return WindowController.shared.status }),
         ]
         write("start")
         for (index, step) in steps.enumerated() {

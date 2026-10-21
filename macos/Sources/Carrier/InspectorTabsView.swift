@@ -7,6 +7,7 @@ struct InspectorTabsView: View {
     let subject: EpicSubject?
     let reply: EpicReply?
     @State private var chosen = InspectorStore().chosen
+    @State private var reviewFolds = ReviewFolds()
 
     var body: some View {
         let tab = inspectorTab(subject, chosen: chosen)
@@ -21,9 +22,16 @@ struct InspectorTabsView: View {
             .pickerStyle(.segmented).labelsHidden().controlSize(.small)
             // a native segment cannot colour its own count: the control turns orange while a person is needed
             .tint(review.needsYou ? .orange : nil)
-            // placeholders until the tabs' own slices land
-            Text(tab.title).foregroundStyle(.secondary)
-            Spacer(minLength: 0)
+            switch tab {
+            case .review:
+                ScrollView {
+                    ReviewTabView(epic: EpicRef(repo: subject?.repo ?? "", issue: subject?.issue ?? 0), model: reviewTab(subject, reply: reply), folds: $reviewFolds)
+                }
+            default:
+                // placeholders until the tabs' own slices land
+                Text(tab.title).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

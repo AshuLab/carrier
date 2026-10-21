@@ -3,12 +3,14 @@ import CarrierCore
 import SwiftUI
 
 /// An epic's centre: the pipeline fixed on top as a safe-area bar (the content scrolls under it, blurred), then the header
-/// and the two tabs. `reply` and `filesChanged` are nil/0 until the window asks the engine for them.
+/// and the two tabs. `reply`, `filesChanged` and `sessions` are empty until the window gets them from the engine.
 struct EpicView: View {
     let subject: EpicSubject
     let reply: EpicReply?
     let filesChanged: Int
     let now: Int
+    let sessions: SessionList
+    @Binding var folds: SessionFolds
     @State private var tab = EpicTab.agentOutput
 
     var body: some View {
@@ -36,8 +38,10 @@ struct EpicView: View {
         case .agentOutput:
             if case .queued = subject {
                 EmptyStateView(state: .waitingForSlot).frame(minHeight: 260)
-            } else {
+            } else if sessions.sections.isEmpty {
                 Text("The agents' output appears here.").foregroundStyle(.secondary).padding(.vertical, 40)
+            } else {
+                SessionSectionsView(list: sessions, folds: $folds)
             }
         case .filesChanged:
             EmptyStateView(state: .noFilesChanged).frame(minHeight: 260)

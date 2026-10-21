@@ -17,7 +17,7 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
     let client = try connect(engine)
 
     #expect(try client.sessions(repo: "acme/web", issue: 12)?.sessions.count == 3)
-    #expect(try client.events(executionId: execution, after: 5, limit: 50)?.next == 111)
+    #expect(try client.events(executionId: execution, after: 5, limit: 50)?.next == 119)
     #expect(try client.epic(repo: "acme/web", issue: 12)?.branch == "feat/issue-12/epic")
     #expect(try client.files(repo: "acme/web", issue: 12, executionId: execution)?.sections.count == 4)
     #expect(try client.files(repo: "acme/web", issue: 12) != nil)

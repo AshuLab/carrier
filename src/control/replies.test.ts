@@ -49,8 +49,20 @@ test('the events reply equals reply-events.json', () => {
       { id: 109, at: 9_600, kind: 'task', agentId: 'agent-7', text: 'Slice #123: migrate the signer' },
       { id: 110, at: 9_700, kind: 'say', agentId: 'agent-7', text: 'Migrating the signer.' },
       { id: 111, at: 9_800, kind: 'error', text: 'The agent process ended with an error.' },
+      // three lanes: a slice and a lane, the same, and a lane with no slice in its description
+      { id: 112, at: 9_900, kind: 'tool_start', agentId: 'agent-7', callId: 'toolu_a7', tool: 'Bash', arg: 'cd /work/acme/web-epic--lane-1 && pnpm test' },
+      { id: 113, at: 10_900, kind: 'tool_end', agentId: 'agent-7', callId: 'toolu_a7', tool: 'Bash', summary: 'ok', status: 'ok', durationMs: 1_000, output: ['Tests 12 passed'] },
+      { id: 114, at: 11_000, kind: 'task', agentId: 'agent-8', text: 'Slice #124: rotate the keys' },
+      { id: 115, at: 11_100, kind: 'tool_start', agentId: 'agent-8', callId: 'toolu_a8', tool: 'Edit', arg: '/work/acme/web-epic--lane-2/src/keys.ts' },
+      {
+        id: 116, at: 11_200, kind: 'tool_end', agentId: 'agent-8', callId: 'toolu_a8', tool: 'Edit', summary: 'Edited 1 place', status: 'ok', durationMs: 100,
+        diff: [{ sign: '-', text: 'const keys = [];' }, { sign: '+', text: 'const keys = rotate();' }],
+      },
+      { id: 117, at: 11_300, kind: 'task', agentId: 'agent-9', text: 'Tidy the docs' },
+      { id: 118, at: 11_400, kind: 'tool_start', agentId: 'agent-9', callId: 'toolu_a9', tool: 'Read', arg: '/work/acme/web-epic--lane-3/README.md' },
+      { id: 119, at: 11_480, kind: 'tool_end', agentId: 'agent-9', callId: 'toolu_a9', tool: 'Read', summary: '40 lines', status: 'ok', durationMs: 80 },
     ],
-    next: 111,
+    next: 119,
     running: true,
     structured: true,
   };

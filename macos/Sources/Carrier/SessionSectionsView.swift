@@ -19,6 +19,7 @@ struct SessionSectionsView: View {
                 Section {
                     if open {
                         TranscriptRows(content: section.body, outputs: $outputs)
+                        ForEach(section.lanes) { LaneSectionView(lane: $0, outputs: $outputs) }
                         ContinueInTerminalView(section: section)
                     }
                 } header: {

@@ -20,7 +20,7 @@ private func object(_ data: Data) -> [String: Any]? { try? JSONSerialization.jso
     defer { server.stop() }
 
     let client = try #require(ControlClient.connect(path: server.path))
-    #expect(try client.hello() == 1)
+    #expect(try client.hello().protocolVersion == 1)
     #expect(object(try client.request("snapshot"))?["n"] as? Int == 1)
     #expect(object(try client.request("snapshot"))?["n"] as? Int == 2)
     client.close()
@@ -53,7 +53,7 @@ private func object(_ data: Data) -> [String: Any]? { try? JSONSerialization.jso
     defer { server.stop() }
 
     let client = try #require(ControlClient.connect(path: server.path))
-    #expect(try client.hello() == 1)
+    #expect(try client.hello().protocolVersion == 1)
     #expect(object(try client.request("snapshot"))?["n"] as? Int == 1)
     #expect(object(try client.request("snapshot"))?["n"] as? Int == 2)
 }
@@ -127,4 +127,59 @@ private func object(_ data: Data) -> [String: Any]? { try? JSONSerialization.jso
     #expect(ControlClient.connect(path: fits) == nil) // fits, there is just nothing there
     #expect(ControlClient.connect(path: tooLong) == nil) // must come back, not crash
     #expect(ControlClient.connect(path: "/tmp/" + String(repeating: "a", count: 5000)) == nil)
+}
+
+@Test func aHelloWithVersionAndCapabilitiesIsDecodedAndUnknownCapabilitiesAreDropped() throws {
+    let newer = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\":1000,\"version\":\"0.2.0\",\"capabilities\":[\"events\",\"files\",\"telepathy\"]}\n"
+    let server = TestServer { $0.send(newer) }
+    defer { server.stop() }
+
+    let client = try #require(ControlClient.connect(path: server.path))
+    let decoded = try client.hello()
+    #expect(decoded.version == "0.2.0")
+    #expect(decoded.capabilities == [.events, .files])
+    #expect(client.capabilities == [.events, .files])
+}
+
+@Test func aHelloWithoutThemIsAnEngineWithNoCapabilities() throws {
+    let server = TestServer { $0.send(hello) }
+    defer { server.stop() }
+
+    let client = try #require(ControlClient.connect(path: server.path))
+    let decoded = try client.hello()
+    #expect(decoded.protocolVersion == 1)
+    #expect(decoded.version == nil)
+    #expect(decoded.capabilities.isEmpty)
+}
+
+@Test func aRequestThatNeedsACapabilityIsNotSentWithoutIt() throws {
+    let withEvents = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\":1000,\"version\":\"0.2.0\",\"capabilities\":[\"events\"]}\n"
+    let server = TestServer { connection in
+        connection.send(withEvents)
+        // each reply carries how many requests this connection has sent so far
+        var seen = 0
+        while let id = connection.readRequestId() {
+            seen += 1
+            connection.send(reply(id, data: "{\"n\":\(seen)}"))
+        }
+    }
+    defer { server.stop() }
+
+    let client = try #require(ControlClient.connect(path: server.path))
+    _ = try client.hello()
+    #expect(try client.request("sessions", requires: .sessions) == nil)
+    #expect(object(try client.request("snapshot"))?["n"] as? Int == 1)
+}
+
+@Test func aRequestThatNeedsACapabilityIsSentWithIt() throws {
+    let withEvents = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\":1000,\"version\":\"0.2.0\",\"capabilities\":[\"events\"]}\n"
+    let server = TestServer { connection in
+        connection.send(withEvents)
+        while let id = connection.readRequestId() { connection.send(reply(id)) }
+    }
+    defer { server.stop() }
+
+    let client = try #require(ControlClient.connect(path: server.path))
+    _ = try client.hello()
+    #expect(object(try #require(try client.request("events", requires: .events)))?["n"] as? Int == 7)
 }

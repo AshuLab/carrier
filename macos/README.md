@@ -61,7 +61,7 @@ The app keeps running afterwards; quit it from the menu or with `osascript -e 't
 
 ## Window smoke check
 
-`--smoke-window` opens the window, waits two seconds, prints what it sees and exits: the minimum content size (980 wide; the height is 600 plus the 52 point title band), the width of the sidebar (268) and of the inspector (316) and the toolbar items (Sidebar, Inspector). It needs a screen and combines with `--fixture`.
+`--smoke-window` opens the window, selects the first epic Carrier reports, waits three seconds, prints what it sees and exits: the minimum content size (980 wide; the height is 600 plus the 52 point title band), the width of the sidebar (268) and of the inspector (316), one `scroll pocket` line per scroll pocket (the epic view's pipeline bar makes one in the centre column, at x 268, taller than the 52 point title band) and the toolbar items (Sidebar, Open PR and Open issue when the epic has them, Inspector). It needs a screen and combines with `--fixture`.
 
 ```sh
 ./Carrier.app/Contents/MacOS/Carrier --smoke-window --fixture

@@ -49,8 +49,17 @@ final class WindowController: NSObject {
     /// For the self-test: whether the window is on screen and whether its monitor runs.
     var status: String { "visible \(window?.isVisible == true), monitor \(stop != nil)" }
 
+    /// For `--smoke-window`: selects the first epic Carrier reports (running, queued, then finished), so its view is on screen.
+    func selectFirstEpic() {
+        guard case .running(let snapshot)? = model.state else { return }
+        let first = snapshot.epics.first.map { ($0.repo, $0.issue) } ?? snapshot.queue.first.map { ($0.repo, $0.issue) }
+            ?? snapshot.done.first.map { ($0.repo, $0.issue) }
+        if let (repo, issue) = first { model.shell.selection = .epic(repo: repo, issue: issue) }
+    }
+
     /// For `--smoke-window`: what the open window looks like, one line each: the minimum content size, the width of each
-    /// column of the split view and the toolbar's items.
+    /// column of the split view, the scroll pockets (the system's blur under a bar over a scroll view: the epic's pipeline
+    /// makes one in the centre column) and the toolbar's items.
     var structure: String {
         guard let window else { return "no window" }
         var lines = ["min content size: \(Int(window.contentMinSize.width)) x \(Int(window.contentMinSize.height))"]
@@ -60,6 +69,10 @@ final class WindowController: NSObject {
                 for column in split.arrangedSubviews where column.frame.width > 0 {
                     lines.append("column: x \(Int(column.frame.minX.rounded())) width \(Int(column.frame.width.rounded()))")
                 }
+            }
+            if String(describing: type(of: view)) == "NSScrollPocket" {
+                let frame = view.convert(view.bounds, to: nil)
+                lines.append("scroll pocket: x \(Int(frame.minX.rounded())) width \(Int(frame.width.rounded())) height \(Int(frame.height.rounded()))")
             }
             view.subviews.forEach(walk)
         }

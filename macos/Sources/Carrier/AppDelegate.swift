@@ -29,7 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         if CommandLine.arguments.contains("--smoke-window") {
             WindowController.shared.open()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            // with a Carrier to ask (a fixture, say) an epic's view is shown, so its pipeline's scroll pocket is in the report
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { WindowController.shared.selectFirstEpic() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 print(WindowController.shared.structure)
                 exit(0)
             }

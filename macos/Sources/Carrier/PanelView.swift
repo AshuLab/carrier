@@ -10,6 +10,14 @@ struct PanelView: View {
         return nil
     }
 
+    /// The selected epic when it is in the snapshot.
+    private var epic: (subject: EpicSubject, header: EpicHeader, now: Int)? {
+        guard case .epic(let repo, let issue) = model.shell.selection, let snapshot,
+            let subject = snapshot.subject(repo: repo, issue: issue)
+        else { return nil }
+        return (subject, epicHeader(subject), snapshot.now)
+    }
+
     var body: some View {
         @Bindable var shell = model.shell
         let groupBy = Binding(get: { model.groupBy }, set: { model.groupBy = $0; SidebarStore().groupBy = $0 })
@@ -19,23 +27,30 @@ struct PanelView: View {
         NavigationSplitView(columnVisibility: columns) {
             SidebarView(snapshot: snapshot, selection: $shell.selection, groupBy: groupBy)
         } detail: {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    switch model.state {
-                    case nil:
-                        Text("Connecting…").foregroundStyle(.secondary)
-                    case .stopped?, .incompatible?:
-                        // Carrier is not answering: nothing else to show
-                        Label(model.state?.menuLine ?? "", systemImage: "stop.circle").font(.title3)
-                        if model.state == .stopped { StartCarrierButton() }
-                    case .running(let snapshot)?:
-                        Running(snapshot: snapshot, selection: $shell.selection)
+            Group {
+                if let epic {
+                    EpicView(subject: epic.subject, reply: nil, filesChanged: 0, now: epic.now)
+                        .id("\(epic.subject.repo)#\(epic.subject.issue)")
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            switch model.state {
+                            case nil:
+                                Text("Connecting…").foregroundStyle(.secondary)
+                            case .stopped?, .incompatible?:
+                                // Carrier is not answering: nothing else to show
+                                Label(model.state?.menuLine ?? "", systemImage: "stop.circle").font(.title3)
+                                if model.state == .stopped { StartCarrierButton() }
+                            case .running(let snapshot)?:
+                                Running(snapshot: snapshot, selection: $shell.selection)
+                            }
+                        }
+                        .padding(18)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
                     }
                 }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .navigationTitle("Carrier")
+            .navigationTitle(epic.map { "\($0.subject.repo.split(separator: "/").last ?? "") #\($0.subject.issue)" } ?? "Carrier")
             .inspector(isPresented: $shell.inspectorShown) {
                 Text("Inspector").foregroundStyle(.secondary)
                     .inspectorColumnWidth(min: 280, ideal: 316, max: 400)
@@ -45,6 +60,12 @@ struct PanelView: View {
             ToolbarItem(placement: .navigation) {
                 Button { shell.toggleSidebar() } label: { Label("Sidebar", systemImage: "sidebar.leading") }
                     .help("Show or hide the sidebar")
+            }
+            if let epic {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    OpenLinkButton(title: "Open PR", url: epic.header.prURL)
+                    OpenLinkButton(title: "Open issue", url: epic.header.issueURL)
+                }
             }
             ToolbarItem(placement: .primaryAction) {
                 Button { shell.toggleInspector() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
@@ -64,11 +85,8 @@ private struct Running: View {
         case .overview:
             Overview(snapshot: snapshot, selection: $selection)
         case .epic(let repo, let issue):
-            if let epic = snapshot.epics.first(where: { $0.repo == repo && $0.issue == issue }) {
-                EpicCard(epic: epic, now: snapshot.now)
-            } else {
-                Text("\(repo) #\(issue)")
-            }
+            // not in the snapshot (any more)
+            Text("\(repo) #\(issue)")
         case .settings:
             Text("Settings").foregroundStyle(.secondary)
         case .about:

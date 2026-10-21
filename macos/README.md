@@ -58,3 +58,11 @@ The app keeps running afterwards; quit it from the menu or with `osascript -e 't
 ./Carrier.app/Contents/MacOS/Carrier --fixture
 ./Carrier.app/Contents/MacOS/Carrier --fixture --selftest /tmp/carrier-selftest.log
 ```
+
+## Window smoke check
+
+`--smoke-window` opens the window, waits two seconds, prints what it sees and exits: the minimum content size (980 wide; the height is 600 plus the 52 point title band), the width of the sidebar (268) and of the inspector (316) and the toolbar items (Sidebar, Inspector). It needs a screen and combines with `--fixture`.
+
+```sh
+./Carrier.app/Contents/MacOS/Carrier --smoke-window --fixture
+```

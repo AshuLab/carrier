@@ -26,6 +26,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         watchCarrier(stateLine)
         SetupController.shared.detectIfFirstLaunch()
 
+        if CommandLine.arguments.contains("--smoke-window") {
+            WindowController.shared.open()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                print(WindowController.shared.structure)
+                exit(0)
+            }
+        }
         if let path = Self.selfTestPath() {
             selfTest(logPath: path)
         }

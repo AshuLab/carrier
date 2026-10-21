@@ -6,8 +6,7 @@ import SwiftUI
 /// What the window shows: nil until the first answer from Carrier.
 @Observable final class PanelModel {
     var state: ConnectionState?
-    /// The epic chosen in the menu, for the view to select.
-    var selected: EpicMenuItem?
+    let shell = WindowShell()
 }
 
 /// Set from the main thread, read from the monitor's.
@@ -39,7 +38,7 @@ final class WindowController: NSObject {
         let window = window ?? makeWindow()
         self.window = window
         if stop == nil { startMonitor() }
-        if epic != nil { model.selected = epic }
+        if let epic { model.shell.selection = .epic(repo: epic.repo, issue: epic.issue) }
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
@@ -48,6 +47,25 @@ final class WindowController: NSObject {
 
     /// For the self-test: whether the window is on screen and whether its monitor runs.
     var status: String { "visible \(window?.isVisible == true), monitor \(stop != nil)" }
+
+    /// For `--smoke-window`: what the open window looks like, one line each: the minimum content size, the width of each
+    /// column of the split view and the toolbar's items.
+    var structure: String {
+        guard let window else { return "no window" }
+        var lines = ["min content size: \(Int(window.contentMinSize.width)) x \(Int(window.contentMinSize.height))"]
+        func walk(_ view: NSView) {
+            if let split = view as? NSSplitView {
+                // the sidebar and the detail, then the detail and the inspector: the inspector is a split of its own inside the detail
+                for column in split.arrangedSubviews where column.frame.width > 0 {
+                    lines.append("column: x \(Int(column.frame.minX.rounded())) width \(Int(column.frame.width.rounded()))")
+                }
+            }
+            view.subviews.forEach(walk)
+        }
+        if let content = window.contentView { walk(content) }
+        for item in window.toolbar?.items ?? [] { lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)") }
+        return lines.joined(separator: "\n")
+    }
 
     private func makeWindow() -> NSWindow {
         let host = NSHostingController(rootView: PanelView(model: model))
@@ -58,7 +76,7 @@ final class WindowController: NSObject {
         // full size content: the sidebar runs up behind the title bar, as Liquid Glass sidebars do
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 900, height: 640))
+        window.setContentSize(NSSize(width: 1100, height: 700))
         window.center()
         NotificationCenter.default.addObserver(self, selector: #selector(windowClosed), name: NSWindow.willCloseNotification, object: window)
         return window
@@ -68,7 +86,7 @@ final class WindowController: NSObject {
         stop?.set()
         stop = nil
         model.state = nil
-        model.selected = nil
+        model.shell.reset()
     }
 
     private func startMonitor() {

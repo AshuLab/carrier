@@ -1,6 +1,19 @@
 # Carrier.app
 
-Menu bar app for Carrier. A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the AppKit shell), `CarrierCoreTests` and `CarrierTests` (Swift Testing). The Command Line Tools are enough, Xcode is not needed.
+Menu bar app for Carrier. A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the AppKit shell), `CarrierCoreTests` and `CarrierTests` (Swift Testing). Building needs **Xcode** (see Toolchain).
+
+## Toolchain
+
+Xcode is required, not just the Command Line Tools. With the macOS 27 SDK SwiftUI's `@State` is a macro whose plugin ships only with Xcode, so with only the Command Line Tools selected `swift build` fails with `external macro implementation type 'SwiftUIMacros.StateMacro' could not be found`. Install Xcode and select it:
+
+```sh
+sudo xcode-select -s /Applications/Xcode.app/Contents/Developer   # or: export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+xcode-select -p                                                  # should print the Xcode path, not .../CommandLineTools
+```
+
+`build-app.sh` checks this first: with the Command Line Tools selected it prints how to select Xcode and exits 1 without building.
+
+Workaround, unsupported: `swift build --sdk /Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk` does build the package under the Command Line Tools (verified), because the older SDK has no `@State` macro. `swift test` that way was not verified and `build-app.sh` does not use it.
 
 ## Build and open
 

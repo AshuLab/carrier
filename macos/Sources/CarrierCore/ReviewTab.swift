@@ -294,7 +294,7 @@ public func reviewTab(_ subject: EpicSubject?, reply: EpicReply?) -> ReviewTabMo
     return ReviewTabModel(headline: headline, card: card, history: history)
 }
 
-private func agentLabel(_ agent: PanelSnapshot.Agent) -> String {
+func agentLabel(_ agent: PanelSnapshot.Agent) -> String {
     switch agent.harness {
     case "claude": "Claude"
     case "codex": "Codex"

@@ -66,7 +66,7 @@ struct PanelView: View {
             }
             .navigationTitle(epic.map { "\($0.subject.repo.split(separator: "/").last ?? "") #\($0.subject.issue)" } ?? "Carrier")
             .inspector(isPresented: $shell.inspectorShown) {
-                Text("Inspector").foregroundStyle(.secondary)
+                InspectorTabsView(subject: epic?.subject, reply: epic.flatMap { model.epics.data[EpicRef(repo: $0.subject.repo, issue: $0.subject.issue)]?.epic })
                     .inspectorColumnWidth(min: 280, ideal: 316, max: 400)
             }
         }

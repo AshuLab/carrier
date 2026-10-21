@@ -59,7 +59,7 @@ public final class ControlMonitor {
     /// Polls until the connection ends; false when `wait` asked to stop.
     private func poll(_ client: ControlClient) -> Bool {
         do {
-            guard try client.hello() == 1 else {
+            guard try client.hello().protocolVersion == 1 else {
                 onChange(.incompatible)
                 return true
             }

@@ -10,7 +10,7 @@ public enum Command: String {
 public func send(_ command: Command, socketPath: String) throws {
     guard let client = ControlClient.connect(path: socketPath) else { throw ControlError.closed }
     defer { client.close() }
-    guard try client.hello() == 1 else { throw ControlError.badLine }
+    guard try client.hello().protocolVersion == 1 else { throw ControlError.badLine }
     _ = try client.request(command.rawValue)
 }
 

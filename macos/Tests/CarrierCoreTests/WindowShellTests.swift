@@ -18,9 +18,9 @@ import Testing
     #expect(shell.sidebarShown && shell.inspectorShown)
 }
 
-@Test func theSelectionHoldsOverviewAnEpicSettingsAndAbout() {
+@Test func theSelectionHoldsOverviewAnEpicAndSettings() {
     let shell = WindowShell()
-    for next in [Selection.epic(repo: "acme/web", issue: 7), .settings, .about, .overview] {
+    for next in [Selection.epic(repo: "acme/web", issue: 7), .settings, .overview] {
         shell.selection = next
         #expect(shell.selection == next)
     }
@@ -34,4 +34,21 @@ import Testing
     shell.inspectorShown = false
     shell.reset()
     #expect(shell.selection == .overview && shell.sidebarShown && shell.inspectorShown)
+}
+
+@Test func escapeAndAClickOutsideCloseTheAboutSheetButAClickOnItDoesNot() {
+    let shell = WindowShell()
+    shell.selection = .epic(repo: "acme/web", issue: 7)
+    for closing in [AboutInput.escape, .clickOutside] {
+        shell.showAbout()
+        #expect(shell.aboutShown)
+        shell.aboutInput(.clickInside)
+        #expect(shell.aboutShown)
+        shell.aboutInput(closing)
+        #expect(shell.aboutShown == false)
+    }
+    #expect(shell.selection == .epic(repo: "acme/web", issue: 7))
+    shell.showAbout()
+    shell.reset()
+    #expect(shell.aboutShown == false)
 }

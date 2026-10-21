@@ -6,6 +6,7 @@ struct SidebarView: View {
     let snapshot: PanelSnapshot?
     @Binding var selection: Selection
     @Binding var groupBy: GroupBy
+    let onAbout: () -> Void
 
     var body: some View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
@@ -38,7 +39,7 @@ struct SidebarView: View {
         .safeAreaInset(edge: .bottom) {
             VStack(alignment: .leading, spacing: 2) {
                 Button { selection = .settings } label: { Label("Settings", systemImage: "gearshape") }
-                Button { selection = .about } label: { Label("About", systemImage: "info.circle") }
+                Button(action: onAbout) { Label("About", systemImage: "info.circle") }
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 12).padding(.vertical, 8)

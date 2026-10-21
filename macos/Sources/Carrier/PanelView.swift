@@ -2,56 +2,8 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// What the sidebar lists: the overview, then one item per section of the panel.
-private enum SidebarItem: String, CaseIterable, Identifiable {
-    case overview, needsYou, running, queue, ready
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .overview: "Overview"
-        case .needsYou: "Needs you"
-        case .running: "Running"
-        case .queue: "Queue"
-        case .ready: "Ready for test"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .overview: "square.grid.2x2"
-        case .needsYou: "exclamationmark.bubble"
-        case .running: "play.circle"
-        case .queue: "tray.full"
-        case .ready: "checkmark.circle"
-        }
-    }
-
-    init(_ state: EpicMenuState) {
-        switch state {
-        case .needsYou: self = .needsYou
-        case .running: self = .running
-        case .waiting: self = .queue
-        case .ready: self = .ready
-        }
-    }
-
-    /// How many entries the section holds; the overview has no count.
-    func count(in snapshot: PanelSnapshot) -> Int {
-        switch self {
-        case .overview: 0
-        case .needsYou: snapshot.epics.filter { $0.status == .needsHuman }.count
-        case .running: snapshot.epics.filter { $0.status == .running }.count
-        case .queue: snapshot.queue.count
-        case .ready: snapshot.done.count
-        }
-    }
-}
-
 struct PanelView: View {
     let model: PanelModel
-    @State private var selection: SidebarItem? = .overview
 
     private var snapshot: PanelSnapshot? {
         if case .running(let snapshot)? = model.state { return snapshot }
@@ -59,17 +11,28 @@ struct PanelView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            List(SidebarItem.allCases, selection: $selection) { item in
-                Label(item.title, systemImage: item.symbol).badge(snapshot.map(item.count) ?? 0)
+        @Bindable var shell = model.shell
+        let selection = Binding<Selection?>(get: { shell.selection }, set: { if let next = $0 { shell.selection = next } })
+        let columns = Binding<NavigationSplitViewVisibility>(
+            get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
+        )
+        NavigationSplitView(columnVisibility: columns) {
+            List(selection: selection) {
+                Label("Overview", systemImage: "square.grid.2x2").tag(Selection.overview)
+                ForEach(snapshot.flatMap { epicMenu($0, showEpics: true) }?.items ?? [], id: \.title) { item in
+                    Label(item.title, systemImage: item.state.symbol).tag(Selection.epic(repo: item.repo, issue: item.issue))
+                }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 260)
+            .navigationSplitViewColumnWidth(min: 230, ideal: 268, max: 320)
             .safeAreaInset(edge: .bottom) {
-                Text(model.state?.menuLine ?? "Connecting…")
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    Button { shell.selection = .settings } label: { Label("Settings", systemImage: "gearshape") }
+                    Button { shell.selection = .about } label: { Label("About", systemImage: "info.circle") }
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         } detail: {
             ScrollView {
@@ -82,53 +45,79 @@ struct PanelView: View {
                         Label(model.state?.menuLine ?? "", systemImage: "stop.circle").font(.title3)
                         if model.state == .stopped { StartCarrierButton() }
                     case .running(let snapshot)?:
-                        Running(snapshot: snapshot, item: selection ?? .overview)
+                        Running(snapshot: snapshot, selection: shell.selection)
                     }
                 }
                 .padding(18)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
-            .navigationTitle((selection ?? .overview).title)
+            .navigationTitle("Carrier")
+            .inspector(isPresented: $shell.inspectorShown) {
+                Text("Inspector").foregroundStyle(.secondary)
+                    .inspectorColumnWidth(min: 280, ideal: 316, max: 400)
+            }
         }
-        .frame(minWidth: 760, minHeight: 420)
-        // an epic chosen in the menu; the sidebar lists sections, not epics, so it selects the section the epic is in
-        .onChange(of: model.selected) { _, epic in
-            if let epic { selection = SidebarItem(epic.state) }
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button { shell.toggleSidebar() } label: { Label("Sidebar", systemImage: "sidebar.leading") }
+                    .help("Show or hide the sidebar")
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button { shell.toggleInspector() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                    .help("Show or hide the inspector")
+            }
         }
+        .frame(minWidth: 980, minHeight: 600)
     }
 }
 
 private struct Running: View {
     let snapshot: PanelSnapshot
-    let item: SidebarItem
+    let selection: Selection
 
-    /// The overview shows every section; any other item shows only its own.
-    private func shows(_ section: SidebarItem) -> Bool { item == .overview || item == section }
+    var body: some View {
+        switch selection {
+        case .overview:
+            Overview(snapshot: snapshot)
+        case .epic(let repo, let issue):
+            if let epic = snapshot.epics.first(where: { $0.repo == repo && $0.issue == issue }) {
+                EpicCard(epic: epic, now: snapshot.now)
+            } else {
+                Text("\(repo) #\(issue)")
+            }
+        case .settings:
+            Text("Settings").foregroundStyle(.secondary)
+        case .about:
+            Text("About Carrier").foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct Overview: View {
+    let snapshot: PanelSnapshot
 
     var body: some View {
         let needsYou = snapshot.epics.filter { $0.status == .needsHuman }
         let running = snapshot.epics.filter { $0.status == .running }
         Header(snapshot: snapshot)
-        if shows(.needsYou) && needsYou.isEmpty == false {
+        if needsYou.isEmpty == false {
             PanelSection(title: "Needs you") { ForEach(needsYou, id: \.key) { EpicCard(epic: $0, now: snapshot.now) } }
         }
-        if shows(.running) && running.isEmpty == false {
+        if running.isEmpty == false {
             PanelSection(title: "Running") { ForEach(running, id: \.key) { EpicCard(epic: $0, now: snapshot.now) } }
         }
-        if shows(.queue) && snapshot.queue.isEmpty == false {
+        if snapshot.queue.isEmpty == false {
             PanelSection(title: "Queue \(snapshot.queue.count)") {
                 ForEach(snapshot.queue, id: \.key) { Text("\($0.repo) #\($0.issue)") }
             }
         }
-        if shows(.ready) && snapshot.done.isEmpty == false {
+        if snapshot.done.isEmpty == false {
             PanelSection(title: "Ready for test") {
                 ForEach(snapshot.done, id: \.key) { DoneRow(done: $0, now: snapshot.now) }
             }
         }
-        if item == .overview && snapshot.epics.isEmpty && snapshot.queue.isEmpty && snapshot.done.isEmpty {
+        if snapshot.epics.isEmpty && snapshot.queue.isEmpty && snapshot.done.isEmpty {
             Text("Idle. Mark an epic solve:epic:ready in a watched repo to start one.").foregroundStyle(.secondary)
-        } else if item != .overview && item.count(in: snapshot) == 0 {
-            Text("Nothing in \(item.title.lowercased()).").foregroundStyle(.secondary)
         }
     }
 }

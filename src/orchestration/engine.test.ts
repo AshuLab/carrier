@@ -179,6 +179,33 @@ test('a failure in one repo registers nothing from the other repos in that poll'
   expect(engine.error).toBe(fail);
 });
 
+test('each repo keeps its last check: when, whether it worked and why not, from a failure to its recovery', async () => {
+  const engine = await start();
+  expect(engine.lastCheck('AshuLab/a')).toBeUndefined();
+
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null });
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 5 * MIN, ok: true, error: null });
+
+  // b fails: a was read in that cycle, b was not.
+  github.listReadyEpics = async (repo) => {
+    if (repo === 'AshuLab/b') throw new GitHubUnavailable();
+    return [];
+  };
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 10 * MIN, ok: true, error: null });
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 10 * MIN, ok: false, error: 'GitHub is unavailable' });
+
+  github.listReadyEpics = async () => [];
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 15 * MIN, ok: true, error: null });
+
+  // A rejected profile fails every repo, naming the profile and nothing else.
+  github.authError = new AuthError('orchestrator');
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 20 * MIN, ok: false, error: 'authentication error for profile orchestrator' });
+});
+
 const ready = (...issues: number[]) => issues.map((issue) => ({ issue, title: '' }));
 const rows = (db: Db) => db.select().from(epics).all();
 const byStatus = (db: Db, status: string) => rows(db).filter((e) => e.status === status).map((e) => e.issue);

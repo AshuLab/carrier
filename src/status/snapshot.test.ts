@@ -7,7 +7,7 @@ import { openDatabase, type Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics, epicStates } from '../storage/schema.ts';
 import { renderPanel } from '../terminal/dashboard/plain.ts';
-import { buildSnapshot } from './snapshot.ts';
+import { buildSnapshot, watchedOf } from './snapshot.ts';
 
 let dir: string;
 let db: Db;
@@ -67,6 +67,19 @@ test('what the engine does not keep yet is empty: no title, labels, branch, kind
   expect(s.watched).toEqual([]);
   expect(s.sessions).toEqual([]);
   expect(s.queue).toEqual([{ repo: 'acme/web', issue: 1, title: null, queuedAt: 500 }]);
+});
+
+test('watched lists every repo with the agents it resolves to and its last check, ok and unchecked before the first poll', () => {
+  const agent = (harness: 'claude' | 'codex', model: string) => ({ profile: 'secret-profile', harness, model });
+  const repos = ['acme/web', 'acme/api'].map((name) => ({ name, agents: { author: agent('claude', 'm-author'), reviewer: { ...agent('codex', 'm-review'), provider: 'ollama' as const } } }));
+  const checks: Record<string, { at: number; ok: boolean; error: string | null }> = { 'acme/api': { at: 90_000, ok: false, error: 'GitHub is unavailable' } };
+  const watched = watchedOf(repos, (repo) => checks[repo]);
+  const agents = { author: { harness: 'claude', model: 'm-author', provider: null }, reviewer: { harness: 'codex', model: 'm-review', provider: 'ollama' } };
+  expect(watched).toEqual([
+    { repo: 'acme/web', lastCheckedAt: null, ok: true, error: null, agents },
+    { repo: 'acme/api', lastCheckedAt: 90_000, ok: false, error: 'GitHub is unavailable', agents },
+  ]);
+  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 0, repos: 2, nextCheckAt: null, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 1, watched }).watched).toBe(watched);
 });
 
 test('a running epic with a frozen config lists its running execution as a session, without the profile; blocker titles are capped', () => {

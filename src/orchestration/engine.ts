@@ -45,6 +45,8 @@ export type EngineOptions = {
 const log = createScopedLogger('engine');
 const activityEveryMs = 10_000;
 
+export type RepoCheck = { at: number; ok: boolean; error: string | null };
+
 type Epic = typeof epics.$inferSelect;
 type Execution = typeof executions.$inferSelect;
 
@@ -72,6 +74,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   const labelledRepos = new Set<string>();
   // Slice progress GitHub reported on the last good read, by repo and issue; not stored, so it is empty until the first poll after a start.
   const progress = new Map<string, Map<number, Slices | null>>();
+  // The last poll of each repo, in memory only: when, whether it worked and why not. Empty until the first poll after a start.
+  const checks = new Map<string, RepoCheck>();
   // Runs of this process still going, to stop them when the epic ends from outside.
   const active = new Map<string, AgentRun>();
   // Set by shutdown(): from then on nothing polls, reserves, launches or writes to GitHub.
@@ -502,6 +506,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // Returns the wait until the next poll.
   async function poll(): Promise<number> {
     if (stopping) return pollIntervalMs;
+    const read = new Set<string>();
     try {
       // Fetch every repo before writing: a failure on any of them leaves the queue untouched.
       const found: { repo: string; issue: number }[] = [];
@@ -510,6 +515,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       for (const { name: repo } of repos) {
         for (const { issue } of await github.listReadyEpics(repo)) found.push({ repo, issue });
         await refreshProgress(repo);
+        checks.set(repo, { at: clock.now(), ok: true, error: null });
+        read.add(repo);
       }
       suspended = null; // listing worked: the orchestrator's profile is back, the cycle goes on
       const queuedAt = clock.now();
@@ -531,6 +538,9 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     } catch (e) {
       log.error('poll failed', e);
       failed(e);
+      // Only an expected failure gets here (`failed` rethrows the rest): the repos not read this cycle share it.
+      const reason = e instanceof AuthError ? `authentication error for profile ${e.profile}` : 'GitHub is unavailable';
+      for (const { name } of repos) if (!read.has(name)) checks.set(name, { at: clock.now(), ok: false, error: reason });
       return Math.max(pollIntervalMs, (e instanceof GitHubUnavailable && e.retryAfterMs) || 0);
     }
   }
@@ -609,6 +619,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     },
     /** Slices closed out of the total on the last good read; null until the first one or when GitHub sends none. */
     slices: (repo: string, issue: number) => progress.get(repo)?.get(issue) ?? null,
+    /** The last poll of a repo; undefined until the first one after a start. */
+    lastCheck: (repo: string) => checks.get(repo),
     /** Queued epics, oldest first. */
     queue: () => db.select().from(epics).where(eq(epics.status, 'queued')).orderBy(asc(epics.id)).all(),
   };

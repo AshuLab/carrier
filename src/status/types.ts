@@ -88,7 +88,7 @@ export type ControlSnapshot = Omit<PanelSnapshot, 'queue' | 'epics'> & {
     /** null until the engine reads GitHub's limit. */
     rateLimit: { remaining: number; limit: number; resetAt: number; profile: 'orchestrator' } | null;
   };
-  /** One row per watched repository; empty until the engine records its last poll. */
+  /** One row per watched repository; lastCheckedAt is null (and ok true) until its first poll. */
   watched: { repo: string; lastCheckedAt: number | null; ok: boolean; error: string | null; agents: PanelAgents }[];
   /** The running executions, at most one per running epic. */
   sessions: PanelSession[];

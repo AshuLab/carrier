@@ -53,5 +53,26 @@ _Avoid_: workspace (it is an epic's checkout, inside `worktrees/`).
 **Control socket** - Local channel (a Unix socket in `orchestrator/`) a running Carrier opens so another process can watch it and drive it: the snapshot and the agent's output come out, and pause, check now and stop go in. The macOS app is a client of it. See [0005](adr/0005-engine-independent-of-the-macos-app.md).
 _Avoid_: API, daemon, IPC.
 
-**Slice progress** - How many of an epic's slices (its sub-issues) are closed out of the total, read from GitHub. Carrier does not store it today: the agent running `ship` works the slices inside its own session.
+**Slice progress** - How many of an epic's slices (its sub-issues) are closed out of the total, read from GitHub on every poll. The list behind the count is kept in SQLite as a cache of GitHub, never as authority ([0008](adr/0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md)); the agent running `ship` works the slices inside its own session.
 _Avoid_: ticket progress, issue status.
+
+**Session** - The conversation an agent holds in its harness, identified by an id the harness can resume (`claude --resume`, `codex resume`, `agy --conversation`). Each execution has one; the app shows an execution's work as one session block and Continue in Terminal resumes it ([0007](adr/0007-continue-in-terminal-through-a-validated-descriptor.md)).
+_Avoid_: execution (the invocation with its time limit and result), thread, chat.
+
+**Lane** - One of the up to three parallel workers inside a `ship` execution, each a Claude subagent building one slice in its own worktree. Solve decides the lanes; the engine does not know them, and a lane has no session of its own, so it cannot be resumed apart from the ship session.
+_Avoid_: slot (that counts epics), thread, worker.
+
+**Slot** - One of the places the engine has for running epics at once (`maxConcurrentEpics`). It is a counter with no identity, so the app shows how many are in use and which epics occupy them, never "slot 2".
+_Avoid_: lane (that is inside one epic), thread, concurrency.
+
+**Blocker** - A finding of a review that stops its approval. It has a title and, when the reviewer provides them, a stable id and a mark when a later round resolves it; the app shows each round's blockers and which carry over.
+_Avoid_: issue, comment, error.
+
+**Your turn** - The Overview's list of what needs the person: epics in human intervention, finished epics waiting to be tested, and engine problems, each with its action. It is not a status list; the sidebar already says which epics exist.
+_Avoid_: inbox, notifications, to-do.
+
+**Running epic card** - The Overview's card for an epic that is running: its progress and one row for each agent working on it. A dashed card after the running ones stands for free room and names the next queued epic.
+_Avoid_: slot tile, agent list.
+
+**Sidebar group** - A section of the app's sidebar that collects epics by state (Needs you, Running, Up next, Ready for test) or, when asked, by repository.
+_Avoid_: category, folder.

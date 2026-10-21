@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Slices panel — options, round three</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.opts{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;margin-top:8px}
+.opt{width:340px}
+.opt>h3{margin:0 0 2px;font-size:14px}
+.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:340px}
+.fr{border-radius:18px;background:var(--side);backdrop-filter:blur(30px);box-shadow:var(--shadow);padding:16px 14px;min-height:420px}
+.ih{display:flex;justify-content:space-between;align-items:baseline;margin:0 6px 8px}
+.ih h4{margin:0;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.ih span{color:var(--dim);font-size:12px}.ih b{color:var(--text)}
+.bar3{display:flex;height:6px;border-radius:4px;background:var(--card2);overflow:hidden;margin:0 6px 12px}
+.bar3 span{display:block;height:100%}
+.sg1{display:flex;gap:2px;background:var(--card2);border-radius:99px;padding:3px;margin:0 2px 8px;box-shadow:0 0 0 .5px var(--line) inset}
+.sg1 button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:5px 4px;border-radius:99px;cursor:default;display:flex;gap:5px;justify-content:center;align-items:center;white-space:nowrap}
+.sg1 button i{font-style:normal;font-weight:600;color:var(--faint)}
+.sg1 button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .sg1 button.on{background:rgba(255,255,255,.16)}
+.sg1 button.on i{color:var(--dim)}
+.sl{display:flex;gap:10px;align-items:flex-start;padding:8px;border-radius:11px}
+.sl.a{background:color-mix(in srgb,var(--blue) 14%,transparent)}
+.sl .t{flex:1;min-width:0}.sl .t b{display:block;font-weight:550;line-height:1.3}
+.sl .t span{display:block;color:var(--dim);font-size:11.5px;margin-top:1px}
+.sl.n .t b{color:var(--dim);font-weight:500}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 2px 10px}
+.tile{border:0;font:inherit;color:var(--text);text-align:left;background:var(--card);border-radius:14px;padding:9px 11px;cursor:default;box-shadow:0 0 0 .5px var(--line) inset}
+.tile .n{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.tile .l{font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:5px;margin-top:2px}
+.tile.on{box-shadow:0 0 0 1.5px var(--blue);background:color-mix(in srgb,var(--blue) 10%,transparent)}
+.sc{display:flex;gap:9px;align-items:center;padding:4px 8px;border-radius:8px;font-size:12.5px}
+.sc .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc .ck{width:14px;height:14px;font-size:9px}
+.sc .r{color:var(--faint);font-size:11.5px}
+.ck{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;flex:none}
+.ck.d{background:var(--green);color:#fff}.ck.a{border:2px solid var(--blue);border-top-color:transparent;animation:s 1s linear infinite}.ck.n{border:1.5px solid var(--faint)}
+@keyframes s{to{transform:rotate(1turn)}}
+.all{width:100%;justify-content:center;margin-top:8px;padding:8px 12px}
+
+.opt{width:340px}
+.cap{margin:8px 8px 0;color:var(--dim);font-size:12px;min-height:34px}
+.cap b{color:var(--text)}
+.lane{border-radius:13px;background:var(--card);padding:9px 11px;margin-bottom:7px;box-shadow:0 0 0 .5px var(--line) inset}
+.lane .lh{display:flex;justify-content:space-between;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.lane .cur{display:flex;gap:9px;align-items:center;font-weight:550}
+.lane .nx{color:var(--dim);font-size:12px;margin:5px 0 0 27px}
+.rail{position:relative;padding-left:26px;margin-left:6px}
+.rail::before{content:"";position:absolute;left:8px;top:8px;bottom:8px;width:2px;background:var(--line);border-radius:2px}
+.rn{position:relative;padding:3px 0 12px}
+.rn::before{content:"";position:absolute;left:-23px;top:6px;width:12px;height:12px;border-radius:50%;background:var(--card2);box-shadow:0 0 0 3px var(--side)}
+.rn.d::before{background:var(--green)}.rn.a::before{background:var(--blue);box-shadow:0 0 0 3px var(--side),0 0 0 6px color-mix(in srgb,var(--blue) 30%,transparent)}
+.rn b{font-weight:550}.rn span{display:block;color:var(--dim);font-size:12px}
+.rn.n b{color:var(--dim);font-weight:500}
+.grid{display:grid;grid-template-columns:repeat(10,1fr);gap:5px;margin:0 6px}
+.cell{aspect-ratio:1;border-radius:6px;background:var(--card2);cursor:default}
+.cell.d{background:var(--green)}.cell.a{background:var(--blue);animation:p 1.6s ease-in-out infinite}
+.cell.sel{box-shadow:0 0 0 2px var(--text)}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin:0 4px 10px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;background:color-mix(in srgb,var(--blue) 18%,transparent);color:var(--text);font-size:12px;font-weight:550}
+.pill.n{background:var(--card2);color:var(--dim);font-weight:500}
+.wv{border-radius:13px;background:var(--card);margin-bottom:6px;overflow:hidden;box-shadow:0 0 0 .5px var(--line) inset}
+.wv .wh{display:flex;align-items:center;gap:9px;padding:9px 11px;cursor:default}
+.wv .wh .t{flex:1;font-weight:550}.wv .wh small{color:var(--dim)}
+.wv .wb{height:4px;background:var(--card2)}.wv .wb span{display:block;height:100%}
+.wv .wl{padding:2px 6px 8px}
+.chev{transition:transform .15s;flex:none;color:var(--dim)}.wv.o .chev{transform:rotate(90deg)}
+.dg{font-size:12.5px}
+.dg .gh{display:flex;justify-content:space-between;padding:7px 8px 3px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.dg .r{display:flex;gap:9px;align-items:center;padding:3px 8px;border-radius:7px}
+.dg .r:hover{background:var(--card)}
+.dg .r .t{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dg .r.d .t{color:var(--dim)}
+.dg .r .s{color:var(--faint);font-size:11px}
+.search{background:var(--card2);border-radius:99px;padding:6px 12px;color:var(--faint);margin:0 2px 6px;box-shadow:0 0 0 .5px var(--line) inset}
+.pager{border-radius:15px;background:var(--card);padding:14px;box-shadow:0 0 0 .5px var(--line) inset;text-align:center}
+.pager .big{font-size:16px;font-weight:650;margin:8px 0 2px}
+.pager .nv{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;color:var(--dim)}
+.pager .nv button{border:0;background:var(--card2);color:var(--text);width:28px;height:28px;border-radius:50%;font-size:14px;cursor:default}
+@keyframes p{50%{opacity:.4}}
+
+.donut{position:relative;width:132px;height:132px;margin:2px auto 10px}
+.donut svg{transform:rotate(-90deg)}
+.donut .c{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.donut .c b{font-size:24px;letter-spacing:-.02em;display:block;line-height:1}
+.donut .c span{color:var(--dim);font-size:11.5px}
+.lg{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:10px;cursor:default}
+.lg.on{background:var(--sel)}.lg .t{flex:1;font-weight:550}.lg .n{color:var(--dim)}
+.bigc{border-radius:15px;background:var(--card);margin-bottom:8px;overflow:hidden;box-shadow:0 0 0 .5px var(--line) inset}
+.bigc .bh{display:flex;align-items:center;gap:12px;padding:13px 14px;cursor:default}
+.bigc .bh:hover{background:var(--card2)}
+.bigc .num{font-size:24px;font-weight:700;letter-spacing:-.02em;width:36px}
+.bigc .t{flex:1}.bigc .t b{display:block;font-weight:600}.bigc .t span{color:var(--dim);font-size:12px}
+.bigc .cv{width:30px;height:30px;border-radius:50%;background:var(--card2);display:grid;place-items:center;color:var(--dim);transition:transform .15s}
+.bigc.o .cv{transform:rotate(90deg)}
+.bigc .bl{padding:0 8px 10px}
+.gt{margin:0 4px;font-size:12px}
+.gr{display:grid;grid-template-columns:104px 1fr;gap:8px;align-items:center;padding:3px 0}
+.gr .t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gr.d .t{color:var(--dim)}
+.gr .tk{position:relative;height:12px;border-radius:6px;background:var(--card)}
+.gr .tk span{position:absolute;top:0;bottom:0;border-radius:6px;background:var(--green)}
+.gr.a .tk span{background:var(--blue);animation:p 1.6s ease-in-out infinite}
+.gx{display:flex;justify-content:space-between;margin:4px 0 0 112px;color:var(--faint);font-size:10.5px}
+.deck{position:relative;height:150px;margin:6px 6px 14px}
+.dk{position:absolute;left:0;right:0;border-radius:15px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset,0 6px 18px rgba(0,0,0,.18);padding:13px 14px}
+.dk.b1{top:14px;transform:scale(.95);opacity:.65}.dk.b2{top:26px;transform:scale(.9);opacity:.38}
+.dk.f{top:0;background:color-mix(in srgb,var(--blue) 24%,var(--side));z-index:3;cursor:default}
+.dk b{font-size:14px}.dk span{display:block;color:var(--dim);font-size:12px;margin-top:3px}
+.car{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 8px;margin:0 -2px}
+.car .cd{flex:none;width:140px;scroll-snap-align:start;border-radius:13px;background:var(--card);padding:10px 11px;box-shadow:0 0 0 .5px var(--line) inset}
+.car .cd b{display:block;font-weight:550;font-size:12.5px}.car .cd span{color:var(--faint);font-size:11px}
+.spark{margin:0 4px 6px}
+.eta{display:flex;gap:8px;margin:0 2px 8px}
+.eta div{flex:1;border-radius:12px;background:var(--card);padding:8px 10px;box-shadow:0 0 0 .5px var(--line) inset}
+.eta b{font-size:17px;display:block;letter-spacing:-.01em}.eta span{color:var(--dim);font-size:11.5px}
+.rm{display:flex;gap:11px;align-items:center;padding:7px 8px;border-bottom:.5px solid var(--line)}
+.rm:last-child{border:0}.rm .cc{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--faint);flex:none}
+.rm.a .cc{border:2px solid var(--blue);border-top-color:transparent;animation:s 1s linear infinite}
+.rm.d .cc{background:var(--green);border:0;color:#fff;font-size:10px;display:grid;place-items:center}
+.rm.d .t{color:var(--faint);text-decoration:line-through}
+.rm .t{flex:1}.rm .s{color:var(--faint);font-size:11px}
+.mnu{position:relative}
+.mnu .mb{border:0;background:var(--card2);color:var(--text);width:26px;height:26px;border-radius:50%;cursor:default;font-size:14px;line-height:1}
+.pop{position:absolute;right:0;top:32px;width:190px;border-radius:12px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:5px;z-index:5;font-size:13px}
+.pop div{padding:5px 9px;border-radius:7px;display:flex;justify-content:space-between}
+.pop div:hover{background:var(--blue);color:#fff}
+.pop hr{border:0;border-top:.5px solid var(--line);margin:4px 2px}
+.ar{display:grid;grid-template-columns:70px 1fr 34px;gap:9px;align-items:center;padding:7px 10px;border-radius:10px;cursor:default}
+.ar.on{background:var(--sel)}.ar b{font-weight:550}.ar .m{color:var(--dim);font-size:12px;text-align:right}
+.ar .tk{display:flex;height:8px;border-radius:4px;background:var(--card2);overflow:hidden}
+.ar .tk span{display:block;height:100%}
+</style></head>
+<body>
+<h1>Right panel · Slices — eight different ideas</h1>
+<div class="sub">Round three, none repeated from <a href="slices-focus.html" style="color:var(--blue)">slices-focus.html</a> or <a href="slices-more.html" style="color:var(--blue)">slices-more.html</a>. Same 20-slice epic. Clickable ones: donut, big cards, deck, checklist menu, areas.</div>
+<div class="bar"><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+<script>
+const names=['Scaffolding','Auth','Billing','Admin panel','Email templates','Audit log','Role permissions','Settings page','Invoices','Webhooks','Rate limiting','Search','Notifications','Export CSV','Onboarding flow','Dark mode','Localization','Analytics events','Docs','Release checklist'];
+const areas=['Infra','Backend','Backend','UI','Backend','Backend','Backend','UI','Backend','Backend','Infra','Backend','Backend','Backend','UI','UI','UI','Backend','Docs','Infra'];
+const S=names.map((t,i)=>({n:201+i,t,a:areas[i],s:i<9?'d':i<12?'a':'n',ago:i<9?(5+(9-i)*6):0,dur:8+(i*3)%7,start:i>=9&&i<12?[4,7,2][i-9]:0,lane:i>=9&&i<12?i-8:0,dep:i>=12?210+(i-12)%3:0}));
+const by=k=>S.filter(x=>x.s===k),D=by('d'),A=by('a'),W=by('n');
+const ttl=x=>'#'+x.n+' '+x.t;
+const bar3=`<div class="bar3"><span style="width:${100*D.length/S.length}%;background:var(--green)"></span><span style="width:${100*A.length/S.length}%;background:var(--blue)"></span></div>`;
+const head=(b=1)=>`<div class="ih"><h4>Slices</h4><span><b>${D.length}</b> of ${S.length} done</span></div>${b?bar3:''}`;
+const sub=x=>x.s==='d'?'merged '+x.ago+' min ago':x.s==='a'?'agent working · lane '+x.lane:'waiting on #'+x.dep;
+const ck=x=>`<span class="ck ${x.s}">${x.s==='d'?'✓':''}</span>`;
+const cmp=x=>`<div class="sc">${ck(x)}<span class="t">${ttl(x)}</span><span class="r">${x.s==='d'?x.ago+' min':x.s==='a'?'lane '+x.lane:'after #'+x.dep}</span></div>`;
+const chev='<svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const st={dn:'a',big:{a:true},deck:0,menu:false,showDone:false,area:null};
+const G={a:A,n:W,d:D};
+
+const opts=[
+['1 · Donut + legend','A ring split by status with the count in the middle. Tap a legend row to list that group below.',()=>{const r=52,C=2*Math.PI*r,seg=(n,c,off)=>`<circle cx="66" cy="66" r="${r}" fill="none" stroke="${c}" stroke-width="12" stroke-dasharray="${C*n/S.length-3} ${C}" stroke-dashoffset="${-C*off/S.length}" stroke-linecap="round"/>`;
+ return `<div class="donut"><svg width="132" height="132"><circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--card2)" stroke-width="12"/>${seg(D.length,'var(--green)',0)}${seg(A.length,'var(--blue)',D.length)}</svg><div class="c"><div><b>${D.length}/${S.length}</b><span>merged</span></div></div></div>`+
+ [['d','Merged',D,'var(--green)'],['a','In progress',A,'var(--blue)'],['n','Waiting',W,'var(--faint)']].map(([k,n,v,c])=>`<div class="lg ${st.dn===k?'on':''}" data-dn="${k}"><span class="dot" style="background:${c}"></span><span class="t">${n}</span><span class="n">${v.length}</span></div>`).join('')+`<div style="margin-top:8px">${G[st.dn].map(cmp).join('')}</div>`}],
+['2 · Big status cards','Three large cards, whole card is the click target, big chevron button. Fixes the tiny-arrow problem.',()=>head(0)+[['a','In progress',A,'var(--blue)','working now'],['n','Waiting',W,'var(--faint)','blocked or queued'],['d','Merged',D,'var(--green)','done']].map(([k,n,v,c,d])=>`<div class="bigc ${st.big[k]?'o':''}"><div class="bh" data-big="${k}"><span class="num" style="color:${c}">${v.length}</span><div class="t"><b>${n}</b><span>${d}</span></div><span class="cv">${chev}</span></div>${st.big[k]?`<div class="bl">${v.map(cmp).join('')}</div>`:''}</div>`).join('')],
+['3 · Mini Gantt','A tiny timeline of the last 90 minutes: when each slice ran. Shows speed and overlap, not just state.',()=>{const T=90,pos=(a,d)=>`left:${100*(T-a-d)/T}%;width:${100*d/T}%`;const rows=[...A.map(x=>({x,l:pos(x.start,x.start),c:'a'})),...D.slice(-6).reverse().map(x=>({x,l:pos(x.ago,x.dur),c:'d'}))];
+ return head()+`<div class="gt">${rows.map(({x,l,c})=>`<div class="gr ${c}"><span class="t">#${x.n} ${x.t}</span><div class="tk"><span style="${l}"></span></div></div>`).join('')}<div class="gx"><span>90 min ago</span><span>now</span></div></div><div class="cap">${W.length} waiting · ${D.length-6} older merged</div>`}],
+['4 · Card deck','The current slice as a card with the next ones stacked behind it. Click the card to flip to the next running slice.',()=>{const x=A[st.deck%A.length];return head()+`<div class="deck"><div class="dk b2"></div><div class="dk b1"></div><div class="dk f" data-deck="1"><div class="h">${ck(x)}<b>${ttl(x)}</b></div><span>${sub(x)}</span><span style="margin-top:10px;color:var(--blue)">${st.deck%A.length+1} of ${A.length} running · click for next</span></div></div><div class="cap" style="margin-top:34px">${W.length} waiting behind · ${D.length} merged</div>`}],
+['5 · Carousel','What is running on top; what is next as swipeable cards (horizontal scroll). Merged is a single line.',()=>head()+A.map(x=>`<div class="sl a"><span class="ck a"></span><div class="t"><b>${ttl(x)}</b><span>${sub(x)}</span></div></div>`).join('')+`<div class="ih" style="margin-top:14px"><h4>Up next</h4><span>${W.length}</span></div><div class="car">${W.map(x=>`<div class="cd"><b>#${x.n}</b><b style="font-weight:500;color:var(--dim)">${x.t}</b><span>after #${x.dep}</span></div>`).join('')}</div><div class="cap">✓ ${D.length} merged, last ${D[D.length-1].ago} min ago</div>`],
+['6 · Pace and ETA','Answers “when will it finish?” instead of listing. Sparkline of merges over time, rate and estimate.',()=>{const pts=[...D].map(x=>[90-x.ago,0]).sort((a,b)=>a[0]-b[0]).map((p,i)=>[p[0],i+1]);const X=v=>10+v*(300/130),Y=v=>86-v*(76/S.length);const line=pts.map(p=>`${X(p[0])},${Y(p[1])}`).join(' ');
+ return head()+`<div class="eta"><div><b>~37 min</b><span>left at this pace</span></div><div><b>1 / 10 min</b><span>merge rate</span></div></div><svg class="spark" width="310" height="96" viewBox="0 0 320 96"><line x1="10" y1="${Y(S.length)}" x2="310" y2="${Y(S.length)}" stroke="var(--line)" stroke-dasharray="3 4"/><polyline points="${line}" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${X(90)},${Y(9)} ${X(127)},${Y(20)}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round"/><circle cx="${X(90)}" cy="${Y(9)}" r="4" fill="var(--blue)"/></svg><div class="h dim" style="margin:0 8px 8px;font-size:11.5px"><span>90 min ago</span><span class="sp1"></span><span>now</span><span style="width:70px;text-align:right">~37 min</span></div>`+A.map(x=>`<div class="sc">${ck(x)}<span class="t">${ttl(x)}</span><span class="r">lane ${x.lane}</span></div>`).join('')+`<div class="cap">${W.length} waiting · ${D.length} merged</div>`}],
+['7 · Checklist','Like Apple Reminders: open items first, finished ones hidden. The … menu holds “Show completed”.',()=>{const rows=[...A,...W,...(st.showDone?D.slice().reverse():[])];return `<div class="ih" style="align-items:center"><h4>Slices</h4><span style="display:flex;align-items:center;gap:8px"><span><b>${D.length}</b> of ${S.length} done</span><span class="mnu"><button class="mb" data-menu="1">⋯</button>${st.menu?`<div class="pop"><div data-sd="1"><span>Show completed</span><span>${st.showDone?'✓':''}</span></div><hr><div><span>Sort by order</span><span>✓</span></div><div><span>Sort by status</span><span></span></div></div>`:''}</span></span></div>${bar3}${rows.map(x=>`<div class="rm ${x.s}"><span class="cc">${x.s==='d'?'✓':''}</span><div class="t">${ttl(x)}</div><span class="s">${x.s==='d'?x.ago+' min':x.s==='a'?'lane '+x.lane:'after #'+x.dep}</span></div>`).join('')}${st.showDone?'':`<div class="cap">${D.length} completed · hidden</div>`}`}],
+['8 · By area','Slices grouped by label (Backend, UI…), one bar each. Tap an area to list its slices. Needs labels on the sub-issues.',()=>{const as=['Backend','UI','Infra','Docs'];const rows=as.map(a=>{const l=S.filter(x=>x.a===a),d=l.filter(x=>x.s==='d').length,ac=l.filter(x=>x.s==='a').length;return `<div class="ar ${st.area===a?'on':''}" data-ar="${a}"><b>${a}</b><div class="tk"><span style="width:${100*d/l.length}%;background:var(--green)"></span><span style="width:${100*ac/l.length}%;background:var(--blue)"></span></div><span class="m">${d}/${l.length}</span></div>`}).join('');
+ return head()+rows+`<div style="margin-top:8px">${(st.area?S.filter(x=>x.a===st.area):A).map(cmp).join('')}</div><div class="cap">${st.area?'Showing '+st.area:'Tap an area. Showing what is running.'}</div>`}]
+];
+function render(){
+ document.getElementById('opts').innerHTML=opts.map(([t,p,f])=>`<div class="opt"><h3>${t}</h3><p>${p}</p><div class="fr">${f()}</div></div>`).join('');
+ const on=(sel,fn)=>document.querySelectorAll(sel).forEach(e=>e.onclick=()=>{fn(e);render()});
+ on('[data-dn]',e=>st.dn=e.dataset.dn);on('[data-big]',e=>st.big[e.dataset.big]=!st.big[e.dataset.big]);
+ on('[data-deck]',()=>st.deck++);on('[data-menu]',()=>st.menu=!st.menu);on('[data-sd]',()=>{st.showDone=!st.showDone;st.menu=false});
+ on('[data-ar]',e=>st.area=e.dataset.ar);
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script></body></html>

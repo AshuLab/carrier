@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Left sidebar — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--run:#30d158;--need:#ff9f0a;--err:#ff453a;--ready:#0a84ff;--wait:#8e8e93}
+body.light{--run:#28a745;--need:#e08600;--err:#e5372d;--ready:#007aff;--wait:#8e8e93}
+.opts{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;margin-top:8px}
+.opt{width:300px}.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;min-height:70px}
+.sb{border-radius:22px;background:var(--side);backdrop-filter:blur(30px);box-shadow:var(--shadow);padding:14px 10px 10px;min-height:640px;display:flex;flex-direction:column}
+.statebar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.sg1{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.sg1 button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:4px 12px;border-radius:99px;cursor:default;white-space:nowrap}
+.sg1 button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .sg1 button.on{background:rgba(255,255,255,.16)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border-radius:14px;background:var(--card);max-width:900px}
+.legend span{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--dim)}.legend b{color:var(--text);font-weight:600}
+.lb{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin:14px 10px 4px;display:flex;justify-content:space-between}
+.ov{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px;margin-bottom:2px}.ov.sel{background:var(--sel)}
+.ov b{flex:1;font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:600;background:color-mix(in srgb,var(--run) 22%,transparent);color:var(--run)}
+.pill.off{background:var(--card2);color:var(--dim)}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor;animation:p 1.6s ease-in-out infinite}.pill.off i{animation:none}
+@keyframes p{50%{opacity:.35}}@keyframes s{to{transform:rotate(1turn)}}@keyframes sh{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.it{display:flex;align-items:center;gap:11px;padding:8px 8px;border-radius:11px;cursor:default;position:relative}
+.it:hover{background:var(--card)}
+.it .t{flex:1;min-width:0}.it .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.it .t span{display:block;color:var(--dim);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .t span em{font-style:normal;font-weight:600}
+.run{color:var(--run)}.need{color:var(--need)}.err{color:var(--err)}.queue{color:var(--wait)}.ready{color:var(--ready)}
+/* glyphs */
+.gl{width:20px;height:20px;display:grid;place-items:center;flex:none;font-size:11px;font-weight:700}
+.spn{width:16px;height:16px;border-radius:50%;border:2.5px solid color-mix(in srgb,var(--run) 25%,transparent);border-top-color:var(--run);animation:s 1s linear infinite}
+.hol{width:14px;height:14px;border-radius:50%;border:2px solid var(--wait)}
+.fil{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800}
+.fil.need{background:var(--need)}.fil.err{background:var(--err)}.fil.ready{background:var(--ready)}.fil.run{background:var(--run)}
+.rg{position:relative;width:34px;height:34px;flex:none;display:grid;place-items:center;font-size:9.5px;font-weight:700}
+.rg svg{position:absolute;inset:0;transform:rotate(-90deg)}.rg svg.sp{animation:s 1.4s linear infinite}
+.seg{display:flex;gap:3px;margin-top:5px}.seg i{flex:1;height:4px;border-radius:2px;background:var(--card2);position:relative;overflow:hidden}
+.seg i.d{background:var(--wait)}.seg i.run{background:var(--run);animation:p 1.6s ease-in-out infinite}.seg i.need{background:var(--need)}.seg i.err{background:var(--err)}.seg i.ready{background:var(--ready)}
+.fill{position:relative;overflow:hidden;border-radius:12px;background:var(--card);margin-bottom:5px;padding:9px 11px;display:flex;align-items:center;gap:10px}
+.fill .f{position:absolute;inset:0 auto 0 0;opacity:.22}.fill .f.run::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);animation:sh 2.2s linear infinite}
+.fill .t,.fill .x{position:relative}.fill .t{flex:1;min-width:0}.fill .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fill .t span{color:var(--dim);font-size:11.5px}.fill .x{font-size:11.5px;font-weight:700}
+.hdrc{border-radius:16px;background:var(--card);padding:11px 12px;margin-bottom:6px;box-shadow:0 0 0 .5px var(--line) inset}
+.hdrc .h1{display:flex;align-items:center;gap:8px;font-weight:650}.hdrc .h1 .sp1{flex:1}
+.slots{display:flex;gap:4px}.slots i{width:14px;height:6px;border-radius:3px;background:var(--card2)}.slots i.on{background:var(--run)}
+.cnts{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}.cnts span{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:600;background:var(--card2)}
+.dn{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:9px;font-size:12.5px}.dn:hover{background:var(--card)}.dn .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:550}.dn .r{color:var(--dim);font-size:11px;white-space:nowrap}
+.dd{width:9px;height:9px;border-radius:50%;flex:none;background:var(--wait)}.dd.run{background:var(--run);animation:p 1.4s ease-in-out infinite}.dd.need{background:var(--need)}.dd.err{background:var(--err)}.dd.ready{background:var(--ready)}.dd.queue{background:none;border:2px solid var(--wait);width:11px;height:11px}
+.foot{margin-top:auto;padding-top:8px;border-top:.5px solid var(--line)}
+.foot .it b{font-weight:550}.foot .ic{width:20px;text-align:center;color:var(--dim)}
+.off .it,.off .fill,.off .dn{opacity:.55}
+.banner{margin:0 2px 6px;padding:7px 10px;border-radius:10px;background:var(--card2);color:var(--dim);font-size:12px;display:flex;gap:8px;align-items:center}
+</style></head>
+<body>
+<h1>Left sidebar — six ways to read the state of each epic</h1>
+<div class="sub">Colour is back, but with a meaning: it tells you the state at a glance, and the one that is running also <b>moves</b>. Each option uses a different place for that colour and for the loading motion. Switch the situation to see how it holds up.</div>
+<div class="legend"><span><span class="spn"></span><b class="run">Running</b> green, animated</span><span><span class="fil need">!</span><b class="need">Needs you</b> orange</span><span><span class="fil err">✕</span><b class="err">Problem</b> red</span><span><span class="hol"></span><b class="queue">Up next</b> grey, hollow</span><span><span class="fil ready">✓</span><b class="ready">Ready for test</b> blue</span></div>
+<div class="statebar"><div class="sg1" id="states"></div><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+<script>
+const E0=[
+ {n:'universal-logger',i:40,s:'need',stage:'fix',p:[4,4],r:[5,5],sub:'review limit 5/5'},
+ {n:'agent-forge',i:231,s:'run',stage:'review',p:[8,8],r:[2,5]},
+ {n:'sass-blueprint',i:14,s:'run',stage:'ship',p:[9,20]},
+ {n:'carrier',i:88,s:'queue',sub:'waiting for a slot'},
+ {n:'encaja',i:650,s:'queue',sub:'waiting for a slot'},
+ {n:'encaja',i:606,s:'ready',sub:'23 h ago'},
+ {n:'encaja',i:627,s:'ready',sub:'1 d ago'}
+];
+const SC={
+ busy:{label:'Busy day',off:false,list:E0,slots:2},
+ idle:{label:'Idle',off:false,list:E0.filter(e=>e.s==='ready'),slots:0},
+ problem:{label:'With a problem',off:false,slots:1,list:E0.map(e=>e.i===14?{...e,s:'err',sub:'agent exited with an error'}:e.i===231?{...e,s:'run'}:e)},
+ stopped:{label:'Carrier stopped',off:true,list:E0,slots:0}
+};
+let cur='busy',selI=231;
+const S=()=>SC[cur];
+const ORD=[['need','Needs you'],['run','Running'],['queue','Up next'],['ready','Ready for test']];
+const groups=()=>{const L=S().list;return [['Needs you',L.filter(e=>e.s==='need'||e.s==='err')],['Running',L.filter(e=>e.s==='run')],['Up next',L.filter(e=>e.s==='queue')],['Ready for test',L.filter(e=>e.s==='ready')]].filter(g=>g[1].length)};
+const live=e=>e.s==='run'&&!S().off;
+const col=e=>({run:'var(--run)',need:'var(--need)',err:'var(--err)',queue:'var(--wait)',ready:'var(--ready)'}[e.s]);
+const sub=e=>{if(e.s==='run')return `<em class="run">${e.stage}</em> · ${e.r?'round '+e.r[0]+'/'+e.r[1]:e.p[0]+'/'+e.p[1]+' slices'}`;if(e.s==='need')return `<em class="need">${e.sub}</em>`;if(e.s==='err')return `<em class="err">${e.sub}</em>`;return e.sub};
+const pct=e=>e.p?Math.round(100*e.p[0]/e.p[1]):0;
+const sel=e=>e.i===selI?'style="background:var(--sel)"':'';
+const topRow=()=>`<div class="ov ${selI===0?'sel':''}"><span style="font-size:15px;width:20px;text-align:center">▦</span><b>Overview</b><span class="pill ${S().off?'off':''}"><i></i>${S().off?'stopped':S().slots+'/3'}</span></div>`;
+const lb=(t,n)=>`<div class="lb"><span>${t}</span><span>${n}</span></div>`;
+const foot=()=>`<div class="foot"><div class="it"><span class="ic">⚙︎</span><div class="t"><b>Settings</b></div></div><div class="it"><span class="ic">ⓘ</span><div class="t"><b>About</b></div></div></div>`;
+const banner=()=>S().off?'<div class="banner">● Carrier is not running. Start it from the menu bar.</div>':'';
+const wrap=b=>`<div class="sb ${S().off?'off':''}">${topRow()}${banner()}${b}${foot()}</div>`;
+const none=()=>groups().length?'':'<div class="dim" style="padding:20px 10px;font-size:12.5px">Nothing yet.</div>';
+const ringSvg=(e,spin)=>{const s=34,w=3.5,r=(s-w)/2,C=2*Math.PI*r,p=e.p?e.p[0]/e.p[1]:0;return `<svg width="${s}" height="${s}"><circle cx="17" cy="17" r="${r}" fill="none" stroke="var(--card2)" stroke-width="${w}"/><circle cx="17" cy="17" r="${r}" fill="none" stroke="${col(e)}" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="${Math.max(.1,C*(e.s==='need'||e.s==='err'||e.s==='ready'?1:p))} ${C}"/></svg>${spin?`<svg class="sp" width="${s}" height="${s}"><circle cx="17" cy="17" r="${r+5}" fill="none" stroke="${col(e)}" stroke-width="2" stroke-linecap="round" stroke-dasharray="${C*.18} ${C*2}" opacity=".9" transform="translate(0 0)"/></svg>`:''}`};
+
+const O=[
+['A · Status glyph','A small glyph at the left carries the state: a turning green ring while running, a filled orange “!”, a red “✕”, a hollow grey circle, a blue check. The stage word is coloured too.',()=>wrap(groups().map(([t,l])=>lb(t,l.length)+l.map(e=>`<div class="it" ${sel(e)}>${e.s==='run'?(live(e)?'<span class="gl"><span class="spn"></span></span>':'<span class="gl"><span class="hol"></span></span>'):e.s==='need'?'<span class="gl"><span class="fil need">!</span></span>':e.s==='err'?'<span class="gl"><span class="fil err">✕</span></span>':e.s==='queue'?'<span class="gl"><span class="hol"></span></span>':'<span class="gl"><span class="fil ready">✓</span></span>'}<div class="t"><b>${e.n} #${e.i}</b><span>${sub(e)}</span></div></div>`).join('')).join('')+none())],
+['B · Progress rings, coloured','The ring you liked, now in the state colour. Running adds a small arc that orbits it. Needs-you and ready are full rings; up next is empty.',()=>wrap(groups().map(([t,l])=>lb(t,l.length)+l.map(e=>`<div class="it" ${sel(e)}><div class="rg" style="color:${col(e)}">${ringSvg(e,live(e))}<span>${e.p?e.p[0]+'/'+e.p[1]:e.s==='ready'?'✓':e.s==='need'?'!':e.s==='err'?'✕':''}</span></div><div class="t"><b>${e.n} #${e.i}</b><span>${sub(e)}</span></div></div>`).join('')).join('')+none())],
+['C · Mini pipeline under the name','Each row shows four small segments for Queue, Ship, Review, Ready. Past stages grey, the current one in the state colour (pulsing when running). You read where it is, not just that it is.',()=>wrap(groups().map(([t,l])=>lb(t,l.length)+l.map(e=>{const idx={queue:0,ship:1,review:2,fix:2}[e.stage||'queue'];const si=e.s==='queue'?0:e.s==='ready'?3:idx;return `<div class="it" ${sel(e)} style="align-items:flex-start;flex-direction:column;gap:0"><div style="display:flex;gap:8px;width:100%;align-items:baseline"><b style="flex:1;font-weight:600">${e.n} #${e.i}</b><span style="font-size:11.5px;color:var(--dim)">${e.s==='run'?'<em class="run" style="font-style:normal;font-weight:600">'+e.stage+'</em>':e.s==='need'?'<em class="need" style="font-style:normal;font-weight:600">needs you</em>':e.s==='err'?'<em class="err" style="font-style:normal;font-weight:600">problem</em>':e.s==='ready'?'<em class="ready" style="font-style:normal;font-weight:600">ready</em>':'queued'}</span></div><div class="seg" style="width:100%">${[0,1,2,3].map(k=>`<i class="${k<si?'d':k===si?(e.s==='queue'?'':e.s==='ready'?'ready':e.s==='run'?(live(e)?'run':'d'):e.s):''}"></i>`).join('')}</div><span style="font-size:11.5px;color:var(--dim);margin-top:4px">${e.s==='run'?(e.r?'round '+e.r[0]+'/'+e.r[1]:e.p[0]+'/'+e.p[1]+' slices'):e.sub||''}</span></div>`}).join('')).join('')+none())],
+['D · Status headers do the colouring','Rows stay quiet. The colour lives in the group headers: a coloured dot and label with a count (the running one pulses). One line per epic, stage at the right. Fastest to scan.',()=>wrap(groups().map(([t,l])=>{const c=l[0].s==='run'?'run':l[0].s==='queue'?'queue':l[0].s==='ready'?'ready':'need';return `<div class="lb" style="margin-top:12px"><span style="display:flex;align-items:center;gap:7px" class="${c}"><span class="dd ${c}" ${c==='queue'?'':''}></span>${t}</span><span>${l.length}</span></div>`+l.map(e=>`<div class="dn" ${sel(e)}><span class="dd ${e.s}" style="${e.s==='run'&&S().off?'animation:none;background:var(--wait)':''}"></span><span class="t">${e.n} #${e.i}</span><span class="r">${e.s==='run'?e.stage:e.s==='need'?'limit 5/5':e.s==='err'?'error':e.s==='ready'?e.sub:'—'}</span></div>`).join('')}).join('')+none())],
+['E · Rows that fill up','Each epic is a tile whose background fills with its progress, in the state colour. Running has a soft light sweeping across it. Needs-you and ready are full tiles. Up next is empty.',()=>wrap(groups().map(([t,l])=>lb(t,l.length)+l.map(e=>{const full=e.s==='need'||e.s==='err'||e.s==='ready',w=full?100:e.s==='queue'?0:pct(e);return `<div class="fill" ${e.i===selI?'style="box-shadow:0 0 0 1.5px var(--sel)"':''}><span class="f ${live(e)?'run':''}" style="width:${w}%;background:${col(e)}"></span><div class="t"><b>${e.n} #${e.i}</b><span>${sub(e)}</span></div><span class="x" style="color:${col(e)}">${e.s==='run'?(e.p?pct(e)+'%':''):e.s==='need'?'!':e.s==='err'?'✕':e.s==='ready'?'✓':''}</span></div>`}).join('')).join('')+none())],
+['F · Summary on top, light list','A header says how Carrier is doing: a status line, the slots as three bars, and counters by state. The list below is dense and one line per epic, with only a dot for the state.',()=>{const L=S().list,c=k=>L.filter(e=>k.includes(e.s)).length;return `<div class="sb ${S().off?'off':''}">${topRow().replace(/<span class="pill[\s\S]*?<\/span>$/,'')}${banner()}<div class="hdrc"><div class="h1"><span class="pill ${S().off?'off':''}"><i></i>${S().off?'stopped':'running'}</span><span class="sp1"></span><span class="slots">${[0,1,2].map(k=>`<i class="${k<S().slots?'on':''}"></i>`).join('')}</span><span style="font-size:11.5px;color:var(--dim)">${S().slots}/3</span></div><div class="cnts"><span class="need">${c(['need','err'])} needs you</span><span class="run">${c(['run'])} running</span><span class="queue">${c(['queue'])} next</span><span class="ready">${c(['ready'])} ready</span></div></div>${groups().map(([t,l])=>lb(t,l.length)+l.map(e=>`<div class="dn" ${sel(e)}><span class="dd ${e.s}" style="${e.s==='run'&&S().off?'animation:none;background:var(--wait)':''}"></span><span class="t">${e.n} #${e.i}</span><span class="r">${e.s==='run'?e.stage:e.s==='need'?'limit 5/5':e.s==='err'?'error':e.s==='ready'?e.sub:'—'}</span></div>`).join('')).join('')}${none()}${foot()}</div>`}]
+];
+function render(){
+ document.getElementById('states').innerHTML=Object.entries(SC).map(([k,v])=>`<button class="${cur===k?'on':''}" data-st="${k}">${v.label}</button>`).join('');
+ document.getElementById('opts').innerHTML=O.map(([t,p,f])=>`<div class="opt"><h3>${t}</h3><p>${p}</p>${f()}</div>`).join('');
+ document.querySelectorAll('[data-st]').forEach(e=>e.onclick=()=>{cur=e.dataset.st;render()});
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script></body></html>

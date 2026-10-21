@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Slices panel — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.opts{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;margin-top:8px}
+.opt{width:340px}
+.opt>h3{margin:0 0 2px;font-size:14px}
+.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:340px}
+.fr{border-radius:18px;background:var(--side);backdrop-filter:blur(30px);box-shadow:var(--shadow);padding:16px 14px;min-height:420px}
+.ih{display:flex;justify-content:space-between;align-items:baseline;margin:0 6px 8px}
+.ih h4{margin:0;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.ih span{color:var(--dim);font-size:12px}.ih b{color:var(--text)}
+.bar3{display:flex;height:6px;border-radius:4px;background:var(--card2);overflow:hidden;margin:0 6px 12px}
+.bar3 span{display:block;height:100%}
+.sg1{display:flex;gap:2px;background:var(--card2);border-radius:99px;padding:3px;margin:0 2px 8px;box-shadow:0 0 0 .5px var(--line) inset}
+.sg1 button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:5px 4px;border-radius:99px;cursor:default;display:flex;gap:5px;justify-content:center;align-items:center;white-space:nowrap}
+.sg1 button i{font-style:normal;font-weight:600;color:var(--faint)}
+.sg1 button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .sg1 button.on{background:rgba(255,255,255,.16)}
+.sg1 button.on i{color:var(--dim)}
+.sl{display:flex;gap:10px;align-items:flex-start;padding:8px;border-radius:11px}
+.sl.a{background:color-mix(in srgb,var(--blue) 14%,transparent)}
+.sl .t{flex:1;min-width:0}.sl .t b{display:block;font-weight:550;line-height:1.3}
+.sl .t span{display:block;color:var(--dim);font-size:11.5px;margin-top:1px}
+.sl.n .t b{color:var(--dim);font-weight:500}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 2px 10px}
+.tile{border:0;font:inherit;color:var(--text);text-align:left;background:var(--card);border-radius:14px;padding:9px 11px;cursor:default;box-shadow:0 0 0 .5px var(--line) inset}
+.tile .n{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.tile .l{font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:5px;margin-top:2px}
+.tile.on{box-shadow:0 0 0 1.5px var(--blue);background:color-mix(in srgb,var(--blue) 10%,transparent)}
+.sc{display:flex;gap:9px;align-items:center;padding:4px 8px;border-radius:8px;font-size:12.5px}
+.sc .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc .ck{width:14px;height:14px;font-size:9px}
+.sc .r{color:var(--faint);font-size:11.5px}
+.ck{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;flex:none}
+.ck.d{background:var(--green);color:#fff}.ck.a{border:2px solid var(--blue);border-top-color:transparent;animation:s 1s linear infinite}.ck.n{border:1.5px solid var(--faint)}
+@keyframes s{to{transform:rotate(1turn)}}
+.all{width:100%;justify-content:center;margin-top:8px;padding:8px 12px}
+.veil{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(6px);display:none;place-items:center;z-index:50}
+.veil.on{display:grid}
+.sheet{width:min(720px,92vw);max-height:84vh;border-radius:24px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+.sheet .hd{display:flex;align-items:center;gap:12px;padding:18px 20px 12px}
+.sheet .hd h2{margin:0;font-size:16px;flex:1}
+.srch{background:var(--card2);border-radius:99px;padding:6px 14px;color:var(--faint);width:200px;box-shadow:0 0 0 .5px var(--line) inset}
+.tbl{overflow:auto;padding:0 12px 14px}
+.tr{display:grid;grid-template-columns:22px 1fr 110px 90px 90px;gap:10px;align-items:center;padding:8px 10px;border-radius:10px}
+.tr:nth-child(even){background:var(--card)}
+.tr.hh{color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;position:sticky;top:0;background:var(--win);backdrop-filter:blur(20px)}
+.tr .dm{color:var(--dim);font-size:12px}
+</style></head>
+<body>
+<h1>Right panel · Slices — three options</h1>
+<div class="sub">Same 20-slice epic (9 done, 3 in progress, 8 waiting) in each option. They are clickable. Also fixed: clicking the panel no longer selects text, which was what showed the highlight (that highlight now uses the blue accent).</div>
+<div class="bar"><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+
+<div class="veil" id="veil"><div class="sheet"><div class="hd"><h2>All slices · agent-forge #231</h2><div class="srch">⌕ Search slices</div><button class="glass sm" id="close">Done</button></div>
+ <div class="hd" style="padding-top:0"><div class="sg1" style="width:360px;margin:0" id="sheetseg"></div></div>
+ <div class="tbl" id="tbl"></div></div></div>
+
+<script>
+const names=['Scaffolding','Auth','Billing','Admin panel','Email templates','Audit log','Role permissions','Settings page','Invoices','Webhooks','Rate limiting','Search','Notifications','Export CSV','Onboarding flow','Dark mode','Localization','Analytics events','Docs','Release checklist'];
+const S=names.map((t,i)=>{const id='#'+(201+i);return i<9?{t:id+' '+t,s:'d',sub:'merged '+(5+(9-i)*6)+' min ago',lane:'—',time:(5+(9-i)*6)+' min ago'}:i<12?{t:id+' '+t,s:'a',sub:'agent working · lane '+(i-8),lane:'lane '+(i-8),time:'running'}:{t:id+' '+t,s:'n',sub:'waiting on #'+(210+(i-12)%3),lane:'—',time:'—'}});
+const by=k=>S.filter(x=>x.s===k);
+const D=by('d'),A=by('a'),W=by('n');
+const bar=`<div class="bar3"><span style="width:${100*D.length/S.length}%;background:var(--green)"></span><span style="width:${100*A.length/S.length}%;background:var(--blue)"></span></div>`;
+const head=`<div class="ih"><h4>Slices</h4><span><b>${D.length}</b> of ${S.length} done</span></div>${bar}`;
+const full=x=>`<div class="sl ${x.s}"><span class="ck ${x.s}">${x.s==='d'?'✓':''}</span><div class="t"><b>${x.t}</b><span>${x.sub}</span></div></div>`;
+const cmp=x=>`<div class="sc"><span class="ck ${x.s}">${x.s==='d'?'✓':''}</span><span class="t">${x.t}</span><span class="r">${x.s==='d'?x.time:x.sub.replace('waiting on ','after ')}</span></div>`;
+const st={o1:'a',o2:'a',sheet:'all'};
+const L={a:A,n:W,d:D};
+
+function o1(){const l=L[st.o1];return head+`<div class="sg1">${[['a','Active',A],['n','Waiting',W],['d','Done',D]].map(([k,n,v])=>`<button class="${st.o1===k?'on':''}" data-o="o1:${k}">${n} <i>${v.length}</i></button>`).join('')}</div>${l.map(full).join('')}`}
+function o2(){const l=L[st.o2];const T=[['a','In progress',A,'var(--blue)'],['n','Waiting',W,'var(--faint)'],['d','Done',D,'var(--green)']];
+ return head+`<div class="tiles">${T.map(([k,n,v,c])=>`<button class="tile ${st.o2===k?'on':''}" data-o="o2:${k}"><div class="n">${v.length}</div><div class="l"><span class="dot" style="background:${c}"></span>${n}</div></button>`).join('')}</div>${l.map(cmp).join('')}`}
+function o3(){return head+A.map(full).join('')+`<div class="dim" style="margin:8px 8px 0;font-size:12px">${W.length} waiting · ${D.length} done</div><button class="glass all" id="viewall">View all ${S.length} slices ›</button>`}
+
+const O=[['Option 1 · Filter tabs','Segmented control with counts; one group at a time, full detail. No arrows, no hidden content. Default shows what is active.',o1],
+ ['Option 2 · Count tiles','Three big numbers you can tap. Selected tile gets a blue ring. Compact list for the chosen group.',o2],
+ ['Option 3 · Summary + full list','Panel stays short: progress and what is running. “View all” opens a sheet with a table (search, filter, lane, time) for long epics.',o3]];
+function render(){
+ document.getElementById('opts').innerHTML=O.map(([t,p,f])=>`<div class="opt"><h3>${t}</h3><p>${p}</p><div class="fr">${f()}</div></div>`).join('');
+ document.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>{const [o,k]=b.dataset.o.split(':');st[o]=k;render()});
+ const v=document.getElementById('viewall');if(v)v.onclick=()=>{document.getElementById('veil').classList.add('on');sheet()};
+}
+function sheet(){
+ const f=st.sheet,rows=f==='all'?S:by(f);
+ document.getElementById('sheetseg').innerHTML=[['all','All',S],['a','Active',A],['n','Waiting',W],['d','Done',D]].map(([k,n,v])=>`<button class="${f===k?'on':''}" data-s="${k}">${n} <i>${v.length}</i></button>`).join('');
+ document.getElementById('tbl').innerHTML=`<div class="tr hh"><span></span><span>Slice</span><span>Status</span><span>Lane</span><span>Time</span></div>`+rows.map(x=>`<div class="tr"><span class="ck ${x.s}">${x.s==='d'?'✓':''}</span><span>${x.t}</span><span><span class="chip ${x.s==='d'?'g':x.s==='a'?'b':''}">${{d:'merged',a:'in progress',n:'waiting'}[x.s]}</span></span><span class="dm">${x.lane}</span><span class="dm">${x.time}</span></div>`).join('');
+ document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{st.sheet=b.dataset.s;sheet()});
+}
+document.getElementById('close').onclick=()=>document.getElementById('veil').classList.remove('on');
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script></body></html>

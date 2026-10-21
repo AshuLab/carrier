@@ -152,7 +152,7 @@ struct StartCarrierButton: View {
         let missing = startMissing(setup.settings)
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Button("Start Carrier") { start.start() }.disabled(missing.isEmpty == false || start.starting)
+                Button("Start Carrier") { start.start() }.buttonStyle(.glassProminent).disabled(missing.isEmpty == false || start.starting)
                 if start.starting {
                     ProgressView().controlSize(.small)
                     Text("Starting…").foregroundStyle(.secondary)

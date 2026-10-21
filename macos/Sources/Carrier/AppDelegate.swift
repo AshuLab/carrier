@@ -71,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Starts the fake engine and points the app at it; with no fixtures to serve the app exits rather than show a stopped Carrier.
     private func startFixtureMode(_ fixtures: String) {
         do {
-            let server = try FixtureServer(fixtures: fixtures)
+            let server = try FixtureServer(fixtures: fixtures, longTranscript: CommandLine.arguments.contains("--fixture-long-transcript"))
             setenv("CARRIER_HOME", server.home, 1)
             fixtureServer = server
         } catch {

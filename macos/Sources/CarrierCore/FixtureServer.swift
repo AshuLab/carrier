@@ -27,7 +27,8 @@ public final class FixtureServer {
     /// Accepted and answered with nothing, as the real engine would; the fixture has no one to pause or stop.
     private static let controls: Set<String> = ["pause", "resume", "checkNow", "stop"]
 
-    public init(fixtures: String) throws {
+    /// `longTranscript`: `events` answers with a made-up transcript of thousands of events instead of the golden file.
+    public init(fixtures: String, longTranscript: Bool = false) throws {
         var data: [String: Data] = [:]
         for (name, file) in Self.files {
             do {
@@ -35,6 +36,10 @@ public final class FixtureServer {
                 let json = try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/" + file)))
                 data[name] = try JSONSerialization.data(withJSONObject: json, options: .sortedKeys)
             } catch { throw FixtureError.unreadable("\(fixtures)/\(file)") }
+        }
+        if longTranscript {
+            let reply = EventsReply(events: longTranscriptEvents(rounds: 400), next: 3600, running: true, structured: true)
+            data["events"] = try JSONEncoder().encode(reply)
         }
         self.data = data
         let names = ["sessions", "events", "epic", "files"].map { "\"\($0)\"" }.joined(separator: ",")

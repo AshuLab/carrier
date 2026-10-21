@@ -100,3 +100,116 @@ private func card(_ item: TranscriptItem) -> TranscriptCard? {
     #expect(formatCallDuration(59_960) == "1m 00s")
     #expect(formatCallDuration(125_000) == "2m 05s")
 }
+
+// MARK: diffs
+
+private func lines(_ pairs: [(String, String)]) -> [ExecEvent.DiffLine] { pairs.map { .init(sign: $0.0, text: $0.1) } }
+
+@Test func aDiffBecomesAddedRemovedAndContextLines() {
+    let diff = cardDiff(lines([(" ", "const ttl = 60;"), ("-", "old"), ("+", "new"), ("+", "newer"), ("?", "odd sign")]))
+    #expect(diff?.rows.map(\.sign) == [.context, .removed, .added, .added, .context])
+    #expect(diff?.rows.map(\.text) == ["const ttl = 60;", "old", "new", "newer", "odd sign"])
+    #expect(diff?.added == 2)
+    #expect(diff?.removed == 1)
+}
+
+@Test func aDiffWithOnlyAdditionsHasNothingRemoved() {
+    let diff = cardDiff(lines([("+", "a"), ("+", "b"), ("+", "c")]))
+    #expect(diff?.rows.allSatisfy { $0.sign == .added } == true)
+    #expect(diff?.added == 3)
+    #expect(diff?.removed == 0)
+}
+
+@Test func aVeryLongLineIsCutAndAShortOneIsLeftAlone() {
+    let long = String(repeating: "x", count: 1_000_000)
+    let diff = cardDiff(lines([("+", long), ("+", String(repeating: "y", count: maxDiffLineLength))]))
+    #expect(diff?.rows[0].text.count == maxDiffLineLength + 1)
+    #expect(diff?.rows[0].text.hasSuffix("…") == true)
+    #expect(diff?.rows[1].text.count == maxDiffLineLength)
+    #expect(diff?.added == 2)
+}
+
+@Test func anEmptyOrMissingDiffIsNoDiff() {
+    #expect(cardDiff([]) == nil)
+    #expect(cardDiff(nil) == nil)
+    let edit = ExecEvent(id: 2, at: 2, kind: "tool_end", callId: "a", tool: "Edit", status: "ok", diff: [])
+    #expect(card(transcriptItems([start(1, "a", "Edit"), edit])[0])?.diff == nil)
+}
+
+@Test func anEditCardCarriesItsDiff() {
+    let edit = ExecEvent(id: 2, at: 2, kind: "tool_end", callId: "a", tool: "Edit", status: "ok", diff: lines([("-", "a"), ("+", "b")]))
+    let diff = card(transcriptItems([start(1, "a", "Edit"), edit])[0])?.diff
+    #expect(diff == CardDiff(rows: [DiffRow(sign: .removed, text: "a"), DiffRow(sign: .added, text: "b")], added: 1, removed: 1))
+}
+
+// MARK: command output
+
+private func shell(_ id: Int, _ call: String, status: String, output: [String]?) -> [ExecEvent] {
+    [start(id, call, "Bash"), ExecEvent(id: id + 1, at: id, kind: "tool_end", callId: call, tool: "Bash", status: status, output: output)]
+}
+
+@Test func outputIsCollapsedUnlessTheCommandFailed() {
+    let cards = transcriptItems(shell(1, "a", status: "ok", output: ["fine"]) + shell(3, "b", status: "err", output: ["boom"]) + [start(5, "c", "Bash")]).compactMap(card)
+    #expect(cards.map(\.output) == [["fine"], ["boom"], []])
+    #expect(cards.map(\.outputOpenByDefault) == [false, true, false])
+}
+
+@Test func theUserCanOpenAndCloseAnyOutputAndItIsKeptPerCard() {
+    let items = transcriptItems(shell(1, "a", status: "ok", output: ["fine"]) + shell(3, "b", status: "err", output: ["boom"]))
+    let (ok, failed) = (card(items[0])!, card(items[1])!)
+    var folds = OutputFolds()
+    #expect(folds.isOpen(items[0].id, ok) == false)
+    #expect(folds.isOpen(items[1].id, failed))
+    folds.toggle(items[0].id, ok)
+    folds.toggle(items[1].id, failed)
+    #expect(folds.isOpen(items[0].id, ok))
+    #expect(folds.isOpen(items[1].id, failed) == false)
+    folds.toggle(items[0].id, ok)
+    #expect(folds.isOpen(items[0].id, ok) == false)
+}
+
+// MARK: long transcripts
+
+private func reply(_ events: [ExecEvent]) -> EventsReply { EventsReply(events: events, next: events.last?.id ?? 0, running: true, structured: true) }
+
+@Test func fiveThousandEventsMergeInUnderASecond() {
+    let events = longTranscriptEvents(rounds: 556)
+    #expect(events.count >= 5_000)
+    let clock = ContinuousClock()
+    var whole = Transcript()
+    let atOnce = clock.measure { whole.apply(reply(events)) }
+    #expect(atOnce < .seconds(1))
+    // the way it really arrives: a few events a second, for as long as the session runs
+    var piecemeal = Transcript()
+    let oneByOne = clock.measure { for event in events { piecemeal.apply(reply([event])) } }
+    #expect(oneByOne < .seconds(1))
+    #expect(whole.items == piecemeal.items)
+    #expect(whole.items.count == 556 * 5)
+}
+
+@Test func anAppendProcessesOnlyTheNewEvent() {
+    var transcript = Transcript()
+    transcript.apply(reply(longTranscriptEvents(rounds: 100)))
+    let before = transcript.work
+    #expect(before == 900)
+
+    transcript.apply(reply([ExecEvent(id: 901, at: 1, kind: "say", text: "more")]))
+    #expect(transcript.work - before == 1)
+    #expect(transcript.items.count == 501)
+
+    // a repeated reply is not processed at all
+    transcript.apply(reply([ExecEvent(id: 901, at: 1, kind: "say", text: "more")]))
+    #expect(transcript.work - before == 1)
+
+    // the end of a call changes its own card, not the list
+    transcript.apply(reply([start(902, "z", "Read"), end(903, "z", "Read")]))
+    #expect(transcript.work - before == 3)
+    #expect(transcript.items.count == 502)
+}
+
+@Test func anEventOlderThanTheNewestRebuildsAndKeepsTheOrder() {
+    var transcript = Transcript()
+    transcript.apply(reply([ExecEvent(id: 5, at: 5, kind: "say", text: "later")]))
+    transcript.apply(reply([ExecEvent(id: 2, at: 2, kind: "say", text: "earlier")]))
+    #expect(transcript.items.map(\.id) == [2, 5])
+}

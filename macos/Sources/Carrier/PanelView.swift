@@ -28,6 +28,15 @@ private enum SidebarItem: String, CaseIterable, Identifiable {
         }
     }
 
+    init(_ state: EpicMenuState) {
+        switch state {
+        case .needsYou: self = .needsYou
+        case .running: self = .running
+        case .waiting: self = .queue
+        case .ready: self = .ready
+        }
+    }
+
     /// How many entries the section holds; the overview has no count.
     func count(in snapshot: PanelSnapshot) -> Int {
         switch self {
@@ -82,6 +91,10 @@ struct PanelView: View {
             .navigationTitle((selection ?? .overview).title)
         }
         .frame(minWidth: 760, minHeight: 420)
+        // an epic chosen in the menu; the sidebar lists sections, not epics, so it selects the section the epic is in
+        .onChange(of: model.selected) { _, epic in
+            if let epic { selection = SidebarItem(epic.state) }
+        }
     }
 }
 

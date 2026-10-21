@@ -8,7 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         IconController.install(on: item)
 
+        UserDefaults.standard.register(defaults: [showEpicsKey: true])
         let menu = NSMenu()
+        menu.delegate = EpicMenuSection.shared
         // no action, so the menu leaves it disabled: a line to read, not a button
         let stateLine = menu.addItem(withTitle: ConnectionState.stopped.menuLine, action: nil, keyEquivalent: "")
         MenuControls.shared.install(in: menu, after: stateLine)
@@ -33,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 IconController.shared?.show(state)
                 line.title = state.menuLine
                 MenuControls.shared.react(to: state)
+                EpicMenuSection.shared.react(to: state)
                 NotificationWatcher.app.react(to: state)
             }
         }
@@ -68,6 +71,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("icon hit test passes clicks", { "\(IconController.shared.map { $0.host.hitTest(NSPoint(x: 2, y: 2)) == nil } ?? false)" }),
             ("status item present", { "\(self.statusItem != nil)" }),
             ("menu titles", { (self.statusItem?.menu?.items.map(\.title) ?? []).joined(separator: ", ") }),
+            ("epics in the menu", {
+                guard let menu = self.statusItem?.menu else { return "no menu" }
+                // what the delegate does when the menu opens
+                EpicMenuSection.shared.menuNeedsUpdate(menu)
+                return menu.items.filter { $0.tag == EpicMenuSection.tag }.map { $0.title.replacingOccurrences(of: "\n", with: " / ") }.joined(separator: ", ")
+            }),
             ("pause intake", { MenuControls.shared.selfTest(.pause) }),
             ("resume intake", { MenuControls.shared.selfTest(.resume) }),
             ("check GitHub now", { MenuControls.shared.selfTest(.checkNow) }),

@@ -101,6 +101,8 @@ public struct SessionSection: Equatable, Identifiable {
     public var openByDefault: Bool
     /// What Continue in Terminal resumes; nil for a running session, whatever the engine sent (ADR 0007).
     public var resume: ResumeDescriptor?
+    /// What shows under the header when it is open.
+    public var body: TranscriptBody = .items([])
 }
 
 public struct SessionList: Equatable {
@@ -158,7 +160,8 @@ public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcrip
             counts: transcript.flatMap { $0.structured ? countsLine(sessionCounts($0.events)) : nil },
             timeLabel: time,
             openByDefault: state != .done || index == 0,
-            resume: state == .running ? nil : session.resume
+            resume: state == .running ? nil : session.resume,
+            body: transcriptBody(transcript)
         )
     }
     let rest = all.count - shown.count

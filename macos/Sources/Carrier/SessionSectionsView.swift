@@ -2,7 +2,7 @@ import CarrierCore
 import SwiftUI
 
 /// The Agent output tab: one card per session with its header (avatar, who, counts, time or the stopped badge) and, below the
-/// last, how many earlier sessions there are. An open section has nothing under its header until the transcript is built.
+/// last, how many earlier sessions there are. An open section shows its transcript under the header.
 struct SessionSectionsView: View {
     let list: SessionList
     @Binding var folds: SessionFolds
@@ -14,7 +14,10 @@ struct SessionSectionsView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Button { folds.toggle(section) } label: { SessionHeaderView(section: section, open: open) }
                         .buttonStyle(.plain)
-                    if open { ContinueInTerminalView(section: section) }
+                    if open {
+                        TranscriptView(content: section.body)
+                        ContinueInTerminalView(section: section)
+                    }
                 }
                 .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.08)))
             }

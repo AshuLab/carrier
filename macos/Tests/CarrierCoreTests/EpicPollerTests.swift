@@ -258,3 +258,16 @@ private final class UpdateBox {
     try poller.poll(client)
     #expect(engine.requests.map { $0["after"] as? Int } == [0, 200])
 }
+
+@Test func aSessionWithoutAParserHasItsTailReadWithItsEvents() throws {
+    let plain = #"{"events":[],"next":0,"running":true,"structured":false}"#
+    let engine = FixtureEngine(capabilities: ["events"], replies: ["events": plain, "tail": #"["ran tests","edited a.ts"]"#])
+    defer { engine.stop() }
+    let client = try #require(ControlClient.connect(path: engine.path))
+    _ = try client.hello()
+    let poller = EpicPoller(onUpdate: { _, _ in })
+    poller.show(EpicFocus(epic: web, epicRunning: true, transcript: execution))
+    try poller.poll(client)
+    #expect(engine.commands == ["events", "tail"])
+    #expect(transcriptBody(poller.data[web]?.transcripts[execution]) == .tail(["ran tests", "edited a.ts"]))
+}

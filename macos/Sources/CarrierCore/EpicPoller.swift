@@ -18,6 +18,8 @@ public struct Transcript: Equatable {
     public private(set) var next = 0
     public private(set) var running = true
     public private(set) var structured = true
+    /// The summarised output lines, read only while the harness has no parser (`structured` false).
+    public internal(set) var tail: [String] = []
 
     public mutating func apply(_ reply: EventsReply) {
         var seen = Set(events.map(\.id))
@@ -127,7 +129,10 @@ public final class EpicPoller {
                 case .events:
                     let id = focus.transcript ?? ""
                     let after = data[key]?.transcripts[id]?.next ?? 0
-                    if let reply = try client.events(executionId: id, after: after) { update(key) { $0.transcripts[id, default: Transcript()].apply(reply) } }
+                    if let reply = try client.events(executionId: id, after: after) {
+                        update(key) { $0.transcripts[id, default: Transcript()].apply(reply) }
+                        if reply.structured == false { try tail(id, key, client) }
+                    }
                 }
             } catch ControlError.remote, ControlError.badLine, ControlError.timeout {
                 continue
@@ -144,11 +149,20 @@ public final class EpicPoller {
             let after = data[key]?.transcripts[id]?.next ?? 0
             guard let reply = try client.events(executionId: id, after: after) else { return }
             update(key) { $0.transcripts[id, default: Transcript()].apply(reply) }
+            if reply.structured == false { try tail(id, key, client) }
             // a full page may be followed by another
             if reply.running == false && reply.events.count < 200 { counted.insert(id) }
         } catch ControlError.remote, ControlError.badLine, ControlError.timeout {
             counted.insert(id)
         }
+    }
+
+    /// The latest summarised lines of a session whose harness has no events.
+    private func tail(_ id: String, _ key: EpicRef, _ client: ControlClient) throws {
+        do {
+            let lines = try client.tail(executionId: id, lines: 60)
+            update(key) { $0.transcripts[id, default: Transcript()].tail = lines }
+        } catch ControlError.remote, ControlError.badLine, ControlError.timeout {}
     }
 
     private func isDue(_ kind: Kind, _ focus: EpicFocus, _ moment: Date) -> Bool {

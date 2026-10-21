@@ -16,10 +16,20 @@ export function socketPathFits(path: string): { fits: boolean; bytes: number } {
 }
 
 const id = z.number().int().positive();
+const repo = z
+  .string()
+  .max(200)
+  .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/)
+  .refine((value) => value.split('/').every((part) => part !== '.' && part !== '..'));
+const issue = z.number().int().positive();
 // An allowlist: any other command, field or type is rejected before anything acts on it.
 export const request = z.union([
   z.strictObject({ id, cmd: z.enum(['snapshot', 'pause', 'resume', 'checkNow', 'stop']) }),
   z.strictObject({ id, cmd: z.literal('tail'), executionId: z.uuid(), lines: z.number().int().min(1).max(500) }),
+  z.strictObject({ id, cmd: z.literal('sessions'), repo, issue }),
+  z.strictObject({ id, cmd: z.literal('events'), executionId: z.uuid(), after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200) }),
+  z.strictObject({ id, cmd: z.literal('epic'), repo, issue }),
+  z.strictObject({ id, cmd: z.literal('files'), repo, issue, executionId: z.uuid().optional() }),
 ]);
 
 // src/control and dist/control both sit two folders under the package root.
@@ -34,7 +44,7 @@ export type Reply = { id: number; ok: true; data?: unknown } | { id: number | nu
 export type Controls = { poll(): unknown; setPaused(paused: boolean): unknown; logs(executionId: string, count: number): string[] };
 
 /** pause, resume, checkNow and tail. Like the panel's keys, a check is started and not waited for: its failure is the engine's to report. */
-function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | 'stop' }>, controls: Controls): Reply {
+function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | 'stop' | Capability }>, controls: Controls): Reply {
   try {
     if (command.cmd === 'tail') return { id: command.id, ok: true, data: controls.logs(command.executionId, command.lines) };
     if (command.cmd === 'checkNow') void Promise.resolve(controls.poll()).catch((error) => log.error('check now failed', error));
@@ -67,6 +77,10 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       log.error('snapshot failed', error);
       return { id: parsed.data.id, ok: false, error: 'internal error' };
     }
+  }
+  // ponytail: the four requests are validated but unanswered until their slice adds the capability and the handler
+  if (parsed.data.cmd === 'sessions' || parsed.data.cmd === 'events' || parsed.data.cmd === 'epic' || parsed.data.cmd === 'files') {
+    return { id: parsed.data.id, ok: false, error: 'not supported' };
   }
   if (parsed.data.cmd !== 'stop') return control(parsed.data, controls);
   stopAfterReply();

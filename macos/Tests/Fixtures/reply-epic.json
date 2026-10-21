@@ -1,0 +1,215 @@
+{
+  "stages": [
+    {
+      "stage": "queued",
+      "startedAt": 500,
+      "endedAt": 1000
+    },
+    {
+      "stage": "ship",
+      "startedAt": 1000,
+      "endedAt": 39000
+    },
+    {
+      "stage": "review",
+      "startedAt": 39000,
+      "endedAt": 60000
+    },
+    {
+      "stage": "fix",
+      "startedAt": 60000,
+      "endedAt": null
+    }
+  ],
+  "rounds": [
+    {
+      "round": 1,
+      "reviewer": {
+        "harness": "codex",
+        "model": "gpt-5",
+        "provider": "ollama"
+      },
+      "verdict": "changes_requested",
+      "reviewMs": 21000,
+      "fixMs": 30000,
+      "reviewedSha": "1111111aaaaaaa",
+      "fixedSha": "2222222bbbbbbb",
+      "blockers": [
+        {
+          "id": "b1",
+          "title": "Token expiry is not checked",
+          "url": "https://github.com/acme/web/pull/50#discussion_b1",
+          "mark": "new",
+          "approximate": false
+        },
+        {
+          "id": "b2",
+          "title": "Missing test for refresh",
+          "url": "https://github.com/acme/web/pull/50#discussion_b2",
+          "mark": "new",
+          "approximate": false
+        }
+      ],
+      "commits": [
+        {
+          "sha": "2222222bbbbbbb",
+          "subject": "fix(auth): check the expiry"
+        },
+        {
+          "sha": "3333333ccccccc",
+          "subject": "test(auth): cover refresh"
+        }
+      ]
+    },
+    {
+      "round": 2,
+      "reviewer": {
+        "harness": "codex",
+        "model": "gpt-5",
+        "provider": "ollama"
+      },
+      "verdict": "changes_requested",
+      "reviewMs": 25000,
+      "fixMs": null,
+      "reviewedSha": "4444444ddddddd",
+      "fixedSha": null,
+      "blockers": [
+        {
+          "id": "b1",
+          "title": "Token expiry is not checked",
+          "url": "https://github.com/acme/web/pull/50#discussion_b1",
+          "mark": "fixed",
+          "approximate": false
+        },
+        {
+          "id": null,
+          "title": "Missing test for refresh",
+          "url": null,
+          "mark": "carried",
+          "approximate": true
+        },
+        {
+          "id": "b3",
+          "title": "Log line leaks the subject",
+          "url": "https://github.com/acme/web/pull/50#discussion_b3",
+          "mark": "new",
+          "approximate": false
+        }
+      ],
+      "commits": []
+    },
+    {
+      "round": 3,
+      "reviewer": {
+        "harness": "codex",
+        "model": "gpt-5",
+        "provider": "ollama"
+      },
+      "verdict": "approved",
+      "reviewMs": 18000,
+      "fixMs": null,
+      "reviewedSha": "5555555eeeeeee",
+      "fixedSha": null,
+      "blockers": [],
+      "commits": []
+    },
+    {
+      "round": 5,
+      "reviewer": {
+        "harness": "codex",
+        "model": "gpt-5",
+        "provider": "ollama"
+      },
+      "verdict": "limit_reached",
+      "reviewMs": 20000,
+      "fixMs": null,
+      "reviewedSha": "6666666fffffff",
+      "fixedSha": null,
+      "blockers": [
+        {
+          "id": "b3",
+          "title": "Log line leaks the subject",
+          "url": "https://github.com/acme/web/pull/50#discussion_b3",
+          "mark": "carried",
+          "approximate": false
+        }
+      ],
+      "commits": []
+    }
+  ],
+  "slices": [
+    {
+      "number": 121,
+      "title": "Request schemas",
+      "state": "closed",
+      "blockedBy": [],
+      "prNumber": 130,
+      "closedAt": 50000,
+      "readAt": 99000
+    },
+    {
+      "number": 122,
+      "title": "Rejected idea",
+      "state": "skipped",
+      "blockedBy": [],
+      "prNumber": null,
+      "closedAt": 51000,
+      "readAt": 99000
+    },
+    {
+      "number": 123,
+      "title": "Sessions request",
+      "state": "in_progress",
+      "blockedBy": [],
+      "prNumber": 131,
+      "closedAt": null,
+      "readAt": 99000
+    },
+    {
+      "number": 124,
+      "title": "Events request",
+      "state": "waiting",
+      "blockedBy": [
+        121,
+        123
+      ],
+      "prNumber": null,
+      "closedAt": null,
+      "readAt": 99000
+    },
+    {
+      "number": 125,
+      "title": "Files request",
+      "state": "ready",
+      "blockedBy": [],
+      "prNumber": null,
+      "closedAt": null,
+      "readAt": 99000
+    }
+  ],
+  "worktrees": [
+    {
+      "kind": "epic",
+      "lane": null,
+      "path": "/work/acme/web-epic"
+    },
+    {
+      "kind": "lane",
+      "lane": 1,
+      "path": "/work/acme/web-epic--lane-1"
+    }
+  ],
+  "branch": "feat/issue-12/epic",
+  "pr": {
+    "number": 50,
+    "url": "https://github.com/acme/web/pull/50",
+    "draft": false,
+    "mergeState": "CLEAN",
+    "reviewDecision": null,
+    "checks": {
+      "passing": 3,
+      "failing": 1,
+      "pending": 0
+    }
+  }
+}

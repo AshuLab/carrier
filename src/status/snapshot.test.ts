@@ -23,7 +23,7 @@ afterEach(() => {
 const add = (issue: number, status: (typeof epicStates)[number], extra: Partial<typeof epics.$inferInsert> = {}) =>
   db.insert(epics).values({ repo: 'acme/web', issue, status, ...extra }).returning().get();
 let slices: Parameters<typeof buildSnapshot>[1]['slices'] = () => null;
-const snapshot = (now = 100_000) => buildSnapshot(db, { now, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false, slices });
+const snapshot = (now = 100_000) => buildSnapshot(db, { now, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000 });
 
 test('slots count the running epics, the queue lists the queued ones oldest first, and finished ones do not show', () => {
   add(5, 'queued');
@@ -33,7 +33,7 @@ test('slots count the running epics, the queue lists the queued ones oldest firs
 
   const s = snapshot();
   expect(s.slots).toEqual({ busy: 1, total: 3 });
-  expect(s.queue).toEqual([{ repo: 'acme/web', issue: 5 }, { repo: 'acme/web', issue: 4 }]);
+  expect(s.queue).toEqual([{ repo: 'acme/web', issue: 5, title: null, queuedAt: 0 }, { repo: 'acme/web', issue: 4, title: null, queuedAt: 0 }]);
   expect(s.epics.map((e) => e.issue)).toEqual([6]);
 });
 
@@ -54,8 +54,34 @@ test('an epic carries its stage, round, links, activity, error and the blockers 
       repo: 'acme/web', issue: 12, status: 'running', stage: 'fix', round: 2, maxReviews: 5, blockers: 2, stageSince: 40_000, lastActivityAt: 90_000,
       issueUrl: 'https://github.com/acme/web/issues/12', prUrl: 'https://github.com/acme/web/pull/50',
       lastError: 'the agent process ended with an error', needsHumanReason: null, slices: null, executionId: 'r2',
+      title: null, labels: [], queuedAt: 0, startedAt: 1_000, finishedAt: null, branch: null, workspace: null, needsHumanKind: null, blockerTitles: ['a', 'b'], agents: null,
     },
   ]);
+});
+
+test('what the engine does not keep yet is empty: no title, labels, branch, kind, watched repositories, sessions or rate limit', () => {
+  add(1, 'queued', { queuedAt: 500 });
+  add(2, 'running');
+  const s = snapshot();
+  expect(s.engine).toEqual({ version: '0.1.0', pollIntervalMs: 300_000, maxConcurrentEpics: 3, rateLimit: null });
+  expect(s.watched).toEqual([]);
+  expect(s.sessions).toEqual([]);
+  expect(s.queue).toEqual([{ repo: 'acme/web', issue: 1, title: null, queuedAt: 500 }]);
+});
+
+test('a running epic with a frozen config lists its running execution as a session, without the profile; blocker titles are capped', () => {
+  const agent = { profile: 'secret-profile', harness: 'claude' as const, model: 'm-author' };
+  const config = { name: 'acme/web', agents: { author: agent, reviewer: { profile: 'other', harness: 'codex' as const, model: 'm-review', provider: 'ollama' as const } } };
+  const epic = add(7, 'running', { config, round: 2 });
+  db.insert(executions).values({ executionId: 'e1', epicId: epic.id, stage: 'review', resultPath: '/r', startedAt: 10 }).run();
+  db.insert(callerResults).values({ executionId: 'e1', outcome: 'changes_requested', result: JSON.stringify({ blockers: Array.from({ length: 12 }, () => ({ title: 'x'.repeat(300) })) }) }).run();
+  db.insert(executions).values({ executionId: 'e2', epicId: epic.id, stage: 'fix', resultPath: '/r', startedAt: 20 }).run();
+
+  const s = snapshot();
+  expect(s.sessions).toEqual([{ executionId: 'e2', repo: 'acme/web', issue: 7, stage: 'fix', round: 2, harness: 'claude', model: 'm-author', startedAt: 20, last: null }]);
+  expect(s.epics[0]?.agents).toEqual({ author: { harness: 'claude', model: 'm-author', provider: null }, reviewer: { harness: 'codex', model: 'm-review', provider: 'ollama' } });
+  expect(s.epics[0]?.blockerTitles).toHaveLength(10);
+  expect(s.epics[0]?.blockerTitles[0]).toHaveLength(200);
 });
 
 test('before the first stage the epic counts from its start, has no PR and no activity; a needs_human epic shows its reason', () => {
@@ -93,7 +119,7 @@ test('an epic and a ready-for-test epic carry the id of their latest execution, 
   const s = snapshot();
   expect(s.epics[0]?.executionId).toBe('new');
   expect(s.done[0]?.executionId).toBe('done-1');
-  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: true, slices }).paused).toBe(true);
+  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: true, slices, version: '0.1.0', pollIntervalMs: 300_000 }).paused).toBe(true);
 });
 
 test('an epic carries its slices once they are known and null before', () => {

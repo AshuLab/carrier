@@ -1,0 +1,94 @@
+{
+  "now": 100000,
+  "startedAt": 40000,
+  "repos": 2,
+  "nextCheckAt": 160000,
+  "problem": "GitHub is not answering",
+  "paused": true,
+  "done": [
+    {
+      "repo": "acme/web",
+      "issue": 30,
+      "prNumber": 77,
+      "finishedAt": 95000,
+      "executionId": "exec-ship-30"
+    },
+    {
+      "repo": "acme/api",
+      "issue": 31,
+      "prNumber": null,
+      "finishedAt": 80000,
+      "executionId": null
+    }
+  ],
+  "slots": {
+    "busy": 2,
+    "total": 3
+  },
+  "queue": [
+    {
+      "repo": "acme/web",
+      "issue": 20
+    },
+    {
+      "repo": "acme/api",
+      "issue": 21
+    }
+  ],
+  "epics": [
+    {
+      "repo": "acme/web",
+      "issue": 12,
+      "status": "running",
+      "stage": "review",
+      "round": 2,
+      "maxReviews": 5,
+      "blockers": 2,
+      "stageSince": 40000,
+      "lastActivityAt": 90000,
+      "issueUrl": "https://github.com/acme/web/issues/12",
+      "prUrl": "https://github.com/acme/web/pull/50",
+      "lastError": "the agent process ended with an error",
+      "needsHumanReason": null,
+      "slices": {
+        "done": 3,
+        "total": 5
+      },
+      "executionId": "exec-review-12"
+    },
+    {
+      "repo": "acme/web",
+      "issue": 13,
+      "status": "running",
+      "stage": null,
+      "round": null,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 7000,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/web/issues/13",
+      "prUrl": null,
+      "lastError": null,
+      "needsHumanReason": null,
+      "slices": null,
+      "executionId": null
+    },
+    {
+      "repo": "acme/api",
+      "issue": 4,
+      "status": "needs_human",
+      "stage": "fix",
+      "round": 5,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 8000,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/api/issues/4",
+      "prUrl": "https://github.com/acme/api/pull/9",
+      "lastError": null,
+      "needsHumanReason": "review limit",
+      "slices": null,
+      "executionId": "exec-fix-4"
+    }
+  ]
+}

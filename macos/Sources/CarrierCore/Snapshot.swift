@@ -2,6 +2,7 @@ import Foundation
 
 // The engine's `PanelSnapshot` (src/status/types.ts), field for field. Times are ms since epoch.
 // macos/Tests/Fixtures/snapshot.json, written by the engine's test, is what the tests decode.
+// Every field the redesign added is optional: an engine that predates it sends none of them (snapshot-old-engine.json).
 
 public struct PanelSnapshot: Codable, Equatable {
     public struct Slots: Codable, Equatable {
@@ -12,6 +13,59 @@ public struct PanelSnapshot: Codable, Equatable {
     public struct QueuedEpic: Codable, Equatable {
         public var repo: String
         public var issue: Int
+        public var title: String?
+        public var queuedAt: Int?
+    }
+
+    public struct Agent: Codable, Equatable {
+        public var harness: String
+        public var model: String
+        public var provider: String?
+    }
+
+    public struct Agents: Codable, Equatable {
+        public var author: Agent
+        public var reviewer: Agent
+    }
+
+    public struct Engine: Codable, Equatable {
+        public struct RateLimit: Codable, Equatable {
+            public var remaining: Int
+            public var limit: Int
+            public var resetAt: Int
+            public var profile: String
+        }
+
+        public var version: String
+        public var pollIntervalMs: Int
+        public var maxConcurrentEpics: Int
+        public var rateLimit: RateLimit?
+    }
+
+    public struct Watched: Codable, Equatable {
+        public var repo: String
+        public var lastCheckedAt: Int?
+        public var ok: Bool
+        public var error: String?
+        public var agents: Agents
+    }
+
+    public struct Session: Codable, Equatable {
+        public struct Last: Codable, Equatable {
+            public var kind: String
+            public var text: String
+            public var at: Int
+        }
+
+        public var executionId: String
+        public var repo: String
+        public var issue: Int
+        public var stage: PanelEpic.Stage
+        public var round: Int?
+        public var harness: String
+        public var model: String
+        public var startedAt: Int
+        public var last: Last?
     }
 
     public struct DoneEpic: Codable, Equatable {
@@ -32,6 +86,9 @@ public struct PanelSnapshot: Codable, Equatable {
     public var problem: String?
     public var paused: Bool
     public var done: [DoneEpic]
+    public var engine: Engine?
+    public var watched: [Watched]?
+    public var sessions: [Session]?
 }
 
 public struct PanelEpic: Codable, Equatable {
@@ -64,6 +121,17 @@ public struct PanelEpic: Codable, Equatable {
     public var needsHumanReason: String?
     public var slices: Slices?
     public var executionId: String?
+    public var title: String?
+    public var labels: [String]?
+    public var queuedAt: Int?
+    public var startedAt: Int?
+    public var finishedAt: Int?
+    public var branch: String?
+    public var workspace: String?
+    /// One of review_limit, agent_needs_human, retries_exhausted, timeout, auth, workspace, pr_invalid; a string so a kind added later does not break the panel.
+    public var needsHumanKind: String?
+    public var blockerTitles: [String]?
+    public var agents: PanelSnapshot.Agents?
 }
 
 /// Why a snapshot did not decode; `field` is the path of the offending value, like `epics.0.slices.total`.

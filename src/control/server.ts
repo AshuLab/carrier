@@ -23,7 +23,7 @@ export const request = z.union([
 ]);
 
 // src/control and dist/control both sit two folders under the package root.
-const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
+export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
 export type Capability = 'sessions' | 'events' | 'epic' | 'files';

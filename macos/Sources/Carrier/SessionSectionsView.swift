@@ -11,9 +11,12 @@ struct SessionSectionsView: View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(list.sections) { section in
                 let open = folds.isOpen(section)
-                Button { folds.toggle(section) } label: { SessionHeaderView(section: section, open: open) }
-                    .buttonStyle(.plain)
-                    .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.08)))
+                VStack(alignment: .leading, spacing: 0) {
+                    Button { folds.toggle(section) } label: { SessionHeaderView(section: section, open: open) }
+                        .buttonStyle(.plain)
+                    if open { ContinueInTerminalView(section: section) }
+                }
+                .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.08)))
             }
             if let earlier = list.earlier { Text(earlier).font(.caption).foregroundStyle(.tertiary).padding(.horizontal, 6) }
         }

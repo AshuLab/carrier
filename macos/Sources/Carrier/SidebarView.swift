@@ -67,7 +67,7 @@ struct SidebarRowView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: row.state.symbol).foregroundStyle(row.state.color).frame(width: 18)
+            StateGlyph(state: row.state)
             VStack(alignment: .leading, spacing: 1) {
                 SidebarRowTitle(name: row.name, issue: row.issue)
                 Text(row.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
@@ -86,17 +86,6 @@ struct SidebarRowTitle: View {
         HStack(spacing: 5) {
             Text(name).fontWeight(.semibold).lineLimit(1).truncationMode(.tail)
             Text("#\(issue)").foregroundStyle(.secondary).monospacedDigit().lineLimit(1).fixedSize().layoutPriority(1)
-        }
-    }
-}
-
-extension EpicMenuState {
-    var color: Color {
-        switch self {
-        case .needsYou: .orange
-        case .running: .green
-        case .waiting: .gray
-        case .ready: .blue
         }
     }
 }

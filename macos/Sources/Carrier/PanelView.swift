@@ -42,7 +42,7 @@ struct PanelView: View {
                                 Label(model.state?.menuLine ?? "", systemImage: "stop.circle").font(.title3)
                                 if model.state == .stopped { StartCarrierButton() }
                             case .running(let snapshot)?:
-                                Running(snapshot: snapshot, selection: shell.selection)
+                                Running(snapshot: snapshot, selection: $shell.selection)
                             }
                         }
                         .padding(18)
@@ -78,12 +78,12 @@ struct PanelView: View {
 
 private struct Running: View {
     let snapshot: PanelSnapshot
-    let selection: Selection
+    @Binding var selection: Selection
 
     var body: some View {
         switch selection {
         case .overview:
-            Overview(snapshot: snapshot)
+            Overview(snapshot: snapshot, selection: $selection)
         case .epic(let repo, let issue):
             // not in the snapshot (any more)
             Text("\(repo) #\(issue)")
@@ -97,25 +97,18 @@ private struct Running: View {
 
 private struct Overview: View {
     let snapshot: PanelSnapshot
+    @Binding var selection: Selection
 
     var body: some View {
-        let needsYou = snapshot.epics.filter { $0.status == .needsHuman }
         let running = snapshot.epics.filter { $0.status == .running }
+        YourTurnView(snapshot: snapshot, selection: $selection)
         CarrierBoxView(snapshot: snapshot)
-        if needsYou.isEmpty == false {
-            PanelSection(title: "Needs you") { ForEach(needsYou, id: \.key) { EpicCard(epic: $0, now: snapshot.now) } }
-        }
         if running.isEmpty == false {
             PanelSection(title: "Running") { ForEach(running, id: \.key) { EpicCard(epic: $0, now: snapshot.now) } }
         }
         if snapshot.queue.isEmpty == false {
             PanelSection(title: "Queue \(snapshot.queue.count)") {
                 ForEach(snapshot.queue, id: \.key) { Text("\($0.repo) #\($0.issue)") }
-            }
-        }
-        if snapshot.done.isEmpty == false {
-            PanelSection(title: "Ready for test") {
-                ForEach(snapshot.done, id: \.key) { DoneRow(done: $0, now: snapshot.now) }
             }
         }
         if snapshot.epics.isEmpty && snapshot.queue.isEmpty && snapshot.done.isEmpty {
@@ -162,21 +155,6 @@ private struct EpicCard: View {
     }
 }
 
-private struct DoneRow: View {
-    let done: PanelSnapshot.DoneEpic
-    let now: Int
-
-    var body: some View {
-        HStack {
-            Text("\(done.repo) #\(done.issue)")
-            Text(agoLine(done.finishedAt, now: now)).font(.caption).foregroundStyle(.secondary)
-            Spacer()
-            OpenButton(title: "Open PR", url: donePullURL(done))
-            OpenButton(title: "Open issue", url: doneIssueURL(done))
-        }
-    }
-}
-
 /// Opens a link from the engine in the default browser; absent when there is no link or it is not a web link.
 private struct OpenButton: View {
     let title: String
@@ -215,4 +193,3 @@ private struct PanelSection<Content: View>: View {
 
 private extension PanelEpic { var key: String { "\(repo)#\(issue)" } }
 private extension PanelSnapshot.QueuedEpic { var key: String { "\(repo)#\(issue)" } }
-private extension PanelSnapshot.DoneEpic { var key: String { "\(repo)#\(issue)" } }

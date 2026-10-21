@@ -40,7 +40,7 @@ struct PanelView: View {
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, selection: $shell.selection, groupBy: groupBy)
+            SidebarView(snapshot: snapshot, selection: $shell.selection, groupBy: groupBy, onAbout: shell.showAbout)
         } detail: {
             Group {
                 if let epic {
@@ -92,6 +92,11 @@ struct PanelView: View {
                     .help("Show or hide the inspector")
             }
         }
+        .overlay {
+            if shell.aboutShown {
+                AboutSheetView(state: model.state, onInput: shell.aboutInput)
+            }
+        }
         .frame(minWidth: 980, minHeight: 600)
         .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
     }
@@ -110,8 +115,6 @@ private struct Running: View {
             Text("\(repo) #\(issue)")
         case .settings:
             Text("Settings").foregroundStyle(.secondary)
-        case .about:
-            Text("About Carrier").foregroundStyle(.secondary)
         }
     }
 }

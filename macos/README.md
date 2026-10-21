@@ -48,6 +48,8 @@ The shell's layers have no automated tests (`CarrierTests` only checks that the 
 cat /tmp/carrier-selftest.log   # last line: "end: process still alive ..."
 ```
 
+With `--fixture` the log also has `rings, window open` and `rings, window closed` (`rings=N animating=M`): the spinning rings of running epics turn only while the window is visible and Reduce Motion is off, so the second line must say `animating=0`.
+
 The app keeps running afterwards; quit it from the menu or with `osascript -e 'tell application id "dev.ashulab.carrier" to quit'`.
 
 ## Fixture mode

@@ -1,0 +1,103 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "remaining": 4993,
+      "limit": 5000,
+      "resetAt": "2026-10-21T23:19:26Z"
+    },
+    "repository": {
+      "pullRequest": {
+        "number": 14035,
+        "state": "OPEN",
+        "mergeStateStatus": "DIRTY",
+        "lastCommit": {
+          "nodes": [
+            {
+              "commit": {
+                "statusCheckRollup": {
+                  "state": "FAILURE",
+                  "contexts": {
+                    "checkRunCount": 11,
+                    "statusContextCount": 0,
+                    "pageInfo": {
+                      "hasNextPage": false
+                    },
+                    "nodes": [
+                      {
+                        "__typename": "CheckRun",
+                        "name": "failing-check",
+                        "status": "COMPLETED",
+                        "conclusion": "FAILURE"
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "check-1",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS"
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "check-2",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS"
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "check-3",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS"
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "check-4",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS"
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "check-5",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS"
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "check-6",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS"
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "check-7",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS"
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "check-8",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS"
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "check-9",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS"
+                      },
+                      {
+                        "__typename": "CheckRun",
+                        "name": "check-10",
+                        "status": "COMPLETED",
+                        "conclusion": "SUCCESS"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

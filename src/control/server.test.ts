@@ -28,7 +28,7 @@ const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
 function fakeControls() {
   const state = { paused: false, polls: 0 };
   const logs = vi.fn((id: string, count: number) => (id === executionId ? ['one', 'two', 'three'].slice(-count) : []));
-  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs } };
+  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }) } };
 }
 
 const stop = async () => {};
@@ -73,7 +73,7 @@ async function client() {
 test('a client gets a hello, and the snapshot as JSON when it asks', async () => {
   await open();
   const c = await client();
-  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: [] });
+  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions'] });
   expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: true, data: snapshotData });
   expect(await c.ask('{"id":7,"cmd":"snapshot"}')).toMatchObject({ id: 7, ok: true });
 });
@@ -98,7 +98,8 @@ test('every command in the schema gets a real reply, none is "not supported"', a
     '{"id":3,"cmd":"resume"}',
     '{"id":4,"cmd":"checkNow"}',
     `{"id":5,"cmd":"tail","executionId":"${executionId}","lines":1}`,
-    '{"id":6,"cmd":"stop"}',
+    '{"id":6,"cmd":"sessions","repo":"AshuLab/carrier","issue":5}',
+    '{"id":7,"cmd":"stop"}',
   ];
   for (const [index, line] of commands.entries()) expect(await c.ask(line)).toMatchObject({ id: index + 1, ok: true });
   await vi.waitFor(() => expect(stopped).toHaveBeenCalledTimes(1));
@@ -152,7 +153,6 @@ test.each([
 
 const NOT_SUPPORTED = { ok: false, error: 'not supported' };
 test.each([
-  ['sessions', '"repo":"AshuLab/carrier","issue":5'],
   ['events', `"executionId":"${executionId}","limit":200`],
   ['events', `"executionId":"${executionId}","after":0,"limit":1`],
   ['epic', '"repo":"a_b.c-d/e.f","issue":1'],

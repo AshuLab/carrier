@@ -5,6 +5,7 @@ import { resolveRepoConfig } from '../../config/resolve.ts';
 import type { AgentRunner } from '../../execution/agent-runner.ts';
 import { GitWorkspaces, profileToken, type GitWorkspacesOptions } from '../../execution/git-workspaces.ts';
 import type { Workspaces } from '../../execution/workspaces.ts';
+import { sessionsOf } from '../../control/sessions.ts';
 import { startControlServer, version } from '../../control/server.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
 import { GhGitHub, type GhGitHubOptions } from '../../integrations/github.ts';
@@ -139,7 +140,14 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
       pollIntervalMs: config.pollIntervalMinutes * 60_000,
       watched: watchedOf(repos, engine.lastCheck),
     });
-  const controls = { poll: () => engine.pollNow(), setPaused: (paused: boolean) => engine.setPaused(paused), open: deps.openUrl, quit: deps.quit, logs: (id: string, count: number) => tailExecution(config.root, id, count) };
+  const controls = {
+    poll: () => engine.pollNow(),
+    setPaused: (paused: boolean) => engine.setPaused(paused),
+    open: deps.openUrl,
+    quit: deps.quit,
+    logs: (id: string, count: number) => tailExecution(config.root, id, count),
+    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, deps.sessionDirs),
+  };
   stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop: shutdown })).close;
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).
   stopPanel =

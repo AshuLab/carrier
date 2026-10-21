@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
@@ -50,4 +51,17 @@ test('a lost conversation is only a stderr warning, and a missing login shows on
   expect(parseAgyLine('Authentication required. Please visit the URL to log in:')).toEqual({ authFailed: true });
   expect(parseAgyLine('{"event":"result","result":{"status":"ERROR","error":"authentication failed or timed out"}}')).toEqual({ authFailed: true });
   expect(parseAgyLine('{"event":"result","result":{"status":"ERROR","error":"interrupted"}}')).toBeUndefined();
+});
+
+test('a real recorded stream: only the init line is a signal and every line is JSON', () => {
+  const lines = readFileSync(new URL('./agy-stream.fixture.jsonl', import.meta.url), 'utf8').trim().split('\n');
+  const signals = lines.map(parseAgyLine).filter((signal) => signal !== undefined);
+  expect(signals).toEqual([{ session: '00000000-0000-4000-8000-000000000001' }]);
+  const events = lines.map((line) => JSON.parse(line));
+  expect(events[0].event).toBe('init');
+  expect(events.at(-1)).toMatchObject({ event: 'result', result: { status: 'SUCCESS' } });
+  // A tool step comes twice, ACTIVE with the call and DONE with the duration, and run_command carries its output.
+  const done = events.filter((e) => e.step_update?.step_type === 'tool' && e.step_update.state === 'DONE');
+  expect(done.map((e) => e.step_update.tool_name)).toEqual(['run_command', 'run_command', 'read_file', 'edit_file', 'run_command']);
+  expect(done[1].step_update).toMatchObject({ duration_seconds: expect.any(Number), tool_info: { parameters: { CommandLine: 'ls /nonexistent' }, output: expect.stringContaining('exited with code 1') } });
 });

@@ -114,6 +114,7 @@ Recorded answers in `src/integrations/github-graphql-fixtures/`, decoded by the 
 | File | Case |
 |---|---|
 | `epic-slices.json` | slice list with blockers |
+| `epic-slices-large.json` | generated, not recorded: 100 slices of a 130-slice epic (`hasNextPage` true), skipped, blocked by two, blocked by a closed one only, with pull request mentions |
 | `pr-checks-passing.json` | PR with checks (18 runs, success and skipped) |
 | `pr-no-checks.json` | PR with no checks (`statusCheckRollup: null`) |
 | `pr-checks-failing.json` | PR with one failing check, counts |
@@ -125,3 +126,5 @@ Recorded answers in `src/integrations/github-graphql-fixtures/`, decoded by the 
 - A blocker in another repository, and a sub-issue in another repository than its epic.
 - A rollup with status contexts (the old commit-status API): the schema covers them but every recorded PR had check runs only.
 - A `PENDING` or `EXPECTED` rollup, an `APPROVED` or `CHANGES_REQUESTED` review decision, and the `mergeStateStatus` values `CLEAN`, `BEHIND`, `UNSTABLE`, `HAS_HOOKS`: the schemas list them from the introspection in the inventory, none was recorded.
+
+The engine's query (`epicSlicesQuery`, `src/integrations/github-graphql.ts`) is query 1 plus `timelineItems(first: 10, itemTypes: [CROSS_REFERENCED_EVENT])` per slice, which gives the slice's pull request: `closedByPullRequestsReferences` answered empty for slices closed by a pull request into the epic branch, because it only follows closing keywords into the default branch. The first pull request among the mentions is taken.

@@ -1,5 +1,5 @@
 import type { Clock } from './clock.ts';
-import { AuthError, GitHubUnavailable, type GitHub, type LabelStyle, type Slices } from './github.ts';
+import { AuthError, GitHubUnavailable, type EpicSlice, type GitHub, type LabelStyle, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
   /** A ready epic's labels are the issue's, as GitHub lists them. */
@@ -9,6 +9,12 @@ export class FakeGitHub implements GitHub {
   openEpics: Record<string, { issue: number; title?: string; slices: Slices | null }[]> = {};
   /** Makes listOpenEpics fail while the rest works. */
   openEpicsUnavailable: GitHubUnavailable | null = null;
+  /** What readSlices answers, by `repo#issue`; an epic not listed has no slices. */
+  slices: Record<string, { slices: EpicSlice[]; truncated?: boolean }> = {};
+  /** Makes readSlices fail while the rest works. */
+  slicesUnavailable: GitHubUnavailable | null = null;
+  /** Every slice read that reached the port, as `repo#issue`. */
+  sliceReads: string[] = [];
   /** Makes setLabels fail while the rest works. */
   setLabelsUnavailable: GitHubUnavailable | null = null;
   issues: Record<string, { state: 'open' | 'closed'; labels: string[] }> = {};
@@ -45,6 +51,14 @@ export class FakeGitHub implements GitHub {
     const failure = this.unavailable ?? this.openEpicsUnavailable;
     if (failure) throw failure;
     return (this.openEpics[repo] ?? []).map((epic) => ({ title: '', ...epic, labels: [...(this.issues[`${repo}#${epic.issue}`]?.labels ?? [])] }));
+  }
+
+  async readSlices(repo: string, issue: number) {
+    this.guard();
+    this.sliceReads.push(`${repo}#${issue}`);
+    if (this.slicesUnavailable) throw this.slicesUnavailable;
+    const found = this.slices[`${repo}#${issue}`];
+    return { slices: found?.slices.map((s) => ({ ...s })) ?? [], truncated: found?.truncated ?? false };
   }
 
   async getIssue(repo: string, issue: number) {

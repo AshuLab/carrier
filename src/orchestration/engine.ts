@@ -8,6 +8,7 @@ import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/a
 import { parseCallerResult } from '../execution/caller-result.ts';
 import { importResult } from '../execution/import-result.ts';
 import type { Workspaces } from '../execution/workspaces.ts';
+import { epicSlices } from '../storage/epic-slices.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
 import { epicEvents } from '../storage/events.ts';
@@ -510,6 +511,24 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     }
   }
 
+  // The slices of each running epic, replacing its rows. A cache of GitHub (ADR 0008): nothing the engine decides reads it back.
+  // A failed read keeps the last rows and the poll goes on; a finished epic is no longer read, so it keeps its last list.
+  async function refreshSlices(repo: string) {
+    for (const { id, issue } of db.select({ id: epics.id, issue: epics.issue }).from(epics).where(and(eq(epics.repo, repo), eq(epics.status, 'running'))).orderBy(asc(epics.id)).all()) {
+      try {
+        const { slices, truncated } = await github.readSlices(repo, issue);
+        const readAt = clock.now();
+        db.transaction((tx) => {
+          tx.delete(epicSlices).where(eq(epicSlices.epicId, id)).run();
+          if (slices.length > 0) tx.insert(epicSlices).values(slices.map((slice) => ({ ...slice, epicId: id, readAt, truncated }))).run();
+        });
+      } catch (e) {
+        if (e instanceof AuthError) throw e;
+        log.error('slices read failed, keeping the last rows', e);
+      }
+    }
+  }
+
   // Returns the wait until the next poll.
   async function poll(): Promise<number> {
     if (stopping) return pollIntervalMs;
@@ -522,6 +541,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       for (const { name: repo } of repos) {
         for (const { issue, title, labels } of await github.listReadyEpics(repo)) found.push({ repo, issue, title, labels });
         await refreshProgress(repo);
+        await refreshSlices(repo);
         checks.set(repo, { at: clock.now(), ok: true, error: null });
         read.add(repo);
       }

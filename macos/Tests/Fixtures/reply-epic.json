@@ -187,6 +187,7 @@
       "readAt": 99000
     }
   ],
+  "slicesTruncated": false,
   "worktrees": [
     {
       "kind": "epic",

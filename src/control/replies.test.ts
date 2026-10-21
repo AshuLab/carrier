@@ -107,6 +107,7 @@ test('the epic reply equals reply-epic.json', () => {
       { number: 124, title: 'Events request', state: 'waiting', blockedBy: [121, 123], prNumber: null, closedAt: null, readAt: 99_000 },
       { number: 125, title: 'Files request', state: 'ready', blockedBy: [], prNumber: null, closedAt: null, readAt: 99_000 },
     ],
+    slicesTruncated: false,
     worktrees: [
       { kind: 'epic', lane: null, path: '/work/acme/web-epic' },
       { kind: 'lane', lane: 1, path: '/work/acme/web-epic--lane-1' },

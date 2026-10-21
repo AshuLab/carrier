@@ -137,6 +137,8 @@ public struct EpicReply: Codable, Equatable {
     public var stages: [Stage]
     public var rounds: [Round]
     public var slices: [Slice]
+    /// True when the epic has more slices than the list holds (only the first hundred are read); absent from an older engine.
+    public var slicesTruncated: Bool? = nil
     public var worktrees: [Worktree]
     public var branch: String?
     /// nil during ship.

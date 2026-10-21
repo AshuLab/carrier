@@ -26,6 +26,17 @@ export const epicLabel = 'solve:epic';
 /** Slices closed out of the total, as GitHub reports them. */
 export type Slices = { done: number; total: number };
 
+/** One slice of an epic as GitHub says it is now. `closed` is merged, `skipped` is closed as not planned; `blockedBy` holds only the blockers still open. `closedAt` is ms since epoch. */
+export type EpicSlice = {
+  number: number;
+  title: string;
+  state: 'closed' | 'skipped' | 'in_progress' | 'waiting' | 'ready';
+  blockedBy: number[];
+  assignee: string | null;
+  prNumber: number | null;
+  closedAt: number | null;
+};
+
 export type LabelStyle = { color: string; description: string };
 /** How Carrier creates its labels (GitHub limits a description to 100 characters). `needs-human` is the loud one: it is the state that most needs to be seen. */
 export const labelStyles = {
@@ -42,6 +53,8 @@ export interface GitHub {
   listReadyEpics(repo: string): Promise<{ issue: number; title: string; labels: string[] }[]>;
   /** The open `solve:epic` issues of the repo, every page, each with its title, labels and the slice progress GitHub reports (`null` when it sends none). Throws GitHubUnavailable like the call above. */
   listOpenEpics(repo: string): Promise<{ issue: number; title: string; labels: string[]; slices: Slices | null }[]>;
+  /** The first hundred slices of an epic in one query; `truncated` when it has more. Throws GitHubUnavailable like the call above. */
+  readSlices(repo: string, issue: number): Promise<{ slices: EpicSlice[]; truncated: boolean }>;
   /** Throws GitHubUnavailable like every call below. */
   getIssue(repo: string, issue: number): Promise<{ state: 'open' | 'closed'; labels: string[] }>;
   /** Null when the PR does not exist; `closed` is closed without merge, a merged PR is `merged`. `headRef` is the branch it comes from. */

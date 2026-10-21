@@ -1,3 +1,5 @@
+import type { needsHumanKinds } from '../storage/schema.ts';
+
 // What the panel shows, whatever draws it: read from SQLite by snapshot.ts, drawn by dashboard.ts (a terminal) or plain.ts (a pipe).
 export type PanelEpic = {
   repo: string;
@@ -46,7 +48,7 @@ export type PanelSnapshot = {
 // and the terminal panel keeps reading `PanelSnapshot`, of which this is a superset.
 export type PanelAgent = { harness: 'claude' | 'codex' | 'agy'; model: string; provider: string | null };
 export type PanelAgents = { author: PanelAgent; reviewer: PanelAgent };
-export type NeedsHumanKind = 'review_limit' | 'agent_needs_human' | 'retries_exhausted' | 'timeout' | 'auth' | 'workspace' | 'pr_invalid';
+export type NeedsHumanKind = (typeof needsHumanKinds)[number];
 
 export type EpicAdditions = {
   /** The issue's title; null until the engine reads it. */

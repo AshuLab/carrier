@@ -38,10 +38,10 @@ export const readyForTestLabel = ownedLabels[1];
 export const needsHumanLabel = ownedLabels[2];
 
 export interface GitHub {
-  /** All ready epics of the repo, every page. Throws GitHubUnavailable when GitHub is down or rate limiting. */
-  listReadyEpics(repo: string): Promise<{ issue: number; title: string }[]>;
-  /** The open `solve:epic` issues of the repo, every page, each with the slice progress GitHub reports (`null` when it sends none). Throws GitHubUnavailable like the call above. */
-  listOpenEpics(repo: string): Promise<{ issue: number; slices: Slices | null }[]>;
+  /** All ready epics of the repo, every page, with their title and labels. Throws GitHubUnavailable when GitHub is down or rate limiting. */
+  listReadyEpics(repo: string): Promise<{ issue: number; title: string; labels: string[] }[]>;
+  /** The open `solve:epic` issues of the repo, every page, each with its title, labels and the slice progress GitHub reports (`null` when it sends none). Throws GitHubUnavailable like the call above. */
+  listOpenEpics(repo: string): Promise<{ issue: number; title: string; labels: string[]; slices: Slices | null }[]>;
   /** Throws GitHubUnavailable like every call below. */
   getIssue(repo: string, issue: number): Promise<{ state: 'open' | 'closed'; labels: string[] }>;
   /** Null when the PR does not exist; `closed` is closed without merge, a merged PR is `merged`. `headRef` is the branch it comes from. */

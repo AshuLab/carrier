@@ -35,7 +35,7 @@ describe.skipIf(!enabled)('GhGitHub against a real repo', () => {
         issue = (JSON.parse(forge(['api', '-X', 'POST', `repos/${repo}/issues`, '-f', `title=${title}`, '-f', 'body=Throwaway issue from the Carrier adapter integration test.'])) as { number: number }).number;
         await github.setLabels(repo!, issue, { add: [readyLabel], remove: [] });
         expect(await github.getIssue(repo!, issue)).toEqual({ state: 'open', labels: [readyLabel] });
-        expect(await github.listReadyEpics(repo!)).toContainEqual({ issue, title });
+        expect(await github.listReadyEpics(repo!)).toContainEqual({ issue, title, labels: [readyLabel] });
 
         await github.setLabels(repo!, issue, { add: [runningLabel], remove: [readyLabel] });
         await github.setLabels(repo!, issue, { add: [runningLabel], remove: [readyLabel] });

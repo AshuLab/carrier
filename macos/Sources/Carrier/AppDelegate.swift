@@ -3,8 +3,11 @@ import CarrierCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    private var fixtureServer: FixtureServer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // before anything reads the socket path: the fake engine's home becomes CARRIER_HOME
+        if let fixtures = Self.fixturesPath() { startFixtureMode(fixtures) }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         IconController.install(on: item)
 
@@ -44,6 +47,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // A menu bar app keeps running with no windows.
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { false }
+
+    func applicationWillTerminate(_ notification: Notification) { fixtureServer?.stop() }
+
+    /// `--fixture [folder]`: the folder of golden files, by default the ones inside the app bundle. nil without the flag.
+    private static func fixturesPath() -> String? {
+        let args = CommandLine.arguments
+        guard let flag = args.firstIndex(of: "--fixture") else { return nil }
+        if args.indices.contains(flag + 1), args[flag + 1].hasPrefix("--") == false { return args[flag + 1] }
+        return (Bundle.main.resourcePath ?? ".") + "/Fixtures"
+    }
+
+    /// Starts the fake engine and points the app at it; with no fixtures to serve the app exits rather than show a stopped Carrier.
+    private func startFixtureMode(_ fixtures: String) {
+        do {
+            let server = try FixtureServer(fixtures: fixtures)
+            setenv("CARRIER_HOME", server.home, 1)
+            fixtureServer = server
+        } catch {
+            FileHandle.standardError.write(Data("carrier: --fixture failed: \(error)\n".utf8))
+            exit(1)
+        }
+    }
 
     /// The value after `--selftest`, if there is one.
     private static func selfTestPath() -> String? {

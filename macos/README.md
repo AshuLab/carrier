@@ -49,3 +49,12 @@ cat /tmp/carrier-selftest.log   # last line: "end: process still alive ..."
 ```
 
 The app keeps running afterwards; quit it from the menu or with `osascript -e 'tell application id "dev.ashulab.carrier" to quit'`.
+
+## Fixture mode
+
+`--fixture [folder]` runs the app against a fake Carrier, so the window can be looked at with no engine. The app starts an in-process control server (`CarrierCore/FixtureServer.swift`) on a socket in a temporary folder under `/tmp`, points `CARRIER_HOME` at it and connects as to any Carrier. It answers `snapshot`, `sessions`, `events`, `epic` and `files` from the golden files in `Tests/Fixtures`, pause, resume, check now and stop with a plain ok that does nothing, and anything else with an error. `folder` defaults to the copy of the golden files that `build-app.sh` puts in `Carrier.app/Contents/Resources/Fixtures`; give one when running without the bundle. The temporary folder is removed when the app quits. It combines with `--selftest`.
+
+```sh
+./Carrier.app/Contents/MacOS/Carrier --fixture
+./Carrier.app/Contents/MacOS/Carrier --fixture --selftest /tmp/carrier-selftest.log
+```

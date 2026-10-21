@@ -18,6 +18,11 @@ struct PanelView: View {
         return (subject, epicHeader(subject), snapshot.now)
     }
 
+    private func queuedPlan(_ subject: EpicSubject) -> QueuedPlan? {
+        guard case .queued(let queued, let position) = subject else { return nil }
+        return snapshot?.queuedPlan(for: queued, position: position)
+    }
+
     /// What the engine is asked for: the selected epic's data, nothing with no epic selected.
     private var focus: EpicFocus? {
         guard let epic else { return nil }
@@ -42,7 +47,8 @@ struct PanelView: View {
                     let data = model.epics.data[EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)]
                     EpicView(
                         subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files), now: epic.now,
-                        sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:]), folds: $epics.folds, files: data?.files
+                        sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:]), folds: $epics.folds, files: data?.files,
+                        plan: queuedPlan(epic.subject)
                     )
                         .id("\(epic.subject.repo)#\(epic.subject.issue)")
                 } else {

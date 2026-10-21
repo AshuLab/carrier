@@ -13,6 +13,8 @@ struct EpicView: View {
     @Binding var folds: SessionFolds
     /// The `files` reply, once the window asks for it.
     var files: FilesReply?
+    /// What a queued epic will do; nil for any other.
+    var plan: QueuedPlan?
     @State private var tab = EpicTab.agentOutput
 
     var body: some View {
@@ -38,8 +40,9 @@ struct EpicView: View {
     @ViewBuilder private var tabContent: some View {
         switch tab {
         case .agentOutput:
-            if case .queued = subject {
-                EmptyStateView(state: .waitingForSlot).frame(minHeight: 260)
+            if let empty = subject.outputEmptyState {
+                EmptyStateView(state: empty).frame(minHeight: 260)
+                if let plan { QueuedPlanView(plan: plan) }
             } else if sessions.sections.isEmpty {
                 Text("The agents' output appears here.").foregroundStyle(.secondary).padding(.vertical, 40)
             } else {

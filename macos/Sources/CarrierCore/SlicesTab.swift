@@ -46,16 +46,18 @@ public struct SlicesTabModel: Equatable {
     public var caption: String { merged == total && total > 0 ? "all merged" : "merged" }
 }
 
-/// The default group is in progress, else waiting, else merged; a chosen group that is empty is ignored. Skipped slices are
+/// A queued epic has nothing in progress: its open slices all wait. The default group is in progress, else waiting, else merged; a chosen group that is empty is ignored. Skipped slices are
 /// left out. Without the `epic` list the snapshot's counts make the ring (merged and waiting) and the list is replaced by a notice.
 public func slicesTabModel(_ subject: EpicSubject?, reply: EpicReply?, chosen: SliceGroup? = nil, now: Int) -> SlicesTabModel {
     let slices = (reply?.slices ?? []).filter { $0.state != "skipped" }
     var rows: [SliceGroup: [SliceRow]] = [:]
+    var queued = false
+    if case .queued? = subject { queued = true }
     for slice in slices {
         let (group, detail): (SliceGroup, String)
         switch slice.state {
         case "closed": (group, detail) = (.merged, slice.closedAt.map { agoLine($0, now: now) } ?? "merged")
-        case "in_progress":
+        case "in_progress" where queued == false:
             let hints = [slice.lane.map { "lane \($0)" }, slice.activity, slice.prNumber.map { "PR #\($0)" }].compactMap { $0 }
             (group, detail) = (.inProgress, hints.first.map { _ in hints.joined(separator: " · ") } ?? "working")
         default:

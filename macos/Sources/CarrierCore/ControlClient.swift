@@ -66,7 +66,7 @@ public final class ControlClient {
     }
 
     /// What the last `hello()` said Carrier can do; empty until then.
-    public private(set) var capabilities: Set<Capability> = []
+    public internal(set) var capabilities: Set<Capability> = []
 
     /// Reads the hello Carrier sends on connect.
     public func hello() throws -> Hello {

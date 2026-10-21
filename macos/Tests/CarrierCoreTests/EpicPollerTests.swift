@@ -1,0 +1,224 @@
+import Foundation
+import Testing
+@testable import CarrierCore
+
+private let web = EpicRef(repo: "acme/web", issue: 12)
+private let api = EpicRef(repo: "acme/api", issue: 3)
+private let execution = "a1b2c3d4-0001-4000-8000-000000000001"
+
+/// A poller on a clock the test moves, against the fixture engine. `tick(at:)` polls at that second and returns the commands sent by it.
+private final class Rig {
+    let engine: FixtureEngine
+    let client: ControlClient
+    let poller: EpicPoller
+    var seconds: TimeInterval = 0
+    var updates: [EpicRef] = []
+
+    init(capabilities: [String] = ["sessions", "events", "epic", "files"]) throws {
+        engine = FixtureEngine(capabilities: capabilities)
+        client = try #require(ControlClient.connect(path: engine.path))
+        _ = try client.hello()
+        let box = UpdateBox()
+        var clock: () -> Date = { Date() }
+        let poller = EpicPoller(now: { clock() }, onUpdate: { key, _ in box.append(key) })
+        self.poller = poller
+        self.box = box
+        clock = { [unowned self] in Date(timeIntervalSince1970: self.seconds) }
+    }
+
+    private let box: UpdateBox
+    var changed: [EpicRef] { box.all }
+
+    func tick(at time: TimeInterval) throws -> [String] {
+        seconds = time
+        let before = engine.commands.count
+        try poller.poll(client)
+        return Array(engine.commands.dropFirst(before))
+    }
+
+    deinit { engine.stop() }
+}
+
+private final class UpdateBox {
+    private let lock = NSLock()
+    private var keys: [EpicRef] = []
+    func append(_ key: EpicRef) { lock.lock(); keys.append(key); lock.unlock() }
+    var all: [EpicRef] { lock.lock(); defer { lock.unlock() }; return keys }
+}
+
+@Test func nothingIsAskedWithoutAnEpicOnScreen() throws {
+    let rig = try Rig()
+    #expect(try rig.tick(at: 0).isEmpty)
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true))
+    #expect(try rig.tick(at: 1) == ["epic", "sessions"])
+}
+
+@Test func theEpicEveryThreeSecondsAndTheSessionsEveryFiveStartingWhenItOpens() throws {
+    let rig = try Rig()
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true))
+
+    var sent: [TimeInterval: [String]] = [:]
+    for second in 0...15 { sent[TimeInterval(second)] = try rig.tick(at: TimeInterval(second)) }
+    let epics = sent.filter { $0.value.contains("epic") }.keys.sorted()
+    let sessions = sent.filter { $0.value.contains("sessions") }.keys.sorted()
+    #expect(epics == [0, 3, 6, 9, 12, 15])
+    #expect(sessions == [0, 5, 10, 15])
+    #expect(sent.values.allSatisfy { $0.allSatisfy { ["epic", "sessions"].contains($0) } })
+}
+
+@Test func theEventsEverySecondWithTheCursorOfTheLastReplyOnlyWhileARunningTranscriptIsVisible() throws {
+    let rig = try Rig()
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true))
+    #expect(try rig.tick(at: 0) == ["epic", "sessions"])
+    #expect(try rig.tick(at: 1).isEmpty)
+
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true, transcript: execution))
+    #expect(try rig.tick(at: 1.2) == ["events"])
+    #expect(try rig.tick(at: 1.7).isEmpty)
+    #expect(try rig.tick(at: 2.2) == ["events"])
+    #expect(try rig.tick(at: 3.2) == ["epic", "events"])
+
+    let events = rig.engine.requests.filter { $0["cmd"] as? String == "events" }
+    #expect(events.map { $0["after"] as? Int } == [0, 111, 111])
+    #expect(events.allSatisfy { $0["executionId"] as? String == execution && $0["limit"] as? Int == 200 })
+
+    // the transcript is hidden: no more, and shown again it is asked at once
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true))
+    #expect(try rig.tick(at: 3.4).isEmpty)
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true, transcript: execution))
+    #expect(try rig.tick(at: 3.5) == ["events"])
+}
+
+@Test func theFilesWhenTheTabOpensThenEveryTenSecondsOnlyWhileTheEpicRuns() throws {
+    let rig = try Rig()
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true))
+    #expect(try rig.tick(at: 0) == ["epic", "sessions"])
+
+    // the tab is hidden: never, however long
+    #expect(try rig.tick(at: 12).contains("files") == false)
+
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true))
+    #expect(try rig.tick(at: 13).contains("files"))
+    #expect(try rig.tick(at: 22).contains("files") == false)
+    #expect(try rig.tick(at: 23).contains("files"))
+
+    // hide and show again: asked at once
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true))
+    #expect(try rig.tick(at: 24).contains("files") == false)
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true))
+    #expect(try rig.tick(at: 25).contains("files"))
+
+    // the epic stopped running: once when the tab opens, then no more
+    rig.poller.show(EpicFocus(epic: web, epicRunning: false, filesTabVisible: true))
+    #expect(try rig.tick(at: 60).contains("files") == false)
+    rig.poller.show(EpicFocus(epic: web, epicRunning: false))
+    rig.poller.show(EpicFocus(epic: web, epicRunning: false, filesTabVisible: true))
+    #expect(try rig.tick(at: 61).contains("files"))
+    #expect(try rig.tick(at: 100).contains("files") == false)
+}
+
+@Test func closingTheWindowStopsEverythingAndOpeningAgainStartsOver() throws {
+    let rig = try Rig()
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, transcript: execution))
+    #expect(try rig.tick(at: 0).sorted() == ["epic", "events", "files", "sessions"])
+
+    rig.poller.show(nil)
+    #expect(try rig.tick(at: 1).isEmpty)
+    #expect(try rig.tick(at: 100).isEmpty)
+
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true))
+    #expect(try rig.tick(at: 101) == ["epic", "sessions"])
+}
+
+@Test func changingEpicAsksTheNewOneAtOnceAndNothingMoreForTheOldOne() throws {
+    let rig = try Rig()
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true))
+    #expect(try rig.tick(at: 0) == ["epic", "sessions"])
+
+    rig.poller.show(EpicFocus(epic: api, epicRunning: true))
+    #expect(try rig.tick(at: 1) == ["epic", "sessions"])
+    #expect(try rig.tick(at: 2).isEmpty)
+    let repos = rig.engine.requests.map { $0["repo"] as? String }
+    #expect(repos == ["acme/web", "acme/web", "acme/api", "acme/api"])
+    #expect(Set(rig.poller.data.keys) == [web, api])
+}
+
+@Test func aRequestIsNeverSentWhenTheHelloLeftTheCapabilityOut() throws {
+    let rig = try Rig(capabilities: ["epic"])
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, transcript: execution))
+    #expect(try rig.tick(at: 0) == ["epic"])
+    #expect(try rig.tick(at: 1).isEmpty)
+    #expect(rig.poller.data[web]?.sessions == nil)
+    #expect(rig.poller.data[web]?.transcripts.isEmpty == true)
+
+    let none = try Rig(capabilities: [])
+    none.poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, transcript: execution))
+    #expect(try none.tick(at: 0).isEmpty)
+}
+
+@Test func aFailingRequestIsNotAskedAgainAndTheOthersGoOn() throws {
+    let engine = FixtureEngine(capabilities: ["sessions", "events", "epic", "files"], fail: ["sessions"])
+    defer { engine.stop() }
+    let client = try #require(ControlClient.connect(path: engine.path))
+    _ = try client.hello()
+    var now = Date(timeIntervalSince1970: 0)
+    let poller = EpicPoller(now: { now }, onUpdate: { _, _ in })
+    poller.show(EpicFocus(epic: web, epicRunning: true))
+
+    try poller.poll(client)
+    now = Date(timeIntervalSince1970: 5)
+    try poller.poll(client)
+    #expect(engine.commands == ["epic", "sessions", "epic"])
+    #expect(poller.data[web]?.epic != nil && poller.data[web]?.sessions == nil)
+}
+
+@Test func theUpdateIsReportedOnlyWhenAReplyChangedSomething() throws {
+    let rig = try Rig()
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true))
+    _ = try rig.tick(at: 0)
+    #expect(rig.changed == [web, web])
+    _ = try rig.tick(at: 3) // the same epic reply again
+    #expect(rig.changed.count == 2)
+}
+
+@Test func theCursorAdvancesADuplicateIsIgnoredAndEventsStayInOrder() {
+    func event(_ id: Int) -> ExecEvent { ExecEvent(id: id, at: id * 10, kind: "say") }
+    func reply(_ ids: [Int], next: Int, running: Bool = true) -> EventsReply { EventsReply(events: ids.map(event), next: next, running: running, structured: true) }
+
+    var transcript = Transcript()
+    #expect(transcript.next == 0)
+    transcript.apply(reply([1, 2, 3], next: 3))
+    #expect(transcript.next == 3)
+
+    // 3 again and 4 and 5 out of order within the reply
+    transcript.apply(reply([3, 5, 4], next: 5))
+    #expect(transcript.events.map(\.id) == [1, 2, 3, 4, 5])
+    #expect(transcript.next == 5)
+
+    // a late reply: nothing new and the cursor never goes back
+    transcript.apply(reply([2], next: 2))
+    #expect(transcript.events.map(\.id) == [1, 2, 3, 4, 5])
+    #expect(transcript.next == 5)
+
+    // an event that arrives behind a higher one is put where it belongs
+    transcript.apply(reply([7, 6], next: 7, running: false))
+    #expect(transcript.events.map(\.id) == [1, 2, 3, 4, 5, 6, 7])
+    #expect(transcript.running == false)
+}
+
+@Test func theEventsStopWhenTheReplySaysTheSessionEnded() throws {
+    let ended = #"{"events":[{"id":1,"at":2,"kind":"say"}],"next":1,"running":false,"structured":true}"#
+    let engine = FixtureEngine(capabilities: ["events"], replies: ["events": ended])
+    defer { engine.stop() }
+    let client = try #require(ControlClient.connect(path: engine.path))
+    _ = try client.hello()
+    var now = Date(timeIntervalSince1970: 0)
+    let poller = EpicPoller(now: { now }, onUpdate: { _, _ in })
+    poller.show(EpicFocus(epic: web, epicRunning: true, transcript: execution))
+
+    try poller.poll(client)
+    now = Date(timeIntervalSince1970: 5)
+    try poller.poll(client)
+    #expect(engine.commands == ["events"])
+    #expect(poller.data[web]?.transcripts[execution]?.events.count == 1)
+}

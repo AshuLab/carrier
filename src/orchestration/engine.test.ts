@@ -14,7 +14,8 @@ import { epicEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { FakeClock, FakeGitHub } from './fake.ts';
-import { AuthError, GitHubUnavailable } from './github.ts';
+import { AuthError, GitHubUnavailable, type EpicSlice } from './github.ts';
+import { epicSlices } from '../storage/epic-slices.ts';
 
 const MIN = 60_000;
 const agents = {
@@ -1625,4 +1626,65 @@ test('paused: new epics are queued but not reserved, running ones go on, and res
   expect(byStatus(engine.db, 'queued')).toEqual([2, 3]); // queued, not started, even with GitHub polled
   await engine.setPaused(false);
   expect(engine.paused).toBe(false);
+});
+
+// --- slices: a cache of GitHub (ADR 0008) ---
+
+const slice = (number: number, extra: Partial<EpicSlice> = {}): EpicSlice => ({ number, title: `Slice ${number}`, state: 'ready', blockedBy: [], assignee: null, prNumber: null, closedAt: null, ...extra });
+const cached = (db: Db) => db.select().from(epicSlices).all().map((r) => `${r.epicId}:${r.number}:${r.state}@${r.readAt}`);
+
+// Epic 1 running (its author is cut, so it stays so), epic 2 queued behind it.
+async function runningWithSlices() {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  github.slices = { 'AshuLab/a#1': { slices: [slice(10, { state: 'closed', closedAt: 1000 }), slice(11, { state: 'waiting', blockedBy: [12] })] }, 'AshuLab/a#2': { slices: [slice(20)] } };
+  runner.behavior = () => ({ exit: 'stopped' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN); // registers and reserves; nothing was running when the slices would be read
+  return engine;
+}
+
+test('the poll caches the slices of running epics only, replacing them, and a finished epic keeps its last list', async () => {
+  const engine = await runningWithSlices();
+  expect(cached(engine.db)).toEqual([]);
+  expect(github.sliceReads).toEqual([]);
+
+  await clock.advance(5 * MIN);
+  expect(github.sliceReads).toEqual(['AshuLab/a#1']);
+  expect(cached(engine.db)).toEqual([`1:10:closed@${10 * MIN}`, `1:11:waiting@${10 * MIN}`]);
+
+  github.slices['AshuLab/a#1'] = { slices: [slice(11, { state: 'in_progress' })] };
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db)).toEqual([`1:11:in_progress@${15 * MIN}`]);
+
+  engine.db.update(epics).set({ status: 'ready_for_test' }).where(eq(epics.issue, 1)).run();
+  github.slices['AshuLab/a#1'] = { slices: [] };
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db)).toEqual([`1:11:in_progress@${15 * MIN}`]);
+});
+
+test('a failing slices read keeps the previous rows and the poll goes on', async () => {
+  const engine = await runningWithSlices();
+  await clock.advance(5 * MIN);
+  const before = cached(engine.db);
+  expect(before).toHaveLength(2);
+
+  github.slicesUnavailable = new GitHubUnavailable();
+  github.slices['AshuLab/a#1'] = { slices: [slice(99)] };
+  github.ready = { 'AshuLab/a': ready(1, 2, 3) };
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db)).toEqual(before);
+  expect(engine.error).toBeNull();
+  expect(ids(engine)).toContain('AshuLab/a#3');
+
+  github.slicesUnavailable = null;
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db)).toEqual([`1:99:ready@${20 * MIN}`]);
+});
+
+test('the engine decides the same with the table empty: an epic goes through ship and review to ready for test', async () => {
+  const engine = await reviewing((task) => ({
+    write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'ok' } }),
+  }));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: SHA });
+  expect(cached(engine.db)).toEqual([]);
 });

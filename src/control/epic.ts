@@ -5,6 +5,7 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { CallerResult } from '../execution/caller-result.ts';
 import type { Db } from '../storage/db.ts';
 import { callerResults } from '../storage/caller-results.ts';
+import { epicSlices } from '../storage/epic-slices.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import type { Blocker, EpicReply } from './replies.ts';
@@ -75,7 +76,7 @@ function commitsBetween(cwd: string | null, from: string, to: string): Round['co
  * The stage timeline, review rounds, worktrees and branch of an epic; null for one the engine does not know.
  * Built from the executions and the stored results, so it also reads an epic that has finished. A round is a review that
  * left a result: technical retries leave none and make no round. An epic put back in the queue starts new rounds from 1
- * after the old ones, which stay in the list. `slices` and `pr` are filled by their own requests.
+ * after the old ones, which stay in the list. `slices` is the cache of GitHub the poll keeps (ADR 0008); `pr` is filled by its own request.
  */
 export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
   const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
@@ -165,5 +166,6 @@ export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
   // ponytail: read from the worktree's HEAD until the epic row records its branch
   const branch = epic.workspace === null ? null : (git(epic.workspace, ['symbolic-ref', '--short', 'HEAD'])?.trim() || null);
 
-  return { stages, rounds, slices: [], worktrees, branch, pr: null };
+  const slices = db.select().from(epicSlices).where(eq(epicSlices.epicId, epic.id)).orderBy(epicSlices.number).all();
+  return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, closedAt, readAt })), slicesTruncated: slices.some((s) => s.truncated), worktrees, branch, pr: null };
 }

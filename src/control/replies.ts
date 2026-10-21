@@ -87,6 +87,8 @@ export type EpicReply = {
     closedAt: number | null;
     readAt: number;
   }[];
+  /** Only the first hundred slices are read: true when the epic has more than the list holds. */
+  slicesTruncated: boolean;
   /** `reviewer` is the detached checkout the reviewer works in. */
   worktrees: { kind: 'epic' | 'reviewer' | 'lane'; lane: number | null; path: string }[];
   branch: string | null;

@@ -1,7 +1,11 @@
 import { z } from 'zod';
+import type { EpicSlice } from '../orchestration/github.ts';
 
 // What the GraphQL answers look like, as recorded in docs/research/macos-app-github-graphql.md.
 // The queries live in that note; these schemas decode what they return.
+
+/** Slices read per epic; more than this and the reply says it is partial. */
+export const SLICE_LIMIT = 100;
 
 const rateLimit = z.object({ cost: z.int().positive(), remaining: z.int().nonnegative(), limit: z.int().positive(), resetAt: z.string() });
 
@@ -16,6 +20,8 @@ const slice = z.object({
   blockedBy: z.object({
     nodes: z.array(z.object({ number: z.int().positive(), state: z.enum(['OPEN', 'CLOSED']), repository: z.object({ nameWithOwner: z.string() }) })),
   }),
+  // Added after the spike: what mentions the slice. Absent in the recorded answers, so it defaults to nothing.
+  timelineItems: z.object({ nodes: z.array(z.object({ source: z.object({ __typename: z.string(), number: z.int().positive().optional() }) })) }).default({ nodes: [] }),
 });
 
 export const epicSlicesResponse = z.object({
@@ -110,3 +116,42 @@ export const failingCheckResponse = z.object({
     }),
   }),
 });
+
+/** The epic's slices with their blockers and the pull requests that mention them; the schemas above decode its answer. Cost 2 for 52 slices. */
+export const epicSlicesQuery = `query($owner: String!, $name: String!, $number: Int!) {
+  rateLimit { cost remaining limit resetAt }
+  repository(owner: $owner, name: $name) {
+    issue(number: $number) {
+      number title state
+      labels(first: 20) { nodes { name } }
+      subIssuesSummary { total completed percentCompleted }
+      subIssues(first: ${SLICE_LIMIT}) {
+        pageInfo { hasNextPage }
+        nodes {
+          number title state stateReason closedAt
+          assignees(first: 3) { nodes { login } }
+          blockedBy(first: 20) { nodes { number state repository { nameWithOwner } } }
+          timelineItems(first: 10, itemTypes: [CROSS_REFERENCED_EVENT]) { nodes { ... on CrossReferencedEvent { source { __typename ... on PullRequest { number } } } } }
+        }
+      }
+    }
+  }
+}`;
+
+type SliceRead = z.infer<typeof slice>;
+
+/**
+ * Closed as completed is merged (`closed`), closed any other way is skipped; open and assigned or with a pull request is working,
+ * open with an open blocker is waiting, otherwise ready to start. A closed blocker does not hold a slice back.
+ */
+export function sliceOf(s: SliceRead): EpicSlice {
+  const blockedBy = s.blockedBy.nodes.filter((b) => b.state === 'OPEN').map((b) => b.number);
+  // ponytail: the first pull request that mentions the slice; a later one that only cites it is not told apart.
+  const prNumber = s.timelineItems.nodes.find((n) => n.source.__typename === 'PullRequest')?.source.number ?? null;
+  const assignee = s.assignees.nodes[0]?.login ?? null;
+  let state: EpicSlice['state'];
+  if (s.state === 'CLOSED') state = s.stateReason === 'NOT_PLANNED' || s.stateReason === 'DUPLICATE' ? 'skipped' : 'closed';
+  else if (assignee !== null || prNumber !== null) state = 'in_progress';
+  else state = blockedBy.length > 0 ? 'waiting' : 'ready';
+  return { number: s.number, title: s.title, state, blockedBy, assignee, prNumber, closedAt: s.closedAt === null ? null : Date.parse(s.closedAt) };
+}

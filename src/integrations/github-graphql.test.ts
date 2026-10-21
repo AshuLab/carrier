@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { epicSlicesResponse, failingCheckResponse, pullRequestResponse } from './github-graphql.ts';
+import { epicSlicesResponse, failingCheckResponse, pullRequestResponse, sliceOf } from './github-graphql.ts';
 
 // Recorded from the Forge bot token (docs/research/macos-app-github-graphql.md), private text replaced.
 const fixture = (name: string): unknown => JSON.parse(readFileSync(new URL(`./github-graphql-fixtures/${name}.json`, import.meta.url), 'utf8'));
@@ -29,5 +29,29 @@ describe('recorded GraphQL answers', () => {
     expect(rollupOf('pr-checks-failing')!.state).toBe('FAILURE');
     const rollup = failingCheckResponse.parse(fixture('pr-failing-check-detail')).data.repository.pullRequest.lastCommit.nodes[0]!.commit.statusCheckRollup!;
     expect(rollup.contexts.nodes.filter((c) => c.__typename === 'CheckRun' && c.conclusion === 'FAILURE')).toHaveLength(1);
+  });
+
+  test('slices take their state from GitHub: no blockers, closed blockers, open blockers, skipped, merged', () => {
+    const states = (name: string) => Object.fromEntries(epicSlicesResponse.parse(fixture(name)).data.repository.issue.subIssues.nodes.map((n) => [n.number, sliceOf(n)]));
+    const recorded = states('epic-slices');
+    expect(recorded[112]).toMatchObject({ state: 'closed', closedAt: Date.parse('2026-10-21T22:18:28Z'), blockedBy: [] });
+    expect(recorded[115]).toMatchObject({ state: 'in_progress', assignee: 'example-user' });
+    expect(recorded[118]).toMatchObject({ state: 'ready', blockedBy: [], assignee: null });
+    expect(recorded[120]).toMatchObject({ state: 'waiting' });
+    expect(recorded[135]!.blockedBy).toHaveLength(1); // one blocker is closed and does not hold it
+    expect(recorded[135]!.state).toBe('waiting');
+
+    const large = states('epic-slices-large');
+    expect(large[203]).toMatchObject({ state: 'skipped', prNumber: null });
+    expect(large[200]).toMatchObject({ state: 'closed', prNumber: 400 }); // the issue that mentions it is not a pull request
+    expect(large[261]).toMatchObject({ state: 'waiting', blockedBy: [260, 262] });
+    expect(large[262]).toMatchObject({ state: 'ready', blockedBy: [] }); // blocked by a closed one only
+  });
+
+  test('an epic with more than a hundred slices reports the first hundred and that there are more', () => {
+    const issue = epicSlicesResponse.parse(fixture('epic-slices-large')).data.repository.issue;
+    expect(issue.subIssues.nodes).toHaveLength(100);
+    expect(issue.subIssues.pageInfo.hasNextPage).toBe(true);
+    expect(issue.subIssuesSummary.total).toBe(130);
   });
 });

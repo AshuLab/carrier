@@ -230,3 +230,24 @@ describe('failures', () => {
     expect(Date.now() - started).toBeLessThan(3000);
   });
 });
+
+describe('readSlices', () => {
+  const recorded = readFileSync(new URL('./github-graphql-fixtures/epic-slices-large.json', import.meta.url), 'utf8');
+
+  test('one graphql call with separated arguments; it returns the derived slices and that the list is partial', async () => {
+    const { github, calls } = setup([{ match: 'graphql', stdout: `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${recorded}` }]);
+    const { slices, truncated } = await github.readSlices(repo, 111);
+    expect(slices).toHaveLength(100);
+    expect(truncated).toBe(true);
+    expect(slices[1]).toMatchObject({ number: 201, state: 'closed', prNumber: 401 });
+    expect(calls()).toHaveLength(1);
+    const { args } = calls()[0]!;
+    expect(args.slice(0, 4)).toEqual(['gh', 'bot', 'api', '-i']);
+    expect(args).toEqual(expect.arrayContaining(['graphql', 'owner=AshuLab', 'name=demo', 'number=111']));
+  });
+
+  test('an answer that is not what the query asked for is an error, not an empty list', async () => {
+    const { github } = setup([{ match: 'graphql', stdout: http(200, { data: null, errors: [{ message: 'Could not resolve' }] }) }]);
+    await expect(github.readSlices(repo, 111)).rejects.toThrow();
+  });
+});

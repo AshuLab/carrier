@@ -1,0 +1,170 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 2,
+      "remaining": 4997,
+      "limit": 5000,
+      "resetAt": "2026-10-21T23:19:26Z"
+    },
+    "repository": {
+      "issue": {
+        "number": 111,
+        "title": "Placeholder epic title",
+        "state": "OPEN",
+        "labels": {
+          "nodes": [
+            {
+              "name": "enhancement"
+            },
+            {
+              "name": "solve:epic"
+            }
+          ]
+        },
+        "subIssuesSummary": {
+          "total": 6,
+          "completed": 1,
+          "percentCompleted": 17
+        },
+        "subIssues": {
+          "pageInfo": {
+            "hasNextPage": false
+          },
+          "nodes": [
+            {
+              "number": 112,
+              "title": "Placeholder slice title 112",
+              "state": "CLOSED",
+              "stateReason": "COMPLETED",
+              "closedAt": "2026-10-21T22:18:28Z",
+              "assignees": {
+                "nodes": [
+                  {
+                    "login": "example-user"
+                  }
+                ]
+              },
+              "blockedBy": {
+                "nodes": []
+              }
+            },
+            {
+              "number": 115,
+              "title": "Placeholder slice title 115",
+              "state": "OPEN",
+              "stateReason": null,
+              "closedAt": null,
+              "assignees": {
+                "nodes": [
+                  {
+                    "login": "example-user"
+                  }
+                ]
+              },
+              "blockedBy": {
+                "nodes": []
+              }
+            },
+            {
+              "number": 118,
+              "title": "Placeholder slice title 118",
+              "state": "OPEN",
+              "stateReason": null,
+              "closedAt": null,
+              "assignees": {
+                "nodes": []
+              },
+              "blockedBy": {
+                "nodes": []
+              }
+            },
+            {
+              "number": 120,
+              "title": "Placeholder slice title 120",
+              "state": "OPEN",
+              "stateReason": null,
+              "closedAt": null,
+              "assignees": {
+                "nodes": []
+              },
+              "blockedBy": {
+                "nodes": [
+                  {
+                    "number": 119,
+                    "state": "OPEN",
+                    "repository": {
+                      "nameWithOwner": "example-owner/example-repo"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "number": 135,
+              "title": "Placeholder slice title 135",
+              "state": "OPEN",
+              "stateReason": null,
+              "closedAt": null,
+              "assignees": {
+                "nodes": []
+              },
+              "blockedBy": {
+                "nodes": [
+                  {
+                    "number": 114,
+                    "state": "CLOSED",
+                    "repository": {
+                      "nameWithOwner": "example-owner/example-repo"
+                    }
+                  },
+                  {
+                    "number": 134,
+                    "state": "OPEN",
+                    "repository": {
+                      "nameWithOwner": "example-owner/example-repo"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "number": 136,
+              "title": "Placeholder slice title 136",
+              "state": "OPEN",
+              "stateReason": null,
+              "closedAt": null,
+              "assignees": {
+                "nodes": []
+              },
+              "blockedBy": {
+                "nodes": [
+                  {
+                    "number": 116,
+                    "state": "OPEN",
+                    "repository": {
+                      "nameWithOwner": "example-owner/example-repo"
+                    }
+                  },
+                  {
+                    "number": 118,
+                    "state": "OPEN",
+                    "repository": {
+                      "nameWithOwner": "example-owner/example-repo"
+                    }
+                  },
+                  {
+                    "number": 132,
+                    "state": "OPEN",
+                    "repository": {
+                      "nameWithOwner": "example-owner/example-repo"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

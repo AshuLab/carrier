@@ -6,6 +6,8 @@ import SwiftUI
 /// What the window shows: nil until the first answer from Carrier.
 @Observable final class PanelModel {
     var state: ConnectionState?
+    /// The epic chosen in the menu, for the view to select.
+    var selected: EpicMenuItem?
 }
 
 /// Set from the main thread, read from the monitor's.
@@ -33,10 +35,11 @@ final class WindowController: NSObject {
 
     @objc private func openFromMenu() { open() }
 
-    func open() {
+    func open(selecting epic: EpicMenuItem? = nil) {
         let window = window ?? makeWindow()
         self.window = window
         if stop == nil { startMonitor() }
+        if epic != nil { model.selected = epic }
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
@@ -65,6 +68,7 @@ final class WindowController: NSObject {
         stop?.set()
         stop = nil
         model.state = nil
+        model.selected = nil
     }
 
     private func startMonitor() {

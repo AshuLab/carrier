@@ -14,7 +14,10 @@ struct SessionSectionsView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Button { folds.toggle(section) } label: { SessionHeaderView(section: section, open: open) }
                         .buttonStyle(.plain)
-                    if open { TranscriptView(content: section.body) }
+                    if open {
+                        TranscriptView(content: section.body)
+                        ContinueInTerminalView(section: section)
+                    }
                 }
                 .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.08)))
             }

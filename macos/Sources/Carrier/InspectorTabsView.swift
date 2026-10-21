@@ -7,6 +7,7 @@ struct InspectorTabsView: View {
     let subject: EpicSubject?
     let reply: EpicReply?
     @State private var chosen = InspectorStore().chosen
+    @State private var reviewFolds = ReviewFolds()
 
     var body: some View {
         let tab = inspectorTab(subject, chosen: chosen)
@@ -23,6 +24,10 @@ struct InspectorTabsView: View {
             .tint(review.needsYou ? .orange : nil)
             switch tab {
             case .slices: SlicesTabView(subject: subject, reply: reply)
+            case .review:
+                ScrollView {
+                    ReviewTabView(epic: EpicRef(repo: subject?.repo ?? "", issue: subject?.issue ?? 0), model: reviewTab(subject, reply: reply), folds: $reviewFolds)
+                }
             // placeholders until the tabs' own slices land
             default: Text(tab.title).foregroundStyle(.secondary)
             }

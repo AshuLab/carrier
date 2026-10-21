@@ -127,6 +127,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("open window", { WindowController.shared.open(); return WindowController.shared.status }),
             ("close window", { WindowController.shared.close(); return WindowController.shared.status }),
             ("reopen window", { WindowController.shared.open(); return WindowController.shared.status }),
+            ("rings, window open", { MainActor.assumeIsolated { RingHostView.summary } }),
+            ("rings, window closed", { WindowController.shared.close(); return MainActor.assumeIsolated { RingHostView.summary } }),
             ("notifications", { SystemNotificationCentre.selfTestSummary }),
         ]
         write("start")

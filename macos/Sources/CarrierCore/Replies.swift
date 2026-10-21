@@ -58,6 +58,13 @@ public struct EventsReply: Codable, Equatable {
     public var running: Bool
     /// false when the harness has no parser yet: the app falls back to `tail`.
     public var structured: Bool
+
+    public init(events: [ExecEvent], next: Int, running: Bool, structured: Bool) {
+        self.events = events
+        self.next = next
+        self.running = running
+        self.structured = structured
+    }
 }
 
 public struct EpicReply: Codable, Equatable {

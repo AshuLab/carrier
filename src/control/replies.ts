@@ -87,7 +87,8 @@ export type EpicReply = {
     closedAt: number | null;
     readAt: number;
   }[];
-  worktrees: { kind: 'epic' | 'lane'; lane: number | null; path: string }[];
+  /** `reviewer` is the detached checkout the reviewer works in. */
+  worktrees: { kind: 'epic' | 'reviewer' | 'lane'; lane: number | null; path: string }[];
   branch: string | null;
   /** null during ship, before the pull request exists. */
   pr: {

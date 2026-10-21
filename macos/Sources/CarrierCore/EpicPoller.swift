@@ -15,10 +15,13 @@ public struct EpicRef: Hashable {
 /// they are processed; one older than the newest (rare) rebuilds the items.
 public struct Transcript: Equatable {
     public private(set) var events: [ExecEvent] = []
-    /// What the view draws, kept in step with `events`.
+    /// What the view draws of the main session (events with no agent id), kept in step with `events`.
     public var items: [TranscriptItem] { builder.items }
     /// How many events the items have processed so far: an append adds its own count, a rebuild adds them all.
-    public var work: Int { builder.work }
+    public var work: Int { lanes.reduce(builder.work) { $0 + $1.builder.work } }
+    /// One per subagent that has events, in order of appearance (Lanes.swift).
+    var lanes: [LaneState] = []
+    private var laneIndex: [String: Int] = [:]
     /// The `after` of the next request.
     public private(set) var next = 0
     public private(set) var running = true
@@ -36,15 +39,25 @@ public struct Transcript: Equatable {
             if let last = events.last, first.id < last.id {
                 events = (events + fresh).sorted { $0.id < $1.id }
                 builder.reset()
-                events.forEach { builder.add($0) }
+                for index in lanes.indices { lanes[index].reset() }
+                for event in events { route(event) }
             } else {
                 events += fresh
-                fresh.forEach { builder.add($0) }
+                for event in fresh { route(event) }
             }
         }
         next = max(next, reply.next)
         running = reply.running
         structured = reply.structured
+    }
+
+    private mutating func route(_ event: ExecEvent) {
+        guard let agent = event.agentId else { return builder.add(event) }
+        if laneIndex[agent] == nil {
+            laneIndex[agent] = lanes.count
+            lanes.append(LaneState(agentId: agent))
+        }
+        lanes[laneIndex[agent]!].add(event)
     }
 }
 

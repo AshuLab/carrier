@@ -27,10 +27,11 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
 
 @Test func decodesTheEventsReply() throws {
     let reply: EventsReply = try golden("events")
-    #expect(reply.next == 111)
+    #expect(reply.next == 119)
     #expect(reply.running)
     #expect(reply.structured)
-    #expect(reply.events.map(\.kind) == ["say", "tool_start", "tool_end", "tool_start", "tool_end", "tool_start", "tool_end", "note", "task", "say", "error"])
+    #expect(reply.events.map(\.kind) == ["say", "tool_start", "tool_end", "tool_start", "tool_end", "tool_start", "tool_end", "note", "task", "say", "error",
+                                           "tool_start", "tool_end", "task", "tool_start", "tool_end", "task", "tool_start", "tool_end"])
     // a paired tool call shares its call id
     #expect(reply.events[1].callId == reply.events[2].callId)
     #expect(reply.events[2].output == ["export function sign(", "}"])

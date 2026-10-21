@@ -79,7 +79,7 @@ private final class UpdateBox {
     #expect(try rig.tick(at: 3.2) == ["epic", "events"])
 
     let events = rig.engine.requests.filter { $0["cmd"] as? String == "events" }
-    #expect(events.map { $0["after"] as? Int } == [0, 111, 111])
+    #expect(events.map { $0["after"] as? Int } == [0, 119, 119])
     #expect(events.allSatisfy { $0["executionId"] as? String == execution && $0["limit"] as? Int == 200 })
 
     // the transcript is hidden: no more, and shown again it is asked at once

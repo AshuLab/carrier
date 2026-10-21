@@ -103,6 +103,8 @@ public struct SessionSection: Equatable, Identifiable {
     public var resume: ResumeDescriptor?
     /// What shows under the header when it is open.
     public var body: TranscriptBody = .items([])
+    /// The subagents of the session, each with its own activity; read-only, the resume above covers the whole session.
+    public var lanes: [LaneSection] = []
 }
 
 public struct SessionList: Equatable {
@@ -152,7 +154,8 @@ public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcrip
             timeLabel: time,
             openByDefault: state != .done || index == 0,
             resume: state == .running ? nil : session.resume,
-            body: transcriptBody(transcript)
+            body: transcriptBody(transcript),
+            lanes: transcript?.structured == true ? transcript?.laneSections ?? [] : []
         )
     }
     let rest = all.count - shown.count

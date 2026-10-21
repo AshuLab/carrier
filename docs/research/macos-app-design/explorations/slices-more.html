@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Slices panel — more options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.opts{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;margin-top:8px}
+.opt{width:340px}
+.opt>h3{margin:0 0 2px;font-size:14px}
+.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:340px}
+.fr{border-radius:18px;background:var(--side);backdrop-filter:blur(30px);box-shadow:var(--shadow);padding:16px 14px;min-height:420px}
+.ih{display:flex;justify-content:space-between;align-items:baseline;margin:0 6px 8px}
+.ih h4{margin:0;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.ih span{color:var(--dim);font-size:12px}.ih b{color:var(--text)}
+.bar3{display:flex;height:6px;border-radius:4px;background:var(--card2);overflow:hidden;margin:0 6px 12px}
+.bar3 span{display:block;height:100%}
+.sg1{display:flex;gap:2px;background:var(--card2);border-radius:99px;padding:3px;margin:0 2px 8px;box-shadow:0 0 0 .5px var(--line) inset}
+.sg1 button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:5px 4px;border-radius:99px;cursor:default;display:flex;gap:5px;justify-content:center;align-items:center;white-space:nowrap}
+.sg1 button i{font-style:normal;font-weight:600;color:var(--faint)}
+.sg1 button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .sg1 button.on{background:rgba(255,255,255,.16)}
+.sg1 button.on i{color:var(--dim)}
+.sl{display:flex;gap:10px;align-items:flex-start;padding:8px;border-radius:11px}
+.sl.a{background:color-mix(in srgb,var(--blue) 14%,transparent)}
+.sl .t{flex:1;min-width:0}.sl .t b{display:block;font-weight:550;line-height:1.3}
+.sl .t span{display:block;color:var(--dim);font-size:11.5px;margin-top:1px}
+.sl.n .t b{color:var(--dim);font-weight:500}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 2px 10px}
+.tile{border:0;font:inherit;color:var(--text);text-align:left;background:var(--card);border-radius:14px;padding:9px 11px;cursor:default;box-shadow:0 0 0 .5px var(--line) inset}
+.tile .n{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.tile .l{font-size:11.5px;color:var(--dim);display:flex;align-items:center;gap:5px;margin-top:2px}
+.tile.on{box-shadow:0 0 0 1.5px var(--blue);background:color-mix(in srgb,var(--blue) 10%,transparent)}
+.sc{display:flex;gap:9px;align-items:center;padding:4px 8px;border-radius:8px;font-size:12.5px}
+.sc .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc .ck{width:14px;height:14px;font-size:9px}
+.sc .r{color:var(--faint);font-size:11.5px}
+.ck{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;flex:none}
+.ck.d{background:var(--green);color:#fff}.ck.a{border:2px solid var(--blue);border-top-color:transparent;animation:s 1s linear infinite}.ck.n{border:1.5px solid var(--faint)}
+@keyframes s{to{transform:rotate(1turn)}}
+.all{width:100%;justify-content:center;margin-top:8px;padding:8px 12px}
+
+.opt{width:340px}
+.cap{margin:8px 8px 0;color:var(--dim);font-size:12px;min-height:34px}
+.cap b{color:var(--text)}
+.lane{border-radius:13px;background:var(--card);padding:9px 11px;margin-bottom:7px;box-shadow:0 0 0 .5px var(--line) inset}
+.lane .lh{display:flex;justify-content:space-between;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.lane .cur{display:flex;gap:9px;align-items:center;font-weight:550}
+.lane .nx{color:var(--dim);font-size:12px;margin:5px 0 0 27px}
+.rail{position:relative;padding-left:26px;margin-left:6px}
+.rail::before{content:"";position:absolute;left:8px;top:8px;bottom:8px;width:2px;background:var(--line);border-radius:2px}
+.rn{position:relative;padding:3px 0 12px}
+.rn::before{content:"";position:absolute;left:-23px;top:6px;width:12px;height:12px;border-radius:50%;background:var(--card2);box-shadow:0 0 0 3px var(--side)}
+.rn.d::before{background:var(--green)}.rn.a::before{background:var(--blue);box-shadow:0 0 0 3px var(--side),0 0 0 6px color-mix(in srgb,var(--blue) 30%,transparent)}
+.rn b{font-weight:550}.rn span{display:block;color:var(--dim);font-size:12px}
+.rn.n b{color:var(--dim);font-weight:500}
+.grid{display:grid;grid-template-columns:repeat(10,1fr);gap:5px;margin:0 6px}
+.cell{aspect-ratio:1;border-radius:6px;background:var(--card2);cursor:default}
+.cell.d{background:var(--green)}.cell.a{background:var(--blue);animation:p 1.6s ease-in-out infinite}
+.cell.sel{box-shadow:0 0 0 2px var(--text)}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin:0 4px 10px}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;background:color-mix(in srgb,var(--blue) 18%,transparent);color:var(--text);font-size:12px;font-weight:550}
+.pill.n{background:var(--card2);color:var(--dim);font-weight:500}
+.wv{border-radius:13px;background:var(--card);margin-bottom:6px;overflow:hidden;box-shadow:0 0 0 .5px var(--line) inset}
+.wv .wh{display:flex;align-items:center;gap:9px;padding:9px 11px;cursor:default}
+.wv .wh .t{flex:1;font-weight:550}.wv .wh small{color:var(--dim)}
+.wv .wb{height:4px;background:var(--card2)}.wv .wb span{display:block;height:100%}
+.wv .wl{padding:2px 6px 8px}
+.chev{transition:transform .15s;flex:none;color:var(--dim)}.wv.o .chev{transform:rotate(90deg)}
+.dg{font-size:12.5px}
+.dg .gh{display:flex;justify-content:space-between;padding:7px 8px 3px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.dg .r{display:flex;gap:9px;align-items:center;padding:3px 8px;border-radius:7px}
+.dg .r:hover{background:var(--card)}
+.dg .r .t{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dg .r.d .t{color:var(--dim)}
+.dg .r .s{color:var(--faint);font-size:11px}
+.search{background:var(--card2);border-radius:99px;padding:6px 12px;color:var(--faint);margin:0 2px 6px;box-shadow:0 0 0 .5px var(--line) inset}
+.pager{border-radius:15px;background:var(--card);padding:14px;box-shadow:0 0 0 .5px var(--line) inset;text-align:center}
+.pager .big{font-size:16px;font-weight:650;margin:8px 0 2px}
+.pager .nv{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;color:var(--dim)}
+.pager .nv button{border:0;background:var(--card2);color:var(--text);width:28px;height:28px;border-radius:50%;font-size:14px;cursor:default}
+@keyframes p{50%{opacity:.4}}
+</style></head>
+<body>
+<h1>Right panel · Slices — eight more options</h1>
+<div class="sub">Same 20-slice epic (9 done, 3 in progress, 8 waiting) in every option. The earlier ones (filter tabs, count tiles, summary + sheet) are in <a href="slices-focus.html" style="color:var(--blue)">slices-focus.html</a>. Some of these are clickable: dot grid, waves, pager.</div>
+<div class="bar"><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+<script>
+const names=['Scaffolding','Auth','Billing','Admin panel','Email templates','Audit log','Role permissions','Settings page','Invoices','Webhooks','Rate limiting','Search','Notifications','Export CSV','Onboarding flow','Dark mode','Localization','Analytics events','Docs','Release checklist'];
+const S=names.map((t,i)=>({n:201+i,t:t,s:i<9?'d':i<12?'a':'n',ago:i<9?(5+(9-i)*6)+' min ago':'',lane:i>=9&&i<12?i-8:0,dep:i>=12?210+(i-12)%3:0}));
+const by=k=>S.filter(x=>x.s===k),D=by('d'),A=by('a'),W=by('n');
+const ttl=x=>'#'+x.n+' '+x.t;
+const bar3=`<div class="bar3"><span style="width:${100*D.length/S.length}%;background:var(--green)"></span><span style="width:${100*A.length/S.length}%;background:var(--blue)"></span></div>`;
+const head=`<div class="ih"><h4>Slices</h4><span><b>${D.length}</b> of ${S.length} done</span></div>${bar3}`;
+const ck=x=>`<span class="ck ${x.s}">${x.s==='d'?'✓':''}</span>`;
+const st={grid:null,wave:{2:true},pg:9};
+const chev='<svg class="chev" width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+const opts=[
+['1 · Lanes','Slices run in up to 3 lanes. Shows what each lane is doing now and what it picks next; the rest is just a count.',()=>head+A.map((x,i)=>{const nx=W[i];return `<div class="lane"><div class="lh"><span>Lane ${x.lane}</span><span>${Math.round(W.length/3)} queued</span></div><div class="cur">${ck(x)}<span>${ttl(x)}</span></div><div class="nx">then ${ttl(nx)}</div></div>`}).join('')+`<div class="cap">${D.length} merged · ${W.length} waiting</div>`],
+['2 · Rail','A vertical rail in order. Merged slices collapse into one node, what is running is expanded, upcoming ones fade.',()=>head+`<div class="rail"><div class="rn d"><b>${D.length} slices merged</b><span>#${D[0].n} – #${D[D.length-1].n} · last ${D[D.length-1].ago}</span></div>${A.map(x=>`<div class="rn a"><b>${ttl(x)}</b><span>agent working · lane ${x.lane}</span></div>`).join('')}${W.slice(0,3).map(x=>`<div class="rn n"><b>${ttl(x)}</b><span>after #${x.dep}</span></div>`).join('')}<div class="rn n"><b>+ ${W.length-3} more</b><span>#${W[3].n} – #${W[W.length-1].n}</span></div></div>`],
+['3 · Dot grid','One square per slice, in order. Scales to hundreds. Click a square to read it.',()=>{const c=st.grid!=null?S[st.grid]:null;return head+`<div class="grid">${S.map((x,i)=>`<div class="cell ${x.s} ${st.grid===i?'sel':''}" data-g="${i}"></div>`).join('')}</div><div class="cap">${c?`<b>${ttl(c)}</b><br>${c.s==='d'?'merged '+c.ago:c.s==='a'?'agent working · lane '+c.lane:'waiting on #'+c.dep}`:'Click a square to see the slice.'}</div><div class="h dim" style="gap:12px;margin:10px 8px 0;font-size:11.5px"><span><i class="dot g" style="display:inline-block"></i> merged</span><span><i class="dot b" style="display:inline-block"></i> working</span><span><i class="dot x" style="display:inline-block"></i> waiting</span></div>`}],
+['4 · Now · Next · Recent','No expanding at all: what is running, the next 3, the last 3 merged. Everything else is a number.',()=>head+`<div class="gl" style="font-size:11px;font-weight:600;color:var(--faint);margin:4px 8px 3px">NOW</div>${A.map(x=>`<div class="sl a"><span class="ck a"></span><div class="t"><b>${ttl(x)}</b><span>agent working · lane ${x.lane}</span></div></div>`).join('')}<div class="gl" style="font-size:11px;font-weight:600;color:var(--faint);margin:10px 8px 3px">NEXT · ${W.length} waiting</div>${W.slice(0,3).map(x=>`<div class="sc"><span class="ck n"></span><span class="t">${ttl(x)}</span><span class="r">after #${x.dep}</span></div>`).join('')}<div class="gl" style="font-size:11px;font-weight:600;color:var(--faint);margin:10px 8px 3px">RECENT · ${D.length} merged</div>${D.slice(-3).reverse().map(x=>`<div class="sc"><span class="ck d">✓</span><span class="t">${ttl(x)}</span><span class="r">${x.ago}</span></div>`).join('')}`],
+['5 · Waves','Slices grouped by dependency wave. Each wave shows its own progress; open one to see its slices.',()=>{const W5=[[0,5],[5,9],[9,12],[12,16],[16,20]];return head+W5.map(([a,b],i)=>{const sl=S.slice(a,b),d=sl.filter(x=>x.s==='d').length,a2=sl.filter(x=>x.s==='a').length,o=!!st.wave[i];return `<div class="wv ${o?'o':''}"><div class="wh" data-w="${i}">${chev}<span class="t">Wave ${i+1}</span><small>${d}/${sl.length}</small></div><div class="wb"><span style="width:${100*d/sl.length}%;background:var(--green);display:inline-block"></span><span style="width:${100*a2/sl.length}%;background:var(--blue);display:inline-block"></span></div>${o?`<div class="wl">${sl.map(x=>`<div class="sc"><span class="ck ${x.s}">${x.s==='d'?'✓':''}</span><span class="t">${ttl(x)}</span></div>`).join('')}</div>`:''}</div>`}).join('')}],
+['6 · Dense grouped list','Everything visible in one scannable list with fixed group headers; merged rows are dimmed. The panel itself scrolls.',()=>head+`<div class="search">⌕ Filter slices</div><div class="dg"><div class="gh"><span>In progress</span><span>${A.length}</span></div>${A.map(x=>`<div class="r"><span class="ck a" style="width:14px;height:14px"></span><span class="t">${ttl(x)}</span><span class="s">lane ${x.lane}</span></div>`).join('')}<div class="gh"><span>Waiting</span><span>${W.length}</span></div>${W.map(x=>`<div class="r"><span class="ck n" style="width:14px;height:14px"></span><span class="t">${ttl(x)}</span><span class="s">after #${x.dep}</span></div>`).join('')}<div class="gh"><span>Merged</span><span>${D.length}</span></div>${D.slice().reverse().map(x=>`<div class="r d"><span class="ck d" style="width:14px;height:14px;font-size:8px">✓</span><span class="t">${ttl(x)}</span><span class="s">${x.ago}</span></div>`).join('')}</div>`],
+['7 · Chips','Running slices as chips that wrap; waiting ones as faint chips. Very compact, no detail lines.',()=>head+`<div class="gl" style="font-size:11px;font-weight:600;color:var(--faint);margin:0 8px 5px">WORKING</div><div class="pills">${A.map(x=>`<span class="pill"><span class="ck a" style="width:12px;height:12px;border-width:1.5px"></span>#${x.n} ${x.t}</span>`).join('')}</div><div class="gl" style="font-size:11px;font-weight:600;color:var(--faint);margin:0 8px 5px">WAITING · ${W.length}</div><div class="pills">${W.map(x=>`<span class="pill n">#${x.n} ${x.t}</span>`).join('')}</div><div class="gl" style="font-size:11px;font-weight:600;color:var(--faint);margin:0 8px 5px">MERGED · ${D.length}</div><div class="pills">${D.map(x=>`<span class="pill n" style="opacity:.55">#${x.n}</span>`).join('')}</div>`],
+['8 · Pager','One slice at a time, big, with arrows to move through the list. Nothing else competes for space.',()=>{const x=S[st.pg];return head+`<div class="pager"><div class="nv"><button data-p="-1">‹</button><span>Slice ${st.pg+1} of ${S.length}</span><button data-p="1">›</button></div>${ck(x).replace('class="ck','class="ck" style="margin:0 auto;width:26px;height:26px;font-size:13px" data-x="')}<div class="big">${ttl(x)}</div><div class="dim">${x.s==='d'?'merged '+x.ago:x.s==='a'?'agent working · lane '+x.lane:'waiting on #'+x.dep}</div></div><div class="grid" style="margin-top:12px;grid-template-columns:repeat(20,1fr);gap:3px">${S.map((y,i)=>`<div class="cell ${y.s} ${i===st.pg?'sel':''}" data-g2="${i}" style="border-radius:3px"></div>`).join('')}</div>`}]
+];
+function render(){
+ document.getElementById('opts').innerHTML=opts.map(([t,p,f])=>`<div class="opt"><h3>${t}</h3><p>${p}</p><div class="fr">${f()}</div></div>`).join('');
+ document.querySelectorAll('[data-g]').forEach(e=>e.onclick=()=>{st.grid=+e.dataset.g;render()});
+ document.querySelectorAll('[data-w]').forEach(e=>e.onclick=()=>{st.wave[e.dataset.w]=!st.wave[e.dataset.w];render()});
+ document.querySelectorAll('[data-p]').forEach(e=>e.onclick=()=>{st.pg=(st.pg+ +e.dataset.p+S.length)%S.length;render()});
+ document.querySelectorAll('[data-g2]').forEach(e=>e.onclick=()=>{st.pg=+e.dataset.g2;render()});
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script></body></html>

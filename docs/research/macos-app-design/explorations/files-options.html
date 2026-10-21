@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Files changed — who changed what</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--add:#30d158;--del:#ff453a;--acc:#0a84ff;--green:#8e8e93;--blue:#c7c7cc}body.light{--add:#1f9d3a;--del:#d92d20;--acc:#007aff;--green:#8e8e93;--blue:#3a3a3c}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:26px;align-items:start;margin-top:8px}
+.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:560px}
+.cw{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:16px 18px 18px}
+.statebar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.sg1{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.sg1 button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:4px 12px;border-radius:99px;cursor:default;white-space:nowrap;display:flex;gap:5px}
+.sg1 button i{font-style:normal;color:var(--faint)}
+.sg1 button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .sg1 button.on{background:rgba(255,255,255,.16)}
+.fi{width:24px;height:24px;border-radius:6px;background:var(--card2);color:var(--dim);display:grid;place-items:center;font:700 9px var(--font);flex:none}
+.mk{display:inline-grid;place-items:center;min-width:22px;height:18px;padding:0 5px;border-radius:99px;background:var(--card2);color:var(--dim);font:700 10px var(--font);flex:none}
+.mk.w{background:color-mix(in srgb,var(--text) 14%,transparent);color:var(--text)}
+.stack{display:flex;gap:3px;flex:none;min-width:70px}
+.row3{display:grid;grid-template-columns:24px 1fr auto auto;gap:9px;align-items:center;padding:7px 0;border-top:.5px solid var(--line)}
+.row3:first-child{border:0}
+.pth{font:12px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pth span{color:var(--dim)}
+.df{font:11.5px var(--mono);white-space:nowrap}.df .p{color:var(--add)}.df .m{color:var(--del)}
+.ov{color:var(--orange);font-size:11px;white-space:nowrap;font-weight:600}
+.sess{border-radius:14px;background:var(--card);margin-bottom:10px;box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.sh{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:default}.sh:hover{background:var(--card2)}
+.sh .t{flex:1;min-width:0}.sh .t b{font-weight:600}.sh .t b span{color:var(--dim);font-weight:500}.sh .t small{display:block;color:var(--dim);font-size:11.5px}
+.av{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:#5f5f68;color:#fff;font:700 12px var(--font);flex:none;position:relative}
+.av.spin::after{content:"";position:absolute;inset:2px;border-radius:50%;border:2px solid transparent;border-top-color:#fff;border-right-color:rgba(255,255,255,.3);animation:s 1s linear infinite}
+@keyframes s{to{transform:rotate(1turn)}}
+.sb{padding:0 12px 6px}
+.cvb{width:24px;height:24px;border-radius:50%;background:var(--card2);display:grid;place-items:center;color:var(--dim);transition:transform .15s;flex:none}.cvb.o{transform:rotate(90deg)}
+.hd{display:flex;align-items:center;gap:10px;margin:2px 2px 10px;flex-wrap:wrap}.hd .dim{font-size:12.5px}
+.lbl2{margin:10px 4px 6px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.warn{border-radius:14px;background:color-mix(in srgb,var(--orange) 12%,transparent);padding:10px 12px;margin-bottom:10px}
+.warn b{display:block;font-weight:600;margin-bottom:2px}.warn small{color:var(--dim);display:block;margin-bottom:6px}
+.brk{margin:2px 0 4px 33px;padding:2px 0 2px 10px;border-left:2px solid var(--line);font-size:12px;color:var(--dim)}
+.brk div{display:flex;gap:8px;padding:2px 0}.brk div span:first-child{flex:1}
+.chs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chs button{border:0;font:inherit;font-size:11.5px;font-weight:550;padding:3px 10px;border-radius:99px;background:var(--card2);color:var(--dim);cursor:default}.chs button.on{background:var(--sel);color:var(--text)}
+.rv{color:var(--faint);font-size:12px;margin:2px 4px 8px}
+</style></head>
+<body>
+<h1>Files changed — who changed what</h1>
+<div class="sub">Right: the tab shows one flat list, so you cannot tell <b>which agent</b> produced a file, and two lanes can edit the <b>same file</b> at the same time. The same happens in every stage with several writers: <b>ship</b> (up to 3 lanes in parallel) and <b>fix</b> (one fixer per round, the reviewer only reads). The model underneath is always the same: each change belongs to a <b>session</b> (an agent in a lane or a round) and is either <b>merged</b> into the epic branch or <b>still being worked</b>. Five ways to show it. Switch the situation to compare.</div>
+<div class="statebar"><div class="sg1" id="states"></div><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+<div class="note" id="foot"></div>
+<script>
+// session = {id, mk (short marker), agent, role, title, st: 'merged' | 'work' | 'done'}
+const SC={
+ ship:{label:'Ship · 3 lanes in parallel',
+  sessions:[{id:'L1',agent:'Claude',role:'Builder',title:'Lane 1 · #210 Webhooks',st:'work'},{id:'L2',agent:'Claude',role:'Builder',title:'Lane 2 · #211 Rate limiting',st:'work'},{id:'L3',agent:'Claude',role:'Builder',title:'Lane 3 · #212 Search',st:'work'},{id:'M',agent:'Claude',role:'Builder',title:'Merged · 9 slices',st:'merged'}],
+  files:[['app/webhooks/','route.ts',[['L1',64,0]]],['app/billing/','invoices.tsx',[['M',120,14],['L1',12,2],['L2',9,1]]],['app/billing/','plans.ts',[['M',72,6]]],['app/roles/','policy.ts',[['M',88,4]]],['app/admin/','layout.tsx',[['M',52,0]]],['app/admin/','users.tsx',[['M',96,0]]],['app/limits/','rate.ts',[['L2',38,2]]],['app/search/','index.ts',[['L3',54,0]]],['app/search/','query.ts',[['L3',41,0]]],['prisma/','schema.prisma',[['M',44,3],['L3',6,0]]],['','package.json',[['L2',2,0],['L3',3,0]]],['styles/','admin.css',[['M',60,0]]]],
+  note:'Lanes 1 and 2 both edit <code>invoices.tsx</code>; lanes 2 and 3 both edit <code>package.json</code>.'},
+ fix:{label:'Fix · round 2',
+  sessions:[{id:'R2',agent:'Claude',role:'Fixer',title:'Round 2 · fixing',st:'work'},{id:'R1',agent:'Claude',role:'Fixer',title:'Round 1 · fix',st:'merged'},{id:'S',agent:'Claude',role:'Builder',title:'Ship · 8 slices',st:'merged'}],
+  files:[['src/auth/','token.ts',[['S',14,0],['R1',6,2],['R2',24,6]]],['src/db/migrations/','0042.ts',[['S',20,0],['R2',18,2]]],['src/sync/','engine.ts',[['S',212,40],['R1',9,3]]],['src/api/','read.ts',[['S',148,12]]],['src/errors/','panel.tsx',[['S',120,0],['R1',4,1]]],['tests/auth/','token.test.ts',[['S',52,8],['R1',12,0]]],['docs/','sync.md',[['S',54,0]]]],
+  note:'Codex (reviewer) is read-only, so it never appears here. Round 2 has not committed yet.'},
+ done:{label:'Finished',
+  sessions:[{id:'R1',agent:'Claude',role:'Fixer',title:'Round 1 · fix',st:'merged'},{id:'S',agent:'Claude',role:'Builder',title:'Ship · 3 slices',st:'merged'}],
+  files:[['src/cart/','totals.ts',[['S',34,3],['R1',14,9]]],['src/cart/','coupons.ts',[['S',72,6]]],['src/mail/','receipt.ts',[['S',90,0]]],['tests/','cart.test.ts',[['S',98,0],['R1',12,4]]],['locales/','es.json',[['S',22,0]]]],note:''}
+};
+let cur='ship';const ui={open:{},exp:{},f:'all',v:'agent'};
+const S=()=>SC[cur],sess=id=>S().sessions.find(x=>x.id===id);
+const tot=f=>f[2].reduce((a,p)=>[a[0]+p[1],a[1]+p[2]],[0,0]);
+const overlap=f=>new Set(f[2].map(p=>p[0]).filter(i=>sess(i).st==='work')).size>=2;
+const icon=n=>{const e=(n.split('.').pop()||'').toLowerCase(),M={ts:'TS',tsx:'TSX',js:'JS',json:'{ }',md:'MD',css:'CSS',prisma:'PRI'};return `<span class="fi">${M[e]||e.slice(0,3).toUpperCase()}</span>`};
+const mk=(id)=>`<span class="mk ${sess(id).st==='work'?'w':''}" title="${sess(id).title}">${id}</span>`;
+const dfx=(a,d)=>`<span class="df"><span class="p">+${a}</span> <span class="m">−${d}</span></span>`;
+const chev='<svg width="11" height="11" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const row=(f,right,part)=>{const [a,d]=part?[part[1],part[2]]:tot(f);return `<div class="row3">${icon(f[1])}<div class="pth"><span>${f[0]}</span>${f[1]}</div>${right||''}${dfx(a,d)}</div>`};
+const others=(f,id)=>f[2].map(p=>p[0]).filter(x=>x!==id&&sess(x).st==='work');
+const head=()=>{const fs=S().files,t=fs.reduce((a,f)=>{const x=tot(f);return [a[0]+x[0],a[1]+x[1]]},[0,0]);return `<div class="hd"><span class="dim">${fs.length} files · <span style="color:var(--add)">+${t[0]}</span> <span style="color:var(--del)">−${t[1]}</span></span><span class="sp1"></span><button class="glass sm">Files on GitHub ↗</button></div>`};
+
+const O=[
+['A · By session','One section per agent session (a lane, or a round). Working sessions first and open; merged work folds into one line. A file two lanes are editing carries an orange “also in L2” note in both places.',()=>{
+ const ses=S().sessions;return head()+ses.map(s=>{const fs=S().files.filter(f=>f[2].some(p=>p[0]===s.id)),t=fs.reduce((a,f)=>{const p=f[2].find(x=>x[0]===s.id);return [a[0]+p[1],a[1]+p[2]]},[0,0]);const o=ui.open[cur+s.id]!==undefined?ui.open[cur+s.id]:s.st==='work';
+  return `<div class="sess"><div class="sh" data-o="${cur+s.id}"><span class="av ${s.st==='work'?'spin':''}">${s.agent[0]}</span><div class="t"><b>${s.agent} <span>· ${s.role} · ${s.title}</span></b><small>${fs.length} files · +${t[0]} −${t[1]}${s.st==='merged'?' · merged into the epic':s.st==='work'?' · not merged yet':''}</small></div><span class="cvb ${o?'o':''}">${chev}</span></div>${o?`<div class="sb">${fs.map(f=>{const p=f[2].find(x=>x[0]===s.id),oth=others(f,s.id);return row(f,oth.length&&s.st==='work'?`<span class="ov">⚠ also in ${oth.join(', ')}</span>`:'',p)}).join('')}</div>`:''}</div>`}).join('')+`<div class="rv">${S().note}</div>`}],
+['B · One list, with who','Keeps today’s flat list but adds a marker per agent session on every file, and filters on top. Lanes are L1, L2, L3; merged is M; rounds are R1, R2.',()=>{const f=ui.f,fs=S().files.filter(x=>f==='all'||x[2].some(p=>p[0]===f));
+ return head()+`<div class="chs">${[['all','All']].concat(S().sessions.map(s=>[s.id,s.id+' · '+s.title.replace(/^.*· /,'')])).map(([k,t])=>`<button class="${f===k?'on':''}" data-f="${k}">${t}</button>`).join('')}</div>${fs.map(x=>row(x,`<span class="stack">${x[2].map(p=>mk(p[0])).join('')}</span>${overlap(x)?'<span class="ov">⚠</span>':''}`)).join('')}<div class="rv">${S().note}</div>`}],
+['C · Merged vs still working','Mirrors what git knows. “In the PR” is merged work; “Working now” is not merged yet and splits by lane. A file edited in both appears in both, with each part’s own +/−.',()=>{const mg=S().sessions.filter(s=>s.st!=='work').map(s=>s.id),wk=S().sessions.filter(s=>s.st==='work');
+ const part=(f,ids)=>f[2].filter(p=>ids.includes(p[0])).reduce((a,p)=>[a[0]+p[1],a[1]+p[2]],[0,0]);
+ const inPR=S().files.filter(f=>f[2].some(p=>mg.includes(p[0])));
+ return head()+`<div class="lbl2">In the PR · merged · ${inPR.length} files</div><div class="sess" style="padding:2px 12px">${inPR.map(f=>{const x=part(f,mg);return row(f,'',[0,x[0],x[1]])}).join('')}</div>`+(wk.length?`<div class="lbl2">Working now · not merged yet</div>`+wk.map(s=>{const fs=S().files.filter(f=>f[2].some(p=>p[0]===s.id));return `<div class="sess"><div class="sh" style="cursor:default"><span class="av spin">${s.agent[0]}</span><div class="t"><b>${s.title}</b><small>${fs.length} file${fs.length===1?'':'s'}</small></div></div><div class="sb">${fs.map(f=>{const p=f[2].find(x=>x[0]===s.id),oth=others(f,s.id);return row(f,oth.length?`<span class="ov">⚠ also in ${oth.join(', ')}</span>`:'',p)}).join('')}</div></div>`}).join(''):'')+`<div class="rv">${S().note}</div>`}],
+['D · Overlaps first','Puts the risky part on top: files two agents are editing at once, with who and how much. Below, everything else grouped quietly. When nobody overlaps, the card does not appear.',()=>{const ov=S().files.filter(overlap),rest=S().files.filter(f=>!overlap(f));
+ return head()+(ov.length?`<div class="warn"><b>${ov.length} file${ov.length>1?'s are':' is'} being edited by more than one agent</b><small>Carrier merges lanes one at a time, so the second to land may have to resolve a conflict.</small>${ov.map(f=>`<div class="row3" style="border:0;padding:4px 0">${icon(f[1])}<div class="pth"><span>${f[0]}</span>${f[1]}</div><span class="stack">${f[2].filter(p=>sess(p[0]).st==='work').map(p=>mk(p[0])).join('')}</span>${dfx(...tot(f))}</div>`).join('')}</div>`:'')+`<div class="lbl2">${ov.length?'Everything else':'All files'}</div><div class="sess" style="padding:2px 12px">${rest.map(f=>row(f,`<span class="stack">${f[2].map(p=>mk(p[0])).join('')}</span>`)).join('')}</div><div class="rv">${S().note}</div>`}],
+['E · File by file, with the breakdown','The list stays per file. Open a file to see who contributed what: one line per session with its own +/−. Best to answer “what did each agent do to this file?”.',()=>{
+ return head()+`<div class="sess" style="padding:2px 12px">${S().files.map(f=>{const key=cur+f[0]+f[1],o=ui.exp[key];return `<div class="row3" data-e="${key}" style="cursor:default;grid-template-columns:24px 1fr auto auto 20px">${icon(f[1])}<div class="pth"><span>${f[0]}</span>${f[1]}</div><span class="stack">${f[2].map(p=>mk(p[0])).join('')}</span>${dfx(...tot(f))}<span class="cvb ${o?'o':''}" style="width:20px;height:20px">${chev}</span></div>${o?`<div class="brk">${f[2].map(p=>`<div><span>${mk(p[0])} ${sess(p[0]).title} <span style="color:var(--faint)">${sess(p[0]).st==='work'?'· not merged':'· merged'}</span></span>${dfx(p[1],p[2])}</div>`).join('')}${overlap(f)?'<div style="color:var(--orange)">⚠ two lanes editing this file at the same time</div>':''}</div>`:''}`}).join('')}</div><div class="rv">${S().note}</div>`}]
+];
+function render(){
+ document.getElementById('states').innerHTML=Object.entries(SC).map(([k,v])=>`<button class="${cur===k?'on':''}" data-st="${k}">${v.label}</button>`).join('');
+ document.getElementById('opts').innerHTML=O.map(([t,p,f])=>`<div class="opt"><h3>${t}</h3><p>${p}</p><div class="cw">${f()}</div></div>`).join('');
+ document.getElementById('foot').innerHTML='<b>What the engine would need to provide:</b> for every file change, the <b>session</b> that made it (agent, lane or round, slice) and whether it is <b>merged</b> into the epic branch or still in that lane’s worktree. Merged changes come from the epic branch’s git history (one commit per slice); unmerged ones from each lane worktree’s diff against the epic branch. A file being edited in two lanes is detected by intersecting those diffs.';
+ const on=(sel,fn)=>document.querySelectorAll(sel).forEach(e=>e.onclick=()=>{fn(e);render()});
+ on('[data-st]',e=>{cur=e.dataset.st;ui.open={};ui.exp={};ui.f='all'});on('[data-o]',e=>{const k=e.dataset.o,s=sess(k.slice(cur.length));const d=ui.open[k]!==undefined?ui.open[k]:s.st==='work';ui.open[k]=!d});
+ on('[data-f]',e=>ui.f=e.dataset.f);on('[data-e]',e=>ui.exp[e.dataset.e]=!ui.exp[e.dataset.e]);
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script></body></html>

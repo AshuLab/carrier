@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Overview — what should it hold?</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--run:#30d158;--need:#ff9f0a;--err:#ff453a;--ready:#0a84ff;--wait:#8e8e93;--add:#30d158;--del:#ff453a;--acc:#0a84ff}
+body.light{--run:#28a745;--need:#e08600;--err:#e5372d;--ready:#007aff;--add:#1f9d3a;--del:#d92d20;--acc:#007aff}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(600px,1fr));gap:26px;align-items:start;margin-top:8px}
+.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:600px;min-height:56px}
+.cw{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:18px 20px 20px;min-height:360px}
+.statebar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.sg1{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.sg1 button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:4px 12px;border-radius:99px;cursor:default;white-space:nowrap;display:flex;gap:5px}
+.sg1 button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .sg1 button.on{background:rgba(255,255,255,.16)}
+.nt{margin-bottom:14px;padding:10px 14px;border-radius:14px;background:var(--card);max-width:900px;color:var(--dim)}.nt b{color:var(--text)}
+.sh{display:flex;align-items:baseline;gap:8px;margin:2px 2px 8px}.sh b{font-size:15px;font-weight:650;letter-spacing:-.01em}.sh span{color:var(--dim);font-size:12px}.sh .sp1{flex:1}
+.lk{color:var(--dim);font-size:12px;cursor:default}.lk:hover{color:var(--text);text-decoration:underline}
+.card2{border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:2px 14px;margin-bottom:14px}
+.rw{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:.5px solid var(--line)}.rw:first-child{border:0}
+.rw .t{flex:1;min-width:0}.rw .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rw .t span{display:block;color:var(--dim);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fil{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:800;flex:none}.fil.need{background:var(--need)}.fil.ready{background:var(--ready)}.fil.err{background:var(--err)}.fil.ok{background:var(--run)}
+.spn{width:16px;height:16px;border-radius:50%;border:2.5px solid color-mix(in srgb,var(--run) 25%,transparent);border-top-color:var(--run);animation:s 1s linear infinite;flex:none}
+@keyframes s{to{transform:rotate(1turn)}}@keyframes p{50%{opacity:.35}}
+.av{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#5f5f68;color:#fff;font:700 11px var(--font);flex:none;position:relative}
+.av.sp::after{content:"";position:absolute;inset:2px;border-radius:50%;border:2px solid transparent;border-top-color:#fff;border-right-color:rgba(255,255,255,.3);animation:s 1s linear infinite}
+.mono{font:11.5px var(--mono);color:var(--dim)}
+.acts{display:flex;gap:6px;flex:none}
+.slots{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.slot{border-radius:14px;background:var(--card);padding:10px 12px;box-shadow:0 0 0 .5px var(--line) inset;min-height:84px}
+.slot small{display:block;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.slot b{display:block;margin-top:4px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.slot span{color:var(--dim);font-size:11.5px}
+.slot.free{background:none;box-shadow:0 0 0 1px var(--line) inset;border-radius:14px;color:var(--faint)}
+.pb{height:4px;border-radius:2px;background:var(--card2);overflow:hidden;margin-top:8px}.pb i{display:block;height:100%;background:var(--run);border-radius:2px}
+.chs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}.chs button{border:0;font:inherit;font-size:11.5px;font-weight:550;padding:3px 10px;border-radius:99px;background:var(--card2);color:var(--dim);cursor:default}.chs button.on{background:var(--sel);color:var(--text)}
+.day{margin:12px 4px 4px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.ev{display:flex;gap:11px;padding:8px 0;border-top:.5px solid var(--line);align-items:flex-start}.ev:first-of-type{border:0}
+.ev .ic{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;background:var(--card2);color:var(--dim);flex:none;font-size:12px}
+.ev .ic.need{background:color-mix(in srgb,var(--need) 22%,transparent);color:var(--need)}.ev .ic.ready{background:color-mix(in srgb,var(--ready) 22%,transparent);color:var(--ready)}.ev .ic.ok{background:color-mix(in srgb,var(--run) 22%,transparent);color:var(--run)}.ev .ic.err{background:color-mix(in srgb,var(--err) 22%,transparent);color:var(--err)}
+.ev .t{flex:1;min-width:0;line-height:1.35}.ev .t b{font-weight:600}.ev .t span{color:var(--dim)}.ev time{color:var(--faint);font-size:11.5px;white-space:nowrap}
+.since{border-radius:14px;background:var(--card2);padding:9px 12px;margin-bottom:10px;color:var(--dim);font-size:12.5px}.since b{color:var(--text)}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.tile{border-radius:14px;background:var(--card);padding:10px 12px;box-shadow:0 0 0 .5px var(--line) inset}.tile .n{font-size:22px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}.tile .l{color:var(--dim);font-size:11.5px;margin-top:2px}.tile .d{color:var(--faint);font-size:11px;margin-top:3px}.tile .d.up{color:var(--run)}
+.bars{display:flex;gap:4px;align-items:flex-end;height:70px;margin:6px 2px 4px}.bars i{flex:1;border-radius:4px 4px 2px 2px;background:var(--card2);min-height:3px}.bars i.on{background:var(--run)}
+.bl{display:flex;justify-content:space-between;color:var(--faint);font-size:10.5px;margin:0 2px 12px}
+.gt{position:relative;margin:4px 2px 0}.gr{display:grid;grid-template-columns:118px 1fr;gap:10px;align-items:center;padding:5px 0}.gr .nm{font-size:12.5px;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gr .nm small{color:var(--dim);font-weight:400}
+.gtk{position:relative;height:16px;border-radius:5px;background:var(--card)}.gtk i{position:absolute;top:0;bottom:0;border-radius:4px;display:block}
+.gtk i.q{background:var(--card2)}.gtk i.sh{background:#7d7d87}.gtk i.rv{background:#a6a6b0}.gtk i.fx{background:#c8c8d0}.gtk i.rd{background:var(--ready)}.gtk i.now{animation:p 1.6s ease-in-out infinite;background:var(--run)}.gtk i.nd{background:var(--need)}
+.ax{display:grid;grid-template-columns:118px 1fr;gap:10px}.axl{display:flex;justify-content:space-between;color:var(--faint);font-size:10.5px;margin-top:2px}
+.nowl{position:absolute;top:0;bottom:16px;width:2px;background:var(--text);opacity:.5;border-radius:1px}
+.lg{display:flex;gap:14px;flex-wrap:wrap;margin:10px 2px 0;color:var(--dim);font-size:11.5px}.lg span{display:inline-flex;align-items:center;gap:6px}.lg i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.hl{border-radius:16px;background:var(--card);padding:12px 14px;margin-bottom:12px;box-shadow:0 0 0 .5px var(--line) inset}
+.hl .h1{display:flex;align-items:center;gap:10px;font-weight:650}.hl .h1 .sp1{flex:1}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:99px;font-size:11.5px;font-weight:600;background:color-mix(in srgb,var(--run) 22%,transparent);color:var(--run)}.pill i{width:7px;height:7px;border-radius:50%;background:currentColor;animation:p 1.6s ease-in-out infinite}
+.pill.bad{background:color-mix(in srgb,var(--err) 22%,transparent);color:var(--err)}.pill.off{background:var(--card2);color:var(--dim)}
+.kv{display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px;border-top:.5px solid var(--line)}.kv:first-of-type{border:0}.kv span:first-child{color:var(--dim)}.kv b{font-weight:600;font-variant-numeric:tabular-nums}
+.dd{width:9px;height:9px;border-radius:50%;background:var(--run);flex:none}.dd.bad{background:var(--err)}.dd.off{background:var(--wait)}
+.empty{text-align:center;padding:26px 10px;color:var(--dim)}.empty b{display:block;color:var(--text);font-size:14px;margin-bottom:3px}
+</style></head>
+<body>
+<h1>Overview — what should it hold?</h1>
+<div class="sub">Today the Overview repeats the sidebar: the same epics, grouped the same way. The sidebar already answers <b>“which epics, in what state”</b>. So the Overview should answer things the sidebar <b>cannot</b>: <b>what do I have to do</b>, <b>who is working right now</b>, <b>what happened while I was away</b>, <b>how is the day going</b>, <b>how does time flow across epics</b>, and <b>is Carrier itself healthy</b>. Six concepts, each on its own, then my suggested mix. Switch the situation to see how each holds up.</div>
+<div class="statebar"><div class="sg1" id="states"></div><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+<script>
+const SC={
+ busy:{label:'Busy day',slots:[{n:'agent-forge #231',st:'review · round 2/5',pr:100},{n:'sass-blueprint #14',st:'ship · 9/20 slices',pr:45},null],
+  turn:[{k:'need',t:'universal-logger #40',s:'Review limit reached (5/5) · 2 blockers open · 18 h ago',a:['Continue in Terminal','Open issue']},{k:'ready',t:'encaja #606',s:'Ready for test · PR #612 · 23 h ago',a:['Open PR']},{k:'ready',t:'encaja #627',s:'Ready for test · PR #631 · 1 d ago',a:['Open PR']}],
+  agents:[{a:'C',who:'Claude · Fixer',w:'agent-forge #231 · round 2',act:'pnpm typecheck',el:'since 16:09'},{a:'C',who:'Claude · Builder',w:'sass-blueprint #14 · lane 1 · #210 Webhooks',act:'editing app/webhooks/route.ts',el:'since 16:16'},{a:'C',who:'Claude · Builder',w:'sass-blueprint #14 · lane 2 · #211 Rate limiting',act:'pnpm test --filter limits',el:'since 16:14'},{a:'C',who:'Claude · Builder',w:'sass-blueprint #14 · lane 3 · #212 Search',act:'reading app/billing/invoices.tsx',el:'since 16:18'}],
+  feed:[['16:22','edit','agent-forge #231','Claude pushed 2 commits','round 2 fix'],['16:18','ok','sass-blueprint #14','merged slice #209 Invoices',''],['16:09','rev','agent-forge #231','Codex found 3 blockers','round 2'],['15:56','rev','agent-forge #231','review started','all 8 slices merged'],['Yesterday 13:03','need','universal-logger #40','review limit reached','needs you'],['Yesterday 14:00','ready','encaja #606','ready for test','PR #612']],
+  tiles:[['2','epics finished','this week 5'],['14','slices merged','+6 vs yesterday'],['2 h 40','avg per epic','−18 min'],['2.3','review rounds','avg per epic']],
+  hours:[0,0,0,0,0,0,0,1,2,0,3,2,4,3],last:'Today',
+  gantt:[{n:'agent-forge',i:231,seg:[['q',0,2],['sh',2,46],['rv',46,50],['fx',50,53],['now',53,56]]},{n:'sass-blueprint',i:14,seg:[['q',6,8],['now',8,56]]},{n:'universal-logger',i:40,seg:[['q',-20,-19],['sh',-19,-10],['rv',-10,-5],['nd',-5,-1]]},{n:'encaja',i:606,seg:[['sh',-40,-32],['rv',-32,-29],['rd',-29,-1]]}],
+  health:{st:'running',up:'22 min',next:'3 min 19 s',rate:'4,812 / 5,000',reset:'41 min',repos:[['AshuLab/agent-forge','40 s ago','ok'],['AshuLab/carrier','40 s ago','ok'],['AshuLab/universal-logger','40 s ago','ok'],['vemec/encaja','40 s ago','ok'],['vemec/sass-blueprint','40 s ago','ok']],intake:'active'}},
+ quiet:{label:'Quiet',slots:[null,null,null],turn:[{k:'ready',t:'encaja #606',s:'Ready for test · PR #612 · 23 h ago',a:['Open PR']}],agents:[],
+  feed:[['Yesterday 14:00','ready','encaja #606','ready for test','PR #612'],['Yesterday 10:12','ready','encaja #627','ready for test','PR #631'],['2 d ago 18:40','ok','universal-logger #39','merged to main','by you']],
+  tiles:[['0','epics finished','this week 3'],['0','slices merged','yesterday 11'],['—','avg per epic','last: 2 h 31'],['—','review rounds','last: 2']],hours:[0,0,0,0,0,0,0,0,0,0,0,0,0,0],last:'Today',
+  gantt:[{n:'encaja',i:606,seg:[['sh',-40,-32],['rv',-32,-29],['rd',-29,-1]]},{n:'encaja',i:627,seg:[['sh',-30,-24],['rv',-24,-22],['rd',-22,-1]]}],
+  health:{st:'running',up:'3 h 12 min',next:'1 min 02 s',rate:'4,990 / 5,000',reset:'52 min',repos:[['AshuLab/agent-forge','12 s ago','ok'],['AshuLab/carrier','12 s ago','ok'],['AshuLab/universal-logger','12 s ago','ok'],['vemec/encaja','12 s ago','ok'],['vemec/sass-blueprint','12 s ago','ok']],intake:'active'}},
+ problem:{label:'GitHub not answering',slots:[{n:'agent-forge #231',st:'review · round 2/5',pr:100},null,null],
+  turn:[{k:'err',t:'GitHub is not answering',s:'Carrier cannot read the repos since 16:20. Running agents continue; new epics are not picked up.',a:['Open GitHub status']},{k:'need',t:'universal-logger #40',s:'Review limit reached (5/5) · 18 h ago',a:['Continue in Terminal','Open issue']}],
+  agents:[{a:'C',who:'Claude · Fixer',w:'agent-forge #231 · round 2',act:'pnpm typecheck',el:'since 16:09'}],
+  feed:[['16:22','err','Carrier','GitHub did not answer','4th attempt, retrying in 30 s'],['16:20','err','Carrier','GitHub did not answer','first failure'],['16:09','rev','agent-forge #231','Codex found 3 blockers','round 2'],['Yesterday 13:03','need','universal-logger #40','review limit reached','needs you']],
+  tiles:[['2','epics finished','this week 5'],['9','slices merged','+1 vs yesterday'],['2 h 40','avg per epic','−18 min'],['2.3','review rounds','avg per epic']],hours:[0,0,0,0,0,0,0,1,2,0,3,2,1,0],last:'Today',
+  gantt:[{n:'agent-forge',i:231,seg:[['q',0,2],['sh',2,46],['rv',46,50],['fx',50,53],['now',53,56]]},{n:'universal-logger',i:40,seg:[['q',-20,-19],['sh',-19,-10],['rv',-10,-5],['nd',-5,-1]]}],
+  health:{st:'problem',up:'22 min',next:'retrying in 30 s',rate:'unknown',reset:'—',repos:[['AshuLab/agent-forge','16:19','bad'],['AshuLab/carrier','16:19','bad'],['AshuLab/universal-logger','16:19','bad'],['vemec/encaja','16:19','bad'],['vemec/sass-blueprint','16:19','bad']],intake:'active'}}
+};
+let cur='busy',fl='all',rg='today';
+const S=()=>SC[cur];
+const glyph=k=>k==='need'?'<span class="fil need">!</span>':k==='ready'?'<span class="fil ready">✓</span>':k==='err'?'<span class="fil err">✕</span>':'<span class="fil ok">✓</span>';
+const icoOf=k=>({edit:['✎',''],ok:['✓','ok'],rev:['⇄',''],need:['!','need'],ready:['✓','ready'],err:['✕','err']}[k]);
+const sh=(t,s,r)=>`<div class="sh"><b>${t}</b><span>${s||''}</span><span class="sp1"></span>${r||''}</div>`;
+const emptyTurn='<div class="empty"><b>Nothing needs you</b>Carrier will tell you when something does.</div>';
+const turn=()=>S().turn.length?`<div class="card2">${S().turn.map(x=>`<div class="rw">${glyph(x.k)}<div class="t"><b>${x.t}</b><span>${x.s}</span></div><div class="acts">${x.a.map((b,i)=>`<button class="glass sm">${b}</button>`).join('')}</div></div>`).join('')}</div>`:`<div class="card2">${emptyTurn}</div>`;
+const slots=()=>`<div class="slots">${S().slots.map((s,i)=>s?`<div class="slot"><small>Slot ${i+1}</small><b>${s.n}</b><span>${s.st}</span><div class="pb"><i style="width:${s.pr}%"></i></div></div>`:`<div class="slot free"><small>Slot ${i+1}</small><b style="color:var(--faint);font-weight:500">Free</b><span>ready for the next epic</span></div>`).join('')}</div>`;
+const agents=()=>S().agents.length?`<div class="card2">${S().agents.map(a=>`<div class="rw"><span class="av sp">${a.a}</span><div class="t"><b>${a.who} <span style="display:inline;color:var(--dim);font-weight:500">· ${a.w}</span></b><span class="mono" style="font-family:var(--mono)">${a.act}</span></div><span class="mono">${a.el}</span></div>`).join('')}</div>`:`<div class="card2"><div class="empty"><b>No agent is working</b>All 3 slots are free.</div></div>`;
+const feed=(n)=>{const F=S().feed.filter(f=>fl==='all'||(fl==='need'&&['need','err'].includes(f[1]))||(fl==='merge'&&['ok','ready'].includes(f[1]))||(fl==='rev'&&['rev','edit'].includes(f[1]))).slice(0,n||99);let day='',h='';F.forEach(f=>{const d=f[0].includes(' ')?f[0].split(' ').slice(0,-1).join(' '):'Today',t=f[0].split(' ').pop();if(d!==day){day=d;h+=`<div class="day">${d}</div>`}const [ic,c]=icoOf(f[1]);h+=`<div class="ev"><span class="ic ${c}">${ic}</span><div class="t"><b>${f[2]}</b> <span>${f[3]}${f[4]?' · '+f[4]:''}</span></div><time>${t}</time></div>`});return h||'<div class="empty"><b>Nothing here</b>No events match this filter.</div>'};
+const tiles=()=>`<div class="tiles">${S().tiles.map(t=>`<div class="tile"><div class="n">${t[0]}</div><div class="l">${t[1]}</div><div class="d">${t[2]}</div></div>`).join('')}</div>`;
+const gantt=()=>{const W=56+40,off=40,pos=v=>100*(v+off)/W;const G=S().gantt;return `<div class="gt">${G.map(g=>`<div class="gr"><div class="nm">${g.n} <small>#${g.i}</small></div><div class="gtk">${g.seg.map(s=>`<i class="${s[0]}" style="left:${pos(s[1])}%;width:${pos(s[2])-pos(s[1])}%"></i>`).join('')}</div></div>`).join('')}<div class="nowl" style="left:calc(128px + (100% - 128px) * ${pos(56)/100} - 1px)"></div></div><div class="ax"><span></span><div class="axl"><span>yesterday 08:00</span><span>yesterday 20:00</span><span>now</span></div></div><div class="lg"><span><i style="background:var(--card2)"></i>queued</span><span><i style="background:#7d7d87"></i>ship</span><span><i style="background:#a6a6b0"></i>review</span><span><i style="background:#c8c8d0"></i>fix</span><span><i style="background:var(--run)"></i>running now</span><span><i style="background:var(--need)"></i>stopped, needs you</span><span><i style="background:var(--ready)"></i>ready for test</span></div>`};
+const health=()=>{const h=S().health,bad=h.st==='problem';return `<div class="hl"><div class="h1"><span class="pill ${bad?'bad':''}"><i></i>${bad?'GitHub not answering':'Carrier running'}</span><span class="sp1"></span><span class="mono">up ${h.up}</span></div><div style="margin-top:8px"><div class="kv"><span>Next check</span><b>${h.next}</b></div><div class="kv"><span>GitHub rate limit</span><b>${h.rate}${h.reset!=='—'?' · resets in '+h.reset:''}</b></div><div class="kv"><span>Intake</span><b>${h.intake==='active'?'Active':'Paused'} <a class="lk" style="margin-left:6px">Pause</a></b></div></div></div><div class="sh"><b>Watched repositories</b><span>${h.repos.length}</span></div><div class="card2">${h.repos.map(r=>`<div class="rw" style="padding:8px 0"><span class="dd ${r[2]}"></span><div class="t"><b style="font-weight:550">${r[0]}</b></div><span class="mono">${r[1]}</span></div>`).join('')}</div>`};
+const hoursChart=()=>{const H=S().hours,m=Math.max(...H,1);return `<div class="sh"><b>Slices merged</b><span>by hour</span><span class="sp1"></span><span class="sg1"><button class="${rg==='today'?'on':''}" data-rg="today">Today</button><button class="${rg==='week'?'on':''}" data-rg="week">7 days</button></span></div><div class="bars">${H.map(v=>`<i class="${v?'on':''}" style="height:${Math.max(3,66*v/m)}px"></i>`).join('')}</div><div class="bl"><span>${rg==='today'?'03:00':'Mon'}</span><span>${rg==='today'?'09:00':'Thu'}</span><span>${rg==='today'?'now':'Sun'}</span></div>`};
+const since=()=>cur==='quiet'?'':`<div class="since">Since you last looked <b>(15:48)</b>: <b>3 things</b> happened. Codex found 3 blockers in agent-forge, one slice merged in sass-blueprint, and a fix was pushed.</div>`;
+
+const O=[
+['A · Your turn','A to-do list, not a status list: only what <b>you</b> have to act on (stopped epics, things to test, errors), most urgent first, each with its action. The sidebar says what exists; this says what to do.',()=>sh('Your turn',S().turn.length+' item'+(S().turn.length===1?'':'s'))+turn()],
+['B · Who is working now','The 3 slots as tiles (who occupies each, how far), and below, every agent running across all epics with what it is doing this second. Agent-centred, where the sidebar is epic-centred.',()=>sh('Slots',(S().slots.filter(Boolean).length)+' of 3 busy')+slots()+sh('Agents working',S().agents.length+'')+agents()],
+['C · Activity feed','What happened, in order, across all epics: reviews, merges, fixes, errors. A banner says what changed since you last looked. Filter by kind. The only view with time as its axis.',()=>since()+sh('Activity','','<span class="chs" style="margin:0">'+[['all','All'],['need','Needs you'],['merge','Merges'],['rev','Reviews']].map(([k,t])=>`<button class="${fl===k?'on':''}" data-fl="${k}">${t}</button>`).join('')+'</span>')+`<div>${feed()}</div>`],
+['D · The day in numbers','Four headline numbers (epics finished, slices merged, average time per epic, review rounds) and a chart of merges by hour. Tells you if things are going well, not just what is going on.',()=>sh('Today','vs. yesterday')+tiles()+hoursChart()],
+['E · Timeline of all epics','One row per epic over the last 36 hours, drawn as bars by stage: queued, ship, review, fix, ready. You see overlap, long stages and what is stuck. A flight board for the work.',()=>sh('Timeline','last 36 hours')+gantt()],
+['F · Carrier and repositories','The engine itself: running or not, next check countdown, GitHub rate limit, intake paused or active, and the five watched repos with their last check. The only place that explains why nothing is happening.',()=>sh('Carrier','')+health()],
+['G · Suggested mix','Compact version of each: health in one line on top, Your turn (max 3), Agents working, Recent activity (5 items), and the day in four numbers at the bottom. Each block links to its full view.',()=>{const h=S().health,bad=h.st==='problem';return `<div class="h" style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><span class="pill ${bad?'bad':''}"><i></i>${bad?'GitHub not answering':'Carrier running'}</span><span class="mono">next check ${h.next}</span><span class="sp1" style="flex:1"></span><a class="lk">Details ›</a></div>`+since()+sh('Your turn',S().turn.length+'')+turn()+sh('Agents working',S().agents.length+'','<a class="lk">All ›</a>')+agents()+sh('Recent activity','','<a class="lk">All activity ›</a>')+`<div class="card2" style="padding-top:6px;padding-bottom:6px">${feed(5)}</div>`+sh('Today','')+tiles()}]
+];
+function render(){
+ document.getElementById('states').innerHTML=Object.entries(SC).map(([k,v])=>`<button class="${cur===k?'on':''}" data-st="${k}">${v.label}</button>`).join('');
+ document.getElementById('opts').innerHTML=O.map(([t,p,f],i)=>`<div class="opt" ${i===6?'style="grid-column:1/-1;max-width:700px"':''}><h3>${t}</h3><p>${p}</p><div class="cw">${f()}</div></div>`).join('');
+ document.querySelectorAll('[data-st]').forEach(e=>e.onclick=()=>{cur=e.dataset.st;render()});
+ document.querySelectorAll('[data-fl]').forEach(e=>e.onclick=()=>{fl=e.dataset.fl;render()});
+ document.querySelectorAll('[data-rg]').forEach(e=>e.onclick=()=>{rg=e.dataset.rg;render()});
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script></body></html>

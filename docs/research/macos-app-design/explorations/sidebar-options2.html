@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Left sidebar — round two</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--run:#30d158;--need:#ff9f0a;--err:#ff453a;--ready:#0a84ff;--wait:#8e8e93}
+body.light{--run:#28a745;--need:#e08600;--err:#e5372d;--ready:#007aff;--wait:#8e8e93}
+.opts{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;margin-top:8px}
+.opt{width:300px}.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;min-height:70px}
+.sb{border-radius:22px;background:var(--side);backdrop-filter:blur(30px);box-shadow:var(--shadow);padding:14px 10px 10px;min-height:640px;display:flex;flex-direction:column}
+.statebar{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.sg1{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.sg1 button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:4px 12px;border-radius:99px;cursor:default;white-space:nowrap}
+.sg1 button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .sg1 button.on{background:rgba(255,255,255,.16)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:0 0 14px;padding:10px 14px;border-radius:14px;background:var(--card);max-width:900px}
+.legend span{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--dim)}.legend b{color:var(--text);font-weight:600}
+.lb{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin:14px 10px 4px;display:flex;justify-content:space-between}
+.ov{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px;margin-bottom:2px}.ov.sel{background:var(--sel)}
+.ov b{flex:1;font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:600;background:color-mix(in srgb,var(--run) 22%,transparent);color:var(--run)}
+.pill.off{background:var(--card2);color:var(--dim)}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor;animation:p 1.6s ease-in-out infinite}.pill.off i{animation:none}
+@keyframes p{50%{opacity:.35}}@keyframes s{to{transform:rotate(1turn)}}@keyframes sh{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.it{display:flex;align-items:center;gap:11px;padding:8px 8px;border-radius:11px;cursor:default;position:relative}
+.it:hover{background:var(--card)}
+.it .t{flex:1;min-width:0}.it .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.it .t span{display:block;color:var(--dim);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .t span em{font-style:normal;font-weight:600}
+.run{color:var(--run)}.need{color:var(--need)}.err{color:var(--err)}.queue{color:var(--wait)}.ready{color:var(--ready)}
+/* glyphs */
+.gl{width:20px;height:20px;display:grid;place-items:center;flex:none;font-size:11px;font-weight:700}
+.spn{width:16px;height:16px;border-radius:50%;border:2.5px solid color-mix(in srgb,var(--run) 25%,transparent);border-top-color:var(--run);animation:s 1s linear infinite}
+.hol{width:14px;height:14px;border-radius:50%;border:2px solid var(--wait)}
+.fil{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800}
+.fil.need{background:var(--need)}.fil.err{background:var(--err)}.fil.ready{background:var(--ready)}.fil.run{background:var(--run)}
+.rg{position:relative;width:34px;height:34px;flex:none;display:grid;place-items:center;font-size:9.5px;font-weight:700}
+.rg svg{position:absolute;inset:0;transform:rotate(-90deg)}.rg svg.sp{animation:s 1.4s linear infinite}
+.seg{display:flex;gap:3px;margin-top:5px}.seg i{flex:1;height:4px;border-radius:2px;background:var(--card2);position:relative;overflow:hidden}
+.seg i.d{background:var(--wait)}.seg i.run{background:var(--run);animation:p 1.6s ease-in-out infinite}.seg i.need{background:var(--need)}.seg i.err{background:var(--err)}.seg i.ready{background:var(--ready)}
+.fill{position:relative;overflow:hidden;border-radius:12px;background:var(--card);margin-bottom:5px;padding:9px 11px;display:flex;align-items:center;gap:10px}
+.fill .f{position:absolute;inset:0 auto 0 0;opacity:.22}.fill .f.run::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);animation:sh 2.2s linear infinite}
+.fill .t,.fill .x{position:relative}.fill .t{flex:1;min-width:0}.fill .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fill .t span{color:var(--dim);font-size:11.5px}.fill .x{font-size:11.5px;font-weight:700}
+.hdrc{border-radius:16px;background:var(--card);padding:11px 12px;margin-bottom:6px;box-shadow:0 0 0 .5px var(--line) inset}
+.hdrc .h1{display:flex;align-items:center;gap:8px;font-weight:650}.hdrc .h1 .sp1{flex:1}
+.slots{display:flex;gap:4px}.slots i{width:14px;height:6px;border-radius:3px;background:var(--card2)}.slots i.on{background:var(--run)}
+.cnts{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}.cnts span{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:600;background:var(--card2)}
+.dn{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:9px;font-size:12.5px}.dn:hover{background:var(--card)}.dn .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:550}.dn .r{color:var(--dim);font-size:11px;white-space:nowrap}
+.dd{width:9px;height:9px;border-radius:50%;flex:none;background:var(--wait)}.dd.run{background:var(--run);animation:p 1.4s ease-in-out infinite}.dd.need{background:var(--need)}.dd.err{background:var(--err)}.dd.ready{background:var(--ready)}.dd.queue{background:none;border:2px solid var(--wait);width:11px;height:11px}
+.foot{margin-top:auto;padding-top:8px;border-top:.5px solid var(--line)}
+.foot .it b{font-weight:550}.foot .ic{width:20px;text-align:center;color:var(--dim)}
+.off .it,.off .fill,.off .dn{opacity:.55}
+.banner{margin:0 2px 6px;padding:7px 10px;border-radius:10px;background:var(--card2);color:var(--dim);font-size:12px;display:flex;gap:8px;align-items:center}
+
+.opt{width:var(--w,260px)}.opt>p{min-height:84px}
+.spec{margin:8px 2px 0;color:var(--faint);font-size:11px;line-height:1.5;font-family:var(--mono)}
+.ttl{display:flex;gap:5px;min-width:0;align-items:baseline}.ttl .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.ttl .no{flex:none;color:var(--dim);font-weight:500;font-variant-numeric:tabular-nums}
+.sub1{display:block;color:var(--dim);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;margin-top:1px}.sub1 em{font-style:normal;font-weight:600}
+.rowG{display:grid;grid-template-columns:20px 1fr auto;gap:10px;align-items:center;padding:0 10px;height:48px;border-radius:11px}.rowG:hover{background:var(--card)}.rowG .m{min-width:0}.rowG .r{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.rowH{display:grid;grid-template-columns:14px 1fr 44px;gap:9px;align-items:center;padding:0 10px;height:32px;border-radius:9px}.rowH:hover{background:var(--card)}.rowH .ttl{font-size:12.5px}
+.mb{height:4px;border-radius:2px;background:var(--card2);overflow:hidden}.mb i{display:block;height:100%;border-radius:2px}.mb i.run{background:var(--run)}
+.rowH .x{font-size:11px;font-weight:700;text-align:right;color:var(--dim)}
+.gh2{display:flex;align-items:center;gap:6px;margin:12px 10px 3px;height:20px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}.gh2 span:first-child{flex:1}
+.sw2{display:flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;margin:2px 8px 4px;font-size:11.5px}.sw2 button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-weight:550;padding:3px 8px;border-radius:99px;cursor:default}.sw2 button.on{background:var(--win);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+body:not(.light) .sw2 button.on{background:rgba(255,255,255,.16)}
+.rowI{display:grid;grid-template-columns:20px 1fr;gap:10px;align-items:center;padding:0 10px;height:40px;border-radius:11px}.rowI:hover{background:var(--card)}
+.avs{display:flex;flex:none}.avs .a{width:20px;height:20px;border-radius:50%;background:#5f5f68;color:#fff;font:700 9.5px var(--font);display:grid;place-items:center;margin-left:-6px;box-shadow:0 0 0 2px var(--side);position:relative}.avs .a:first-child{margin-left:0}
+.avs .a.sp::after{content:"";position:absolute;inset:2px;border-radius:50%;border:1.5px solid transparent;border-top-color:var(--run);animation:s 1s linear infinite}
+.avs .a.sp{box-shadow:0 0 0 2px var(--side),0 0 0 3.5px color-mix(in srgb,var(--run) 45%,transparent)}
+.avs .a.st{box-shadow:0 0 0 2px var(--side),0 0 0 3.5px var(--need)}
+.rowJ{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:0 10px;height:46px;border-radius:11px}.rowJ:hover{background:var(--card)}.rowJ .m{min-width:0}
+.rowK{position:relative;display:block;padding:7px 10px 7px 18px;height:46px;border-radius:11px}.rowK:hover{background:var(--card)}
+.rowK .bar{position:absolute;left:7px;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--wait)}
+.rowK .bar.run{background:linear-gradient(180deg,var(--run),color-mix(in srgb,var(--run) 25%,transparent),var(--run));background-size:100% 200%;animation:mv 1.6s linear infinite}
+.rowK .bar.need{background:var(--need)}.rowK .bar.err{background:var(--err)}.rowK .bar.ready{background:var(--ready)}.rowK .bar.queue{background:var(--card2)}
+@keyframes mv{to{background-position:0 -200%}}
+.ft{display:flex;gap:5px;margin:2px 8px 8px}.ft button{flex:1;border:0;font:inherit;font-size:11px;font-weight:650;padding:5px 0;border-radius:9px;background:var(--card);color:var(--dim);cursor:default;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.1}
+.ft button b{font-size:15px;font-variant-numeric:tabular-nums}.ft button.on{background:var(--win);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .ft button.on{background:rgba(255,255,255,.14)}
+.ft .n b{color:var(--need)}.ft .r b{color:var(--run)}.ft .q b{color:var(--wait)}.ft .d b{color:var(--ready)}
+.rowL{display:grid;grid-template-columns:20px 1fr auto;gap:10px;align-items:center;padding:0 10px;height:40px;border-radius:11px}.rowL:hover{background:var(--card)}.rowL .w{font-size:11px;font-weight:650;white-space:nowrap}
+</style></head>
+<body>
+<h1>Left sidebar — round two: sizes, spacing and text that fits</h1>
+<div class="sub">Six more, now with real measurements under each one (row height, padding, type sizes). Two switches matter here: the <b>situation</b>, including <b>14 epics</b> and <b>very long names</b>, and the <b>sidebar width</b> (220 / 260 / 320 px). The rule in all of them: the name truncates with an ellipsis, the <b>#number never does</b>, and the detail line truncates before the name does. Same colours as before: green moving = running, orange = needs you, red = problem, grey hollow = up next, blue = ready.</div>
+<div class="legend"><span><span class="spn"></span><b class="run">Running</b></span><span><span class="fil need">!</span><b class="need">Needs you</b></span><span><span class="fil err">✕</span><b class="err">Problem</b></span><span><span class="hol"></span><b class="queue">Up next</b></span><span><span class="fil ready">✓</span><b class="ready">Ready for test</b></span></div>
+<div class="statebar"><div class="sg1" id="states"></div><div class="sg1" id="widths"></div><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+<script>
+const E0=[
+ {n:'universal-logger',i:40,s:'need',stage:'fix',r:[5,5],sub:'review limit 5/5',t:'18 h',ag:['C'],repo:'universal-logger'},
+ {n:'agent-forge',i:231,s:'run',stage:'review',p:[8,8],r:[2,5],t:'12 min',ag:['C'],repo:'agent-forge'},
+ {n:'sass-blueprint',i:14,s:'run',stage:'ship',p:[9,20],t:'2 h',ag:['C','C','C'],repo:'sass-blueprint'},
+ {n:'carrier',i:88,s:'queue',sub:'waiting for a slot',ag:[],repo:'carrier'},
+ {n:'encaja',i:650,s:'queue',sub:'waiting for a slot',ag:[],repo:'encaja'},
+ {n:'encaja',i:606,s:'ready',sub:'23 h ago',t:'23 h',ag:['X'],repo:'encaja'},
+ {n:'encaja',i:627,s:'ready',sub:'1 d ago',t:'1 d',ag:['X'],repo:'encaja'}
+];
+const LONG=E0.map((e,k)=>({...e,n:['universal-logger-transport-layer','agent-forge-orchestration-engine','sass-blueprint-billing-and-roles','carrier-macos-menu-bar-app','encaja-checkout-and-shipping','encaja-checkout-and-shipping','encaja-checkout-and-shipping'][k],i:[1042,231,14,88,650,606,627][k]}));
+const MORE=E0.concat([{n:'docs-site',i:12,s:'run',stage:'ship',p:[3,10],t:'40 min',ag:['C'],repo:'docs-site'},{n:'api-gateway',i:77,s:'run',stage:'fix',r:[3,5],t:'25 min',ag:['C'],repo:'api-gateway'},{n:'billing',i:9,s:'queue',sub:'waiting for a slot',ag:[],repo:'billing'},{n:'billing',i:10,s:'queue',sub:'waiting for a slot',ag:[],repo:'billing'},{n:'mobile-app',i:301,s:'ready',sub:'3 d ago',t:'3 d',ag:['X'],repo:'mobile-app'},{n:'mobile-app',i:305,s:'ready',sub:'3 d ago',t:'3 d',ag:['X'],repo:'mobile-app'},{n:'infra',i:5,s:'need',stage:'review',r:[5,5],sub:'review limit 5/5',t:'2 d',ag:['C'],repo:'infra'}]);
+const SC={
+ busy:{label:'Busy day',off:false,list:E0,slots:2},
+ many:{label:'Many epics (14)',off:false,list:MORE,slots:3},
+ long:{label:'Long names',off:false,list:LONG,slots:2},
+ stopped:{label:'Carrier stopped',off:true,list:E0,slots:0}
+};
+let cur='busy',W=260,selI=231,fl='all',gb='status';
+const S=()=>SC[cur];
+const live=e=>e.s==='run'&&!S().off;
+const col=e=>({run:'var(--run)',need:'var(--need)',err:'var(--err)',queue:'var(--wait)',ready:'var(--ready)'}[e.s]);
+const detail=e=>e.s==='run'?`<em class="run">${e.stage}</em> · ${e.r?'round '+e.r[0]+'/'+e.r[1]:e.p[0]+'/'+e.p[1]+' slices'}`:e.s==='need'?`<em class="need">${e.sub}</em>`:e.s==='err'?`<em class="err">${e.sub}</em>`:e.sub;
+const groups=()=>{const L=S().list;return [['Needs you',L.filter(e=>e.s==='need'||e.s==='err')],['Running',L.filter(e=>e.s==='run')],['Up next',L.filter(e=>e.s==='queue')],['Ready for test',L.filter(e=>e.s==='ready')]].filter(g=>g[1].length)};
+const sel=e=>e.i===selI&&e.n==='agent-forge'||e.i===231&&e.n.startsWith('agent-forge')?'style="background:var(--sel)"':'';
+const ttl=e=>`<span class="ttl"><span class="nm">${e.n}</span><span class="no">#${e.i}</span></span>`;
+const glyph=e=>e.s==='run'?(live(e)?'<span class="gl"><span class="spn"></span></span>':'<span class="gl"><span class="hol"></span></span>'):e.s==='need'?'<span class="gl"><span class="fil need">!</span></span>':e.s==='err'?'<span class="gl"><span class="fil err">✕</span></span>':e.s==='queue'?'<span class="gl"><span class="hol"></span></span>':'<span class="gl"><span class="fil ready">✓</span></span>';
+const topRow=()=>`<div class="ov"><span style="font-size:15px;width:20px;text-align:center">▦</span><b>Overview</b><span class="pill ${S().off?'off':''}"><i></i>${S().off?'stopped':S().slots+'/3'}</span></div>`;
+const foot=()=>`<div class="foot"><div class="it"><span class="ic">⚙︎</span><div class="t"><b>Settings</b></div></div><div class="it"><span class="ic">ⓘ</span><div class="t"><b>About</b></div></div></div>`;
+const banner=()=>S().off?'<div class="banner">● Carrier is not running.</div>':'';
+const wrap=b=>`<div class="sb ${S().off?'off':''}" style="min-height:${cur==='many'?720:560}px">${topRow()}${banner()}${b}${foot()}</div>`;
+const gh=(t,n)=>`<div class="gh2"><span>${t}</span><span>${n}</span></div>`;
+const avs=e=>e.ag.length?`<span class="avs">${e.ag.map(a=>`<span class="a ${live(e)?'sp':e.s==='need'?'st':''}">${a}</span>`).join('')}</span>`:'';
+const rightG=e=>e.s==='run'?(e.r?`r${e.r[0]}/${e.r[1]}`:`${e.p[0]}/${e.p[1]}`):e.s==='need'||e.s==='ready'?e.t:'';
+const spec=t=>`<div class="spec">${t}</div>`;
+
+const O=[
+['G · Two lines, right column','Fixed 48 px rows on a 10 px grid. Glyph at the left, name and detail in the middle, and a narrow right column with the number that matters (round, slices or age). The name truncates; the #number never does.',()=>wrap(groups().map(([t,l])=>gh(t,l.length)+l.map(e=>`<div class="rowG" ${sel(e)}>${glyph(e)}<div class="m">${ttl(e)}<span class="sub1">${detail(e)}</span></div><span class="r">${rightG(e)}</span></div>`).join('')).join(''))+spec('row 48 · pad 10 · glyph 20 · gap 10 · title 13/600 · detail 11.5 · right col auto')],
+['H · One-liners, with a bar','32 px rows for many epics: dot, name, and a 44 px column with a mini progress bar (running) or a mark. Header rows 20 px. Fits 14 epics without scrolling.',()=>wrap(groups().map(([t,l])=>gh(t,l.length)+l.map(e=>`<div class="rowH" ${sel(e)}><span class="dd ${e.s==='run'&&!live(e)?'queue':e.s}" style="${live(e)?'':'animation:none'}"></span><span class="ttl">${ttl(e).replace('class="ttl"','class="ttl" style="min-width:0"')}</span><span class="x" style="color:${col(e)}">${e.s==='run'?`<span class="mb" style="display:block"><i class="run" style="width:${e.p?Math.round(100*e.p[0]/e.p[1]):(e.r[0]/e.r[1]*100)}%"></i></span>`:e.s==='need'?'!':e.s==='ready'?'✓':''}</span></div>`).join('')).join(''))+spec('row 32 · pad 10 · dot 9 · gap 9 · title 12.5/600 · right col 44 · header 20')],
+['I · Group by status or repo','The same list with a switch at the top. By repo, each repository is a section and its epics sit under it (useful when one repo has several). Glyph still carries the state.',()=>{
+  const L=S().list,by={};L.forEach(e=>(by[e.repo]=by[e.repo]||[]).push(e));
+  const body=gb==='status'?groups().map(([t,l])=>gh(t,l.length)+l.map(e=>`<div class="rowI" ${sel(e)}>${glyph(e)}<div class="m" style="min-width:0">${ttl(e)}<span class="sub1">${detail(e)}</span></div></div>`).join('')).join(''):Object.entries(by).map(([r,l])=>gh(r,l.length)+l.map(e=>`<div class="rowI" ${sel(e)}>${glyph(e)}<div class="m" style="min-width:0"><span class="ttl"><span class="nm" style="font-weight:600">#${e.i}</span><span class="no">${e.s==='run'?e.stage:e.s==='need'?'needs you':e.s==='queue'?'next':'ready'}</span></span><span class="sub1">${detail(e)}</span></div></div>`).join('')).join('');
+  return wrap(`<div class="sw2"><button class="${gb==='status'?'on':''}" data-gb="status">By status</button><button class="${gb==='repo'?'on':''}" data-gb="repo">By repo</button></div>`+body)+spec('row 40 · switch 24 · pad 10 · glyph 20 · title 13/600 · detail 11.5')}],
+['J · Agents on the row','Shows who is working: one small avatar per agent, with a green turning ring while it works (sass-blueprint has three lanes, so three). Needs-you shows the stopped agent in orange. Loading lives on the avatar.',()=>wrap(groups().map(([t,l])=>gh(t,l.length)+l.map(e=>`<div class="rowJ" ${sel(e)}><div class="m">${ttl(e)}<span class="sub1">${detail(e)}</span></div>${avs(e)}</div>`).join('')).join(''))+spec('row 46 · pad 10 · avatar 20 (overlap −6) · title 13/600 · detail 11.5 · ring 1.5')],
+['K · Colour bar at the edge','A 3 px bar on the left of each row, full state colour: green and moving when running, orange, red, grey, blue. No glyph, so the text starts earlier and the name gets more room. Detail shows how long.',()=>wrap(groups().map(([t,l])=>gh(t,l.length)+l.map(e=>`<div class="rowK" ${sel(e)}><span class="bar ${live(e)?'run':e.s==='run'?'queue':e.s}"></span>${ttl(e)}<span class="sub1">${e.s==='run'?'<em class="run">'+e.stage+'</em> · '+(e.t||'')+' · '+(e.r?'r'+e.r[0]+'/'+e.r[1]:e.p[0]+'/'+e.p[1]):e.s==='need'?'<em class="need">'+e.sub+'</em> · '+e.t:detail(e)}</span></div>`).join('')).join(''))+spec('row 46 · bar 3×30 at x=7 · text starts x=18 · title 13/600 · detail 11.5')],
+['L · Filter counters, one list','Four counters at the top act as filters (needs you, running, next, ready). Below, a single list sorted by urgency with the state written at the right. Saves the group headers and scales to many epics.',()=>{const L=S().list,n=k=>L.filter(e=>k.includes(e.s)).length,ord={need:0,err:0,run:1,queue:2,ready:3},sw={need:'needs you',err:'problem',run:'running',queue:'next',ready:'ready'};
+  const f=fl==='all'?L:L.filter(e=>({n:['need','err'],r:['run'],q:['queue'],d:['ready']}[fl]).includes(e.s)),rows=f.slice().sort((a,b)=>ord[a.s]-ord[b.s]);
+  return wrap(`<div class="ft">${[['n','Needs',['need','err']],['r','Running',['run']],['q','Next',['queue']],['d','Ready',['ready']]].map(([k,t,m])=>`<button class="${k} ${fl===k?'on':''}" data-fl="${k}"><b>${n(m)}</b>${t}</button>`).join('')}</div>`+rows.map(e=>`<div class="rowL" ${sel(e)}>${glyph(e)}${ttl(e)}<span class="w" style="color:${col(e)}">${sw[e.s]}</span></div>`).join(''))+spec('row 40 · counters 44 · pad 10 · glyph 20 · title 13/600 · state label 11/650')}]
+];
+function render(){
+ document.getElementById('states').innerHTML=Object.entries(SC).map(([k,v])=>`<button class="${cur===k?'on':''}" data-st="${k}">${v.label}</button>`).join('');
+ document.getElementById('widths').innerHTML=[220,260,320].map(w=>`<button class="${W===w?'on':''}" data-w="${w}">${w} px</button>`).join('');
+ const o=document.getElementById('opts');o.style.setProperty('--w',W+'px');
+ o.innerHTML=O.map(([t,p,f])=>`<div class="opt"><h3>${t}</h3><p>${p}</p>${f()}</div>`).join('');
+ document.querySelectorAll('[data-st]').forEach(e=>e.onclick=()=>{cur=e.dataset.st;render()});
+ document.querySelectorAll('[data-w]').forEach(e=>e.onclick=()=>{W=+e.dataset.w;render()});
+ document.querySelectorAll('[data-gb]').forEach(e=>e.onclick=()=>{gb=e.dataset.gb;render()});
+ document.querySelectorAll('[data-fl]').forEach(e=>e.onclick=()=>{fl=fl===e.dataset.fl?'all':e.dataset.fl;render()});
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script></body></html>

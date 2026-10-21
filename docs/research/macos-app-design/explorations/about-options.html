@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>About — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--run:#30d158;--need:#ff9f0a;--err:#ff453a;--acc:#0a84ff}body.light{--run:#28a745;--need:#e08600;--err:#e5372d;--acc:#007aff}
+.opts{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;margin-top:8px}
+.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:440px;min-height:54px}
+.stage{border-radius:26px;background:radial-gradient(500px 300px at 20% 0%,rgba(120,100,200,.18),transparent 60%),rgba(0,0,0,.18);padding:30px 24px;display:grid;place-items:center;min-height:560px}
+body.light .stage{background:radial-gradient(500px 300px at 20% 0%,rgba(120,100,200,.14),transparent 60%),rgba(0,0,0,.05)}
+.sheet{border-radius:24px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);padding:26px 24px 18px;display:flex;flex-direction:column}
+.statebar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.sg1{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.sg1 button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:4px 12px;border-radius:99px;cursor:default;white-space:nowrap}
+.sg1 button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .sg1 button.on{background:rgba(255,255,255,.16)}
+.ico{width:84px;height:84px;border-radius:19px;background:linear-gradient(150deg,#3a3a42,#1c1c20);display:grid;place-items:center;box-shadow:0 8px 22px rgba(0,0,0,.4),0 0 0 .5px rgba(255,255,255,.18) inset;position:relative;overflow:hidden}
+.ico svg{width:46px;height:46px;fill:none;stroke:#f5f5f7;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ico .dt{position:absolute;right:14px;top:14px;width:9px;height:9px;border-radius:50%;background:var(--run)}
+.ico.s .dt{background:var(--wait,#8e8e93)}
+.nm{font-size:20px;font-weight:700;letter-spacing:-.02em;margin-top:12px}.vs{color:var(--dim);margin-top:2px;font-variant-numeric:tabular-nums}
+.ds{color:var(--dim);text-align:center;max-width:300px;line-height:1.45;margin-top:10px;font-size:12.5px}
+.cp{color:var(--faint);font-size:11.5px;margin-top:12px;text-align:center}
+.lks{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:14px}
+.ctr{align-items:center;text-align:center}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:99px;font-size:11.5px;font-weight:600;background:color-mix(in srgb,var(--run) 22%,transparent);color:var(--run)}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor;animation:p 1.6s ease-in-out infinite}@keyframes p{50%{opacity:.35}}
+.pill.off{background:var(--card2);color:var(--dim)}.pill.off i{animation:none}.pill.bad{background:color-mix(in srgb,var(--need) 22%,transparent);color:var(--need)}
+.list{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:2px 12px;width:100%;text-align:left}
+.kv{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:.5px solid var(--line);font-size:12.5px}.kv:first-child{border:0}
+.kv span:first-child{color:var(--dim);width:92px;flex:none}.kv b{flex:1;min-width:0;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}.kv b.m{font:11.5px var(--mono);font-weight:500}
+.cb{border:0;background:var(--card2);color:var(--dim);width:22px;height:22px;border-radius:7px;display:grid;place-items:center;cursor:default;flex:none}.cb:hover{color:var(--text)}.cb svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.warn{width:100%;margin-bottom:10px;padding:9px 12px;border-radius:12px;background:color-mix(in srgb,var(--need) 14%,transparent);color:var(--text);font-size:12.5px;line-height:1.4;text-align:left}.warn b{color:var(--need)}
+.foot{display:flex;gap:8px;align-items:center;margin-top:16px;width:100%}.foot .sp1{flex:1}
+.tabs{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;margin:14px 0 12px;align-self:center}
+.tabs button{border:0;background:none;color:var(--dim);font:inherit;font-size:11.5px;font-weight:550;padding:3px 14px;border-radius:99px;cursor:default}.tabs button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25)}
+body:not(.light) .tabs button.on{background:rgba(255,255,255,.16)}
+.cols{display:grid;grid-template-columns:200px 1fr;gap:22px;align-items:start}
+.cols .l{display:flex;flex-direction:column;align-items:center;text-align:center}
+.dis{color:var(--dim);font-size:12px;cursor:default;margin-top:12px}.dis:hover{color:var(--text)}
+.cr{font-size:12px;color:var(--dim);line-height:1.6;width:100%;text-align:left}.cr b{color:var(--text);font-weight:600}
+</style></head>
+<body>
+<h1>About — four ways to improve it</h1>
+<div class="sub">Today it is a card with the icon, the version, a small engine box and three buttons. It does not say <b>what the app is connected to</b> when something is wrong, which is when people open it. A good About on macOS is short, but this one doubles as the place to read <b>diagnostics</b> and copy them into a bug report. Four takes; switch the engine state to see how each reacts.</div>
+<div class="statebar"><div class="sg1" id="states"></div><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+<div class="note" id="foot"></div>
+<script>
+const ST={
+ ok:{label:'Engine connected',pill:['run','Connected'],eng:'carrier 0.24.0',proto:'1 · supported',pid:'28 114',up:'22 min',warn:null,off:false},
+ off:{label:'Engine stopped',pill:['off','Not running'],eng:'—',proto:'—',pid:'—',up:'—',warn:null,off:true},
+ bad:{label:'Incompatible version',pill:['bad','Incompatible'],eng:'carrier 0.31.0',proto:'2 · this app understands 1',pid:'31 502',up:'4 min',warn:'<b>This app is older than Carrier.</b> Carrier speaks protocol 2 and this app understands protocol 1, so it cannot show its state. Update the app.',off:false}
+};
+let cur='ok',tab='about',det=false;
+const S=()=>ST[cur];
+const copy='<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg>';
+const icon=()=>`<div class="ico ${S().off?'s':''}"><svg viewBox="0 0 24 24"><path d="M5 8h14M5 12h14M5 16h9"/><circle cx="18" cy="16" r="1.4"/></svg><span class="dt"></span></div>`;
+const head=()=>`${icon()}<div class="nm">Carrier</div><div class="vs">Version 0.1.0 (1)</div>`;
+const pill=()=>`<span class="pill ${S().pill[0]==='run'?'':S().pill[0]}"><i></i>${S().pill[1]}</span>`;
+const row=(k,v,m,c)=>`<div class="kv"><span>${k}</span><b class="${m?'m':''}" title="${v}">${v}</b>${c?`<button class="cb" title="Copy">${copy}</button>`:''}</div>`;
+const engineRows=()=>row('Status',pill(),0,0).replace('<b class="" title="'+pill()+'">'+pill()+'</b>',`<b>${pill()}</b>`)+row('Carrier',S().eng)+row('Protocol',S().proto)+row('Process',S().pid==='—'?'—':`PID ${S().pid} · up ${S().up}`)+row('Socket','~/.solve/orchestrator/control.sock',1,1)+row('Config','~/.carrier/config.json',1,1)+row('Root','~/.solve',1,1)+row('Node','v26.12.0 · ~/.nvm/…/bin/node',1,1);
+const appRows=()=>row('Bundle','dev.ashulab.carrier',1,1)+row('Signature','Ad hoc')+row('macOS','27.0 · Apple silicon');
+const btnR=(...t)=>t.map((x,i)=>`<button class="glass ${i===t.length-1&&x==='Close'?'':''}">${x}</button>`).join('');
+const O=[
+['A · Classic, with details folded','What macOS users expect: centered icon, name, version, one line about the app, copyright, and links. A “Show details” line unfolds the engine diagnostics only when you want them.',()=>`<div class="sheet ctr" style="width:340px">${head()}<div style="margin-top:10px">${pill()}</div><div class="ds">Menu bar app for the Carrier orchestrator. The engine runs on its own; this app watches it and controls it.</div>${S().warn?`<div class="warn" style="margin-top:12px">${S().warn}</div>`:''}<div class="dis" data-det="1">${det?'Hide':'Show'} details ${det?'▾':'›'}</div>${det?`<div class="list" style="margin-top:10px">${engineRows()}</div>`:''}<div class="lks"><button class="glass sm">GitHub ↗</button><button class="glass sm">Documentation ↗</button><button class="glass sm">Release notes ↗</button></div><div class="cp">© 2026 AshuLab · Signed ad hoc</div></div>`],
+['B · Tabs: About, Engine, Credits','Three tabs inside the sheet, small like the rest of the app. About stays calm; Engine is the diagnostics page with a copy button per value; Credits lists what the app is built on.',()=>`<div class="sheet ctr" style="width:410px">${head()}<div class="tabs">${[['about','About'],['engine','Engine'],['credits','Credits']].map(([k,t])=>`<button class="${tab===k?'on':''}" data-tab="${k}">${t}</button>`).join('')}</div>${tab==='about'?`<div class="ds" style="margin-top:0">Menu bar app for the Carrier orchestrator. The engine runs on its own; this app watches it and controls it.</div>${S().warn?`<div class="warn" style="margin-top:12px">${S().warn}</div>`:''}<div class="list" style="margin-top:14px">${appRows()}</div><div class="lks"><button class="glass sm">GitHub ↗</button><button class="glass sm">Documentation ↗</button><button class="glass sm">Release notes ↗</button></div>`:tab==='engine'?`${S().warn?`<div class="warn">${S().warn}</div>`:''}<div class="list">${engineRows()}</div><div class="foot"><button class="glass sm">Copy diagnostics</button><span class="sp1"></span><span class="dim" style="font-size:11.5px">for bug reports</span></div>`:`<div class="list cr" style="padding:10px 14px"><b>Carrier</b> engine · AshuLab<br><b>Swift and SwiftUI</b> · Apple<br><b>Swift Testing</b> · Apple<br><b>SF Symbols</b> · Apple<br><span style="color:var(--faint)">Full licences in the app bundle.</span></div>`}<div class="cp">© 2026 AshuLab</div></div>`],
+['C · Two columns','Identity on the left (icon, version, links), live state on the right (engine, protocol, paths with copy buttons). One screen, nothing hidden, wider sheet. Best when diagnostics are the main reason to open it.',()=>`<div class="sheet" style="width:600px"><div class="cols"><div class="l">${head()}<div class="ds" style="font-size:12px">Menu bar app for the Carrier orchestrator.</div><div class="lks" style="flex-direction:column;align-items:stretch;width:100%"><button class="glass sm" style="justify-content:center">GitHub ↗</button><button class="glass sm" style="justify-content:center">Documentation ↗</button></div></div><div>${S().warn?`<div class="warn">${S().warn}</div>`:''}<div class="list">${engineRows()}</div><div class="list" style="margin-top:10px">${appRows()}</div><div class="foot"><button class="glass sm">Copy diagnostics</button><span class="sp1"></span></div></div></div><div class="cp" style="text-align:left;margin-top:6px">© 2026 AshuLab</div></div>`],
+['D · Minimal, one action','The smallest useful one: icon, name, version and a single status line. The only button is “Copy version info”, which puts everything support needs on the clipboard. Links go in a quiet row.',()=>`<div class="sheet ctr" style="width:320px">${head()}<div style="margin-top:12px">${pill()}</div><div class="vs" style="font-size:12px;margin-top:6px">${S().off?'Carrier is not running':'Carrier '+S().eng.replace('carrier ','')+' · protocol '+S().proto.split(' ')[0]}</div>${S().warn?`<div class="warn" style="margin-top:12px">${S().warn}</div>`:''}<div class="foot" style="justify-content:center;margin-top:18px"><button class="glass">Copy version info</button></div><div class="cp" style="margin-top:14px"><a class="lk">GitHub</a> · <a class="lk">Documentation</a> · <a class="lk">Release notes</a><br>© 2026 AshuLab</div></div>`]
+];
+function render(){
+ document.getElementById('states').innerHTML=Object.entries(ST).map(([k,v])=>`<button class="${cur===k?'on':''}" data-st="${k}">${v.label}</button>`).join('');
+ document.getElementById('opts').innerHTML=O.map(([t,p,f],i)=>`<div class="opt"><h3>${t}</h3><p>${p}</p><div class="stage" style="width:${[390,460,660,380][i]}px">${f()}</div></div>`).join('');
+ document.getElementById('foot').innerHTML='<b>What the engine gives the app for this:</b> its version and protocol (already in the socket’s hello), the PID and start time (also in the hello), and the paths come from the app’s own settings. Nothing new is needed on the engine for any of these, except Carrier’s own version string, which is not in the hello yet.';
+ document.querySelectorAll('[data-st]').forEach(e=>e.onclick=()=>{cur=e.dataset.st;render()});
+ document.querySelectorAll('[data-tab]').forEach(e=>e.onclick=()=>{tab=e.dataset.tab;render()});
+ document.querySelectorAll('[data-det]').forEach(e=>e.onclick=()=>{det=!det;render()});
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script></body></html>

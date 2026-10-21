@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Centre panel — pipeline, output, then files</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(600px,1fr));gap:26px;align-items:start;margin-top:8px}
+.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:600px}
+.cw{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:18px 20px 20px;min-height:520px}
+.statebar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.sg1{display:flex;gap:2px;background:var(--card2);border-radius:99px;padding:3px;box-shadow:0 0 0 .5px var(--line) inset}
+.sg1 button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-size:12.5px;font-weight:550;padding:6px 12px;border-radius:99px;cursor:default;white-space:nowrap;display:flex;gap:5px;justify-content:center}
+.sg1 button i{font-style:normal;color:var(--faint)}
+.sg1 button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .sg1 button.on{background:rgba(255,255,255,.16)}
+.av{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;color:#fff;font-size:12px;font-weight:700;flex:none}
+.lk{color:var(--blue);cursor:default;white-space:nowrap}
+.eh{margin-bottom:14px}.et{font-size:20px;font-weight:700;letter-spacing:-.02em;line-height:1.2}.es{color:var(--dim);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.lab{display:inline-block;padding:1px 8px;border-radius:99px;background:var(--card2);color:var(--dim);font-size:11px}
+.now{border-radius:16px;background:var(--card);padding:14px 16px;margin-bottom:14px;box-shadow:0 0 0 1.5px var(--blue)}
+.now.o{box-shadow:0 0 0 1.5px var(--orange)}.now.g{box-shadow:0 0 0 1.5px var(--green)}
+.now .nt{font-size:16px;font-weight:650;letter-spacing:-.01em}.now .ns{color:var(--dim);margin-top:2px}
+.dots2 i{display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--dim);margin-right:3px;animation:p 1.2s ease-in-out infinite}.dots2 i:nth-child(2){animation-delay:.2s}.dots2 i:nth-child(3){animation-delay:.4s}
+@keyframes p{50%{opacity:.4}}
+.live .av{animation:pr 1.6s ease-in-out infinite}
+@keyframes pr{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--blue) 0%,transparent)}50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--blue) 35%,transparent)}}
+.fh{display:flex;align-items:center;gap:10px;margin:0 2px 6px}.fh b{font-size:13px}
+.ev2{display:flex;gap:11px;align-items:flex-start;padding:7px 4px;border-top:.5px solid var(--line)}
+.ev2:first-of-type{border-top:0}
+.ei{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;flex:none;font-size:13px;color:#fff}
+.ei.edit{background:#0a84ff}.ei.test{background:#30d158}.ei.cmd{background:#8e8e93}.ei.read{background:#bf5af2}.ei.err{background:#ff453a}.ei.note{background:#ff9f0a}.ei.ok{background:#30d158}
+.ev2 .tx{flex:1;min-width:0}.ev2 .tx b{font-weight:550;display:block}.ev2 .tx span{color:var(--dim);font-size:12px;display:block}.ev2 code{font:12px var(--mono)}
+.ev2 .tm{color:var(--faint);font-size:11.5px;white-space:nowrap}.ev2 .df{font:11.5px var(--mono);white-space:nowrap}
+.df .p{color:var(--green)}.df .m{color:var(--red)}
+.pipe{display:flex;align-items:flex-start;margin:6px 0 14px}
+.pn2{flex:1;text-align:center;position:relative}
+.pn2 i{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;margin:0 auto 6px;background:var(--card2);color:var(--dim);font-style:normal;font-weight:700;position:relative;z-index:1}
+.pn2.d i{background:var(--green);color:#fff}.pn2.a i{background:var(--blue);color:#fff;box-shadow:0 0 0 5px color-mix(in srgb,var(--blue) 30%,transparent)}.pn2.o i{background:var(--orange);color:#fff;box-shadow:0 0 0 5px color-mix(in srgb,var(--orange) 30%,transparent)}
+.pn2::before{content:"";position:absolute;left:-50%;right:50%;top:16px;height:3px;background:var(--line)}.pn2:first-child::before{display:none}.pn2.d::before,.pn2.a::before,.pn2.o::before{background:var(--green)}
+.pn2 b{display:block;font-weight:600}.pn2 span{color:var(--dim);font-size:12px}
+.cur{border-radius:14px;background:var(--card);padding:12px 14px;margin-bottom:14px}
+.cur b{font-weight:600}.cur p{margin:3px 0 0;color:var(--dim)}
+.strip{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.mini{display:inline-flex;align-items:center;gap:6px;border-radius:99px;background:var(--card2);padding:4px 11px;font-size:12px;color:var(--dim)}.mini b{color:var(--text)}.mini.r{background:color-mix(in srgb,var(--red) 20%,transparent);color:var(--red)}.mini.r b{color:var(--red)}
+.last{border-radius:12px;background:var(--card);padding:9px 12px;margin-bottom:10px;display:flex;gap:10px;align-items:center}
+.srch{background:var(--card2);border-radius:99px;padding:5px 12px;color:var(--faint);flex:1;box-shadow:0 0 0 .5px var(--line) inset}
+.tg2{display:inline-flex;align-items:center;gap:6px;color:var(--dim);font-size:12px}.tg2 i{width:26px;height:16px;border-radius:9px;background:var(--green);position:relative}.tg2 i::after{content:"";position:absolute;right:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+.trm{background:#0d0d10;color:#d6d6dc;font:11.5px/1.55 var(--mono);border-radius:12px;padding:11px 0;box-shadow:0 0 0 .5px rgba(255,255,255,.12) inset}
+.trm div{display:flex;gap:10px;padding:0 14px}.trm .t{color:#6e6e78;flex:none}.trm .k{color:#7ee787}.trm .w{color:#ffb454}.trm .e{color:#ff7b72}.trm div.hl{background:rgba(255,180,84,.1)}
+.nar{font-size:15px;line-height:1.55;margin-bottom:14px}.nar b{font-weight:650}.nar .hi{color:var(--blue);font-weight:600}
+.kp{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.kp div{border-radius:14px;background:var(--card);padding:10px 12px;box-shadow:0 0 0 .5px var(--line) inset}.kp .n{font-size:20px;font-weight:700;letter-spacing:-.02em}.kp .l{color:var(--dim);font-size:11.5px}
+.nx{display:flex;gap:10px;align-items:flex-start;border-radius:14px;background:var(--card);padding:11px 14px;margin-bottom:14px}.nx b{font-weight:600}.nx p{margin:2px 0 0;color:var(--dim)}
+.dc{display:flex;align-items:center;gap:12px;border-radius:14px;background:var(--card);padding:10px 14px;cursor:default;margin-bottom:8px}.dc:hover{background:var(--card2)}.dc .t{flex:1}.dc .t b{display:block;font-weight:600}.dc .t span{color:var(--dim);font-size:12px}
+.cv{width:28px;height:28px;border-radius:50%;background:var(--card2);display:grid;place-items:center;color:var(--dim);transition:transform .15s}.dc.o .cv{transform:rotate(90deg)}
+.fl{border-radius:14px;background:var(--card);padding:2px 12px}
+.fr2{display:grid;grid-template-columns:1fr 70px 96px;gap:12px;align-items:center;padding:8px 0;border-top:.5px solid var(--line)}.fr2:first-child{border:0}
+.fr2 .pth{font:12px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.fr2 .pth span{color:var(--dim)}
+.fr2 .bb{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--card2)}.fr2 .bb span{display:block;height:100%}
+.dec{border-radius:16px;background:color-mix(in srgb,var(--orange) 13%,transparent);box-shadow:0 0 0 1.5px color-mix(in srgb,var(--orange) 55%,transparent);padding:14px 16px;margin-bottom:14px}
+.dec .dt{font-size:16px;font-weight:650}.dec p{margin:4px 0 0;color:var(--dim)}
+.trend{display:flex;gap:8px;align-items:flex-end;height:70px;margin:8px 0 4px}
+.trend div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:3px;height:100%}.trend i{display:block;width:100%;border-radius:6px 6px 3px 3px;background:var(--green)}.trend small{font-weight:650;font-size:11.5px}.trend div.l i{background:var(--orange)}
+.stp{display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-top:.5px solid var(--line)}.stp:first-of-type{border-top:0}
+.stp .nm{width:22px;height:22px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:11px;font-weight:700;flex:none}
+.stp .tx{flex:1}.stp .tx b{display:block;font-weight:600}.stp .tx span{color:var(--dim);font-size:12.5px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}.three div{border-radius:14px;background:var(--card);padding:11px 13px;box-shadow:0 0 0 .5px var(--line) inset}.three small{display:block;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}.three b{font-weight:600;line-height:1.3;display:block}
+.acts{display:flex;gap:8px;margin-top:14px}
+
+.opt.wide{grid-column:1/-1}
+.cw.sc{max-height:600px;overflow:auto}
+.slim{position:sticky;top:-18px;z-index:5;margin:-18px -20px 14px;padding:12px 20px;background:var(--win);backdrop-filter:blur(30px);border-bottom:.5px solid var(--line);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.slim .sn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim);font-weight:550}
+.slim .sn i{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10px;background:var(--card2);color:var(--dim)}
+.slim .sn.d i{background:var(--green);color:#fff}.slim .sn.a i{background:var(--blue);color:#fff}.slim .sn.o i{background:var(--orange);color:#fff}
+.slim .sn.a,.slim .sn.o{color:var(--text)}
+.slim .sl{width:18px;height:2px;background:var(--line);border-radius:2px}
+.agent{border-radius:16px;background:var(--card);padding:12px;margin-bottom:14px;box-shadow:0 0 0 1px var(--line) inset}
+.agent.o{box-shadow:0 0 0 1.5px var(--orange)}.agent.g{box-shadow:0 0 0 1.5px var(--green)}.agent.l{box-shadow:0 0 0 1.5px var(--blue)}
+.agent .ah{display:flex;align-items:center;gap:11px;margin:0 2px 10px}
+.agent .ah .nt{font-weight:650;font-size:14.5px}.agent .ah .ns{color:var(--dim);font-size:12px}
+.agent .af{display:flex;justify-content:space-between;margin:8px 4px 0;font-size:12px;color:var(--dim)}
+.hdrow{display:flex;align-items:center;gap:10px;margin:0 2px 8px}.hdrow b{font-size:13px}
+.gh{display:flex;align-items:center;gap:8px;padding:9px 0 5px;border-top:.5px solid var(--line);font-weight:600}
+.gh:first-child{border:0}.gh small{color:var(--dim);font-weight:500;font-size:12px}
+.acc{margin-bottom:14px}
+.ar{display:flex;gap:12px;position:relative;padding-bottom:12px}
+.ar::before{content:"";position:absolute;left:14px;top:30px;bottom:-2px;width:2px;background:var(--line)}
+.ar:last-child::before{display:none}.ar.d::before{background:var(--green)}
+.ar .nb{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--card2);color:var(--dim);font-weight:700;flex:none;font-size:12px;z-index:1}
+.ar.d .nb{background:var(--green);color:#fff}.ar.a .nb{background:var(--blue);color:#fff;box-shadow:0 0 0 5px color-mix(in srgb,var(--blue) 30%,transparent)}.ar.o .nb{background:var(--orange);color:#fff;box-shadow:0 0 0 5px color-mix(in srgb,var(--orange) 30%,transparent)}
+.ar .bd{flex:1;min-width:0}.ar .hd2{display:flex;align-items:center;gap:8px;min-height:30px;cursor:default}
+.ar .hd2 b{font-weight:600}.ar .hd2 span{color:var(--dim);font-size:12.5px}.ar .hd2 .sp1{flex:1}
+.ar .cv{width:24px;height:24px}
+.ar .sm{color:var(--dim);font-size:12.5px;margin:2px 0 4px}
+.ar.dim .hd2 b{color:var(--faint);font-weight:500}
+.sgm{display:flex;gap:2px;background:var(--card2);border-radius:99px;padding:3px;margin-bottom:10px;box-shadow:0 0 0 .5px var(--line) inset}
+.sgm button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-size:12.5px;font-weight:550;padding:6px 10px;border-radius:99px;cursor:default;display:flex;gap:6px;justify-content:center}
+.sgm button i{font-style:normal;color:var(--faint)}
+.sgm button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .sgm button.on{background:rgba(255,255,255,.16)}
+.two{display:grid;grid-template-columns:1.15fr 1fr;gap:16px;align-items:start}
+.pp{margin-bottom:8px;color:var(--dim);font-size:12.5px}
+.stk{height:8px;border-radius:5px;overflow:hidden;display:flex;gap:2px;margin:2px 0 12px}.stk span{display:block;height:100%}
+</style></head>
+<body>
+<h1>Centre panel — pipeline hero, agent output, then files</h1>
+<div class="sub">Your order: <b>pipeline hero</b>, then the <b>agent output</b> (with what it is doing now), then the <b>files</b>. Six ways to arrange it. Switch the state to see each one.</div>
+<div class="statebar"><div class="sg1" id="states"></div><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+<div class="note" id="needs"></div>
+<script>const AG={Claude:['#d97757','C'],Codex:['#10a37f','X']};
+const av=n=>`<span class="av" style="background:${AG[n][0]}" title="${n}">${AG[n][1]}</span>`;
+const ST={
+ run:{label:'Running · review',title:'Sync engine and read API',repo:'AshuLab/agent-forge',n:231,labels:['solve:epic','backend'],pr:250,stage:'review',kind:'',agent:'Claude',
+  now:['Claude is fixing 3 blockers from round 2','since 16:09 · 2 commits so far · round 2 of 5'],
+  pipe:[['Queued','d','6 min'],['Ship','d','1 h 48'],['Review ⇄ Fix','a','round 2 of 5'],['Ready','','—']],
+  cur:['Review ⇄ Fix, round 2','Codex reviews the PR and lists blockers; Claude fixes them; they repeat up to 5 rounds. Round 2 is in the fix step.'],
+  ev:[['test','16:22','pnpm typecheck','passed',''],['edit','16:22','Edited src/db/migrations/0042.ts','','+18 −2'],['test','16:21','pnpm test --filter auth','42 passed',''],['edit','16:21','Edited src/auth/token.ts','','+24 −6'],['note','16:21','3 blockers still unresolved','from Codex review, round 2',''],['cmd','16:21','gh pr diff 250 --name-only','',''],['read','16:21','Read review round 2','','']],
+  term:[['16:21:04','','reading review round 2…'],['16:21:09','','gh pr diff 250 --name-only'],['16:21:14','w','! 3 blockers unresolved'],['16:21:31','','editing src/auth/token.ts'],['16:21:44','k','pnpm test --filter auth (42 passed)'],['16:22:02','','editing src/db/migrations/0042.ts'],['16:22:20','k','pnpm typecheck']],
+  counts:{edits:2,tests:2,errors:0},last:'editing src/db/migrations/0042.ts · 8 s ago',
+  files:[['src/db/','migrations/0042.ts',18,2],['src/auth/','token.ts',24,6],['src/sync/','engine.ts',212,40],['src/api/','read.ts',148,12],['src/db/','schema.ts',96,8],['docs/','sync.md',54,0]],tot:{files:42,add:1240,del:310,tests:'242 passing',commits:19},
+  sum:`<b>Sync engine and read API</b> has <span class="hi">8 slices merged</span> and is now in review. Codex found <b>5 blockers</b> in round 1 and Claude fixed 2; round 2 found <b>3</b>. Claude is fixing them now.`,
+  next:['Next: Codex re-reviews','When Claude finishes the fixes. If blockers remain after round 5, Carrier stops and asks you.']},
+ ship:{label:'Running · ship',title:'Billing, roles and admin panel',repo:'vemec/sass-blueprint',n:14,labels:['solve:epic'],pr:null,stage:'ship',kind:'',agent:'Claude',
+  now:['Claude is working on 3 slices in parallel','Webhooks · Rate limiting · Search · 9 of 20 merged'],
+  pipe:[['Queued','d','6 min'],['Ship','a','2 h 1 min'],['Review ⇄ Fix','','up to 5 rounds'],['Ready','','—']],
+  cur:['Ship, 9 of 20 slices','Each slice is built by its own agent in its own lane, then merged into the epic branch. Review starts when all 20 are in.'],
+  ev:[['test','16:21','pnpm test','112 passed',''],['edit','16:21','Edited app/webhooks/route.ts','lane 1 · #210','+64 −0'],['ok','16:18','Merged slice #209 Invoices','lane 2',''],['edit','16:17','Edited app/billing/invoices.tsx','lane 2 · #209','+120 −14'],['cmd','16:15','pnpm install','lane 3','']],
+  term:[['16:20:11','','creating worktree lane-1'],['16:20:40','','pnpm install'],['16:21:12','','editing app/webhooks/route.ts'],['16:21:58','k','pnpm test (112 passed)']],
+  counts:{edits:2,tests:1,errors:0},last:'editing app/webhooks/route.ts · 3 s ago',
+  files:[['app/webhooks/','route.ts',64,0],['app/billing/','invoices.tsx',120,14],['app/roles/','policy.ts',88,4],['app/admin/','layout.tsx',52,0]],tot:{files:31,add:2180,del:96,tests:'112 passing',commits:23},
+  sum:`<b>Billing, roles and admin panel</b> is in <span class="hi">ship</span>: <b>9 of 20 slices</b> merged, 3 being built in parallel, 8 waiting. No PR yet; it opens with the first merged slice.`,
+  next:['Next: the remaining slices','As lanes free up, the next waiting slice starts. Review begins after the last merge.']},
+ needs:{label:'Needs you',title:'HTTP transport and secret redaction',repo:'AshuLab/universal-logger',n:40,labels:['solve:epic'],pr:52,stage:'fix',kind:'o',agent:'Claude',
+  now:['Stopped · waiting for your decision','Review limit reached (5 of 5) · 2 blockers still open · 18 h ago'],
+  pipe:[['Queued','d','4 min'],['Ship','d','1 h 36'],['Review ⇄ Fix','o','limit 5 of 5'],['Ready','','—']],
+  cur:['Review ⇄ Fix, limit reached','Five rounds were not enough to clear the last 2 blockers. Carrier will not try again on its own.'],
+  ev:[['note','13:03','Round limit reached','Carrier stopped; waiting for a person',''],['err','13:02','2 blockers unresolved','e2e test depends on the system clock · New transport is not documented',''],['edit','13:01','Edited tests/e2e/flush.test.ts','','+9 −3'],['test','13:01','pnpm test','1 failing','']],
+  term:[['13:02:11','','fixing round 5…'],['13:02:40','e','! 2 blockers unresolved'],['13:03:02','w','! round limit reached — waiting for a person']],
+  counts:{edits:1,tests:1,errors:1},last:'round limit reached · 18 h ago',
+  files:[['src/transport/','http.ts',142,20],['src/redact/','secrets.ts',96,4],['tests/e2e/','flush.test.ts',60,12],['docs/','transports.md',0,0]],tot:{files:18,add:640,del:120,tests:'1 failing',commits:16},
+  sum:`<b>HTTP transport and secret redaction</b> shipped all 4 slices, then went <b>5 review rounds</b>. Blockers went 6 → 5 → 4 → 3 → 2, but the last <span class="hi">2 are still open</span>. Carrier stopped and is waiting for you.`,
+  next:['Needs you','Decide on GitHub: fix the two blockers yourself, accept the PR as it is, or close it. Carrier picks it up on its next check.']},
+ ready:{label:'Ready for test',title:'Cart totals, coupons and receipt email',repo:'vemec/encaja',n:606,labels:['solve:epic','shop'],pr:612,stage:'done',kind:'g',agent:'Codex',
+  now:['Finished · ready for you to test','Approved by Codex in round 2 · 23 h ago · 3 h 12 min in total'],
+  pipe:[['Queued','d','3 min'],['Ship','d','2 h 21'],['Review ⇄ Fix','d','2 rounds'],['Ready','d','23 h ago']],
+  cur:['Ready for test','The PR is approved and its checks pass. Try it on the branch and merge it yourself; Carrier never merges to main.'],
+  ev:[['ok','13:59','Approved by Codex','round 2, no blockers',''],['test','13:58','pnpm test','88 passed',''],['test','13:58','pnpm typecheck','passed',''],['edit','13:40','Edited src/cart/totals.ts','','+14 −9']],
+  term:[['13:58:20','k','pnpm test (88 passed)'],['13:58:41','k','pnpm typecheck'],['13:59:02','','review round 2: no blockers'],['13:59:10','k','done — PR #612 is ready']],
+  counts:{edits:1,tests:2,errors:0},last:'done · 23 h ago',
+  files:[['src/cart/','totals.ts',48,12],['src/cart/','coupons.ts',72,6],['src/mail/','receipt.ts',90,0],['tests/','cart.test.ts',110,4]],tot:{files:14,add:420,del:46,tests:'88 passing',commits:11},
+  sum:`<b>Cart totals, coupons and receipt email</b> is <span class="hi">finished</span>: 3 slices merged, 2 review rounds, approved by Codex. <b>88 tests pass.</b> It is waiting for you to try it.`,
+  next:['Next: you','Open the PR, try the branch, and merge when you are happy.']}
+};
+
+// which slice produced each file (same order as files)
+const SL={run:['#235 Error panel','#233 Read API','#232 Data model','#233 Read API','#232 Data model','#236 Documentation'],ship:['#210 Webhooks','#209 Invoices','#207 Role permissions','#204 Admin panel'],needs:['#41 Log format','#43 Secret redaction','#44 e2e tests','#42 HTTP transport'],ready:['#607 Cart totals','#609 Coupon codes','#611 Receipt email','#609 Coupon codes']};
+const SUM={run:{Queued:'Waited for a free slot · 6 min',Ship:'8 slices merged · 3 lanes · 1 h 48'},ship:{Queued:'Waited for a free slot · 6 min'},needs:{Queued:'Waited for a free slot · 4 min',Ship:'4 slices merged · 1 h 36'},ready:{Queued:'Waited for a free slot · 3 min',Ship:'3 slices merged · 2 h 21','Review ⇄ Fix':'2 rounds · approved by Codex'}};
+let cur='run';const ui={tab:'out',grp:'slice',stg:{}};
+const S=()=>ST[cur];
+const IC={edit:'✎',test:'✓',cmd:'›_',read:'☰',err:'!',note:'!',ok:'✓'};
+const eh=()=>{const s=S();return `<div class="eh"><div class="et">${s.title}</div><div class="es"><span>${s.repo} · #${s.n}</span>${s.labels.map(l=>`<span class="lab">${l}</span>`).join('')}${s.pr?`<a class="lk">PR #${s.pr} ↗</a>`:''}</div></div>`};
+const trm=(t,hl)=>`<div class="trm">${t.map((l,i)=>`<div class="${hl&&i===t.length-1?'hl':''}"><span class="t">${l[0]}</span><span class="${l[1]}">${l[2]}</span></div>`).join('')}</div>`;
+const chev='<svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const acts=()=>{const s=S();return `<div class="acts">${s.pr?`<button class="glass">Open PR #${s.pr}</button>`:''}<button class="glass">Open issue #${s.n}</button></div>`};
+const dots='<span class="dots2"><i></i><i></i><i></i></span>';
+// blocks
+const hero=()=>{const s=S();return `<div class="pipe">${s.pipe.map((p,i)=>`<div class="pn2 ${p[1]}"><i>${p[1]==='d'?'✓':p[1]==='o'?'!':i+1}</i><b>${p[0]}</b><span>${p[2]}</span></div>`).join('')}</div><div class="cur"><b>${s.cur[0]}</b><p>${s.cur[1]}</p></div>`};
+const slim=()=>{const s=S();return `<div class="slim">${s.pipe.map((p,i)=>`${i?'<span class="sl"></span>':''}<span class="sn ${p[1]}"><i>${p[1]==='d'?'✓':p[1]==='o'?'!':i+1}</i>${p[0]} <span style="color:var(--faint);font-weight:400">${p[2]}</span></span>`).join('')}</div>`};
+const agent=(lines,hl)=>{const s=S(),c=s.kind==='o'?'o':s.kind==='g'?'g':'l';return `<div class="agent ${c}"><div class="ah ${s.kind===''?'live':''}">${av(s.agent)}<div class="sp1"><div class="nt">${s.now[0]} ${s.kind===''?dots:''}</div><div class="ns">${s.now[1]}</div></div></div>${trm(lines,true)}<div class="af"><span>last: ${s.last}</span><a class="lk">Full output ›</a></div></div>`};
+const files=(mode)=>{const s=S(),m=Math.max(...s.files.map(f=>f[2]+f[3]),1);
+ const row=f=>`<div class="fr2"><div class="pth"><span>${f[0]}</span>${f[1]}</div><div class="bb"><span style="width:${100*f[2]/m}%;background:var(--green)"></span><span style="width:${100*f[3]/m}%;background:var(--red)"></span></div><div class="df"><span class="p">+${f[2]}</span> <span class="m">−${f[3]}</span></div></div>`;
+ const head=`<div class="hdrow"><b>Changes</b><span class="dim">${s.tot.files} files · <span style="color:var(--green)">+${s.tot.add}</span> <span style="color:var(--red)">−${s.tot.del}</span> · ${s.tot.tests}</span><span class="sp1"></span>${s.pr?'<a class="lk" style="font-size:12px">Files on GitHub ↗</a>':''}</div>`;
+ if(mode==='slice'){const g={};s.files.forEach((f,i)=>{(g[SL[cur][i]]=g[SL[cur][i]]||[]).push(f)});
+  return head+`<div class="sgm" style="width:230px"><button class="${ui.grp==='slice'?'on':''}" data-grp="slice">By slice</button><button class="${ui.grp==='file'?'on':''}" data-grp="file">By file</button></div><div class="fl">${Object.entries(g).map(([n,fs])=>`<div class="gh"><span>${n}</span><small>${fs.length} file${fs.length>1?'s':''} · +${fs.reduce((a,f)=>a+f[2],0)} −${fs.reduce((a,f)=>a+f[3],0)}</small></div>${fs.map(row).join('')}`).join('')}<div class="fr2" style="grid-template-columns:1fr"><a class="lk" style="font-size:12px">Show all ${s.tot.files} files</a></div></div>`}
+ return head+(mode==='file'?'':'')+`<div class="fl">${s.files.map(row).join('')}<div class="fr2" style="grid-template-columns:1fr"><a class="lk" style="font-size:12px">Show all ${s.tot.files} files</a></div></div>`};
+const extraLines=()=>{const s=S();return s.term};
+
+const O=[
+['A · Straight stack','The order you asked for: title, pipeline hero, the agent block (what it is doing now plus its output), then the files. Everything visible, one scroll.',()=>eh()+hero()+agent(S().term)+files('file')+acts()],
+['B · Pipeline pinned on top','The pipeline collapses to a slim strip that stays pinned while you scroll the output and the files. You always know the stage.',()=>`<div class="cw-in">${slim()}${eh()}${agent(S().term.concat(S().term))}${files('file')}${acts()}</div>`,'sc'],
+['C · Output / Changes tabs','Pipeline hero on top, then a switch. Output gets the whole space, or Changes does. Less to scroll, one thing at a time.',()=>{const s=S();return eh()+hero()+`<div class="sgm"><button class="${ui.tab==='out'?'on':''}" data-tab="out">Agent output</button><button class="${ui.tab==='chg'?'on':''}" data-tab="chg">Changes <i>${s.tot.files}</i></button></div>${ui.tab==='out'?agent(s.term):files('file')}${acts()}`}],
+['D · Side by side (wide window)','When the window is wide, output and changes sit next to each other under the pipeline. Nothing hidden and no switching.',()=>eh()+hero()+`<div class="two"><div>${agent(S().term)}</div><div>${files('file')}</div></div>${acts()}`,'','wide'],
+['E · Stages as an accordion','The pipeline is vertical and doubles as the container: finished stages fold into one line, the current stage is open and holds the agent output. Files go below.',()=>{const s=S();return eh()+`<div class="acc">${s.pipe.map((p,i)=>{const isCur=p[1]==='a'||p[1]==='o',o=isCur||ui.stg[i],sm=(SUM[cur]||{})[p[0]];
+  return `<div class="ar ${p[1]} ${p[1]===''?'dim':''}"><span class="nb">${p[1]==='d'?'✓':p[1]==='o'?'!':i+1}</span><div class="bd"><div class="hd2" ${!isCur&&p[1]!==''?`data-stg="${i}"`:''}><b>${p[0]}</b><span>${p[2]}</span><span class="sp1"></span>${!isCur&&p[1]!==''?`<span class="cv" style="transform:rotate(${o?90:0}deg)">${chev}</span>`:''}</div>${isCur?`<div class="sm">${s.cur[1]}</div>${agent(s.term)}`:o&&sm?`<div class="sm">${sm}</div>`:''}</div></div>`}).join('')}</div>${files('file')}${acts()}`}],
+['F · Stack, changes by slice','Same order as A, but Changes is grouped by the slice that produced each file, so it explains what each piece of work did. Toggle back to a flat list.',()=>eh()+hero()+agent(S().term)+files(ui.grp)+acts()]
+];
+function render(){
+ document.getElementById('states').innerHTML=Object.entries(ST).map(([k,v])=>`<button class="${cur===k?'on':''}" data-st="${k}">${v.label}</button>`).join('');
+ document.getElementById('opts').innerHTML=O.map(([t,p,f,sc,w])=>`<div class="opt ${w||''}"><h3>${t}</h3><p>${p}</p><div class="cw ${sc||''}">${f()}</div></div>`).join('');
+ document.getElementById('needs').innerHTML='<b>New data this needs from the engine</b> (on top of the title, the files and the activity already listed for the earlier options): which <b>slice</b> produced each file (option F), and a one-line <b>summary per finished stage</b> (option E). The pipeline times are already in the snapshot.';
+ document.querySelectorAll('[data-st]').forEach(e=>e.onclick=()=>{cur=e.dataset.st;ui.stg={};render()});
+ document.querySelectorAll('[data-tab]').forEach(e=>e.onclick=()=>{ui.tab=e.dataset.tab;render()});
+ document.querySelectorAll('[data-grp]').forEach(e=>e.onclick=()=>{ui.grp=e.dataset.grp;render()});
+ document.querySelectorAll('[data-stg]').forEach(e=>e.onclick=()=>{ui.stg[e.dataset.stg]=!ui.stg[e.dataset.stg];render()});
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script></body></html>

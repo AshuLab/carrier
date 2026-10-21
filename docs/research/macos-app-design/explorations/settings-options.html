@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Settings — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--run:#30d158;--need:#ff9f0a;--err:#ff453a;--acc:#0a84ff}body.light{--run:#28a745;--need:#e08600;--err:#e5372d;--acc:#007aff}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(640px,1fr));gap:26px;align-items:start;margin-top:8px}
+.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:640px;min-height:56px}
+.cw{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:18px 20px 20px;min-height:380px}
+.statebar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.sg1{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.sg1 button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:4px 12px;border-radius:99px;cursor:default;white-space:nowrap}
+.sg1 button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .sg1 button.on{background:rgba(255,255,255,.16)}
+.grp{margin:16px 2px 6px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}.grp:first-child{margin-top:0}
+.card2{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 14px}
+.row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:.5px solid var(--line);min-height:46px}.row:first-child{border:0}
+.row .t{flex:1;min-width:0}.row .t b{display:block;font-weight:550}.row .t span{display:block;color:var(--dim);font-size:12px;margin-top:1px;line-height:1.35}
+.row .t span.m{font:11.5px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .ac{display:flex;gap:6px;flex:none;align-items:center}
+.st{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:800;color:#fff;flex:none}.st.ok{background:var(--run)}.st.no{background:var(--need)}.st.sp{background:none;border:2px solid var(--acc);border-top-color:transparent;animation:s 1s linear infinite}
+@keyframes s{to{transform:rotate(1turn)}}
+.sw{width:38px;height:22px;border-radius:99px;background:var(--card2);position:relative;flex:none;cursor:default;box-shadow:0 0 0 .5px var(--line) inset}.sw::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.4);transition:left .15s}
+.sw.on{background:var(--acc)}.sw.on::after{left:18px}
+.banner{border-radius:16px;padding:12px 14px;margin-bottom:14px;display:flex;gap:12px;align-items:center;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset}
+.banner.ok{background:color-mix(in srgb,var(--run) 12%,transparent)}.banner.no{background:color-mix(in srgb,var(--need) 13%,transparent)}
+.banner .t{flex:1}.banner .t b{display:block;font-weight:650}.banner .t span{color:var(--dim);font-size:12px}
+.tabs{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;margin-bottom:14px;box-shadow:0 0 0 .5px var(--line) inset}
+.tabs button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:4px 14px;border-radius:99px;cursor:default}.tabs button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .tabs button.on{background:rgba(255,255,255,.16)}
+.sp2{display:grid;grid-template-columns:168px 1fr;gap:16px;min-height:340px}
+.cat{display:flex;flex-direction:column;gap:2px}.cat div{padding:7px 10px;border-radius:9px;cursor:default;font-weight:550;display:flex;gap:9px;align-items:center}.cat div.on{background:var(--sel)}.cat div:hover:not(.on){background:var(--card)}.cat i{font-style:normal;width:18px;text-align:center;color:var(--dim)}
+.cat .bd{margin-left:auto;width:8px;height:8px;border-radius:50%;background:var(--need)}
+.ic3{display:flex;gap:8px}.ic3 div{border-radius:11px;background:var(--card2);padding:8px 12px;text-align:center;cursor:default;box-shadow:0 0 0 .5px var(--line) inset;min-width:96px}.ic3 div.on{box-shadow:0 0 0 1.5px var(--acc)}
+.ic3 .pv{display:inline-flex;align-items:center;gap:5px;font:600 12px var(--font);background:#2a2a2f;color:#eee;padding:3px 8px;border-radius:7px}.ic3 .pv .bar{width:26px;height:5px;border-radius:3px;background:rgba(255,255,255,.28);overflow:hidden}.ic3 .pv .bar i{display:block;width:55%;height:100%;background:#fff;border-radius:3px}
+.ic3 small{display:block;color:var(--dim);font-size:11px;margin-top:5px}
+.dm{color:var(--dim);font-size:12px}.red{color:var(--err)}
+.det{display:flex;align-items:center;gap:8px;margin:12px 2px 0;color:var(--dim);font-size:12px}
+.note{max-width:900px}
+</style></head>
+<body>
+<h1>Settings — four ways to organise it</h1>
+<div class="sub">Settings has one job above the rest: <b>make “Start Carrier” work</b> (where <code>carrier</code>, <code>node</code>, the config and the root are). Around it: notifications, the menu bar icon, and a few general switches. Each path shows whether it was <b>found</b>, truncates in the middle so the end stays visible, and offers <b>Choose…</b>. Four layouts; switch the situation.</div>
+<div class="statebar"><div class="sg1" id="states"></div><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+<div class="note" id="foot"></div>
+<script>
+const SC={
+ ready:{label:'Ready to start',carrier:'/Users/vemec/DG-Projects/AshuLab/carrier/dist/terminal/cli/main.js',notif:'allowed',first:false},
+ missing:{label:'carrier not found',carrier:'',notif:'allowed',first:false},
+ denied:{label:'Notifications denied',carrier:'/Users/vemec/DG-Projects/AshuLab/carrier/dist/terminal/cli/main.js',notif:'denied',first:false},
+ first:{label:'First launch (detecting)',carrier:null,notif:'ask',first:true}
+};
+let cur='ready',tab='engine',cat='engine',icon='both';
+const T={needs:true,ready:true,anim:true,login:false,confirm:true,list:true};
+const S=()=>SC[cur];
+const mid=(s,n)=>s.length<=n?s:s.slice(0,Math.ceil(n*.4))+'…'+s.slice(-Math.floor(n*.55));
+const stIc=(v)=>S().first?'<span class="st sp"></span>':v?'<span class="st ok">✓</span>':'<span class="st no">!</span>';
+const fields=()=>{const f=S(),c=f.carrier;return [
+ {k:'Carrier',v:c,ok:!!c,hint:'The script that starts Carrier',exe:true},
+ {k:'Node',v:'~/.nvm/versions/node/v26.12.0/bin/node',ok:true,hint:'v26.12.0 · runs Carrier'},
+ {k:'Config file',v:'~/.carrier/config.json',ok:true,hint:'5 repositories'},
+ {k:'Shared root',v:'~/.solve',ok:true,hint:'socket path fits: 36 of 103 bytes'},
+ {k:'PATH',v:'12 folders · node’s folder first',ok:true,hint:'what Carrier gets when the app starts it',plain:true}]};
+const ready=()=>fields().every(x=>x.ok)&&!S().first;
+const fRow=(x)=>`<div class="row">${stIc(x.ok)}<div class="t"><b>${x.k}</b><span class="m" ${x.plain?'style="font:12px var(--font)"':''}>${S().first?'Detecting…':x.ok?mid(x.v,64):'<span style="color:var(--need)">Not found</span> · choose where it is'}</span>${S().first||!x.ok?'':`<span>${x.hint}</span>`}</div><div class="ac">${x.ok&&!x.plain&&!S().first?'<button class="glass sm">Reveal</button>':''}<button class="glass sm">${x.plain?'Edit…':'Choose…'}</button></div></div>`;
+const sw=(k)=>`<div class="sw ${T[k]?'on':''}" data-t="${k}"></div>`;
+const statusBanner=()=>S().first?`<div class="banner"><span class="st sp"></span><div class="t"><b>Looking for Carrier and Node…</b><span>Asks your shell once, up to 10 seconds. The values are saved.</span></div></div>`:ready()?`<div class="banner ok"><span class="st ok">✓</span><div class="t"><b>Start Carrier is ready</b><span>Everything it needs was found.</span></div><button class="glass sm">Detect again</button></div>`:`<div class="banner no"><span class="st no">!</span><div class="t"><b>Start Carrier needs carrier</b><span>Choose the script, or run Detect again if you just installed it.</span></div><button class="glass sm">Detect again</button></div>`;
+const engineCards=()=>`<div class="card2">${fields().map(fRow).join('')}</div>`;
+const notifRows=()=>{const n=S().notif;return `<div class="card2"><div class="row"><div class="t"><b>System permission</b><span>${n==='allowed'?'Allowed in System Settings':n==='denied'?'<span style="color:var(--need)">Denied.</span> Turn it on in System Settings to get banners.':'Not asked yet. macOS asks the first time one is sent.'}</span></div><div class="ac">${n==='denied'?'<button class="glass sm">Open System Settings</button>':n==='allowed'?'<button class="glass sm">Send a test</button>':''}</div></div><div class="row"><div class="t"><b>Needs you</b><span>An epic stopped and waits for a person</span></div>${sw('needs')}</div><div class="row"><div class="t"><b>Ready for test</b><span>An epic finished and has a PR to try</span></div>${sw('ready')}</div></div>`};
+const iconRows=()=>`<div class="card2"><div class="row" style="display:block;padding:12px 0"><div class="t" style="margin-bottom:10px"><b>Menu bar icon</b><span>What the icon shows while Carrier works</span></div><div class="ic3">${[['both','2 ▮▮▯','Count and bar'],['count','2','Count only'],['bar','▮▮▯','Bar only']].map(([k,p,l])=>`<div class="${icon===k?'on':''}" data-ic="${k}"><span class="pv">${k!=='bar'?'2':''}${k!=='count'?'<span class="bar"><i></i></span>':''}</span><small>${l}</small></div>`).join('')}</div></div><div class="row"><div class="t"><b>Animate while working</b><span>A small bouncing segment, capped at 20 frames per second</span></div>${sw('anim')}</div><div class="row"><div class="t"><b>Show epics in the menu</b><span>List each epic and its state under the status line</span></div>${sw('list')}</div></div>`;
+const generalRows=()=>`<div class="card2"><div class="row"><div class="t"><b>Open at login</b><span>Starts the app, never Carrier itself</span></div>${sw('login')}</div><div class="row"><div class="t"><b>Ask before stopping Carrier</b><span>Only when epics are running, since it interrupts them</span></div>${sw('confirm')}</div><div class="row"><div class="t"><b>Quitting the app</b><span>Carrier keeps running. Stop it from the menu or the window.</span></div></div></div>`;
+const advRows=()=>`<div class="card2"><div class="row"><div class="t"><b>Start log</b><span class="m">~/.solve/orchestrator/logs/app-start.log</span></div><div class="ac"><button class="glass sm">Open</button></div></div><div class="row"><div class="t"><b>Reset settings</b><span>Forget the saved paths and detect them again</span></div><div class="ac"><button class="glass sm red">Reset…</button></div></div></div>`;
+
+const O=[
+['A · One page, grouped cards','Everything on a single scrolling page, in the order of importance: a readiness banner, Engine, Notifications, Menu bar, General, Advanced. Like System Settings. Nothing hidden.',()=>statusBanner()+`<div class="grp">Engine</div>${engineCards()}<div class="grp">Notifications</div>${notifRows()}<div class="grp">Menu bar</div>${iconRows()}<div class="grp">General</div>${generalRows()}<div class="grp">Advanced</div>${advRows()}`],
+['B · Tabs','Four small tabs at the top: Engine, Notifications, Menu bar, General (Advanced sits at the bottom of General). One screen at a time; the readiness banner always stays above the tabs.',()=>statusBanner()+`<div class="tabs">${[['engine','Engine'],['notif','Notifications'],['icon','Menu bar'],['gen','General']].map(([k,t])=>`<button class="${tab===k?'on':''}" data-tab="${k}">${t}</button>`).join('')}</div>`+(tab==='engine'?engineCards():tab==='notif'?notifRows():tab==='icon'?iconRows():generalRows()+`<div class="grp">Advanced</div>`+advRows())],
+['C · Engine first, as a checklist','The Engine group is the page: five requirements as a checklist with a progress line (“4 of 5 ready”), inline Choose…, and Start Carrier right there. The other settings are collapsed under “More settings”.',()=>{const f=fields(),n=f.filter(x=>x.ok).length;return `<div class="banner ${ready()?'ok':S().first?'':'no'}" style="margin-bottom:10px">${S().first?'<span class="st sp"></span>':ready()?'<span class="st ok">✓</span>':'<span class="st no">!</span>'}<div class="t"><b>${S().first?'Detecting…':n+' of 5 ready'}</b><span>${ready()?'You can start Carrier.':S().first?'Asking your shell once.':'Fix the missing one to enable Start Carrier.'}</span></div><button class="glass sm" ${ready()?'':'style="opacity:.55"'}>▶ Start Carrier</button></div><div class="pb" style="height:5px;border-radius:3px;background:var(--card2);margin:0 2px 12px;overflow:hidden"><i style="display:block;height:100%;width:${S().first?20:n*20}%;background:${ready()?'var(--run)':'var(--need)'}"></i></div>${engineCards()}<div class="det"><button class="glass sm">Detect again</button><span>Detected from your shell on first launch.</span></div><div class="grp">More settings</div><div class="card2"><div class="row"><div class="t"><b>Notifications</b><span>${S().notif==='denied'?'<span style="color:var(--need)">Denied in System Settings</span>':'Needs you, Ready for test'}</span></div><div class="ac"><span class="dm">›</span></div></div><div class="row"><div class="t"><b>Menu bar icon</b><span>Count and bar · animated</span></div><div class="ac"><span class="dm">›</span></div></div><div class="row"><div class="t"><b>General and advanced</b><span>Open at login, confirmations, start log</span></div><div class="ac"><span class="dm">›</span></div></div></div>`}],
+['D · Categories on the left','A small list of categories inside Settings (like System Settings), details on the right. A dot on a category means it needs attention (carrier missing, notifications denied).',()=>{const C=[['engine','⚙︎','Engine',!ready()&&!S().first],['notif','🔔','Notifications',S().notif==='denied'],['icon','▦','Menu bar',false],['gen','☰','General',false],['adv','⌥','Advanced',false]];
+ return `<div class="sp2"><div class="cat">${C.map(([k,i,t,b])=>`<div class="${cat===k?'on':''}" data-cat="${k}"><i>${i}</i>${t}${b?'<span class="bd"></span>':''}</div>`).join('')}</div><div>${cat==='engine'?statusBanner()+engineCards():cat==='notif'?notifRows():cat==='icon'?iconRows():cat==='gen'?generalRows():advRows()}</div></div>`}]
+];
+function render(){
+ document.getElementById('states').innerHTML=Object.entries(SC).map(([k,v])=>`<button class="${cur===k?'on':''}" data-st="${k}">${v.label}</button>`).join('');
+ document.getElementById('opts').innerHTML=O.map(([t,p,f])=>`<div class="opt"><h3>${t}</h3><p>${p}</p><div class="cw">${f()}</div></div>`).join('');
+ document.getElementById('foot').innerHTML='<b>What the app saves:</b> carrier, node, PATH, config path and shared root (already in user defaults under <code>setup</code>), plus the new switches: notifications (2), icon style, animation, epics in the menu, open at login, confirm before stop. “Open at login” uses the system login-item API. “Send a test” needs the notification permission. Nothing here needs a change in the engine.';
+ const on=(sel,fn)=>document.querySelectorAll(sel).forEach(e=>e.onclick=()=>{fn(e);render()});
+ on('[data-st]',e=>cur=e.dataset.st);on('[data-tab]',e=>tab=e.dataset.tab);on('[data-cat]',e=>cat=e.dataset.cat);on('[data-t]',e=>T[e.dataset.t]=!T[e.dataset.t]);on('[data-ic]',e=>icon=e.dataset.ic);
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script></body></html>

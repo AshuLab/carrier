@@ -7,6 +7,7 @@ import SwiftUI
 @Observable final class PanelModel {
     var state: ConnectionState?
     let shell = WindowShell()
+    let epics = EpicStore()
     var groupBy = SidebarStore().groupBy
 }
 
@@ -107,6 +108,7 @@ final class WindowController: NSObject {
         let stop = StopFlag()
         self.stop = stop
         let model = model
+        let poller = model.epics.poller!
         let monitor = ControlMonitor(
             socketPath: controlSocketPath(),
             // sleeps in short steps so closing the window ends the thread within a tenth of a second
@@ -115,6 +117,7 @@ final class WindowController: NSObject {
                 while Date() < end && stop.isSet == false { Thread.sleep(forTimeInterval: 0.1) }
                 return stop.isSet == false
             },
+            tick: { try poller.poll($0) },
             onChange: { state in
                 DispatchQueue.main.async { if stop.isSet == false { model.state = state } }
             }

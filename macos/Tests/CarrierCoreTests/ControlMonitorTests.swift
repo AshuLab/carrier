@@ -80,3 +80,22 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     #expect(ConnectionState.incompatible.menuLine == "Carrier is an incompatible version")
     #expect(ConnectionState.running(snapshot).menuLine == "Carrier running · \(snapshot.epics.count) epics · 2/3 slots")
 }
+
+@Test func theTickRunsAfterEachSnapshotOnTheSameConnection() throws {
+    let snapshot = String(decoding: try fixture(), as: UTF8.self)
+    let server = TestServer { connection in
+        connection.send(hello())
+        for _ in 1...2 {
+            guard let id = connection.readRequestId() else { return }
+            connection.send("{\"id\":\(id),\"ok\":true,\"data\":\(snapshot)}\n")
+        }
+    }
+    defer { server.stop() }
+    var log: [String] = []
+    var waits = 0
+    ControlMonitor(
+        socketPath: server.path, wait: { _ in waits += 1; return waits < 2 }, log: { _ in },
+        tick: { _ in log.append("tick") }, onChange: { _ in log.append("snapshot") }
+    ).run()
+    #expect(log == ["snapshot", "tick", "snapshot", "tick"])
+}

@@ -5,7 +5,7 @@ import CarrierCore
 @testable import Carrier
 
 @MainActor @Test func theAvatarTurnsItsRingOnlyForARunningSessionAndUsesTheRingComponent() throws {
-    let view = AgentAvatar(initial: "C", running: true)
+    let view = RunningAvatar(initial: "C", running: true)
     #expect(view.ring?.diameter == 22)
-    #expect(AgentAvatar(initial: "C", running: false).ring == nil)
+    #expect(RunningAvatar(initial: "C", running: false).ring == nil)
 }

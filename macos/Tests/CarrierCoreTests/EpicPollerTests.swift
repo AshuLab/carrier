@@ -222,3 +222,39 @@ private final class UpdateBox {
     #expect(engine.commands == ["events"])
     #expect(poller.data[web]?.transcripts[execution]?.events.count == 1)
 }
+
+@Test func theEventsOfTheSessionsToCountAreReadOnceEachAPageAtATimeAfterTheRest() throws {
+    let other = "a1b2c3d4-0002-4000-8000-000000000002"
+    let ended = #"{"events":[{"id":1,"at":2,"kind":"say"}],"next":1,"running":false,"structured":true}"#
+    let engine = FixtureEngine(capabilities: ["sessions", "events", "epic", "files"], replies: ["events": ended])
+    defer { engine.stop() }
+    let client = try #require(ControlClient.connect(path: engine.path))
+    _ = try client.hello()
+    var now = Date(timeIntervalSince1970: 0)
+    let poller = EpicPoller(now: { now }, onUpdate: { _, _ in })
+    poller.show(EpicFocus(epic: web, epicRunning: true, counting: [execution, other]))
+
+    var sent: [[String]] = []
+    for second in 0...3 {
+        now = Date(timeIntervalSince1970: TimeInterval(second))
+        let before = engine.commands.count
+        try poller.poll(client)
+        sent.append(Array(engine.commands.dropFirst(before)))
+    }
+    #expect(sent == [["epic", "sessions", "events"], ["events"], [], ["epic"]])
+    #expect(engine.requests.compactMap { $0["executionId"] as? String } == [execution, other])
+    #expect(Set(poller.data[web]?.transcripts.keys ?? [:].keys) == [execution, other])
+}
+
+@Test func aFullPageIsFollowedByTheNextOneFromTheCursor() throws {
+    let page = (1...200).map { #"{"id":\#($0),"at":1,"kind":"say"}"# }.joined(separator: ",")
+    let engine = FixtureEngine(capabilities: ["events"], replies: ["events": #"{"events":[\#(page)],"next":200,"running":false,"structured":true}"#])
+    defer { engine.stop() }
+    let client = try #require(ControlClient.connect(path: engine.path))
+    _ = try client.hello()
+    let poller = EpicPoller(onUpdate: { _, _ in })
+    poller.show(EpicFocus(epic: web, epicRunning: true, counting: [execution]))
+    try poller.poll(client)
+    try poller.poll(client)
+    #expect(engine.requests.map { $0["after"] as? Int } == [0, 200])
+}

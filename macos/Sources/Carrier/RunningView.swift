@@ -46,7 +46,7 @@ struct RunningView: View {
 
     private func agent(_ row: AgentRow) -> some View {
         HStack(spacing: 10) {
-            AgentAvatar(initial: row.initial, running: row.running)
+            RunningAvatar(initial: row.initial, running: row.running)
             VStack(alignment: .leading, spacing: 1) {
                 Text([row.agent, row.role, row.round].compactMap { $0 }.joined(separator: " · ")).fontWeight(.medium)
                 Text(row.action).font(.caption).foregroundStyle(.secondary).lineLimit(1)
@@ -58,7 +58,7 @@ struct RunningView: View {
 }
 
 /// A grey disc with the agent's letter; a white ring turns over it while the session runs, none when it does not.
-struct AgentAvatar: View {
+struct RunningAvatar: View {
     let initial: String
     let running: Bool
 

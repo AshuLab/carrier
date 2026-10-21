@@ -101,7 +101,8 @@ private func runningLine(_ epic: PanelEpic) -> String {
     return stage
 }
 
-private func interventionLine(_ epic: PanelEpic) -> String {
+/// Lower case, as the sidebar's detail line; Your turn capitalises it.
+func interventionLine(_ epic: PanelEpic) -> String {
     switch epic.needsHumanKind {
     case "review_limit": "review limit reached"
     case "agent_needs_human": "the agent needs you"

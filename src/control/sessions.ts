@@ -8,9 +8,18 @@ import type { SessionsReply } from './replies.ts';
 /** The configuration folder each harness ran with, when the engine's environment set one (a path, never a secret). */
 export type ConfigDirs = Partial<Record<PanelAgent['harness'], string>>;
 
+/** The agent an execution ran with: its own row, or the epic's frozen configuration for a row written before it was recorded. */
+export function agentOf(row: typeof executions.$inferSelect, config: typeof epics.$inferSelect.config): PanelAgent {
+  const frozen = config?.agents[row.stage === 'review' ? 'reviewer' : 'author'];
+  return {
+    harness: (row.harness ?? frozen?.harness ?? 'claude') as PanelAgent['harness'],
+    model: row.model ?? frozen?.model ?? '',
+    provider: row.harness === null ? (frozen?.provider ?? null) : (row.provider as PanelAgent['provider']),
+  };
+}
+
 /**
  * Every execution of an epic, newest first; null for an epic the engine does not know.
- * The agent comes from the execution's own row, or from the epic's frozen configuration for a row written before it was recorded.
  * A session has a descriptor only once it is not running and its id and folder are known (ADR 0007).
  */
 export function sessionsOf(db: Db, repo: string, issue: number, configDirs: ConfigDirs): SessionsReply | null {
@@ -20,13 +29,8 @@ export function sessionsOf(db: Db, repo: string, issue: number, configDirs: Conf
   return {
     sessions: rows.map((row) => {
       const role = row.stage === 'review' ? 'reviewer' : 'author';
-      const frozen = epic.config?.agents[role];
-      const harness = (row.harness ?? frozen?.harness ?? 'claude') as PanelAgent['harness'];
-      const agent: PanelAgent = {
-        harness,
-        model: row.model ?? frozen?.model ?? '',
-        provider: row.harness === null ? (frozen?.provider ?? null) : (row.provider as PanelAgent['provider']),
-      };
+      const agent = agentOf(row, epic.config);
+      const harness = agent.harness;
       const configDir = configDirs[harness];
       const resume =
         row.status === 'running' || row.sessionId === null || row.workspace === null

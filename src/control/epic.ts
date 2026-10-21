@@ -1,0 +1,169 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { createScopedLogger } from '@ashulab/universal-logger';
+import { and, eq, sql } from 'drizzle-orm';
+import type { CallerResult } from '../execution/caller-result.ts';
+import type { Db } from '../storage/db.ts';
+import { callerResults } from '../storage/caller-results.ts';
+import { executions } from '../storage/executions.ts';
+import { epics } from '../storage/schema.ts';
+import type { Blocker, EpicReply } from './replies.ts';
+import { agentOf } from './sessions.ts';
+
+const log = createScopedLogger('control');
+
+// The reply is bounded: with these, a round weighs at most about 60 KB, far under the client's 8 MiB line.
+export const MAX_ROUNDS = 50;
+const MAX_BLOCKERS = 50;
+const MAX_COMMITS = 50;
+const MAX_TEXT = 200;
+const MAX_URL = 500;
+
+type Round = EpicReply['rounds'][number];
+type Found = { title: string; url: string | null };
+
+/** A title compared without caring for case or spacing. */
+const normal = (title: string) => title.trim().replace(/\s+/g, ' ').toLowerCase();
+
+/**
+ * Blockers of a round against the open ones of the round before it in the same attempt: the same title (normalised) is carried,
+ * a title that disappeared is fixed, a new one is new. Results carry no ids yet, so every mark after the first round is approximate.
+ */
+function marked(current: Found[], previous: Found[] | null): Blocker[] {
+  const approximate = previous !== null; // the first round has nothing to match against: new is certain
+  const before = new Set((previous ?? []).map(({ title }) => normal(title)));
+  const now = new Set(current.map(({ title }) => normal(title)));
+  const blocker = (b: Found, mark: Blocker['mark']): Blocker => ({ id: null, title: b.title, url: b.url, mark, approximate });
+  return [
+    ...current.map((b) => blocker(b, before.has(normal(b.title)) ? 'carried' : 'new')),
+    ...(previous ?? []).filter(({ title }) => now.has(normal(title)) === false).map((b) => blocker(b, 'fixed')),
+  ].slice(0, MAX_BLOCKERS);
+}
+
+/** git in a folder; null when the folder is gone (expected: an epic's worktree is removed when it ends) or git failed (logged). */
+function git(cwd: string, args: string[]): string | null {
+  if (existsSync(cwd) === false) return null;
+  try {
+    return execFileSync('git', args, { cwd, encoding: 'utf8', timeout: 5_000, stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (error) {
+    log.warn('git failed in an epic worktree', { cwd, args: args[0], error: String(error) });
+    return null;
+  }
+}
+
+// A range of two shas never changes, so asking git once is enough (this is polled every few seconds).
+// ponytail: unbounded, one entry per fixed round; evict if a very long-lived engine ever matters.
+const commitCache = new Map<string, Round['commits']>();
+
+/** The commits a fix added between the head the review saw and the head it left; empty when there is no worktree to ask. */
+function commitsBetween(cwd: string | null, from: string, to: string): Round['commits'] {
+  if (cwd === null) return [];
+  const key = `${cwd}\0${from}..${to}`;
+  const cached = commitCache.get(key);
+  if (cached) return cached;
+  const out = git(cwd, ['log', `--max-count=${MAX_COMMITS}`, '--format=%H%x00%s', `${from}..${to}`]);
+  if (out === null) return [];
+  const commits = out.split('\n').filter(Boolean).map((line) => {
+    const [sha = '', subject = ''] = line.split('\0');
+    return { sha, subject: subject.slice(0, MAX_TEXT) };
+  });
+  commitCache.set(key, commits);
+  return commits;
+}
+
+/**
+ * The stage timeline, review rounds, worktrees and branch of an epic; null for one the engine does not know.
+ * Built from the executions and the stored results, so it also reads an epic that has finished. A round is a review that
+ * left a result: technical retries leave none and make no round. An epic put back in the queue starts new rounds from 1
+ * after the old ones, which stay in the list. `slices` and `pr` are filled by their own requests.
+ */
+export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
+  const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
+  if (epic === undefined) return null;
+  const runs = db
+    .select({ run: executions, result: callerResults.result })
+    .from(executions)
+    .leftJoin(callerResults, eq(callerResults.executionId, executions.executionId))
+    .where(eq(executions.epicId, epic.id))
+    .orderBy(sql`executions.rowid`)
+    .all();
+
+  // Rounds, attempt by attempt: a ship after a review or a fix is an epic that started again.
+  let attempt = 0;
+  let worked = false; // a review or a fix ran in this attempt
+  let open: Found[] | null = null; // the previous round's open blockers; null before the first round
+  const found: { round: Round; attempt: number; fixed: boolean }[] = [];
+  for (const { run, result } of runs) {
+    if (run.stage === 'ship') {
+      if (worked) {
+        attempt++;
+        worked = false;
+        open = null;
+      }
+      continue;
+    }
+    worked = true;
+    const last = found.at(-1);
+    if (run.stage === 'fix') {
+      if (last === undefined || last.attempt !== attempt) continue;
+      last.fixed = true;
+      if (result === null) continue; // a retry or one still running
+      const parsed = JSON.parse(result) as CallerResult;
+      last.round.fixMs = run.finishedAt === null ? null : run.finishedAt - run.startedAt;
+      last.round.fixedSha = parsed.outcome === 'completed' ? parsed.pr.headSha : null;
+      continue;
+    }
+    if (result === null) continue;
+    const parsed = JSON.parse(result) as CallerResult;
+    if (parsed.outcome === 'needs_human') continue; // the reviewer stopped: no verdict to show
+    const blockers = parsed.outcome === 'changes_requested' ? parsed.blockers.map(({ title, url }) => ({ title: title.slice(0, MAX_TEXT), url: url !== undefined && url.length <= MAX_URL ? url : null })) : [];
+    found.push({
+      attempt,
+      fixed: false,
+      round: {
+        round: run.round ?? (found.filter((f) => f.attempt === attempt).length + 1),
+        reviewer: agentOf(run, epic.config),
+        verdict: parsed.outcome === 'completed' ? 'approved' : 'changes_requested',
+        blockers: marked(blockers, open),
+        reviewMs: run.finishedAt === null ? null : run.finishedAt - run.startedAt,
+        fixMs: null,
+        reviewedSha: parsed.pr.headSha,
+        fixedSha: null,
+        commits: [],
+      },
+    });
+    open = blockers;
+  }
+  const hitLimit = epic.status === 'needs_human' && epic.needsHumanReason?.startsWith('review limit') === true;
+  const rounds = found.slice(-MAX_ROUNDS).map(({ round, attempt: of, fixed }) => {
+    // Nothing answered it and nothing follows: the epic stopped there for the limit.
+    if (round.verdict === 'changes_requested' && fixed === false && (of < attempt || hitLimit)) round.verdict = 'limit_reached';
+    if (round.reviewedSha !== null && round.fixedSha !== null) round.commits = commitsBetween(epic.workspace, round.reviewedSha, round.fixedSha);
+    return round;
+  });
+
+  // The stages of the current attempt: queued, then each contiguous run of a stage, then ready.
+  const stages: EpicReply['stages'] = [{ stage: 'queued', startedAt: epic.queuedAt, endedAt: epic.startedAt }];
+  if (epic.startedAt !== null) {
+    const startedAt = epic.startedAt;
+    const segments: { stage: 'ship' | 'review' | 'fix'; startedAt: number }[] = [];
+    for (const { run } of runs) {
+      if (run.startedAt >= startedAt && segments.at(-1)?.stage !== run.stage) segments.push({ stage: run.stage, startedAt: segments.length === 0 ? startedAt : run.startedAt });
+    }
+    // reserved, the clone still being prepared: no execution yet
+    if (segments.length === 0 && epic.stage !== null) segments.push({ stage: epic.stage, startedAt });
+    const ended = epic.status === 'running' ? null : epic.finishedAt;
+    stages.push(...segments.map((segment, i) => ({ ...segment, endedAt: segments[i + 1]?.startedAt ?? ended })));
+    if (epic.status === 'ready_for_test' && epic.finishedAt !== null) stages.push({ stage: 'ready', startedAt: epic.finishedAt, endedAt: null });
+  }
+
+  const reviewer = runs.findLast(({ run }) => run.stage === 'review' && run.workspace !== null)?.run.workspace ?? null;
+  const worktrees: EpicReply['worktrees'] = [
+    ...(epic.workspace === null ? [] : [{ kind: 'epic' as const, lane: null, path: epic.workspace }]),
+    ...(reviewer === null ? [] : [{ kind: 'reviewer' as const, lane: null, path: reviewer }]),
+  ];
+  // ponytail: read from the worktree's HEAD until the epic row records its branch
+  const branch = epic.workspace === null ? null : (git(epic.workspace, ['symbolic-ref', '--short', 'HEAD'])?.trim() || null);
+
+  return { stages, rounds, slices: [], worktrees, branch, pr: null };
+}

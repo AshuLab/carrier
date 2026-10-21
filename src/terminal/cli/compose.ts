@@ -5,6 +5,7 @@ import { resolveRepoConfig } from '../../config/resolve.ts';
 import type { AgentRunner } from '../../execution/agent-runner.ts';
 import { GitWorkspaces, profileToken, type GitWorkspacesOptions } from '../../execution/git-workspaces.ts';
 import type { Workspaces } from '../../execution/workspaces.ts';
+import { epicOf } from '../../control/epic.ts';
 import { sessionsOf } from '../../control/sessions.ts';
 import { startControlServer, version } from '../../control/server.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
@@ -147,6 +148,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     quit: deps.quit,
     logs: (id: string, count: number) => tailExecution(config.root, id, count),
     sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, deps.sessionDirs),
+    epic: (repo: string, issue: number) => epicOf(db, repo, issue),
   };
   stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop: shutdown })).close;
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).

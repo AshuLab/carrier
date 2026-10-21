@@ -810,6 +810,29 @@ test('the epic worktree is read back from git after ship and kept: the fix turns
   ]);
 });
 
+test('every execution row records its agent, folder and round: author, reviewer, fix, and a retry is its own row', async () => {
+  const config = [{ name: 'AshuLab/a', agents: { ...agents, author: { ...agents.author, provider: 'ollama' as const } } }];
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50, { headRef: 'feat/demo/epic' });
+  let fixes = 0;
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) }
+    : task.stage === 'review' ? { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: 'x' }] }) }
+    : ++fixes === 1 ? { exit: 'failed' } : { exit: 'stopped' };
+  workspaces.findWorktree = async () => '/home/me/.solve/worktrees/a/demo';
+  const engine = await start(1, config);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  const worktree = '/home/me/.solve/worktrees/a/demo';
+  expect(executionsOf(engine.db).map((e) => [e.stage, e.harness, e.model, e.provider, e.workspace, e.round])).toEqual([
+    ['ship', 'claude', 'm', 'ollama', '/work/AshuLab/a/1/author', null],
+    ['review', 'codex', 'm', null, '/work/AshuLab/a/1/reviewer-50', 1],
+    ['fix', 'claude', 'm', 'ollama', worktree, 1],
+    ['fix', 'claude', 'm', 'ollama', worktree, 1],
+  ]);
+});
+
 test('a fix turn for an epic with no saved workspace goes to needs_human instead of running in another cwd', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);

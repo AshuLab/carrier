@@ -23,15 +23,15 @@ struct InspectorTabsView: View {
             // a native segment cannot colour its own count: the control turns orange while a person is needed
             .tint(review.needsYou ? .orange : nil)
             switch tab {
+            case .slices: SlicesTabView(subject: subject, reply: reply)
             case .review:
                 ScrollView {
                     ReviewTabView(epic: EpicRef(repo: subject?.repo ?? "", issue: subject?.issue ?? 0), model: reviewTab(subject, reply: reply), folds: $reviewFolds)
                 }
-            default:
-                // placeholders until the tabs' own slices land
-                Text(tab.title).foregroundStyle(.secondary)
-                Spacer(minLength: 0)
+            // placeholders until the tabs' own slices land
+            default: Text(tab.title).foregroundStyle(.secondary)
             }
+            Spacer(minLength: 0)
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

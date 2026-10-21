@@ -58,6 +58,13 @@ public struct EventsReply: Codable, Equatable {
     public var running: Bool
     /// false when the harness has no parser yet: the app falls back to `tail`.
     public var structured: Bool
+
+    public init(events: [ExecEvent], next: Int, running: Bool, structured: Bool) {
+        self.events = events
+        self.next = next
+        self.running = running
+        self.structured = structured
+    }
 }
 
 public struct EpicReply: Codable, Equatable {
@@ -100,6 +107,9 @@ public struct EpicReply: Codable, Equatable {
         public var prNumber: Int?
         public var closedAt: Int?
         public var readAt: Int
+        /// Hints for a slice in progress; the engine does not send them yet (docs/specs/macos-app-redesign.md, spike 3).
+        public var lane: Int? = nil
+        public var activity: String? = nil
     }
 
     public struct Worktree: Codable, Equatable {

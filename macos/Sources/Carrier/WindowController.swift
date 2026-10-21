@@ -60,7 +60,7 @@ final class WindowController: NSObject {
 
     /// For `--smoke-window`: what the open window looks like, one line each: the minimum content size, the width of each
     /// column of the split view, the scroll pockets (the system's blur under a bar over a scroll view: the epic's pipeline
-    /// makes one in the centre column) and the toolbar's items.
+    /// makes one in the centre column), the toolbar's items, how the transcript is laid out and the time to merge 5,000 events.
     var structure: String {
         guard let window else { return "no window" }
         var lines = ["min content size: \(Int(window.contentMinSize.width)) x \(Int(window.contentMinSize.height))"]
@@ -79,6 +79,12 @@ final class WindowController: NSObject {
         }
         if let content = window.contentView { walk(content) }
         for item in window.toolbar?.items ?? [] { lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)") }
+        lines.append("transcript: \(SessionSectionsView.layout)")
+        let events = longTranscriptEvents(rounds: 556)
+        var transcript = Transcript()
+        let start = Date()
+        transcript.apply(EventsReply(events: events, next: events.count, running: true, structured: true))
+        lines.append("transcript merge: \(events.count) events in \(Int(Date().timeIntervalSince(start) * 1000)) ms, \(transcript.work) processed")
         return lines.joined(separator: "\n")
     }
 

@@ -52,6 +52,55 @@ public struct TranscriptCard: Equatable {
     public var status: ToolStatus
     /// "340 ms", "6.2 s"; nil while pending or when the engine gave none.
     public var duration: String?
+    /// The first and last lines of what a command printed; empty when the call printed nothing or the engine sent none.
+    public var output: [String] = []
+    /// The lines an edit changed; nil when there are none.
+    public var diff: CardDiff?
+
+    /// Output opens by itself only for a call that failed; any other shows a link.
+    public var outputOpenByDefault: Bool { status == .error }
+}
+
+public enum DiffSign: Equatable { case added, removed, context }
+
+public struct DiffRow: Equatable {
+    public var sign: DiffSign
+    public var text: String
+}
+
+public struct CardDiff: Equatable {
+    public var rows: [DiffRow]
+    public var added: Int
+    public var removed: Int
+}
+
+/// A diff line longer than this is cut and ends in an ellipsis: one huge line would make its row too slow to lay out.
+public let maxDiffLineLength = 2_000
+
+/// The `diff` of an event as rows: "+" added, "-" removed, anything else (" " and a sign this app does not know) context.
+/// nil for no diff or an empty one.
+public func cardDiff(_ diff: [ExecEvent.DiffLine]?) -> CardDiff? {
+    guard let diff, diff.isEmpty == false else { return nil }
+    var result = CardDiff(rows: [], added: 0, removed: 0)
+    result.rows.reserveCapacity(diff.count)
+    for line in diff {
+        let sign: DiffSign = line.sign == "+" ? .added : line.sign == "-" ? .removed : .context
+        if sign == .added { result.added += 1 } else if sign == .removed { result.removed += 1 }
+        let text = line.text.count > maxDiffLineLength ? String(line.text.prefix(maxDiffLineLength)) + "…" : line.text
+        result.rows.append(DiffRow(sign: sign, text: text))
+    }
+    return result
+}
+
+/// What the user opened or closed by hand, by item id; a card nobody touched follows its default.
+public struct OutputFolds: Equatable {
+    private var chosen: [Int: Bool] = [:]
+
+    public init() {}
+
+    public func isOpen(_ id: Int, _ card: TranscriptCard) -> Bool { chosen[id] ?? card.outputOpenByDefault }
+
+    public mutating func toggle(_ id: Int, _ card: TranscriptCard) { chosen[id] = !isOpen(id, card) }
 }
 
 public enum TranscriptItem: Equatable, Identifiable {
@@ -76,41 +125,64 @@ public func formatCallDuration(_ ms: Int) -> String {
     return formatDuration(max(ms, 60_000))
 }
 
-/// Events in, items out, in id order. An event seen twice counts once, a call whose end came first still has one card, and a call
-/// with no end is pending. A `task` event and any kind this app does not know are left out.
-public func transcriptItems(_ events: [ExecEvent]) -> [TranscriptItem] {
-    var seen = Set<Int>()
-    var slots: [(id: Int, call: String?, item: TranscriptItem?)] = []
-    var starts: [String: ExecEvent] = [:]
-    var ends: [String: ExecEvent] = [:]
-    var first: [String: Int] = [:]
-    for event in events.sorted(by: { $0.id < $1.id }) where seen.insert(event.id).inserted {
+/// The items of a transcript, built one event at a time: an append touches only the new event (and its call's card), never the
+/// whole list. `work` counts the events processed, so a test can tell an append from a rebuild.
+struct TranscriptBuilder: Equatable {
+    private struct Call {
+        var id: Int
+        var index: Int
+        var start: ExecEvent?
+        var end: ExecEvent?
+    }
+
+    private(set) var items: [TranscriptItem] = []
+    private(set) var work = 0
+    private var calls: [String: Call] = [:]
+
+    static func == (a: Self, b: Self) -> Bool { a.items == b.items }
+
+    /// Back to nothing, keeping the count of work done.
+    mutating func reset() {
+        items = []
+        calls = [:]
+    }
+
+    /// Events must come in id order and once each. A `task` event and any kind this app does not know are left out.
+    mutating func add(_ event: ExecEvent) {
+        work += 1
         switch event.kind {
-        case "say": slots.append((event.id, nil, .message(id: event.id, text: event.text ?? "")))
-        case "note": slots.append((event.id, nil, .note(id: event.id, text: event.text ?? "")))
-        case "error": slots.append((event.id, nil, .error(id: event.id, text: event.text ?? "")))
+        case "say": items.append(.message(id: event.id, text: event.text ?? ""))
+        case "note": items.append(.note(id: event.id, text: event.text ?? ""))
+        case "error": items.append(.error(id: event.id, text: event.text ?? ""))
         case "tool_start", "tool_end":
             // an event with no callId is a call of its own
-            let call = event.callId ?? "event \(event.id)"
-            if first[call] == nil {
-                first[call] = event.id
-                slots.append((event.id, call, nil))
-            }
-            if event.kind == "tool_start" { starts[call] = event } else { ends[call] = event }
+            let key = event.callId ?? "event \(event.id)"
+            let known = calls[key]
+            var call = known ?? Call(id: event.id, index: items.count)
+            if event.kind == "tool_start" { call.start = event } else { call.end = event }
+            let item = TranscriptItem.tool(id: call.id, Self.card(call.start, call.end))
+            if known == nil { items.append(item) } else { items[call.index] = item }
+            calls[key] = call
         default: break
         }
     }
-    return slots.map { slot in
-        if let item = slot.item { return item }
-        let call = slot.call!
-        let start = starts[call], end = ends[call]
+
+    private static func card(_ start: ExecEvent?, _ end: ExecEvent?) -> TranscriptCard {
         let tool = end?.tool ?? start?.tool ?? "tool"
-        let status: ToolStatus = end == nil ? .pending : end?.status == "err" ? .error : .ok
-        return .tool(id: slot.id, TranscriptCard(
+        return TranscriptCard(
             tool: tool, kind: ToolKind(tool: tool), arg: start?.arg ?? end?.arg ?? "", summary: end?.summary ?? "",
-            status: status, duration: end?.durationMs.map(formatCallDuration)
-        ))
+            status: end == nil ? .pending : end?.status == "err" ? .error : .ok, duration: end?.durationMs.map(formatCallDuration),
+            output: end?.output ?? [], diff: cardDiff(end?.diff)
+        )
     }
+}
+
+/// Events in, items out, in id order. An event seen twice counts once, a call whose end came first still has one card, and a call
+/// with no end is pending. A `task` event and any kind this app does not know are left out.
+public func transcriptItems(_ events: [ExecEvent]) -> [TranscriptItem] {
+    var transcript = Transcript()
+    transcript.apply(EventsReply(events: events, next: 0, running: true, structured: true))
+    return transcript.items
 }
 
 /// What an open session shows: the merged items, or the summarised `tail` lines of a harness with no parser yet.
@@ -121,5 +193,5 @@ public enum TranscriptBody: Equatable {
 
 public func transcriptBody(_ transcript: Transcript?) -> TranscriptBody {
     guard let transcript else { return .items([]) }
-    return transcript.structured ? .items(transcriptItems(transcript.events)) : .tail(transcript.tail)
+    return transcript.structured ? .items(transcript.items) : .tail(transcript.tail)
 }

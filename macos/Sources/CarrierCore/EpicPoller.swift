@@ -11,20 +11,37 @@ public struct EpicRef: Hashable {
 }
 
 /// What one running session said so far. The cursor only moves forward and an event is kept once, in id order, so a repeated
-/// or late reply changes nothing.
+/// or late reply changes nothing. The items are built as the events arrive: events past the newest one are appended and only
+/// they are processed; one older than the newest (rare) rebuilds the items.
 public struct Transcript: Equatable {
     public private(set) var events: [ExecEvent] = []
+    /// What the view draws, kept in step with `events`.
+    public var items: [TranscriptItem] { builder.items }
+    /// How many events the items have processed so far: an append adds its own count, a rebuild adds them all.
+    public var work: Int { builder.work }
     /// The `after` of the next request.
     public private(set) var next = 0
     public private(set) var running = true
     public private(set) var structured = true
-    /// The summarised output lines, read only while the harness has no parser (`structured` false).
+    /// The summarised output lines, read only while the harness has no parser yet (`structured` false).
     public internal(set) var tail: [String] = []
+    private var seen = Set<Int>()
+    private var builder = TranscriptBuilder()
+
+    public init() {}
 
     public mutating func apply(_ reply: EventsReply) {
-        var seen = Set(events.map(\.id))
-        let fresh = reply.events.filter { seen.insert($0.id).inserted }
-        if fresh.isEmpty == false { events = (events + fresh).sorted { $0.id < $1.id } }
+        let fresh = reply.events.filter { seen.insert($0.id).inserted }.sorted { $0.id < $1.id }
+        if let first = fresh.first {
+            if let last = events.last, first.id < last.id {
+                events = (events + fresh).sorted { $0.id < $1.id }
+                builder.reset()
+                events.forEach { builder.add($0) }
+            } else {
+                events += fresh
+                fresh.forEach { builder.add($0) }
+            }
+        }
         next = max(next, reply.next)
         running = reply.running
         structured = reply.structured

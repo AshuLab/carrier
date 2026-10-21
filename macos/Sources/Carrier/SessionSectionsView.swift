@@ -4,22 +4,28 @@ import SwiftUI
 /// The Agent output tab: one card per session with its header (avatar, who, counts, time or the stopped badge) and, below the
 /// last, how many earlier sessions there are. An open section shows its transcript under the header.
 struct SessionSectionsView: View {
+    /// The Agent output tab is a lazy stack whose section headers stay pinned; the smoke check reports it from these.
+    static let layout = "lazy stack, pinned section headers"
+    static let pinned: PinnedScrollableViews = .sectionHeaders
+
     let list: SessionList
     @Binding var folds: SessionFolds
+    @State private var outputs = OutputFolds()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        LazyVStack(alignment: .leading, spacing: 10, pinnedViews: Self.pinned) {
             ForEach(list.sections) { section in
                 let open = folds.isOpen(section)
-                VStack(alignment: .leading, spacing: 0) {
-                    Button { folds.toggle(section) } label: { SessionHeaderView(section: section, open: open) }
-                        .buttonStyle(.plain)
+                Section {
                     if open {
-                        TranscriptView(content: section.body)
+                        TranscriptRows(content: section.body, outputs: $outputs)
                         ContinueInTerminalView(section: section)
                     }
+                } header: {
+                    Button { folds.toggle(section) } label: { SessionHeaderView(section: section, open: open) }
+                        .buttonStyle(.plain)
+                        .background(RoundedRectangle(cornerRadius: 16).fill(.bar))
                 }
-                .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.08)))
             }
             if let earlier = list.earlier { Text(earlier).font(.caption).foregroundStyle(.tertiary).padding(.horizontal, 6) }
         }

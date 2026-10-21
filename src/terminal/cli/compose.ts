@@ -16,7 +16,7 @@ import { sessionDirsFrom, type SessionDirs } from '../../orchestration/retention
 import { startInteractivePanel } from '../dashboard/interactive.ts';
 import { tailExecution } from '../dashboard/logs.ts';
 import { startPanel, type PanelOutput } from '../dashboard/panel.ts';
-import { buildSnapshot } from '../../status/snapshot.ts';
+import { buildSnapshot, watchedOf } from '../../status/snapshot.ts';
 import { profileCredentials, type CredentialsOptions } from '../../harnesses/credentials.ts';
 import { HostAgentRunner, type HostRunnerOptions } from '../../harnesses/host-runner.ts';
 import { openDatabase } from '../../storage/db.ts';
@@ -137,6 +137,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
       slices: engine.slices,
       version,
       pollIntervalMs: config.pollIntervalMinutes * 60_000,
+      watched: watchedOf(repos, engine.lastCheck),
     });
   const controls = { poll: () => engine.pollNow(), setPaused: (paused: boolean) => engine.setPaused(paused), open: deps.openUrl, quit: deps.quit, logs: (id: string, count: number) => tailExecution(config.root, id, count) };
   stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop: shutdown })).close;

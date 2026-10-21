@@ -6,6 +6,17 @@ import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import type { ControlSnapshot, NeedsHumanKind, PanelAgent, PanelAgents, PanelEpic, PanelSession } from './types.ts';
 
+const agentOf = ({ harness, model, provider }: EffectiveRepoConfig['agents']['author']): PanelAgent => ({ harness, model, provider: provider ?? null });
+const agentsOf = (config: EffectiveRepoConfig): PanelAgents => ({ author: agentOf(config.agents.author), reviewer: agentOf(config.agents.reviewer) });
+
+/** One row per watched repo: the agents it resolves to and its last poll (not checked yet: null and ok). */
+export function watchedOf(repos: EffectiveRepoConfig[], lastCheck: (repo: string) => { at: number; ok: boolean; error: string | null } | undefined): ControlSnapshot['watched'] {
+  return repos.map((r) => {
+    const check = lastCheck(r.name);
+    return { repo: r.name, lastCheckedAt: check?.at ?? null, ok: check?.ok ?? true, error: check?.error ?? null, agents: agentsOf(r) };
+  });
+}
+
 const maxBlockerTitles = 10;
 const maxBlockerTitleLength = 200;
 
@@ -38,10 +49,9 @@ export function buildSnapshot(
   const lastExecution = (epicId: number) => db.select({ id: executions.executionId }).from(executions).where(eq(executions.epicId, epicId)).orderBy(desc(executions.startedAt), sql`rowid desc`).limit(1).get()?.id ?? null;
   const done = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, prNumber: epics.prNumber, finishedAt: epics.finishedAt }).from(epics).where(eq(epics.status, 'ready_for_test')).orderBy(desc(epics.finishedAt)).limit(5).all()
     .map(({ id, ...rest }) => ({ ...rest, executionId: lastExecution(id) }));
-  const agentOf = ({ harness, model, provider }: EffectiveRepoConfig['agents']['author']): PanelAgent => ({ harness, model, provider: provider ?? null });
-  const agentsOf = (e: { config: EffectiveRepoConfig | null }): PanelAgents | null => e.config && { author: agentOf(e.config.agents.author), reviewer: agentOf(e.config.agents.reviewer) };
+  const epicAgents = (e: { config: EffectiveRepoConfig | null }): PanelAgents | null => e.config && agentsOf(e.config);
   const sessions = shown.flatMap((e) => {
-    const agent = agentsOf(e);
+    const agent = epicAgents(e);
     const running = db.select({ executionId: executions.executionId, stage: executions.stage, startedAt: executions.startedAt }).from(executions)
       .where(and(eq(executions.epicId, e.id), eq(executions.status, 'running'))).orderBy(desc(executions.startedAt), sql`rowid desc`).limit(1).get();
     if (e.status !== 'running' || !running || !agent) return [];
@@ -89,7 +99,7 @@ export function buildSnapshot(
         workspace: e.workspace,
         needsHumanKind: meta.needsHumanKind ?? null,
         blockerTitles: blockers.slice(0, maxBlockerTitles).map((b) => b.title.slice(0, maxBlockerTitleLength)),
-        agents: agentsOf(e),
+        agents: epicAgents(e),
       };
     }),
   };

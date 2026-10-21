@@ -99,6 +99,8 @@ public struct SessionSection: Equatable, Identifiable {
     public var timeLabel: String?
     /// Running and stopped open, finished folded; the newest one is open whatever it is.
     public var openByDefault: Bool
+    /// What shows under the header when it is open.
+    public var body: TranscriptBody = .items([])
 }
 
 public struct SessionList: Equatable {
@@ -155,7 +157,8 @@ public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcrip
             place: session.round.map { "Round \($0)" } ?? session.stage.capitalized,
             counts: transcript.flatMap { $0.structured ? countsLine(sessionCounts($0.events)) : nil },
             timeLabel: time,
-            openByDefault: state != .done || index == 0
+            openByDefault: state != .done || index == 0,
+            body: transcriptBody(transcript)
         )
     }
     let rest = all.count - shown.count

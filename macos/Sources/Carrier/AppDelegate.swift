@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MenuControls.shared.install(in: menu, after: stateLine)
         menu.addItem(.separator())
         WindowController.shared.addMenuItem(to: menu)
+        if fixtureServer != nil { EmptyStatesWindowController.shared.addMenuItem(to: menu) }
         SettingsWindowController.shared.addMenuItem(to: menu)
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu

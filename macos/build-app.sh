@@ -19,6 +19,9 @@ APP=Carrier.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"
 cp .build/release/Carrier "$APP/Contents/MacOS/"
+# the golden files `--fixture` serves
+mkdir -p "$APP/Contents/Resources"
+cp -R Tests/Fixtures "$APP/Contents/Resources/Fixtures"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

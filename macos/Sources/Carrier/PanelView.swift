@@ -51,6 +51,9 @@ struct PanelView: View {
                         plan: queuedPlan(epic.subject)
                     )
                         .id("\(epic.subject.repo)#\(epic.subject.issue)")
+                } else if shell.selection == .settings {
+                    // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
+                    SettingsScreen()
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
@@ -114,7 +117,7 @@ private struct Running: View {
             // not in the snapshot (any more)
             Text("\(repo) #\(issue)")
         case .settings:
-            Text("Settings").foregroundStyle(.secondary)
+            EmptyView()  // PanelView shows SettingsScreen
         }
     }
 }

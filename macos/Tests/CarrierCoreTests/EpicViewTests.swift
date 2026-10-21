@@ -33,7 +33,7 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
 }
 
 @Test func aQueuedEpicSaysItsPlaceInTheQueue() {
-    #expect(line(pipelineSteps(.queued(queuedEpic, position: 1), now: 0)) == ["Queued:w:1st in queue", "Ship:w", "Review/Fix:w", "Ready:w"])
+    #expect(line(pipelineSteps(.queued(queuedEpic, position: 1), now: 0)) == ["Queued:c:1st in queue", "Ship:w", "Review/Fix:w", "Ready:w"])
     #expect(pipelineSteps(.queued(queuedEpic, position: 12), now: 0)[0].label == "12th in queue")
     #expect([2, 3, 4, 11, 21, 22, 103, 111].map(ordinal) == ["2nd", "3rd", "4th", "11th", "21st", "22nd", "103rd", "111th"])
 }

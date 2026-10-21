@@ -123,15 +123,6 @@ func sessionState(_ status: String) -> SessionSection.State {
     }
 }
 
-private func agentName(_ harness: String) -> String {
-    switch harness {
-    case "claude": "Claude"
-    case "codex": "Codex"
-    case "agy": "Antigravity"
-    default: harness.prefix(1).uppercased() + harness.dropFirst()
-    }
-}
-
 /// Newest first, as the reply is. `transcripts` holds the events fetched so far, by execution id.
 public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcript] = [:], timeZone: TimeZone = .current) -> SessionList {
     let all = reply?.sessions ?? []

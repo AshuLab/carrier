@@ -19,6 +19,12 @@ public enum EpicSubject: Equatable {
         }
     }
 
+    /// The empty state the Agent output tab shows while no agent has started; only a queued epic has one.
+    public var outputEmptyState: EmptyState? {
+        if case .queued = self { return .waitingForSlot }
+        return nil
+    }
+
     public var issue: Int {
         switch self {
         case .queued(let epic, _): epic.issue
@@ -61,7 +67,7 @@ public func pipelineSteps(_ subject: EpicSubject, reply: EpicReply? = nil, now: 
 
     switch subject {
     case .queued(_, let position):
-        return steps([.waiting, .waiting, .waiting, .waiting], ["\(ordinal(position)) in queue", nil, nil, nil])
+        return steps([.current, .waiting, .waiting, .waiting], ["\(ordinal(position)) in queue", nil, nil, nil])
     case .finished(let done):
         let rounds = reply.map { $0.rounds.count }.flatMap { $0 > 0 ? "\($0) \($0 == 1 ? "round" : "rounds")" : nil }
         return steps(

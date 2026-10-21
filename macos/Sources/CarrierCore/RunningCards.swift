@@ -76,7 +76,7 @@ func agentRow(_ session: PanelSnapshot.Session, epic: PanelEpic, timeZone: TimeZ
     )
 }
 
-private func agentName(_ harness: String) -> String {
+func agentName(_ harness: String) -> String {
     switch harness {
     case "claude": "Claude"
     case "codex": "Codex"

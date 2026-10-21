@@ -99,7 +99,7 @@ private struct Overview: View {
     var body: some View {
         let needsYou = snapshot.epics.filter { $0.status == .needsHuman }
         let running = snapshot.epics.filter { $0.status == .running }
-        Header(snapshot: snapshot)
+        CarrierBoxView(snapshot: snapshot)
         if needsYou.isEmpty == false {
             PanelSection(title: "Needs you") { ForEach(needsYou, id: \.key) { EpicCard(epic: $0, now: snapshot.now) } }
         }
@@ -118,28 +118,6 @@ private struct Overview: View {
         }
         if snapshot.epics.isEmpty && snapshot.queue.isEmpty && snapshot.done.isEmpty {
             Text("Idle. Mark an epic solve:epic:ready in a watched repo to start one.").foregroundStyle(.secondary)
-        }
-    }
-}
-
-private struct Header: View {
-    let snapshot: PanelSnapshot
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Label("Carrier running", systemImage: "play.circle.fill").foregroundStyle(.green).font(.title3)
-                Text(uptimeLine(snapshot)).foregroundStyle(.secondary)
-                Spacer()
-                Chip(text: "slots \(snapshot.slots.busy)/\(snapshot.slots.total)")
-            }
-            Text("\(reposLine(snapshot.repos)) · \(nextCheckLine(snapshot))").font(.callout).foregroundStyle(.secondary)
-            if snapshot.paused {
-                Label("Intake is paused: new epics wait in the queue", systemImage: "pause.circle").foregroundStyle(.orange)
-            }
-            if let problem = snapshot.problem {
-                Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-            }
         }
     }
 }

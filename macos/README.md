@@ -28,7 +28,7 @@ open Carrier.app
 
 ## Settings
 
-The menu's Settings… opens the values the app starts Carrier with: `carrier`, `node`, the `PATH`, the config path and the shared root, each editable and marked "not found" when empty. On the first launch (nothing saved in user defaults) the app asks the user's shell once, `zsh -ilc` with markers around what it prints and a 10 second limit, for `carrier`, `node` and the `PATH`; the config path and root come from where Carrier keeps them, not from the shell. "Detect again" repeats the run. With saved values the shell is never started. The `PATH` the engine will get is the detected one with node's directory first.
+The menu's Settings… opens the values the app starts Carrier with: `carrier`, `node`, the `PATH`, the config path and the shared root, each editable and marked "not found" when empty. On the first launch (nothing saved in user defaults) the app asks the user's shell once, `zsh -ilc` with markers around what it prints and a 10 second limit, for `carrier`, `node` and the `PATH`; the config path and root come from where Carrier keeps them, not from the shell. "Detect again" repeats the run. The window's Settings screen (sidebar, bottom) shows the same five values as the Engine tab with a banner that says whether Start Carrier is ready; Choose opens a file or folder chooser, Reveal opens Finder, and the model is `CarrierCore/EngineTab.swift`. Its other three tabs are placeholders. With saved values the shell is never started. The `PATH` the engine will get is the detected one with node's directory first.
 
 ## Start Carrier
 

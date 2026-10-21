@@ -4,7 +4,7 @@ import { latestBlockers } from '../orchestration/blockers.ts';
 import type { Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
-import type { ControlSnapshot, NeedsHumanKind, PanelAgent, PanelAgents, PanelEpic, PanelSession } from './types.ts';
+import type { ControlSnapshot, PanelAgent, PanelAgents, PanelEpic, PanelSession } from './types.ts';
 
 const agentOf = ({ harness, model, provider }: EffectiveRepoConfig['agents']['author']): PanelAgent => ({ harness, model, provider: provider ?? null });
 const agentsOf = (config: EffectiveRepoConfig): PanelAgents => ({ author: agentOf(config.agents.author), reviewer: agentOf(config.agents.reviewer) });
@@ -22,13 +22,13 @@ const maxBlockerTitleLength = 200;
 
 /**
  * What the panel shows, read from SQLite: slots, the queue (oldest first) and each epic that is running or waiting for a person.
- * What the engine does not keep yet comes in through the optional inputs and is empty (null or []) without them.
+ * What the engine does not keep in SQLite comes in through the optional inputs and is empty (null or []) without them.
  */
 export function buildSnapshot(
   db: Db,
   {
     now, maxConcurrentEpics, maxReviews, startedAt, repos, nextCheckAt, problem, paused, slices,
-    version, pollIntervalMs, rateLimit = null, watched = [], lastEvent = () => null, issueMeta = () => ({}),
+    version, pollIntervalMs, rateLimit = null, watched = [], lastEvent = () => null,
   }: {
     now: number; maxConcurrentEpics: number; maxReviews: number; startedAt: number; repos: number; nextCheckAt: number | null; problem: string | null; paused: boolean;
     slices: (repo: string, issue: number) => PanelEpic['slices'];
@@ -38,13 +38,11 @@ export function buildSnapshot(
     watched?: ControlSnapshot['watched'];
     /** The newest event of an execution. */
     lastEvent?: (executionId: string) => PanelSession['last'];
-    /** What only GitHub knows about an issue (and the branch and the kind of stop, which are not stored yet). */
-    issueMeta?: (repo: string, issue: number) => { title?: string; labels?: string[]; branch?: string; needsHumanKind?: NeedsHumanKind };
   },
 ): ControlSnapshot {
   const busy = db.select({ n: count() }).from(epics).where(eq(epics.status, 'running')).get()!.n;
-  const queue = db.select({ repo: epics.repo, issue: epics.issue, queuedAt: epics.queuedAt }).from(epics).where(eq(epics.status, 'queued')).orderBy(asc(epics.id)).all()
-    .map((q) => ({ repo: q.repo, issue: q.issue, title: issueMeta(q.repo, q.issue).title ?? null, queuedAt: q.queuedAt }));
+  const queue = db.select({ repo: epics.repo, issue: epics.issue, title: epics.title, queuedAt: epics.queuedAt }).from(epics).where(eq(epics.status, 'queued')).orderBy(asc(epics.id)).all()
+    .map((q) => ({ repo: q.repo, issue: q.issue, title: q.title, queuedAt: q.queuedAt }));
   const shown = db.select().from(epics).where(inArray(epics.status, ['running', 'needs_human'])).orderBy(asc(epics.id)).all();
   const lastExecution = (epicId: number) => db.select({ id: executions.executionId }).from(executions).where(eq(executions.epicId, epicId)).orderBy(desc(executions.startedAt), sql`rowid desc`).limit(1).get()?.id ?? null;
   const done = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, prNumber: epics.prNumber, finishedAt: epics.finishedAt }).from(epics).where(eq(epics.status, 'ready_for_test')).orderBy(desc(epics.finishedAt)).limit(5).all()
@@ -72,7 +70,6 @@ export function buildSnapshot(
     watched,
     sessions,
     epics: shown.map((e) => {
-      const meta = issueMeta(e.repo, e.issue);
       const blockers = latestBlockers(db, e.id);
       return {
         repo: e.repo,
@@ -90,14 +87,14 @@ export function buildSnapshot(
         needsHumanReason: e.needsHumanReason,
         slices: slices(e.repo, e.issue),
         executionId: lastExecution(e.id),
-        title: meta.title ?? null,
-        labels: meta.labels ?? [],
+        title: e.title,
+        labels: e.labels ?? [],
         queuedAt: e.queuedAt,
         startedAt: e.startedAt,
         finishedAt: e.finishedAt,
-        branch: meta.branch ?? null,
+        branch: e.branch,
         workspace: e.workspace,
-        needsHumanKind: meta.needsHumanKind ?? null,
+        needsHumanKind: e.needsHumanKind,
         blockerTitles: blockers.slice(0, maxBlockerTitles).map((b) => b.title.slice(0, maxBlockerTitleLength)),
         agents: epicAgents(e),
       };

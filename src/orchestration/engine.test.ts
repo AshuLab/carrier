@@ -72,6 +72,28 @@ test('registers ready epics of every repo once, and the same issue number in two
   expect(github.calls).toBe(4);
 });
 
+test('the poll keeps the title and labels of a ready epic and refreshes them, and those of a running one from the open list, with no extra request', async () => {
+  github.ready = { 'AshuLab/a': [{ issue: 1, title: 'First' }] };
+  github.issue('AshuLab/a', 1).labels = ['solve:epic', 'solve:epic:ready', 'bug'];
+  const engine = await start();
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ issue: 1, title: 'First', labels: ['solve:epic', 'solve:epic:ready', 'bug'], branch: null, needsHumanKind: null });
+  expect(github.calls).toBe(2); // one ready list per repo: the title and labels came with it
+
+  github.ready = { 'AshuLab/a': [{ issue: 1, title: 'First, renamed' }] };
+  github.issue('AshuLab/a', 1).labels.push('p1');
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ title: 'First, renamed', labels: ['solve:epic', 'solve:epic:ready', 'bug', 'p1'] });
+
+  // Once running the epic is no longer listed as ready: the open list carries them.
+  github.ready = {};
+  github.openEpics = { 'AshuLab/a': [{ issue: 1, title: 'Renamed again', slices: null }] };
+  github.issue('AshuLab/a', 1).labels = ['solve:epic', 'solve:epic:running'];
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ title: 'Renamed again', labels: ['solve:epic', 'solve:epic:running'] });
+});
+
 test('first poll waits one full interval, then repeats every interval', async () => {
   const engine = await start();
   await clock.advance(5 * MIN - 1);
@@ -171,7 +193,7 @@ test('a failure in one repo registers nothing from the other repos in that poll'
   const fail = new GitHubUnavailable();
   github.listReadyEpics = async (repo) => {
     if (repo === 'AshuLab/b') throw fail;
-    return [{ issue: 1, title: '' }];
+    return [{ issue: 1, title: '', labels: [] }];
   };
   const engine = await start();
   await clock.advance(5 * MIN);
@@ -414,7 +436,7 @@ test.each([
   await engine.idle();
 
   const [first, second] = rows(engine.db);
-  expect(first).toMatchObject({ issue: 1, status: 'needs_human', finishedAt: 5 * MIN, labelPending: false });
+  expect(first).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'pr_invalid', finishedAt: 5 * MIN, labelPending: false });
   expect(first?.needsHumanReason).toContain(reason);
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   // The second one started right away, with no new poll, and was not affected.
@@ -428,7 +450,7 @@ test('a needs_human result stops the epic with the caller reason and label', asy
   const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'a credential is missing', finishedAt: 5 * MIN });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'a credential is missing', finishedAt: 5 * MIN });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
 
@@ -504,7 +526,7 @@ test('a workspace that cannot be prepared leaves the epic in needs_human and fre
     return prepare(repo, epic);
   };
   await clock.advance(5 * MIN);
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'could not prepare the workspace: clone failed' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'workspace', needsHumanReason: 'could not prepare the workspace: clone failed' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 });
@@ -586,7 +608,7 @@ test('with maxExecutionRetries 3 there are four attempts, then the epic needs a 
   expect(runner.tasks.filter((t) => t.epic === 1)).toHaveLength(4);
   expect(executionsOf(engine.db).filter((e) => e.epicId === 1).map((e) => e.status)).toEqual(['failed', 'failed', 'failed', 'failed']);
   expect(eventsOf(engine.db).map((e) => e.data.attempt)).toEqual([2, 3, 4]);
-  expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', round: null, finishedAt: 5 * MIN });
+  expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'retries_exhausted', round: null, finishedAt: 5 * MIN });
   expect(rows(engine.db)[0]?.needsHumanReason).toBe('ran out of ship retries (4 attempts): the agent process ended with an error');
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
@@ -656,7 +678,7 @@ test('timed_out keeps the session, needs a human with the reason and launches no
   await vi.waitFor(() => expect(runner.tasks.some((t) => t.epic === 2)).toBe(true));
 
   expect(executionsOf(engine.db)[0]).toMatchObject({ epicId: 1, status: 'timed_out', sessionId: 's-1', finishedAt: 5 * MIN });
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'the ship execution exceeded the time limit' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'timeout', needsHumanReason: 'the ship execution exceeded the time limit' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(eventsOf(engine.db)).toEqual([]);
   await clock.advance(10 * MIN);
@@ -849,6 +871,22 @@ test('a fix turn for an epic with no saved workspace goes to needs_human instead
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
 });
 
+test('the final PR\'s branch is kept when ship is validated, and a restart from needs_human clears the kind', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50, { headRef: 'feat/demo/epic' });
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task, { number: 50, headSha: SHA }) } : { write: result(task, { outcome: 'needs_human', reason: 'unclear' }) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', branch: 'feat/demo/epic', needsHumanKind: 'agent_needs_human' });
+
+  github.issue('AshuLab/a', 1).labels.push('solve:epic:ready');
+  runner.behavior = () => ({ exit: 'stopped' });
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', needsHumanKind: null });
+});
+
 test('a ship result whose epic worktree git does not list sends the epic to needs_human with the branch', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   pull(50, { headRef: 'feat/demo/epic' });
@@ -862,9 +900,9 @@ test('a ship result whose epic worktree git does not list sends the epic to need
   await clock.advance(5 * MIN);
   await engine.idle();
 
-  expect(rows(engine.db).map((e) => [e.status, e.needsHumanReason, e.workspace, e.prNumber])).toEqual([
-    ['needs_human', 'could not find the worktree for branch feat/demo/epic in the clone of AshuLab/a', null, null],
-    ['needs_human', 'could not find the worktree for branch feat/other/epic in the clone of AshuLab/a', null, null],
+  expect(rows(engine.db).map((e) => [e.status, e.needsHumanKind, e.needsHumanReason, e.workspace, e.prNumber])).toEqual([
+    ['needs_human', 'workspace', 'could not find the worktree for branch feat/demo/epic in the clone of AshuLab/a', null, null],
+    ['needs_human', 'workspace', 'could not find the worktree for branch feat/other/epic in the clone of AshuLab/a', null, null],
   ]);
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'ship']);
 });
@@ -969,7 +1007,7 @@ test('a fix whose head is not the current one goes to needs_human', async () => 
 test('with maxReviews 2 a changes_requested on the second review needs a human and no third review runs', async () => {
   const engine = await fixing((task) => fixDone(task), 2, 2);
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix', 'review']);
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', round: 2, finishedAt: 5 * MIN, labelPending: false });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'review_limit', round: 2, finishedAt: 5 * MIN, labelPending: false });
   expect(rows(engine.db)[0]!.needsHumanReason).toContain('review limit');
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
@@ -1479,7 +1517,7 @@ test('an auth_failed stops only the running epics of that profile and their runs
   await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1, 2]));
 
   const [first, second, third] = rows(engine.db);
-  expect(first).toMatchObject({ issue: 1, status: 'needs_human', needsHumanReason: 'authentication error for profile a', finishedAt: 5 * MIN, labelPending: false });
+  expect(first).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'auth', needsHumanReason: 'authentication error for profile a', finishedAt: 5 * MIN, labelPending: false });
   expect(second).toMatchObject({ issue: 2, status: 'needs_human', needsHumanReason: 'authentication error for profile a' });
   expect(third).toMatchObject({ issue: 3, status: 'running' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);

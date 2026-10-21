@@ -89,7 +89,7 @@ describe('responses', () => {
   });
 
   test('listReadyEpics returns every page and skips pull requests', async () => {
-    const row = (number: number) => ({ number, title: `epic ${number}` });
+    const row = (number: number) => ({ number, title: `epic ${number}`, labels: [{ name: 'solve:epic', color: 'ededed' }, { name: 'bug' }] });
     const page1 = Array.from({ length: 100 }, (_, i) => row(i + 1));
     const page2 = [...Array.from({ length: 99 }, (_, i) => row(i + 101)), { ...row(999), pull_request: {} }];
     const page3 = [row(201)];
@@ -101,6 +101,7 @@ describe('responses', () => {
     const epics = await github.listReadyEpics(repo);
     expect(epics).toHaveLength(200);
     expect(epics.map((e) => e.issue)).not.toContain(999);
+    expect(epics[0]).toEqual({ issue: 1, title: 'epic 1', labels: ['solve:epic', 'bug'] });
     expect(calls()).toHaveLength(3);
     expect(calls()[0]?.args.at(-1)).toContain('labels=solve%3Aepic%3Aready');
   });
@@ -110,21 +111,21 @@ describe('responses', () => {
       {
         match: 'labels=solve%3Aepic&',
         ...ok([
-          { number: 31, title: 'done epic', sub_issues_summary: { total: 31, completed: 31, percent_completed: 100 } },
-          { number: 32, title: 'half', sub_issues_summary: { total: 4, completed: 1, percent_completed: 25 } },
-          { number: 33, title: 'no summary' },
-          { number: 34, title: 'not an epic', pull_request: {}, sub_issues_summary: { total: 1, completed: 0, percent_completed: 0 } },
+          { number: 31, title: 'done epic', labels: [{ name: 'solve:epic' }], sub_issues_summary: { total: 31, completed: 31, percent_completed: 100 } },
+          { number: 32, title: 'half', labels: [], sub_issues_summary: { total: 4, completed: 1, percent_completed: 25 } },
+          { number: 33, title: 'no summary', labels: [] },
+          { number: 34, title: 'not an epic', labels: [], pull_request: {}, sub_issues_summary: { total: 1, completed: 0, percent_completed: 0 } },
         ]),
       },
     ]);
     expect(await github.listOpenEpics(repo)).toEqual([
-      { issue: 31, slices: { done: 31, total: 31 } },
-      { issue: 32, slices: { done: 1, total: 4 } },
-      { issue: 33, slices: null },
+      { issue: 31, title: 'done epic', labels: ['solve:epic'], slices: { done: 31, total: 31 } },
+      { issue: 32, title: 'half', labels: [], slices: { done: 1, total: 4 } },
+      { issue: 33, title: 'no summary', labels: [], slices: null },
     ]);
     expect(calls()).toHaveLength(1);
     expect(calls()[0]?.args.at(-1)).toContain('state=open');
-    const wrong = setup([{ match: 'issues', ...ok([{ number: 1, title: 't', sub_issues_summary: { total: 'x' } }]) }]);
+    const wrong = setup([{ match: 'issues', ...ok([{ number: 1, title: 't', labels: [], sub_issues_summary: { total: 'x' } }]) }]);
     await expect(wrong.github.listOpenEpics(repo)).rejects.toThrow();
   });
 

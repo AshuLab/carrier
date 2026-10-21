@@ -1,6 +1,7 @@
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
+export const needsHumanKinds = ['review_limit', 'agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid'] as const;
 export const epicStates = ['queued', 'running', 'ready_for_test', 'needs_human', 'cancelled', 'merged', 'repo_removed'] as const;
 
 export const epics = sqliteTable(
@@ -30,6 +31,10 @@ export const epics = sqliteTable(
     reviewedSha: text(), // head the reviewer approved, set when the epic becomes ready_for_test
     verification: text({ mode: 'json' }).$type<{ ci: 'passed' | 'absent'; evidence: string }>(), // what the reviewer reported about the checks
     needsHumanReason: text(),
+    needsHumanKind: text({ enum: needsHumanKinds }), // what kind of stop the reason is; set together with it
+    title: text(), // the issue's title and labels as the poll last read them
+    labels: text({ mode: 'json' }).$type<string[]>(),
+    branch: text(), // the final PR's branch, set when ship is validated
     // Set while `repo_removed`: where the epic was and why it stopped, so it goes back there when the repo returns.
     removedFrom: text({ enum: epicStates }),
     removedReason: text(),

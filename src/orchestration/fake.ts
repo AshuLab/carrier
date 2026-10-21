@@ -2,10 +2,11 @@ import type { Clock } from './clock.ts';
 import { AuthError, GitHubUnavailable, type GitHub, type LabelStyle, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
+  /** A ready epic's labels are the issue's, as GitHub lists them. */
   ready: Record<string, { issue: number; title: string }[]> = {};
   unavailable: GitHubUnavailable | null = null;
-  /** The open epics with their slice progress, by repo. */
-  openEpics: Record<string, { issue: number; slices: Slices | null }[]> = {};
+  /** The open epics with their slice progress, by repo; the title defaults to empty and the labels to the issue's. */
+  openEpics: Record<string, { issue: number; title?: string; slices: Slices | null }[]> = {};
   /** Makes listOpenEpics fail while the rest works. */
   openEpicsUnavailable: GitHubUnavailable | null = null;
   /** Makes setLabels fail while the rest works. */
@@ -36,14 +37,14 @@ export class FakeGitHub implements GitHub {
     this.guard();
     this.calls++;
     if (this.unavailable) throw this.unavailable;
-    return (this.ready[repo] ?? []).filter((e) => this.issue(repo, e.issue).labels.includes('solve:epic:ready')); // like GitHub: the label decides
+    return (this.ready[repo] ?? []).filter((e) => this.issue(repo, e.issue).labels.includes('solve:epic:ready')).map((e) => ({ ...e, labels: [...this.issue(repo, e.issue).labels] })); // like GitHub: the label decides
   }
 
   async listOpenEpics(repo: string) {
     this.guard();
     const failure = this.unavailable ?? this.openEpicsUnavailable;
     if (failure) throw failure;
-    return (this.openEpics[repo] ?? []).map((epic) => ({ ...epic }));
+    return (this.openEpics[repo] ?? []).map((epic) => ({ title: '', ...epic, labels: [...(this.issues[`${repo}#${epic.issue}`]?.labels ?? [])] }));
   }
 
   async getIssue(repo: string, issue: number) {

@@ -150,6 +150,58 @@ test.each([
   expect(fake.logs).not.toHaveBeenCalled();
 });
 
+const NOT_SUPPORTED = { ok: false, error: 'not supported' };
+test.each([
+  ['sessions', '"repo":"AshuLab/carrier","issue":5'],
+  ['events', `"executionId":"${executionId}","limit":200`],
+  ['events', `"executionId":"${executionId}","after":0,"limit":1`],
+  ['epic', '"repo":"a_b.c-d/e.f","issue":1'],
+  ['files', '"repo":"AshuLab/carrier","issue":5'],
+  ['files', `"repo":"AshuLab/carrier","issue":5,"executionId":"${executionId}"`],
+])('a valid %s request is understood and, until its capability exists, answered ok:false', async (cmd, fields) => {
+  await open();
+  const c = await client();
+  expect(await c.ask(`{"id":9,"cmd":"${cmd}",${fields}}`)).toEqual({ id: 9, ...NOT_SUPPORTED });
+});
+
+const validFields = {
+  sessions: { repo: 'AshuLab/carrier', issue: 5 },
+  events: { executionId, limit: 10 },
+  epic: { repo: 'AshuLab/carrier', issue: 5 },
+  files: { repo: 'AshuLab/carrier', issue: 5 },
+} as const;
+const badRepos = ['', 'carrier', 'a/b/c', '../b', 'a/..', './b', 'a/.', '/b', 'a/', 'a b/c', 'a/b?x', `${'a'.repeat(200)}/b`, 7, null];
+const invalid = (cmd: keyof typeof validFields, change: Record<string, unknown>) => ({ id: 3, cmd, ...validFields[cmd], ...change });
+
+const invalidRequests: (readonly [string, Record<string, unknown>])[] = [
+  ...(['sessions', 'epic', 'files'] as const).flatMap((cmd) => [
+    ...badRepos.map((repo) => [`${cmd} with repo ${JSON.stringify(repo)}`, invalid(cmd, { repo })] as const),
+    [`${cmd} with issue 0`, invalid(cmd, { issue: 0 })] as const,
+    [`${cmd} with a string issue`, invalid(cmd, { issue: '5' })] as const,
+    [`${cmd} with a fractional issue`, invalid(cmd, { issue: 1.5 })] as const,
+    [`${cmd} with no issue`, invalid(cmd, { issue: undefined })] as const,
+    [`${cmd} with no repo`, invalid(cmd, { repo: undefined })] as const,
+  ]),
+  ...(['events', 'files'] as const).map((cmd) => [`${cmd} with a non-UUID execution id`, invalid(cmd, { executionId: 'not-a-uuid' })] as const),
+  ['events with no execution id', invalid('events', { executionId: undefined })],
+  ['events with no limit', invalid('events', { limit: undefined })],
+  ['events with limit 0', invalid('events', { limit: 0 })],
+  ['events with an oversize limit', invalid('events', { limit: 201 })],
+  ['events with a string limit', invalid('events', { limit: '10' })],
+  ['events with a negative cursor', invalid('events', { after: -1 })],
+  ['events with a fractional cursor', invalid('events', { after: 0.5 })],
+  ['events with a string cursor', invalid('events', { after: '1' })],
+  ...(['sessions', 'events', 'epic', 'files'] as const).flatMap((cmd) => [
+    [`${cmd} with an extra field`, invalid(cmd, { extra: 1 })] as const,
+    [`${cmd} with no fields`, { id: 3, cmd }] as const,
+  ]),
+];
+test.each(invalidRequests)('%s is a validation error', async (_name, request) => {
+  await open();
+  const c = await client();
+  expect(await c.ask(JSON.stringify(request))).toEqual({ id: 3, ok: false, error: 'invalid request' });
+});
+
 test('a control that throws is an error reply, not a dead server', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
   const fake = fakeControls();

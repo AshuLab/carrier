@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from 'vitest';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { buildPrompt } from '../prompts/build-prompt.ts';
@@ -64,4 +65,12 @@ test('a local model selects its harness with -c, which `exec resume` accepts (it
   expect(resumed).toEqual(expect.arrayContaining(['resume', 't', 'model_provider="ollama"']));
   expect(resumed).not.toContain('--oss');
   expect(buildCodexCommand(task, ctx).args.join(' ')).not.toContain('model_provider'); // cloud models are untouched
+});
+
+// A real `codex exec --json` run (codex 0.153.4), private text replaced; shapes in docs/research/codex-exec-stream.md.
+test('parseCodexLine reads the session from a real captured stream and never throws on a line', () => {
+  const lines = readFileSync(new URL('./codex-exec.fixture.jsonl', import.meta.url), 'utf8').trim().split('\n');
+  const signals = lines.map((line) => parseCodexLine(line));
+  expect(signals.filter(Boolean)).toEqual([{ session: '00000000-0000-7000-8000-000000000000' }]);
+  expect(lines.length).toBe(15);
 });

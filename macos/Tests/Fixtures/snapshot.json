@@ -28,11 +28,96 @@
   "queue": [
     {
       "repo": "acme/web",
-      "issue": 20
+      "issue": 20,
+      "title": "Issue 20 of acme/web",
+      "queuedAt": 20000
     },
     {
       "repo": "acme/api",
-      "issue": 21
+      "issue": 21,
+      "title": "Issue 21 of acme/api",
+      "queuedAt": 21000
+    }
+  ],
+  "engine": {
+    "version": "0.1.0",
+    "pollIntervalMs": 300000,
+    "maxConcurrentEpics": 3,
+    "rateLimit": {
+      "remaining": 4812,
+      "limit": 5000,
+      "resetAt": 130000,
+      "profile": "orchestrator"
+    }
+  },
+  "watched": [
+    {
+      "repo": "acme/web",
+      "lastCheckedAt": 98000,
+      "ok": true,
+      "error": null,
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
+    },
+    {
+      "repo": "acme/api",
+      "lastCheckedAt": 98000,
+      "ok": false,
+      "error": "GitHub answered 502",
+      "agents": {
+        "author": {
+          "harness": "agy",
+          "model": "gemini-3",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        }
+      }
+    }
+  ],
+  "sessions": [
+    {
+      "executionId": "exec-review-12",
+      "repo": "acme/web",
+      "issue": 12,
+      "stage": "review",
+      "round": 2,
+      "harness": "codex",
+      "model": "gpt-5",
+      "startedAt": 40000,
+      "last": {
+        "kind": "tool",
+        "text": "Read src/auth/token.ts",
+        "at": 99000
+      }
+    },
+    {
+      "executionId": "exec-ship-13",
+      "repo": "acme/web",
+      "issue": 13,
+      "stage": "ship",
+      "round": null,
+      "harness": "claude",
+      "model": "claude-sonnet-5-5",
+      "startedAt": 7000,
+      "last": {
+        "kind": "say",
+        "text": "Writing the migration",
+        "at": 99500
+      }
     }
   ],
   "epics": [
@@ -54,13 +139,40 @@
         "done": 3,
         "total": 5
       },
-      "executionId": "exec-review-12"
+      "executionId": "exec-review-12",
+      "title": "Issue 12 of acme/web",
+      "labels": [
+        "solve:epic",
+        "solve:epic:ready"
+      ],
+      "queuedAt": 500,
+      "startedAt": 1000,
+      "finishedAt": null,
+      "branch": "feat/issue-12/epic",
+      "workspace": "/work/acme/web-epic",
+      "needsHumanKind": null,
+      "blockerTitles": [
+        "a",
+        "b"
+      ],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
     },
     {
       "repo": "acme/web",
       "issue": 13,
       "status": "running",
-      "stage": null,
+      "stage": "ship",
       "round": null,
       "maxReviews": 5,
       "blockers": 0,
@@ -71,7 +183,30 @@
       "lastError": null,
       "needsHumanReason": null,
       "slices": null,
-      "executionId": null
+      "executionId": "exec-ship-13",
+      "title": "Issue 13 of acme/web",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 600,
+      "startedAt": 7000,
+      "finishedAt": null,
+      "branch": "feat/issue-13/epic",
+      "workspace": "/work/acme/web-13",
+      "needsHumanKind": null,
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
     },
     {
       "repo": "acme/api",
@@ -88,7 +223,270 @@
       "lastError": null,
       "needsHumanReason": "review limit",
       "slices": null,
-      "executionId": "exec-fix-4"
+      "executionId": "exec-fix-4",
+      "title": "Issue 4 of acme/api",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 700,
+      "startedAt": 2000,
+      "finishedAt": 60000,
+      "branch": "feat/issue-4/epic",
+      "workspace": null,
+      "needsHumanKind": "review_limit",
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
+    },
+    {
+      "repo": "acme/api",
+      "issue": 5,
+      "status": "needs_human",
+      "stage": "ship",
+      "round": null,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 3000,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/api/issues/5",
+      "prUrl": null,
+      "lastError": null,
+      "needsHumanReason": "agent needs_human",
+      "slices": null,
+      "executionId": null,
+      "title": "Issue 5 of acme/api",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 800,
+      "startedAt": 3000,
+      "finishedAt": 61000,
+      "branch": "feat/issue-5/epic",
+      "workspace": null,
+      "needsHumanKind": "agent_needs_human",
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
+    },
+    {
+      "repo": "acme/api",
+      "issue": 6,
+      "status": "needs_human",
+      "stage": "ship",
+      "round": null,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 3001,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/api/issues/6",
+      "prUrl": null,
+      "lastError": null,
+      "needsHumanReason": "retries exhausted",
+      "slices": null,
+      "executionId": null,
+      "title": "Issue 6 of acme/api",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 801,
+      "startedAt": 3001,
+      "finishedAt": 61001,
+      "branch": "feat/issue-6/epic",
+      "workspace": null,
+      "needsHumanKind": "retries_exhausted",
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
+    },
+    {
+      "repo": "acme/api",
+      "issue": 7,
+      "status": "needs_human",
+      "stage": "ship",
+      "round": null,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 3002,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/api/issues/7",
+      "prUrl": null,
+      "lastError": null,
+      "needsHumanReason": "timeout",
+      "slices": null,
+      "executionId": null,
+      "title": "Issue 7 of acme/api",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 802,
+      "startedAt": 3002,
+      "finishedAt": 61002,
+      "branch": "feat/issue-7/epic",
+      "workspace": null,
+      "needsHumanKind": "timeout",
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
+    },
+    {
+      "repo": "acme/api",
+      "issue": 8,
+      "status": "needs_human",
+      "stage": "ship",
+      "round": null,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 3003,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/api/issues/8",
+      "prUrl": null,
+      "lastError": null,
+      "needsHumanReason": "auth",
+      "slices": null,
+      "executionId": null,
+      "title": "Issue 8 of acme/api",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 803,
+      "startedAt": 3003,
+      "finishedAt": 61003,
+      "branch": "feat/issue-8/epic",
+      "workspace": null,
+      "needsHumanKind": "auth",
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
+    },
+    {
+      "repo": "acme/api",
+      "issue": 9,
+      "status": "needs_human",
+      "stage": "ship",
+      "round": null,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 3004,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/api/issues/9",
+      "prUrl": null,
+      "lastError": null,
+      "needsHumanReason": "workspace",
+      "slices": null,
+      "executionId": null,
+      "title": "Issue 9 of acme/api",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 804,
+      "startedAt": 3004,
+      "finishedAt": 61004,
+      "branch": "feat/issue-9/epic",
+      "workspace": null,
+      "needsHumanKind": "workspace",
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
+    },
+    {
+      "repo": "acme/api",
+      "issue": 10,
+      "status": "needs_human",
+      "stage": "ship",
+      "round": null,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 3005,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/api/issues/10",
+      "prUrl": null,
+      "lastError": null,
+      "needsHumanReason": "pr invalid",
+      "slices": null,
+      "executionId": null,
+      "title": "Issue 10 of acme/api",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 805,
+      "startedAt": 3005,
+      "finishedAt": 61005,
+      "branch": "feat/issue-10/epic",
+      "workspace": null,
+      "needsHumanKind": "pr_invalid",
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
     }
   ]
 }

@@ -12,28 +12,12 @@ struct PanelView: View {
 
     var body: some View {
         @Bindable var shell = model.shell
-        let selection = Binding<Selection?>(get: { shell.selection }, set: { if let next = $0 { shell.selection = next } })
+        let groupBy = Binding(get: { model.groupBy }, set: { model.groupBy = $0; SidebarStore().groupBy = $0 })
         let columns = Binding<NavigationSplitViewVisibility>(
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            List(selection: selection) {
-                Label("Overview", systemImage: "square.grid.2x2").tag(Selection.overview)
-                ForEach(snapshot.flatMap { epicMenu($0, showEpics: true) }?.items ?? [], id: \.title) { item in
-                    Label(item.title, systemImage: item.state.symbol).tag(Selection.epic(repo: item.repo, issue: item.issue))
-                }
-            }
-            .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 230, ideal: 268, max: 320)
-            .safeAreaInset(edge: .bottom) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Button { shell.selection = .settings } label: { Label("Settings", systemImage: "gearshape") }
-                    Button { shell.selection = .about } label: { Label("About", systemImage: "info.circle") }
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
+            SidebarView(snapshot: snapshot, selection: $shell.selection, groupBy: groupBy)
         } detail: {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {

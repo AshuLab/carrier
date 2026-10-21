@@ -7,6 +7,7 @@ import SwiftUI
 @Observable final class PanelModel {
     var state: ConnectionState?
     let shell = WindowShell()
+    var groupBy = SidebarStore().groupBy
 }
 
 /// Set from the main thread, read from the monitor's.

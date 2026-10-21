@@ -42,7 +42,7 @@ struct PanelView: View {
                     let data = model.epics.data[EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)]
                     EpicView(
                         subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files), now: epic.now,
-                        sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:]), folds: $epics.folds
+                        sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:]), folds: $epics.folds, files: data?.files
                     )
                         .id("\(epic.subject.repo)#\(epic.subject.issue)")
                 } else {
@@ -115,82 +115,14 @@ private struct Overview: View {
     @Binding var selection: Selection
 
     var body: some View {
-        let running = snapshot.epics.filter { $0.status == .running }
         YourTurnView(snapshot: snapshot, selection: $selection)
         CarrierBoxView(snapshot: snapshot)
-        if running.isEmpty == false {
-            PanelSection(title: "Running") { ForEach(running, id: \.key) { EpicCard(epic: $0, now: snapshot.now) } }
-        }
+        RunningView(snapshot: snapshot, selection: $selection)
         if snapshot.queue.isEmpty == false {
             PanelSection(title: "Queue \(snapshot.queue.count)") {
                 ForEach(snapshot.queue, id: \.key) { Text("\($0.repo) #\($0.issue)") }
             }
         }
-        if snapshot.epics.isEmpty && snapshot.queue.isEmpty && snapshot.done.isEmpty {
-            Text("Idle. Mark an epic solve:epic:ready in a watched repo to start one.").foregroundStyle(.secondary)
-        }
-    }
-}
-
-private struct EpicCard: View {
-    let epic: PanelEpic
-    let now: Int
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("\(epic.repo) #\(epic.issue)").font(.headline)
-                Spacer()
-                if epic.status == .running {
-                    Button("Output") { if let id = epic.executionId { AgentOutputWindow.show(title: "\(epic.repo) #\(epic.issue)", executionId: id) } }
-                        .buttonStyle(.glass).controlSize(.small).disabled(epic.executionId == nil)
-                }
-                OpenButton(title: "Open PR", url: epic.prUrl)
-                OpenButton(title: "Open issue", url: epic.issueUrl)
-            }
-            if let reason = epic.needsHumanReason { Text(reason).foregroundStyle(.orange) }
-            HStack(spacing: 6) {
-                if epic.stage == nil { Text("starting").font(.caption).foregroundStyle(.secondary) }
-                ForEach(stageChain(epic.stage), id: \.name) { Chip(text: $0.name, on: $0.current) }
-                if let round = roundLine(epic) { Text(round).font(.caption).foregroundStyle(.secondary) }
-                Chip(text: blockersLine(epic.blockers), on: epic.blockers > 0, color: .red)
-            }
-            Text("\(stageTimeLine(epic, now: now)) · \(activityLine(epic, now: now))").font(.caption).foregroundStyle(.secondary)
-            if let slices = epic.slices, let line = slicesLine(slices) {
-                HStack(spacing: 8) {
-                    ProgressView(value: Double(slices.done), total: Double(slices.total)).frame(maxWidth: 220)
-                    Text(line).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                }
-            }
-            if let error = epic.lastError { Text("error: \(error)").font(.caption).foregroundStyle(.red) }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.08)))
-    }
-}
-
-/// Opens a link from the engine in the default browser; absent when there is no link or it is not a web link.
-private struct OpenButton: View {
-    let title: String
-    let url: String?
-
-    var body: some View {
-        if let target = url.flatMap(browserURL) {
-            Button(title) { NSWorkspace.shared.open(target) }.buttonStyle(.glass).controlSize(.small)
-        }
-    }
-}
-
-private struct Chip: View {
-    let text: String
-    var on = false
-    var color: Color = .accentColor
-
-    var body: some View {
-        Text(text).font(.caption.weight(.medium)).padding(.horizontal, 7).padding(.vertical, 2)
-            .background(Capsule().fill(on ? color : Color.secondary.opacity(0.15)))
-            .foregroundStyle(on ? Color.white : Color.secondary)
     }
 }
 

@@ -11,6 +11,8 @@ struct EpicView: View {
     let now: Int
     let sessions: SessionList
     @Binding var folds: SessionFolds
+    /// The `files` reply, once the window asks for it.
+    var files: FilesReply?
     @State private var tab = EpicTab.agentOutput
 
     var body: some View {
@@ -18,7 +20,7 @@ struct EpicView: View {
             VStack(alignment: .leading, spacing: 12) {
                 EpicHeaderView(header: epicHeader(subject, reply: reply))
                 Picker("", selection: $tab) {
-                    ForEach(EpicTab.allCases, id: \.self) { Text($0.title(filesChanged: filesChanged)).tag($0) }
+                    ForEach(EpicTab.allCases, id: \.self) { Text($0.title(filesChanged: max(filesChanged, filesChangedCount(files)))).tag($0) }
                 }
                 .pickerStyle(.segmented).labelsHidden().controlSize(.small).frame(maxWidth: 320)
                 tabContent
@@ -44,7 +46,7 @@ struct EpicView: View {
                 SessionSectionsView(list: sessions, folds: $folds)
             }
         case .filesChanged:
-            EmptyStateView(state: .noFilesChanged).frame(minHeight: 260)
+            FilesChangedView(files: files)
         }
     }
 }

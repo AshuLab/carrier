@@ -1,6 +1,6 @@
 # Carrier.app
 
-Menu bar app for Carrier. A SwiftPM package for macOS 13 or later: `CarrierCore` (library), `Carrier` (the AppKit shell), `CarrierCoreTests` and `CarrierTests` (Swift Testing). The Command Line Tools are enough, Xcode is not needed.
+Menu bar app for Carrier. A SwiftPM package for macOS 26 or later: `CarrierCore` (library), `Carrier` (the AppKit shell), `CarrierCoreTests` and `CarrierTests` (Swift Testing). The Command Line Tools are enough, Xcode is not needed.
 
 ## Build and open
 

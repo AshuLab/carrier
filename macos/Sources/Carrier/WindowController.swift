@@ -1,10 +1,11 @@
 import AppKit
+import Observation
 import CarrierCore
 import SwiftUI
 
 /// What the window shows: nil until the first answer from Carrier.
-final class PanelModel: ObservableObject {
-    @Published var state: ConnectionState?
+@Observable final class PanelModel {
+    var state: ConnectionState?
 }
 
 /// Set from the main thread, read from the monitor's.
@@ -46,11 +47,15 @@ final class WindowController: NSObject {
     var status: String { "visible \(window?.isVisible == true), monitor \(stop != nil)" }
 
     private func makeWindow() -> NSWindow {
-        let window = NSWindow(contentViewController: NSHostingController(rootView: PanelView(model: model)))
+        let host = NSHostingController(rootView: PanelView(model: model))
+        // the split view's title and toolbar (the sidebar toggle) go to the window
+        host.sceneBridgingOptions = .all
+        let window = NSWindow(contentViewController: host)
         window.title = "Carrier"
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        // full size content: the sidebar runs up behind the title bar, as Liquid Glass sidebars do
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: 640, height: 640))
+        window.setContentSize(NSSize(width: 900, height: 640))
         window.center()
         NotificationCenter.default.addObserver(self, selector: #selector(windowClosed), name: NSWindow.willCloseNotification, object: window)
         return window

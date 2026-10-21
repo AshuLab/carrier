@@ -2,55 +2,120 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
+/// What the sidebar lists: the overview, then one item per section of the panel.
+private enum SidebarItem: String, CaseIterable, Identifiable {
+    case overview, needsYou, running, queue, ready
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .overview: "Overview"
+        case .needsYou: "Needs you"
+        case .running: "Running"
+        case .queue: "Queue"
+        case .ready: "Ready for test"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .overview: "square.grid.2x2"
+        case .needsYou: "exclamationmark.bubble"
+        case .running: "play.circle"
+        case .queue: "tray.full"
+        case .ready: "checkmark.circle"
+        }
+    }
+
+    /// How many entries the section holds; the overview has no count.
+    func count(in snapshot: PanelSnapshot) -> Int {
+        switch self {
+        case .overview: 0
+        case .needsYou: snapshot.epics.filter { $0.status == .needsHuman }.count
+        case .running: snapshot.epics.filter { $0.status == .running }.count
+        case .queue: snapshot.queue.count
+        case .ready: snapshot.done.count
+        }
+    }
+}
+
 struct PanelView: View {
-    @ObservedObject var model: PanelModel
+    let model: PanelModel
+    @State private var selection: SidebarItem? = .overview
+
+    private var snapshot: PanelSnapshot? {
+        if case .running(let snapshot)? = model.state { return snapshot }
+        return nil
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                switch model.state {
-                case nil:
-                    Text("Connecting…").foregroundStyle(.secondary)
-                case .stopped?, .incompatible?:
-                    // Carrier is not answering: nothing else to show
-                    Label(model.state?.menuLine ?? "", systemImage: "stop.circle").font(.title3)
-                    if model.state == .stopped { StartCarrierButton() }
-                case .running(let snapshot)?:
-                    Running(snapshot: snapshot)
-                }
+        NavigationSplitView {
+            List(SidebarItem.allCases, selection: $selection) { item in
+                Label(item.title, systemImage: item.symbol).badge(snapshot.map(item.count) ?? 0)
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 260)
+            .safeAreaInset(edge: .bottom) {
+                Text(model.state?.menuLine ?? "Connecting…")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } detail: {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    switch model.state {
+                    case nil:
+                        Text("Connecting…").foregroundStyle(.secondary)
+                    case .stopped?, .incompatible?:
+                        // Carrier is not answering: nothing else to show
+                        Label(model.state?.menuLine ?? "", systemImage: "stop.circle").font(.title3)
+                        if model.state == .stopped { StartCarrierButton() }
+                    case .running(let snapshot)?:
+                        Running(snapshot: snapshot, item: selection ?? .overview)
+                    }
+                }
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .navigationTitle((selection ?? .overview).title)
         }
-        .frame(minWidth: 520, minHeight: 360)
+        .frame(minWidth: 760, minHeight: 420)
     }
 }
 
 private struct Running: View {
     let snapshot: PanelSnapshot
+    let item: SidebarItem
+
+    /// The overview shows every section; any other item shows only its own.
+    private func shows(_ section: SidebarItem) -> Bool { item == .overview || item == section }
 
     var body: some View {
         let needsYou = snapshot.epics.filter { $0.status == .needsHuman }
         let running = snapshot.epics.filter { $0.status == .running }
         Header(snapshot: snapshot)
-        if needsYou.isEmpty == false {
+        if shows(.needsYou) && needsYou.isEmpty == false {
             PanelSection(title: "Needs you") { ForEach(needsYou, id: \.key) { EpicCard(epic: $0, now: snapshot.now) } }
         }
-        if running.isEmpty == false {
+        if shows(.running) && running.isEmpty == false {
             PanelSection(title: "Running") { ForEach(running, id: \.key) { EpicCard(epic: $0, now: snapshot.now) } }
         }
-        if snapshot.queue.isEmpty == false {
+        if shows(.queue) && snapshot.queue.isEmpty == false {
             PanelSection(title: "Queue \(snapshot.queue.count)") {
                 ForEach(snapshot.queue, id: \.key) { Text("\($0.repo) #\($0.issue)") }
             }
         }
-        if snapshot.done.isEmpty == false {
+        if shows(.ready) && snapshot.done.isEmpty == false {
             PanelSection(title: "Ready for test") {
                 ForEach(snapshot.done, id: \.key) { DoneRow(done: $0, now: snapshot.now) }
             }
         }
-        if snapshot.epics.isEmpty && snapshot.queue.isEmpty && snapshot.done.isEmpty {
+        if item == .overview && snapshot.epics.isEmpty && snapshot.queue.isEmpty && snapshot.done.isEmpty {
             Text("Idle. Mark an epic solve:epic:ready in a watched repo to start one.").foregroundStyle(.secondary)
+        } else if item != .overview && item.count(in: snapshot) == 0 {
+            Text("Nothing in \(item.title.lowercased()).").foregroundStyle(.secondary)
         }
     }
 }
@@ -88,7 +153,7 @@ private struct EpicCard: View {
                 Spacer()
                 if epic.status == .running {
                     Button("Output") { if let id = epic.executionId { AgentOutputWindow.show(title: "\(epic.repo) #\(epic.issue)", executionId: id) } }
-                        .controlSize(.small).disabled(epic.executionId == nil)
+                        .buttonStyle(.glass).controlSize(.small).disabled(epic.executionId == nil)
                 }
                 OpenButton(title: "Open PR", url: epic.prUrl)
                 OpenButton(title: "Open issue", url: epic.issueUrl)
@@ -137,7 +202,7 @@ private struct OpenButton: View {
 
     var body: some View {
         if let target = url.flatMap(browserURL) {
-            Button(title) { NSWorkspace.shared.open(target) }.controlSize(.small)
+            Button(title) { NSWorkspace.shared.open(target) }.buttonStyle(.glass).controlSize(.small)
         }
     }
 }

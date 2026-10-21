@@ -28,8 +28,7 @@ struct InspectorTabsView: View {
                 ScrollView {
                     ReviewTabView(epic: EpicRef(repo: subject?.repo ?? "", issue: subject?.issue ?? 0), model: reviewTab(subject, reply: reply), folds: $reviewFolds)
                 }
-            // placeholders until the tabs' own slices land
-            default: Text(tab.title).foregroundStyle(.secondary)
+            case .details: DetailsTabView(subject: subject, reply: reply)
             }
             Spacer(minLength: 0)
         }

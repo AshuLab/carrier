@@ -40,7 +40,7 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
 
 @Test func shipIsCurrentWithItsTimeInStageAndQueuedShowsHowLongItWaited() {
     var running = epic(stage: .ship, since: 50_000)
-    #expect(line(pipelineSteps(.active(running), now: 110_000)) == ["Queued:d", "Ship:c:1m 00s", "Review/Fix:w", "Ready:w"])
+    #expect(line(pipelineSteps(.active(running), now: 110_000)) == ["Queued:d", "Ship:c:1m", "Review/Fix:w", "Ready:w"])
     running.queuedAt = 1_000
     running.startedAt = 46_000
     #expect(pipelineSteps(.active(running), now: 110_000)[0].label == "45s")
@@ -67,7 +67,7 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
 }
 
 @Test func aReadyEpicIsDoneEverywhereAndSaysHowLongAgo() {
-    #expect(line(pipelineSteps(.finished(doneEpic), now: 1_120_000)) == ["Queued:d", "Ship:d", "Review/Fix:d", "Ready:d:2m 00s ago"])
+    #expect(line(pipelineSteps(.finished(doneEpic), now: 1_120_000)) == ["Queued:d", "Ship:d", "Review/Fix:d", "Ready:d:2m ago"])
     let unknown = PanelSnapshot.DoneEpic(repo: "acme/web", issue: 12, prNumber: nil, finishedAt: nil, executionId: nil)
     #expect(pipelineSteps(.finished(unknown), now: 0)[3].label == nil)
 }
@@ -83,11 +83,11 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
     )
     #expect(
         line(pipelineSteps(.finished(doneEpic), reply: finished, now: 1_120_000))
-            == ["Queued:d:6m 00s", "Ship:d:1h 48m", "Review/Fix:d:2 rounds", "Ready:d:2m 00s ago"]
+            == ["Queued:d:6m", "Ship:d:1h 48m", "Review/Fix:d:2 rounds", "Ready:d:2m ago"]
     )
     // the same reply while review is running: Ship keeps its time, Review/Fix keeps the round from the snapshot
     let steps = pipelineSteps(.active(epic(stage: .review, round: 2)), reply: finished, now: 0)
-    #expect(line(steps) == ["Queued:d:6m 00s", "Ship:d:1h 48m", "Review/Fix:c:r2/5", "Ready:w"])
+    #expect(line(steps) == ["Queued:d:6m", "Ship:d:1h 48m", "Review/Fix:c:r2/5", "Ready:w"])
     #expect(pipelineSteps(.finished(doneEpic), reply: reply(stages: [], rounds: 1), now: 0)[2].label == "1 round")
 }
 
@@ -103,15 +103,19 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
 
 // MARK: header
 
-@Test func theHeaderFallsBackToTheRepositoryAndNumberWithoutATitle() {
+@Test func theHeaderFallsBackToTheEpicNumberWithoutATitle() {
     var untitled = epic()
-    #expect(epicHeader(.active(untitled)).title == "acme/web #12")
+    #expect(epicHeader(.active(untitled)).title == "Epic #12")
     untitled.title = ""
-    #expect(epicHeader(.active(untitled)).title == "acme/web #12")
+    #expect(epicHeader(.active(untitled)).title == "Epic #12")
     untitled.title = "Checkout flow"
     let header = epicHeader(.active(untitled))
     #expect(header.title == "Checkout flow" && header.subtitle == "acme/web · #12")
-    #expect(epicHeader(.queued(queuedEpic, position: 1)).title == "acme/web #12")
+    #expect(epicHeader(.queued(queuedEpic, position: 1)).title == "Epic #12")
+    var done = PanelSnapshot.DoneEpic(repo: "acme/web", issue: 12, prNumber: nil, finishedAt: nil, executionId: nil)
+    #expect(epicHeader(.finished(done)).title == "Epic #12")
+    done.title = "Checkout flow"
+    #expect(epicHeader(.finished(done)).title == "Checkout flow")
 }
 
 @Test func theHeaderHidesTheSolveLabels() {

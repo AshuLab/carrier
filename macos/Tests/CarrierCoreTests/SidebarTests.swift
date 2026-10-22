@@ -42,7 +42,7 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(groups[0].rows.map(\.detail) == ["review limit reached"])
     #expect(groups[1].rows.map(\.detail) == ["ship · 3/5 slices", "review · round 2/5"])
     #expect(groups[2].rows.map(\.detail) == ["waiting for a slot"])
-    #expect(groups[3].rows.map(\.detail) == ["2m 00s ago"])
+    #expect(groups[3].rows.map(\.detail) == ["2m ago"])
     let first = try #require(groups[0].rows.first)
     #expect(first.name == "api" && first.issue == 3 && first.state == .needsYou && first.selection == .epic(repo: "acme/api", issue: 3))
 }

@@ -6,9 +6,10 @@ import SwiftUI
 struct DetailsTabView: View {
     let subject: EpicSubject?
     let reply: EpicReply?
+    let sessions: SessionsReply?
 
     var body: some View {
-        let model = detailsTab(subject, reply: reply, now: Int(Date().timeIntervalSince1970 * 1000))
+        let model = detailsTab(subject, reply: reply, sessions: sessions, now: Int(Date().timeIntervalSince1970 * 1000))
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 ForEach(model.groups, id: \.title) { group in

@@ -69,7 +69,7 @@ private func card(_ item: TranscriptItem) -> TranscriptCard? {
     #expect(["Write", "MultiEdit"].map { ToolKind(tool: $0).icon } == ["pencil", "pencil"])
     #expect(["shell", "exec_command"].map { ToolKind(tool: $0).icon } == ["terminal", "terminal"])
     #expect(ToolKind(tool: nil).icon == "wrench.and.screwdriver")
-    #expect(ToolStatus.ok.icon == "checkmark")
+    #expect(ToolStatus.ok.icon == "checkmark.circle.fill")
     #expect(ToolStatus.error.icon == "xmark.circle.fill")
     #expect(ToolStatus.pending.icon == nil)
 

@@ -14,9 +14,9 @@ private func load(_ name: String, _ change: (inout PanelSnapshot) -> Void = { _ 
 @Test func aRunningCarrierShowsUptimeNextCheckAndIntake() throws {
     let box = carrierBox(try load("snapshot.json") { $0.problem = nil; $0.paused = false })
     #expect(box.title == "Carrier running")
-    #expect(box.uptime == "up 1m 00s")
+    #expect(box.uptime == "up 1m")
     #expect(box.problem == nil)
-    #expect(box.rows.first == .init(label: "Next check", value: "in 1m 00s"))
+    #expect(box.rows.first == .init(label: "Next check", value: "in 1m"))
     #expect(box.intake.value == "Active" && box.intake.actionTitle == "Pause" && box.intake.command == .pause)
 }
 

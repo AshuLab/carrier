@@ -74,6 +74,8 @@ public struct PanelSnapshot: Codable, Equatable {
         public var prNumber: Int?
         public var finishedAt: Int?
         public var executionId: String?
+        /// The issue's title; an engine that does not send it for finished epics leaves nil and the header says "Epic #N".
+        public var title: String?
     }
 
     public var now: Int

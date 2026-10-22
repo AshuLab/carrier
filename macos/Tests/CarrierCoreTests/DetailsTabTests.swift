@@ -47,8 +47,12 @@ private func rows(_ model: DetailsTabModel) -> [String: DetailsRow] {
     Dictionary(model.groups.flatMap(\.rows).map { ($0.label, $0) }) { first, _ in first }
 }
 
-private func model(_ subject: EpicSubject?, _ reply: EpicReply? = nil) -> [String: DetailsRow] {
-    rows(detailsTab(subject, reply: reply, now: now, timeZone: utc))
+private func model(_ subject: EpicSubject?, _ reply: EpicReply? = nil, sessions: SessionsReply? = nil) -> [String: DetailsRow] {
+    rows(detailsTab(subject, reply: reply, sessions: sessions, now: now, timeZone: utc))
+}
+
+private func ran(_ role: String, _ agent: PanelSnapshot.Agent) -> SessionsReply.Session {
+    .init(executionId: role, stage: role == "author" ? "ship" : "review", role: role, round: nil, agent: agent, status: "finished", startedAt: now, finishedAt: now, resume: nil)
 }
 
 @Test func theGroupsAreTimingProgressPullRequestAndRun() {
@@ -63,7 +67,7 @@ private func model(_ subject: EpicSubject?, _ reply: EpicReply? = nil) -> [Strin
 
 @Test func aRunningEpicInReviewFillsEveryGroup() {
     let r = model(active(), reply(pr: pull(.init(passing: 5, failing: 0, pending: 0)), lanes: 2))
-    #expect(r["Stage"] == DetailsRow(label: "Stage", note: "In review", value: "5m 00s"))
+    #expect(r["Stage"] == DetailsRow(label: "Stage", note: "In review", value: "5m"))
     #expect(r["Last activity"]?.value == "30s ago")
     #expect(r["Started"]?.value == "Today 12:57")
     #expect(r["Total time"]?.value == "2h 03m")
@@ -120,15 +124,36 @@ private func model(_ subject: EpicSubject?, _ reply: EpicReply? = nil) -> [Strin
     #expect(r["Review round"] == DetailsRow(label: "Review round", note: "approved", value: "2", tone: .good, style: .badge))
     #expect(r["Blockers"]?.value == "none")
     #expect(r["Pull request"]?.value == "PR #50")
-    #expect(r["Agent"]?.value == "—")
+    #expect(r["Last activity"] == nil)
+    #expect(r["Lanes"] == nil)
+    #expect(r["Agent"] == nil)
+}
+
+@Test func aFinishedEpicNamesWhoBuiltItAndWhoReviewedIt() {
+    let done = PanelSnapshot.DoneEpic(repo: "acme/web", issue: 12, prNumber: 50, finishedAt: now - hour, executionId: nil)
+    let sessions = SessionsReply(sessions: [ran("reviewer", codex), ran("author", claude)])
+    let r = model(.finished(done), reply(rounds: [approved()]), sessions: sessions)
+    #expect(r["Builder"] == DetailsRow(label: "Builder", note: "opus", value: "Claude"))
+    #expect(r["Reviewer"] == DetailsRow(label: "Reviewer", note: "gpt-5", value: "Codex"))
+}
+
+@Test func aRunningEpicWithNoOutputYetSaysSoAndOneWithoutLanesSaysNone() {
+    guard case .active(var epic) = active() else { return }
+    epic.lastActivityAt = nil
+    let r = model(.active(epic), reply())
+    #expect(r["Last activity"]?.value == "No activity yet")
+    #expect(r["Lanes"]?.value == "none")
 }
 
 @Test func aQueuedEpicHasOnlyItsWaitAndItsRepository() {
     let queued = PanelSnapshot.QueuedEpic(repo: "acme/web", issue: 12, title: nil, queuedAt: now - 7 * 60_000)
     let r = model(.queued(queued, position: 2))
-    #expect(r["Stage"] == DetailsRow(label: "Stage", note: "2nd in queue", value: "7m 00s"))
-    for label in ["Last activity", "Started", "Total time", "Slices", "Blockers", "Checks", "Branch", "Agent", "Lanes"] {
+    #expect(r["Stage"] == DetailsRow(label: "Stage", note: "2nd in queue", value: "7m"))
+    for label in ["Started", "Total time", "Slices", "Blockers", "Checks", "Branch"] {
         #expect(r[label]?.value == "—", "\(label)")
+    }
+    for label in ["Last activity", "Agent", "Lanes"] {
+        #expect(r[label] == nil, "\(label)")
     }
     #expect(r["Pull request"]?.value == "not yet")
     #expect(r["Review round"]?.note == "starts after ship")
@@ -137,7 +162,7 @@ private func model(_ subject: EpicSubject?, _ reply: EpicReply? = nil) -> [Strin
 
 @Test func anOlderEngineLeavesDashesWhereItSendsNothing() {
     let r = model(active(stage: .review, round: nil, slices: nil, modern: false))
-    #expect(r["Stage"]?.value == "5m 00s")
+    #expect(r["Stage"]?.value == "5m")
     #expect(r["Started"]?.value == "—")
     #expect(r["Total time"]?.value == "—")
     #expect(r["Slices"]?.value == "—")

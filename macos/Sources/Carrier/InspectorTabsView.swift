@@ -6,6 +6,7 @@ import SwiftUI
 struct InspectorTabsView: View {
     let subject: EpicSubject?
     let reply: EpicReply?
+    let sessions: SessionsReply?
     @State private var chosen = InspectorStore().chosen
     @State private var reviewFolds = ReviewFolds()
 
@@ -28,7 +29,7 @@ struct InspectorTabsView: View {
                 ScrollView {
                     ReviewTabView(epic: EpicRef(repo: subject?.repo ?? "", issue: subject?.issue ?? 0), model: reviewTab(subject, reply: reply), folds: $reviewFolds)
                 }
-            case .details: DetailsTabView(subject: subject, reply: reply)
+            case .details: DetailsTabView(subject: subject, reply: reply, sessions: sessions)
             }
             Spacer(minLength: 0)
         }

@@ -12,7 +12,7 @@ public enum ToolStatus: Equatable {
     /// An SF Symbol name; nil for pending, which is a spinner.
     public var icon: String? {
         switch self {
-        case .ok: "checkmark"
+        case .ok: "checkmark.circle.fill"
         case .error: "xmark.circle.fill"
         case .pending: nil
         }
@@ -44,6 +44,9 @@ public enum ToolKind: Equatable {
     }
 }
 
+/// How many lines of a command's output an opened call shows before "Show N more lines".
+public let collapsedOutputLines = 7
+
 public struct TranscriptCard: Equatable {
     public var tool: String
     public var kind: ToolKind
@@ -57,7 +60,22 @@ public struct TranscriptCard: Equatable {
     /// The lines an edit changed; nil when there are none.
     public var diff: CardDiff?
 
-    /// Output opens by itself only for a call that failed; any other shows a link.
+    /// What the call's line says: a command is cut to what it starts with, anything else (a path, a pattern) is its argument.
+    public var title: String { kind == .shell ? commandTitle(arg) : arg }
+
+    /// A command always has something to show (the whole command); another call only when it printed something.
+    public var hasDetails: Bool { kind == .shell || output.isEmpty == false }
+
+    /// What the Copy button puts on the clipboard: the command, then what it printed.
+    public var copyText: String { ((kind == .shell ? [arg] : []) + output).joined(separator: "\n") }
+
+    /// The output as the opened call first shows it: `collapsedOutputLines` lines, and how many are left out. All of it once expanded.
+    public func visibleOutput(expanded: Bool) -> (lines: [String], hidden: Int) {
+        guard expanded == false, output.count > collapsedOutputLines else { return (output, 0) }
+        return (Array(output.prefix(collapsedOutputLines)), output.count - collapsedOutputLines)
+    }
+
+    /// Output opens by itself only for a call that failed; any other opens on a click.
     public var outputOpenByDefault: Bool { status == .error }
 }
 
@@ -117,12 +135,14 @@ public enum TranscriptItem: Equatable, Identifiable {
     }
 }
 
-/// "340 ms", "6.2 s", "2m 05s": milliseconds under a second, one decimal under a minute, then the panel's own format.
+/// "340 ms", "6.2 s", "2m 05s": milliseconds under a second, one decimal under a minute, then minutes and seconds (a call
+/// is a span that has ended, so its seconds stay) and the panel's own format from an hour.
 public func formatCallDuration(_ ms: Int) -> String {
     if ms < 1000 { return "\(max(0, ms)) ms" }
     let tenths = (ms + 50) / 100
     if tenths < 600 { return "\(tenths / 10).\(tenths % 10) s" }
-    return formatDuration(max(ms, 60_000))
+    let seconds = max(ms, 60_000) / 1000
+    return seconds < 3600 ? "\(seconds / 60)m \(String(format: "%02d", seconds % 60))s" : formatDuration(ms)
 }
 
 /// The items of a transcript, built one event at a time: an append touches only the new event (and its call's card), never the

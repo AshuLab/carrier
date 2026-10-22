@@ -111,7 +111,7 @@ public func ordinal(_ n: Int) -> String {
 // MARK: header
 
 public struct EpicHeader: Equatable {
-    /// The epic's title, or "repo #issue" while the engine has none.
+    /// The epic's title, or "Epic #issue" while the engine has none.
     public var title: String
     /// "owner/name · #issue".
     public var subtitle: String
@@ -139,7 +139,7 @@ public func epicHeader(_ subject: EpicSubject, reply: EpicReply? = nil) -> EpicH
     var issueURL = "https://github.com/\(repo)/issues/\(issue)"
     switch subject {
     case .queued(let epic, let position): (title, state, status) = (epic.title, .waiting, "Up next · \(ordinal(position)) in queue")
-    case .finished(let done): prURL = donePullURL(done)
+    case .finished(let done): (title, prURL) = (done.title, donePullURL(done))
     case .active(let epic):
         (title, labels, prURL, issueURL) = (epic.title, epic.labels ?? [], epic.prUrl, epic.issueUrl)
         (state, status) = epic.status == .running ? (.running, "Running · \(runningLine(epic))") : (.needsYou, "Needs you · \(interventionLine(epic))")
@@ -147,7 +147,7 @@ public func epicHeader(_ subject: EpicSubject, reply: EpicReply? = nil) -> EpicH
     prURL = prURL ?? reply?.pr?.url
     let number = reply?.pr?.number ?? prURL.flatMap { URL(string: $0)?.lastPathComponent }.flatMap(Int.init)
     return EpicHeader(
-        title: title.flatMap { $0.isEmpty ? nil : $0 } ?? "\(repo) #\(issue)",
+        title: title.flatMap { $0.isEmpty ? nil : $0 } ?? "Epic #\(issue)",
         subtitle: "\(repo) · #\(issue)",
         repo: repo,
         issue: issue,

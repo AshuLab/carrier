@@ -91,7 +91,8 @@ struct PanelView: View {
                 // only an epic has something to inspect; Overview and Settings are a single column
                 if let epic, shell.inspectorShown {
                     Divider()
-                    InspectorTabsView(subject: epic.subject, reply: model.epics.data[EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)]?.epic)
+                    let data = model.epics.data[EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)]
+                    InspectorTabsView(subject: epic.subject, reply: data?.epic, sessions: data?.sessions)
                         .frame(width: 316)
                         .background(.background.secondary)
                         .transition(.move(edge: .trailing))

@@ -13,6 +13,10 @@ public struct LaneSection: Equatable, Identifiable {
     public var hint: Bool
     public var counts: String
     public var items: [TranscriptItem]
+    /// The slice the subagent builds, when its description says so (a hint, like the title).
+    public var slice: Int?
+    /// The lane it works in, when its worktree says so (a hint).
+    public var laneNumber: Int?
 }
 
 /// The digits right after `marker`, ignoring case: `number(after: "slice #", in: "Build slice #653")` is 653.
@@ -50,7 +54,7 @@ struct LaneState: Equatable {
         let parts = [lane.map { "Lane \($0)" }, slice.map { "#\($0)" }].compactMap { $0 }
         return LaneSection(
             id: agentId, title: parts.isEmpty ? description ?? "Subagent" : parts.joined(separator: " · "), hint: parts.isEmpty == false,
-            counts: countsLine(sessionCounts(events)), items: builder.items
+            counts: countsLine(sessionCounts(events)), items: builder.items, slice: slice, laneNumber: lane
         )
     }
 }

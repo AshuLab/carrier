@@ -30,7 +30,9 @@ public struct DetailsTabModel: Equatable {
     public var groups: [DetailsGroup]
 }
 
-public func detailsTab(_ subject: EpicSubject?, reply: EpicReply?, now: Int, timeZone: TimeZone = .current) -> DetailsTabModel {
+public func detailsTab(
+    _ subject: EpicSubject?, reply: EpicReply?, sessions: SessionsReply? = nil, now: Int, timeZone: TimeZone = .current
+) -> DetailsTabModel {
     guard let subject else { return DetailsTabModel(groups: []) }
     var active: PanelEpic?
     var finished: PanelSnapshot.DoneEpic?
@@ -60,12 +62,15 @@ public func detailsTab(_ subject: EpicSubject?, reply: EpicReply?, now: Int, tim
         stageRow = row("Stage", queuePlace, queuedAt.map { formatDuration(now - $0) })
     }
     let end = finished.map { $0.finishedAt } ?? active.map { _ in now }
-    let timing = [
-        stageRow,
-        row(
-            "Last activity", active.map { $0.status == .needsHuman ? "no movement since" : "agent output" },
-            active?.lastActivityAt.map { agoLine($0, now: now) }
-        ),
+    // Only a running epic has a last activity; for the others the Stage row already says when it ended or how long it waits
+    var timing = [stageRow]
+    if let active {
+        timing.append(row(
+            "Last activity", active.status == .needsHuman ? "no movement since" : "agent output",
+            active.lastActivityAt.map { agoLine($0, now: now) } ?? "No activity yet"
+        ))
+    }
+    timing += [
         row("Started", nil, started.map { dateLine($0, now: now, timeZone: timeZone) }),
         row("Total time", nil, started.flatMap { start in end.map { formatDuration($0 - start) } }),
     ]
@@ -134,14 +139,22 @@ public func detailsTab(_ subject: EpicSubject?, reply: EpicReply?, now: Int, tim
     let branchURL = branch.flatMap { $0.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) }.map { "https://github.com/\(subject.repo)/tree/\($0)" }
     let pull = [pullRow, checksRow, row("Branch", nil, branch, style: .badge, url: branchURL)]
 
-    // Run: the agent whose turn it is, the reviewer while a review runs and the author otherwise
-    let agent = active?.agents.map { active?.stage == .review ? $0.reviewer : $0.author }
-    let lanes = (reply?.worktrees ?? []).filter { $0.kind == "lane" }.count
-    let run = [
-        row("Agent", agent?.model, agent.map { agentLabel($0) }),
-        row("Lanes", nil, lanes > 0 ? "\(lanes)" : nil),
-        row("Repository", nil, subject.repo, style: .badge, url: "https://github.com/\(subject.repo)"),
-    ]
+    // Run: while running, the agent whose turn it is (the reviewer during a review) and the lanes; once finished, who built it and
+    // who reviewed it, from the sessions that ran
+    var run: [DetailsRow] = []
+    if let active {
+        let agent = active.agents.map { active.stage == .review ? $0.reviewer : $0.author }
+        let lanes = (reply?.worktrees ?? []).filter { $0.kind == "lane" }.count
+        run = [
+            row("Agent", agent?.model, agent.map { agentLabel($0) }),
+            row("Lanes", nil, reply == nil ? nil : lanes > 0 ? "\(lanes)" : "none"),
+        ]
+    } else if finished != nil {
+        for (label, role) in [("Builder", "author"), ("Reviewer", "reviewer")] {
+            if let agent = sessions?.sessions.first(where: { $0.role == role })?.agent { run.append(row(label, agent.model, agentLabel(agent))) }
+        }
+    }
+    run.append(row("Repository", nil, subject.repo, style: .badge, url: "https://github.com/\(subject.repo)"))
 
     return DetailsTabModel(groups: [
         DetailsGroup(title: "Timing", rows: timing), DetailsGroup(title: "Progress", rows: progress),

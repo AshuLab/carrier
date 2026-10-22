@@ -104,7 +104,7 @@ private func model(_ slices: [EpicReply.Slice], chosen: SliceGroup? = nil, now: 
     ]
     #expect(model(all, chosen: .merged).rows == [
         SliceRow(
-            number: 1, title: "Slice 1", detail: "1m 00s ago", prNumber: 9, issueURL: "https://github.com/acme/web/issues/1",
+            number: 1, title: "Slice 1", detail: "1m ago", prNumber: 9, issueURL: "https://github.com/acme/web/issues/1",
             prURL: "https://github.com/acme/web/pull/9"
         )
     ])

@@ -17,6 +17,8 @@ public struct AboutSheet: Equatable {
     public var connected: Bool
     public var summary: String
     public var links: [AboutLink]
+    /// Third-party work shipped inside the app, with the licence it needs shown.
+    public var licences: [String]
     public var footer: String
 }
 
@@ -44,7 +46,7 @@ public func aboutSheet(version: String?, build: String?, state: ConnectionState?
     return AboutSheet(
         name: "Carrier", version: versionLine, connection: connection, connected: connected,
         summary: "Menu bar app for the Carrier orchestrator. The engine runs on its own; this app watches it and controls it.",
-        links: links, footer: "© 2026 AshuLab · Signed ad hoc"
+        links: links, licences: ["File icons: Material Icon Theme, MIT licence, © Material Extensions"], footer: "© 2026 AshuLab · Signed ad hoc"
     )
 }
 

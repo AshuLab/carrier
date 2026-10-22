@@ -36,6 +36,10 @@ struct AboutSheetView: View {
                 }
             }
             .padding(.top, 14)
+            ForEach(sheet.licences, id: \.self) { line in
+                Button(line) { if let url = fileIconsLicenceURL { NSWorkspace.shared.open(url) } }
+                    .buttonStyle(.plain).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.top, 10)
+            }
             Text(sheet.footer).font(.caption).foregroundStyle(.tertiary).padding(.top, 12)
         }
         .padding(.init(top: 26, leading: 24, bottom: 18, trailing: 24))

@@ -34,6 +34,10 @@ The menu's Settings… opens the values the app starts Carrier with: `carrier`, 
 
 Start Carrier (the menu item, and a button in the window while Carrier is stopped) runs `node <carrier> --config <config path>` with that `PATH`, in its own session (`posix_spawn` with `POSIX_SPAWN_SETSID`, so quitting the app leaves Carrier running), stdin from `/dev/null` and stdout and stderr in `<root>/orchestrator/logs/app-start.log`, which it creates (the `orchestrator/` folder with mode 0700) when missing. It is never started on its own when the app opens. When the control socket answers within 15 seconds the state becomes running (the next connect attempt shows it, within 3 seconds); when the process exits first, or 15 seconds pass without the socket, an alert shows the end of `app-start.log`. A second press while it starts does nothing. The decision and the command line are in `CarrierCore/StartCarrier.swift`; the spawn and the alert have no automated test. The self-test only checks the start (what it would run), as it does for Stop.
 
+## File icons
+
+`fileIcon(path)` (`CarrierCore/FileIcons.swift`) is the one place that picks a file's icon: a bundled SVG from Material Icon Theme (MIT) for the languages in `bundledIconName`, else the category's SF Symbol. The SVGs and the upstream licence text are in `Sources/CarrierCore/Resources/FileIcons` (about 12 KB; release pinned in `SOURCE.txt`, notice in `THIRD-PARTY-NOTICES.md`, line in About). `build-app.sh` copies SwiftPM's `Carrier_CarrierCore.bundle` into `Contents/Resources` and fails when an icon or the licence text is missing from it.
+
 ## Test
 
 ```sh

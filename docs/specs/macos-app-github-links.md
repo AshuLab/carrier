@@ -12,7 +12,7 @@ A cause found on the way: the slice cache was empty for finished or parked epics
 
 The app links out and does not copy GitHub in. Reading the body of an issue or the text of a comment inside the app was considered and cut: the need is to arrive at GitHub, not to read there, and storing the text would mean keeping private repositories' comments on disk for no use. For the same reason the idea of turning the slice cache into an archive that survives deletion on GitHub (upsert, a "deleted at source" mark, revising ADR 0008) was cut for now; Carrier's own record (rounds, blockers with their titles and links, executions, events) is already in SQLite, and only what people wrote on GitHub would be lost. It can come back if something is actually lost.
 
-Slices need nothing new from the engine. `slicesTabModel` already builds each row's `issueURL` and `prURL` from the repository and the number; the view only has to use them. A row opens its issue in the browser, a small "PR #n" link opens the slice's pull request, and a waiting slice names what blocks it by title, taken from the other slices in the same list, instead of the bare "after #2, #3" it shows today. A blocker that is not in the list (another repository, or past the first hundred) keeps its number.
+Slices need nothing new from the engine. `slicesTabModel` already builds each row's `issueURL` and `prURL` from the repository and the number, and the view now uses them (5c85109): the issue and the pull request show as links under the title, and a tap on the row opens the pull request, or the issue when there is none. A waiting slice names what blocks it by title, taken from the other slices in the same list, instead of the bare "after #2, #3" it shows today. A blocker that is not in the list (another repository, or past the first hundred) keeps its number.
 
 The Review tab renders the url every blocker already carries, and gains a list of the final pull request's review threads: who wrote it, file and line, whether it is resolved, and the first line of the opening comment as a reminder, each linking to the thread. Unresolved threads come first. The reviewer agent's own threads appear too, marked as a bot, because its blockers are threads on the same pull request. This is the only new data. It is read in the query the engine already makes for the pull request block (`reviewThreads`, first hundred, first comment of each) and kept in a new table next to `epic_slices`, replaced on each read, as a cache of GitHub in the sense of ADR 0008: a failed read keeps the last rows, nothing the engine decides reads it, and the epic reply carries the list with a flag when GitHub has more than the hundred. The first line is cut to a fixed length and goes through the redaction that agent output already goes through (ADR 0006), so a token pasted in a comment is not stored.
 
@@ -22,8 +22,8 @@ This belongs to the open epic #111 and the same branch, as new slices there, bec
 
 ## Scope
 
-1. Clicking a slice row opens its issue on GitHub.
-2. A slice that has a pull request shows a "PR #n" link that opens it.
+1. Clicking a slice row opens its pull request, or its issue when it has none. Done in 5c85109.
+2. A slice shows its issue and, when it has one, its pull request as links that open them. Done in 5c85109.
 3. A waiting slice names what blocks it by title; a blocker outside the list keeps its number.
 4. A blocker in the Review tab opens the comment that raised it; one without a url (a result that predates it) is plain text.
 5. The Review tab lists the final pull request's threads, unresolved first: author (a bot marked as one), file and line, resolved or outdated, the first line of the opening comment, and a link to the thread.

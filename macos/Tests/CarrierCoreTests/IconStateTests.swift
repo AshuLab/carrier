@@ -83,3 +83,38 @@ private func snapshot(_ epics: [PanelEpic] = [], problem: String? = nil) -> Conn
     #expect(IconState(connected: true, attention: 1).segmentTravel(trackWidth: 18) == nil)
     #expect(IconState(connected: false, working: 1).segmentTravel(trackWidth: 18) == nil)
 }
+
+@Test func eachStyleDrawsItsPartsForRunningIdleAndStopped() {
+    let running = IconState(connected: true, working: 2, done: 1, total: 4)
+    let idle = IconState(connected: true)
+    let stopped = IconState(connected: false)
+    func parts(_ state: IconState, _ style: IconStyle, dot: Bool) -> IconParts {
+        var state = state
+        state.style = style
+        state.attention = dot ? 1 : 0
+        return state.parts
+    }
+    for dot in [false, true] {
+        #expect(parts(running, .countAndBar, dot: dot) == IconParts(count: true, bar: true, dot: dot))
+        #expect(parts(running, .countOnly, dot: dot) == IconParts(count: true, bar: false, dot: dot))
+        #expect(parts(running, .barOnly, dot: dot) == IconParts(count: false, bar: true, dot: dot))
+        // nothing to count: the count never shows, and count only falls back to the bar so the icon does not vanish
+        for quiet in [idle, stopped] {
+            for style in IconStyle.allCases {
+                #expect(parts(quiet, style, dot: dot) == IconParts(count: false, bar: true, dot: dot))
+            }
+        }
+    }
+}
+
+@Test func theSegmentStaysOutWhenAnimationIsOffOrTheBarIsHidden() {
+    var state = IconState(connected: true, working: 1)
+    #expect(state.segmentTravel(trackWidth: 18) == 14)
+    state.animates = false
+    #expect(state.segmentTravel(trackWidth: 18) == nil)
+    state.animates = true
+    state.style = .countOnly
+    #expect(state.segmentTravel(trackWidth: 18) == nil)
+    state.style = .barOnly
+    #expect(state.segmentTravel(trackWidth: 18) == 14)
+}

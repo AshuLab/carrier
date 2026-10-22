@@ -112,6 +112,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 EpicMenuSection.shared.menuNeedsUpdate(menu)
                 return menu.items.filter { $0.tag == EpicMenuSection.tag }.map { $0.title.replacingOccurrences(of: "\n", with: " / ") }.joined(separator: ", ")
             }),
+            ("icon styles", {
+                guard let icon = IconController.shared else { return "no icon" }
+                // what the Menu bar tab does: write the preference, the icon follows with no relaunch
+                let store = MenuBarStore(), saved = store.style
+                defer { store.style = saved; icon.reloadSettings() }
+                return IconStyle.allCases.map { style in
+                    store.style = style
+                    icon.reloadSettings()
+                    return icon.summary
+                }.joined(separator: " | ")
+            }),
             ("pause intake", { MenuControls.shared.selfTest(.pause) }),
             ("resume intake", { MenuControls.shared.selfTest(.resume) }),
             ("check GitHub now", { MenuControls.shared.selfTest(.checkNow) }),

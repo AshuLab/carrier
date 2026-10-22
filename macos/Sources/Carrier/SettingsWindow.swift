@@ -40,7 +40,6 @@ final class SettingsWindowController: NSObject {
 
 struct SettingsView: View {
     @ObservedObject var setup: SetupController
-    @AppStorage(showEpicsKey) private var showEpics = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -55,9 +54,6 @@ struct SettingsView: View {
                 Text(enginePath(detected: setup.settings.path, node: setup.settings.node))
                     .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
             }
-
-            // ponytail: the Menu bar tab of the redesigned Settings does not exist yet; this switch moves into it
-            Toggle("Show epics in the menu", isOn: $showEpics)
 
             HStack {
                 Button("Detect again") { setup.detect() }.disabled(setup.detecting)

@@ -1694,7 +1694,7 @@ async function runningWithSlices() {
   return engine;
 }
 
-test('the poll caches the slices of running epics only, replacing them, and a finished epic keeps its last list', async () => {
+test('the poll caches the slices of live epics, replacing them, and a finished epic keeps its last list', async () => {
   const engine = await runningWithSlices();
   expect(cached(engine.db)).toEqual([]);
   expect(github.sliceReads).toEqual([]);
@@ -1708,9 +1708,25 @@ test('the poll caches the slices of running epics only, replacing them, and a fi
   expect(cached(engine.db)).toEqual([`1:11:in_progress@${15 * MIN}`]);
 
   engine.db.update(epics).set({ status: 'ready_for_test' }).where(eq(epics.issue, 1)).run();
+  github.slices['AshuLab/a#1'] = { slices: [slice(11, { state: 'closed', closedAt: 2000 })] };
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db)).toEqual([`1:11:closed@${20 * MIN}`]); // parked is still live
+
+  engine.db.update(epics).set({ status: 'merged' }).where(eq(epics.issue, 1)).run();
   github.slices['AshuLab/a#1'] = { slices: [] };
   await clock.advance(5 * MIN);
-  expect(cached(engine.db)).toEqual([`1:11:in_progress@${15 * MIN}`]);
+  expect(cached(engine.db).filter((r) => r.startsWith('1:'))).toEqual([`1:11:closed@${20 * MIN}`]);
+});
+
+test('a finished epic with no cached slices, e.g. it ended before the cache existed, is read once', async () => {
+  const engine = await runningWithSlices();
+  engine.db.update(epics).set({ status: 'merged' }).where(eq(epics.issue, 1)).run();
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db).filter((r) => r.startsWith('1:'))).toEqual([`1:10:closed@${10 * MIN}`, `1:11:waiting@${10 * MIN}`]);
+
+  github.slices['AshuLab/a#1'] = { slices: [slice(99)] };
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db).filter((r) => r.startsWith('1:'))).toEqual([`1:10:closed@${10 * MIN}`, `1:11:waiting@${10 * MIN}`]);
 });
 
 test('a failing slices read keeps the previous rows and the poll goes on', async () => {

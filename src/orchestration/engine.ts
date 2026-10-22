@@ -521,9 +521,13 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   }
 
   // The slices of each running epic, replacing its rows. A cache of GitHub (ADR 0008): nothing the engine decides reads it back.
-  // A failed read keeps the last rows and the poll goes on; a finished epic is no longer read, so it keeps its last list.
+  // A failed read keeps the last rows and the poll goes on. Live epics (running, parked) are read every poll; a finished one keeps its
+  // last list and is read once only when it has none, e.g. it ended before this cache existed.
   async function refreshSlices(repo: string) {
-    for (const { id, issue } of db.select({ id: epics.id, issue: epics.issue }).from(epics).where(and(eq(epics.repo, repo), eq(epics.status, 'running'))).orderBy(asc(epics.id)).all()) {
+    const live = ['running', 'needs_human', 'ready_for_test'];
+    const mine = db.select({ id: epics.id, issue: epics.issue, status: epics.status }).from(epics).where(eq(epics.repo, repo)).orderBy(asc(epics.id)).all();
+    const stored = new Set(db.select({ id: epicSlices.epicId }).from(epicSlices).all().map((r) => r.id));
+    for (const { id, issue } of mine.filter((e) => live.includes(e.status) || (['merged', 'cancelled'].includes(e.status) && !stored.has(e.id)))) {
       try {
         const { slices, truncated } = await github.readSlices(repo, issue);
         const readAt = clock.now();

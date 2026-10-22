@@ -1,0 +1,202 @@
+{
+  "events": [
+    {
+      "id": 101,
+      "at": 1000,
+      "kind": "say",
+      "text": "I will read the token module first."
+    },
+    {
+      "id": 102,
+      "at": 1100,
+      "kind": "tool_start",
+      "callId": "toolu_01",
+      "tool": "Read",
+      "arg": "src/auth/token.ts"
+    },
+    {
+      "id": 103,
+      "at": 1180,
+      "kind": "tool_end",
+      "callId": "toolu_01",
+      "tool": "Read",
+      "summary": "212 lines",
+      "status": "ok",
+      "durationMs": 80,
+      "output": [
+        "export function sign(",
+        "}"
+      ]
+    },
+    {
+      "id": 104,
+      "at": 1200,
+      "kind": "tool_start",
+      "callId": "toolu_02",
+      "tool": "Edit",
+      "arg": "src/auth/token.ts"
+    },
+    {
+      "id": 105,
+      "at": 1300,
+      "kind": "tool_end",
+      "callId": "toolu_02",
+      "tool": "Edit",
+      "summary": "Edited 1 place",
+      "status": "ok",
+      "durationMs": 100,
+      "diff": [
+        {
+          "sign": " ",
+          "text": "const ttl = 60;"
+        },
+        {
+          "sign": "-",
+          "text": "const alg = \"HS256\";"
+        },
+        {
+          "sign": "+",
+          "text": "const alg = \"ES256\";"
+        }
+      ]
+    },
+    {
+      "id": 106,
+      "at": 1400,
+      "kind": "tool_start",
+      "callId": "toolu_03",
+      "tool": "Bash",
+      "arg": "pnpm test"
+    },
+    {
+      "id": 107,
+      "at": 9400,
+      "kind": "tool_end",
+      "callId": "toolu_03",
+      "tool": "Bash",
+      "summary": "2 failed",
+      "status": "err",
+      "durationMs": 8000,
+      "output": [
+        "FAIL src/auth/token.test.ts",
+        "Tests 2 failed"
+      ]
+    },
+    {
+      "id": 108,
+      "at": 9500,
+      "kind": "note",
+      "text": "Output was cut: 4 KB of 90 KB shown."
+    },
+    {
+      "id": 109,
+      "at": 9600,
+      "kind": "task",
+      "agentId": "agent-7",
+      "text": "Slice #123: migrate the signer"
+    },
+    {
+      "id": 110,
+      "at": 9700,
+      "kind": "say",
+      "agentId": "agent-7",
+      "text": "Migrating the signer."
+    },
+    {
+      "id": 111,
+      "at": 9800,
+      "kind": "error",
+      "text": "The agent process ended with an error."
+    },
+    {
+      "id": 112,
+      "at": 9900,
+      "kind": "tool_start",
+      "agentId": "agent-7",
+      "callId": "toolu_a7",
+      "tool": "Bash",
+      "arg": "cd /work/acme/web-epic--lane-1 && pnpm test"
+    },
+    {
+      "id": 113,
+      "at": 10900,
+      "kind": "tool_end",
+      "agentId": "agent-7",
+      "callId": "toolu_a7",
+      "tool": "Bash",
+      "summary": "ok",
+      "status": "ok",
+      "durationMs": 1000,
+      "output": [
+        "Tests 12 passed"
+      ]
+    },
+    {
+      "id": 114,
+      "at": 11000,
+      "kind": "task",
+      "agentId": "agent-8",
+      "text": "Slice #124: rotate the keys"
+    },
+    {
+      "id": 115,
+      "at": 11100,
+      "kind": "tool_start",
+      "agentId": "agent-8",
+      "callId": "toolu_a8",
+      "tool": "Edit",
+      "arg": "/work/acme/web-epic--lane-2/src/keys.ts"
+    },
+    {
+      "id": 116,
+      "at": 11200,
+      "kind": "tool_end",
+      "agentId": "agent-8",
+      "callId": "toolu_a8",
+      "tool": "Edit",
+      "summary": "Edited 1 place",
+      "status": "ok",
+      "durationMs": 100,
+      "diff": [
+        {
+          "sign": "-",
+          "text": "const keys = [];"
+        },
+        {
+          "sign": "+",
+          "text": "const keys = rotate();"
+        }
+      ]
+    },
+    {
+      "id": 117,
+      "at": 11300,
+      "kind": "task",
+      "agentId": "agent-9",
+      "text": "Tidy the docs"
+    },
+    {
+      "id": 118,
+      "at": 11400,
+      "kind": "tool_start",
+      "agentId": "agent-9",
+      "callId": "toolu_a9",
+      "tool": "Read",
+      "arg": "/work/acme/web-epic--lane-3/README.md"
+    },
+    {
+      "id": 119,
+      "at": 11480,
+      "kind": "tool_end",
+      "agentId": "agent-9",
+      "callId": "toolu_a9",
+      "tool": "Read",
+      "summary": "40 lines",
+      "status": "ok",
+      "durationMs": 80
+    }
+  ],
+  "next": 119,
+  "running": true,
+  "structured": true
+}

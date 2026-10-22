@@ -1,0 +1,15 @@
+{"type":"thread.started","thread_id":"00000000-0000-7000-8000-000000000000"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."}}
+{"type":"item.completed","item":{"id":"item_1","type":"error","message":"`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"I’ll inspect the requested files, run both directory listings (including the expected failure), then make the two specified edits."}}
+{"type":"item.started","item":{"id":"item_3","type":"command_execution","command":"/bin/zsh -lc \"sed -n '1,200p' notes.txt\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_3","type":"command_execution","command":"/bin/zsh -lc \"sed -n '1,200p' notes.txt\"","aggregated_output":"hello\nworld\n","exit_code":0,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_4","type":"command_execution","command":"/bin/zsh -lc 'ls -la'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_4","type":"command_execution","command":"/bin/zsh -lc 'ls -la'","aggregated_output":"total 8\ndrwxr-xr-x@  4 user  wheel  128 Oct 21 19:11 .\ndrwx------@  6 user  wheel  192 Oct 21 19:11 ..\ndrwxr-xr-x@ 12 user  wheel  384 Oct 21 19:11 .git\n-rw-r--r--@  1 user  wheel   12 Oct 21 19:11 notes.txt\n","exit_code":0,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_5","type":"command_execution","command":"/bin/zsh -lc 'ls /no/such/dir'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_5","type":"command_execution","command":"/bin/zsh -lc 'ls /no/such/dir'","aggregated_output":"ls: /no/such/dir: No such file or directory\n","exit_code":1,"status":"failed"}}
+{"type":"item.started","item":{"id":"item_6","type":"file_change","changes":[{"path":"/work/repo/extra.txt","kind":"add"},{"path":"/work/repo/notes.txt","kind":"update"}],"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_6","type":"file_change","changes":[{"path":"/work/repo/extra.txt","kind":"add"},{"path":"/work/repo/notes.txt","kind":"update"}],"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_7","type":"agent_message","text":"DONE"}}
+{"type":"turn.completed","usage":{"input_tokens":59544,"cached_input_tokens":38400,"cache_write_input_tokens":0,"output_tokens":314,"reasoning_output_tokens":0}}

@@ -1,0 +1,58 @@
+{
+  "sessions": [
+    {
+      "executionId": "3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c",
+      "stage": "fix",
+      "role": "author",
+      "round": 2,
+      "agent": {
+        "harness": "claude",
+        "model": "claude-sonnet-5-5",
+        "provider": null
+      },
+      "status": "running",
+      "startedAt": 90000,
+      "finishedAt": null,
+      "resume": null
+    },
+    {
+      "executionId": "9a7d1c52-0b3e-4f6a-8d2c-1e5f7a9b3c4d",
+      "stage": "review",
+      "role": "reviewer",
+      "round": 2,
+      "agent": {
+        "harness": "codex",
+        "model": "gpt-5",
+        "provider": "ollama"
+      },
+      "status": "finished",
+      "startedAt": 60000,
+      "finishedAt": 85000,
+      "resume": {
+        "harness": "codex",
+        "sessionId": "a1b2c3d4-0001-4000-8000-000000000002",
+        "cwd": "/work/acme/web-epic"
+      }
+    },
+    {
+      "executionId": "5c0e8a14-7d2b-4a93-b6f1-2d8c4e6a0b97",
+      "stage": "ship",
+      "role": "author",
+      "round": null,
+      "agent": {
+        "harness": "claude",
+        "model": "claude-sonnet-5-5",
+        "provider": null
+      },
+      "status": "failed",
+      "startedAt": 1000,
+      "finishedAt": 39000,
+      "resume": {
+        "harness": "claude",
+        "sessionId": "91d4be02-6a35-4c1e-9b7f-3e5a7c9d1f20",
+        "cwd": "/work/acme/web-epic",
+        "configDir": "/Users/dev/.claude-work"
+      }
+    }
+  ]
+}

@@ -76,6 +76,52 @@ describe('invocation', () => {
   });
 });
 
+describe('rate limit', () => {
+  const headers = { 'X-RateLimit-Limit': '5000', 'X-RateLimit-Remaining': '4812', 'X-RateLimit-Reset': '1792618843', 'X-RateLimit-Resource': 'core' };
+  const issue = { state: 'open', labels: [] };
+
+  test('is null before any call, then the headers of the latest answer: remaining, limit and reset in ms', async () => {
+    const { github } = setup([{ match: 'issues/1', stdout: http(200, issue, headers) }, { match: 'issues/2', stdout: http(200, issue, { ...headers, 'X-RateLimit-Remaining': '4811' }) }]);
+    expect(github.rateLimit()).toBeNull();
+    await github.getIssue(repo, 1);
+    expect(github.rateLimit()).toEqual({ remaining: 4812, limit: 5000, resetAt: 1792618843000 });
+    await github.getIssue(repo, 2);
+    expect(github.rateLimit()?.remaining).toBe(4811);
+  });
+
+  test('a failed call that carries the headers counts too', async () => {
+    const { github } = setup([{ match: 'issues/1', ...failure(403, { message: 'API rate limit exceeded' }, { ...headers, 'X-RateLimit-Remaining': '0' }) }]);
+    await github.getIssue(repo, 1).catch(() => {});
+    expect(github.rateLimit()).toEqual({ remaining: 0, limit: 5000, resetAt: 1792618843000 });
+  });
+
+  test('missing, malformed or negative headers leave the value as it was', async () => {
+    const { 'X-RateLimit-Limit': _limit, ...withoutLimit } = headers;
+    const { github } = setup([
+      { match: 'issues/1', stdout: http(200, issue) },
+      { match: 'issues/2', stdout: http(200, issue, withoutLimit) },
+      { match: 'issues/3', stdout: http(200, issue, { ...headers, 'X-RateLimit-Remaining': 'lots' }) },
+      { match: 'issues/4', stdout: http(200, issue, { ...headers, 'X-RateLimit-Reset': '-5' }) },
+      { match: 'issues/5', stdout: http(200, issue, headers) },
+    ]);
+    for (const n of [1, 2, 3, 4]) {
+      await github.getIssue(repo, n);
+      expect(github.rateLimit()).toBeNull();
+    }
+    await github.getIssue(repo, 5);
+    for (const n of [2, 3, 4]) {
+      await github.getIssue(repo, n);
+      expect(github.rateLimit()).toEqual({ remaining: 4812, limit: 5000, resetAt: 1792618843000 });
+    }
+  });
+
+  test('the GraphQL bucket is a different limit and is not shown', async () => {
+    const { github } = setup([{ match: 'issues/1', stdout: http(200, issue, { ...headers, 'X-RateLimit-Resource': 'graphql' }) }]);
+    await github.getIssue(repo, 1);
+    expect(github.rateLimit()).toBeNull();
+  });
+});
+
 describe('responses', () => {
   test('a malformed response throws, it is never an empty list', async () => {
     const { github } = setup([{ match: 'issues', ...ok({ not: 'a list' }) }]);
@@ -89,7 +135,7 @@ describe('responses', () => {
   });
 
   test('listReadyEpics returns every page and skips pull requests', async () => {
-    const row = (number: number) => ({ number, title: `epic ${number}` });
+    const row = (number: number) => ({ number, title: `epic ${number}`, labels: [{ name: 'solve:epic', color: 'ededed' }, { name: 'bug' }] });
     const page1 = Array.from({ length: 100 }, (_, i) => row(i + 1));
     const page2 = [...Array.from({ length: 99 }, (_, i) => row(i + 101)), { ...row(999), pull_request: {} }];
     const page3 = [row(201)];
@@ -101,6 +147,7 @@ describe('responses', () => {
     const epics = await github.listReadyEpics(repo);
     expect(epics).toHaveLength(200);
     expect(epics.map((e) => e.issue)).not.toContain(999);
+    expect(epics[0]).toEqual({ issue: 1, title: 'epic 1', labels: ['solve:epic', 'bug'] });
     expect(calls()).toHaveLength(3);
     expect(calls()[0]?.args.at(-1)).toContain('labels=solve%3Aepic%3Aready');
   });
@@ -110,21 +157,21 @@ describe('responses', () => {
       {
         match: 'labels=solve%3Aepic&',
         ...ok([
-          { number: 31, title: 'done epic', sub_issues_summary: { total: 31, completed: 31, percent_completed: 100 } },
-          { number: 32, title: 'half', sub_issues_summary: { total: 4, completed: 1, percent_completed: 25 } },
-          { number: 33, title: 'no summary' },
-          { number: 34, title: 'not an epic', pull_request: {}, sub_issues_summary: { total: 1, completed: 0, percent_completed: 0 } },
+          { number: 31, title: 'done epic', labels: [{ name: 'solve:epic' }], sub_issues_summary: { total: 31, completed: 31, percent_completed: 100 } },
+          { number: 32, title: 'half', labels: [], sub_issues_summary: { total: 4, completed: 1, percent_completed: 25 } },
+          { number: 33, title: 'no summary', labels: [] },
+          { number: 34, title: 'not an epic', labels: [], pull_request: {}, sub_issues_summary: { total: 1, completed: 0, percent_completed: 0 } },
         ]),
       },
     ]);
     expect(await github.listOpenEpics(repo)).toEqual([
-      { issue: 31, slices: { done: 31, total: 31 } },
-      { issue: 32, slices: { done: 1, total: 4 } },
-      { issue: 33, slices: null },
+      { issue: 31, title: 'done epic', labels: ['solve:epic'], slices: { done: 31, total: 31 } },
+      { issue: 32, title: 'half', labels: [], slices: { done: 1, total: 4 } },
+      { issue: 33, title: 'no summary', labels: [], slices: null },
     ]);
     expect(calls()).toHaveLength(1);
     expect(calls()[0]?.args.at(-1)).toContain('state=open');
-    const wrong = setup([{ match: 'issues', ...ok([{ number: 1, title: 't', sub_issues_summary: { total: 'x' } }]) }]);
+    const wrong = setup([{ match: 'issues', ...ok([{ number: 1, title: 't', labels: [], sub_issues_summary: { total: 'x' } }]) }]);
     await expect(wrong.github.listOpenEpics(repo)).rejects.toThrow();
   });
 
@@ -227,5 +274,53 @@ describe('failures', () => {
     const started = Date.now();
     await expect(github.getIssue(repo, 1)).rejects.toBeInstanceOf(GitHubUnavailable);
     expect(Date.now() - started).toBeLessThan(3000);
+  });
+});
+
+describe('readSlices', () => {
+  const recorded = readFileSync(new URL('./github-graphql-fixtures/epic-slices-large.json', import.meta.url), 'utf8');
+
+  test('one graphql call with separated arguments; it returns the derived slices and that the list is partial', async () => {
+    const { github, calls } = setup([{ match: 'graphql', stdout: `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${recorded}` }]);
+    const { slices, truncated } = await github.readSlices(repo, 111);
+    expect(slices).toHaveLength(100);
+    expect(truncated).toBe(true);
+    expect(slices[1]).toMatchObject({ number: 201, state: 'closed', prNumber: 401 });
+    expect(calls()).toHaveLength(1);
+    const { args } = calls()[0]!;
+    expect(args.slice(0, 4)).toEqual(['gh', 'bot', 'api', '-i']);
+    expect(args).toEqual(expect.arrayContaining(['graphql', 'owner=AshuLab', 'name=demo', 'number=111']));
+  });
+
+  test('an answer that is not what the query asked for is an error, not an empty list', async () => {
+    const { github } = setup([{ match: 'graphql', stdout: http(200, { data: null, errors: [{ message: 'Could not resolve' }] }) }]);
+    await expect(github.readSlices(repo, 111)).rejects.toThrow();
+  });
+});
+
+describe('readPullRequest', () => {
+  const recorded = readFileSync(new URL('./github-graphql-fixtures/pr-checks-failing.json', import.meta.url), 'utf8');
+
+  test('one graphql call with separated arguments; it returns the block', async () => {
+    const { github, calls } = setup([{ match: 'graphql', stdout: `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${recorded}` }]);
+    expect(await github.readPullRequest(repo, 14035)).toMatchObject({ pr: { number: 14035, draft: true, mergeState: 'DIRTY', checks: { passing: 10, failing: 1, pending: 0 } }, threads: [], truncated: false });
+    expect(calls()).toHaveLength(1);
+    expect(calls()[0]!.args).toEqual(expect.arrayContaining(['graphql', 'owner=AshuLab', 'name=demo', 'number=14035']));
+  });
+
+  test('the same call returns the review threads and that the list is partial', async () => {
+    const withThreads = readFileSync(new URL('./github-graphql-fixtures/pr-review-threads.json', import.meta.url), 'utf8');
+    const { github, calls } = setup([{ match: 'graphql', stdout: `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${withThreads}` }]);
+    const read = await github.readPullRequest(repo, 167);
+    expect(read!.pr).toMatchObject({ number: 167, checks: null });
+    expect(read!.threads).toHaveLength(7);
+    expect(read!.threads[5]!.firstLine).not.toContain('ghp_');
+    expect(read!.truncated).toBe(true);
+    expect(calls()).toHaveLength(1);
+  });
+
+  test('an answer that is not what the query asked for is an error', async () => {
+    const { github } = setup([{ match: 'graphql', stdout: http(200, { data: null, errors: [{ message: 'Could not resolve' }] }) }]);
+    await expect(github.readPullRequest(repo, 1)).rejects.toThrow();
   });
 });

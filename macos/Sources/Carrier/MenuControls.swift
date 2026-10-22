@@ -11,6 +11,7 @@ final class MenuControls: NSObject, NSMenuItemValidation {
     private let startMenuItem = NSMenuItem(title: "Start Carrier", action: #selector(startCarrier), keyEquivalent: "")
     private var state = ConnectionState.stopped
     private var wasPausedAtSelfTest = false
+    private var reviewTabCheck = CheckThrottle()
 
     /// Puts the four items right after `line`.
     func install(in menu: NSMenu, after line: NSMenuItem) {
@@ -49,13 +50,19 @@ final class MenuControls: NSObject, NSMenuItemValidation {
 
     @objc private func startCarrier() { StartController.shared.start() }
 
-    @objc private func pauseOrResume() { sendInBackground(paused ? .resume : .pause) }
+    @objc func pauseOrResume() { sendInBackground(paused ? .resume : .pause) }
 
-    @objc private func checkNow() { sendInBackground(.checkNow) }
+    @objc func checkNow() { sendInBackground(.checkNow) }
 
-    @objc private func stopCarrier() {
+    /// The Review tab opened: its threads are as old as the last poll, so GitHub is checked now (at most every thirty seconds).
+    func reviewTabOpened() {
+        guard case .running = state, reviewTabCheck.take() else { return }
+        checkNow()
+    }
+
+    @objc func stopCarrier() {
         guard case .running(let snapshot) = state else { return }
-        if snapshot.stopNeedsConfirmation {
+        if asksBeforeStopping(snapshot, switchOn: UserDefaults.standard.object(forKey: confirmStopKey) as? Bool ?? true) {
             guard confirmStop(interrupting: snapshot.runningEpics) else { return }
         }
         sendInBackground(.stop)

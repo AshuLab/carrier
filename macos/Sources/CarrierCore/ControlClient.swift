@@ -53,11 +53,34 @@ public final class ControlClient {
         Darwin.close(fd)
     }
 
-    /// The protocol version of the hello Carrier sends on connect.
-    public func hello() throws -> Int {
+    /// What Carrier says about itself on connect. An engine older than the version and capabilities has neither: `version` is nil and `capabilities` empty.
+    public struct Hello: Equatable {
+        public let protocolVersion: Int
+        public let version: String?
+        public let capabilities: Set<Capability>
+    }
+
+    /// The optional requests an engine can answer. A name this app does not know is dropped, so a newer engine never breaks an older app.
+    public enum Capability: String {
+        case sessions, events, epic, files
+    }
+
+    /// What the last `hello()` said Carrier can do; empty until then.
+    public internal(set) var capabilities: Set<Capability> = []
+
+    /// Reads the hello Carrier sends on connect.
+    public func hello() throws -> Hello {
         let hello = try json(readLine())
-        guard hello["event"] as? String == "hello", let version = hello["protocol"] as? Int else { throw ControlError.badLine }
-        return version
+        guard hello["event"] as? String == "hello", let protocolVersion = hello["protocol"] as? Int else { throw ControlError.badLine }
+        let names = hello["capabilities"] as? [String] ?? []
+        capabilities = Set(names.compactMap(Capability.init(rawValue:)))
+        return Hello(protocolVersion: protocolVersion, version: hello["version"] as? String, capabilities: capabilities)
+    }
+
+    /// `request`, but only when the engine said it can answer it: nil, with nothing sent, when it did not.
+    public func request(_ command: String, requires capability: Capability, fields: String = "") throws -> Data? {
+        guard capabilities.contains(capability) else { return nil }
+        return try request(command, fields: fields)
     }
 
     /// Sends the command with the next id and waits for its reply; returns the reply's `data`, as JSON bytes, `null` when it has none.

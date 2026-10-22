@@ -1,10 +1,12 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { afterEach, beforeEach, expect, test } from 'vitest';
+import { epicReviewThreads } from './epic-review-threads.ts';
+import { executions } from './executions.ts';
 import { epics } from './schema.ts';
 
 let dir: string;
@@ -22,6 +24,87 @@ test('applies the Drizzle Kit migration to a temp SQLite file and reads a row ba
 
   db.insert(epics).values({ repo: 'AshuLab/carrier', issue: 3 }).run();
 
-  expect(db.select().from(epics).all()).toEqual([{ id: 1, repo: 'AshuLab/carrier', issue: 3, status: 'queued', queuedAt: 0, startedAt: null, config: null, cancelReason: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null, lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, reviewedSha: null, verification: null, needsHumanReason: null, removedFrom: null, removedReason: null, finishedAt: null }]);
+  expect(db.select().from(epics).all()).toEqual([{ id: 1, repo: 'AshuLab/carrier', issue: 3, status: 'queued', queuedAt: 0, startedAt: null, config: null, cancelReason: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null, lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null, needsHumanReason: null, needsHumanKind: null, title: null, labels: null, branch: null, removedFrom: null, removedReason: null, finishedAt: null }]);
+  sqlite.close();
+});
+
+test('the executions migration applies to a database that already holds executions: their new columns are null', () => {
+  // The migrations up to the one before the agent columns, as a database of an older version has them.
+  const full = join(import.meta.dirname, 'migrations');
+  const old = join(dir, 'old');
+  cpSync(full, old, { recursive: true });
+  const journal = JSON.parse(readFileSync(join(full, 'meta', '_journal.json'), 'utf8')) as { entries: { tag: string }[] };
+  const index = journal.entries.findIndex((e) => e.tag.startsWith('0009_'));
+  writeFileSync(join(old, 'meta', '_journal.json'), JSON.stringify({ ...journal, entries: journal.entries.slice(0, index) }));
+
+  const sqlite = new Database(join(dir, 'old.db'));
+  const db = drizzle(sqlite);
+  migrate(db, { migrationsFolder: old });
+  sqlite.exec(`INSERT INTO epics (repo, issue) VALUES ('AshuLab/carrier', 3);
+    INSERT INTO executions (executionId, epicId, stage, status, sessionId, resultPath, startedAt) VALUES ('e1', 1, 'ship', 'finished', 's1', '/r.json', 5)`);
+
+  migrate(db, { migrationsFolder: full });
+  expect(db.select().from(executions).all()).toEqual([
+    { executionId: 'e1', epicId: 1, stage: 'ship', status: 'finished', sessionId: 's1', error: null, harness: null, model: null, provider: null, workspace: null, round: null, resultPath: '/r.json', startedAt: 5, finishedAt: null },
+  ]);
+  sqlite.close();
+});
+
+test('the epics migration applies to a database that already holds epics: their title, labels, branch and kind are null', () => {
+  const full = join(import.meta.dirname, 'migrations');
+  const old = join(dir, 'old');
+  cpSync(full, old, { recursive: true });
+  const journal = JSON.parse(readFileSync(join(full, 'meta', '_journal.json'), 'utf8')) as { entries: { tag: string }[] };
+  const index = journal.entries.findIndex((e) => e.tag.startsWith('0010_'));
+  writeFileSync(join(old, 'meta', '_journal.json'), JSON.stringify({ ...journal, entries: journal.entries.slice(0, index) }));
+
+  const sqlite = new Database(join(dir, 'old.db'));
+  const db = drizzle(sqlite);
+  migrate(db, { migrationsFolder: old });
+  sqlite.exec(`INSERT INTO epics (repo, issue, status, needsHumanReason) VALUES ('AshuLab/carrier', 3, 'needs_human', 'stuck')`);
+
+  migrate(db, { migrationsFolder: full });
+  expect(db.select().from(epics).all()).toMatchObject([{ repo: 'AshuLab/carrier', issue: 3, status: 'needs_human', needsHumanReason: 'stuck', needsHumanKind: null, title: null, labels: null, branch: null }]);
+  sqlite.close();
+});
+
+test('the review threads migration creates a table that keeps a thread once per epic', () => {
+  const sqlite = new Database(join(dir, 'threads.db'));
+  const db = drizzle(sqlite);
+  migrate(db, { migrationsFolder: join(import.meta.dirname, 'migrations') });
+  const row = { epicId: 1, id: 'PRRT_a', position: 0, path: 'src/a.ts', line: null, resolved: false, outdated: true, author: null, bot: false, firstLine: '', commentCount: 1, url: 'https://github.com/o/r/pull/1#discussion_r1', readAt: 5, truncated: false };
+  db.insert(epicReviewThreads).values(row).run();
+  expect(db.select().from(epicReviewThreads).all()).toEqual([row]);
+  expect(() => db.insert(epicReviewThreads).values(row).run()).toThrow();
+  sqlite.close();
+});
+
+test('the review threads migration clears the cached pull request block of finished epics only', () => {
+  const sqlite = new Database(join(dir, 'threads-clear.db'));
+  const db = drizzle(sqlite);
+  const sql = readFileSync(join(import.meta.dirname, 'migrations', '0014_perfect_marten_broadcloak.sql'), 'utf8');
+  migrate(db, { migrationsFolder: join(import.meta.dirname, 'migrations') });
+  sqlite.exec("DELETE FROM `epic_review_threads`");
+  sqlite.exec("INSERT INTO `epics` (`repo`, `issue`, `status`, `pr`) VALUES ('o/r', 1, 'merged', '{}'), ('o/r', 2, 'running', '{}'), ('o/r', 3, 'ready_for_test', '{}')");
+  sqlite.exec(sql.slice(sql.indexOf('UPDATE')));
+  expect(sqlite.prepare('SELECT issue, pr FROM epics ORDER BY issue').all()).toEqual([{ issue: 1, pr: null }, { issue: 2, pr: '{}' }, { issue: 3, pr: '{}' }]);
+  sqlite.close();
+});
+
+test('the observations pass migration applies to a database that already holds epics: their pass timestamp is null', () => {
+  const full = join(import.meta.dirname, 'migrations');
+  const old = join(dir, 'old');
+  cpSync(full, old, { recursive: true });
+  const journal = JSON.parse(readFileSync(join(full, 'meta', '_journal.json'), 'utf8')) as { entries: { tag: string }[] };
+  const index = journal.entries.findIndex((e) => e.tag.startsWith('0015_'));
+  writeFileSync(join(old, 'meta', '_journal.json'), JSON.stringify({ ...journal, entries: journal.entries.slice(0, index) }));
+
+  const sqlite = new Database(join(dir, 'old.db'));
+  const db = drizzle(sqlite);
+  migrate(db, { migrationsFolder: old });
+  sqlite.exec(`INSERT INTO epics (repo, issue, status, stage, round) VALUES ('AshuLab/carrier', 3, 'running', 'review', 2)`);
+
+  migrate(db, { migrationsFolder: full });
+  expect(db.select().from(epics).all()).toMatchObject([{ repo: 'AshuLab/carrier', issue: 3, status: 'running', stage: 'review', round: 2, observationsPassAt: null }]);
   sqlite.close();
 });

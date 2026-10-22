@@ -3,17 +3,23 @@ import CarrierCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    private var fixtureServer: FixtureServer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // before anything reads the socket path: the fake engine's home becomes CARRIER_HOME
+        if let fixtures = Self.fixturesPath() { startFixtureMode(fixtures) }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         IconController.install(on: item)
 
+        UserDefaults.standard.register(defaults: [showEpicsKey: true])
         let menu = NSMenu()
+        menu.delegate = EpicMenuSection.shared
         // no action, so the menu leaves it disabled: a line to read, not a button
         let stateLine = menu.addItem(withTitle: ConnectionState.stopped.menuLine, action: nil, keyEquivalent: "")
         MenuControls.shared.install(in: menu, after: stateLine)
         menu.addItem(.separator())
         WindowController.shared.addMenuItem(to: menu)
+        if fixtureServer != nil { EmptyStatesWindowController.shared.addMenuItem(to: menu) }
         SettingsWindowController.shared.addMenuItem(to: menu)
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
@@ -21,6 +27,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         watchCarrier(stateLine)
         SetupController.shared.detectIfFirstLaunch()
 
+        if CommandLine.arguments.contains("--smoke-window") {
+            WindowController.shared.open()
+            // with a Carrier to ask (a fixture, say) an epic's view is shown, so its pipeline's scroll pocket is in the report
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { WindowController.shared.selectFirstEpic() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                print(WindowController.shared.structure)
+                exit(0)
+            }
+        }
         if let path = Self.selfTestPath() {
             selfTest(logPath: path)
         }
@@ -33,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 IconController.shared?.show(state)
                 line.title = state.menuLine
                 MenuControls.shared.react(to: state)
+                EpicMenuSection.shared.react(to: state)
                 NotificationWatcher.app.react(to: state)
             }
         }
@@ -41,6 +57,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // A menu bar app keeps running with no windows.
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { false }
+
+    func applicationWillTerminate(_ notification: Notification) { fixtureServer?.stop() }
+
+    /// `--fixture [folder]`: the folder of golden files, by default the ones inside the app bundle. nil without the flag.
+    private static func fixturesPath() -> String? {
+        let args = CommandLine.arguments
+        guard let flag = args.firstIndex(of: "--fixture") else { return nil }
+        if args.indices.contains(flag + 1), args[flag + 1].hasPrefix("--") == false { return args[flag + 1] }
+        return (Bundle.main.resourcePath ?? ".") + "/Fixtures"
+    }
+
+    /// Starts the fake engine and points the app at it; with no fixtures to serve the app exits rather than show a stopped Carrier.
+    private func startFixtureMode(_ fixtures: String) {
+        do {
+            let server = try FixtureServer(fixtures: fixtures, longTranscript: CommandLine.arguments.contains("--fixture-long-transcript"))
+            setenv("CARRIER_HOME", server.home, 1)
+            fixtureServer = server
+        } catch {
+            FileHandle.standardError.write(Data("carrier: --fixture failed: \(error)\n".utf8))
+            exit(1)
+        }
+    }
 
     /// The value after `--selftest`, if there is one.
     private static func selfTestPath() -> String? {
@@ -68,6 +106,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("icon hit test passes clicks", { "\(IconController.shared.map { $0.host.hitTest(NSPoint(x: 2, y: 2)) == nil } ?? false)" }),
             ("status item present", { "\(self.statusItem != nil)" }),
             ("menu titles", { (self.statusItem?.menu?.items.map(\.title) ?? []).joined(separator: ", ") }),
+            ("epics in the menu", {
+                guard let menu = self.statusItem?.menu else { return "no menu" }
+                // what the delegate does when the menu opens
+                EpicMenuSection.shared.menuNeedsUpdate(menu)
+                return menu.items.filter { $0.tag == EpicMenuSection.tag }.map { $0.title.replacingOccurrences(of: "\n", with: " / ") }.joined(separator: ", ")
+            }),
+            ("icon styles", {
+                guard let icon = IconController.shared else { return "no icon" }
+                // what the Menu bar tab does: write the preference, the icon follows with no relaunch
+                let store = MenuBarStore(), saved = store.style
+                defer { store.style = saved; icon.reloadSettings() }
+                return IconStyle.allCases.map { style in
+                    store.style = style
+                    icon.reloadSettings()
+                    return icon.summary
+                }.joined(separator: " | ")
+            }),
             ("pause intake", { MenuControls.shared.selfTest(.pause) }),
             ("resume intake", { MenuControls.shared.selfTest(.resume) }),
             ("check GitHub now", { MenuControls.shared.selfTest(.checkNow) }),
@@ -85,6 +140,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("open window", { WindowController.shared.open(); return WindowController.shared.status }),
             ("close window", { WindowController.shared.close(); return WindowController.shared.status }),
             ("reopen window", { WindowController.shared.open(); return WindowController.shared.status }),
+            ("rings, window open", { MainActor.assumeIsolated { RingHostView.summary } }),
+            ("rings, window closed", { WindowController.shared.close(); return MainActor.assumeIsolated { RingHostView.summary } }),
             ("notifications", { SystemNotificationCentre.selfTestSummary }),
         ]
         write("start")

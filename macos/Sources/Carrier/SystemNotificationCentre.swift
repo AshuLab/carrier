@@ -4,13 +4,15 @@ import UserNotifications
 
 extension NotificationWatcher {
     /// The app's watcher, fed from the main queue.
-    static let app = NotificationWatcher(centre: SystemNotificationCentre())
+    static let app = NotificationWatcher(centre: SystemNotificationCentre.shared, kinds: { UserDefaults.standard.notificationKinds })
 }
 
 /// The system's notification centre. `UNUserNotificationCenter.current()` aborts a process that is not inside a bundle with an
 /// identifier, and a Swift `catch` cannot stop that, so nothing here touches it without one. Permission is asked when the
 /// first notification is due, not at launch; a denial is remembered, so it is not asked about again. Main thread only.
-final class SystemNotificationCentre: NSObject, NotificationCentre, UNUserNotificationCenterDelegate {
+final class SystemNotificationCentre: NSObject, NotificationCentre, NotificationPermissionReader, UNUserNotificationCenterDelegate {
+    static let shared = SystemNotificationCentre()
+
     private var waiting: [EpicNotification] = []
     private var checking = false
     private var denied = false
@@ -28,6 +30,24 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, UNUserNotifi
         center.delegate = self
         center.getNotificationSettings { settings in
             DispatchQueue.main.async { self.settled(settings.authorizationStatus, center) }
+        }
+    }
+
+    /// Settings' "Send a test": asks again even after a denial, since the person may have just allowed it in System Settings.
+    func sendTest() {
+        denied = false
+        post([EpicNotification(title: "Carrier test", body: "Notifications work")])
+    }
+
+    /// The system's answer; call only inside a bundle (`readPermission` checks).
+    func read(_ done: @escaping (SystemNotificationAnswer) -> Void) {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let answer: SystemNotificationAnswer = switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral: .allowed
+            case .notDetermined: .notAsked
+            default: .denied
+            }
+            DispatchQueue.main.async { done(answer) }
         }
     }
 

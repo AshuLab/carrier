@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>The terminal block of an opened call</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:30px;align-items:start;margin-top:8px}
+.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:560px;min-height:54px}
+.cw{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:14px 16px 16px}
+.cr{display:flex;align-items:center;gap:9px;padding:5px 6px;font-size:12.5px}
+.cr .ic{width:16px;height:16px;border-radius:5px;background:#6e6e78;color:#fff;font-size:9px;font-weight:700;display:grid;place-items:center}
+.cr .tt{flex:1;font:12px var(--mono)}.cr .du{color:var(--faint);font-size:11px}.ok{color:var(--green)}.er{color:var(--red)}
+.cr .chev{color:var(--faint);font-size:10px;transform:rotate(90deg)}
+.blk{margin:6px 0 14px 0}
+.lab{font-size:11px;color:var(--faint);margin:10px 4px 2px;text-transform:uppercase;letter-spacing:.05em;font-weight:650}
+code,pre{font:11.5px/1.55 var(--mono);margin:0}
+pre{white-space:pre-wrap;word-break:break-all}
+
+/* the copy button: icon and word keep their size when they swap */
+.cp{display:inline-flex;align-items:center;gap:5px;border:0;background:none;color:rgba(214,214,220,.7);font:11px var(--font);cursor:pointer;padding:2px 4px;border-radius:6px}
+.cp:hover{background:rgba(255,255,255,.08);color:#fff}
+.cp i{width:12px;height:14px;display:grid;place-items:center;font-style:normal}
+.cp span{width:40px;text-align:left}
+.cp.ic1 span{display:none}
+
+/* A: a small terminal window */
+.A{border-radius:10px;overflow:hidden;background:#0d0d10;box-shadow:0 0 0 .5px rgba(255,255,255,.12) inset}
+.A .bar2{display:flex;align-items:center;gap:6px;padding:6px 10px;background:linear-gradient(#26262b,#1c1c20);border-bottom:.5px solid rgba(255,255,255,.08)}
+.A .bar2 i{width:9px;height:9px;border-radius:50%;background:#44444a}
+.A .bar2 b{flex:1;text-align:center;font:600 11px var(--font);color:#9a9aa2}
+.A .in{padding:8px 12px;color:#d6d6dc}.A .p{color:#7ee787}.A .c{color:#9aa0ff}
+.A .bad{color:#ff7b72}
+
+/* B: a command block with a status and a footer */
+.B{border-radius:10px;overflow:hidden;background:#0d0d10;box-shadow:0 0 0 .5px rgba(255,255,255,.12) inset;color:#d6d6dc}
+.B .h{display:flex;gap:9px;align-items:flex-start;padding:8px 12px;background:rgba(255,255,255,.05)}
+.B .h .p{color:#7ee787;font:600 12px var(--mono);margin-top:1px}.B .h code{flex:1;color:#cfd2ff;word-break:break-all}
+.B .st{font:600 10.5px var(--font);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.B .st.g{background:rgba(48,209,88,.16);color:#7ee787}.B .st.r{background:rgba(255,69,58,.18);color:#ff7b72}
+.B .o{padding:8px 12px}.B .o .bad{color:#ff7b72}
+.B .f{display:flex;align-items:center;padding:4px 8px 4px 12px;border-top:.5px solid rgba(255,255,255,.08);font:11px var(--font);color:#7c7c85}
+.B .f .sp{flex:1}
+
+/* C: highlighted, a gutter, actions that appear on hover */
+.C{position:relative;border-radius:10px;background:#0d0d10;padding:9px 0;color:#d6d6dc;box-shadow:0 0 0 .5px rgba(255,255,255,.12) inset}
+.C .ln{display:flex}.C .n{width:34px;text-align:right;padding-right:10px;color:#4c4c54;user-select:none;flex:none}
+.C .t{flex:1;min-width:0;padding-right:12px}
+.C.err{border-left:3px solid #ff453a}
+.C .fl{position:absolute;right:8px;top:7px;display:flex;gap:2px;padding:2px;border-radius:8px;background:rgba(40,40,46,.9);box-shadow:0 0 0 .5px rgba(255,255,255,.14);opacity:0;transition:opacity .12s}
+.C:hover .fl{opacity:1}
+.tk-c{color:#fff;font-weight:600}.tk-f{color:#79c0ff}.tk-s{color:#a5d6a7}.tk-o{color:#ff9f0a}.tk-v{color:#d2a8ff}.tk-p{color:#9aa0ff;text-decoration:underline;text-decoration-color:rgba(154,160,255,.35)}
+.C .cp span{width:52px}
+.C .bad{color:#ff7b72}.C .dim{color:#7c7c85}
+
+/* D: glass, chips, long output folded */
+.D{border-radius:14px;background:linear-gradient(180deg,rgba(24,24,30,.92),rgba(10,10,14,.96));box-shadow:0 0 0 .5px rgba(255,255,255,.16) inset,0 8px 24px rgba(0,0,0,.35);overflow:hidden;color:#d6d6dc}
+.D .h{display:flex;align-items:center;gap:6px;padding:8px 10px 6px}
+.D .ch{font:600 10.5px var(--font);padding:2px 8px;border-radius:99px;background:rgba(255,255,255,.08);color:#b8b8c0}
+.D .ch.g{color:#7ee787}.D .ch.r{color:#ff7b72;background:rgba(255,69,58,.16)}
+.D .sp{flex:1}
+.D .cmd{padding:0 12px 6px;color:#cfd2ff;word-break:break-all}
+.D .o{padding:6px 12px 8px;border-top:.5px solid rgba(255,255,255,.08);position:relative}
+.D .o.clamp{max-height:96px;overflow:hidden}
+.D .o.clamp::after{content:"";position:absolute;left:0;right:0;bottom:0;height:34px;background:linear-gradient(transparent,#0b0b0f)}
+.D .more{display:block;width:100%;text-align:left;border:0;background:none;color:#6aa4ff;font:11.5px var(--font);padding:4px 12px 8px;cursor:pointer}
+.D .bad{color:#ff7b72}
+
+/* E: the command as a caption, only the output in the box */
+.E .cap{display:flex;align-items:center;gap:8px;padding:0 2px 5px;color:var(--dim)}
+.E .cap code{flex:1;color:var(--text);word-break:break-all}
+.E .box{position:relative;border-radius:10px;background:#0d0d10;padding:9px 12px;color:#d6d6dc;box-shadow:0 0 0 .5px rgba(255,255,255,.12) inset}
+.E .box .cp{position:absolute;right:6px;top:5px}
+.E .bad{color:#ff7b72}
+.cap .cp{color:var(--dim)}.cap .cp:hover{color:var(--text);background:var(--card2)}
+</style></head><body>
+<h1>The terminal of an opened call</h1>
+<div class="sub">What opens when you click a line of the log. Today it is a dark block with the command and the output and, since last turn, a Copy button in a footer. Each option below shows the same three calls: one that worked, one that failed, and one with a long output. The Copy button swaps to "Copied" without changing size (the old one jumped). Hover over the blocks in C, click Copy anywhere, and click "Show more" in D.</div>
+<div class="bar"><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+<div class="sub" style="margin-top:22px"><b>What the engine gives us</b> for a command: the command, the first and last lines of its output (up to 4096 characters), whether it worked and how long it took. It does not give the folder it ran in or an exit code as a field (a failure only says "Exit code 1" in its text). So the options show only those; anything else would need the backend.</div>
+
+<script>
+const CALLS=[
+ {t:'git fetch -q +2',cmd:'git fetch -q && git branch -r | grep -i ship',out:'origin/feat/billing-checkbillingaccess-trusts-a-stale-cached-no-access-verdict-after-a-payment/epic',ms:'1.7 s',ok:1},
+ {t:'ls -a +2',cmd:'E=feat/billing-checkbillingaccess-…; ls -a | grep -E "^\\.env"; ls apps/platform/.env.local apps/mobile/.env',out:'Exit code 1\n.env.example\nls: apps/mobile/.env: No such file or directory\nls: apps/platform/.env.local: No such file or directory',ms:'906 ms',ok:0},
+ {t:'pnpm test 2>&1 +2',cmd:'pnpm test 2>&1 | grep -E "FAIL|Tests|✓" | head -20',out:Array.from({length:14},(_,i)=>i<11?` ✓ modules/billing/__tests__/case-${i+1}.test.ts (${3+i} tests) ${12+i*3} ms`:i===11?' ✕ modules/consent/__tests__/revive.test.ts (2 tests | 2 failed)':i===12?'':' Tests  2 failed | 50 passed (52)').join('\n'),ms:'37.0 s',ok:0}
+];
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const lines=o=>o.split('\n');
+const badLine=l=>/Exit code|No such file|✕|failed|error/i.test(l);
+const outHtml=o=>lines(o).map(l=>badLine(l)?`<span class="bad">${esc(l)}</span>`:esc(l)).join('\n');
+const hl=c=>esc(c).replace(/("[^"]*"|'[^']*')/g,'<span class="tk-s">$1</span>').replace(/(&amp;&amp;|\||;)/g,'<span class="tk-o">$1</span>').replace(/(\$\w+|\$\([^)]*\))/g,'<span class="tk-v">$1</span>').replace(/(^|\s)(--?[\w-]+)/g,'$1<span class="tk-f">$2</span>').replace(/(^|[;&|]\s*|<span class="tk-o">[^<]*<\/span>\s*)([a-z][\w.-]*)/g,'$1<span class="tk-c">$2</span>').replace(/(\s)((?:\.{0,2}\/|[\w.-]+\/)[\w./@-]+)/g,'$1<span class="tk-p">$2</span>');
+const copyFor=(id,text)=>`<button class="cp" data-copy="${id}"><i>⧉</i><span>Copy</span></button>`;
+const iconBtn=(id)=>`<button class="cp ic1" data-copy="${id}" title="Copy"><i>⧉</i><span></span></button>`;
+const row=c=>`<div class="cr"><span class="ic">›_</span><span class="tt">${esc(c.t)}</span><span class="du">${c.ms}</span>${c.ok?'<span class="ok">✓</span>':'<span class="er">✕</span>'}<span class="chev">›</span></div>`;
+let uid=0,expanded=new Set();
+const A=c=>`<div class="A"><div class="bar2"><i></i><i></i><i></i><b>zsh · ${c.ms}</b>${iconBtn('a'+(uid++))}</div><div class="in"><code><span class="p">$</span> <span class="c">${esc(c.cmd)}</span></code><pre>${outHtml(c.out)}</pre></div></div>`;
+const B=c=>{const n=lines(c.out).length;return `<div class="B"><div class="h"><span class="p">❯</span><code>${esc(c.cmd)}</code><span class="st ${c.ok?'g':'r'}">${c.ok?'✓ '+c.ms:'✕ '+c.ms}</span></div><div class="o"><pre>${outHtml(c.out)}</pre></div><div class="f"><span>${n} ${n===1?'line':'lines'}</span><span class="sp"></span>${copyFor('b'+(uid++))}</div></div>`};
+const C=c=>`<div class="C ${c.ok?'':'err'}"><div class="fl"><button class="cp" data-copy="c${uid++}"><i>⧉</i><span>Command</span></button><button class="cp" data-copy="c${uid++}"><i>⧉</i><span>Output</span></button></div><div class="ln"><span class="n">❯</span><div class="t"><code>${hl(c.cmd)}</code></div></div>${lines(c.out).map((l,i)=>`<div class="ln"><span class="n">${i+1}</span><div class="t"><pre class="${badLine(l)?'bad':''}">${esc(l)||' '}</pre></div></div>`).join('')}</div>`;
+const D=(c,k)=>{const n=lines(c.out).length,long=n>6,open=expanded.has(k);return `<div class="D"><div class="h"><span class="ch">Bash</span><span class="ch ${c.ok?'g':'r'}">${c.ok?'✓ done':'✕ failed'} · ${c.ms}</span><span class="sp"></span>${iconBtn('d'+(uid++))}</div><div class="cmd"><code>${esc(c.cmd)}</code></div><div class="o ${long&&!open?'clamp':''}"><pre>${outHtml(c.out)}</pre></div>${long?`<button class="more" data-more="${k}">${open?'Show less':`Show ${n-6} more lines`}</button>`:''}</div>`};
+const E=c=>`<div class="E"><div class="cap"><code>${esc(c.cmd)}</code>${iconBtn('e'+(uid++))}</div><div class="box"><pre>${outHtml(c.out)}</pre></div></div>`;
+const OPTS=[
+ ['A · A small terminal window','A title bar with three quiet dots, the time as its title and Copy as an icon in the bar; the command has a prompt (`$`). The most "terminal" of the five and the most familiar. Costs a bar of height per call.',A],
+ ['B · A command block','Like the blocks of modern terminals: the command on its own strip with a status pill (✓ 1.7 s / ✕ 906 ms), the output under it, and a footer with the line count and Copy. Reads as one unit and says whether it worked before you read anything.',B],
+ ['C · Highlighted, with a gutter','The command is coloured by part (command, flags, strings, paths), the output has line numbers, a failed call gets a red edge. No bars: Copy command and Copy output appear on hover. The prettiest to read, the least discoverable Copy.',C],
+ ['D · Glass console','Translucent dark, soft edge, chips for the tool and the result at the top, Copy as an icon. Long outputs are cut to six lines with a fade and "Show N more lines". Best when the output is long.',D],
+ ['E · Output only, the command as a caption','The command goes above the box in the log\'s own text, with Copy beside it; the dark box holds only what it printed. The lightest of the five; the box is smaller and the command stays selectable as normal text.',E]
+];
+function render(){uid=0;document.getElementById('opts').innerHTML=OPTS.map(([t,d,f],oi)=>`<div class="opt"><h3>${t}</h3><p>${d}</p><div class="cw">${CALLS.map((c,i)=>`${row(c)}<div class="blk">${f(c,oi+'-'+i)}</div>`).join('')}</div></div>`).join('');
+ document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>{const i=b.querySelector('i'),s=b.querySelector('span'),w=s.textContent;i.textContent='✓';if(w)s.textContent='Copied';b.style.color='#7ee787';setTimeout(()=>{i.textContent='⧉';if(w)s.textContent=w;b.style.color=''},1500)});
+ document.querySelectorAll('[data-more]').forEach(b=>b.onclick=()=>{const k=b.dataset.more;expanded.has(k)?expanded.delete(k):expanded.add(k);render()});
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script>
+</body></html>

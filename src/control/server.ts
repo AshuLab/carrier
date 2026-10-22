@@ -1,8 +1,9 @@
-import { rmSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { createServer, type Socket } from 'node:net';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
+import type { EpicReply, EventsReply, FilesReply, SessionsReply } from './replies.ts';
 
 const log = createScopedLogger('control');
 
@@ -16,20 +17,47 @@ export function socketPathFits(path: string): { fits: boolean; bytes: number } {
 }
 
 const id = z.number().int().positive();
+const repo = z
+  .string()
+  .max(200)
+  .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/)
+  .refine((value) => value.split('/').every((part) => part !== '.' && part !== '..'));
+const issue = z.number().int().positive();
 // An allowlist: any other command, field or type is rejected before anything acts on it.
 export const request = z.union([
   z.strictObject({ id, cmd: z.enum(['snapshot', 'pause', 'resume', 'checkNow', 'stop']) }),
   z.strictObject({ id, cmd: z.literal('tail'), executionId: z.uuid(), lines: z.number().int().min(1).max(500) }),
+  z.strictObject({ id, cmd: z.literal('sessions'), repo, issue }),
+  z.strictObject({ id, cmd: z.literal('events'), executionId: z.uuid(), after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200) }),
+  z.strictObject({ id, cmd: z.literal('epic'), repo, issue }),
+  z.strictObject({ id, cmd: z.literal('files'), repo, issue, executionId: z.uuid().optional() }),
 ]);
 
-export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number };
+// src/control and dist/control both sit two folders under the package root.
+export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
+
+/** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
+export type Capability = 'sessions' | 'events' | 'epic' | 'files';
+export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: Capability[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
 
 /** What the socket does for the client: the same controls the interactive panel's keys use. */
-export type Controls = { poll(): unknown; setPaused(paused: boolean): unknown; logs(executionId: string, count: number): string[] };
+export type Controls = {
+  poll(): unknown;
+  setPaused(paused: boolean): unknown;
+  logs(executionId: string, count: number): string[];
+  /** null for an epic the engine does not know. */
+  sessions(repo: string, issue: number): SessionsReply | null;
+  /** null for an execution the engine does not know. */
+  events(executionId: string, after: number, limit: number): EventsReply | null;
+  /** null for an epic the engine does not know. */
+  epic(repo: string, issue: number): EpicReply | null;
+  /** null for an epic the engine does not know. */
+  files(repo: string, issue: number, executionId?: string): FilesReply | null;
+};
 
 /** pause, resume, checkNow and tail. Like the panel's keys, a check is started and not waited for: its failure is the engine's to report. */
-function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | 'stop' }>, controls: Controls): Reply {
+function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | 'stop' | Capability }>, controls: Controls): Reply {
   try {
     if (command.cmd === 'tail') return { id: command.id, ok: true, data: controls.logs(command.executionId, command.lines) };
     if (command.cmd === 'checkNow') void Promise.resolve(controls.poll()).catch((error) => log.error('check now failed', error));
@@ -63,6 +91,36 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       return { id: parsed.data.id, ok: false, error: 'internal error' };
     }
   }
+  if (parsed.data.cmd === 'sessions' || parsed.data.cmd === 'epic') {
+    const { id: replyId, cmd, repo, issue } = parsed.data;
+    try {
+      const reply = controls[cmd](repo, issue);
+      return reply === null ? { id: replyId, ok: false, error: 'unknown epic' } : { id: replyId, ok: true, data: reply };
+    } catch (error) {
+      log.error(`${cmd} failed`, error);
+      return { id: replyId, ok: false, error: 'internal error' };
+    }
+  }
+  if (parsed.data.cmd === 'files') {
+    const { id: replyId, repo, issue, executionId } = parsed.data;
+    try {
+      const reply = controls.files(repo, issue, executionId);
+      return reply === null ? { id: replyId, ok: false, error: 'unknown epic' } : { id: replyId, ok: true, data: reply };
+    } catch (error) {
+      log.error('files failed', error);
+      return { id: replyId, ok: false, error: 'internal error' };
+    }
+  }
+  if (parsed.data.cmd === 'events') {
+    const { id: replyId, executionId, after, limit } = parsed.data;
+    try {
+      const reply = controls.events(executionId, after ?? 0, limit);
+      return reply === null ? { id: replyId, ok: false, error: 'unknown execution' } : { id: replyId, ok: true, data: reply };
+    } catch (error) {
+      log.error('events failed', error);
+      return { id: replyId, ok: false, error: 'internal error' };
+    }
+  }
   if (parsed.data.cmd !== 'stop') return control(parsed.data, controls);
   stopAfterReply();
   return { id: parsed.data.id, ok: true };
@@ -81,7 +139,7 @@ export async function startControlServer({ orchestratorDir, snapshot, startedAt,
     return { close: () => {} };
   }
   const sockets = new Set<Socket>();
-  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt };
+  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files'] };
   const send = (socket: Socket, message: Hello | Reply, written?: () => void) => void socket.write(`${JSON.stringify(message)}\n`, written);
 
   const server = createServer((socket) => {

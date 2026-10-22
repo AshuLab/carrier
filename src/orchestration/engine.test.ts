@@ -10,11 +10,15 @@ import { createEngine } from './engine.ts';
 import { reserve } from './reserve.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
-import { epicEvents } from '../storage/events.ts';
+import { lastEventOf } from '../control/events.ts';
+import { buildSnapshot } from '../status/snapshot.ts';
+import { epicEvents, executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { FakeClock, FakeGitHub } from './fake.ts';
-import { AuthError, GitHubUnavailable } from './github.ts';
+import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread } from './github.ts';
+import { epicReviewThreads } from '../storage/epic-review-threads.ts';
+import { epicSlices } from '../storage/epic-slices.ts';
 
 const MIN = 60_000;
 const agents = {
@@ -70,6 +74,28 @@ test('registers ready epics of every repo once, and the same issue number in two
   await clock.advance(5 * MIN);
   expect(ids(engine)).toEqual(['AshuLab/a#7', 'AshuLab/b#7', 'AshuLab/b#8']);
   expect(github.calls).toBe(4);
+});
+
+test('the poll keeps the title and labels of a ready epic and refreshes them, and those of a running one from the open list, with no extra request', async () => {
+  github.ready = { 'AshuLab/a': [{ issue: 1, title: 'First' }] };
+  github.issue('AshuLab/a', 1).labels = ['solve:epic', 'solve:epic:ready', 'bug'];
+  const engine = await start();
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ issue: 1, title: 'First', labels: ['solve:epic', 'solve:epic:ready', 'bug'], branch: null, needsHumanKind: null });
+  expect(github.calls).toBe(2); // one ready list per repo: the title and labels came with it
+
+  github.ready = { 'AshuLab/a': [{ issue: 1, title: 'First, renamed' }] };
+  github.issue('AshuLab/a', 1).labels.push('p1');
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ title: 'First, renamed', labels: ['solve:epic', 'solve:epic:ready', 'bug', 'p1'] });
+
+  // Once running the epic is no longer listed as ready: the open list carries them.
+  github.ready = {};
+  github.openEpics = { 'AshuLab/a': [{ issue: 1, title: 'Renamed again', slices: null }] };
+  github.issue('AshuLab/a', 1).labels = ['solve:epic', 'solve:epic:running'];
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ title: 'Renamed again', labels: ['solve:epic', 'solve:epic:running'] });
 });
 
 test('first poll waits one full interval, then repeats every interval', async () => {
@@ -171,12 +197,39 @@ test('a failure in one repo registers nothing from the other repos in that poll'
   const fail = new GitHubUnavailable();
   github.listReadyEpics = async (repo) => {
     if (repo === 'AshuLab/b') throw fail;
-    return [{ issue: 1, title: '' }];
+    return [{ issue: 1, title: '', labels: [] }];
   };
   const engine = await start();
   await clock.advance(5 * MIN);
   expect(engine.queue()).toEqual([]);
   expect(engine.error).toBe(fail);
+});
+
+test('each repo keeps its last check: when, whether it worked and why not, from a failure to its recovery', async () => {
+  const engine = await start();
+  expect(engine.lastCheck('AshuLab/a')).toBeUndefined();
+
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 5 * MIN, ok: true, error: null });
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 5 * MIN, ok: true, error: null });
+
+  // b fails: a was read in that cycle, b was not.
+  github.listReadyEpics = async (repo) => {
+    if (repo === 'AshuLab/b') throw new GitHubUnavailable();
+    return [];
+  };
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 10 * MIN, ok: true, error: null });
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 10 * MIN, ok: false, error: 'GitHub is unavailable' });
+
+  github.listReadyEpics = async () => [];
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 15 * MIN, ok: true, error: null });
+
+  // A rejected profile fails every repo, naming the profile and nothing else.
+  github.authError = new AuthError('orchestrator');
+  await clock.advance(5 * MIN);
+  expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 20 * MIN, ok: false, error: 'authentication error for profile orchestrator' });
 });
 
 const ready = (...issues: number[]) => issues.map((issue) => ({ issue, title: '' }));
@@ -360,6 +413,38 @@ test('the whole output of an execution is saved per stream under its logs folder
   expect(readFileSync(join(folder, 'stderr.log'), 'utf8')).toBe('oops\n');
 });
 
+test('the events a run reports are stored per chunk with the execution, the arrival time for those without their own', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({
+    events: [
+      [{ at: 42, kind: 'say', text: 'hi' }, { kind: 'tool_start', callId: 'c', tool: 'Bash', arg: 'ls' }],
+      [{ kind: 'tool_end', callId: 'c', tool: 'Bash', status: 'ok', output: ['a'] }],
+    ],
+    exit: 'hang',
+  });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  const stored = engine.db.select().from(executionEvents).all();
+  expect(stored.map((e) => [e.executionId, e.at - clock.now() === 0 ? 'arrival' : e.at, e.kind])).toEqual([
+    [runner.tasks[0]!.executionId, 42, 'say'],
+    [runner.tasks[0]!.executionId, 'arrival', 'tool_start'],
+    [runner.tasks[0]!.executionId, 'arrival', 'tool_end'],
+  ]);
+  expect(stored[2]!.payload).toEqual({ output: ['a'] });
+});
+
+test('the snapshot gives a running session its newest event as soon as the chunk that carried it is read', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ events: [[{ at: 42, kind: 'say', text: 'hi' }], [{ at: 43, kind: 'tool_start', callId: 'c', tool: 'Bash', arg: 'ls' }]], exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  const snapshot = buildSnapshot(engine.db, {
+    now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false,
+    slices: engine.slices, version: '0', pollIntervalMs: 1, lastEvent: (id) => lastEventOf(engine.db, id),
+  });
+  expect(snapshot.sessions).toMatchObject([{ executionId: runner.tasks[0]!.executionId, last: { kind: 'tool_start', text: 'Bash ls', at: 43 } }]);
+});
+
 test('a valid completed result moves the epic to review round 1 and records the final PR', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
@@ -387,7 +472,7 @@ test.each([
   await engine.idle();
 
   const [first, second] = rows(engine.db);
-  expect(first).toMatchObject({ issue: 1, status: 'needs_human', finishedAt: 5 * MIN, labelPending: false });
+  expect(first).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'pr_invalid', finishedAt: 5 * MIN, labelPending: false });
   expect(first?.needsHumanReason).toContain(reason);
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   // The second one started right away, with no new poll, and was not affected.
@@ -401,7 +486,7 @@ test('a needs_human result stops the epic with the caller reason and label', asy
   const engine = await start(1);
   await clock.advance(5 * MIN);
   await engine.idle();
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'a credential is missing', finishedAt: 5 * MIN });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'agent_needs_human', needsHumanReason: 'a credential is missing', finishedAt: 5 * MIN });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
 
@@ -477,7 +562,7 @@ test('a workspace that cannot be prepared leaves the epic in needs_human and fre
     return prepare(repo, epic);
   };
   await clock.advance(5 * MIN);
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'could not prepare the workspace: clone failed' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'workspace', needsHumanReason: 'could not prepare the workspace: clone failed' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 });
@@ -559,7 +644,7 @@ test('with maxExecutionRetries 3 there are four attempts, then the epic needs a 
   expect(runner.tasks.filter((t) => t.epic === 1)).toHaveLength(4);
   expect(executionsOf(engine.db).filter((e) => e.epicId === 1).map((e) => e.status)).toEqual(['failed', 'failed', 'failed', 'failed']);
   expect(eventsOf(engine.db).map((e) => e.data.attempt)).toEqual([2, 3, 4]);
-  expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', round: null, finishedAt: 5 * MIN });
+  expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'retries_exhausted', round: null, finishedAt: 5 * MIN });
   expect(rows(engine.db)[0]?.needsHumanReason).toBe('ran out of ship retries (4 attempts): the agent process ended with an error');
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
@@ -629,7 +714,7 @@ test('timed_out keeps the session, needs a human with the reason and launches no
   await vi.waitFor(() => expect(runner.tasks.some((t) => t.epic === 2)).toBe(true));
 
   expect(executionsOf(engine.db)[0]).toMatchObject({ epicId: 1, status: 'timed_out', sessionId: 's-1', finishedAt: 5 * MIN });
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'the ship execution exceeded the time limit' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'timeout', needsHumanReason: 'the ship execution exceeded the time limit' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(eventsOf(engine.db)).toEqual([]);
   await clock.advance(10 * MIN);
@@ -783,6 +868,29 @@ test('the epic worktree is read back from git after ship and kept: the fix turns
   ]);
 });
 
+test('every execution row records its agent, folder and round: author, reviewer, fix, and a retry is its own row', async () => {
+  const config = [{ name: 'AshuLab/a', agents: { ...agents, author: { ...agents.author, provider: 'ollama' as const } } }];
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50, { headRef: 'feat/demo/epic' });
+  let fixes = 0;
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) }
+    : task.stage === 'review' ? { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: 'x' }] }) }
+    : ++fixes === 1 ? { exit: 'failed' } : { exit: 'stopped' };
+  workspaces.findWorktree = async () => '/home/me/.solve/worktrees/a/demo';
+  const engine = await start(1, config);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  const worktree = '/home/me/.solve/worktrees/a/demo';
+  expect(executionsOf(engine.db).map((e) => [e.stage, e.harness, e.model, e.provider, e.workspace, e.round])).toEqual([
+    ['ship', 'claude', 'm', 'ollama', '/work/AshuLab/a/1/author', null],
+    ['review', 'codex', 'm', null, '/work/AshuLab/a/1/reviewer-50', 1],
+    ['fix', 'claude', 'm', 'ollama', worktree, 1],
+    ['fix', 'claude', 'm', 'ollama', worktree, 1],
+  ]);
+});
+
 test('a fix turn for an epic with no saved workspace goes to needs_human instead of running in another cwd', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
@@ -799,6 +907,22 @@ test('a fix turn for an epic with no saved workspace goes to needs_human instead
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
 });
 
+test('the final PR\'s branch is kept when ship is validated, and a restart from needs_human clears the kind', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50, { headRef: 'feat/demo/epic' });
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task, { number: 50, headSha: SHA }) } : { write: result(task, { outcome: 'needs_human', reason: 'unclear' }) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', branch: 'feat/demo/epic', needsHumanKind: 'agent_needs_human' });
+
+  github.issue('AshuLab/a', 1).labels.push('solve:epic:ready');
+  runner.behavior = () => ({ exit: 'stopped' });
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', needsHumanKind: null });
+});
+
 test('a ship result whose epic worktree git does not list sends the epic to needs_human with the branch', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   pull(50, { headRef: 'feat/demo/epic' });
@@ -812,9 +936,9 @@ test('a ship result whose epic worktree git does not list sends the epic to need
   await clock.advance(5 * MIN);
   await engine.idle();
 
-  expect(rows(engine.db).map((e) => [e.status, e.needsHumanReason, e.workspace, e.prNumber])).toEqual([
-    ['needs_human', 'could not find the worktree for branch feat/demo/epic in the clone of AshuLab/a', null, null],
-    ['needs_human', 'could not find the worktree for branch feat/other/epic in the clone of AshuLab/a', null, null],
+  expect(rows(engine.db).map((e) => [e.status, e.needsHumanKind, e.needsHumanReason, e.workspace, e.prNumber])).toEqual([
+    ['needs_human', 'workspace', 'could not find the worktree for branch feat/demo/epic in the clone of AshuLab/a', null, null],
+    ['needs_human', 'workspace', 'could not find the worktree for branch feat/other/epic in the clone of AshuLab/a', null, null],
   ]);
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'ship']);
 });
@@ -828,6 +952,7 @@ test('last activity is written from the first output and then at most once every
     return {
       onSession() {},
       onOutput: (cb) => void (emit = cb),
+      onEvent() {},
       done: new Promise((resolve) => (finish = (exit) => resolve({ exit }))),
       stop: async () => {},
     };
@@ -919,7 +1044,7 @@ test('a fix whose head is not the current one goes to needs_human', async () => 
 test('with maxReviews 2 a changes_requested on the second review needs a human and no third review runs', async () => {
   const engine = await fixing((task) => fixDone(task), 2, 2);
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix', 'review']);
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', round: 2, finishedAt: 5 * MIN, labelPending: false });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'review_limit', round: 2, finishedAt: 5 * MIN, labelPending: false });
   expect(rows(engine.db)[0]!.needsHumanReason).toContain('review limit');
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 });
@@ -944,6 +1069,105 @@ test('fix turns and technical retries do not consume rounds: only reviews count'
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix', 'fix', 'review']);
   expect(runner.tasks[3]).toMatchObject({ resumeSession: 's-fix', context: { round: 1, verifyStateFirst: true, blockers: [{ title: 'round 1' }] } });
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2 });
+});
+
+// --- the observations pass ---
+
+const observations = [{ id: 'o1', title: 'rename the helper', url: 'https://github.com/AshuLab/a/pull/50#discussion_r9' }, { title: 'typo in a comment' }];
+const reviewerVerification = { ci: 'passed', evidence: 'pnpm test ok' } as const;
+// ship -> review round 1 completed with `listed` observations -> the pass (`fix`) -> reviews of the next rounds answer with `later`.
+async function passing(fix: (task: AgentTask) => Behavior, { listed = observations as object[] | undefined, later = (() => ({ exit: 'stopped' })) as (task: AgentTask) => Behavior, maxReviews = 5 } = {}) {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) }
+    : task.stage === 'review' ? task.context.round === 1 ? { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: reviewerVerification, ...(listed && { observations: listed }) }) } : later(task)
+    : fix(task);
+  const engine = await start(1, repos, 4, 3, maxReviews);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  return engine;
+}
+
+test('a review completed with observations below the limit starts the author on the same round with them, and records the pass; the epic stays running', async () => {
+  const engine = await passing(() => ({ exit: 'stopped' }));
+  expect(runner.tasks.map((t) => [t.stage, t.context.round])).toEqual([['ship', undefined], ['review', 1], ['fix', 1]]);
+  expect(runner.tasks[2]).toMatchObject({ resumeSession: 's-ship', context: { observations, round: 1 } });
+  expect(runner.tasks[2]!.context.blockers).toBeUndefined();
+  expect(rows(engine.db)[0]).toMatchObject({
+    status: 'running', stage: 'fix', round: 1, observationsPassAt: 5 * MIN, reviewedSha: SHA, verification: reviewerVerification, finishedAt: null, labelPending: false,
+  });
+  expect(labelsOf(1)).toEqual(['solve:epic:running']);
+});
+
+test('a pass that ends with the reviewed head sends the epic to ready for test with the reviewed head and the reviewer\'s verification', async () => {
+  const engine = await passing((task) => ({ write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'the author says so' } }) }));
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: SHA, verification: reviewerVerification, finishedAt: 5 * MIN, labelPending: false });
+  expect(labelsOf(1)).toEqual(['solve:epic:ready-for-test']);
+});
+
+test('a pass that ends with a new head starts the next review round, counted against the limit, and leaves no reviewed head for the new commit', async () => {
+  const engine = await passing((task) => {
+    pull(50, { headSha: HEAD2 });
+    return fixDone(task, HEAD2);
+  });
+  expect(runner.tasks.map((t) => [t.stage, t.context.round])).toEqual([['ship', undefined], ['review', 1], ['fix', 1], ['review', 2]]);
+  expect(runner.tasks[3]!.context.pr).toEqual({ number: 50, headSha: HEAD2 });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2, prHeadSha: HEAD2, reviewedSha: SHA, finishedAt: null });
+});
+
+test('with maxReviews 2 the review after a pass with a new head is the last one: observations there go to ready for test, changes_requested to a person', async () => {
+  const commit = (task: AgentTask) => {
+    pull(50, { headSha: HEAD2 });
+    return fixDone(task, HEAD2);
+  };
+  const engine = await passing(commit, {
+    maxReviews: 2,
+    later: (task) => ({ write: result(task, { outcome: 'completed', pr: { number: 50, headSha: HEAD2 }, verification: { ci: 'passed', evidence: 'second look' }, observations: [{ title: 'one more' }] }) }),
+  });
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 2, reviewedSha: HEAD2, verification: { ci: 'passed', evidence: 'second look' } });
+});
+
+test('a review completed with observations after the pass was taken goes to ready for test without a second pass', async () => {
+  const engine = await passing(
+    (task) => {
+      pull(50, { headSha: HEAD2 });
+      return fixDone(task, HEAD2);
+    },
+    { later: (task) => ({ write: result(task, { outcome: 'completed', pr: { number: 50, headSha: HEAD2 }, verification: reviewerVerification, observations: [{ title: 'again' }] }) }) },
+  );
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 2, reviewedSha: HEAD2, observationsPassAt: 5 * MIN });
+});
+
+test('a review completed with observations at the last round goes to ready for test without a pass', async () => {
+  const engine = await passing(() => ({ exit: 'stopped' }), { maxReviews: 1 });
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', round: 1, reviewedSha: SHA, verification: reviewerVerification, observationsPassAt: null });
+});
+
+test('a review completed with an empty list of observations goes to ready for test as before', async () => {
+  const engine = await passing(() => ({ exit: 'stopped' }), { listed: [] });
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review']);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: SHA, observationsPassAt: null });
+});
+
+test('a fix for blockers carries the blockers and no observations, and still goes to the next review', async () => {
+  const engine = await fixing((task) => (task.context.round === 1 ? fixDone(task) : { exit: 'stopped' }));
+  expect(runner.tasks[2]!.context).toMatchObject({ blockers: [{ title: 'round 1' }] });
+  expect(runner.tasks[2]!.context.observations).toBeUndefined();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', round: 2, observationsPassAt: null });
+});
+
+test('a technical retry of the pass resumes it as a pass with the same observations', async () => {
+  let fixes = 0;
+  const engine = await passing((task) => (++fixes === 1 ? { sessionId: 's-fix', exit: 'failed' } : { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'ok' } }) }));
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review', 'fix', 'fix']);
+  expect(runner.tasks[3]).toMatchObject({ resumeSession: 's-fix', context: { observations, round: 1, verifyStateFirst: true } });
+  expect(runner.tasks[3]!.context.blockers).toBeUndefined();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: SHA, verification: reviewerVerification });
 });
 
 test('a technical failure of the reviewer keeps the round, imports nothing and relaunches the review', async () => {
@@ -1039,6 +1263,22 @@ test('a merged final PR stops the running executions and leaves the epic merged,
   expect(executionsOf(engine.db).map((e) => [e.status, e.sessionId])).toEqual([['finished', null], ['interrupted', 's-r']]);
   expect(eventsOf(engine.db).map((e) => e.type)).toEqual(['epic_merged']);
   expect(labelsOf(1)).toEqual([]); // running removed, nothing added
+});
+
+test.each(['ready_for_test', 'needs_human'] as const)('a %s epic whose final PR is merged or whose issue is closed ends too', async (parked) => {
+  const engine = await reviewingHung();
+  engine.db.update(epics).set({ status: parked }).where(eq(epics.issue, 1)).run();
+  pull(50, { state: 'merged' });
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'merged', labelPending: false });
+
+  engine.db.update(epics).set({ status: parked, cancelReason: null }).where(eq(epics.issue, 1)).run();
+  pull(50, { state: 'open' });
+  github.issue('AshuLab/a', 1).state = 'closed';
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelReason: 'the epic issue was closed without merging' });
 });
 
 test('a final PR closed without merge cancels the epic with the reason and stops its executions', async () => {
@@ -1283,6 +1523,28 @@ test('a result imported whose next stage never launched launches it on restart',
   expect(runner.tasks[0]).toMatchObject({ stage: 'fix', context: { blockers: [{ title: 'fix it' }] } });
 });
 
+test('a restart in the middle of the pass resumes the fix as a pass with the same observations', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: 'fix', round: 1, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', observationsPassAt: 1, reviewedSha: SHA });
+  seedExecution(db, 'r1', 1, { stage: 'review', status: 'finished' });
+  db.insert(callerResults).values({ executionId: 'r1', outcome: 'completed', result: JSON.stringify({ summary: 's', observations: [{ title: 'rename it' }] }) }).run();
+  seedExecution(db, 'f1', 1, { stage: 'fix', status: 'interrupted', startedAt: 1 });
+  await start(1);
+  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks[0]).toMatchObject({ stage: 'fix', resumeSession: 's-f1', context: { observations: [{ title: 'rename it' }], round: 1, verifyStateFirst: true } });
+  expect(runner.tasks[0]!.context.blockers).toBeUndefined();
+});
+
+test('a review imported whose pass never launched launches the pass on restart', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: 'fix', round: 1, prNumber: 50, prHeadSha: SHA, workspace: '/w/epic', observationsPassAt: 1, reviewedSha: SHA });
+  seedExecution(db, 'r1', 1, { stage: 'review', status: 'finished' });
+  db.insert(callerResults).values({ executionId: 'r1', outcome: 'completed', result: JSON.stringify({ summary: 's', observations: [{ title: 'rename it' }] }) }).run();
+  await start(1);
+  expect(runner.tasks).toHaveLength(1);
+  expect(runner.tasks[0]).toMatchObject({ stage: 'fix', context: { observations: [{ title: 'rename it' }] } });
+});
+
 test('needs_human, cancelled, merged and ready_for_test epics are not reactivated and the queue keeps its order', async () => {
   const db = open();
   const finished = { needs_human: 1, cancelled: 2, merged: 3, ready_for_test: 4 } as const;
@@ -1429,7 +1691,7 @@ test('an auth_failed stops only the running epics of that profile and their runs
   await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1, 2]));
 
   const [first, second, third] = rows(engine.db);
-  expect(first).toMatchObject({ issue: 1, status: 'needs_human', needsHumanReason: 'authentication error for profile a', finishedAt: 5 * MIN, labelPending: false });
+  expect(first).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'auth', needsHumanReason: 'authentication error for profile a', finishedAt: 5 * MIN, labelPending: false });
   expect(second).toMatchObject({ issue: 2, status: 'needs_human', needsHumanReason: 'authentication error for profile a' });
   expect(third).toMatchObject({ issue: 3, status: 'running' });
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
@@ -1537,4 +1799,199 @@ test('paused: new epics are queued but not reserved, running ones go on, and res
   expect(byStatus(engine.db, 'queued')).toEqual([2, 3]); // queued, not started, even with GitHub polled
   await engine.setPaused(false);
   expect(engine.paused).toBe(false);
+});
+
+// --- slices: a cache of GitHub (ADR 0008) ---
+
+const slice = (number: number, extra: Partial<EpicSlice> = {}): EpicSlice => ({ number, title: `Slice ${number}`, state: 'ready', blockedBy: [], assignee: null, prNumber: null, closedAt: null, ...extra });
+const cached = (db: Db) => db.select().from(epicSlices).all().map((r) => `${r.epicId}:${r.number}:${r.state}@${r.readAt}`);
+
+// Epic 1 running (its author is cut, so it stays so), epic 2 queued behind it.
+async function runningWithSlices() {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  github.slices = { 'AshuLab/a#1': { slices: [slice(10, { state: 'closed', closedAt: 1000 }), slice(11, { state: 'waiting', blockedBy: [12] })] }, 'AshuLab/a#2': { slices: [slice(20)] } };
+  runner.behavior = () => ({ exit: 'stopped' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN); // registers and reserves; nothing was running when the slices would be read
+  return engine;
+}
+
+test('the poll caches the slices of live epics, replacing them, and a finished epic keeps its last list', async () => {
+  const engine = await runningWithSlices();
+  expect(cached(engine.db)).toEqual([]);
+  expect(github.sliceReads).toEqual([]);
+
+  await clock.advance(5 * MIN);
+  expect(github.sliceReads).toEqual(['AshuLab/a#1']);
+  expect(cached(engine.db)).toEqual([`1:10:closed@${10 * MIN}`, `1:11:waiting@${10 * MIN}`]);
+
+  github.slices['AshuLab/a#1'] = { slices: [slice(11, { state: 'in_progress' })] };
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db)).toEqual([`1:11:in_progress@${15 * MIN}`]);
+
+  engine.db.update(epics).set({ status: 'ready_for_test' }).where(eq(epics.issue, 1)).run();
+  github.slices['AshuLab/a#1'] = { slices: [slice(11, { state: 'closed', closedAt: 2000 })] };
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db)).toEqual([`1:11:closed@${20 * MIN}`]); // parked is still live
+
+  engine.db.update(epics).set({ status: 'merged' }).where(eq(epics.issue, 1)).run();
+  github.slices['AshuLab/a#1'] = { slices: [] };
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db).filter((r) => r.startsWith('1:'))).toEqual([`1:11:closed@${20 * MIN}`]);
+});
+
+test('a finished epic with no cached slices, e.g. it ended before the cache existed, is read once', async () => {
+  const engine = await runningWithSlices();
+  engine.db.update(epics).set({ status: 'merged' }).where(eq(epics.issue, 1)).run();
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db).filter((r) => r.startsWith('1:'))).toEqual([`1:10:closed@${10 * MIN}`, `1:11:waiting@${10 * MIN}`]);
+
+  github.slices['AshuLab/a#1'] = { slices: [slice(99)] };
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db).filter((r) => r.startsWith('1:'))).toEqual([`1:10:closed@${10 * MIN}`, `1:11:waiting@${10 * MIN}`]);
+});
+
+test('a failing slices read keeps the previous rows and the poll goes on', async () => {
+  const engine = await runningWithSlices();
+  await clock.advance(5 * MIN);
+  const before = cached(engine.db);
+  expect(before).toHaveLength(2);
+
+  github.slicesUnavailable = new GitHubUnavailable();
+  github.slices['AshuLab/a#1'] = { slices: [slice(99)] };
+  github.ready = { 'AshuLab/a': ready(1, 2, 3) };
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db)).toEqual(before);
+  expect(engine.error).toBeNull();
+  expect(ids(engine)).toContain('AshuLab/a#3');
+
+  github.slicesUnavailable = null;
+  await clock.advance(5 * MIN);
+  expect(cached(engine.db)).toEqual([`1:99:ready@${20 * MIN}`]);
+});
+
+test('the engine decides the same with the table empty: an epic goes through ship and review to ready for test', async () => {
+  const engine = await reviewing((task) => ({
+    write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'absent', evidence: 'ok' } }),
+  }));
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: SHA });
+  expect(cached(engine.db)).toEqual([]);
+});
+
+// --- the pull request block: a cache of GitHub ---
+
+const block = (extra: Partial<PullRequestBlock> = {}): PullRequestBlock => ({ number: 50, url: 'https://github.com/AshuLab/a/pull/50', draft: false, mergeState: 'CLEAN', reviewDecision: null, checks: { passing: 3, failing: 0, pending: 0 }, ...extra });
+const cachedPr = (db: Db, issue: number) => db.select({ pr: epics.pr }).from(epics).where(eq(epics.issue, issue)).get()?.pr;
+
+test('the poll reads the pull request of an epic that has one and makes no query for one that has none', async () => {
+  const engine = await runningWithSlices();
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toEqual([]);
+  expect(cachedPr(engine.db, 1)).toBeNull();
+
+  engine.db.update(epics).set({ prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toEqual(['AshuLab/a#50']); // epic 2 is queued with no PR: no query
+  expect(cachedPr(engine.db, 1)).toEqual(block());
+  expect(cachedPr(engine.db, 2)).toBeNull();
+});
+
+test('a failing pull request read keeps the last block and the poll goes on', async () => {
+  const engine = await runningWithSlices();
+  engine.db.update(epics).set({ prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  await clock.advance(5 * MIN);
+
+  github.pullRequestUnavailable = new GitHubUnavailable();
+  github.pullRequestBlocks['AshuLab/a#50'] = block({ draft: true });
+  await clock.advance(5 * MIN);
+  expect(cachedPr(engine.db, 1)).toEqual(block());
+  expect(engine.error).toBeNull();
+
+  github.pullRequestUnavailable = null;
+  await clock.advance(5 * MIN);
+  expect(cachedPr(engine.db, 1)).toEqual(block({ draft: true }));
+});
+
+test('a finished epic with a pull request and no cached block is read once; one that has a block is never read', async () => {
+  const engine = await runningWithSlices();
+  engine.db.update(epics).set({ status: 'merged', prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toEqual(['AshuLab/a#50']);
+  expect(cachedPr(engine.db, 1)).toEqual(block());
+
+  github.pullRequestBlocks['AshuLab/a#50'] = block({ draft: true });
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toEqual(['AshuLab/a#50']);
+  expect(cachedPr(engine.db, 1)).toEqual(block());
+});
+
+// --- the review threads of the pull request: read with the block, a cache of GitHub ---
+
+const thread = (id: string, extra: Partial<ReviewThread> = {}): ReviewThread => ({ id, path: 'src/a.ts', line: 3, resolved: false, outdated: false, author: 'someone', bot: false, firstLine: `Thread ${id}`, commentCount: 1, url: `https://github.com/AshuLab/a/pull/50#discussion_${id}`, ...extra });
+const storedThreads = (db: Db, issue: number) =>
+  db.select({ id: epicReviewThreads.id, firstLine: epicReviewThreads.firstLine, readAt: epicReviewThreads.readAt, truncated: epicReviewThreads.truncated })
+    .from(epicReviewThreads).innerJoin(epics, eq(epics.id, epicReviewThreads.epicId)).where(eq(epics.issue, issue)).orderBy(epicReviewThreads.position).all()
+    .map((r) => `${r.id}:${r.firstLine}@${r.readAt}${r.truncated ? ':truncated' : ''}`);
+
+test('the poll stores the threads in GitHub order with the block, replaces them on each read and flags more than the limit', async () => {
+  const engine = await runningWithSlices();
+  engine.db.update(epics).set({ prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  github.reviewThreads['AshuLab/a#50'] = { threads: [thread('b'), thread('a', { line: null, outdated: true, author: null })] };
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toEqual(['AshuLab/a#50']); // one read for the block and the threads
+  expect(storedThreads(engine.db, 1)).toEqual([`b:Thread b@${10 * MIN}`, `a:Thread a@${10 * MIN}`]);
+  expect(engine.db.select().from(epicReviewThreads).where(eq(epicReviewThreads.id, 'a')).get()).toMatchObject({ line: null, outdated: true, author: null, bot: false, commentCount: 1 });
+  expect(storedThreads(engine.db, 2)).toEqual([]);
+
+  github.reviewThreads['AshuLab/a#50'] = { threads: [thread('c', { resolved: true })], truncated: true };
+  await clock.advance(5 * MIN);
+  expect(storedThreads(engine.db, 1)).toEqual([`c:Thread c@${15 * MIN}:truncated`]);
+
+  github.reviewThreads['AshuLab/a#50'] = { threads: [] };
+  await clock.advance(5 * MIN);
+  expect(storedThreads(engine.db, 1)).toEqual([]);
+});
+
+test('a failing read keeps the previous threads; a pull request GitHub does not know leaves them as they were', async () => {
+  const engine = await runningWithSlices();
+  engine.db.update(epics).set({ prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  github.reviewThreads['AshuLab/a#50'] = { threads: [thread('a')] };
+  await clock.advance(5 * MIN);
+  const before = storedThreads(engine.db, 1);
+  expect(before).toHaveLength(1);
+
+  github.pullRequestUnavailable = new GitHubUnavailable();
+  github.reviewThreads['AshuLab/a#50'] = { threads: [thread('b')] };
+  await clock.advance(5 * MIN);
+  expect(storedThreads(engine.db, 1)).toEqual(before);
+  expect(engine.error).toBeNull();
+
+  github.pullRequestUnavailable = null;
+  delete github.pullRequestBlocks['AshuLab/a#50'];
+  await clock.advance(5 * MIN);
+  expect(storedThreads(engine.db, 1)).toEqual(before);
+  expect(cachedPr(engine.db, 1)).toEqual(block());
+
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  await clock.advance(5 * MIN);
+  expect(storedThreads(engine.db, 1)).toEqual([`b:Thread b@${25 * MIN}`]);
+});
+
+test('a finished epic with a pull request and no cached block gets its threads from one read; one that has a block is not read again', async () => {
+  const engine = await runningWithSlices();
+  engine.db.update(epics).set({ status: 'merged', prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  github.reviewThreads['AshuLab/a#50'] = { threads: [thread('a')] };
+  await clock.advance(5 * MIN);
+  expect(storedThreads(engine.db, 1)).toEqual([`a:Thread a@${10 * MIN}`]);
+
+  github.reviewThreads['AshuLab/a#50'] = { threads: [thread('b')] };
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toEqual(['AshuLab/a#50']);
+  expect(storedThreads(engine.db, 1)).toEqual([`a:Thread a@${10 * MIN}`]);
 });

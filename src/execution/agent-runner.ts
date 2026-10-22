@@ -1,4 +1,5 @@
 import type { HarnessName } from '../harnesses/names.ts';
+import type { AgentEvent } from './events.ts';
 
 export interface AgentTask {
   executionId: string;
@@ -18,8 +19,10 @@ export interface AgentTask {
     round?: number;
     previousSummaries: string[];
     verifyStateFirst?: boolean;
-    /** Fix turn: what the last review asked to change. */
-    blockers?: { title: string; url?: string }[];
+    /** Fix turn: what the last review asked to change. Review turn after the first: the previous round's blockers, to reuse their ids. */
+    blockers?: { id?: string; title: string; url?: string }[];
+    /** Fix turn after a review that completed with non-blocking findings: the threads to answer and leave open. Takes the place of `blockers`. */
+    observations?: { id?: string; title: string; url?: string }[];
   };
 }
 
@@ -29,6 +32,8 @@ export interface AgentRun {
   /** Called as soon as the session exists. */
   onSession(cb: (sessionId: string) => void): void;
   onOutput(cb: (stream: 'stdout' | 'stderr', chunk: string) => void): void;
+  /** The events of each stdout chunk, as one batch, for harnesses that have a parser (ADR 0006). */
+  onEvent(cb: (events: AgentEvent[]) => void): void;
   done: Promise<{ exit: AgentExit; sessionId?: string }>;
   stop(): Promise<void>;
 }

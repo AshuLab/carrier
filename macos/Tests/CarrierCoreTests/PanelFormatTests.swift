@@ -7,9 +7,9 @@ private let fixtureURL = URL(fileURLWithPath: #filePath)
 
 private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(contentsOf: fixtureURL)) }
 
-@Test func durationsUseTheTwoLargestUnits() {
+@Test func durationsKeepSecondsOnlyUnderAMinute() {
     #expect(formatDuration(45_000) == "45s")
-    #expect(formatDuration(185_000) == "3m 05s")
+    #expect(formatDuration(185_000) == "3m")
     #expect(formatDuration(7_380_000) == "2h 03m")
     #expect(formatDuration(100_800_000) == "1d 4h")
     #expect(formatDuration(-5000) == "0s")
@@ -36,7 +36,7 @@ private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(content
     let (running, fresh) = (snapshot.epics[0], snapshot.epics[1])
     #expect(roundLine(running) == "round 2/5")
     #expect(roundLine(fresh) == nil)
-    #expect(stageTimeLine(running, now: snapshot.now) == "1m 00s in stage")
+    #expect(stageTimeLine(running, now: snapshot.now) == "1m in stage")
     #expect(activityLine(running, now: snapshot.now) == "active 10s ago")
     #expect(activityLine(fresh, now: snapshot.now) == "no activity yet")
     #expect(blockersLine(1) == "1 blocker")
@@ -45,10 +45,12 @@ private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(content
 
 @Test func theHeaderLines() throws {
     var snapshot = try fixture()
-    #expect(uptimeLine(snapshot) == "up 1m 00s")
+    #expect(uptimeLine(snapshot) == "up 1m")
     #expect(reposLine(snapshot.repos) == "watching 2 repos")
     #expect(reposLine(1) == "watching 1 repo")
-    #expect(nextCheckLine(snapshot) == "next check in 1m 00s")
+    #expect(nextCheckLine(snapshot) == "next check in 1m")
+    #expect(overviewSubtitle(snapshot, repos: 5) == "5 repos · up 1m · next check in 1m")
+    #expect(overviewSubtitle(snapshot, repos: 1).hasPrefix("1 repo ·"))
     snapshot.nextCheckAt = snapshot.now
     #expect(nextCheckLine(snapshot) == "checking now")
     snapshot.nextCheckAt = nil

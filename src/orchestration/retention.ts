@@ -4,6 +4,7 @@ import { join, sep } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, eq, inArray, isNotNull, lte } from 'drizzle-orm';
 import type { Db } from '../storage/db.ts';
+import { executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
@@ -68,8 +69,8 @@ function sessionFiles({ claude, codex }: SessionDirs, ids: string[]): string[] {
 
 /**
  * Deletes the execution logs (`orchestrator/logs/executions/<executionId>/`) and the sessions the CLIs saved
- * for them, of epics finished or cancelled 30 days or more before `now`. Never touches SQLite rows nor
- * workspaces; a symlink is removed itself, never followed. Returns the paths deleted.
+ * for them, of epics finished or cancelled 30 days or more before `now`, and the events stored from those logs.
+ * Never touches other SQLite rows nor workspaces; a symlink is removed itself, never followed. Returns the paths deleted.
  */
 export function purgeExpired(db: Db, root: string, now: number, sessionDirs: SessionDirs = sessionDirsFrom()): string[] {
   const rows = db
@@ -78,6 +79,11 @@ export function purgeExpired(db: Db, root: string, now: number, sessionDirs: Ses
     .innerJoin(epics, eq(epics.id, executions.epicId))
     .where(and(inArray(epics.status, finished), isNotNull(epics.finishedAt), lte(epics.finishedAt, now - retentionMs)))
     .all();
+
+  // The events are a copy of the logs: they go when the logs do.
+  db.transaction((tx) => {
+    for (const { executionId } of rows) tx.delete(executionEvents).where(eq(executionEvents.executionId, executionId)).run();
+  });
 
   const deleted: string[] = [];
   const remove = (target: string) => {

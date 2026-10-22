@@ -22,6 +22,8 @@ final class IconController {
     let host = PassthroughView()
     private let text = CATextLayer(), track = CALayer(), fill = CALayer(), segment = CALayer(), badge = CALayer()
     private var state = IconState()
+    private let store = MenuBarStore()
+    private var defaultsWatch: NSObjectProtocol?
     /// How far the attached animation travels; the animation is only replaced when this changes, or it would restart every second.
     private var attachedTravel: Double?
     private var appearanceWatch: NSKeyValueObservation?
@@ -43,17 +45,31 @@ final class IconController {
         appearanceWatch = item.button?.observe(\.effectiveAppearance) { [weak self] _, _ in
             DispatchQueue.main.async { self?.draw() }
         }
+        // the Menu bar tab writes user defaults: the icon follows without a relaunch
+        defaultsWatch = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.reloadSettings()
+        }
+        state.style = store.style
+        state.animates = store.animates
         draw()
     }
 
     func show(_ connection: ConnectionState) {
-        state = IconState(connection)
+        state = IconState(connection, style: store.style, animates: store.animates)
+        draw()
+    }
+
+    /// Draws again when the style or the animation switch changed.
+    func reloadSettings() {
+        guard state.style != store.style || state.animates != store.animates else { return }
+        state.style = store.style
+        state.animates = store.animates
         draw()
     }
 
     /// One line for the self-test log.
     var summary: String {
-        "connected=\(state.connected) working=\(state.working) bar=\(state.done)/\(state.total) attention=\(state.attention) width=\(item.length) segment=\(attachedTravel.map { "travel \($0)" } ?? "none")"
+        "style=\(state.style.rawValue) connected=\(state.connected) working=\(state.working) bar=\(state.done)/\(state.total) attention=\(state.attention) width=\(item.length) segment=\(attachedTravel.map { "travel \($0)" } ?? "none")"
     }
 
     private func color(_ color: NSColor) -> CGColor {
@@ -64,9 +80,10 @@ final class IconController {
 
     private func draw() {
         let thick = NSStatusBar.system.thickness
-        let label: String? = state.connected && state.working > 0 ? "\(state.working)" : nil
+        let parts = state.parts
+        let label: String? = parts.count ? "\(state.working)" : nil
         let labelWidth = label.map { ceil(NSAttributedString(string: $0, attributes: [.font: font]).size().width) } ?? 0
-        let width = 4 + (label == nil ? 0 : labelWidth + 3) + trackWidth + 4 + (state.attention > 0 ? 5 : 0)
+        let width = 4 + (label == nil ? 0 : labelWidth + (parts.bar ? 3 : 0)) + (parts.bar ? trackWidth : 0) + 4 + (parts.dot ? 5 : 0)
         var x: CGFloat = 4
 
         CATransaction.begin()
@@ -87,6 +104,8 @@ final class IconController {
             x += labelWidth + 3
         }
 
+        track.isHidden = !parts.bar
+
         track.frame = NSRect(x: x, y: (thick - 5) / 2, width: trackWidth, height: 5)
         track.backgroundColor = color(NSColor.labelColor.withAlphaComponent(0.3))
         fill.frame = NSRect(x: 0, y: 0, width: trackWidth * state.fraction, height: 5)
@@ -102,7 +121,7 @@ final class IconController {
         }
 
         // on top of any state
-        badge.isHidden = state.attention == 0
+        badge.isHidden = !parts.dot
         badge.frame = NSRect(x: width - 8, y: thick - 9, width: 6, height: 6)
         badge.cornerRadius = 3
         badge.backgroundColor = color(.systemOrange)

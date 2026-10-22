@@ -2,8 +2,14 @@ import { execFileSync, spawn } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { asc } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { AgentRun, AgentTask } from '../execution/agent-runner.ts';
+import type { AgentEvent } from '../execution/events.ts';
+import { openDatabase } from '../storage/db.ts';
+import { executionEvents, recordEvents } from '../storage/events.ts';
+import { executions } from '../storage/executions.ts';
+import { epics } from '../storage/schema.ts';
 import { buildPrompt } from '../prompts/build-prompt.ts';
 import { buildClaudeCommand, claudeAdapter } from './claude.ts';
 import { buildCodexCommand, codexAdapter } from './codex.ts';
@@ -69,6 +75,46 @@ describe('host runner with a fake claude binary', () => {
     expect(seen.sessions).toHaveLength(1);
     expect(sessionId).toBe(seen.sessions[0]);
     expect(seen.output).toContain('"subtype":"init"');
+  });
+
+  test('the events of a run are reported per chunk and stored; the rows match the stream', async () => {
+    const run = runner.run(taskIn('events', { model: 'stream' }));
+    const batches: AgentEvent[][] = [];
+    run.onEvent((events) => batches.push(events));
+    expect((await run.done).exit).toBe('ok');
+    expect(batches.length).toBeGreaterThan(0);
+
+    const db = openDatabase(join(dir, 'events.db'));
+    const epic = db.insert(epics).values({ repo: 'AshuLab/a', issue: 1 }).returning().get();
+    db.insert(executions).values({ executionId: 'it-events', epicId: epic.id, stage: 'ship', resultPath: 'r', startedAt: 0 }).run();
+    for (const batch of batches) recordEvents(db, 'it-events', batch, 1);
+    const rows = db.select().from(executionEvents).orderBy(asc(executionEvents.id)).all();
+    db.$client.close();
+
+    // The stream of claude-events.fixture.jsonl, in order: thinking, hooks and the unknown and garbage lines are not rows.
+    expect(rows.map((row) => [row.kind, row.tool ?? row.agentId])).toEqual([
+      ['say', null],
+      ['tool_start', 'Read'],
+      ['tool_end', 'Read'],
+      ['tool_start', 'Edit'],
+      ['tool_end', 'Edit'],
+      ['tool_start', 'Bash'],
+      ['tool_end', 'Bash'],
+      ['note', null],
+      ['tool_start', 'Agent'],
+      ['task', 'agent-1'],
+      ['tool_start', 'Bash'],
+      ['tool_end', 'Bash'],
+      ['task', 'agent-1'],
+      ['error', null],
+    ]);
+    expect(rows.filter((row) => row.kind === 'tool_end').map((row) => [row.callId, row.status, row.durationMs])).toEqual([
+      ['toolu_read', 'ok', 150],
+      ['toolu_edit', 'ok', 200],
+      ['toolu_bash', 'err', 7000],
+      ['toolu_sub', 'ok', 300],
+    ]);
+    expect(rows.find((row) => row.callId === 'toolu_edit' && row.kind === 'tool_end')?.payload?.diff).toHaveLength(3);
   });
 
   test('a nonzero exit is failed', async () => {
@@ -154,6 +200,20 @@ describe('host runner with a fake codex binary', () => {
     const seenAgain = observe(again);
     expect(await again.done).toEqual({ exit: 'ok', sessionId });
     expect(seenAgain.sessions).toEqual([sessionId]);
+  });
+
+  test('the events of a recorded run are reported per chunk, in the order of the stream', async () => {
+    const run = runner.run(codexTask('codex-events', { model: 'stream' }));
+    const batches: AgentEvent[][] = [];
+    run.onEvent((events) => batches.push(events));
+    expect((await run.done).exit).toBe('ok');
+    expect(batches.flat().map((e) => [e.kind, e.callId])).toEqual([
+      ['note', undefined],
+      ['note', undefined],
+      ['say', undefined],
+      ...['item_3', 'item_4', 'item_5', 'item_6'].flatMap((id) => [['tool_start', id], ['tool_end', id]]),
+      ['say', undefined],
+    ]);
   });
 
   test('a nonzero exit is failed', async () => {

@@ -13,6 +13,8 @@ On every poll, for each running epic, the engine reads its slices with one query
 
 The table is a cache of GitHub. The engine never uses it to decide anything: not to launch, to stop or to judge an epic. It exists only so the app can show what GitHub said the last time Carrier asked, and the app shows how old that is.
 
+The same table pattern keeps the final pull request's review threads (`epic_review_threads`), read with the pull request block, replaced on each read and served in the `epic` reply, under the same rules.
+
 ## Alternatives considered
 
 Keep slices in memory, as the spec said. It costs nothing and stores nothing, but a finished epic or a restart would show only the count, and the design's slice tab would be empty exactly when a person comes back to look at what happened.

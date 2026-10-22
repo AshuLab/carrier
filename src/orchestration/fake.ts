@@ -1,13 +1,33 @@
 import type { Clock } from './clock.ts';
-import { AuthError, GitHubUnavailable, type GitHub, type LabelStyle, type Slices } from './github.ts';
+import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
+  /** What rateLimit answers. */
+  limit: RateLimit | null = null;
+  rateLimit() {
+    return this.limit;
+  }
+  /** A ready epic's labels are the issue's, as GitHub lists them. */
   ready: Record<string, { issue: number; title: string }[]> = {};
   unavailable: GitHubUnavailable | null = null;
-  /** The open epics with their slice progress, by repo. */
-  openEpics: Record<string, { issue: number; slices: Slices | null }[]> = {};
+  /** The open epics with their slice progress, by repo; the title defaults to empty and the labels to the issue's. */
+  openEpics: Record<string, { issue: number; title?: string; slices: Slices | null }[]> = {};
   /** Makes listOpenEpics fail while the rest works. */
   openEpicsUnavailable: GitHubUnavailable | null = null;
+  /** What readSlices answers, by `repo#issue`; an epic not listed has no slices. */
+  slices: Record<string, { slices: EpicSlice[]; truncated?: boolean }> = {};
+  /** Makes readSlices fail while the rest works. */
+  slicesUnavailable: GitHubUnavailable | null = null;
+  /** Every slice read that reached the port, as `repo#issue`. */
+  sliceReads: string[] = [];
+  /** What readPullRequest answers, by `repo#number`; a pull request not listed does not exist. */
+  pullRequestBlocks: Record<string, PullRequestBlock> = {};
+  /** The review threads readPullRequest answers with, by `repo#number`; a pull request not listed has none. */
+  reviewThreads: Record<string, { threads: ReviewThread[]; truncated?: boolean }> = {};
+  /** Makes readPullRequest fail while the rest works. */
+  pullRequestUnavailable: GitHubUnavailable | null = null;
+  /** Every pull request read that reached the port, as `repo#number`. */
+  pullRequestReads: string[] = [];
   /** Makes setLabels fail while the rest works. */
   setLabelsUnavailable: GitHubUnavailable | null = null;
   issues: Record<string, { state: 'open' | 'closed'; labels: string[] }> = {};
@@ -36,14 +56,32 @@ export class FakeGitHub implements GitHub {
     this.guard();
     this.calls++;
     if (this.unavailable) throw this.unavailable;
-    return (this.ready[repo] ?? []).filter((e) => this.issue(repo, e.issue).labels.includes('solve:epic:ready')); // like GitHub: the label decides
+    return (this.ready[repo] ?? []).filter((e) => this.issue(repo, e.issue).labels.includes('solve:epic:ready')).map((e) => ({ ...e, labels: [...this.issue(repo, e.issue).labels] })); // like GitHub: the label decides
   }
 
   async listOpenEpics(repo: string) {
     this.guard();
     const failure = this.unavailable ?? this.openEpicsUnavailable;
     if (failure) throw failure;
-    return (this.openEpics[repo] ?? []).map((epic) => ({ ...epic }));
+    return (this.openEpics[repo] ?? []).map((epic) => ({ title: '', ...epic, labels: [...(this.issues[`${repo}#${epic.issue}`]?.labels ?? [])] }));
+  }
+
+  async readSlices(repo: string, issue: number) {
+    this.guard();
+    this.sliceReads.push(`${repo}#${issue}`);
+    if (this.slicesUnavailable) throw this.slicesUnavailable;
+    const found = this.slices[`${repo}#${issue}`];
+    return { slices: found?.slices.map((s) => ({ ...s })) ?? [], truncated: found?.truncated ?? false };
+  }
+
+  async readPullRequest(repo: string, number: number) {
+    this.guard();
+    this.pullRequestReads.push(`${repo}#${number}`);
+    if (this.pullRequestUnavailable) throw this.pullRequestUnavailable;
+    const found = this.pullRequestBlocks[`${repo}#${number}`];
+    if (found === undefined) return null;
+    const read = this.reviewThreads[`${repo}#${number}`];
+    return { pr: { ...found, checks: found.checks && { ...found.checks } }, threads: read?.threads.map((t) => ({ ...t })) ?? [], truncated: read?.truncated ?? false };
   }
 
   async getIssue(repo: string, issue: number) {

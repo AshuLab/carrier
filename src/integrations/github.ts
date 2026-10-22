@@ -1,7 +1,8 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
-import { AuthError, GitHubUnavailable, epicLabel, readyLabel, type GitHub, type LabelStyle, type Slices } from '../orchestration/github.ts';
+import { epicSlicesQuery, epicSlicesResponse, pullRequestOf, pullRequestQuery, pullRequestResponse, sliceOf, threadsOf } from './github-graphql.ts';
+import { AuthError, GitHubUnavailable, epicLabel, readyLabel, type GitHub, type LabelStyle, type RateLimit, type Slices } from '../orchestration/github.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -36,7 +37,7 @@ class HttpError extends Error {
   }
 }
 
-const issueRow = z.object({ number: z.int().positive(), title: z.string(), pull_request: z.unknown().optional() });
+const issueRow = z.object({ number: z.int().positive(), title: z.string(), labels: z.array(z.object({ name: z.string() })), pull_request: z.unknown().optional() });
 // GitHub does not require `sub_issues_summary` on an issue.
 const epicRow = issueRow.extend({ sub_issues_summary: z.object({ total: z.int().nonnegative(), completed: z.int().nonnegative() }).optional() });
 const issueDetail = z.object({ state: z.enum(['open', 'closed']), labels: z.array(z.object({ name: z.string() })) });
@@ -77,11 +78,30 @@ function parseResponse(stdout: string) {
   return { status: Number(match[1]), headers, body: match[3]! };
 }
 
+/** The REST bucket's numbers from the `x-ratelimit-*` headers; null when any is missing or malformed, and for the GraphQL bucket, which is separate. */
+function rateLimitOf(headers: Record<string, string>): RateLimit | null {
+  const resource = headers['x-ratelimit-resource'];
+  if (resource !== undefined && resource !== 'core') return null;
+  const [limit, remaining, reset] = ['limit', 'remaining', 'reset'].map((name) => (/^\d+$/.test(headers[`x-ratelimit-${name}`] ?? '') ? Number(headers[`x-ratelimit-${name}`]) : NaN));
+  if (!Number.isSafeInteger(limit) || !Number.isSafeInteger(remaining) || !Number.isSafeInteger(reset)) return null;
+  return { remaining: remaining!, limit: limit!, resetAt: reset! * 1000 };
+}
+
 export class GhGitHub implements GitHub {
   private readonly options: GhGitHubOptions;
+  private latestRateLimit: RateLimit | null = null;
 
   constructor(options: GhGitHubOptions) {
     this.options = options;
+  }
+
+  rateLimit() {
+    return this.latestRateLimit;
+  }
+
+  /** Keeps the numbers of the latest answer, a failure included: the call that hit the limit says it is 0. */
+  private track(headers: Record<string, string>) {
+    this.latestRateLimit = rateLimitOf(headers) ?? this.latestRateLimit;
   }
 
   /** One `gh api` call: argv separated, no shell. Returns the body of a 2xx answer, throws for anything else. */
@@ -99,6 +119,7 @@ export class GhGitHub implements GitHub {
       });
       const response = parseResponse(stdout);
       if (!response) throw new Error(`unexpected gh output: ${stdout.slice(0, 200)}`);
+      this.track(response.headers);
       if (response.status >= 300) throw statusFailure(profileName, response.status, response.headers, response.body);
       return response.body;
     } catch (error) {
@@ -107,7 +128,10 @@ export class GhGitHub implements GitHub {
       // Exceeding maxBuffer also kills the child, but that is not a timeout.
       if (failed.killed && failed.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') throw new GitHubUnavailable(undefined, `timed out after ${this.options.timeoutMs} ms`);
       const response = parseResponse(failed.stdout ?? '');
-      if (response) throw statusFailure(profileName, response.status, response.headers, response.body);
+      if (response) {
+        this.track(response.headers);
+        throw statusFailure(profileName, response.status, response.headers, response.body);
+      }
       const stderr = failed.stderr ?? '';
       if (authStderr.test(stderr)) throw new AuthError(profileName);
       if (networkStderr.test(stderr)) throw new GitHubUnavailable(undefined, stderr.trim().slice(0, 300));
@@ -130,21 +154,35 @@ export class GhGitHub implements GitHub {
   }
 
   async listReadyEpics(repo: string) {
-    const epics: { issue: number; title: string }[] = [];
+    const epics: { issue: number; title: string; labels: string[] }[] = [];
     for await (const rows of this.pages(repo, 'issues', { labels: readyLabel, state: 'open' }, issueRow)) {
-      for (const row of rows) if (row.pull_request === undefined) epics.push({ issue: row.number, title: row.title });
+      for (const row of rows) if (row.pull_request === undefined) epics.push({ issue: row.number, title: row.title, labels: row.labels.map((label) => label.name) });
     }
     return epics;
   }
 
   async listOpenEpics(repo: string) {
-    const epics: { issue: number; slices: Slices | null }[] = [];
+    const epics: { issue: number; title: string; labels: string[]; slices: Slices | null }[] = [];
     for await (const rows of this.pages(repo, 'issues', { labels: epicLabel, state: 'open' }, epicRow)) {
       for (const row of rows) {
-        if (row.pull_request === undefined) epics.push({ issue: row.number, slices: row.sub_issues_summary ? { done: row.sub_issues_summary.completed, total: row.sub_issues_summary.total } : null });
+        if (row.pull_request === undefined) epics.push({ issue: row.number, title: row.title, labels: row.labels.map((label) => label.name), slices: row.sub_issues_summary ? { done: row.sub_issues_summary.completed, total: row.sub_issues_summary.total } : null });
       }
     }
     return epics;
+  }
+
+  async readSlices(repo: string, issue: number) {
+    const [owner = '', name = ''] = repo.split('/');
+    const body = await this.api(repo, ['graphql', '-f', `query=${epicSlicesQuery}`, '-f', `owner=${owner}`, '-f', `name=${name}`, '-F', `number=${issue}`]);
+    const { subIssues } = epicSlicesResponse.parse(JSON.parse(body)).data.repository.issue;
+    return { slices: subIssues.nodes.map(sliceOf), truncated: subIssues.pageInfo.hasNextPage };
+  }
+
+  async readPullRequest(repo: string, number: number) {
+    const [owner = '', name = ''] = repo.split('/');
+    const body = await this.api(repo, ['graphql', '-f', `query=${pullRequestQuery}`, '-f', `owner=${owner}`, '-f', `name=${name}`, '-F', `number=${number}`]);
+    const response = pullRequestResponse.parse(JSON.parse(body));
+    return { pr: pullRequestOf(response), ...threadsOf(response) };
   }
 
   async getIssue(repo: string, issue: number) {

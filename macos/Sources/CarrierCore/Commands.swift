@@ -10,7 +10,7 @@ public enum Command: String {
 public func send(_ command: Command, socketPath: String) throws {
     guard let client = ControlClient.connect(path: socketPath) else { throw ControlError.closed }
     defer { client.close() }
-    guard try client.hello() == 1 else { throw ControlError.badLine }
+    guard try client.hello().protocolVersion == 1 else { throw ControlError.badLine }
     _ = try client.request(command.rawValue)
 }
 
@@ -20,4 +20,24 @@ extension PanelSnapshot {
 
     /// Stopping asks first when it would interrupt agents; with none running it goes straight through.
     public var stopNeedsConfirmation: Bool { runningEpics > 0 }
+}
+
+/// Opening the Review tab asks the engine to check GitHub now, but not more than once in `every` seconds per app run.
+public struct CheckThrottle {
+    private let every: TimeInterval
+    private let now: () -> Date
+    private var last: Date?
+
+    public init(every: TimeInterval = 30, now: @escaping () -> Date = Date.init) {
+        self.every = every
+        self.now = now
+    }
+
+    /// True when a check may go out now; that moment starts the next wait.
+    public mutating func take() -> Bool {
+        let moment = now()
+        if let last, moment.timeIntervalSince(last) < every { return false }
+        last = moment
+        return true
+    }
 }

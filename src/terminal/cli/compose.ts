@@ -5,7 +5,11 @@ import { resolveRepoConfig } from '../../config/resolve.ts';
 import type { AgentRunner } from '../../execution/agent-runner.ts';
 import { GitWorkspaces, profileToken, type GitWorkspacesOptions } from '../../execution/git-workspaces.ts';
 import type { Workspaces } from '../../execution/workspaces.ts';
-import { startControlServer } from '../../control/server.ts';
+import { epicOf } from '../../control/epic.ts';
+import { eventsOf, lastEventOf } from '../../control/events.ts';
+import { filesOf } from '../../control/files.ts';
+import { sessionsOf } from '../../control/sessions.ts';
+import { startControlServer, version } from '../../control/server.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
 import { GhGitHub, type GhGitHubOptions } from '../../integrations/github.ts';
 import { installFileLogging } from '../../logging/logger.ts';
@@ -16,7 +20,7 @@ import { sessionDirsFrom, type SessionDirs } from '../../orchestration/retention
 import { startInteractivePanel } from '../dashboard/interactive.ts';
 import { tailExecution } from '../dashboard/logs.ts';
 import { startPanel, type PanelOutput } from '../dashboard/panel.ts';
-import { buildSnapshot } from '../../status/snapshot.ts';
+import { buildSnapshot, watchedOf } from '../../status/snapshot.ts';
 import { profileCredentials, type CredentialsOptions } from '../../harnesses/credentials.ts';
 import { HostAgentRunner, type HostRunnerOptions } from '../../harnesses/host-runner.ts';
 import { openDatabase } from '../../storage/db.ts';
@@ -85,14 +89,15 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
   const { limits } = config;
   // Git over the network (clone, fetch) runs as the repo's author profile.
   const authorProfile = (repo: string) => config.profiles[repos.find((r) => r.name === repo)!.agents.author.profile]!;
+  const github = deps.makeGitHub({
+    profile: config.profiles[config.orchestratorProfile]!,
+    cwd: forgeCwd(config.root),
+    timeoutMs: limits.githubCallTimeoutSeconds * 1000,
+  });
   const engine = createEngine({
     db,
     clock: deps.clock,
-    github: deps.makeGitHub({
-      profile: config.profiles[config.orchestratorProfile]!,
-      cwd: forgeCwd(config.root),
-      timeoutMs: limits.githubCallTimeoutSeconds * 1000,
-    }),
+    github,
     workspaces: deps.makeWorkspaces({ root: config.root, token: (repo) => deps.mint(authorProfile(repo), repo) }),
     runner: deps.makeRunner({ credentials: profileCredentials({ profiles: config.profiles, mint: deps.mint, botId: deps.botId }) }),
     repos,
@@ -124,8 +129,9 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
   }
   // Only now: until the engine is up the terminal belongs to whoever is waiting for it (the "Starting…" spinner).
   deps.onArrived?.();
-  const snapshot = () =>
-    buildSnapshot(db, {
+  const snapshot = () => {
+    const limit = github.rateLimit();
+    return buildSnapshot(db, {
       now: deps.clock.now(),
       maxConcurrentEpics: limits.maxConcurrentEpics,
       maxReviews: limits.maxReviews,
@@ -135,8 +141,24 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
       problem: engine.error instanceof AuthError ? `authentication error for profile ${engine.error.profile}` : engine.error ? 'GitHub is unavailable: it will be tried again' : null,
       paused: engine.paused,
       slices: engine.slices,
+      version,
+      pollIntervalMs: config.pollIntervalMinutes * 60_000,
+      rateLimit: limit && { ...limit, profile: 'orchestrator' },
+      watched: watchedOf(repos, engine.lastCheck),
+      lastEvent: (executionId) => lastEventOf(db, executionId),
     });
-  const controls = { poll: () => engine.pollNow(), setPaused: (paused: boolean) => engine.setPaused(paused), open: deps.openUrl, quit: deps.quit, logs: (id: string, count: number) => tailExecution(config.root, id, count) };
+  };
+  const controls = {
+    poll: () => engine.pollNow(),
+    setPaused: (paused: boolean) => engine.setPaused(paused),
+    open: deps.openUrl,
+    quit: deps.quit,
+    logs: (id: string, count: number) => tailExecution(config.root, id, count),
+    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, deps.sessionDirs),
+    events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
+    epic: (repo: string, issue: number) => epicOf(db, repo, issue),
+    files: (repo: string, issue: number, executionId?: string) => filesOf(db, config.root, repo, issue, executionId),
+  };
   stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop: shutdown })).close;
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).
   stopPanel =

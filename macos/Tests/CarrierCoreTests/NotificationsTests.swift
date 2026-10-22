@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CarrierCore
 
@@ -96,4 +97,65 @@ private func running(_ snapshot: PanelSnapshot) -> ConnectionState { .running(sn
     watcher.react(to: .incompatible)
     watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)], done: [ready(3)])))
     #expect(centre.posted.isEmpty)
+}
+
+// the switches
+
+private let both = snapshot([epic(7, .needsHuman, reason: "x")], done: [ready(9, pr: 4)])
+
+@Test func aKindWhoseSwitchIsOffDoesNotNotify() {
+    let before = snapshot([epic(7)])
+    let titles = { (kinds: NotificationKinds) in notifications(from: before, to: both, kinds: kinds).map(\.title) }
+    #expect(titles(NotificationKinds()) == ["a/b #7 needs you", "a/b #9 is ready for test"])
+    #expect(titles(NotificationKinds(needsYou: false)) == ["a/b #9 is ready for test"])
+    #expect(titles(NotificationKinds(readyForTest: false)) == ["a/b #7 needs you"])
+    #expect(titles(NotificationKinds(needsYou: false, readyForTest: false)).isEmpty)
+}
+
+@Test func theWatcherReadsTheSwitchesOnEverySnapshotAndRemembersWhatItSkipped() {
+    let centre = FakeCentre()
+    var kinds = NotificationKinds(needsYou: false)
+    let watcher = NotificationWatcher(centre: centre, kinds: { kinds })
+    watcher.react(to: running(snapshot()))
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)])))
+    #expect(centre.posted.isEmpty)
+    kinds.needsYou = true
+    // the epic that needed a person while the switch was off is not news when it goes on
+    watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)])))
+    #expect(centre.posted == [["a/b #2 needs you"]])
+}
+
+@Test func theSwitchesAreOnUntilTurnedOff() {
+    let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
+    #expect(defaults.notificationKinds == NotificationKinds())
+    defaults.set(false, forKey: notifyReadyForTestKey)
+    #expect(defaults.notificationKinds == NotificationKinds(readyForTest: false))
+    defaults.set(false, forKey: notifyNeedsYouKey)
+    #expect(defaults.notificationKinds == NotificationKinds(needsYou: false, readyForTest: false))
+}
+
+// the permission
+
+private struct StubCentre: NotificationPermissionReader {
+    var answer: SystemNotificationAnswer
+    func read(_ done: @escaping (SystemNotificationAnswer) -> Void) { done(answer) }
+}
+
+private struct UntouchableCentre: NotificationPermissionReader {
+    func read(_ done: @escaping (SystemNotificationAnswer) -> Void) { Issue.record("the centre was read without a bundle") }
+}
+
+@Test func theSystemsThreeAnswersAndAMissingBundleAreTheFourStates() {
+    func permission(_ answer: SystemNotificationAnswer) -> NotificationPermission? {
+        var shown: NotificationPermission?
+        readPermission(bundleIdentifier: "dev.ashulab.carrier", reader: StubCentre(answer: answer)) { shown = $0 }
+        return shown
+    }
+    #expect(permission(.allowed) == .allowed)
+    #expect(permission(.denied) == .denied)
+    #expect(permission(.notAsked) == .notAsked)
+
+    var noBundle: NotificationPermission?
+    readPermission(bundleIdentifier: nil, reader: UntouchableCentre()) { noBundle = $0 }
+    #expect(noBundle == .noBundle)
 }

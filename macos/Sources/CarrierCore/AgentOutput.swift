@@ -11,7 +11,7 @@ extension ControlClient: TailClient {}
 /// A connection to Carrier ready for `tail`; nil when Carrier is not there or speaks another protocol.
 public func connectForTail(socketPath: String) -> TailClient? {
     guard let client = ControlClient.connect(path: socketPath) else { return nil }
-    guard (try? client.hello()) == 1 else {
+    guard (try? client.hello())?.protocolVersion == 1 else {
         client.close()
         return nil
     }

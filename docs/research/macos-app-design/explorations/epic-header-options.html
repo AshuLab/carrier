@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Epic header and tabs — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:26px;align-items:start;margin-top:8px}
+.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:560px}
+.cw{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);overflow:hidden}
+.statebar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.seg{display:flex;gap:2px;background:var(--card2);border-radius:99px;padding:3px;box-shadow:0 0 0 .5px var(--line) inset}
+.seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12.5px;font-weight:550;padding:6px 12px;border-radius:99px;cursor:default;white-space:nowrap}
+body:not(.light) .seg button.on{background:rgba(255,255,255,.16);color:var(--text)}
+body.light .seg button.on{background:#fff;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+
+/* the pipeline bar that stays on top of the centre */
+.pl{display:flex;align-items:center;gap:8px;padding:11px 20px;background:color-mix(in srgb,var(--bg) 58%,transparent);border-bottom:.5px solid var(--line);font-size:12.5px;font-weight:550}
+.pl .st{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.pl .n{width:17px;height:17px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;background:var(--card2);color:var(--dim)}
+.pl .n.d{background:var(--green);color:#fff}.pl .n.c{background:var(--blue);color:#fff}.pl .n.p{background:var(--orange);color:#fff}
+.pl .ln{flex:1;height:2px;border-radius:2px;background:var(--line)}.pl .ln.d{background:var(--green)}
+.pl small{color:var(--faint);font-weight:400}
+.body{padding:20px 20px 22px}
+
+/* header pieces */
+h2.t{margin:0;font-size:20px;font-weight:700;letter-spacing:-.015em;line-height:1.2}
+.meta{display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--dim);font-size:13px;flex-wrap:wrap}
+.lab{font-size:11.5px;font-weight:550;padding:1px 8px;border-radius:99px;background:var(--card2)}
+.lk{color:var(--blue);cursor:default}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 7px;border-radius:99px;font-size:12px;font-weight:550;background:var(--card2);color:var(--dim);white-space:nowrap}
+.chip svg{width:12px;height:12px;opacity:.8}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:99px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.run{background:color-mix(in srgb,var(--green) 20%,transparent);color:var(--green)}
+.pill.need{background:color-mix(in srgb,var(--orange) 22%,transparent);color:var(--orange)}
+.pill.ready{background:color-mix(in srgb,var(--blue) 22%,transparent);color:var(--blue)}
+.pill i{width:6px;height:6px;border-radius:50%;background:currentColor;display:block}
+.gl{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:50%;font-size:14px;font-weight:800;color:#fff}
+.gl.need{background:var(--orange)}.gl.ready{background:var(--blue)}
+.gl.run{border:3px solid color-mix(in srgb,var(--green) 28%,transparent);border-top-color:var(--green);animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.row{display:flex;align-items:flex-start;gap:12px}
+.grow{flex:1;min-width:0}
+.time{color:var(--faint);font-size:12px;font-family:var(--mono)}
+
+/* tabs: a glass capsule, the chosen one a lighter pill */
+.tabs{display:inline-flex;gap:2px;padding:2px;border-radius:99px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset;backdrop-filter:blur(20px)}
+.tabs button{display:flex;align-items:center;gap:5px;border:0;background:none;color:var(--text);font:inherit;font-size:12.5px;padding:4px 10px;border-radius:99px;cursor:default;white-space:nowrap}
+.tabs button.on{background:rgba(255,255,255,.14);font-weight:600}
+body.light .tabs button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.tabs svg{width:13px;height:13px}
+.tabs b{font-weight:500;color:var(--dim)}
+.tabs.big{padding:3px}.tabs.big button{font-size:14px;padding:5px 12px}
+.ph{margin-top:18px;height:120px;border-radius:16px;border:1px dashed var(--line);display:grid;place-items:center;color:var(--faint);font-size:12px}
+.sep{height:.5px;background:var(--line);margin:14px 0 0}
+</style></head><body>
+<h1>Epic view: header and tabs</h1>
+<div class="sub">Four ways to lay out the title block and the two tabs of an epic. A is what the app has now. Switch the state and the theme; everything below the tabs is a placeholder.</div>
+<div class="statebar"><div class="seg" id="states"></div><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+
+<script>
+const I={
+ branch:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="4" cy="3.5" r="1.7"/><circle cx="4" cy="12.5" r="1.7"/><circle cx="12" cy="5.5" r="1.7"/><path d="M4 5.2v5.6M12 7.2c0 3-8 1.5-8 3.6"/></svg>',
+ term:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2"/><path d="M4.8 6.4l2 1.6-2 1.6M8.6 10h2.6"/></svg>',
+ doc:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 1.8h5l3.2 3.2v8.2a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2.8a1 1 0 0 1 1-1z"/><path d="M9 1.8V5h3.2M5.4 8h5.2M5.4 10.6h5.2"/></svg>',
+ issue:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="1" fill="currentColor"/></svg>'
+};
+const S={
+ run:{name:'Running',title:'Add rate limiting to the webhook receiver',pill:['run','Running · review round 2/5'],time:'in this stage for 4m 10s · started 38m ago',files:7,
+  steps:[['d','✓','Queued','2m'],['d','✓','Ship','31m'],['c','3','Review','r2/5'],['w','4','Fix',''],['w','5','Ready','']],glyph:'run',pr:'PR #50'},
+ need:{name:'Needs you',title:'Migrate the billing tables to the new schema',pill:['need','Needs you · review limit reached (5/5)'],time:'stopped 18h ago · started 2d ago',files:12,
+  steps:[['d','✓','Queued','1m'],['d','✓','Ship','54m'],['p','!','Review','5/5'],['w','4','Fix',''],['w','5','Ready','']],glyph:'need',pr:'PR #44'},
+ ready:{name:'Ready for test',title:'Search across the activity log',pill:['ready','Ready for test'],time:'finished 23h ago · took 1h 12m',files:9,
+  steps:[['d','✓','Queued','1m'],['d','✓','Ship','48m'],['d','✓','Review','r2/5'],['d','✓','Fix','9m'],['c','✓','Ready','']],glyph:'ready',pr:'PR #612'}
+};
+let cur='run';
+const repo='acme/web',num=12;
+const pipeline=s=>`<div class="pl">${s.steps.map((x,i)=>(i?`<span class="ln ${s.steps[i-1][0]==='d'?'d':''}"></span>`:'')+`<span class="st"><span class="n ${x[0]}">${x[1]}</span>${x[2]}<small>${x[3]}</small></span>`).join('')}</div>`;
+const tabs=(s,icons,cls='')=>`<div class="tabs ${cls}"><button class="on">${icons?I.term:''}Agent output</button><button>${icons?I.doc:''}Files changed <b>${s.files}</b></button></div>`;
+const glyph=s=>s.glyph==='run'?'<span class="gl run"></span>':s.glyph==='need'?'<span class="gl need">!</span>':'<span class="gl ready">✓</span>';
+const pill=s=>`<span class="pill ${s.pill[0]}"><i></i>${s.pill[1]}</span>`;
+const labels='<span class="lab">ship</span><span class="lab">backend</span>';
+const body=h=>`<div class="body">${h}<div class="ph">tab content</div></div>`;
+const OPTS=[
+ ['A · Now','What the app has: title, then repo · number, the labels and the PR link. The state is only in the pipeline bar, and the PR link is also in the toolbar.',
+  s=>body(`<h2 class="t">${s.title}</h2><div class="meta"><span>${repo} · #${num}</span>${labels}<span class="lk">${s.pr} ↗</span></div><div style="height:18px"></div>${tabs(s,true)}`)],
+ ['B · State up front','A state glyph beside the title and a pill with the state in words. The repo and the issue become chips, the PR link leaves (the toolbar has Open PR). Labels move after the chips.',
+  s=>body(`<div class="row">${glyph(s)}<div class="grow"><h2 class="t">${s.title}</h2><div class="meta">${pill(s)}<span class="chip">${I.branch}${repo}</span><span class="chip">${I.issue}#${num}</span>${labels}</div></div></div><div style="height:18px"></div>${tabs(s,true)}`)],
+ ['C · Title and tabs on one block','Smaller: the state glyph and title on one line, one dim line under it with repo, number, state and times. The tabs sit right under it and the labels go away (they are internal).',
+  s=>body(`<div class="row" style="align-items:center">${glyph(s)}<div class="grow"><h2 class="t" style="font-size:18px">${s.title}</h2><div class="meta" style="margin-top:4px;font-size:12.5px"><span>${repo} · #${num}</span><span>·</span><span>${s.pill[1]}</span></div></div></div><div style="height:14px"></div>${tabs(s,true)}`)],
+ ['D · With time','B plus a line of times in mono under the chips: how long in this stage and since when. The tabs get a bit of air from a hairline above them.',
+  s=>body(`<div class="row">${glyph(s)}<div class="grow"><h2 class="t">${s.title}</h2><div class="meta">${pill(s)}<span class="chip">${I.branch}${repo}</span><span class="chip">${I.issue}#${num}</span></div><div class="time" style="margin-top:8px">${s.time}</div></div></div><div class="sep"></div><div style="height:14px"></div>${tabs(s,true)}`)]
+];
+function render(){
+ document.getElementById('states').innerHTML=Object.entries(S).map(([k,v])=>`<button class="${k===cur?'on':''}" data-k="${k}">${v.name}</button>`).join('');
+ const s=S[cur];
+ document.getElementById('opts').innerHTML=OPTS.map(([t,d,f])=>`<div class="opt"><h3>${t}</h3><p>${d}</p><div class="cw">${pipeline(s)}${f(s)}</div></div>`).join('');
+}
+document.getElementById('states').onclick=e=>{const k=e.target.dataset.k;if(k){cur=k;render()}};
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script>
+</body></html>

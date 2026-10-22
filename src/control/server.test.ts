@@ -1,9 +1,10 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { connect, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { acquireLock } from '../storage/lock.ts';
+import type { EpicReply, EventsReply, FilesReply } from './replies.ts';
 import { socketPathFits, startControlServer } from './server.ts';
 
 let dir: string;
@@ -28,7 +29,7 @@ const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
 function fakeControls() {
   const state = { paused: false, polls: 0 };
   const logs = vi.fn((id: string, count: number) => (id === executionId ? ['one', 'two', 'three'].slice(-count) : []));
-  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs } };
+  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null => ({ sections: [], total: null, truncated: false }) } };
 }
 
 const stop = async () => {};
@@ -73,7 +74,7 @@ async function client() {
 test('a client gets a hello, and the snapshot as JSON when it asks', async () => {
   await open();
   const c = await client();
-  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234 });
+  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files'] });
   expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: true, data: snapshotData });
   expect(await c.ask('{"id":7,"cmd":"snapshot"}')).toMatchObject({ id: 7, ok: true });
 });
@@ -98,7 +99,9 @@ test('every command in the schema gets a real reply, none is "not supported"', a
     '{"id":3,"cmd":"resume"}',
     '{"id":4,"cmd":"checkNow"}',
     `{"id":5,"cmd":"tail","executionId":"${executionId}","lines":1}`,
-    '{"id":6,"cmd":"stop"}',
+    '{"id":6,"cmd":"sessions","repo":"AshuLab/carrier","issue":5}',
+    '{"id":7,"cmd":"epic","repo":"AshuLab/carrier","issue":5}',
+    '{"id":8,"cmd":"stop"}',
   ];
   for (const [index, line] of commands.entries()) expect(await c.ask(line)).toMatchObject({ id: index + 1, ok: true });
   await vi.waitFor(() => expect(stopped).toHaveBeenCalledTimes(1));
@@ -148,6 +151,84 @@ test.each([
   const count = lines === undefined ? '' : `,"lines":${lines}`;
   expect(await c.ask(`{"id":3,"cmd":"tail","executionId":${id}${count}}`)).toEqual({ id: 3, ok: false, error: 'invalid request' });
   expect(fake.logs).not.toHaveBeenCalled();
+});
+
+test('an epic request for an unknown epic is an error reply', async () => {
+  await open(undefined, { ...fakeControls().controls, epic: () => null });
+  expect(await (await client()).ask('{"id":1,"cmd":"epic","repo":"a_b.c-d/e.f","issue":1}')).toEqual({ id: 1, ok: false, error: 'unknown epic' });
+});
+
+test('an epic request that throws is an error reply, not a dead server', async () => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  await open(undefined, { ...fakeControls().controls, epic: () => { throw new Error('boom'); } });
+  const c = await client();
+  expect(await c.ask('{"id":2,"cmd":"epic","repo":"a/b","issue":1}')).toEqual({ id: 2, ok: false, error: 'internal error' });
+  expect(await c.ask('{"id":3,"cmd":"snapshot"}')).toMatchObject({ id: 3, ok: true });
+});
+
+test('events answers with the reply, and an unknown execution or a failure are errors', async () => {
+  const reply = { events: [], next: 7, running: true, structured: true };
+  const events = vi.fn((_id: string, _after: number, _limit: number) => reply);
+  await open(undefined, { ...fakeControls().controls, events });
+  const c = await client();
+  expect(await c.ask(`{"id":9,"cmd":"events","executionId":"${executionId}","limit":200}`)).toEqual({ id: 9, ok: true, data: reply });
+  expect(events).toHaveBeenLastCalledWith(executionId, 0, 200);
+  await c.ask(`{"id":10,"cmd":"events","executionId":"${executionId}","after":5,"limit":1}`);
+  expect(events).toHaveBeenLastCalledWith(executionId, 5, 1);
+  await open(undefined, { ...fakeControls().controls, events: () => null });
+  expect(await (await client()).ask(`{"id":1,"cmd":"events","executionId":"${executionId}","limit":1}`)).toEqual({ id: 1, ok: false, error: 'unknown execution' });
+  await open(undefined, { ...fakeControls().controls, events: () => { throw new Error('boom'); } });
+  expect(await (await client()).ask(`{"id":2,"cmd":"events","executionId":"${executionId}","limit":1}`)).toEqual({ id: 2, ok: false, error: 'internal error' });
+});
+
+test('files answers with the reply, and an unknown epic or a failure are errors', async () => {
+  await open();
+  const c = await client();
+  const empty = { sections: [], total: null, truncated: false };
+  expect(await c.ask('{"id":9,"cmd":"files","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 9, ok: true, data: empty });
+  expect(await c.ask(`{"id":10,"cmd":"files","repo":"AshuLab/carrier","issue":5,"executionId":"${executionId}"}`)).toEqual({ id: 10, ok: true, data: empty });
+  await open(undefined, { ...fakeControls().controls, files: () => null });
+  expect(await (await client()).ask('{"id":1,"cmd":"files","repo":"a/b","issue":1}')).toEqual({ id: 1, ok: false, error: 'unknown epic' });
+  await open(undefined, { ...fakeControls().controls, files: () => { throw new Error('boom'); } });
+  expect(await (await client()).ask('{"id":2,"cmd":"files","repo":"a/b","issue":1}')).toEqual({ id: 2, ok: false, error: 'internal error' });
+});
+
+const validFields = {
+  sessions: { repo: 'AshuLab/carrier', issue: 5 },
+  events: { executionId, limit: 10 },
+  epic: { repo: 'AshuLab/carrier', issue: 5 },
+  files: { repo: 'AshuLab/carrier', issue: 5 },
+} as const;
+const badRepos = ['', 'carrier', 'a/b/c', '../b', 'a/..', './b', 'a/.', '/b', 'a/', 'a b/c', 'a/b?x', `${'a'.repeat(200)}/b`, 7, null];
+const invalid = (cmd: keyof typeof validFields, change: Record<string, unknown>) => ({ id: 3, cmd, ...validFields[cmd], ...change });
+
+const invalidRequests: (readonly [string, Record<string, unknown>])[] = [
+  ...(['sessions', 'epic', 'files'] as const).flatMap((cmd) => [
+    ...badRepos.map((repo) => [`${cmd} with repo ${JSON.stringify(repo)}`, invalid(cmd, { repo })] as const),
+    [`${cmd} with issue 0`, invalid(cmd, { issue: 0 })] as const,
+    [`${cmd} with a string issue`, invalid(cmd, { issue: '5' })] as const,
+    [`${cmd} with a fractional issue`, invalid(cmd, { issue: 1.5 })] as const,
+    [`${cmd} with no issue`, invalid(cmd, { issue: undefined })] as const,
+    [`${cmd} with no repo`, invalid(cmd, { repo: undefined })] as const,
+  ]),
+  ...(['events', 'files'] as const).map((cmd) => [`${cmd} with a non-UUID execution id`, invalid(cmd, { executionId: 'not-a-uuid' })] as const),
+  ['events with no execution id', invalid('events', { executionId: undefined })],
+  ['events with no limit', invalid('events', { limit: undefined })],
+  ['events with limit 0', invalid('events', { limit: 0 })],
+  ['events with an oversize limit', invalid('events', { limit: 201 })],
+  ['events with a string limit', invalid('events', { limit: '10' })],
+  ['events with a negative cursor', invalid('events', { after: -1 })],
+  ['events with a fractional cursor', invalid('events', { after: 0.5 })],
+  ['events with a string cursor', invalid('events', { after: '1' })],
+  ...(['sessions', 'events', 'epic', 'files'] as const).flatMap((cmd) => [
+    [`${cmd} with an extra field`, invalid(cmd, { extra: 1 })] as const,
+    [`${cmd} with no fields`, { id: 3, cmd }] as const,
+  ]),
+];
+test.each(invalidRequests)('%s is a validation error', async (_name, request) => {
+  await open();
+  const c = await client();
+  expect(await c.ask(JSON.stringify(request))).toEqual({ id: 3, ok: false, error: 'invalid request' });
 });
 
 test('a control that throws is an error reply, not a dead server', async () => {

@@ -56,6 +56,9 @@ _Avoid_: API, daemon, IPC.
 **Slice progress** - How many of an epic's slices (its sub-issues) are closed out of the total, read from GitHub on every poll. The list behind the count is kept in SQLite as a cache of GitHub, never as authority ([0008](adr/0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md)); the agent running `ship` works the slices inside its own session.
 _Avoid_: ticket progress, issue status.
 
+**Review thread** - A conversation on a line of a pull request's diff, with who opened it, the file and line, whether it is resolved and a link to it on GitHub. The app lists the final pull request's threads in the Review tab, from a cache of GitHub like the slices ([0008](adr/0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md)); a reviewer agent's blocker is a thread too.
+_Avoid_: comment (a thread holds several), blocker (what the reviewer agent reports in its result).
+
 **Session** - The conversation an agent holds in its harness, identified by an id the harness can resume (`claude --resume`, `codex resume`, `agy --conversation`). Each execution has one; the app shows an execution's work as one session block and Continue in Terminal resumes it ([0007](adr/0007-continue-in-terminal-through-a-validated-descriptor.md)).
 _Avoid_: execution (the invocation with its time limit and result), thread, chat.
 
@@ -67,6 +70,9 @@ _Avoid_: lane (that is inside one epic), thread, concurrency.
 
 **Blocker** - A finding of a review that stops its approval. It has a title and, when the reviewer provides them, a stable id and a mark when a later round resolves it; the app shows each round's blockers and which carry over.
 _Avoid_: issue, comment, error.
+
+**Observation** - A finding of a review that does not stop its approval: a nitpick or a suggestion. The reviewer lists observations in a `completed` result, with a title and a stable id like a blocker; when there are any, the author answers them in one resolve pass before the epic is ready for test ([0009](adr/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md)).
+_Avoid_: nitpick (one kind of observation), comment, blocker (the one that stops approval).
 
 **Your turn** - The Overview's list of what needs the person: epics in human intervention, finished epics waiting to be tested, and engine problems, each with its action. It is not a status list; the sidebar already says which epics exist.
 _Avoid_: inbox, notifications, to-do.

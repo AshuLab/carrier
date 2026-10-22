@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { buildPrompt } from '../prompts/build-prompt.ts';
-import { buildClaudeCommand, parseClaudeLine } from './claude.ts';
+import { attributeSubagentLines, buildClaudeCommand, parseClaudeLine } from './claude.ts';
 import { childEnv, resolveBinary } from './common.ts';
 
 const task: AgentTask = {
@@ -107,4 +107,21 @@ test('a local model points the CLI at that server and keeps a real API key away 
   const { env } = buildClaudeCommand({ ...task, provider: 'ollama' }, { ...ctx, baseEnv: { ...ctx.baseEnv, ANTHROPIC_API_KEY: 'sk-real' } });
   expect(env).toMatchObject({ ANTHROPIC_BASE_URL: 'http://localhost:11434', ANTHROPIC_AUTH_TOKEN: 'ollama', ANTHROPIC_API_KEY: '' });
   expect(buildClaudeCommand(task, ctx).env).not.toHaveProperty('ANTHROPIC_BASE_URL');
+});
+
+test('attributeSubagentLines ties subagent lines to an agent, a lane and a slice', () => {
+  const lines = readFileSync(join(import.meta.dirname, 'claude-subagents.fixture.jsonl'), 'utf8').trim().split('\n').map((line) => JSON.parse(line));
+  const result = attributeSubagentLines(lines);
+  expect(result).toHaveLength(lines.length);
+  const by = (agentId: string) => result.filter((r) => r.agentId === agentId);
+  // Build subagents: slice from the Agent call description, lane from the worktree they touched.
+  expect(by('af4e38341539ac2cf').length).toBeGreaterThan(5);
+  for (const r of by('af4e38341539ac2cf')) expect(r).toEqual({ agentId: 'af4e38341539ac2cf', lane: 1, slice: 653 });
+  for (const r of by('a97cac545564d0d61')) expect(r).toEqual({ agentId: 'a97cac545564d0d61', lane: 2, slice: 654 });
+  // A review subagent is not a lane: exact agent, nothing else.
+  for (const r of by('a72f07f44125066b2')) expect(r).toEqual({ agentId: 'a72f07f44125066b2' });
+  // A line of the main thread has no agent; the Agent call line itself too.
+  expect(result[0]).toEqual({ agentId: null });
+  // task_* bookkeeping lines carry no agent_id: they stay with the main thread.
+  expect(result[lines.findIndex((l) => l.subtype === 'task_progress')]).toEqual({ agentId: null });
 });

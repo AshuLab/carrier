@@ -143,23 +143,21 @@ private final class ExitCode {
     func set(_ code: Int32) { lock.lock(); self.code = code; lock.unlock() }
 }
 
-/// The window's Start Carrier button, shown while Carrier is stopped; it says what is missing when it cannot start.
+/// The window's Start Carrier button, shown while Carrier is stopped; disabled while the settings lack something (the list next to it says what).
 struct StartCarrierButton: View {
     @ObservedObject private var start = StartController.shared
     @ObservedObject private var setup = SetupController.shared
 
     var body: some View {
         let missing = startMissing(setup.settings)
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(spacing: 6) {
             HStack {
-                Button("Start Carrier") { start.start() }.buttonStyle(.glassProminent).disabled(missing.isEmpty == false || start.starting)
+                Button("Start Carrier") { start.start() }.buttonStyle(.borderedProminent).controlSize(.large)
+                    .disabled(missing.isEmpty == false || start.starting)
                 if start.starting {
                     ProgressView().controlSize(.small)
                     Text("Starting…").foregroundStyle(.secondary)
                 }
-            }
-            if missing.isEmpty == false {
-                Text("Missing in Settings: \(missing.joined(separator: ", "))").font(.caption).foregroundStyle(.secondary)
             }
         }
     }

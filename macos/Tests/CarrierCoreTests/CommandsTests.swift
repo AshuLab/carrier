@@ -20,7 +20,7 @@ private func snapshot(_ change: (inout PanelSnapshot) -> Void = { _ in }) throws
 
 @Test func stoppingDoesNotAskWhenEpicsOnlyNeedAPerson() throws {
     let s = try snapshot { $0.epics = $0.epics.filter { $0.status == .needsHuman } }
-    #expect(s.epics.count == 1)
+    #expect(s.epics.count == 7)
     #expect(s.stopNeedsConfirmation == false)
 }
 
@@ -74,4 +74,18 @@ private let hello = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\
 
 @Test func noCarrierIsAClosedConnectionNotACrash() {
     #expect(throws: ControlError.closed) { try send(.pause, socketPath: "/tmp/cc-missing-\(UUID().uuidString.prefix(8)).sock") }
+}
+
+@Test func theReviewTabChecksGithubAtMostOnceEveryThirtySeconds() {
+    var clock = Date(timeIntervalSince1970: 1_000)
+    var throttle = CheckThrottle(now: { clock })
+    let first = throttle.take()
+    clock += 29
+    let tooSoon = throttle.take()
+    // a refused one does not start a new wait
+    clock += 1
+    let due = throttle.take()
+    clock += 30
+    let dueAgain = throttle.take()
+    #expect([first, tooSoon, due, dueAgain] == [true, false, true, true])
 }

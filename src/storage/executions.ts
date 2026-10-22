@@ -11,6 +11,12 @@ export const executions = sqliteTable('executions', {
   sessionId: text(), // saved as soon as the runner reports it, not when it ends
   // Why a technical failure ended it; set only for the ones the engine retries or stops for a person (auth_failed).
   error: text(),
+  // The agent and the folder this execution ran with, written when the row is inserted; null on rows from before they were recorded.
+  harness: text(),
+  model: text(),
+  provider: text(),
+  workspace: text(), // the cwd of the session: what resuming it needs
+  round: integer(), // the review round, null for ship
   resultPath: text().notNull(),
   startedAt: integer().notNull(),
   finishedAt: integer(),

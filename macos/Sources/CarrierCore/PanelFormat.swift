@@ -3,13 +3,13 @@ import Foundation
 // What the window writes about a snapshot, the same wording as the terminal panel (src/terminal/dashboard/dashboard.ts).
 // Times are ms since epoch; `now` is the snapshot's own clock.
 
-/// "45s", "3m 05s", "2h 03m", "1d 4h": the two largest units (src/format/duration.ts).
+/// "45s", "3m", "2h 03m", "1d 4h": seconds only under a minute, so a counter on screen changes once a minute from then on.
 public func formatDuration(_ ms: Int) -> String {
     let s = max(0, ms) / 1000
     let (d, h, m) = (s / 86_400, s % 86_400 / 3600, s % 3600 / 60)
     if d > 0 { return "\(d)d \(h)h" }
     if h > 0 { return "\(h)h \(String(format: "%02d", m))m" }
-    if m > 0 { return "\(m)m \(String(format: "%02d", s % 60))s" }
+    if m > 0 { return "\(m)m" }
     return "\(s)s"
 }
 
@@ -45,6 +45,11 @@ public func activityLine(_ epic: PanelEpic, now: Int) -> String {
 public func uptimeLine(_ snapshot: PanelSnapshot) -> String { "up \(formatDuration(snapshot.now - snapshot.startedAt))" }
 
 public func reposLine(_ repos: Int) -> String { "watching \(repos) \(repos == 1 ? "repo" : "repos")" }
+
+/// The Overview's toolbar subtitle: "5 repos · up 22m · next check in 3m".
+public func overviewSubtitle(_ snapshot: PanelSnapshot, repos: Int) -> String {
+    ["\(repos) \(repos == 1 ? "repo" : "repos")", uptimeLine(snapshot), nextCheckLine(snapshot)].joined(separator: " · ")
+}
 
 public func nextCheckLine(_ snapshot: PanelSnapshot) -> String {
     guard let at = snapshot.nextCheckAt else { return "starting" }

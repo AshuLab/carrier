@@ -2,235 +2,189 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// What the sidebar lists: the overview, then one item per section of the panel.
-private enum SidebarItem: String, CaseIterable, Identifiable {
-    case overview, needsYou, running, queue, ready
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .overview: "Overview"
-        case .needsYou: "Needs you"
-        case .running: "Running"
-        case .queue: "Queue"
-        case .ready: "Ready for test"
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .overview: "square.grid.2x2"
-        case .needsYou: "exclamationmark.bubble"
-        case .running: "play.circle"
-        case .queue: "tray.full"
-        case .ready: "checkmark.circle"
-        }
-    }
-
-    /// How many entries the section holds; the overview has no count.
-    func count(in snapshot: PanelSnapshot) -> Int {
-        switch self {
-        case .overview: 0
-        case .needsYou: snapshot.epics.filter { $0.status == .needsHuman }.count
-        case .running: snapshot.epics.filter { $0.status == .running }.count
-        case .queue: snapshot.queue.count
-        case .ready: snapshot.done.count
-        }
-    }
-}
-
 struct PanelView: View {
     let model: PanelModel
-    @State private var selection: SidebarItem? = .overview
+    /// The right panel's width: also the empty toolbar item that keeps the epic's buttons off it.
+    private static let inspectorWidth: CGFloat = 316
 
     private var snapshot: PanelSnapshot? {
         if case .running(let snapshot)? = model.state { return snapshot }
         return nil
     }
 
+    /// The selected epic when it is in the snapshot.
+    private var epic: (subject: EpicSubject, header: EpicHeader, now: Int)? {
+        guard case .epic(let repo, let issue) = model.shell.selection, let snapshot,
+            let subject = snapshot.subject(repo: repo, issue: issue)
+        else { return nil }
+        return (subject, epicHeader(subject), snapshot.now)
+    }
+
+    private func queuedPlan(_ subject: EpicSubject) -> QueuedPlan? {
+        guard case .queued(let queued, let position) = subject else { return nil }
+        return snapshot?.queuedPlan(for: queued, position: position)
+    }
+
+    /// What the engine is asked for: the selected epic's data, nothing with no epic selected.
+    private var focus: EpicFocus? {
+        guard let epic else { return nil }
+        let ref = EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)
+        var running = false
+        if case .active(let active) = epic.subject { running = active.status == .running }
+        return epicFocus(ref, running: running, data: model.epics.data[ref], folds: model.epics.folds)
+    }
+
+    /// The toolbar's title and the line under it, as in the mockup: each screen says what it is.
+    private var title: String {
+        if let epic { return "\(epic.subject.repo.split(separator: "/").last ?? "") #\(epic.subject.issue)" }
+        switch model.shell.selection {
+        case .overview where snapshot != nil: return "Overview"
+        case .settings: return "Settings"
+        default: return "Carrier"
+        }
+    }
+
+    private var subtitle: String {
+        switch model.shell.selection {
+        case .overview: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
+        case .settings: "what the app starts Carrier with"
+        case .epic: ""
+        }
+    }
+
     var body: some View {
-        NavigationSplitView {
-            List(SidebarItem.allCases, selection: $selection) { item in
-                Label(item.title, systemImage: item.symbol).badge(snapshot.map(item.count) ?? 0)
-            }
-            .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 170, ideal: 200, max: 260)
-            .safeAreaInset(edge: .bottom) {
-                Text(model.state?.menuLine ?? "Connecting…")
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
+        @Bindable var shell = model.shell
+        @Bindable var epics = model.epics
+        let groupBy = Binding(get: { model.groupBy }, set: { model.groupBy = $0; SidebarStore().groupBy = $0 })
+        let columns = Binding<NavigationSplitViewVisibility>(
+            get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
+        )
+        NavigationSplitView(columnVisibility: columns) {
+            SidebarView(snapshot: snapshot, state: model.state, selection: $shell.selection, groupBy: groupBy, onAbout: shell.showAbout)
         } detail: {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    switch model.state {
-                    case nil:
-                        Text("Connecting…").foregroundStyle(.secondary)
-                    case .stopped?, .incompatible?:
-                        // Carrier is not answering: nothing else to show
-                        Label(model.state?.menuLine ?? "", systemImage: "stop.circle").font(.title3)
-                        if model.state == .stopped { StartCarrierButton() }
-                    case .running(let snapshot)?:
-                        Running(snapshot: snapshot, item: selection ?? .overview)
+            // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
+            // resizes and the app dies with "more Update Constraints passes than there are views"
+            HStack(spacing: 0) {
+                Group {
+                    if let epic {
+                        let data = model.epics.data[EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)]
+                        EpicView(
+                            subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files), now: epic.now,
+                            sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:]), folds: $epics.folds, files: data?.files,
+                            plan: queuedPlan(epic.subject)
+                        )
+                            .id("\(epic.subject.repo)#\(epic.subject.issue)")
+                    } else if shell.selection == .settings {
+                        // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
+                        SettingsScreen()
+                    } else if case .running(let snapshot)? = model.state {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 26) {
+                                Running(snapshot: snapshot, selection: $shell.selection)
+                            }
+                            .padding(18)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                        }
+                    } else {
+                        // Carrier is not answering (or has not yet): what to do about it
+                        StoppedView(state: model.state, selection: $shell.selection)
                     }
                 }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+                // only an epic has something to inspect; Overview and Settings are a single column. The panel runs up behind the
+                // title bar, like the sidebar on the other side. It stays in the tree and the width of its slot goes between 0 and its own,
+                // the panel anchored to the slot's left edge so it leaves through the window's right one; a view that came and went with
+                // a transition would not move like the sidebar does
+                if let epic {
+                    let data = model.epics.data[EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)]
+                    HStack(spacing: 0) {
+                        Divider().ignoresSafeArea(.container, edges: .top)
+                        InspectorTabsView(subject: epic.subject, reply: data?.epic, sessions: data?.sessions)
+                            .frame(width: Self.inspectorWidth)
+                            .background(.background.secondary, ignoresSafeAreaEdges: .all)
+                    }
+                    .frame(width: shell.inspectorShown ? Self.inspectorWidth + 1 : 0, alignment: .leading)
+                    .allowsHitTesting(shell.inspectorShown)
+                }
             }
-            .navigationTitle((selection ?? .overview).title)
+            .navigationTitle(title)
+            .navigationSubtitle(subtitle)
         }
-        .frame(minWidth: 760, minHeight: 420)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemImage: "sidebar.leading") }
+                    .help("Show or hide the sidebar")
+            }
+            if let epic {
+                ToolbarItem(placement: .primaryAction) { EpicLinks(prURL: epic.header.prURL, issueURL: epic.header.issueURL) }
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+                ToolbarItem(placement: .primaryAction) {
+                    Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                        .help("Show or hide the inspector")
+                }
+                if shell.inspectorShown {
+                    // The toolbar is the window's, so its right end is over the panel, which runs up behind the title bar. An empty item
+                    // as wide as the panel at that end keeps the buttons on the centre's side of it.
+                    ToolbarItem(placement: .primaryAction) { Color.clear.frame(width: Self.inspectorWidth, height: 1) }
+                        .sharedBackgroundVisibility(.hidden)
+                }
+            }
+            if let snapshot, shell.selection == .overview {
+                // two pills: the check against GitHub, then what governs Carrier itself (intake and stopping)
+                ToolbarItem(placement: .primaryAction) {
+                    Button { MenuControls.shared.checkNow() } label: { Label("Check now", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
+                        .help("Check GitHub now")
+                }
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button { MenuControls.shared.pauseOrResume() } label: {
+                        Label(snapshot.paused ? "Resume" : "Pause", systemImage: snapshot.paused ? "play.fill" : "pause.fill").labelStyle(.titleAndIcon)
+                    }
+                    .help(snapshot.paused ? "Resume intake" : "Pause intake")
+                    Button { MenuControls.shared.stopCarrier() } label: {
+                        Label { Text("Stop") } icon: { Image(systemName: "stop.fill").foregroundStyle(.red) }.labelStyle(.titleAndIcon)
+                    }
+                    .help("Stop Carrier")
+                }
+            }
+        }
+        .overlay {
+            if shell.aboutShown {
+                AboutSheetView(state: model.state, onInput: shell.aboutInput)
+            }
+        }
+        .frame(minWidth: 1100, minHeight: 600)
+        .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
     }
 }
 
 private struct Running: View {
     let snapshot: PanelSnapshot
-    let item: SidebarItem
-
-    /// The overview shows every section; any other item shows only its own.
-    private func shows(_ section: SidebarItem) -> Bool { item == .overview || item == section }
+    @Binding var selection: Selection
 
     var body: some View {
-        let needsYou = snapshot.epics.filter { $0.status == .needsHuman }
-        let running = snapshot.epics.filter { $0.status == .running }
-        Header(snapshot: snapshot)
-        if shows(.needsYou) && needsYou.isEmpty == false {
-            PanelSection(title: "Needs you") { ForEach(needsYou, id: \.key) { EpicCard(epic: $0, now: snapshot.now) } }
-        }
-        if shows(.running) && running.isEmpty == false {
-            PanelSection(title: "Running") { ForEach(running, id: \.key) { EpicCard(epic: $0, now: snapshot.now) } }
-        }
-        if shows(.queue) && snapshot.queue.isEmpty == false {
-            PanelSection(title: "Queue \(snapshot.queue.count)") {
-                ForEach(snapshot.queue, id: \.key) { Text("\($0.repo) #\($0.issue)") }
-            }
-        }
-        if shows(.ready) && snapshot.done.isEmpty == false {
-            PanelSection(title: "Ready for test") {
-                ForEach(snapshot.done, id: \.key) { DoneRow(done: $0, now: snapshot.now) }
-            }
-        }
-        if item == .overview && snapshot.epics.isEmpty && snapshot.queue.isEmpty && snapshot.done.isEmpty {
-            Text("Idle. Mark an epic solve:epic:ready in a watched repo to start one.").foregroundStyle(.secondary)
-        } else if item != .overview && item.count(in: snapshot) == 0 {
-            Text("Nothing in \(item.title.lowercased()).").foregroundStyle(.secondary)
+        switch selection {
+        case .overview:
+            Overview(snapshot: snapshot, selection: $selection)
+        case .epic(let repo, let issue):
+            // not in the snapshot (any more)
+            Text("\(repo) #\(issue)")
+        case .settings:
+            EmptyView()  // PanelView shows SettingsScreen
         }
     }
 }
 
-private struct Header: View {
+private struct Overview: View {
     let snapshot: PanelSnapshot
+    @Binding var selection: Selection
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Label("Carrier running", systemImage: "play.circle.fill").foregroundStyle(.green).font(.title3)
-                Text(uptimeLine(snapshot)).foregroundStyle(.secondary)
-                Spacer()
-                Chip(text: "slots \(snapshot.slots.busy)/\(snapshot.slots.total)")
-            }
-            Text("\(reposLine(snapshot.repos)) · \(nextCheckLine(snapshot))").font(.callout).foregroundStyle(.secondary)
-            if snapshot.paused {
-                Label("Intake is paused: new epics wait in the queue", systemImage: "pause.circle").foregroundStyle(.orange)
-            }
-            if let problem = snapshot.problem {
-                Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-            }
-        }
-    }
-}
-
-private struct EpicCard: View {
-    let epic: PanelEpic
-    let now: Int
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("\(epic.repo) #\(epic.issue)").font(.headline)
-                Spacer()
-                if epic.status == .running {
-                    Button("Output") { if let id = epic.executionId { AgentOutputWindow.show(title: "\(epic.repo) #\(epic.issue)", executionId: id) } }
-                        .buttonStyle(.glass).controlSize(.small).disabled(epic.executionId == nil)
-                }
-                OpenButton(title: "Open PR", url: epic.prUrl)
-                OpenButton(title: "Open issue", url: epic.issueUrl)
-            }
-            if let reason = epic.needsHumanReason { Text(reason).foregroundStyle(.orange) }
-            HStack(spacing: 6) {
-                if epic.stage == nil { Text("starting").font(.caption).foregroundStyle(.secondary) }
-                ForEach(stageChain(epic.stage), id: \.name) { Chip(text: $0.name, on: $0.current) }
-                if let round = roundLine(epic) { Text(round).font(.caption).foregroundStyle(.secondary) }
-                Chip(text: blockersLine(epic.blockers), on: epic.blockers > 0, color: .red)
-            }
-            Text("\(stageTimeLine(epic, now: now)) · \(activityLine(epic, now: now))").font(.caption).foregroundStyle(.secondary)
-            if let slices = epic.slices, let line = slicesLine(slices) {
-                HStack(spacing: 8) {
-                    ProgressView(value: Double(slices.done), total: Double(slices.total)).frame(maxWidth: 220)
-                    Text(line).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                }
-            }
-            if let error = epic.lastError { Text("error: \(error)").font(.caption).foregroundStyle(.red) }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.08)))
-    }
-}
-
-private struct DoneRow: View {
-    let done: PanelSnapshot.DoneEpic
-    let now: Int
-
-    var body: some View {
-        HStack {
-            Text("\(done.repo) #\(done.issue)")
-            Text(agoLine(done.finishedAt, now: now)).font(.caption).foregroundStyle(.secondary)
-            Spacer()
-            OpenButton(title: "Open PR", url: donePullURL(done))
-            OpenButton(title: "Open issue", url: doneIssueURL(done))
-        }
-    }
-}
-
-/// Opens a link from the engine in the default browser; absent when there is no link or it is not a web link.
-private struct OpenButton: View {
-    let title: String
-    let url: String?
-
-    var body: some View {
-        if let target = url.flatMap(browserURL) {
-            Button(title) { NSWorkspace.shared.open(target) }.buttonStyle(.glass).controlSize(.small)
-        }
-    }
-}
-
-private struct Chip: View {
-    let text: String
-    var on = false
-    var color: Color = .accentColor
-
-    var body: some View {
-        Text(text).font(.caption.weight(.medium)).padding(.horizontal, 7).padding(.vertical, 2)
-            .background(Capsule().fill(on ? color : Color.secondary.opacity(0.15)))
-            .foregroundStyle(on ? Color.white : Color.secondary)
-    }
-}
-
-private struct PanelSection<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            content
-        }
+        YourTurnView(snapshot: snapshot, selection: $selection)
+        RunningView(snapshot: snapshot, selection: $selection)
+        if snapshot.queue.isEmpty == false { UpNextView(snapshot: snapshot, selection: $selection) }
+        WatchedReposView(snapshot: snapshot)
     }
 }
 
 private extension PanelEpic { var key: String { "\(repo)#\(issue)" } }
 private extension PanelSnapshot.QueuedEpic { var key: String { "\(repo)#\(issue)" } }
-private extension PanelSnapshot.DoneEpic { var key: String { "\(repo)#\(issue)" } }

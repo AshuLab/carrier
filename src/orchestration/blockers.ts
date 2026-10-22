@@ -15,3 +15,15 @@ export function latestBlockers(db: Db, epicId: number) {
     .get();
   return last ? (JSON.parse(last.result) as Extract<CallerResult, { outcome: 'changes_requested' }>).blockers : [];
 }
+
+/** The observations of the epic's latest review when it completed: a fix right after it is the observations pass, null otherwise (that fix is for blockers). */
+export function latestObservations(db: Db, epicId: number) {
+  const last = db
+    .select({ outcome: callerResults.outcome, result: callerResults.result })
+    .from(callerResults)
+    .innerJoin(executions, eq(executions.executionId, callerResults.executionId))
+    .where(and(eq(executions.epicId, epicId), eq(executions.stage, 'review')))
+    .orderBy(desc(sql`executions.rowid`))
+    .get();
+  return last?.outcome === 'completed' ? ((JSON.parse(last.result) as Extract<CallerResult, { outcome: 'completed' }>).observations ?? []) : null;
+}

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Stand-in for the claude binary in host-runner.integration.test.ts: the --model value picks the behavior.
 // Lines have the shape claude 2.1.301 prints.
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -18,6 +18,11 @@ if (mode === 'auth') {
   const { GH_TOKEN, GITHUB_TOKEN, GIT_AUTHOR_NAME } = process.env;
   writeFileSync(join(process.cwd(), 'env.json'), JSON.stringify({ GH_TOKEN, GITHUB_TOKEN, GIT_AUTHOR_NAME, args }));
   setTimeout(() => process.exit(0), 500);
+} else if (mode === 'stream') {
+  // A recorded-shape run: the lines of claude-events.fixture.jsonl, one write per line.
+  const fixture = new URL('./claude-events.fixture.jsonl', import.meta.url);
+  for (const line of readFileSync(fixture, 'utf8').trimEnd().split('\n')) console.log(line);
+  process.exit(0);
 } else if (mode === 'hang') {
   setInterval(() => {}, 1000);
 } else {

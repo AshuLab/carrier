@@ -26,6 +26,47 @@ export const epicLabel = 'solve:epic';
 /** Slices closed out of the total, as GitHub reports them. */
 export type Slices = { done: number; total: number };
 
+/** One slice of an epic as GitHub says it is now. `closed` is merged, `skipped` is closed as not planned; `blockedBy` holds only the blockers still open. `closedAt` is ms since epoch. */
+export type EpicSlice = {
+  number: number;
+  title: string;
+  state: 'closed' | 'skipped' | 'in_progress' | 'waiting' | 'ready';
+  blockedBy: number[];
+  assignee: string | null;
+  prNumber: number | null;
+  closedAt: number | null;
+};
+
+/** A pull request as GitHub says it is now: its merge state, review decision and check counts; `checks` is null when it has none, which is not pending. */
+export type PullRequestBlock = {
+  number: number;
+  url: string;
+  draft: boolean;
+  mergeState: string;
+  reviewDecision: string | null;
+  checks: { passing: number; failing: number; pending: number } | null;
+};
+
+/** A conversation on a line of the final pull request's diff, as GitHub says it is now. */
+export type ReviewThread = {
+  /** GraphQL node id: the key of the row. */
+  id: string;
+  path: string;
+  /** Null when the thread is outdated and GitHub no longer maps it. */
+  line: number | null;
+  resolved: boolean;
+  outdated: boolean;
+  /** Null for a deleted account. */
+  author: string | null;
+  /** The author's __typename is Bot. */
+  bot: boolean;
+  /** First line of the opening comment, redacted, at most 160 characters; '' when the comment is empty. */
+  firstLine: string;
+  commentCount: number;
+  /** The opening comment's url. */
+  url: string;
+};
+
 export type LabelStyle = { color: string; description: string };
 /** How Carrier creates its labels (GitHub limits a description to 100 characters). `needs-human` is the loud one: it is the state that most needs to be seen. */
 export const labelStyles = {
@@ -37,11 +78,20 @@ export const runningLabel = ownedLabels[0];
 export const readyForTestLabel = ownedLabels[1];
 export const needsHumanLabel = ownedLabels[2];
 
+/** The REST limit of the orchestrator's credential at its latest answer; `resetAt` is ms since epoch. */
+export type RateLimit = { remaining: number; limit: number; resetAt: number };
+
 export interface GitHub {
-  /** All ready epics of the repo, every page. Throws GitHubUnavailable when GitHub is down or rate limiting. */
-  listReadyEpics(repo: string): Promise<{ issue: number; title: string }[]>;
-  /** The open `solve:epic` issues of the repo, every page, each with the slice progress GitHub reports (`null` when it sends none). Throws GitHubUnavailable like the call above. */
-  listOpenEpics(repo: string): Promise<{ issue: number; slices: Slices | null }[]>;
+  /** From the headers of the latest call, no request of its own; null before any call carried them. */
+  rateLimit(): RateLimit | null;
+  /** All ready epics of the repo, every page, with their title and labels. Throws GitHubUnavailable when GitHub is down or rate limiting. */
+  listReadyEpics(repo: string): Promise<{ issue: number; title: string; labels: string[] }[]>;
+  /** The open `solve:epic` issues of the repo, every page, each with its title, labels and the slice progress GitHub reports (`null` when it sends none). Throws GitHubUnavailable like the call above. */
+  listOpenEpics(repo: string): Promise<{ issue: number; title: string; labels: string[]; slices: Slices | null }[]>;
+  /** The first hundred slices of an epic in one query; `truncated` when it has more. Throws GitHubUnavailable like the call above. */
+  readSlices(repo: string, issue: number): Promise<{ slices: EpicSlice[]; truncated: boolean }>;
+  /** One query: the pull request's merge state, review decision and checks, and its first hundred review threads (`truncated` when it has more); null when it does not exist. Throws GitHubUnavailable like the call above. */
+  readPullRequest(repo: string, number: number): Promise<{ pr: PullRequestBlock; threads: ReviewThread[]; truncated: boolean } | null>;
   /** Throws GitHubUnavailable like every call below. */
   getIssue(repo: string, issue: number): Promise<{ state: 'open' | 'closed'; labels: string[] }>;
   /** Null when the PR does not exist; `closed` is closed without merge, a merged PR is `merged`. `headRef` is the branch it comes from. */

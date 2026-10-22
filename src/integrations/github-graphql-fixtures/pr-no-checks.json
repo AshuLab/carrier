@@ -1,0 +1,39 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "remaining": 4996,
+      "limit": 5000,
+      "resetAt": "2026-10-21T23:19:26Z"
+    },
+    "repository": {
+      "pullRequest": {
+        "number": 167,
+        "url": "https://github.com/example-owner/example-repo/pull/167",
+        "isDraft": false,
+        "state": "MERGED",
+        "baseRefName": "example/base-branch",
+        "headRefName": "example/head-branch",
+        "headRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mergeable": "UNKNOWN",
+        "mergeStateStatus": "UNKNOWN",
+        "reviewDecision": null,
+        "additions": 81,
+        "deletions": 0,
+        "changedFiles": 3,
+        "commits": {
+          "totalCount": 1
+        },
+        "lastCommit": {
+          "nodes": [
+            {
+              "commit": {
+                "statusCheckRollup": null
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

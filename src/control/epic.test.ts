@@ -86,7 +86,10 @@ test('approved in the first round: one round with no blockers, the reviewer, the
 });
 
 test('fixed in two rounds: the second review approves and marks what the first asked as fixed', async () => {
-  await drive([['Token expiry is not checked', 'Missing test'], 'approved']);
+  const { runner } = await drive([['Token expiry is not checked', 'Missing test'], 'approved']);
+  const reviews = runner.tasks.filter((t) => t.stage === 'review');
+  expect(reviews[0]!.context.blockers).toBeUndefined(); // round one has nothing earlier
+  expect(reviews[1]!.context.blockers?.map((b) => b.title)).toEqual(['Token expiry is not checked', 'Missing test']);
   const { rounds, stages } = reply();
   expect(rounds.map((r) => [r.round, r.verdict])).toEqual([[1, 'changes_requested'], [2, 'approved']]);
   expect(titles(rounds[0]!)).toEqual(['new:Token expiry is not checked', 'new:Missing test']);
@@ -103,6 +106,22 @@ test('the limit: the last round is limit_reached, and the marks cover persisting
   expect(titles(rounds[1]!)).toEqual(['carried:token   EXPIRY ', 'carried:Missing test', 'new:Brand new', 'fixed:Log leak']);
   expect(stages.map((s) => s.stage)).toEqual(['queued', 'ship', 'review', 'fix', 'review']);
   expect(stages.at(-1)!.endedAt).not.toBeNull(); // the epic stopped
+});
+
+test('with ids the marks are exact for a persisting, a fixed and a new blocker; without them they stay approximate', () => {
+  const id = epicRow();
+  const review = (round: number, blockers: object[], extra: object = {}) =>
+    run(id, 'review', round * 10, round * 10 + 1, { outcome: 'changes_requested', ...pr(SHA), blockers, ...extra }, round);
+  review(1, [{ id: 'a', title: 'Token expiry' }, { id: 'b', title: 'Missing test' }, { id: 'c', title: 'Log leak' }]);
+  // the persisting one is reworded (ids settle it), b is fixed and said so, c just disappeared, d is new
+  review(2, [{ id: 'a', title: 'The token never expires' }, { id: 'd', title: 'Brand new' }], { resolved: ['b'] });
+  const marks = (round: number) => reply().rounds[round]!.blockers.map((b) => [b.id, b.mark, b.approximate]);
+  expect(marks(0)).toEqual([['a', 'new', false], ['b', 'new', false], ['c', 'new', false]]);
+  expect(marks(1)).toEqual([['a', 'carried', false], ['d', 'new', false], ['b', 'fixed', false], ['c', 'fixed', false]]);
+
+  // a later round with no ids at all falls back to titles and says so
+  review(3, [{ title: 'brand   NEW' }, { title: 'Another' }]);
+  expect(marks(2)).toEqual([[null, 'carried', true], [null, 'new', true], ['a', 'fixed', true]]);
 });
 
 test('technical retries inside a round do not make a round', async () => {

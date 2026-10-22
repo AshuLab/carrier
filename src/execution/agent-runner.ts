@@ -18,8 +18,8 @@ export interface AgentTask {
     round?: number;
     previousSummaries: string[];
     verifyStateFirst?: boolean;
-    /** Fix turn: what the last review asked to change. */
-    blockers?: { title: string; url?: string }[];
+    /** Fix turn: what the last review asked to change. Review turn after the first: the previous round's blockers, to reuse their ids. */
+    blockers?: { id?: string; title: string; url?: string }[];
   };
 }
 

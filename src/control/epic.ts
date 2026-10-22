@@ -21,23 +21,28 @@ const MAX_TEXT = 200;
 const MAX_URL = 500;
 
 type Round = EpicReply['rounds'][number];
-type Found = { title: string; url: string | null };
+type Found = { id: string | null; title: string; url: string | null };
 
 /** A title compared without caring for case or spacing. */
 const normal = (title: string) => title.trim().replace(/\s+/g, ' ').toLowerCase();
 
+/** The same blocker in two rounds: by id when both have one, else by title. */
+const same = (a: Found, b: Found) => (a.id !== null && b.id !== null ? a.id === b.id : normal(a.title) === normal(b.title));
+
 /**
- * Blockers of a round against the open ones of the round before it in the same attempt: the same title (normalised) is carried,
- * a title that disappeared is fixed, a new one is new. Results carry no ids yet, so every mark after the first round is approximate.
+ * Blockers of a round against the open ones of the round before it in the same attempt: the same blocker is carried, one that
+ * disappeared is fixed, a new one is new. A mark is exact when ids settle it (the first round has nothing to match, so new is certain);
+ * otherwise it comes from matching titles and is approximate. `resolved` is what the reviewer said it considers fixed.
  */
-function marked(current: Found[], previous: Found[] | null): Blocker[] {
-  const approximate = previous !== null; // the first round has nothing to match against: new is certain
-  const before = new Set((previous ?? []).map(({ title }) => normal(title)));
-  const now = new Set(current.map(({ title }) => normal(title)));
-  const blocker = (b: Found, mark: Blocker['mark']): Blocker => ({ id: null, title: b.title, url: b.url, mark, approximate });
+function marked(current: Found[], previous: Found[] | null, resolved: string[]): Blocker[] {
+  const prior = previous ?? [];
+  const blocker = (b: Found, mark: Blocker['mark'], approximate: boolean): Blocker => ({ id: b.id, title: b.title, url: b.url, mark, approximate });
+  const allIds = (list: Found[]) => list.every(({ id }) => id !== null);
   return [
-    ...current.map((b) => blocker(b, before.has(normal(b.title)) ? 'carried' : 'new')),
-    ...(previous ?? []).filter(({ title }) => now.has(normal(title)) === false).map((b) => blocker(b, 'fixed')),
+    ...current.map((b) => blocker(b, prior.some((p) => same(b, p)) ? 'carried' : 'new', previous !== null && (b.id === null || !allIds(prior)))),
+    ...prior
+      .filter((p) => current.some((b) => same(b, p)) === false)
+      .map((p) => blocker(p, 'fixed', !(p.id !== null && (resolved.includes(p.id) || allIds(current))))),
   ].slice(0, MAX_BLOCKERS);
 }
 
@@ -117,7 +122,7 @@ export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
     if (result === null) continue;
     const parsed = JSON.parse(result) as CallerResult;
     if (parsed.outcome === 'needs_human') continue; // the reviewer stopped: no verdict to show
-    const blockers = parsed.outcome === 'changes_requested' ? parsed.blockers.map(({ title, url }) => ({ title: title.slice(0, MAX_TEXT), url: url !== undefined && url.length <= MAX_URL ? url : null })) : [];
+    const blockers: Found[] = parsed.outcome === 'changes_requested' ? parsed.blockers.map(({ id, title, url }) => ({ id: id ?? null, title: title.slice(0, MAX_TEXT), url: url !== undefined && url.length <= MAX_URL ? url : null })) : [];
     found.push({
       attempt,
       fixed: false,
@@ -125,7 +130,7 @@ export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
         round: run.round ?? (found.filter((f) => f.attempt === attempt).length + 1),
         reviewer: agentOf(run, epic.config),
         verdict: parsed.outcome === 'completed' ? 'approved' : 'changes_requested',
-        blockers: marked(blockers, open),
+        blockers: marked(blockers, open, parsed.resolved ?? []),
         reviewMs: run.finishedAt === null ? null : run.finishedAt - run.startedAt,
         fixMs: null,
         reviewedSha: parsed.pr.headSha,

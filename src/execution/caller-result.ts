@@ -2,6 +2,10 @@ import { z } from 'zod';
 
 const Sha = z.string().regex(/^[0-9a-f]{40}$/);
 const Pr = z.object({ number: z.number().int().positive(), headSha: Sha });
+const Id = z.string().min(1).max(64);
+const MAX_LIST = 50; // the same cap the `epic` reply puts on a round's blockers
+const Resolved = z.array(Id).max(MAX_LIST).optional();
+const distinct = (ids: string[]) => new Set(ids).size === ids.length;
 const Common = {
   executionId: z.string().min(1),
   repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/),
@@ -16,14 +20,19 @@ export const CallerResult = z.discriminatedUnion('outcome', [
     outcome: z.literal('completed'),
     pr: Pr,
     verification: z.object({ ci: z.enum(['passed', 'absent']), evidence: z.string().min(1) }),
-  }),
+    /** Reviewer only: ids of earlier blockers it considers fixed. Optional, so results that predate it still validate. */
+    resolved: Resolved,
+  }).refine((r) => distinct(r.resolved ?? []), { message: 'resolved has a duplicate id' }),
   z.object({
     ...Common,
     outcome: z.literal('changes_requested'),
     stage: z.literal('review'),
     pr: Pr,
-    blockers: z.array(z.object({ title: z.string().min(1), url: z.string().url().optional() })).min(1),
-  }),
+    // `id` is stable across rounds: the reviewer reuses it when a finding persists. Optional, like `resolved`.
+    blockers: z.array(z.object({ id: Id.optional(), title: z.string().min(1), url: z.string().url().optional() })).min(1).max(MAX_LIST),
+    resolved: Resolved,
+  }).refine((r) => distinct(r.blockers.flatMap(({ id }) => id ?? [])), { message: 'two blockers share an id' })
+    .refine((r) => distinct([...r.blockers.flatMap(({ id }) => id ?? []), ...(r.resolved ?? [])]), { message: 'resolved has a duplicate id or one that is still a blocker' }),
   z.object({ ...Common, outcome: z.literal('needs_human'), reason: z.string().min(1) }),
 ]);
 export type CallerResult = z.infer<typeof CallerResult>;

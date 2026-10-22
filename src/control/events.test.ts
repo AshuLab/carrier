@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { createEventState, type AgentEvent } from '../execution/events.ts';
+import { agyAdapter } from '../harnesses/agy.ts';
 import { claudeAdapter } from '../harnesses/claude.ts';
 import { codexAdapter } from '../harnesses/codex.ts';
 import { replayEvents } from '../harnesses/replay-events.ts';
@@ -109,8 +110,10 @@ test('an unknown execution is an error', async () => {
 
 test('a harness with no parser yet answers structured:false and no events, even if rows exist', async () => {
   seed();
-  recordEvents(db, agyRun, [say(1)], 0);
-  expect((await ask({ id: 1, cmd: 'events', executionId: agyRun, limit: 5 })).data).toEqual({ events: [], next: 0, running: false, structured: false });
+  const futureRun = '00000000-0000-4000-8000-000000000005';
+  db.insert(executions).values({ epicId: db.select({ id: epics.id }).from(epics).get()!.id, executionId: futureRun, stage: 'review', status: 'finished', resultPath: '/r.json', startedAt: 1000, harness: 'future' as never, model: 'm', provider: null }).run();
+  recordEvents(db, futureRun, [say(1)], 0);
+  expect((await ask({ id: 1, cmd: 'events', executionId: futureRun, limit: 5 })).data).toEqual({ events: [], next: 0, running: false, structured: false });
 });
 
 test('a Codex execution answers structured events, stamped with their arrival', async () => {
@@ -135,6 +138,17 @@ test('a Codex execution answers structured events, stamped with their arrival', 
     ['say', undefined, undefined, 700],
   ]);
   expect(data!.events[8]).toMatchObject({ status: 'err', summary: 'Exit code 1', output: ['ls: /no/such/dir: No such file or directory'] });
+});
+
+test('an Antigravity execution answers structured events: the fixture, parsed as the runner does and read over the socket', async () => {
+  const id = epicId(db);
+  db.insert(executions).values({ epicId: id, executionId: agyRun, stage: 'ship', status: 'running', resultPath: '/r.json', startedAt: 1000, harness: 'agy', model: 'm', provider: null }).run();
+  const state = createEventState();
+  for (const line of readFileSync(new URL('../harnesses/agy-stream.fixture.jsonl', import.meta.url), 'utf8').split('\n')) recordEvents(db, agyRun, agyAdapter.parseEvents!(line, state), 500);
+  const { data } = await ask({ id: 1, cmd: 'events', executionId: agyRun, limit: 200 });
+  expect(data).toMatchObject({ running: true, structured: true });
+  expect(data!.events.map((e) => [e.kind, e.tool, e.status, e.durationMs])).toContainEqual(['tool_end', 'run_command', 'err', 114]);
+  expect(data!.events.at(-1)).toMatchObject({ kind: 'say', at: 500 }); // no line carries a time: the arrival stamps it
 });
 
 test('the wire shape is the golden file: every field of every kind, and nothing else', async () => {

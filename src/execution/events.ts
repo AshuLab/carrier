@@ -27,9 +27,11 @@ export interface EventState {
   calls: Map<string, { at?: number; tool: string }>;
   tasks: Map<string, { description: string; slice?: number }>;
   lanes: Map<string, number>;
+  /** The streamed fragments of each model turn not yet closed (Antigravity). */
+  text: Map<string, string>;
 }
 
-export const createEventState = (): EventState => ({ calls: new Map(), tasks: new Map(), lanes: new Map() });
+export const createEventState = (): EventState => ({ calls: new Map(), tasks: new Map(), lanes: new Map(), text: new Map() });
 
 // Characters, not bytes.
 export const caps = { arg: 1024, summary: 200, text: 4096, output: 4096, diffLines: 200, diffLine: 200 };

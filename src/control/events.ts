@@ -27,11 +27,11 @@ const wire = (row: Row): ExecEvent => ({
 });
 
 // The harnesses that have an events parser.
-const structuredHarnesses = ['claude', 'codex'];
+const structuredHarnesses = ['claude', 'codex', 'agy'];
 
 /**
  * The events of an execution after the cursor, oldest first, at most `limit`; null for an execution the engine does not know.
- * A harness with no parser yet (only Claude and Codex have one) answers `structured: false` and no events.
+ * A harness with no parser yet (a future one; today all three have one) answers `structured: false` and no events.
  */
 export function eventsOf(db: Db, executionId: string, after: number, limit: number): EventsReply | null {
   const row = db.select({ execution: executions, config: epics.config }).from(executions).innerJoin(epics, eq(epics.id, executions.epicId)).where(eq(executions.executionId, executionId)).get();

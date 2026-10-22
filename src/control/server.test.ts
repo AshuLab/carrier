@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { acquireLock } from '../storage/lock.ts';
-import type { EpicReply } from './replies.ts';
+import type { EpicReply, FilesReply } from './replies.ts';
 import { socketPathFits, startControlServer } from './server.ts';
 
 let dir: string;
@@ -29,7 +29,7 @@ const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
 function fakeControls() {
   const state = { paused: false, polls: 0 };
   const logs = vi.fn((id: string, count: number) => (id === executionId ? ['one', 'two', 'three'].slice(-count) : []));
-  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), epic: (): EpicReply | null => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, worktrees: [], branch: null, pr: null }) } };
+  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), epic: (): EpicReply | null => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null => ({ sections: [], total: null, truncated: false }) } };
 }
 
 const stop = async () => {};
@@ -74,7 +74,7 @@ async function client() {
 test('a client gets a hello, and the snapshot as JSON when it asks', async () => {
   await open();
   const c = await client();
-  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'epic'] });
+  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'epic', 'files'] });
   expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: true, data: snapshotData });
   expect(await c.ask('{"id":7,"cmd":"snapshot"}')).toMatchObject({ id: 7, ok: true });
 });
@@ -170,12 +170,22 @@ const NOT_SUPPORTED = { ok: false, error: 'not supported' };
 test.each([
   ['events', `"executionId":"${executionId}","limit":200`],
   ['events', `"executionId":"${executionId}","after":0,"limit":1`],
-  ['files', '"repo":"AshuLab/carrier","issue":5'],
-  ['files', `"repo":"AshuLab/carrier","issue":5,"executionId":"${executionId}"`],
 ])('a valid %s request is understood and, until its capability exists, answered ok:false', async (cmd, fields) => {
   await open();
   const c = await client();
   expect(await c.ask(`{"id":9,"cmd":"${cmd}",${fields}}`)).toEqual({ id: 9, ...NOT_SUPPORTED });
+});
+
+test('files answers with the reply, and an unknown epic or a failure are errors', async () => {
+  await open();
+  const c = await client();
+  const empty = { sections: [], total: null, truncated: false };
+  expect(await c.ask('{"id":9,"cmd":"files","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 9, ok: true, data: empty });
+  expect(await c.ask(`{"id":10,"cmd":"files","repo":"AshuLab/carrier","issue":5,"executionId":"${executionId}"}`)).toEqual({ id: 10, ok: true, data: empty });
+  await open(undefined, { ...fakeControls().controls, files: () => null });
+  expect(await (await client()).ask('{"id":1,"cmd":"files","repo":"a/b","issue":1}')).toEqual({ id: 1, ok: false, error: 'unknown epic' });
+  await open(undefined, { ...fakeControls().controls, files: () => { throw new Error('boom'); } });
+  expect(await (await client()).ask('{"id":2,"cmd":"files","repo":"a/b","issue":1}')).toEqual({ id: 2, ok: false, error: 'internal error' });
 });
 
 const validFields = {

@@ -68,6 +68,8 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     // a file in two sections names the other one from both
     #expect(reply.sections[1].files[0].alsoIn == ["lane-1"])
     #expect(reply.sections[3].files.isEmpty)
+    #expect(reply.total == FilesReply.Total(files: 3, added: 165, removed: 19))
+    #expect(reply.truncated == false)
 }
 
 @Test func decodesRepliesWithoutTheirOptionalFields() throws {

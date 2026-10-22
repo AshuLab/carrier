@@ -63,5 +63,11 @@
       "removed": 0,
       "files": []
     }
-  ]
+  ],
+  "total": {
+    "files": 3,
+    "added": 165,
+    "removed": 19
+  },
+  "truncated": false
 }

@@ -24,7 +24,7 @@ test('applies the Drizzle Kit migration to a temp SQLite file and reads a row ba
 
   db.insert(epics).values({ repo: 'AshuLab/carrier', issue: 3 }).run();
 
-  expect(db.select().from(epics).all()).toEqual([{ id: 1, repo: 'AshuLab/carrier', issue: 3, status: 'queued', queuedAt: 0, startedAt: null, config: null, cancelReason: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null, lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, needsHumanReason: null, needsHumanKind: null, title: null, labels: null, branch: null, removedFrom: null, removedReason: null, finishedAt: null }]);
+  expect(db.select().from(epics).all()).toEqual([{ id: 1, repo: 'AshuLab/carrier', issue: 3, status: 'queued', queuedAt: 0, startedAt: null, config: null, cancelReason: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null, lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null, needsHumanReason: null, needsHumanKind: null, title: null, labels: null, branch: null, removedFrom: null, removedReason: null, finishedAt: null }]);
   sqlite.close();
 });
 
@@ -88,5 +88,23 @@ test('the review threads migration clears the cached pull request block of finis
   sqlite.exec("INSERT INTO `epics` (`repo`, `issue`, `status`, `pr`) VALUES ('o/r', 1, 'merged', '{}'), ('o/r', 2, 'running', '{}'), ('o/r', 3, 'ready_for_test', '{}')");
   sqlite.exec(sql.slice(sql.indexOf('UPDATE')));
   expect(sqlite.prepare('SELECT issue, pr FROM epics ORDER BY issue').all()).toEqual([{ issue: 1, pr: null }, { issue: 2, pr: '{}' }, { issue: 3, pr: '{}' }]);
+  sqlite.close();
+});
+
+test('the observations pass migration applies to a database that already holds epics: their pass timestamp is null', () => {
+  const full = join(import.meta.dirname, 'migrations');
+  const old = join(dir, 'old');
+  cpSync(full, old, { recursive: true });
+  const journal = JSON.parse(readFileSync(join(full, 'meta', '_journal.json'), 'utf8')) as { entries: { tag: string }[] };
+  const index = journal.entries.findIndex((e) => e.tag.startsWith('0015_'));
+  writeFileSync(join(old, 'meta', '_journal.json'), JSON.stringify({ ...journal, entries: journal.entries.slice(0, index) }));
+
+  const sqlite = new Database(join(dir, 'old.db'));
+  const db = drizzle(sqlite);
+  migrate(db, { migrationsFolder: old });
+  sqlite.exec(`INSERT INTO epics (repo, issue, status, stage, round) VALUES ('AshuLab/carrier', 3, 'running', 'review', 2)`);
+
+  migrate(db, { migrationsFolder: full });
+  expect(db.select().from(epics).all()).toMatchObject([{ repo: 'AshuLab/carrier', issue: 3, status: 'running', stage: 'review', round: 2, observationsPassAt: null }]);
   sqlite.close();
 });

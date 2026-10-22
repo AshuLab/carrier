@@ -43,10 +43,16 @@ The engine combines the stage with the caller result:
 | Stage | Result | Next step |
 | --- | --- | --- |
 | `ship` | `completed` | review, round 1 |
-| `review` | `completed` (conclusive, no blockers, checks confirmed on the reviewed commit) | `solve:epic:ready-for-test` |
+| `review` | `completed` (conclusive, no blockers, checks confirmed on the reviewed commit), no observations | `solve:epic:ready-for-test` |
+| `review` | `completed` with observations, the pass not taken and the round below the maximum | `fix` (the observations pass), same round |
+| `review` | `completed` with observations, the pass taken or the round at the maximum | `solve:epic:ready-for-test` |
 | `review` | `changes_requested` | `fix` if the round is below the maximum; otherwise `needs_human` |
-| `fix` | `completed` | review, next round |
+| `fix`, the observations pass | `completed`, `pr.headSha` equals the reviewed head | `solve:epic:ready-for-test` |
+| `fix`, the observations pass | `completed`, a new head | review, next round |
+| `fix`, for blockers | `completed` | review, next round |
 | any | `needs_human` | `solve:epic:needs-human` with the reason |
+
+An observation is a finding of a `completed` review that does not stop approval. The pass runs once per epic and never at the last round, and the engine tells it from a fix for blockers by the epic's latest stored review result (`completed` or `changes_requested`). See [ADR 0009](../adr/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md) and [the observations spec](review-observations-pass.md).
 
 A review that is inconclusive for lack of context is `needs_human` from the reviewer. A new commit invalidates the previous verdict: a commit that was not reviewed is never declared ready. Each imported result is validated against GitHub: the PR exists, is open, references the epic and its head matches the reported SHA. If the reference does not match, or the head changed during a review, the epic goes to `needs_human` with that reason; repeating the execution does not fix it.
 
@@ -102,7 +108,7 @@ An informational panel drawn with ANSI sequences without dependencies, in the sa
 8. On startup, the app creates in each configured repo the `running`, `ready-for-test` and `needs-human` labels that are missing, with their colour and description.
 9. The author runs `ship` as a host process with the epic's workspace and the engine records the final PR validated against GitHub.
 10. The reviewer, with another identity and a separate checkout, reviews the final PR and its `completed` result leaves the epic in `ready-for-test` only if the reviewed SHA is the PR's current head.
-11. If the reviewer requests changes and rounds remain, the author gets a fix turn and the reviewer reviews again; with the last round exhausted the epic goes to `needs-human`.
+11. If the reviewer requests changes and rounds remain, the author gets a fix turn and the reviewer reviews again; with the last round exhausted the epic goes to `needs-human`. If the review is `completed` but lists observations, the author goes over them once in a pass before the epic is ready for test (a pass that changes nothing ends in `ready-for-test`, one that commits is reviewed again); see [ADR 0009](../adr/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md).
 12. A `needs_human` result from the author or the reviewer, including an inconclusive review, stops the epic with the reason while the others continue.
 13. A reference that does not match (PR of another epic, closed PR, SHA that is not the head, head that changed during the review) stops the epic in `needs-human` with that reason.
 14. A technical failure is retried up to the configured limit with an execution that verifies the real state before continuing, without consuming rounds and without duplicating PRs, comments or commits; when exhausted, the epic goes to `needs-human`.

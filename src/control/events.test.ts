@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { createEventState, type AgentEvent } from '../execution/events.ts';
+import { agyAdapter } from '../harnesses/agy.ts';
 import { claudeAdapter } from '../harnesses/claude.ts';
 import { replayEvents } from '../harnesses/replay-events.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
@@ -45,6 +46,7 @@ const epicId = (db_: Db) => db_.insert(epics).values({ repo: 'AshuLab/a', issue:
 const run = '00000000-0000-4000-8000-000000000001';
 const other = '00000000-0000-4000-8000-000000000002';
 const codexRun = '00000000-0000-4000-8000-000000000003';
+const agyRun = '00000000-0000-4000-8000-000000000004';
 function seed() {
   const id = epicId(db);
   const base = { epicId: id, resultPath: '/r.json', startedAt: 1000 };
@@ -108,6 +110,17 @@ test('a harness with no parser yet answers structured:false and no events, even 
   seed();
   recordEvents(db, codexRun, [say(1)], 0);
   expect((await ask({ id: 1, cmd: 'events', executionId: codexRun, limit: 5 })).data).toEqual({ events: [], next: 0, running: false, structured: false });
+});
+
+test('an Antigravity execution answers structured events: the fixture, parsed as the runner does and read over the socket', async () => {
+  const id = epicId(db);
+  db.insert(executions).values({ epicId: id, executionId: agyRun, stage: 'ship', status: 'running', resultPath: '/r.json', startedAt: 1000, harness: 'agy', model: 'm', provider: null }).run();
+  const state = createEventState();
+  for (const line of readFileSync(new URL('../harnesses/agy-stream.fixture.jsonl', import.meta.url), 'utf8').split('\n')) recordEvents(db, agyRun, agyAdapter.parseEvents!(line, state), 500);
+  const { data } = await ask({ id: 1, cmd: 'events', executionId: agyRun, limit: 200 });
+  expect(data).toMatchObject({ running: true, structured: true });
+  expect(data!.events.map((e) => [e.kind, e.tool, e.status, e.durationMs])).toContainEqual(['tool_end', 'run_command', 'err', 114]);
+  expect(data!.events.at(-1)).toMatchObject({ kind: 'say', at: 500 }); // no line carries a time: the arrival stamps it
 });
 
 test('the wire shape is the golden file: every field of every kind, and nothing else', async () => {

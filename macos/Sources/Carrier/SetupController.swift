@@ -34,6 +34,12 @@ final class SetupController: ObservableObject {
         if isFirstLaunch { detect() }
     }
 
+    /// Forgets the saved values, puts back what Carrier itself says (config path and root) and detects again.
+    func reset(then done: (() -> Void)? = nil) {
+        settings = SetupSettings(detection: nil, environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory(), configJSON: Self.configFile())
+        detect(then: done)
+    }
+
     /// Runs the shell off the main thread and puts what it found in the three values it can find. Edits to the config path
     /// and the root stay; a shell that gave no answer leaves every value as it was.
     func detect(then done: (() -> Void)? = nil) {

@@ -11,6 +11,8 @@ export const epicSlices = sqliteTable(
     blockedBy: text({ mode: 'json' }).$type<number[]>().notNull(), // the numbers of the blockers still open
     assignee: text(),
     prNumber: integer(),
+    prState: text({ enum: ['open', 'draft', 'merged', 'closed'] }),
+    prMergedAt: integer(), // ms since epoch
     closedAt: integer(), // ms since epoch
     readAt: integer().notNull(), // ms since epoch
     // Only the first hundred slices are read; the same on every row of an epic. ponytail: per row, a column of its own if more flags ever join it.

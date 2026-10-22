@@ -33,7 +33,11 @@ export type EpicSlice = {
   state: 'closed' | 'skipped' | 'in_progress' | 'waiting' | 'ready';
   blockedBy: number[];
   assignee: string | null;
+  /** The slice's own pull request: the one whose branch is `<feature>/<slice>-<name>`, never one that only mentions it. */
   prNumber: number | null;
+  prState: 'open' | 'draft' | 'merged' | 'closed' | null;
+  /** When that pull request was merged; `closedAt` is when the issue closed, which can be later. */
+  prMergedAt: number | null;
   closedAt: number | null;
 };
 

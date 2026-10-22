@@ -1803,7 +1803,7 @@ test('paused: new epics are queued but not reserved, running ones go on, and res
 
 // --- slices: a cache of GitHub (ADR 0008) ---
 
-const slice = (number: number, extra: Partial<EpicSlice> = {}): EpicSlice => ({ number, title: `Slice ${number}`, state: 'ready', blockedBy: [], assignee: null, prNumber: null, closedAt: null, ...extra });
+const slice = (number: number, extra: Partial<EpicSlice> = {}): EpicSlice => ({ number, title: `Slice ${number}`, state: 'ready', blockedBy: [], assignee: null, prNumber: null, prState: null, prMergedAt: null, closedAt: null, ...extra });
 const cached = (db: Db) => db.select().from(epicSlices).all().map((r) => `${r.epicId}:${r.number}:${r.state}@${r.readAt}`);
 
 // Epic 1 running (its author is cut, so it stays so), epic 2 queued behind it.

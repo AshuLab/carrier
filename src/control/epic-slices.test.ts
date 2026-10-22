@@ -64,8 +64,8 @@ test('the epic reply carries the cached slices with their read time and says whe
   github.slices['AshuLab/a#1'] = {
     truncated: true,
     slices: [
-      { number: 12, title: 'Second', state: 'waiting', blockedBy: [10, 11], assignee: null, prNumber: null, closedAt: null },
-      { number: 10, title: 'First', state: 'closed', blockedBy: [], assignee: 'someone', prNumber: 30, closedAt: 1_000 },
+      { number: 12, title: 'Second', state: 'waiting', blockedBy: [10, 11], assignee: null, prNumber: null, prState: null, prMergedAt: null, closedAt: null },
+      { number: 10, title: 'First', state: 'closed', blockedBy: [], assignee: 'someone', prNumber: 30, prState: 'merged', prMergedAt: 900, closedAt: 1_000 },
     ],
   };
   const engine = createEngine({ db, github, clock, repos, pollIntervalMs: 5 * MIN, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, runner, workspaces: new FakeWorkspaces(), root: dir });
@@ -77,8 +77,8 @@ test('the epic reply carries the cached slices with their read time and says whe
   const { ok, data } = await askEpic();
   expect(ok).toBe(true);
   expect(data.slices).toEqual([
-    { number: 10, title: 'First', state: 'closed', blockedBy: [], prNumber: 30, closedAt: 1_000, readAt: 10 * MIN, lane: null, activity: null },
-    { number: 12, title: 'Second', state: 'waiting', blockedBy: [10, 11], prNumber: null, closedAt: null, readAt: 10 * MIN, lane: null, activity: null },
+    { number: 10, title: 'First', state: 'closed', blockedBy: [], prNumber: 30, prState: 'merged', prMergedAt: 900, closedAt: 1_000, readAt: 10 * MIN, lane: null, activity: null },
+    { number: 12, title: 'Second', state: 'waiting', blockedBy: [10, 11], prNumber: null, prState: null, prMergedAt: null, closedAt: null, readAt: 10 * MIN, lane: null, activity: null },
   ]);
   expect(data.slicesTruncated).toBe(true);
 });

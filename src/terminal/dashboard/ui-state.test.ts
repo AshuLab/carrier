@@ -10,7 +10,7 @@ const epic = (over: Partial<PanelEpic> = {}): PanelEpic => ({
 const snap = (over: Partial<PanelSnapshot> = {}): PanelSnapshot => ({
   now, slots: { busy: 1, total: 3 }, queue: [{ repo: 'B/b', issue: 5 }], startedAt: 0, repos: 2, nextCheckAt: null, problem: null, paused: false,
   epics: [epic(), epic({ issue: 2, status: 'needs_human', issueUrl: 'https://github.com/A/a/issues/2', prUrl: 'https://github.com/A/a/pull/9', executionId: null })],
-  done: [{ repo: 'C/c', issue: 8, prNumber: 44, finishedAt: 1, executionId: 'exec-8' }],
+  done: [{ repo: 'C/c', issue: 8, title: null, labels: [], prNumber: 44, finishedAt: 1, executionId: 'exec-8' }],
   ...over,
 });
 const press = (ui: UiState, name: string, s = snap(), extra: Partial<Key> = {}) => onKey(ui, { name, sequence: name, ...extra }, s, now);

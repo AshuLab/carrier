@@ -41,7 +41,7 @@ export type PanelSnapshot = {
   /** Intake is paused by the person at the terminal. */
   paused: boolean;
   /** The epics that ended ready for test, most recent first. */
-  done: { repo: string; issue: number; prNumber: number | null; finishedAt: number | null; executionId: string | null }[];
+  done: { repo: string; issue: number; title: string | null; labels: string[]; prNumber: number | null; finishedAt: number | null; executionId: string | null }[];
 };
 
 // What the control socket serves: the panel's snapshot plus what the macOS app draws. Everything here is additive (protocol 1),

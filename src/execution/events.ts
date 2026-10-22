@@ -11,6 +11,8 @@ export interface AgentEvent {
   agentId?: string;
   tool?: string;
   arg?: string;
+  /** The model's own short sentence for a call, when it wrote one (a Bash call's `description`); `arg` is untouched. */
+  description?: string;
   summary?: string;
   status?: 'ok' | 'err';
   durationMs?: number;

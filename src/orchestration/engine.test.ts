@@ -10,6 +10,8 @@ import { createEngine } from './engine.ts';
 import { reserve } from './reserve.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
+import { lastEventOf } from '../control/events.ts';
+import { buildSnapshot } from '../status/snapshot.ts';
 import { epicEvents, executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { callerResults } from '../storage/caller-results.ts';
@@ -428,6 +430,18 @@ test('the events a run reports are stored per chunk with the execution, the arri
     [runner.tasks[0]!.executionId, 'arrival', 'tool_end'],
   ]);
   expect(stored[2]!.payload).toEqual({ output: ['a'] });
+});
+
+test('the snapshot gives a running session its newest event as soon as the chunk that carried it is read', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ events: [[{ at: 42, kind: 'say', text: 'hi' }], [{ at: 43, kind: 'tool_start', callId: 'c', tool: 'Bash', arg: 'ls' }]], exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  const snapshot = buildSnapshot(engine.db, {
+    now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false,
+    slices: engine.slices, version: '0', pollIntervalMs: 1, lastEvent: (id) => lastEventOf(engine.db, id),
+  });
+  expect(snapshot.sessions).toMatchObject([{ executionId: runner.tasks[0]!.executionId, last: { kind: 'tool_start', text: 'Bash ls', at: 43 } }]);
 });
 
 test('a valid completed result moves the epic to review round 1 and records the final PR', async () => {

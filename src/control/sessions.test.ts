@@ -22,6 +22,7 @@ beforeEach(async () => {
     logs: () => [],
     sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, { claude: '/cfg/claude' }),
     epic: () => null,
+    events: () => null,
     files: () => null,
   };
   close = (await startControlServer({ orchestratorDir: dir, snapshot: () => ({}), startedAt: 1, controls, stop: async () => {} })).close;

@@ -27,7 +27,13 @@ struct LaneHeaderView: View {
         HStack(spacing: 8) {
             Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
                 .rotationEffect(.degrees(open ? 90 : 0))
-            Text(lane.title).fontWeight(.semibold).lineLimit(1)
+            if let slice = lane.slice {
+                Text("SLICE #\(slice)").font(.system(size: 10.5, weight: .bold)).foregroundStyle(.white)
+                    .padding(.horizontal, 8).padding(.vertical, 1).background(Capsule().fill(Color.blue))
+                if let number = lane.laneNumber { Text("Lane \(number)").fontWeight(.semibold).lineLimit(1) }
+            } else {
+                Text(lane.title).fontWeight(.semibold).lineLimit(1)
+            }
             if lane.hint {
                 Text("hint").font(.caption2.weight(.medium)).foregroundStyle(.secondary)
                     .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.secondary.opacity(0.16)))
@@ -36,7 +42,8 @@ struct LaneHeaderView: View {
             Spacer(minLength: 8)
             Text(lane.counts).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 8).padding(.horizontal, 8)
+        .background(RoundedRectangle(cornerRadius: 10).fill(lane.slice == nil ? Color.clear : Color.blue.opacity(0.14)))
         .contentShape(Rectangle())
     }
 }

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Agent output B, in the window with the Review panel</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.win{height:800px;width:min(1320px,100%)}
+.pipe{display:flex;align-items:center;gap:10px;padding:0 20px 8px;font-size:12px;color:var(--dim)}
+.pipe .s{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.pipe .n{width:17px;height:17px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;background:var(--card2);color:var(--dim)}
+.pipe .s.d .n{background:var(--green);color:#fff}.pipe .s.c .n{background:var(--blue);color:#fff}.pipe .s.c{color:var(--text);font-weight:600}
+.pipe .ln{flex:1;height:1.5px;background:var(--line);min-width:16px}.pipe .ln.d{background:var(--green)}
+.eh{display:flex;gap:12px;padding:4px 20px 8px;align-items:flex-start}
+.eh b{font-size:15px;font-weight:650;display:block;line-height:1.3}
+.eh .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.sp2{width:22px;height:22px;border-radius:50%;border:2.5px solid color-mix(in srgb,var(--green) 30%,transparent);border-top-color:var(--green);animation:s 1s linear infinite;flex:none;margin-top:2px}
+@keyframes s{to{transform:rotate(360deg)}}
+.ut{display:flex;gap:18px;padding:0 20px;border-bottom:.5px solid var(--line);margin-bottom:12px}
+.ut span{padding:5px 1px 8px;color:var(--dim);position:relative;font-size:12.5px}
+.ut span.on{color:var(--text);font-weight:600}.ut span.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--text);border-radius:2px}
+.scroll{padding:0 20px 18px}
+.ss{border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;margin-bottom:10px;overflow:hidden}
+.ss.hl{box-shadow:0 0 0 1.5px var(--blue) inset}
+.ssh{display:flex;align-items:center;gap:11px;padding:10px 12px;cursor:pointer}
+.av{width:30px;height:30px;border-radius:50%;background:#5e5e63;color:#fff;display:grid;place-items:center;flex:none;position:relative}
+.av svg{width:15px;height:15px;fill:#fff}
+.av.run::after{content:"";position:absolute;inset:2px;border-radius:50%;border:2px solid transparent;border-top-color:#fff;border-right-color:rgba(255,255,255,.3);animation:s 1s linear infinite}
+.tx{flex:1;min-width:0}.tx b{font-weight:600}.tx b span{color:var(--dim);font-weight:500}
+.sst{display:block;color:var(--dim);font-size:11.5px;margin-top:1px}.sst .n{color:var(--red)}.sst .a{color:var(--green)}
+.rs{color:var(--dim);font-size:12px}
+.cvb{width:26px;height:26px;border-radius:50%;background:var(--card2);display:grid;place-items:center;color:var(--dim);flex:none;transition:transform .15s}
+.cvb.o{transform:rotate(90deg)}
+.ssb{padding:2px 12px 10px;border-top:.5px solid var(--line)}
+.foot{padding:0 12px 10px;font-size:12px;color:var(--blue)}
+.earlier{color:var(--dim);font-size:12px;padding:4px 6px}
+/* B checklist */
+.ic{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;flex:none;color:#fff;font-size:9.5px;font-weight:700}
+.k-bash{background:#6e6e78}.k-skill{background:#8e5cd9}.k-sub{background:#0a84ff}.k-test{background:#c9852a}.k-edit{background:#0a84ff}
+.ok{color:var(--green)}.er{color:var(--red)}
+.du{color:var(--faint);font-size:11px;white-space:nowrap}
+.cr{display:flex;align-items:center;gap:9px;padding:5px 6px;font-size:12.5px;cursor:pointer;border-radius:8px}
+.cr:hover{background:var(--card)}
+.cr .tt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cr .tt.m{font:12px var(--mono)}
+.ex{margin:2px 0 6px 27px;border-radius:10px;background:#0d0d10;font:11.5px/1.5 var(--mono);color:#d6d6dc;overflow:hidden}
+.ex code{display:block;padding:7px 12px;color:#9aa0ff;white-space:pre-wrap;word-break:break-all;border-bottom:.5px solid rgba(255,255,255,.1)}
+.ex pre{margin:0;padding:7px 12px;white-space:pre-wrap;word-break:break-all;font:inherit}.ex pre.bad{color:#ff7b72}
+.msg{display:inline-block;max-width:92%;border-radius:4px 14px 14px 14px;background:var(--card2);padding:7px 12px;line-height:1.45;margin:6px 0 4px}
+.res{margin:8px 0 2px;border-radius:12px;background:var(--card2);padding:10px 14px;line-height:1.5}
+.res .clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.res small{color:var(--blue);font-size:12px;display:block;margin-top:5px;cursor:pointer}
+/* a slice: a tag and a blue rail */
+.sliceb{border-radius:10px;background:color-mix(in srgb,var(--blue) 12%,transparent);margin:4px 0}
+.sliceb .cr:hover{background:none}
+.tag{padding:1px 8px;border-radius:99px;font-size:10.5px;font-weight:700;letter-spacing:.03em;background:var(--blue);color:#fff;margin-right:6px}
+.rail{margin:0 0 4px 17px;border-left:2px solid var(--blue);padding-left:8px}
+/* right panel */
+.insp{width:330px;flex:none;border-left:.5px solid var(--line);background:var(--card);display:flex;flex-direction:column;padding:46px 14px 14px;overflow:auto}
+.itabs{display:flex;border-bottom:.5px solid var(--line);margin-bottom:12px}
+.itabs span{flex:1;text-align:center;padding:5px 0 8px;color:var(--dim);font-size:12.5px;cursor:pointer;position:relative}
+.itabs span.on{color:var(--text);font-weight:600}.itabs span.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--text);border-radius:2px}
+.itabs small{color:var(--faint);font-weight:500}.itabs small.o{color:var(--orange)}
+.rc{border-radius:14px;background:var(--card2);padding:12px 14px;margin-bottom:10px;cursor:pointer}
+.rc.hl{box-shadow:0 0 0 1.5px var(--blue) inset}
+.rc h4{margin:0 0 8px;font-size:13.5px;display:flex;gap:8px;align-items:center}
+.rc h4 .sp{flex:1}
+.pill{padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:600}
+.pill.ch{background:color-mix(in srgb,var(--orange) 20%,transparent);color:var(--orange)}.pill.ap{background:color-mix(in srgb,var(--green) 20%,transparent);color:var(--green)}
+.stp{display:flex;gap:10px;padding:5px 0;font-size:12.5px}
+.stp .nb{width:19px;height:19px;border-radius:50%;display:grid;place-items:center;font-size:10.5px;font-weight:700;flex:none;background:var(--card2);color:var(--dim)}
+.stp .nb.d{background:var(--green);color:#fff}.stp .nb.c{background:var(--blue);color:#fff}
+.stp small{display:block;color:var(--dim);font-size:11.5px}
+.bk{display:flex;gap:8px;align-items:flex-start;font-size:12px;margin:5px 0 0 29px}
+.bk span{flex:1}.bk i{font-style:normal;font-size:11px;font-weight:600;white-space:nowrap}
+.bk i.new{color:var(--red)}.bk i.since{color:var(--orange)}.bk i.fixed{color:var(--green)}
+.hist{font-size:11px;font-weight:600;color:var(--dim);margin:6px 2px 6px}
+.hr{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;background:var(--card);margin-bottom:6px;font-size:12.5px;cursor:pointer}
+.hr.hl{box-shadow:0 0 0 1.5px var(--blue) inset}.hr .sp{flex:1}.hr small{color:var(--dim)}
+.ring{width:96px;height:96px;border-radius:50%;margin:14px auto 12px;border:9px solid var(--blue);display:grid;place-items:center;text-align:center;font-weight:700;font-size:22px;line-height:1}
+.ring small{display:block;font-size:10px;font-weight:500;color:var(--dim)}
+.sl{display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--blue) 14%,transparent);font-size:12.5px;cursor:pointer}
+.sl.hl{box-shadow:0 0 0 1.5px var(--blue) inset}
+.sl small{display:block;color:var(--dim);font-size:11.5px;margin-top:2px}
+.note2{max-width:1000px;color:var(--dim);margin:14px 0 0}.note2 b{color:var(--text)}
+.link{color:var(--blue)}
+</style></head><body>
+<h1>Agent output B, inside the window</h1>
+<div class="sub">The center is the Agent output tab with the plain checklist; the right panel is the Review tab as it already is (a card per round with its steps and blockers, the earlier rounds under it). Switch the moment of the epic below. Clicking a round on the right, or a session on the left, marks the other: that link is the only new idea here. Titles of the calls: pick where they come from.</div>
+<div class="bar">
+ <button class="tab on" data-sc="ship">1 · Shipping, a slice running</button>
+ <button class="tab" data-sc="r1">2 · Review, round 1</button>
+ <button class="tab" data-sc="r3">3 · Review, round 3</button>
+ <span class="sp"></span>
+ <button class="tab on" data-ti="cmd">Titles from the command (what the app can do today)</button>
+ <button class="tab" data-ti="desc">Titles from Bash's description (needs the engine to send it)</button>
+ <button class="tog" id="theme">☾ / ☀︎ Light / dark</button>
+</div>
+<div class="win" id="win"></div>
+<div class="note2" id="note"></div>
+
+<script>
+const CLAUDE='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><g stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/></g></svg>';
+// k: b command, s skill, t tests, e edit, m message, a subagent (a slice), r result
+const BUILD=[
+ {k:'s',cmd:'solve:ship',d:'Launched skill solve:ship',ms:'175 ms'},
+ {k:'b',cmd:'cat docs/agents/solve.md; ls ~/.claude/plugins/cache/ashulab…; gh issue view 635 --json title,body,state,subIssues',d:'Read the solve docs and the epic issue',ms:'2.0 s',out:'# solve skills - operations\n…'},
+ {k:'b',cmd:'git fetch -q && git branch -r | grep -i …/ship/WORKTREES.md',d:'Fetched and looked for the epic branch',ms:'1.7 s',out:'origin/feat/billing-checkbillingaccess-…/epic'},
+ {k:'b',err:1,cmd:'E=feat/billing-…; ls -a | grep -E "^\\.env"; ls apps/platform/.env.local apps/mobile/.env',d:'Looked for .env files to copy',ms:'906 ms',out:'Exit code 1\nls: apps/mobile/.env: No such file or directory\nls: apps/platform/.env.local: No such file or directory'},
+ {k:'b',cmd:'F=billing-…; git worktree add …; pnpm install --frozen-lockfile 2>&1 | tail -5',d:'Prepared the worktree and installed dependencies',ms:'20.3 s',out:'Preparing worktree (new branch \'feat/billing-…\')'},
+ {k:'m',t:'Worktree is up and dependencies are installed. Next I\'ll record it on the epic issue, then hand slice #636 to a subagent.'},
+ {k:'b',cmd:'D=$(mktemp -d); gh issue comment 635 --body-file $D/c.md',d:'Commented on epic #635',ms:'1.8 s',out:'https://github.com/vemec/sass-blueprint/issues/635#issuecomment-6347014845'},
+ {k:'a',slice:636,t:'Build slice #636',live:1,ms:'2m 25s',calls:13,tests:4,errors:1,sub:[
+   {k:'b',cmd:'W=~/.solve/worktrees/…; sed -n 1,80p apps/platform/modules/billing/services/assert-access.ts',d:'Read assert-access.ts',ms:'3.8 s',out:'…'},
+   {k:'b',cmd:'grep -n -i "changelog" CONTRIBUTING.md | head',d:'Read the changelog rules',ms:'2.7 s',out:'…'},
+   {k:'e',err:1,cmd:'cd $W && python3 - <<\'EOF\' …',d:'Rewrote assert-access.ts',ms:'206 ms',out:'Exit code 1\nugrep: warning: apps/platform/modules/billing/types.ts: No such file or directory'},
+   {k:'t',cmd:'pnpm vitest run modules/billing 2>&1 | grep -E "Test Files|Tests "',d:'Ran the billing tests',ms:'8.3 s',out:'Failed Tests 2'},
+   {k:'t',run:1,cmd:'pnpm vitest run modules/billing',d:'Running the billing tests again',ms:'…',out:''}]}
+];
+const REVIEW=[
+ {k:'b',cmd:'gh pr view 638 --repo vemec/sass-blueprint --json baseRefName,headRefName; git rev-parse HEAD',d:'Looked at PR #638 and its head commit',ms:'1.8 s',out:'{"baseRefName":"main","headRefName":"feat/billing-…"}'},
+ {k:'m',t:'Head matches. Next I\'ll load the epic, its tickets, and the diff.'},
+ {k:'b',cmd:'gh issue view 635 --repo vemec/sass-blueprint --json body,… ; ls .github/workflows',d:'Read epic #635',ms:'3.1 s',out:'{"body":"## Problem …"}'},
+ {k:'b',cmd:'gh run view 39823724689 --json conclusion,headSha,jobs',d:'Checked the CI run on the PR head',ms:'2.6 s',out:'{"conclusion":"success","headSha":"d2f75eab…"}'},
+ {k:'b',cmd:'grep -n \'^diff\' /tmp/pr638.diff; cat apps/platform/modules/billing/services/assert-access.ts',d:'Searched the diff for the cache reader',ms:'173 ms',out:'1:diff --git a/CHANGELOG.md b/CHANGELOG.md'},
+ {k:'m',t:'Head SHA confirmed and CI is green on it. The diff matches the spec. Now I\'m running the formal /code-review.'},
+ {k:'s',cmd:'solve:code-review',d:'Launched skill solve:code-review',ms:'128 ms'},
+ {k:'b',cmd:'gh api repos/vemec/sass-blueprint/issues/638/comments --jq …',d:'Listed the existing comments',ms:'740 ms',out:'{"body":"[vc]: #3U/V3b…"}'},
+ {k:'b',cmd:'cat > /tmp/review638.md <<\'EOF\' …; gh api … /pulls/638/reviews',d:'Posted the review on PR #638',ms:'1.2 s',out:'{"html_url":"https://github.com/vemec/sass-blueprint/pull/638#pullrequestreview-5618430324"}'},
+ {k:'r',t:'Review of PR #638 is complete: no blockers, no suggestions, one nitpick.\n\n• Head and CI: the PR head is d2f75eab, as required. CI passed on that exact commit.\n• Spec check: the change matches the epic spec and ticket #636.\n• Nitpick: two tests don\'t assert exactly what was written to the cache. Harmless.'}
+];
+const R3=[
+ {k:'b',cmd:'gh pr view 638 --json headRefOid,commits',d:'Looked at the new head commit',ms:'1.4 s',out:'{"headRefOid":"7be0c41…"}'},
+ {k:'b',cmd:'git diff d2f75eab..7be0c41 --stat',d:'Read what the fix changed',ms:'210 ms',out:' 2 files changed, 41 insertions(+), 3 deletions(-)'},
+ {k:'t',cmd:'pnpm vitest run modules/billing 2>&1 | tail -15',d:'Ran the billing tests',ms:'9.1 s',out:'Tests 54 passed (54)'},
+ {k:'m',t:'The positive-cache test now asserts the write. One thing left: the new test still does not pin the stale positive case.'},
+ {k:'b',run:1,cmd:'gh api … /pulls/638/reviews',d:'Posting the review',ms:'…',out:''}
+];
+const SC={
+ ship:{pipe:['d','c','w','w'],title:'billing: checkBillingAccess trusts a stale cached no-access verdict after a payment',state:'Running · ship · 0/1 slices',tab:'slices',
+  sessions:[{id:'b',role:'Builder',place:'Ship',calls:'30 tool calls · 7 test runs',err:'2 errors',time:'since 14:28',run:1,open:1,ev:BUILD,foot:'Resume the whole ship session in Terminal ↗'}],earlier:null,rounds:[]},
+ r1:{pipe:['d','d','c','w'],title:'billing: checkBillingAccess trusts a stale cached no-access verdict after a payment',state:'Running · review · round 1/5',tab:'review',
+  sessions:[{id:'rv1',role:'Reviewer',place:'Round 1',calls:'15 tool calls · 4 test runs',err:'',time:'1m 29s',run:0,open:1,ev:REVIEW,round:1,foot:'Resume this session in Terminal ↗'},
+            {id:'b',role:'Builder',place:'Ship',calls:'30 tool calls · 7 test runs',err:'2 errors',time:'13m 30s',run:0,open:0,ev:[],foot:''}],earlier:null,
+  rounds:[{n:1,verdict:'ap',chip:'Approved',steps:[['d','Review','no blockers · 1m 29s'],['d','Verdict','approved, one nitpick']],bk:[]}]},
+ r3:{pipe:['d','d','c','w'],title:'billing: checkBillingAccess trusts a stale cached no-access verdict after a payment',state:'Running · review · round 3/5',tab:'review',
+  sessions:[{id:'rv3',role:'Reviewer',place:'Round 3',calls:'5 tool calls · 1 test run',err:'',time:'since 15:02',run:1,open:1,ev:R3,round:3,foot:'Resume this session in Terminal ↗'},
+            {id:'fx2',role:'Fixer',place:'Round 2',calls:'11 tool calls · 3 test runs',err:'',time:'1m 08s',run:0,open:0,ev:[],round:2},
+            {id:'rv2',role:'Reviewer',place:'Round 2',calls:'12 tool calls · 2 test runs',err:'',time:'1m 20s',run:0,open:0,ev:[],round:2}],earlier:'3 earlier sessions',
+  rounds:[{n:3,verdict:'ch',chip:'Reviewing',steps:[['c','Review','running · since 15:02'],['w','Fix','after the review'],['w','Verdict','']],bk:[]},
+          {n:2,verdict:'ch',chip:'1 blocker',steps:[['d','Review','1m 20s'],['d','Fix','1m 08s · 2 commits'],['d','Verdict','changes requested']],bk:[['No test pins the stale positive case','since R1','since']]},
+          {n:1,verdict:'ch',chip:'2 blockers',steps:[['d','Review','1m 41s'],['d','Fix','1m 52s · 3 commits'],['d','Verdict','changes requested']],bk:[['A cached denial can still be written back','fixed','fixed'],['No test pins the stale positive case','new','new']]}]}
+};
+let sc='ship',ti='cmd',open=new Set(['b-sub-7']),hl=null,itab=null;
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const derive=c=>{const parts=c.split(/;|&&|\|/).map(x=>x.trim()).filter(Boolean);const real=parts.filter(p=>!/^[A-Z_]+=(\$\([^)]*\)|\S*)$/.test(p));const first=real[0]||parts[0];const w=first.length>46?first.slice(0,44)+'…':first;return w+(real.length>1?`  +${real.length-1}`:'')};
+const KI={b:['›_','k-bash'],s:['✦','k-skill'],t:['✓','k-test'],e:['✎','k-edit'],a:['⑂','k-sub']};
+const stI=e=>e.run?'<span style="display:inline-block;width:11px;height:11px;border:2px solid var(--blue);border-top-color:transparent;border-radius:50%;animation:s 1s linear infinite"></span>':e.err?'<span class="er">✕</span>':'<span class="ok">✓</span>';
+const title=e=>e.k==='s'?`Launched skill ${e.cmd}`:ti==='desc'?e.d:derive(e.cmd);
+const call=(e,key)=>`<div class="cr" data-o="${key}"><span class="ic ${KI[e.k][1]}">${KI[e.k][0]}</span><span class="tt ${ti==='cmd'&&e.k!=='s'?'m':''}">${esc(title(e))}</span><span class="du">${e.ms}</span>${stI(e)}</div>${open.has(key)&&e.out!==undefined&&e.cmd?`<div class="ex"><code>${esc(e.cmd)}</code><pre class="${e.err?'bad':''}">${esc(e.out)}</pre></div>`:''}`;
+const sliceRow=(e,key)=>`<div class="sliceb"><div class="cr" data-o="${key}"><span class="ic k-sub">⑂</span><span class="tt"><span class="tag">SLICE #${e.slice}</span><b>${esc(e.t)}</b> <span class="du">· ${e.calls} calls · ${e.tests} test runs · ${e.errors} error</span></span><span class="du">${e.live?'running':e.ms}</span>${e.live?stI({run:1}):'<span class="ok">✓</span>'}</div>${open.has(key)?`<div class="rail">${e.sub.map((x,j)=>call(x,key+'-'+j)).join('')}</div>`:''}</div>`;
+const body=(s)=>{const k=s.id;let h='';s.ev.forEach((e,i)=>{const key=k+'-'+i;
+  if(e.k==='m')h+=`<div class="msg">${esc(e.t)}</div>`;
+  else if(e.k==='r')h+=`<div class="res"><div class="${open.has(key)?'':'clamp'}">${esc(e.t).replace(/\n/g,'<br>')}</div><small data-o="${key}">${open.has(key)?'Show less':'Read all'}</small></div>`;
+  else if(e.k==='a')h+=sliceRow(e,k+'-sub-'+i);
+  else h+=call(e,key)});return h};
+const session=s=>`<div class="ss ${hl&&s.round&&hl===s.round?'hl':''}"><div class="ssh" data-s="${s.id}" data-round="${s.round||''}"><div class="av ${s.run?'run':''}">${CLAUDE}</div><div class="tx"><b>Claude <span>· ${s.role} · ${s.place}</span></b><span class="sst">${s.calls}${s.err?` · <span class="n">${s.err}</span>`:''}</span></div><span class="rs">${s.time}</span><span class="cvb ${s.open?'o':''}"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>${s.open&&s.ev.length?`<div class="ssb">${body(s)}</div>${s.foot?`<div class="foot">${s.foot}</div>`:''}`:''}</div>`;
+const pipe=p=>{const N=['Queued','Ship','Review/Fix','Ready'];return `<div class="pipe">${N.map((n,i)=>`<span class="s ${p[i]}"><span class="n">${p[i]==='d'?'✓':i+1}</span>${n}</span>${i<3?`<span class="ln ${p[i]==='d'?'d':''}"></span>`:''}`).join('')}</div>`};
+const roundCard=r=>`<div class="rc ${hl===r.n?'hl':''}" data-round="${r.n}"><h4>Round ${r.n}<span class="pill ${r.verdict}">${r.chip}</span><span class="sp"></span></h4>${r.steps.map((s,i)=>`<div class="stp"><span class="nb ${s[0]}">${s[0]==='d'?'✓':i+1}</span><div><b style="font-weight:550">${s[1]}</b><small>${s[2]}</small></div></div>`).join('')}${r.bk.map(b=>`<div class="bk"><span>${esc(b[0])}</span><i class="${b[2]}">${b[1]}</i></div>`).join('')}</div>`;
+const slicesPanel=()=>`<div class="ring">0/1<small>merged</small></div><div class="hist" style="text-transform:uppercase;letter-spacing:.04em">In progress</div><div class="sl ${hl==='s'?'hl':''}" data-slice="1"><span class="sp2" style="width:18px;height:18px;margin-top:1px"></span><div><b>#636 Billing gate re-confirms cached denials against the DB</b><small>PR #637 · working</small></div></div>`;
+function render(){
+ const d=SC[sc];const tab=itab||d.tab;
+ const rn=d.rounds.length;const latest=d.rounds[0];
+ const main=`<div class="main"><div class="tb"><span class="glass sm" style="padding:6px 9px">▢</span><h2>sass-blueprint #635</h2><span class="glass">◎ Open issue</span><span class="glass sm" style="padding:6px 9px">▭</span></div>
+  ${pipe(d.pipe)}<div class="eh"><span class="sp2"></span><div><b>${esc(d.title)}</b><div class="chips"><span class="chip" style="color:var(--green)">● ${d.state}</span><span class="chip">vemec/sass-blueprint</span><span class="chip">#635</span><span class="chip">bug</span></div></div></div>
+  <div class="ut"><span class="on">Agent output</span><span>Files changed</span></div>
+  <div class="scroll">${d.sessions.map(session).join('')}${d.earlier?`<div class="earlier">${d.earlier}</div>`:''}</div></div>`;
+ const panel=`<div class="insp"><div class="itabs"><span class="${tab==='slices'?'on':''}" data-it="slices">Slices <small>${sc==='ship'?'0/1':'1/1'}</small></span><span class="${tab==='review'?'on':''}" data-it="review">Review <small class="${sc==='r3'?'o':''}">${rn?'R'+latest.n:''}</small></span><span class="${tab==='details'?'on':''}" data-it="details">Details</span></div>
+  ${tab==='slices'?slicesPanel():tab==='review'?(rn?d.rounds.slice(0,1).map(roundCard).join('')+(rn>1?`<div class="hist">HISTORY · NEWEST FIRST</div>`+d.rounds.slice(1).map(roundCard).join(''):''):'<div class="hist">Review has not started</div>'):'<div class="hist">Unchanged: timing, progress, pull request, run.</div>'}</div>`;
+ const side=`<div class="side"><div class="lights"><i></i><i></i><i></i></div><div class="row"><span style="width:20px;text-align:center">▦</span><div class="t"><b>Overview</b></div></div><div class="lbl"><span>Running</span></div><div class="row sel"><span class="sp2" style="width:16px;height:16px;border-width:2px;margin:0"></span><div class="t"><b>sass-blueprint #635</b><span>${sc==='ship'?'ship · 0/1 slices':sc==='r1'?'review · round 1':'review · round 3'}</span></div></div><div style="flex:1"></div><div class="row" style="background:var(--card)"><i class="dot g"></i><div class="t"><b>Carrier running</b><span>next check in 3m</span></div></div></div>`;
+ document.getElementById('win').innerHTML=side+main+panel;
+ document.getElementById('note').innerHTML={
+  ship:'<b>Shipping.</b> The slice is a row of its own: blue tag, blue rail for what it does, and the same slice shows on the right in Slices. A call is one line (title, time, tick); click it for the command and its output.',
+  r1:'<b>Review, round 1.</b> The reviewer is the open card, the builder\'s session folded under it. On the right, the Review tab as it is today: one card for the round with its steps.',
+  r3:'<b>Review, round 3.</b> Reviewer R3 is open and running; the fixer and reviewer of round 2 are folded cards, older ones counted ("3 earlier sessions"). On the right, the round card and the history with each blocker\'s mark (new, since R1, fixed). The new bit: click a round on the right and its session lights up on the left, and the other way round.'}[sc];
+ document.querySelectorAll('[data-o]').forEach(el=>el.onclick=e=>{e.stopPropagation();const k=el.dataset.o;open.has(k)?open.delete(k):open.add(k);render()});
+ document.querySelectorAll('[data-s]').forEach(el=>el.onclick=()=>{const s=SC[sc].sessions.find(x=>x.id===el.dataset.s);s.open=s.open?0:1;if(s.open&&!s.ev.length)s.ev=REVIEW.slice(0,4);hl=s.round||hl;render()});
+ document.querySelectorAll('[data-round]').forEach(el=>{if(el.dataset.round)el.addEventListener('click',()=>{hl=+el.dataset.round;render()})});
+ document.querySelectorAll('[data-slice]').forEach(el=>el.onclick=()=>{hl=hl==='s'?null:'s';render()});
+ document.querySelectorAll('[data-it]').forEach(el=>el.onclick=()=>{itab=el.dataset.it;render()});
+}
+document.querySelectorAll('[data-sc]').forEach(b=>b.onclick=()=>{sc=b.dataset.sc;itab=null;hl=null;open=new Set(sc==='ship'?['b-sub-7']:[]);document.querySelectorAll('[data-sc]').forEach(x=>x.classList.toggle('on',x===b));render()});
+document.querySelectorAll('[data-ti]').forEach(b=>b.onclick=()=>{ti=b.dataset.ti;document.querySelectorAll('[data-ti]').forEach(x=>x.classList.toggle('on',x===b));render()});
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script>
+</body></html>

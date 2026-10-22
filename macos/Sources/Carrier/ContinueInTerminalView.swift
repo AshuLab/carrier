@@ -9,7 +9,7 @@ struct WorkspaceTerminalOpener: TerminalOpener {
     }
 }
 
-/// Under an open session that is not running: a block with the command and a button for a stopped one, a quiet link for the
+/// Under an open session that is not running: a block with the command and a button for a stopped one, a glass button for the
 /// others. Nothing for a session with no descriptor (running) or one the validation refuses.
 struct ContinueInTerminalView: View {
     let section: SessionSection
@@ -28,15 +28,16 @@ struct ContinueInTerminalView: View {
                             .foregroundStyle(.secondary)
                         Text(resumeCommand(valid)).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                             .padding(8).background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
-                        Button { open(descriptor, root: root) } label: { Label("Continue in Terminal", systemImage: "terminal") }
-                            .buttonStyle(.glass).controlSize(.small)
+                        Button { open(descriptor, root: root) } label: { Label("Continue in Terminal", systemImage: "apple.terminal") }
+                            .buttonStyle(.glass).buttonBorderShape(.capsule)
                     } else {
-                        Button { open(descriptor, root: root) } label: { Text("Resume this session in Terminal ↗") }
-                            .buttonStyle(.link).font(.caption).help(resumeCommand(valid))
+                        Button { open(descriptor, root: root) } label: { Label("Resume in Terminal", systemImage: "apple.terminal") }
+                            .buttonStyle(.glass).buttonBorderShape(.capsule).help(resumeCommand(valid))
                     }
                     if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
                 }
-                .padding(.horizontal, 12).padding(.bottom, 11).sessionRow()
+                // the card's foot already gives the bottom 12 pt: the same as the left
+                .padding(.horizontal, 12).padding(.top, 12).sessionRow()
             }
         }
     }

@@ -69,15 +69,16 @@ private struct EpicHeaderView: View {
                 Text(header.title).font(.title2.weight(.bold)).lineLimit(2)
                 FlowLayout(spacing: 8) {
                     StatePill(state: header.state, text: header.status)
-                    Chip(text: header.repo, symbol: "arrow.triangle.branch")
+                    if let url = URL(string: "https://github.com/\(header.repo)") {
+                        Button { NSWorkspace.shared.open(url) } label: { Chip(text: header.repo, mark: GitHubMark.image, opens: true) }
+                            .buttonStyle(.plain).help("Open the repository")
+                    }
                     if let url = browserURL(header.issueURL) {
-                        Button { NSWorkspace.shared.open(url) } label: {
-                            Chip(text: "#\(header.issue)", symbol: "smallcircle.filled.circle")
-                        }
-                        .buttonStyle(.plain).help("Open the issue")
+                        Button { NSWorkspace.shared.open(url) } label: { Chip(text: "#\(header.issue)", mark: nil, opens: true) }
+                            .buttonStyle(.plain).help("Open the issue")
                     }
                     ForEach(header.labels, id: \.self) { label in
-                        Text(label).font(.caption.weight(.medium)).padding(.horizontal, 7).padding(.vertical, 1)
+                        Text(label).font(.system(size: 12, weight: .medium)).padding(.horizontal, 8).padding(.vertical, 2)
                             .background(Capsule().fill(Color.secondary.opacity(0.15)))
                     }
                 }
@@ -123,21 +124,28 @@ private struct StatePill: View {
             Circle().fill(color).frame(width: 6, height: 6)
             Text(text).lineLimit(1).truncationMode(.tail)
         }
-        .font(.caption.weight(.semibold)).foregroundStyle(color)
+        .font(.system(size: 12, weight: .semibold)).foregroundStyle(color)
         .help(text)
-        .padding(.horizontal, 10).padding(.vertical, 3)
+        .padding(.horizontal, 11).padding(.vertical, 4)
         .background(Capsule().fill(color.opacity(0.2)))
     }
 }
 
+/// A pill of the header; one that opens GitHub ends in the arrow of an external link, and the repository's starts with its mark.
 private struct Chip: View {
     let text: String
-    let symbol: String
+    let mark: Image?
+    let opens: Bool
 
     var body: some View {
-        Label(text, systemImage: symbol).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
-            .padding(.horizontal, 9).padding(.vertical, 2)
-            .background(Capsule().fill(Color.secondary.opacity(0.15)))
+        HStack(spacing: 5) {
+            if let mark { mark.renderingMode(.template).resizable().scaledToFit().frame(width: 13, height: 13) }
+            Text(text).lineLimit(1)
+            if opens { Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.tertiary) }
+        }
+        .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+        .padding(.horizontal, 10).padding(.vertical, 4)
+        .background(Capsule().fill(Color.secondary.opacity(0.15)))
     }
 }
 

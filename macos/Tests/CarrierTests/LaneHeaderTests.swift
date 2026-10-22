@@ -3,7 +3,9 @@ import SwiftUI
 import Testing
 @testable import Carrier
 
-private func lane(hint: Bool) -> LaneSection { LaneSection(id: "a", title: "Lane 1 · #653", hint: hint, counts: "4 tool calls", items: []) }
+private func lane(hint: Bool, slice: Int? = nil) -> LaneSection {
+    LaneSection(id: "a", title: "Lane 1 · #653", hint: hint, counts: "4 tool calls", items: [], slice: slice, laneNumber: slice == nil ? nil : 1)
+}
 
 @MainActor private func height(_ lane: LaneSection, open: Bool) throws -> Int {
     let renderer = ImageRenderer(content: LaneHeaderView(lane: lane, open: open).frame(width: 480))
@@ -16,4 +18,5 @@ private func lane(hint: Bool) -> LaneSection { LaneSection(id: "a", title: "Lane
     let base = try height(lane(hint: true), open: true)
     #expect(try height(lane(hint: true), open: false) == base)
     #expect(try height(lane(hint: false), open: true) == base)
+    #expect(try height(lane(hint: true, slice: 653), open: true) == base)
 }

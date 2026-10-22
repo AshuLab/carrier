@@ -112,6 +112,24 @@ public struct EpicReply: Codable, Equatable {
         public var activity: String? = nil
     }
 
+    /// A review thread of the final pull request, a cache of GitHub in GitHub's order.
+    public struct ReviewThread: Codable, Equatable {
+        public var id: String
+        public var path: String
+        /// nil when the thread is outdated and GitHub no longer maps it.
+        public var line: Int?
+        public var resolved: Bool
+        public var outdated: Bool
+        /// nil for a deleted account.
+        public var author: String?
+        public var bot: Bool
+        /// The opening comment's first line, cut by the engine; empty when the comment is.
+        public var firstLine: String
+        public var commentCount: Int
+        /// The opening comment's url.
+        public var url: String
+    }
+
     public struct Worktree: Codable, Equatable {
         public var kind: String
         public var lane: Int?
@@ -139,6 +157,10 @@ public struct EpicReply: Codable, Equatable {
     public var slices: [Slice]
     /// True when the epic has more slices than the list holds (only the first hundred are read); absent from an older engine.
     public var slicesTruncated: Bool? = nil
+    /// nil when the engine does not send threads (hides the section); an empty list means the pull request has none.
+    public var threads: [ReviewThread]? = nil
+    /// True when the pull request has more threads than the list holds (only the first hundred are read); absent from an older engine.
+    public var threadsTruncated: Bool? = nil
     public var worktrees: [Worktree]
     public var branch: String?
     /// nil during ship.

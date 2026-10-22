@@ -91,6 +91,28 @@ public struct ReviewCard: Equatable {
     public var view: ReviewRoundView
 }
 
+/// One review thread of the final pull request, as the Review tab shows it.
+public struct ReviewThreadRow: Equatable {
+    public var id: String
+    /// The author, "unknown" for a deleted account, "(bot)" after a bot's name.
+    public var author: String
+    /// "path:line", or the file alone when GitHub no longer maps the thread to a line.
+    public var location: String
+    public var resolved: Bool
+    /// GitHub says so, or the thread has no line.
+    public var outdated: Bool
+    /// nil for an empty opening comment: nothing is shown in its place.
+    public var firstLine: String?
+    public var url: String
+}
+
+public struct ReviewThreadsModel: Equatable {
+    /// Unresolved first, then resolved; GitHub's order within each.
+    public var rows: [ReviewThreadRow]
+    /// GitHub has more threads than the list holds.
+    public var partial: Bool
+}
+
 public struct ReviewTabModel: Equatable {
     /// "round 2 of 5"; nil without a round.
     public var headline: String?
@@ -98,6 +120,8 @@ public struct ReviewTabModel: Equatable {
     public var card: ReviewCard?
     /// Earlier rounds, newest first.
     public var history: [ReviewRoundView]
+    /// nil when the engine does not send threads: no section. An empty list is a section saying there are none.
+    public var threads: ReviewThreadsModel?
 
     public var isEmpty: Bool { card == nil && history.isEmpty }
 }
@@ -291,7 +315,20 @@ public func reviewTab(_ subject: EpicSubject?, reply: EpicReply?) -> ReviewTabMo
     }
     let history = rounds[..<historyEnd].indices.reversed().map { view($0, round: rounds[$0].round, latest: false) }
     let headline = card.map { "round \($0.view.round)" + (maxReviews.map { " of \($0)" } ?? "") }
-    return ReviewTabModel(headline: headline, card: card, history: history)
+    return ReviewTabModel(headline: headline, card: card, history: history, threads: reply?.threads.map { threadsModel($0, truncated: reply?.threadsTruncated == true) })
+}
+
+private func threadsModel(_ threads: [EpicReply.ReviewThread], truncated: Bool) -> ReviewThreadsModel {
+    let rows = (threads.filter { $0.resolved == false } + threads.filter(\.resolved)).map { thread in
+        let name = thread.author ?? "unknown"
+        return ReviewThreadRow(
+            id: thread.id, author: thread.bot ? "\(name) (bot)" : name,
+            location: thread.line.map { "\(thread.path):\($0)" } ?? thread.path,
+            resolved: thread.resolved, outdated: thread.outdated || thread.line == nil,
+            firstLine: thread.firstLine.isEmpty ? nil : thread.firstLine, url: thread.url
+        )
+    }
+    return ReviewThreadsModel(rows: rows, partial: truncated)
 }
 
 func agentLabel(_ agent: PanelSnapshot.Agent) -> String {

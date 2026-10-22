@@ -76,6 +76,52 @@ describe('invocation', () => {
   });
 });
 
+describe('rate limit', () => {
+  const headers = { 'X-RateLimit-Limit': '5000', 'X-RateLimit-Remaining': '4812', 'X-RateLimit-Reset': '1792618843', 'X-RateLimit-Resource': 'core' };
+  const issue = { state: 'open', labels: [] };
+
+  test('is null before any call, then the headers of the latest answer: remaining, limit and reset in ms', async () => {
+    const { github } = setup([{ match: 'issues/1', stdout: http(200, issue, headers) }, { match: 'issues/2', stdout: http(200, issue, { ...headers, 'X-RateLimit-Remaining': '4811' }) }]);
+    expect(github.rateLimit()).toBeNull();
+    await github.getIssue(repo, 1);
+    expect(github.rateLimit()).toEqual({ remaining: 4812, limit: 5000, resetAt: 1792618843000 });
+    await github.getIssue(repo, 2);
+    expect(github.rateLimit()?.remaining).toBe(4811);
+  });
+
+  test('a failed call that carries the headers counts too', async () => {
+    const { github } = setup([{ match: 'issues/1', ...failure(403, { message: 'API rate limit exceeded' }, { ...headers, 'X-RateLimit-Remaining': '0' }) }]);
+    await github.getIssue(repo, 1).catch(() => {});
+    expect(github.rateLimit()).toEqual({ remaining: 0, limit: 5000, resetAt: 1792618843000 });
+  });
+
+  test('missing, malformed or negative headers leave the value as it was', async () => {
+    const { 'X-RateLimit-Limit': _limit, ...withoutLimit } = headers;
+    const { github } = setup([
+      { match: 'issues/1', stdout: http(200, issue) },
+      { match: 'issues/2', stdout: http(200, issue, withoutLimit) },
+      { match: 'issues/3', stdout: http(200, issue, { ...headers, 'X-RateLimit-Remaining': 'lots' }) },
+      { match: 'issues/4', stdout: http(200, issue, { ...headers, 'X-RateLimit-Reset': '-5' }) },
+      { match: 'issues/5', stdout: http(200, issue, headers) },
+    ]);
+    for (const n of [1, 2, 3, 4]) {
+      await github.getIssue(repo, n);
+      expect(github.rateLimit()).toBeNull();
+    }
+    await github.getIssue(repo, 5);
+    for (const n of [2, 3, 4]) {
+      await github.getIssue(repo, n);
+      expect(github.rateLimit()).toEqual({ remaining: 4812, limit: 5000, resetAt: 1792618843000 });
+    }
+  });
+
+  test('the GraphQL bucket is a different limit and is not shown', async () => {
+    const { github } = setup([{ match: 'issues/1', stdout: http(200, issue, { ...headers, 'X-RateLimit-Resource': 'graphql' }) }]);
+    await github.getIssue(repo, 1);
+    expect(github.rateLimit()).toBeNull();
+  });
+});
+
 describe('responses', () => {
   test('a malformed response throws, it is never an empty list', async () => {
     const { github } = setup([{ match: 'issues', ...ok({ not: 'a list' }) }]);

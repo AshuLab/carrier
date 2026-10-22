@@ -58,7 +58,12 @@ export const runningLabel = ownedLabels[0];
 export const readyForTestLabel = ownedLabels[1];
 export const needsHumanLabel = ownedLabels[2];
 
+/** The REST limit of the orchestrator's credential at its latest answer; `resetAt` is ms since epoch. */
+export type RateLimit = { remaining: number; limit: number; resetAt: number };
+
 export interface GitHub {
+  /** From the headers of the latest call, no request of its own; null before any call carried them. */
+  rateLimit(): RateLimit | null;
   /** All ready epics of the repo, every page, with their title and labels. Throws GitHubUnavailable when GitHub is down or rate limiting. */
   listReadyEpics(repo: string): Promise<{ issue: number; title: string; labels: string[] }[]>;
   /** The open `solve:epic` issues of the repo, every page, each with its title, labels and the slice progress GitHub reports (`null` when it sends none). Throws GitHubUnavailable like the call above. */

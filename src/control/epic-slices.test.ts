@@ -113,3 +113,26 @@ test('the epic reply carries the pull request block, null while the epic has non
   engine.stop();
   expect((await askEpic()).data.pr).toEqual(pr);
 });
+
+test('the epic reply carries the cached review threads in GitHub order and says when the list is partial; an epic with none answers an empty list', async () => {
+  const github = new FakeGitHub();
+  const clock = new FakeClock();
+  const runner = new FakeAgentRunner();
+  runner.behavior = () => ({ exit: 'stopped' });
+  github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }] };
+  const thread = (id: string, extra: object = {}) => ({ id, path: 'src/a.ts', line: 3, resolved: false, outdated: false, author: 'someone', bot: false, firstLine: `Thread ${id}`, commentCount: 2, url: `https://github.com/AshuLab/a/pull/50#discussion_${id}`, ...extra });
+  const threads = [thread('z'), thread('a', { line: null, outdated: true, author: null, bot: true, resolved: true, firstLine: '' })];
+  github.pullRequestBlocks['AshuLab/a#50'] = { number: 50, url: 'https://github.com/AshuLab/a/pull/50', draft: false, mergeState: 'CLEAN', reviewDecision: null, checks: null };
+  github.reviewThreads['AshuLab/a#50'] = { threads, truncated: true };
+  const engine = createEngine({ db, github, clock, repos, pollIntervalMs: 5 * MIN, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, runner, workspaces: new FakeWorkspaces(), root: dir });
+  await engine.start();
+  await clock.advance(5 * MIN); // reserved, no pull request yet
+  expect((await askEpic()).data).toMatchObject({ threads: [], threadsTruncated: false });
+
+  db.update(epics).set({ prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  await clock.advance(5 * MIN);
+  engine.stop();
+  const { data } = await askEpic();
+  expect(data.threads).toEqual(threads);
+  expect(data.threadsTruncated).toBe(true);
+});

@@ -6,6 +6,7 @@ import { GhGitHub } from './github.ts';
 // Runs against a real repo through Forge, so it only runs when all three are set explicitly:
 //   CARRIER_IT_REPO=owner/name  CARRIER_IT_FORGE_AGENT=<agent in the Forge registry>
 //   CARRIER_IT_CWD=<a clone whose origin is under the same owner; Forge picks the installation from it>
+// A second case reads the review threads of a pull request of your choice, and only runs with CARRIER_IT_PR=<its number> set as well (read only).
 // It creates one throwaway issue and any missing labels, and closes/deletes them at the end.
 const { CARRIER_IT_REPO: repo, CARRIER_IT_FORGE_AGENT: agent, CARRIER_IT_CWD: cwd } = process.env;
 const enabled = Boolean(repo && agent && cwd);
@@ -52,5 +53,25 @@ describe.skipIf(!enabled)('GhGitHub against a real repo', () => {
       }
     },
     120_000,
+  );
+});
+
+const { CARRIER_IT_PR: pull } = process.env;
+describe.skipIf(!enabled || !pull)('GhGitHub reads the review threads of a real pull request', () => {
+  test(
+    'the block and every thread decode, with the first line cut',
+    async () => {
+      const github = new GhGitHub({ profile: { kind: 'forge', agent: agent! }, cwd: () => cwd!, timeoutMs: 30_000 });
+      const read = await github.readPullRequest(repo!, Number(pull));
+      expect(read).not.toBeNull();
+      expect(read!.pr.number).toBe(Number(pull));
+      expect(read!.threads.length).toBeLessThanOrEqual(100);
+      for (const thread of read!.threads) {
+        expect(thread.id).not.toBe('');
+        expect(thread.firstLine.length).toBeLessThanOrEqual(160);
+        expect(thread.url).toContain('/pull/');
+      }
+    },
+    60_000,
   );
 });

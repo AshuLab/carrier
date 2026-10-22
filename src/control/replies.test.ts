@@ -108,6 +108,11 @@ test('the epic reply equals reply-epic.json', () => {
       { number: 125, title: 'Files request', state: 'ready', blockedBy: [], prNumber: null, closedAt: null, readAt: 99_000 },
     ],
     slicesTruncated: false,
+    threads: [
+      { id: 'PRRT_kwDOexample01', path: 'src/control/server.ts', line: 42, resolved: false, outdated: false, author: 'reviewer-1', bot: false, firstLine: 'This should validate the repo name first.', commentCount: 3, url: 'https://github.com/acme/web/pull/50#discussion_r1001' },
+      { id: 'PRRT_kwDOexample02', path: 'src/control/epic.ts', line: null, resolved: true, outdated: true, author: null, bot: true, firstLine: '', commentCount: 1, url: 'https://github.com/acme/web/pull/50#discussion_r1002' },
+    ],
+    threadsTruncated: false,
     worktrees: [
       { kind: 'epic', lane: null, path: '/work/acme/web-epic' },
       { kind: 'lane', lane: 1, path: '/work/acme/web-epic--lane-1' },

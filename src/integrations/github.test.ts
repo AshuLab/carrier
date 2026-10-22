@@ -303,9 +303,20 @@ describe('readPullRequest', () => {
 
   test('one graphql call with separated arguments; it returns the block', async () => {
     const { github, calls } = setup([{ match: 'graphql', stdout: `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${recorded}` }]);
-    expect(await github.readPullRequest(repo, 14035)).toMatchObject({ number: 14035, draft: true, mergeState: 'DIRTY', checks: { passing: 10, failing: 1, pending: 0 } });
+    expect(await github.readPullRequest(repo, 14035)).toMatchObject({ pr: { number: 14035, draft: true, mergeState: 'DIRTY', checks: { passing: 10, failing: 1, pending: 0 } }, threads: [], truncated: false });
     expect(calls()).toHaveLength(1);
     expect(calls()[0]!.args).toEqual(expect.arrayContaining(['graphql', 'owner=AshuLab', 'name=demo', 'number=14035']));
+  });
+
+  test('the same call returns the review threads and that the list is partial', async () => {
+    const withThreads = readFileSync(new URL('./github-graphql-fixtures/pr-review-threads.json', import.meta.url), 'utf8');
+    const { github, calls } = setup([{ match: 'graphql', stdout: `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${withThreads}` }]);
+    const read = await github.readPullRequest(repo, 167);
+    expect(read!.pr).toMatchObject({ number: 167, checks: null });
+    expect(read!.threads).toHaveLength(7);
+    expect(read!.threads[5]!.firstLine).not.toContain('ghp_');
+    expect(read!.truncated).toBe(true);
+    expect(calls()).toHaveLength(1);
   });
 
   test('an answer that is not what the query asked for is an error', async () => {

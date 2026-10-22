@@ -16,7 +16,8 @@ import { epicEvents, executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { FakeClock, FakeGitHub } from './fake.ts';
-import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock } from './github.ts';
+import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread } from './github.ts';
+import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 
 const MIN = 60_000;
@@ -1804,4 +1805,72 @@ test('a finished epic with a pull request and no cached block is read once; one 
   await clock.advance(5 * MIN);
   expect(github.pullRequestReads).toEqual(['AshuLab/a#50']);
   expect(cachedPr(engine.db, 1)).toEqual(block());
+});
+
+// --- the review threads of the pull request: read with the block, a cache of GitHub ---
+
+const thread = (id: string, extra: Partial<ReviewThread> = {}): ReviewThread => ({ id, path: 'src/a.ts', line: 3, resolved: false, outdated: false, author: 'someone', bot: false, firstLine: `Thread ${id}`, commentCount: 1, url: `https://github.com/AshuLab/a/pull/50#discussion_${id}`, ...extra });
+const storedThreads = (db: Db, issue: number) =>
+  db.select({ id: epicReviewThreads.id, firstLine: epicReviewThreads.firstLine, readAt: epicReviewThreads.readAt, truncated: epicReviewThreads.truncated })
+    .from(epicReviewThreads).innerJoin(epics, eq(epics.id, epicReviewThreads.epicId)).where(eq(epics.issue, issue)).orderBy(epicReviewThreads.position).all()
+    .map((r) => `${r.id}:${r.firstLine}@${r.readAt}${r.truncated ? ':truncated' : ''}`);
+
+test('the poll stores the threads in GitHub order with the block, replaces them on each read and flags more than the limit', async () => {
+  const engine = await runningWithSlices();
+  engine.db.update(epics).set({ prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  github.reviewThreads['AshuLab/a#50'] = { threads: [thread('b'), thread('a', { line: null, outdated: true, author: null })] };
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toEqual(['AshuLab/a#50']); // one read for the block and the threads
+  expect(storedThreads(engine.db, 1)).toEqual([`b:Thread b@${10 * MIN}`, `a:Thread a@${10 * MIN}`]);
+  expect(engine.db.select().from(epicReviewThreads).where(eq(epicReviewThreads.id, 'a')).get()).toMatchObject({ line: null, outdated: true, author: null, bot: false, commentCount: 1 });
+  expect(storedThreads(engine.db, 2)).toEqual([]);
+
+  github.reviewThreads['AshuLab/a#50'] = { threads: [thread('c', { resolved: true })], truncated: true };
+  await clock.advance(5 * MIN);
+  expect(storedThreads(engine.db, 1)).toEqual([`c:Thread c@${15 * MIN}:truncated`]);
+
+  github.reviewThreads['AshuLab/a#50'] = { threads: [] };
+  await clock.advance(5 * MIN);
+  expect(storedThreads(engine.db, 1)).toEqual([]);
+});
+
+test('a failing read keeps the previous threads; a pull request GitHub does not know leaves them as they were', async () => {
+  const engine = await runningWithSlices();
+  engine.db.update(epics).set({ prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  github.reviewThreads['AshuLab/a#50'] = { threads: [thread('a')] };
+  await clock.advance(5 * MIN);
+  const before = storedThreads(engine.db, 1);
+  expect(before).toHaveLength(1);
+
+  github.pullRequestUnavailable = new GitHubUnavailable();
+  github.reviewThreads['AshuLab/a#50'] = { threads: [thread('b')] };
+  await clock.advance(5 * MIN);
+  expect(storedThreads(engine.db, 1)).toEqual(before);
+  expect(engine.error).toBeNull();
+
+  github.pullRequestUnavailable = null;
+  delete github.pullRequestBlocks['AshuLab/a#50'];
+  await clock.advance(5 * MIN);
+  expect(storedThreads(engine.db, 1)).toEqual(before);
+  expect(cachedPr(engine.db, 1)).toEqual(block());
+
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  await clock.advance(5 * MIN);
+  expect(storedThreads(engine.db, 1)).toEqual([`b:Thread b@${25 * MIN}`]);
+});
+
+test('a finished epic with a pull request and no cached block gets its threads from one read; one that has a block is not read again', async () => {
+  const engine = await runningWithSlices();
+  engine.db.update(epics).set({ status: 'merged', prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  github.reviewThreads['AshuLab/a#50'] = { threads: [thread('a')] };
+  await clock.advance(5 * MIN);
+  expect(storedThreads(engine.db, 1)).toEqual([`a:Thread a@${10 * MIN}`]);
+
+  github.reviewThreads['AshuLab/a#50'] = { threads: [thread('b')] };
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toEqual(['AshuLab/a#50']);
+  expect(storedThreads(engine.db, 1)).toEqual([`a:Thread a@${10 * MIN}`]);
 });

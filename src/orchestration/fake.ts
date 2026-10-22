@@ -1,5 +1,5 @@
 import type { Clock } from './clock.ts';
-import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
+import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
   /** What rateLimit answers. */
@@ -22,6 +22,8 @@ export class FakeGitHub implements GitHub {
   sliceReads: string[] = [];
   /** What readPullRequest answers, by `repo#number`; a pull request not listed does not exist. */
   pullRequestBlocks: Record<string, PullRequestBlock> = {};
+  /** The review threads readPullRequest answers with, by `repo#number`; a pull request not listed has none. */
+  reviewThreads: Record<string, { threads: ReviewThread[]; truncated?: boolean }> = {};
   /** Makes readPullRequest fail while the rest works. */
   pullRequestUnavailable: GitHubUnavailable | null = null;
   /** Every pull request read that reached the port, as `repo#number`. */
@@ -77,7 +79,9 @@ export class FakeGitHub implements GitHub {
     this.pullRequestReads.push(`${repo}#${number}`);
     if (this.pullRequestUnavailable) throw this.pullRequestUnavailable;
     const found = this.pullRequestBlocks[`${repo}#${number}`];
-    return found === undefined ? null : { ...found, checks: found.checks && { ...found.checks } };
+    if (found === undefined) return null;
+    const read = this.reviewThreads[`${repo}#${number}`];
+    return { pr: { ...found, checks: found.checks && { ...found.checks } }, threads: read?.threads.map((t) => ({ ...t })) ?? [], truncated: read?.truncated ?? false };
   }
 
   async getIssue(repo: string, issue: number) {

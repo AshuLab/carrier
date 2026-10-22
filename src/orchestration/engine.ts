@@ -11,7 +11,7 @@ import type { Workspaces } from '../execution/workspaces.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
-import { epicEvents } from '../storage/events.ts';
+import { epicEvents, recordEvents } from '../storage/events.ts';
 import { executions, type executionStates } from '../storage/executions.ts';
 import { executionOutput, taskContext } from '../logging/logger.ts';
 import { epics, type needsHumanKinds } from '../storage/schema.ts';
@@ -201,6 +201,14 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       if (activityAt !== null && now - activityAt < activityEveryMs) return;
       activityAt = now;
       db.update(epics).set({ lastActivityAt: now }).where(eq(epics.id, epic.id)).run();
+    });
+    // A failed insert must not break the run: the log still has everything, and the replay script can fill the rows.
+    run.onEvent((events) => {
+      try {
+        recordEvents(db, executionId, events, clock.now());
+      } catch (e) {
+        log.error('could not store the events of a chunk', e, context);
+      }
     });
     run.onSession((sessionId) => db.update(executions).set({ sessionId }).where(eq(executions.executionId, executionId)).run());
     track(

@@ -10,7 +10,7 @@ import { createEngine } from './engine.ts';
 import { reserve } from './reserve.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
-import { epicEvents } from '../storage/events.ts';
+import { epicEvents, executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { FakeClock, FakeGitHub } from './fake.ts';
@@ -408,6 +408,26 @@ test('the whole output of an execution is saved per stream under its logs folder
   const folder = join(dir, 'orchestrator', 'logs', 'executions', runner.tasks[0]!.executionId);
   expect(readFileSync(join(folder, 'stdout.log'), 'utf8')).toBe('one\ntwo\n');
   expect(readFileSync(join(folder, 'stderr.log'), 'utf8')).toBe('oops\n');
+});
+
+test('the events a run reports are stored per chunk with the execution, the arrival time for those without their own', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({
+    events: [
+      [{ at: 42, kind: 'say', text: 'hi' }, { kind: 'tool_start', callId: 'c', tool: 'Bash', arg: 'ls' }],
+      [{ kind: 'tool_end', callId: 'c', tool: 'Bash', status: 'ok', output: ['a'] }],
+    ],
+    exit: 'hang',
+  });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  const stored = engine.db.select().from(executionEvents).all();
+  expect(stored.map((e) => [e.executionId, e.at - clock.now() === 0 ? 'arrival' : e.at, e.kind])).toEqual([
+    [runner.tasks[0]!.executionId, 42, 'say'],
+    [runner.tasks[0]!.executionId, 'arrival', 'tool_start'],
+    [runner.tasks[0]!.executionId, 'arrival', 'tool_end'],
+  ]);
+  expect(stored[2]!.payload).toEqual({ output: ['a'] });
 });
 
 test('a valid completed result moves the epic to review round 1 and records the final PR', async () => {
@@ -917,6 +937,7 @@ test('last activity is written from the first output and then at most once every
     return {
       onSession() {},
       onOutput: (cb) => void (emit = cb),
+      onEvent() {},
       done: new Promise((resolve) => (finish = (exit) => resolve({ exit }))),
       stop: async () => {},
     };

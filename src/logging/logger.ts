@@ -3,10 +3,7 @@ import { dirname, join } from 'node:path';
 import { format } from 'node:util';
 import { configureUniversalLogger, LogLevel } from '@ashulab/universal-logger';
 import type { AgentTask } from '../execution/agent-runner.ts';
-
-// GitHub token shapes (classic, app installation, fine-grained): nothing that looks like one reaches a file.
-const token = /\b(?:gh[ps]_|github_pat_)[A-Za-z0-9_]+/g;
-export const redact = (text: string) => text.replace(token, '[redacted]');
+import { redact } from './redact.ts';
 
 /**
  * Sends everything the process writes with console.* (the library and its dependencies included) to `file`,

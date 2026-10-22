@@ -1,6 +1,7 @@
 import { accessSync, constants } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import type { AgentTask } from '../execution/agent-runner.ts';
+import type { AgentEvent, EventState } from '../execution/events.ts';
 
 /** What to spawn for one execution. The env is the full child environment. */
 export interface AgentCommand {
@@ -21,6 +22,8 @@ export interface LineSignal {
 export interface HarnessAdapter {
   command(task: AgentTask, ctx: CommandContext): AgentCommand;
   parseLine(line: string): LineSignal | undefined;
+  /** Zero or more events for one stdout line. Never throws; a line it does not know gives []. Absent until the harness has a parser. */
+  parseEvents?(line: string, state: EventState): AgentEvent[];
 }
 
 export interface CommandContext {

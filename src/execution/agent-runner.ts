@@ -1,4 +1,5 @@
 import type { HarnessName } from '../harnesses/names.ts';
+import type { AgentEvent } from './events.ts';
 
 export interface AgentTask {
   executionId: string;
@@ -29,6 +30,8 @@ export interface AgentRun {
   /** Called as soon as the session exists. */
   onSession(cb: (sessionId: string) => void): void;
   onOutput(cb: (stream: 'stdout' | 'stderr', chunk: string) => void): void;
+  /** The events of each stdout chunk, as one batch, for harnesses that have a parser (ADR 0006). */
+  onEvent(cb: (events: AgentEvent[]) => void): void;
   done: Promise<{ exit: AgentExit; sessionId?: string }>;
   stop(): Promise<void>;
 }

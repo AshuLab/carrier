@@ -1,0 +1,30 @@
+// One fixture per shape the ticket lists. Each is assembled at runtime so no real-looking secret sits in the source.
+export const secretFixtures: Record<string, { text: string; secret: string }> = {
+  'GitHub classic token': { text: 'push with ghp_' + 'A1b2C3d4E5f6G7h8I9j0', secret: 'A1b2C3d4E5f6G7h8I9j0' },
+  'GitHub app token': { text: 'GH ghs_' + 'xYz123456789abcdef', secret: 'xYz123456789abcdef' },
+  'GitHub fine-grained token': { text: 'github_pat_' + '11ABCDEFG0_abcdefghijklmnop', secret: '11ABCDEFG0_abcdefghijklmnop' },
+  'private key block': {
+    text: '-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAk3yd\nZm9vYmFyYmF6\n-----END RSA PRIVATE KEY----- done',
+    secret: 'MIIEowIBAAKCAQEAk3yd',
+  },
+  'private key block escaped in JSON': {
+    text: '{"stdout":"-----BEGIN OPENSSH PRIVATE KEY-----\\nb3BlbnNzaC1rZXk\\n-----END OPENSSH PRIVATE KEY-----"}',
+    secret: 'b3BlbnNzaC1rZXk',
+  },
+  'private key block cut short': { text: 'head -----BEGIN PRIVATE KEY-----\nMIIBVQIBADANBgkq', secret: 'MIIBVQIBADANBgkq' },
+  'Authorization bearer': { text: 'curl -H "Authorization: Bearer ' + 'abc123def456ghi789' + '" https://x', secret: 'abc123def456ghi789' },
+  'Authorization without scheme': { text: 'authorization: ' + 'rawvalue987654', secret: 'rawvalue987654' },
+  'NAME=value with TOKEN': { text: 'export DEPLOY_TOKEN=' + 'zzz-not-a-prefix-123', secret: 'zzz-not-a-prefix-123' },
+  'NAME=value with SECRET quoted': { text: 'CLIENT_SECRET="' + 'two words secret' + '" next', secret: 'two words secret' },
+  'NAME=value with PASSWORD': { text: 'DB_PASSWORD=' + 'hunter2hunter2', secret: 'hunter2hunter2' },
+  'NAME=value with KEY': { text: 'api_key=' + 'plainvalue4567', secret: 'plainvalue4567' },
+  'OpenAI key': { text: 'sk-' + 'proj-AbCdEfGhIjKlMnOpQrSt', secret: 'AbCdEfGhIjKlMnOpQrSt' },
+  'Anthropic key': { text: 'sk-ant-' + 'api03-AbCdEfGhIjKlMnOpQrSt', secret: 'AbCdEfGhIjKlMnOpQrSt' },
+  'AWS access key id': { text: 'AKIA' + 'IOSFODNN7EXAMPLE', secret: 'IOSFODNN7EXAMPLE' },
+  'Google API key': { text: 'AIza' + 'SyA-1234567890abcdefghijklmnopqrstuv', secret: 'SyA-1234567890abcdefghijklmnopqrstuv' },
+  'Slack token': { text: 'xoxb-' + '1234567890-abcdefghij', secret: '1234567890-abcdefghij' },
+  'GitLab token': { text: 'glpat-' + 'abcdefghij0123456789', secret: 'abcdefghij0123456789' },
+  'npm token': { text: 'npm_' + 'abcdefghijklmnopqrstuvwxyz0123456789', secret: 'abcdefghijklmnopqrstuvwxyz0123456789' },
+  'Stripe key': { text: 'sk_live_' + 'abcdefghijklmnop1234', secret: 'abcdefghijklmnop1234' },
+  'JWT': { text: 'eyJ' + 'hbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkw.dozjgNryP4J3jVmNHl0w5N', secret: 'dozjgNryP4J3jVmNHl0w5N' },
+};

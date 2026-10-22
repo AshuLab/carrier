@@ -520,14 +520,19 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     }
   }
 
-  // The slices of each running epic, replacing its rows. A cache of GitHub (ADR 0008): nothing the engine decides reads it back.
-  // A failed read keeps the last rows and the poll goes on. Live epics (running, parked) are read every poll; a finished one keeps its
-  // last list and is read once only when it has none, e.g. it ended before this cache existed.
-  async function refreshSlices(repo: string) {
+  // The one refresh rule of the caches of GitHub (ADR 0008), shared by the slices and the pull request block: live epics (running, parked)
+  // are read every poll; a finished one keeps what it has and is read once only when it has nothing cached, e.g. it ended before the cache existed.
+  function toRefresh(repo: string, hasCache: (epic: { id: number; prNumber: number | null; pr: unknown }) => boolean) {
     const live = ['running', 'needs_human', 'ready_for_test'];
-    const mine = db.select({ id: epics.id, issue: epics.issue, status: epics.status }).from(epics).where(eq(epics.repo, repo)).orderBy(asc(epics.id)).all();
+    return db.select({ id: epics.id, issue: epics.issue, status: epics.status, prNumber: epics.prNumber, pr: epics.pr }).from(epics).where(eq(epics.repo, repo)).orderBy(asc(epics.id)).all()
+      .filter((e) => live.includes(e.status) || (['merged', 'cancelled'].includes(e.status) && !hasCache(e)));
+  }
+
+  // The slices of each epic to refresh, replacing its rows. A cache of GitHub: nothing the engine decides reads it back.
+  // A failed read keeps the last rows and the poll goes on.
+  async function refreshSlices(repo: string) {
     const stored = new Set(db.select({ id: epicSlices.epicId }).from(epicSlices).all().map((r) => r.id));
-    for (const { id, issue } of mine.filter((e) => live.includes(e.status) || (['merged', 'cancelled'].includes(e.status) && !stored.has(e.id)))) {
+    for (const { id, issue } of toRefresh(repo, (e) => stored.has(e.id))) {
       try {
         const { slices, truncated } = await github.readSlices(repo, issue);
         const readAt = clock.now();
@@ -542,12 +547,13 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     }
   }
 
-  // The pull request block of each epic that has a PR, one query per epic and none for one without. A cache of GitHub like the slices:
-  // a failed read keeps the last block; a PR that GitHub does not know leaves it as it was.
+  // The pull request block of each epic to refresh that has a PR, one query per epic and none for one without. A cache of GitHub like the
+  // slices: a failed read keeps the last block; a PR that GitHub does not know leaves it as it was.
   async function refreshPullRequests(repo: string) {
-    for (const { id, prNumber } of db.select({ id: epics.id, prNumber: epics.prNumber }).from(epics).where(and(eq(epics.repo, repo), isNotNull(epics.prNumber), inArray(epics.status, ['running', 'ready_for_test', 'needs_human']))).orderBy(asc(epics.id)).all()) {
+    for (const { id, prNumber } of toRefresh(repo, (e) => e.pr !== null || e.prNumber === null)) {
+      if (prNumber === null) continue;
       try {
-        const pr = await github.readPullRequest(repo, prNumber!);
+        const pr = await github.readPullRequest(repo, prNumber);
         if (pr !== null) db.update(epics).set({ pr }).where(eq(epics.id, id)).run();
       } catch (e) {
         if (e instanceof AuthError) throw e;

@@ -117,11 +117,16 @@ private func model(_ slices: [EpicReply.Slice], chosen: SliceGroup? = nil, now: 
     // a slice with no pull request links to its issue only
     #expect(model(all, chosen: .waiting).rows.map(\.prURL) == [nil, nil])
     #expect(model(all, chosen: .waiting).rows.map(\.issueURL) == ["https://github.com/acme/web/issues/3", "https://github.com/acme/web/issues/4"])
-    #expect(model(all, chosen: .waiting).rows.map(\.detail) == ["ready to start", "after #2, #3"])
+    #expect(model(all, chosen: .waiting).rows.map(\.detail) == ["ready to start", "after Slice 2, Slice 3"])
     #expect(model([slice(2, "in_progress")]).rows.map(\.detail) == ["working"])
     #expect(model(all).legend == [.init(group: .merged, count: 1), .init(group: .inProgress, count: 1), .init(group: .waiting, count: 2)])
     #expect(model(all).centre == "1/4")
     #expect(model(all).caption == "merged")
+}
+
+@Test func aWaitingSliceNamesItsBlockersByTitleAndKeepsTheNumberOfOneOutsideTheList() {
+    let all = [slice(2, "in_progress"), slice(3, "ready"), slice(4, "waiting", blockedBy: [2]), slice(5, "waiting", blockedBy: [12]), slice(6, "waiting", blockedBy: [3, 12, 2])]
+    #expect(model(all, chosen: .waiting).rows.map(\.detail) == ["ready to start", "after Slice 2", "after #12", "after Slice 3, #12, Slice 2"])
 }
 
 @Test func aCompleteEpicSaysAllMerged() {

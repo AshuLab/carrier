@@ -25,10 +25,11 @@ struct RunningView: View {
         }
     }
 
-    /// One epic: its line and progress on top, a row for each of its agents under it.
+    /// One epic: its line and progress on top, a row for each of its agents under it. The first row opens the epic.
     private func card(_ card: RunningCard) -> some View {
-        OverviewCard {
-            HStack(spacing: 12) {
+        OverviewCard(fullWidthDividers: true) {
+            OverviewLinkRow(action: { selection = card.selection }) {
+                StateGlyph(state: .running).frame(width: 28, height: 28)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(card.title).fontWeight(.semibold)
                     Text(card.progressLine).font(.caption).foregroundStyle(.secondary)
@@ -41,15 +42,13 @@ struct RunningView: View {
                     }
                 }
             }
-            .padding(.vertical, 11)
-            .contentShape(Rectangle())
-            .onTapGesture { selection = card.selection }
             ForEach(card.agents.indices, id: \.self) { agent(card.agents[$0]) }
         }
     }
 
+    /// A child of the epic's row above it, so no chevron: its avatar lines up under the epic's icon.
     private func agent(_ row: AgentRow) -> some View {
-        HStack(spacing: 10) {
+        OverviewLinkRow {
             RunningAvatar(initial: row.initial, running: row.running)
             VStack(alignment: .leading, spacing: 1) {
                 Text([row.agent, row.role, row.round].compactMap { $0 }.joined(separator: " · ")).fontWeight(.medium)
@@ -58,7 +57,6 @@ struct RunningView: View {
             Spacer(minLength: 8)
             Text(row.since).font(.caption.monospaced()).foregroundStyle(.secondary)
         }
-        .padding(.vertical, 8).padding(.leading, 14)
     }
 }
 
@@ -74,6 +72,6 @@ struct RunningAvatar: View {
         Text(initial).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
             .frame(width: 28, height: 28)
             .background(Circle().fill(Color.gray))
-            .overlay { if let ring { ring } }
+            .overlay { if let ring { ring.frame(width: 28, height: 28) } }
     }
 }

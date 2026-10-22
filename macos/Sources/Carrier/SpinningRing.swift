@@ -68,6 +68,8 @@ final class RingHostView: NSView {
         super.init(frame: NSRect(x: 0, y: 0, width: diameter, height: diameter))
         wantsLayer = true
         layer?.addSublayer(ring)
+        // centred from the start: layout() only runs when the view is resized
+        ring.position = CGPoint(x: diameter / 2, y: diameter / 2)
         Self.live.add(self)
     }
 

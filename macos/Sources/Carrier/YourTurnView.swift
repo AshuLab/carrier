@@ -22,7 +22,7 @@ struct YourTurnView: View {
     }
 
     private func row(_ item: YourTurnItem) -> some View {
-        HStack(spacing: 12) {
+        OverviewLinkRow(action: item.selection.map { target in { selection = target } }) {
             Image(systemName: item.kind == .ready ? "checkmark" : "exclamationmark")
                 .font(.system(size: 11, weight: .heavy)).foregroundStyle(.white)
                 .frame(width: 22, height: 22)
@@ -36,9 +36,6 @@ struct YourTurnView: View {
             OpenLink(title: "Open issue", url: item.issueLink)
             OpenLink(title: "Open PR", url: item.prLink)
         }
-        .padding(.vertical, 11)
-        .contentShape(Rectangle())
-        .onTapGesture { if let target = item.selection { selection = target } }
     }
 }
 

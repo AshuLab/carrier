@@ -3,7 +3,7 @@ import { createServer, type Socket } from 'node:net';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
-import type { EpicReply, SessionsReply } from './replies.ts';
+import type { EpicReply, FilesReply, SessionsReply } from './replies.ts';
 
 const log = createScopedLogger('control');
 
@@ -50,6 +50,8 @@ export type Controls = {
   sessions(repo: string, issue: number): SessionsReply | null;
   /** null for an epic the engine does not know. */
   epic(repo: string, issue: number): EpicReply | null;
+  /** null for an epic the engine does not know. */
+  files(repo: string, issue: number, executionId?: string): FilesReply | null;
 };
 
 /** pause, resume, checkNow and tail. Like the panel's keys, a check is started and not waited for: its failure is the engine's to report. */
@@ -97,8 +99,18 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       return { id: replyId, ok: false, error: 'internal error' };
     }
   }
-  // ponytail: validated but unanswered until their slice adds the capability and the handler
-  if (parsed.data.cmd === 'events' || parsed.data.cmd === 'files') return { id: parsed.data.id, ok: false, error: 'not supported' };
+  if (parsed.data.cmd === 'files') {
+    const { id: replyId, repo, issue, executionId } = parsed.data;
+    try {
+      const reply = controls.files(repo, issue, executionId);
+      return reply === null ? { id: replyId, ok: false, error: 'unknown epic' } : { id: replyId, ok: true, data: reply };
+    } catch (error) {
+      log.error('files failed', error);
+      return { id: replyId, ok: false, error: 'internal error' };
+    }
+  }
+  // ponytail: validated but unanswered until its slice adds the capability and the handler
+  if (parsed.data.cmd === 'events') return { id: parsed.data.id, ok: false, error: 'not supported' };
   if (parsed.data.cmd !== 'stop') return control(parsed.data, controls);
   stopAfterReply();
   return { id: parsed.data.id, ok: true };
@@ -117,7 +129,7 @@ export async function startControlServer({ orchestratorDir, snapshot, startedAt,
     return { close: () => {} };
   }
   const sockets = new Set<Socket>();
-  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'epic'] };
+  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'epic', 'files'] };
   const send = (socket: Socket, message: Hello | Reply, written?: () => void) => void socket.write(`${JSON.stringify(message)}\n`, written);
 
   const server = createServer((socket) => {

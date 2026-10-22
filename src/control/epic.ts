@@ -47,10 +47,11 @@ function marked(current: Found[], previous: Found[] | null, resolved: string[]):
 }
 
 /** git in a folder; null when the folder is gone (expected: an epic's worktree is removed when it ends) or git failed (logged). */
-function git(cwd: string, args: string[]): string | null {
+export function git(cwd: string, args: string[]): string | null {
   if (existsSync(cwd) === false) return null;
   try {
-    return execFileSync('git', args, { cwd, encoding: 'utf8', timeout: 5_000, stdio: ['ignore', 'pipe', 'pipe'] });
+    // no optional locks: reading an agent's worktree must not refresh its index under the agent's own commit
+    return execFileSync('git', args, { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer: 32 * 1024 * 1024, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (error) {
     log.warn('git failed in an epic worktree', { cwd, args: args[0], error: String(error) });
     return null;

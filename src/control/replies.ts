@@ -119,4 +119,8 @@ export type FilesReply = {
       alsoIn: string[];
     }[];
   }[];
+  /** The epic branch against the default branch (what the pull request will show); null when git cannot say. */
+  total: { files: number; added: number; removed: number } | null;
+  /** Files were left out to keep the reply small; the numbers of a section still count every file. */
+  truncated: boolean;
 };

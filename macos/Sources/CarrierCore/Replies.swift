@@ -163,5 +163,15 @@ public struct FilesReply: Codable, Equatable {
         public var files: [File]
     }
 
+    public struct Total: Codable, Equatable {
+        public var files: Int
+        public var added: Int
+        public var removed: Int
+    }
+
     public var sections: [Section]
+    /// The epic branch against the default branch; nil when git cannot say. Absent from an older engine.
+    public var total: Total? = nil
+    /// Files were left out to keep the reply small; absent from an older engine.
+    public var truncated: Bool? = nil
 }

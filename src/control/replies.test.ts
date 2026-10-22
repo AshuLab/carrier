@@ -132,6 +132,8 @@ test('the files reply equals reply-files.json', () => {
       { id: 'merged', kind: 'merged', title: 'Merged slices', added: 120, removed: 12, files: [{ path: 'src/control/server.ts', added: 120, removed: 12, alsoIn: [] }] },
       { id: '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c', kind: 'session', title: 'Fix, round 2', added: 0, removed: 0, files: [] },
     ],
+    total: { files: 3, added: 165, removed: 19 },
+    truncated: false,
   };
   golden('files', files);
 });

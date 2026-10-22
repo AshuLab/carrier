@@ -18,7 +18,8 @@ struct FlowLayout: Layout {
         var frames: [CGRect] = []
         var (x, y, rowHeight, widest) = (CGFloat.zero, CGFloat.zero, CGFloat.zero, CGFloat.zero)
         for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+            // proposed the row's width, so a view wider than the row (a long label) cuts itself instead of widening the layout
+            let size = subview.sizeThatFits(ProposedViewSize(width: width.isFinite ? width : nil, height: nil))
             if x > 0, x + size.width > width { (x, y, rowHeight) = (0, y + rowHeight + spacing, 0) }
             frames.append(CGRect(origin: CGPoint(x: x, y: y), size: size))
             x += size.width + spacing

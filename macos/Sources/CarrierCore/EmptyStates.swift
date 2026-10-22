@@ -1,8 +1,8 @@
-// The eight places that can have nothing to show, with their SF Symbol, title and one line
+// The nine places that can have nothing to show, with their SF Symbol, title and one line
 // (docs/specs/macos-app-redesign.md, story 24; the wording is the mockup's gallery).
 
 public enum EmptyState: CaseIterable {
-    case reviewNotStarted, noFilesChanged, noSlices, waitingForSlot, nothingWaiting, nothingNeedsYou, idle, nothingToTest
+    case reviewNotStarted, noFilesChanged, noSlices, waitingForSlot, nothingWaiting, nothingNeedsYou, idle, nothingToTest, noActivity
 
     public var icon: String {
         switch self {
@@ -14,6 +14,7 @@ public enum EmptyState: CaseIterable {
         case .nothingNeedsYou: "checkmark.circle"
         case .idle: "pause.circle"
         case .nothingToTest: "folder"
+        case .noActivity: "ellipsis.bubble"
         }
     }
 
@@ -27,6 +28,7 @@ public enum EmptyState: CaseIterable {
         case .nothingNeedsYou: "Nothing needs you"
         case .idle: "Carrier is idle"
         case .nothingToTest: "Nothing to test yet"
+        case .noActivity: "No activity yet"
         }
     }
 
@@ -40,6 +42,7 @@ public enum EmptyState: CaseIterable {
         case .nothingNeedsYou: "Carrier will tell you when something does."
         case .idle: "Mark an epic solve:epic:ready in a watched repo to start one."
         case .nothingToTest: "Finished epics wait here for you to try them."
+        case .noActivity: "What the agent does shows up here as it works."
         }
     }
 }

@@ -13,7 +13,7 @@ struct YourTurnView: View {
             OverviewTitle(title: "Your turn", detail: items.isEmpty ? nil : "\(items.count) \(items.count == 1 ? "item" : "items")")
             OverviewCard {
                 if items.isEmpty {
-                    EmptyStateView(state: .nothingNeedsYou).frame(height: 170)
+                    EmptyStateView(state: .nothingNeedsYou).frame(minHeight: 170)
                 } else {
                     ForEach(items.indices, id: \.self) { row(items[$0]) }
                 }

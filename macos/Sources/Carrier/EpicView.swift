@@ -121,9 +121,10 @@ private struct StatePill: View {
         }
         HStack(spacing: 6) {
             Circle().fill(color).frame(width: 6, height: 6)
-            Text(text).lineLimit(1)
+            Text(text).lineLimit(1).truncationMode(.tail)
         }
         .font(.caption.weight(.semibold)).foregroundStyle(color)
+        .help(text)
         .padding(.horizontal, 10).padding(.vertical, 3)
         .background(Capsule().fill(color.opacity(0.2)))
     }

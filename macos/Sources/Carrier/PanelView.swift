@@ -75,23 +75,17 @@ struct PanelView: View {
                     } else if shell.selection == .settings {
                         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
                         SettingsScreen()
-                    } else {
+                    } else if case .running(let snapshot)? = model.state {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 26) {
-                                switch model.state {
-                                case nil:
-                                    Text("Connecting…").foregroundStyle(.secondary)
-                                case .stopped?, .incompatible?:
-                                    // Carrier is not answering: nothing else to show
-                                    Label(model.state?.menuLine ?? "", systemImage: "stop.circle").font(.title3)
-                                    if model.state == .stopped { StartCarrierButton() }
-                                case .running(let snapshot)?:
-                                    Running(snapshot: snapshot, selection: $shell.selection)
-                                }
+                                Running(snapshot: snapshot, selection: $shell.selection)
                             }
                             .padding(18)
                             .frame(maxWidth: .infinity, alignment: .topLeading)
                         }
+                    } else {
+                        // Carrier is not answering (or has not yet): what to do about it
+                        StoppedView(state: model.state, selection: $shell.selection)
                     }
                 }
                 // only an epic has something to inspect; Overview and Settings are a single column

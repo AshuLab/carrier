@@ -13,17 +13,19 @@ struct SidebarView: View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
         List(selection: list) {
             Label("Overview", systemImage: "square.grid.2x2").tag(Selection.overview)
-            // how the sections below are grouped, always in view
-            UnderlineTabs(
-                items: [
-                    .init(id: GroupBy.status, title: "Status", icon: "rectangle.3.group"),
-                    .init(id: GroupBy.repo, title: "Repository", icon: "shippingbox"),
-                ],
-                selection: $groupBy, fill: true
-            )
-            .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 10, trailing: 0))
-            .listRowSeparator(.hidden)
-            .selectionDisabled()
+            if snapshot != nil {
+                // how the sections below are grouped: there is nothing to group while Carrier is not answering
+                UnderlineTabs(
+                    items: [
+                        .init(id: GroupBy.status, title: "Status", icon: "rectangle.3.group"),
+                        .init(id: GroupBy.repo, title: "Repository", icon: "shippingbox"),
+                    ],
+                    selection: $groupBy, fill: true
+                )
+                .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 10, trailing: 0))
+                .listRowSeparator(.hidden)
+                .selectionDisabled()
+            }
             if let snapshot {
                 let groups = sidebarGroups(snapshot, by: groupBy)
                 ForEach(groups.indices, id: \.self) { index in

@@ -11,7 +11,7 @@ struct RunningView: View {
         VStack(alignment: .leading, spacing: 8) {
             OverviewTitle(title: "Running", detail: "\(snapshot.slots.busy) of \(snapshot.slots.total) in use")
             if section.cards.isEmpty {
-                OverviewCard { EmptyStateView(state: .idle).frame(height: 170) }
+                OverviewCard { EmptyStateView(state: .idle).frame(minHeight: 170) }
             } else {
                 ForEach(section.cards.indices, id: \.self) { card(section.cards[$0]) }
                 freeRoom(section.room)

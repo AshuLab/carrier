@@ -12,7 +12,7 @@ struct TranscriptRows: View {
     var body: some View {
         switch content {
         case .items(let items) where items.isEmpty:
-            Text("No activity yet").font(.callout).foregroundStyle(.secondary).padding(12).sessionRow()
+            EmptyStateView(state: .noActivity).frame(minHeight: 170).sessionRow()
         case .items(let items):
             ForEach(items) {
                 TranscriptItemView(item: $0, outputs: $outputs).padding(.leading, indent).padding(.horizontal, 12)

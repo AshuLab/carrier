@@ -120,7 +120,7 @@ public struct ReviewTabModel: Equatable {
     public var card: ReviewCard?
     /// Earlier rounds, newest first.
     public var history: [ReviewRoundView]
-    /// nil when the engine does not send threads: no section. An empty list is a section saying there are none.
+    /// nil when the engine does not send threads, or sends none for an epic with no pull request yet: no section. An empty list on an epic with a pull request is a section saying there are none.
     public var threads: ReviewThreadsModel?
 
     public var isEmpty: Bool { card == nil && history.isEmpty }
@@ -315,7 +315,7 @@ public func reviewTab(_ subject: EpicSubject?, reply: EpicReply?) -> ReviewTabMo
     }
     let history = rounds[..<historyEnd].indices.reversed().map { view($0, round: rounds[$0].round, latest: false) }
     let headline = card.map { "round \($0.view.round)" + (maxReviews.map { " of \($0)" } ?? "") }
-    return ReviewTabModel(headline: headline, card: card, history: history, threads: reply?.threads.map { threadsModel($0, truncated: reply?.threadsTruncated == true) })
+    return ReviewTabModel(headline: headline, card: card, history: history, threads: reply?.threads.flatMap { $0.isEmpty && reply?.pr == nil ? nil : threadsModel($0, truncated: reply?.threadsTruncated == true) })
 }
 
 private func threadsModel(_ threads: [EpicReply.ReviewThread], truncated: Bool) -> ReviewThreadsModel {

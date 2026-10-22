@@ -257,10 +257,11 @@ private func thread(
     )
 }
 
-private func threadsModel(_ threads: [EpicReply.ReviewThread]?, truncated: Bool? = nil) -> ReviewThreadsModel? {
+private func threadsModel(_ threads: [EpicReply.ReviewThread]?, truncated: Bool? = nil, hasPullRequest: Bool = true) -> ReviewThreadsModel? {
     var made = reply([])
     made.threads = threads
     made.threadsTruncated = truncated
+    if hasPullRequest { made.pr = EpicReply.PullRequest(number: 51, url: "https://github.com/acme/web/pull/51", draft: false, mergeState: "clean", reviewDecision: nil, checks: nil) }
     return reviewTab(epic(stage: .review, round: 1), reply: made).threads
 }
 
@@ -300,4 +301,9 @@ private func threadsModel(_ threads: [EpicReply.ReviewThread]?, truncated: Bool?
     #expect(threadsModel(nil) == nil)
     #expect(reviewTab(nil, reply: nil).threads == nil)
     #expect(threadsModel([])?.rows.isEmpty == true)
+}
+
+@Test func anEpicWithNoPullRequestYetHasNoThreadsSectionEvenWhenTheListIsEmpty() {
+    #expect(threadsModel([], hasPullRequest: false) == nil)
+    #expect(threadsModel([thread("a")], hasPullRequest: false)?.rows.count == 1)
 }

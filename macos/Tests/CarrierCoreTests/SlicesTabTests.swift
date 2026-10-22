@@ -102,8 +102,21 @@ private func model(_ slices: [EpicReply.Slice], chosen: SliceGroup? = nil, now: 
         slice(1, "closed", closedAt: 40_000, pr: 9), slice(2, "in_progress", pr: 7, lane: 2, activity: "writing tests"),
         slice(3, "ready"), slice(4, "waiting", blockedBy: [2, 3]), slice(5, "skipped"),
     ]
-    #expect(model(all, chosen: .merged).rows == [SliceRow(number: 1, title: "Slice 1", detail: "1m 00s ago")])
-    #expect(model(all, chosen: .inProgress).rows == [SliceRow(number: 2, title: "Slice 2", detail: "lane 2 · writing tests · PR #7")])
+    #expect(model(all, chosen: .merged).rows == [
+        SliceRow(
+            number: 1, title: "Slice 1", detail: "1m 00s ago", prNumber: 9, issueURL: "https://github.com/acme/web/issues/1",
+            prURL: "https://github.com/acme/web/pull/9"
+        )
+    ])
+    #expect(model(all, chosen: .inProgress).rows == [
+        SliceRow(
+            number: 2, title: "Slice 2", detail: "lane 2 · writing tests", prNumber: 7, issueURL: "https://github.com/acme/web/issues/2",
+            prURL: "https://github.com/acme/web/pull/7"
+        )
+    ])
+    // a slice with no pull request links to its issue only
+    #expect(model(all, chosen: .waiting).rows.map(\.prURL) == [nil, nil])
+    #expect(model(all, chosen: .waiting).rows.map(\.issueURL) == ["https://github.com/acme/web/issues/3", "https://github.com/acme/web/issues/4"])
     #expect(model(all, chosen: .waiting).rows.map(\.detail) == ["ready to start", "after #2, #3"])
     #expect(model([slice(2, "in_progress")]).rows.map(\.detail) == ["working"])
     #expect(model(all).legend == [.init(group: .merged, count: 1), .init(group: .inProgress, count: 1), .init(group: .waiting, count: 2)])

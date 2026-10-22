@@ -20,6 +20,11 @@ public struct SliceRow: Equatable {
     public var title: String
     /// In progress: the lane and the activity; waiting: `ready to start` or `after #N`; merged: its time.
     public var detail: String
+    /// The slice's pull request, when the engine found one.
+    public var prNumber: Int?
+    /// On GitHub: the slice's issue, and its pull request when it has one. nil without the epic's repository.
+    public var issueURL: String?
+    public var prURL: String?
 }
 
 public struct SlicesLegendEntry: Equatable {
@@ -58,12 +63,16 @@ public func slicesTabModel(_ subject: EpicSubject?, reply: EpicReply?, chosen: S
         switch slice.state {
         case "closed": (group, detail) = (.merged, slice.closedAt.map { agoLine($0, now: now) } ?? "merged")
         case "in_progress" where queued == false:
-            let hints = [slice.lane.map { "lane \($0)" }, slice.activity, slice.prNumber.map { "PR #\($0)" }].compactMap { $0 }
+            let hints = [slice.lane.map { "lane \($0)" }, slice.activity].compactMap { $0 }
             (group, detail) = (.inProgress, hints.first.map { _ in hints.joined(separator: " · ") } ?? "working")
         default:
             (group, detail) = (.waiting, slice.blockedBy.isEmpty ? "ready to start" : "after " + slice.blockedBy.map { "#\($0)" }.joined(separator: ", "))
         }
-        rows[group, default: []].append(SliceRow(number: slice.number, title: slice.title, detail: detail))
+        let base = subject.map { "https://github.com/\($0.repo)" }
+        rows[group, default: []].append(SliceRow(
+            number: slice.number, title: slice.title, detail: detail, prNumber: slice.prNumber,
+            issueURL: base.map { "\($0)/issues/\(slice.number)" }, prURL: slice.prNumber.flatMap { number in base.map { "\($0)/pull/\(number)" } }
+        ))
     }
 
     var counts = Dictionary(uniqueKeysWithValues: SliceGroup.allCases.map { ($0, rows[$0]?.count ?? 0) })

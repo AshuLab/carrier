@@ -1,3 +1,4 @@
+import AppKit
 import CarrierCore
 import SwiftUI
 
@@ -92,17 +93,75 @@ struct SlicesTabView: View {
                         Text(notice).font(.callout).foregroundStyle(.secondary).padding(.top, 10)
                     }
                     if model.rows.isEmpty == false { Divider().padding(.horizontal, 10).padding(.top, 12) }
-                    ForEach(model.rows, id: \.number) { row in
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(row.title).lineLimit(2)
-                            Spacer(minLength: 8)
-                            Text(row.detail).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.trailing)
+                    VStack(spacing: model.selected == .inProgress ? 8 : 0) {
+                        ForEach(model.rows, id: \.number) { row in
+                            SliceRowView(row: row, group: model.selected ?? .merged)
+                            if model.selected != .inProgress, row.number != model.rows.last?.number { Divider() }
                         }
-                        .padding(.horizontal, 10).padding(.vertical, 5)
                     }
                     .padding(.top, 4)
                 }
             }
         }
+    }
+}
+
+/// A slice. One in progress is a card with a turning ring, "#210 Webhooks" and what it is doing; a merged or waiting one is a
+/// plain row with its mark. Under the title go its links on GitHub: the issue number and, when the engine found one, the pull
+/// request. A tap on the row opens the pull request (the issue when there is none).
+struct SliceRowView: View {
+    let row: SliceRow
+    let group: SliceGroup
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            mark.frame(width: 20, height: 20)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(group == .inProgress ? "#\(row.number) \(row.title)" : row.title)
+                    .fontWeight(group == .inProgress ? .semibold : .regular)
+                    .foregroundStyle(group == .waiting ? Color.secondary : .primary).lineLimit(2)
+                HStack(spacing: 6) {
+                    if group != .inProgress { chip("#\(row.number)", url: row.issueURL, accent: false) }
+                    if let number = row.prNumber { chip("PR #\(number)", url: row.prURL, accent: true) }
+                    Text(row.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10).padding(.vertical, group == .inProgress ? 10 : 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { if group == .inProgress { RoundedRectangle(cornerRadius: 12).fill(Color.blue.opacity(0.14)) } }
+        .contentShape(Rectangle())
+        .onTapGesture { open(row.prURL ?? row.issueURL) }
+    }
+
+    @ViewBuilder private var mark: some View {
+        switch group {
+        case .inProgress: SpinningRing(diameter: 18, lineWidth: 2.5, color: .systemBlue)
+        case .merged:
+            Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white)
+                .frame(width: 16, height: 16).background(Circle().fill(Color.green))
+        case .waiting: Circle().strokeBorder(Color.secondary.opacity(0.6), lineWidth: 2).frame(width: 12, height: 12)
+        }
+    }
+
+    @ViewBuilder private func chip(_ text: String, url: String?, accent: Bool) -> some View {
+        let color: Color = accent ? .accentColor : .secondary
+        let label = HStack(spacing: 3) {
+            Text(text)
+            if url != nil { Image(systemName: "arrow.up.right").font(.system(size: 8, weight: .bold)) }
+        }
+        .font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(color)
+        .padding(.horizontal, 8).padding(.vertical, 2)
+        .background(Capsule().fill(color.opacity(0.16)))
+        if let link = url.flatMap(browserURL) {
+            Link(destination: link) { label }.buttonStyle(.plain).help(link.absoluteString)
+        } else {
+            label
+        }
+    }
+
+    private func open(_ url: String?) {
+        if let target = url.flatMap(browserURL) { NSWorkspace.shared.open(target) }
     }
 }

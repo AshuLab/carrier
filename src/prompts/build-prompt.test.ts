@@ -181,6 +181,21 @@ test('fix prompt', () => {
   `);
 });
 
+test('fix prompt with observations', () => {
+  const prompt = buildPrompt(task('fix', { round: 1, observations: [{ id: 'naming', title: 'Rename helper', url: 'https://github.com/AshuLab/carrier/pull/7#r2' }, { title: 'Typo in comment' }] }));
+  expect(prompt).toContain('Invoke /code-resolve on PR #7');
+  expect(prompt).toContain('Observations of the last review:\n- Rename helper (https://github.com/AshuLab/carrier/pull/7#r2)\n- Typo in comment');
+  expect(prompt).toContain('Reply on each thread');
+  expect(prompt).toContain('Leave every thread open');
+  expect(prompt).toContain('Never merge the final PR.');
+  expect(prompt).not.toContain('Blockers of the last review');
+});
+
+test('an empty observations list keeps the blockers prompt', () => {
+  const blockers = [{ title: 'no test' }];
+  expect(buildPrompt(task('fix', { observations: [], blockers }))).toBe(buildPrompt(task('fix', { blockers })));
+});
+
 test('verifyStateFirst and previous summaries are added only when present', () => {
   const plain = buildPrompt(task('review'));
   expect(plain).not.toContain('verify what is already done');

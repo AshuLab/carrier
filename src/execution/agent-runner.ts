@@ -21,6 +21,8 @@ export interface AgentTask {
     verifyStateFirst?: boolean;
     /** Fix turn: what the last review asked to change. Review turn after the first: the previous round's blockers, to reuse their ids. */
     blockers?: { id?: string; title: string; url?: string }[];
+    /** Fix turn after a review that completed with non-blocking findings: the threads to answer and leave open. Takes the place of `blockers`. */
+    observations?: { id?: string; title: string; url?: string }[];
   };
 }
 

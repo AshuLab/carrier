@@ -251,3 +251,19 @@ describe('readSlices', () => {
     await expect(github.readSlices(repo, 111)).rejects.toThrow();
   });
 });
+
+describe('readPullRequest', () => {
+  const recorded = readFileSync(new URL('./github-graphql-fixtures/pr-checks-failing.json', import.meta.url), 'utf8');
+
+  test('one graphql call with separated arguments; it returns the block', async () => {
+    const { github, calls } = setup([{ match: 'graphql', stdout: `HTTP/2.0 200 OK\r\nContent-Type: application/json\r\n\r\n${recorded}` }]);
+    expect(await github.readPullRequest(repo, 14035)).toMatchObject({ number: 14035, draft: true, mergeState: 'DIRTY', checks: { passing: 10, failing: 1, pending: 0 } });
+    expect(calls()).toHaveLength(1);
+    expect(calls()[0]!.args).toEqual(expect.arrayContaining(['graphql', 'owner=AshuLab', 'name=demo', 'number=14035']));
+  });
+
+  test('an answer that is not what the query asked for is an error', async () => {
+    const { github } = setup([{ match: 'graphql', stdout: http(200, { data: null, errors: [{ message: 'Could not resolve' }] }) }]);
+    await expect(github.readPullRequest(repo, 1)).rejects.toThrow();
+  });
+});

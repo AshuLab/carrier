@@ -99,6 +99,8 @@ query($owner: String!, $name: String!, $number: Int!) {
 
 Cost 1 for up to 100 contexts (11 here, `hasNextPage` false). Each node is a `CheckRun` (`name`, `status`, `conclusion`) or a `StatusContext` (`context`, `state`). On PR 14035 exactly one run had `conclusion: FAILURE` and the rollup `state` was `FAILURE`. This query only names the failing check; the counts in query 2 are enough for a "1 failing" label.
 
+The engine's query for the pull request block (`pullRequestQuery`, `src/integrations/github-graphql.ts`) is query 2. The poll runs it once for each running, ready-for-test or needs-human epic that has a pull request number, none for one without, and caches the block on the epic's row. Check runs and status contexts are counted together: `SUCCESS`, `NEUTRAL`, `SKIPPED` and `COMPLETED` pass; `FAILURE`, `ERROR`, `CANCELLED`, `TIMED_OUT`, `STARTUP_FAILURE`, `ACTION_REQUIRED` and `STALE` fail; everything else is pending.
+
 ## A repository with no checks
 
 `AshuLab/carrier` has no workflow, so PR 167 answers `statusCheckRollup: null` on its last commit. REST says the opposite: the combined status of such a commit is `pending` with `total_count: 0` (inventory, section 3). The app must read the null as "no checks" and show it as such (a dash or the words "No checks"), never as pending. `PENDING` with check runs counted is the only pending that means something is still running.

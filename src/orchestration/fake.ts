@@ -1,5 +1,5 @@
 import type { Clock } from './clock.ts';
-import { AuthError, GitHubUnavailable, type EpicSlice, type GitHub, type LabelStyle, type Slices } from './github.ts';
+import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type GitHub, type LabelStyle, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
   /** A ready epic's labels are the issue's, as GitHub lists them. */
@@ -15,6 +15,12 @@ export class FakeGitHub implements GitHub {
   slicesUnavailable: GitHubUnavailable | null = null;
   /** Every slice read that reached the port, as `repo#issue`. */
   sliceReads: string[] = [];
+  /** What readPullRequest answers, by `repo#number`; a pull request not listed does not exist. */
+  pullRequestBlocks: Record<string, PullRequestBlock> = {};
+  /** Makes readPullRequest fail while the rest works. */
+  pullRequestUnavailable: GitHubUnavailable | null = null;
+  /** Every pull request read that reached the port, as `repo#number`. */
+  pullRequestReads: string[] = [];
   /** Makes setLabels fail while the rest works. */
   setLabelsUnavailable: GitHubUnavailable | null = null;
   issues: Record<string, { state: 'open' | 'closed'; labels: string[] }> = {};
@@ -59,6 +65,14 @@ export class FakeGitHub implements GitHub {
     if (this.slicesUnavailable) throw this.slicesUnavailable;
     const found = this.slices[`${repo}#${issue}`];
     return { slices: found?.slices.map((s) => ({ ...s })) ?? [], truncated: found?.truncated ?? false };
+  }
+
+  async readPullRequest(repo: string, number: number) {
+    this.guard();
+    this.pullRequestReads.push(`${repo}#${number}`);
+    if (this.pullRequestUnavailable) throw this.pullRequestUnavailable;
+    const found = this.pullRequestBlocks[`${repo}#${number}`];
+    return found === undefined ? null : { ...found, checks: found.checks && { ...found.checks } };
   }
 
   async getIssue(repo: string, issue: number) {

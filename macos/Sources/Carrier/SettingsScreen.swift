@@ -2,7 +2,7 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// Settings as a screen of the main window: the readiness banner, four tabs, and the Engine tab. The other three tabs wait
+/// Settings as a screen of the main window: the readiness banner, four tabs, the Engine tab and the Menu bar tab. The others wait
 /// for their slices.
 struct SettingsScreen: View {
     @ObservedObject var setup: SetupController = .shared
@@ -28,6 +28,8 @@ struct SettingsScreen: View {
                     }
                     .padding(.horizontal, 14)
                     .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+                } else if tab == .menuBar {
+                    MenuBarTabView()
                 } else if tab == .notifications {
                     NotificationsTabView()
                 } else if tab == .general {

@@ -64,7 +64,8 @@ export function git(cwd: string, args: string[]): string | null {
 }
 
 // A range of two shas never changes, so asking git once is enough (this is polled every few seconds).
-// ponytail: unbounded, one entry per fixed round; evict if a very long-lived engine ever matters.
+// Oldest entry out past the cap, so a long-lived engine does not grow with every round it ever saw.
+const MAX_CACHED_RANGES = 500;
 const commitCache = new Map<string, Round['commits']>();
 
 /** The commits a fix added between the head the review saw and the head it left; empty when there is no worktree to ask. */
@@ -79,6 +80,7 @@ function commitsBetween(cwd: string | null, from: string, to: string): Round['co
     const [sha = '', subject = ''] = line.split('\0');
     return { sha, subject: subject.slice(0, MAX_TEXT) };
   });
+  if (commitCache.size >= MAX_CACHED_RANGES) commitCache.delete(commitCache.keys().next().value!);
   commitCache.set(key, commits);
   return commits;
 }
@@ -208,8 +210,8 @@ export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
     ...(epic.workspace === null ? [] : [{ kind: 'epic' as const, lane: null, path: epic.workspace }]),
     ...(reviewer === null ? [] : [{ kind: 'reviewer' as const, lane: null, path: reviewer }]),
   ];
-  // ponytail: read from the worktree's HEAD until the epic row records its branch
-  const branch = epic.workspace === null ? null : (git(epic.workspace, ['symbolic-ref', '--short', 'HEAD'])?.trim() || null);
+  // the row records the branch once ship is validated; before that the worktree's HEAD is the only place it is
+  const branch = epic.branch ?? (epic.workspace === null ? null : (git(epic.workspace, ['symbolic-ref', '--short', 'HEAD'])?.trim() || null));
 
   const slices = db.select().from(epicSlices).where(eq(epicSlices.epicId, epic.id)).orderBy(epicSlices.number).all();
   const threads = db.select().from(epicReviewThreads).where(eq(epicReviewThreads.epicId, epic.id)).orderBy(epicReviewThreads.position).all();

@@ -30,10 +30,29 @@ export const taskContext = (c: { repo: string; epic: number; executionId: string
   ...(c.round && { round: c.round }),
 });
 
-/** Where the whole output of one execution goes: `<root>/orchestrator/logs/executions/<executionId>/{stdout,stderr}.log`. */
+const MAX_PENDING = 64 * 1024;
+
+/**
+ * Where the whole output of one execution goes: `<root>/orchestrator/logs/executions/<executionId>/{stdout,stderr}.log`.
+ * Only whole lines are redacted and written, so a token split across two chunks is still caught; `flush` writes what is left when the run ends.
+ */
 export function executionOutput(root: string, executionId: string) {
   const dir = join(root, 'orchestrator', 'logs', 'executions', executionId);
   mkdirSync(dir, { recursive: true });
-  // ponytail: a token split across two chunks is not caught, buffer per stream if the agents' output shows it
-  return (stream: 'stdout' | 'stderr', chunk: string) => appendFileSync(join(dir, `${stream}.log`), redact(chunk));
+  const pending = { stdout: '', stderr: '' };
+  const append = (stream: 'stdout' | 'stderr', text: string) => text && appendFileSync(join(dir, `${stream}.log`), redact(text));
+  return {
+    write(stream: 'stdout' | 'stderr', chunk: string) {
+      const text = pending[stream] + chunk;
+      // a line that never ends is written anyway past the cap: memory over a perfect redaction
+      const cut = text.length > MAX_PENDING ? text.length : text.lastIndexOf('\n') + 1;
+      append(stream, text.slice(0, cut));
+      pending[stream] = text.slice(cut);
+    },
+    flush() {
+      append('stdout', pending.stdout);
+      append('stderr', pending.stderr);
+      pending.stdout = pending.stderr = '';
+    },
+  };
 }

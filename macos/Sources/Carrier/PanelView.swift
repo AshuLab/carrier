@@ -58,7 +58,7 @@ struct PanelView: View {
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, selection: $shell.selection, groupBy: groupBy, onAbout: shell.showAbout)
+            SidebarView(snapshot: snapshot, state: model.state, selection: $shell.selection, groupBy: groupBy, onAbout: shell.showAbout)
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
             // resizes and the app dies with "more Update Constraints passes than there are views"
@@ -114,17 +114,17 @@ struct PanelView: View {
             if let snapshot, shell.selection == .overview {
                 // two pills: the check against GitHub, then what governs Carrier itself (intake and stopping)
                 ToolbarItem(placement: .primaryAction) {
-                    Button { MenuControls.shared.checkNow() } label: { Label("Check now", systemImage: "arrow.clockwise") }
+                    Button { MenuControls.shared.checkNow() } label: { Label("Check now", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
                         .help("Check GitHub now")
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button { MenuControls.shared.pauseOrResume() } label: {
-                        Label(snapshot.paused ? "Resume" : "Pause", systemImage: snapshot.paused ? "play.fill" : "pause.fill")
+                        Label(snapshot.paused ? "Resume" : "Pause", systemImage: snapshot.paused ? "play.fill" : "pause.fill").labelStyle(.titleAndIcon)
                     }
                     .help(snapshot.paused ? "Resume intake" : "Pause intake")
                     Button { MenuControls.shared.stopCarrier() } label: {
-                        Label { Text("Stop") } icon: { Image(systemName: "stop.fill").foregroundStyle(.red) }
+                        Label { Text("Stop") } icon: { Image(systemName: "stop.fill").foregroundStyle(.red) }.labelStyle(.titleAndIcon)
                     }
                     .help("Stop Carrier")
                 }
@@ -174,15 +174,8 @@ private struct Overview: View {
     var body: some View {
         YourTurnView(snapshot: snapshot, selection: $selection)
         RunningView(snapshot: snapshot, selection: $selection)
-        if snapshot.queue.isEmpty == false {
-            VStack(alignment: .leading, spacing: 8) {
-                OverviewTitle(title: "Up next", detail: "\(snapshot.queue.count)")
-                OverviewCard {
-                    ForEach(snapshot.queue, id: \.key) { Text("\($0.repo) #\($0.issue)").padding(.vertical, 8) }
-                }
-            }
-        }
-        CarrierBoxView(snapshot: snapshot)
+        if snapshot.queue.isEmpty == false { UpNextView(snapshot: snapshot, selection: $selection) }
+        WatchedReposView(snapshot: snapshot)
     }
 }
 

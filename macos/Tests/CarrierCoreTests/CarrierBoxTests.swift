@@ -49,9 +49,10 @@ private func load(_ name: String, _ change: (inout PanelSnapshot) -> Void = { _ 
 @Test func eachWatchedRepoShowsItsLastCheckAndAFailureShowsItsError() throws {
     let box = carrierBox(try load("snapshot.json"))
     #expect(box.repos == [
-        .init(name: "acme/web", ok: true, lastCheck: "2s ago", error: nil),
-        .init(name: "acme/api", ok: false, lastCheck: "2s ago", error: "GitHub answered 502"),
+        .init(name: "acme/web", url: "github.com/acme/web", status: .paused, ok: true, lastCheck: "2s ago", error: nil),
+        .init(name: "acme/api", url: "github.com/acme/api", status: .failing, ok: false, lastCheck: "2s ago", error: "GitHub answered 502"),
     ])
+    #expect(carrierBox(try load("snapshot.json") { $0.paused = false }).repos.map(\.status) == [.watching, .failing])
     let fresh = carrierBox(try load("snapshot.json") { $0.watched?[0].lastCheckedAt = nil; $0.watched?[1].error = nil })
     #expect(fresh.repos[0].lastCheck == "not checked yet")
     #expect(fresh.repos[1].error == "the last check failed")

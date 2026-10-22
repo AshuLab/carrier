@@ -10,7 +10,8 @@ struct OverviewTitle: View {
             Text(title).font(.system(size: 15, weight: .semibold))
             if let detail { Text(detail).font(.caption).foregroundStyle(.secondary) }
         }
-        .padding(.horizontal, 2)
+        // in line with the content inside the card below, which the card pads by 14
+        .padding(.leading, 14)
     }
 }
 
@@ -54,5 +55,24 @@ struct OverviewLinkRow<Content: View>: View {
         .contentShape(Rectangle())
         .onTapGesture { action?() }
         .accessibilityAddTraits(action == nil ? [] : .isButton)
+    }
+}
+
+/// A progress bar of separate segments, one for each step: the ones done are green. Past 20 steps it stays at 20 segments, or
+/// they would be too thin to tell apart.
+struct SegmentedProgress: View {
+    let done: Int
+    let total: Int
+
+    var body: some View {
+        let count = max(1, min(total, 20))
+        let filled = total > 20 ? Int((Double(done) / Double(total) * 20).rounded()) : done
+        HStack(spacing: 3) {
+            ForEach(0..<count, id: \.self) { index in
+                Capsule().fill(index < filled ? Color.green : Color.secondary.opacity(0.25)).frame(height: 6)
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel("\(done) of \(total)")
     }
 }

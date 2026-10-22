@@ -25,17 +25,18 @@ private let utc = TimeZone(identifier: "UTC")!
     #expect(section.cards.map(\.title) == ["Issue 12 of acme/web", "Issue 13 of acme/web"])
     #expect(section.cards[0].subtitle == "acme/web · #12")
     #expect(section.cards[0].selection == .epic(repo: "acme/web", issue: 12))
+    #expect(section.cards[0].steps == .init(done: 2, total: 5))
     #expect(section.room == FreeRoom(title: "1 free", line: "web #20 starts on the next check"))
 }
 
 @Test func fullWithAQueueSaysTheNextOneStartsWhenOneFinishes() throws {
     let room = runningSection(try load { $0.slots.busy = 3 }, timeZone: utc).room
-    #expect(room == FreeRoom(title: "All 3 in use", line: "web #20 starts when one finishes"))
+    #expect(room == FreeRoom(title: "All 3 in use", line: "web #20 starts when one finishes", hasRoom: false))
 }
 
 @Test func fullWithNoQueueSaysNothingIsWaiting() throws {
     let room = runningSection(try load { $0.slots.busy = 3; $0.queue = [] }, timeZone: utc).room
-    #expect(room == FreeRoom(title: "All 3 in use", line: "Nothing waiting"))
+    #expect(room == FreeRoom(title: "All 3 in use", line: "Nothing waiting", hasRoom: false))
 }
 
 @Test func progressIsSlicesMergedInShipAndRoundOverMaximumOtherwise() throws {
@@ -84,4 +85,15 @@ private let utc = TimeZone(identifier: "UTC")!
     #expect(agentRow(snapshot.sessions![0], epic: epic, timeZone: utc).running)
     epic.status = .needsHuman
     #expect(agentRow(snapshot.sessions![0], epic: epic, timeZone: utc).running == false)
+}
+
+@Test func upNextListsTheQueueInOrderWithItsWait() throws {
+    let snapshot = try load()
+    let rows = upNext(snapshot)
+    #expect(rows.count == snapshot.queue.count)
+    #expect(rows[0].selection == .epic(repo: snapshot.queue[0].repo, issue: snapshot.queue[0].issue))
+    #expect(rows[0].line.hasPrefix("1st in queue"))
+    #expect(rows.count < 2 || rows[1].line.hasPrefix("2nd in queue"))
+    let unknown = upNext(try load { for i in $0.queue.indices { $0.queue[i].queuedAt = nil } })
+    #expect(unknown[0].line == "1st in queue")
 }

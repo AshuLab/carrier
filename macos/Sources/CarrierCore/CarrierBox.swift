@@ -17,8 +17,20 @@ public struct CarrierBox: Equatable {
         public var command: Command { paused ? .resume : .pause }
     }
 
+    public enum Status: Equatable {
+        /// Checked on every cycle.
+        case watching
+        /// Intake is paused: the repository is not looked at until it resumes.
+        case paused
+        /// The last check failed.
+        case failing
+    }
+
     public struct Repo: Equatable {
         public var name: String
+        /// The repository on GitHub, without the scheme: "github.com/owner/name".
+        public var url: String
+        public var status: Status
         public var ok: Bool
         /// "40s ago"; what the snapshot says went wrong when the last check failed.
         public var lastCheck: String
@@ -50,6 +62,8 @@ public func carrierBox(_ snapshot: PanelSnapshot) -> CarrierBox {
     let repos = (snapshot.watched ?? []).map { watched in
         CarrierBox.Repo(
             name: watched.repo,
+            url: "github.com/\(watched.repo)",
+            status: watched.ok ? (snapshot.paused ? .paused : .watching) : .failing,
             ok: watched.ok,
             lastCheck: watched.lastCheckedAt.map { agoLine($0, now: snapshot.now) } ?? "not checked yet",
             error: watched.ok ? nil : (watched.error ?? "the last check failed")

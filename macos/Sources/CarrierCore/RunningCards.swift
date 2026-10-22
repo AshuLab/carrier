@@ -31,7 +31,14 @@ public struct RunningCard: Equatable {
     public var progressLine: String
     /// 0...1; nil when there is nothing to count yet.
     public var progress: Double?
+    /// What the progress bar counts: slices merged out of all, or the review round out of the most there can be.
+    public var steps: Steps?
     public var agents: [AgentRow]
+
+    public struct Steps: Equatable {
+        public var done: Int
+        public var total: Int
+    }
 }
 
 public struct FreeRoom: Equatable {
@@ -39,6 +46,8 @@ public struct FreeRoom: Equatable {
     public var title: String
     /// "api #21 starts on the next check", "api #21 starts when one finishes" or "Nothing waiting".
     public var line: String
+    /// False when every slot is taken.
+    public var hasRoom = true
 }
 
 public struct RunningSection: Equatable {
@@ -51,10 +60,10 @@ public func runningSection(_ snapshot: PanelSnapshot, timeZone: TimeZone = .curr
     let cards = snapshot.epics.filter { $0.status == .running }.map { epic in
         let sessions = (snapshot.sessions ?? []).filter { $0.repo == epic.repo && $0.issue == epic.issue }
         let header = epicHeader(.active(epic))
-        let (line, progress) = progress(epic)
+        let (line, progress, steps) = progress(epic)
         return RunningCard(
             selection: .epic(repo: epic.repo, issue: epic.issue), title: header.title, subtitle: header.subtitle,
-            progressLine: line, progress: progress, agents: sessions.map { agentRow($0, epic: epic, timeZone: timeZone) }
+            progressLine: line, progress: progress, steps: steps, agents: sessions.map { agentRow($0, epic: epic, timeZone: timeZone) }
         )
     }
     return RunningSection(cards: cards, room: freeRoom(snapshot))
@@ -86,18 +95,20 @@ func agentName(_ harness: String) -> String {
 }
 
 /// Slices merged over total in ship, round over maximum rounds otherwise.
-private func progress(_ epic: PanelEpic) -> (String, Double?) {
+private func progress(_ epic: PanelEpic) -> (String, Double?, RunningCard.Steps?) {
     if epic.stage == .ship || epic.stage == nil {
-        if let slices = epic.slices, let line = slicesLine(slices) { return (line, Double(slices.done) / Double(slices.total)) }
-        return (epic.stage?.rawValue ?? "starting", nil)
+        if let slices = epic.slices, let line = slicesLine(slices) {
+            return (line, Double(slices.done) / Double(slices.total), .init(done: slices.done, total: slices.total))
+        }
+        return (epic.stage?.rawValue ?? "starting", nil, nil)
     }
-    guard let round = epic.round, epic.maxReviews > 0 else { return (epic.stage?.rawValue ?? "starting", nil) }
-    return ("round \(round)/\(epic.maxReviews)", Double(round) / Double(epic.maxReviews))
+    guard let round = epic.round, epic.maxReviews > 0 else { return (epic.stage?.rawValue ?? "starting", nil, nil) }
+    return ("round \(round)/\(epic.maxReviews)", Double(round) / Double(epic.maxReviews), .init(done: round, total: epic.maxReviews))
 }
 
 private func freeRoom(_ snapshot: PanelSnapshot) -> FreeRoom {
     let (free, total) = (max(0, snapshot.slots.total - snapshot.slots.busy), snapshot.slots.total)
     let next = snapshot.queue.first.map { "\($0.repo.split(separator: "/").last.map(String.init) ?? $0.repo) #\($0.issue)" }
     let line = next.map { "\($0) starts " + (free > 0 ? "on the next check" : "when one finishes") } ?? "Nothing waiting"
-    return FreeRoom(title: free > 0 ? "\(free) free" : "All \(total) in use", line: line)
+    return FreeRoom(title: free > 0 ? "\(free) free" : "All \(total) in use", line: line, hasRoom: free > 0)
 }

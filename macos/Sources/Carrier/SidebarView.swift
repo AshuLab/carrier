@@ -4,6 +4,7 @@ import SwiftUI
 /// The sidebar's list: Overview with the pill and the group-by menu, the epics in groups, Settings and About at the bottom.
 struct SidebarView: View {
     let snapshot: PanelSnapshot?
+    let state: ConnectionState?
     @Binding var selection: Selection
     @Binding var groupBy: GroupBy
     let onAbout: () -> Void
@@ -38,10 +39,45 @@ struct SidebarView: View {
         .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 320)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 2) {
+                SidebarStatus(state: state)
                 SidebarFooterRow(title: "Settings", icon: "gearshape", selected: selection == .settings) { selection = .settings }
                 SidebarFooterRow(title: "About", icon: "info.circle", selected: false, action: onAbout)
             }
             .padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 10)
+        }
+    }
+}
+
+/// Whether Carrier runs and when it checks GitHub next: at the foot of the sidebar, so it is in view on every screen.
+/// Hovering it shows how long it has been up and the rate limit.
+private struct SidebarStatus: View {
+    let state: ConnectionState?
+
+    var body: some View {
+        let status = sidebarStatus(state)
+        HStack(spacing: 10) {
+            Circle().fill(status.color).frame(width: 8, height: 8)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(status.title).fontWeight(.medium)
+                if let detail = status.detail { Text(detail).font(.caption.monospacedDigit()).foregroundStyle(.secondary) }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 6)
+        .help(status.help)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func sidebarStatus(_ state: ConnectionState?) -> (title: String, detail: String?, color: Color, help: String) {
+        switch state {
+        case .running(let snapshot)?:
+            let box = carrierBox(snapshot)
+            let help = ([box.uptime] + box.rows.dropFirst().map { "\($0.label): \($0.value)" }).joined(separator: " · ")
+            if snapshot.paused { return ("Intake paused", nil, .orange, help) }
+            return ("Carrier running", nextCheckLine(snapshot), snapshot.problem == nil ? .green : .orange, help)
+        case .stopped?: return ("Carrier stopped", nil, .gray, "")
+        case .incompatible?: return (state?.menuLine ?? "", nil, .orange, "")
+        case nil: return ("Connecting…", nil, .gray, "")
         }
     }
 }

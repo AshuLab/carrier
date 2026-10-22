@@ -14,15 +14,28 @@ struct RunningView: View {
                 OverviewCard { EmptyStateView(state: .idle).frame(height: 170) }
             } else {
                 ForEach(section.cards.indices, id: \.self) { card(section.cards[$0]) }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(section.room.title).fontWeight(.semibold)
-                    Text(section.room.line).font(.caption).foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
+                freeRoom(section.room)
             }
         }
+    }
+
+    /// What is left of the slots, drawn like a row of the cards above but empty: the same fill, with a dashed edge.
+    private func freeRoom(_ room: FreeRoom) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: room.hasRoom ? "plus" : "circle.fill").font(.system(size: room.hasRoom ? 12 : 5, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .frame(width: 28, height: 28)
+                .overlay(Circle().strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(room.title).fontWeight(.semibold)
+                Text(room.line).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
     }
 
     /// One epic: its line and progress on top, a row for each of its agents under it. The first row opens the epic.
@@ -36,9 +49,13 @@ struct RunningView: View {
                 }
                 Spacer(minLength: 8)
                 if let progress = card.progress {
-                    VStack(alignment: .trailing, spacing: 3) {
+                    HStack(spacing: 10) {
                         Text("\(Int((progress * 100).rounded()))%").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                        ProgressView(value: progress).tint(.green).frame(width: 90)
+                        if let steps = card.steps {
+                            SegmentedProgress(done: steps.done, total: steps.total).frame(width: 120)
+                        } else {
+                            ProgressView(value: progress).tint(.green).frame(width: 120)
+                        }
                     }
                 }
             }

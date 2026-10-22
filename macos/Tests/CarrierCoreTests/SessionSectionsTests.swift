@@ -31,8 +31,6 @@ private func transcript(_ events: [ExecEvent], structured: Bool = true) -> Trans
 // MARK: the counts line
 
 @Test func theCountsLineKeepsTheToolCallsAndDropsWhatIsZero() {
-    #expect(countsRuns(SessionCounts(calls: 8, edits: 2, added: 42, removed: 8, tests: 1, errors: 2)).filter { $0.tone != .plain }
-        == [CountRun(text: "+42", tone: .added), CountRun(text: "−8", tone: .removed), CountRun(text: "2 errors", tone: .error)])
     #expect(countsLine(SessionCounts()) == "0 tool calls")
     #expect(countsLine(SessionCounts(calls: 1)) == "1 tool call")
     #expect(countsLine(SessionCounts(calls: 8, edits: 2, added: 42, removed: 8, tests: 1, errors: 2)) == "8 tool calls · 2 edits +42 −8 · 1 test run · 2 errors")
@@ -121,12 +119,12 @@ func otherCommandsAreNot(command: String) {
         "c": transcript(call(1, "a", "Read") + call(3, "b", "Read")),
         "b": transcript(call(1, "a", "Read"), structured: false),
     ])
-    #expect(list.sections.map(\.counts) == ["2 tool calls", nil, nil])
+    #expect(list.sections.map { $0.counts.map(countsLine) } == ["2 tool calls", nil, nil])
 }
 
 @Test func anEmptyTranscriptShowsZeroToolCalls() {
     let list = sessionList(reply(session("c", "fix", status: "running")), transcripts: ["c": transcript([])])
-    #expect(list.sections[0].counts == "0 tool calls")
+    #expect(list.sections[0].counts.map(countsLine) == "0 tool calls")
 }
 
 // MARK: folding
@@ -161,16 +159,16 @@ func otherCommandsAreNot(command: String) {
     // folded: not followed
     folds.toggle(sessionList(data.sessions).sections[0])
     #expect(epicFocus(ref, running: true, data: data, folds: folds).transcript == nil)
-    #expect(epicFocus(ref, running: true, data: nil, folds: folds) == EpicFocus(epic: ref, epicRunning: true))
+    #expect(epicFocus(ref, running: true, data: nil, folds: folds) == EpicFocus(epic: ref, epicRunning: true, filesTabVisible: true))
 }
 
 // MARK: the result card
 
 @Test func aCompletedResultShowsItsSummaryAndTheCILine() {
     let result = SessionResult(outcome: "completed", summary: "Built it.", verification: .init(ci: "passed", evidence: "Run 12 succeeded."), reason: nil)
-    #expect(resultCard(result) == ResultCard(outcome: "Completed", tone: .good, summary: "Built it.", ci: "CI passed: Run 12 succeeded.", reason: nil))
+    #expect(resultCard(result) == ResultCard(outcome: "Completed", tone: .good, summary: "Built it.", ci: .init(verdict: "passed", evidence: "Run 12 succeeded."), reason: nil))
     let absent = SessionResult(outcome: "completed", summary: "Built it.", verification: .init(ci: "absent", evidence: "No CI configured."), reason: nil)
-    #expect(resultCard(absent)?.ci == "CI absent: No CI configured.")
+    #expect(resultCard(absent)?.ci == .init(verdict: "absent", evidence: "No CI configured."))
 }
 
 @Test func aStoppedResultShowsItsReasonAndNoCILine() {
@@ -204,4 +202,23 @@ func otherCommandsAreNot(command: String) {
     let links = text.runs.compactMap(\.link)
     #expect(links == [URL(string: "https://github.com/acme/web/pull/1#r")!])
     #expect(String(text.characters) == "Review at https://github.com/acme/web/pull/1#r. See also ftp://host/file and mailto:a@b.co.")
+}
+
+@Test func anAgentsMessageShowsItsMarkdown() {
+    let blocks = markdownBlocks("**no blockers**, see `a.ts`.\n\n\n- one\n  - two\n## Next\nhttps://github.com/acme/web/pull/1 and [x](javascript:alert(1)) and [ok](https://a.co)\n")
+    func text(_ block: MarkdownBlock) -> String {
+        switch block {
+        case .line(let line), .bullet(_, let line): String(line.characters)
+        case .gap: "·"
+        }
+    }
+    #expect(blocks.map(text) == ["no blockers, see a.ts.", "·", "one", "two", "Next", "https://github.com/acme/web/pull/1 and x and ok"])
+    guard case .line(let first) = blocks[0], case .bullet(let level, _) = blocks[3], case .line(let last) = blocks[5] else {
+        Issue.record("the blocks are not a line, a gap, bullets and a last line")
+        return
+    }
+    #expect(level == 1)
+    #expect(first.runs.contains { $0.inlinePresentationIntent == .stronglyEmphasized && String(first.characters[$0.range]) == "no blockers" })
+    #expect(first.runs.contains { $0.inlinePresentationIntent == .code && String(first.characters[$0.range]) == "a.ts" })
+    #expect(last.runs.compactMap(\.link) == [URL(string: "https://github.com/acme/web/pull/1")!, URL(string: "https://a.co")!])
 }

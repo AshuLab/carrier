@@ -27,6 +27,32 @@ struct TranscriptRows: View {
     }
 }
 
+/// An agent's text laid out by block: lines with room between them, bullets that hang, a gap for a blank line.
+struct MarkdownView: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ForEach(Array(markdownBlocks(text).enumerated()), id: \.offset) { _, block in
+                switch block {
+                case .line(let line):
+                    Text(line).lineSpacing(3)
+                case .bullet(let level, let line):
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
+                        Text("•").foregroundStyle(.secondary)
+                        Text(line).lineSpacing(3)
+                    }
+                    .padding(.leading, CGFloat(level) * 16)
+                case .gap:
+                    Color.clear.frame(height: 5)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .textSelection(.enabled)
+    }
+}
+
 struct TranscriptItemView: View {
     let item: TranscriptItem
     @Binding var outputs: OutputFolds
@@ -34,8 +60,8 @@ struct TranscriptItemView: View {
     var body: some View {
         switch item {
         case .message(_, let text):
-            Text(text).textSelection(.enabled).lineSpacing(2)
-                .padding(.horizontal, 12).padding(.vertical, 8)
+            MarkdownView(text: text)
+                .padding(.horizontal, 12).padding(.vertical, 10)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
         case .note(_, let text):
             Text(text).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)

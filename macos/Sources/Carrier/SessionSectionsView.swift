@@ -68,21 +68,63 @@ extension View {
     }
 }
 
-/// The agent's closing report, under the transcript: the outcome, its summary, the CI line and, for a stop, the reason.
+/// The agent's closing report, under the transcript: the outcome as a pill, the summary, and for a stop the reason; what it
+/// checked sits in a quiet block of its own, led by the CI verdict.
 struct ResultCardView: View {
     let card: ResultCard
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(card.outcome).font(.caption.weight(.semibold)).foregroundStyle(tint)
-                .padding(.horizontal, 8).padding(.vertical, 2).background(Capsule().fill(tint.opacity(0.18)))
-            Text(linkedText(card.summary)).textSelection(.enabled)
-            if let ci = card.ci { Text(linkedText(ci)).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
+        VStack(alignment: .leading, spacing: 8) {
+            pill(icon, card.outcome, tint)
+            MarkdownView(text: card.summary)
             if let reason = card.reason {
                 Text(linkedText(reason)).font(.callout).foregroundStyle(tint).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10).padding(.vertical, 7)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(tint.opacity(0.14)))
+            }
+            if let ci = card.ci {
+                (Text(verdict(ci.verdict)).fontWeight(.semibold).foregroundStyle(verdictColor(ci.verdict)) + Text(" · ") + Text(linkedText(ci.evidence)))
+                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 9).padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 8).sessionRow()
+        .padding(.horizontal, 12).padding(.vertical, 10).sessionRow()
+    }
+
+    private func pill(_ symbol: String, _ text: String, _ color: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: symbol).font(.system(size: 10, weight: .semibold))
+            Text(text)
+        }
+        .font(.caption.weight(.semibold)).foregroundStyle(color)
+        .padding(.horizontal, 10).padding(.vertical, 3).background(Capsule().fill(color.opacity(0.18)))
+    }
+
+    private func verdict(_ word: String) -> String {
+        switch word {
+        case "passed": "CI passed"
+        case "absent": "No CI"
+        default: "CI \(word)" // a value added later still shows
+        }
+    }
+
+    private func verdictColor(_ word: String) -> Color {
+        switch word {
+        case "passed": .green
+        case "absent": .secondary
+        default: .orange
+        }
+    }
+
+    private var icon: String {
+        switch card.tone {
+        case .good: "checkmark.circle"
+        case .warning: "exclamationmark.triangle"
+        case .stop: "person"
+        }
     }
 
     private var tint: Color {
@@ -101,13 +143,14 @@ struct SessionHeaderView: View {
     var body: some View {
         HStack(spacing: 11) {
             AgentAvatar(initial: section.initial, harness: section.agent, working: section.state == .running)
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 0) {
                     Text(section.agent).fontWeight(.semibold)
                     Text(" · \(section.role) · \(section.place)").foregroundStyle(.secondary)
                 }
                 .lineLimit(1)
-                if section.counts != nil { Text(Self.counts(section.countRuns)).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                // with no counts yet the row is still there, unseen, so the header does not grow when they arrive
+                CountPills(counts: section.counts ?? SessionCounts()).opacity(section.counts != nil ? 1 : 0)
             }
             Spacer(minLength: 8)
             if section.state == .stopped {
@@ -125,18 +168,47 @@ struct SessionHeaderView: View {
         .padding(.horizontal, 12).padding(.vertical, 11)
         .contentShape(Rectangle())
     }
+}
 
-    /// The counts line with the lines added in green and the removed and the errors in red.
-    static func counts(_ runs: [CountRun]) -> AttributedString {
-        runs.reduce(into: AttributedString()) { line, run in
-            var piece = AttributedString(run.text)
-            switch run.tone {
-            case .plain: break
-            case .added: piece.foregroundColor = .green
-            case .removed, .error: piece.foregroundColor = .red
-            }
-            line += piece
+/// A session's counts as pills: tool calls, edits with their lines, test runs, errors; all but the calls only above zero. With no
+/// room for the words it falls back to icon and number, so the header stays one row.
+struct CountPills: View {
+    let counts: SessionCounts
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            row(words: true)
+            row(words: false)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(countsLine(counts))
+    }
+
+    private func row(words: Bool) -> some View {
+        HStack(spacing: 5) {
+            pill("terminal", counts.calls, words ? "call" : nil)
+            if counts.edits > 0 { pill("pencil", counts.edits, words ? "edit" : nil, lines: true) }
+            if counts.tests > 0 { pill("checkmark.circle", counts.tests, words ? "test run" : nil) }
+            if counts.errors > 0 { pill("exclamationmark.triangle", counts.errors, words ? "error" : nil, tint: .red) }
+        }
+    }
+
+    private func pill(_ symbol: String, _ count: Int, _ noun: String?, tint: Color? = nil, lines: Bool = false) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol).font(.system(size: 10, weight: .semibold))
+            Text("\(count)").fontWeight(.semibold).foregroundStyle(tint ?? .primary)
+            if let noun { Text(count == 1 ? noun : noun + "s") }
+            if lines {
+                Text("+\(counts.added)").foregroundStyle(.green)
+                Text("−\(counts.removed)").foregroundStyle(.red)
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(tint ?? .secondary)
+        .lineLimit(1)
+        .fixedSize()
+        .padding(.horizontal, 8).padding(.vertical, 2)
+        .background(Capsule().fill((tint ?? .secondary).opacity(tint == nil ? 0.16 : 0.18)))
     }
 }
 

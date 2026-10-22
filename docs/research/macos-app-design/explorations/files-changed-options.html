@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Files changed: options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* every class here starts with f- : shared.css owns .row .slice .sp .st .ring .chip .pros .card .term */
+.f-opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--w,600px),1fr));gap:30px;align-items:start;margin-top:8px}
+.f-opt>h3{margin:0 0 2px;font-size:14px}
+.f-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:600px;min-height:54px}
+.f-win{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.f-a{color:var(--green)}.f-r{color:var(--red)}
+.f-n{font-variant-numeric:tabular-nums;white-space:nowrap}
+.f-dir{color:var(--faint)}
+.f-nm{font-weight:550}
+.f-ellip{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.f-also{color:var(--orange);font-size:11px;white-space:nowrap}
+/* file icon, a coloured tile with the extension */
+.f-ic{width:18px;height:18px;border-radius:5px;display:grid;place-items:center;font:700 8px var(--font);color:#fff;flex:none;letter-spacing:-.02em}
+.f-ic.ts{background:#3178c6}.f-ic.md{background:#6e6e78}.f-ic.json,.f-ic.lock{background:#b8912a}.f-ic.css{background:#7a4fd0}.f-ic.tsx{background:#2a9fbf}.f-ic.test{background:#2f9e5b}
+.f-chev{color:var(--faint);transition:transform .15s;display:inline-block;width:10px;font-size:10px}
+.shut .f-chev{transform:none}.f-chev{transform:rotate(90deg)}
+.shut .f-body{display:none}
+.f-head{cursor:pointer}
+/* diffstat: five squares, as GitHub draws them */
+.f-sq{display:inline-flex;gap:1.5px}.f-sq i{width:7px;height:7px;border-radius:1.5px;background:var(--card2)}
+.f-sq i.a{background:var(--green)}.f-sq i.r{background:var(--red)}
+.f-bar{display:flex;height:5px;border-radius:3px;overflow:hidden;gap:1px;background:var(--card2)}
+.f-bar i{display:block;height:100%}.f-bar .a{background:var(--green)}.f-bar .r{background:var(--red)}
+.f-tag{font-size:11px;font-weight:600;padding:1px 8px;border-radius:99px;white-space:nowrap}
+.f-tag.w{background:color-mix(in srgb,var(--blue) 22%,transparent);color:var(--blue)}
+.f-tag.m{background:var(--card2);color:var(--dim)}
+.f-tag.ses{background:color-mix(in srgb,var(--purple) 20%,transparent);color:var(--purple)}
+
+/* A */
+.A-sum{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.A-pill{display:inline-flex;gap:5px;align-items:center;padding:3px 10px;border-radius:99px;background:var(--card2);font-size:12px;font-weight:550;color:var(--dim)}
+.A-pill b{color:var(--text)}
+.A-card{border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.A-h{display:flex;gap:10px;align-items:center;padding:10px 12px}
+.A-h .t{flex:1;min-width:0}.A-h .t b{display:block;font-weight:600}.A-h .t span{font-size:11.5px;color:var(--dim)}
+.A-f{display:flex;gap:9px;align-items:center;padding:6px 12px;border-top:.5px solid var(--line)}
+.A-f .p{flex:1;min-width:0}
+.A-f .p small{display:block;font-size:11px}
+
+/* B */
+.B-dir{display:flex;gap:7px;align-items:center;padding:6px 12px 2px;font-size:11.5px;color:var(--dim)}
+.B-f{display:flex;gap:9px;align-items:center;padding:4px 12px 4px 29px}
+.B-f .f-nm{flex:1;min-width:0}
+
+/* C */
+.C-tb{display:flex;gap:6px;align-items:center}
+.C-t{width:100%;border-collapse:collapse}
+.C-t th{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);font-weight:600;text-align:left;padding:2px 8px 6px}
+.C-t td{padding:6px 8px;border-top:.5px solid var(--line);vertical-align:middle}
+.C-t td.n{text-align:right}
+
+/* D */
+.D-sec{padding:0}
+.D-h{display:flex;gap:8px;align-items:baseline;padding:8px 2px 4px;border-bottom:.5px solid var(--line)}
+.D-h b{font-weight:600}.D-h span{color:var(--dim);font-size:12px}
+.D-f{display:grid;grid-template-columns:18px minmax(0,1fr) 110px auto;gap:9px;align-items:center;padding:5px 2px}
+.D-f .num{text-align:right;font-size:12px}
+
+/* E */
+.E-g{display:flex;gap:8px;align-items:center;padding:7px 12px 3px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
+.E-g .x{flex:1}
+.E-f{display:flex;gap:9px;align-items:center;padding:4px 12px}
+.E-f .f-nm{flex:1;min-width:0}
+</style></head><body>
+<h1>Files changed: options</h1>
+<div class="sub">Today: a plain "7 files · +166 −12" line, then a flat card per session with the full path in one line (directory dim, name normal) and bare <span class="mono">+N −N</span> text. It reads as a log: long directories repeat on every row, the numbers do not line up or say how big a change is, and the session card does not say much about what it is. Five directions with the same data; click a session header to fold it, switch the case or the width to stress them.</div>
+<div class="bar">
+  <button class="tab on" data-s="run">Running epic (2 working + 1 merged)</button>
+  <button class="tab" data-s="done">Finished (all merged)</button>
+  <button class="tab" data-w="narrow">Narrow column</button>
+  <span class="sp"></span>
+  <button class="tog" id="lt">Light / dark</button>
+</div>
+<div class="f-opts" id="o"></div>
+
+<div class="note"><b>What the data allows.</b> The engine sends, per session: id, kind (<span class="mono">merged</span> or working), title, and per file: path, added, removed, <span class="mono">alsoIn</span>. So the app can group by directory or category (it already derives a category from the name), draw a proportion bar from added/removed, and sort. It cannot say which tool call touched a file, and a file's rename or status (new, deleted) is not sent: so no "new" or "deleted" badges unless the engine adds them (a backend ask).</div>
+
+<script>
+const D={
+ run:[
+  {t:'Slice #641 · lane 2',w:1,files:[
+   ['apps/platform/modules/billing/services/assert-access.ts',8,6],
+   ['apps/platform/modules/billing/__tests__/services/assert-access.test.ts',70,5],
+   ['apps/platform/modules/billing/routes/subscription.ts',34,2,['Slice #642']],
+   ['docs/021-access-control.md',2,0],
+   ['pnpm-lock.yaml',120,98]]},
+  {t:'Slice #642 · lane 3',w:1,files:[
+   ['apps/platform/modules/billing/routes/subscription.ts',12,4,['Slice #641']],
+   ['apps/platform/components/PlanBadge.tsx',41,3],
+   ['apps/platform/styles/badge.css',9,0]]},
+  {t:'Slice #636 · PR #637',w:0,files:[
+   ['apps/platform/modules/billing/__tests__/services/assert-access.test.ts',70,5],
+   ['apps/platform/modules/billing/services/assert-access.ts',8,6],
+   ['docs/021-access-control.md',2,0]]}],
+ done:[
+  {t:'Slice #636 · PR #637',w:0,files:[
+   ['apps/platform/modules/billing/__tests__/services/assert-access.test.ts',70,5],
+   ['apps/platform/modules/billing/services/assert-access.ts',8,6],
+   ['docs/021-access-control.md',2,0]]},
+  {t:'Slice #641 · PR #645',w:0,files:[
+   ['apps/platform/modules/billing/routes/subscription.ts',34,2],
+   ['apps/platform/modules/billing/services/plan.ts',18,7],
+   ['package.json',1,1]]}]
+};
+let cur='run',narrow=false;
+const sum=(fs,i)=>fs.reduce((a,f)=>a+f[i],0);
+const ext=p=>{const n=p.split('/').pop();if(/\.(test|spec)\./.test(n)||p.includes('__tests__'))return'test';const e=n.split('.').pop();return({ts:'ts',tsx:'tsx',md:'md',json:'json',css:'css',yaml:'lock'})[e]||'md'};
+const ic=p=>{const k=ext(p);return `<span class="f-ic ${k}">${({test:'T',lock:'L'})[k]||k.slice(0,2).toUpperCase()}</span>`};
+const split=p=>{const i=p.lastIndexOf('/')+1;return[p.slice(0,i),p.slice(i)]};
+const sq=(a,r)=>{const t=a+r||1,na=Math.round(a/t*5),nr=Math.round(r/t*5);const k=Math.min(5,na+nr);return `<span class="f-sq">${Array.from({length:5},(_,i)=>`<i class="${i<na?'a':i<na+nr&&i<k?'r':''}"></i>`).join('')}</span>`};
+const num=(a,r)=>`<span class="f-n"><span class="f-a">+${a}</span> <span class="f-r">−${r}</span></span>`;
+const also=f=>f[3]?`<span class="f-also">⚠ also in ${f[3].join(', ')}</span>`:'';
+const tag=s=>`<span class="f-tag ${s.w?'w':'m'}">${s.w?'not merged yet':'merged'}</span>`;
+const all=()=>D[cur].flatMap(s=>s.files);
+const totals=()=>({n:new Set(all().map(f=>f[0])).size,a:sum(all(),1),r:sum(all(),2)});
+const shut=s=>s.w?'':'shut';
+const sec=(s,inner,cls='')=>`<div class="${cls} ${shut(s)}" data-sec>${inner}</div>`;
+
+const A=()=>{const T=totals();return `<div class="A-sum"><span class="A-pill"><b>${T.n}</b> files</span><span class="A-pill"><b class="f-a">+${T.a}</b></span><span class="A-pill"><b class="f-r">−${T.r}</b></span><div class="f-bar" style="width:110px;margin-left:4px"><i class="a" style="width:${T.a/(T.a+T.r)*100}%"></i><i class="r" style="width:${T.r/(T.a+T.r)*100}%"></i></div></div>`+
+ D[cur].map(s=>sec(s,`<div class="A-h f-head"><span class="f-chev">▸</span><div class="t"><b>${s.t}</b><span>${s.files.length} files · <span class="f-a">+${sum(s.files,1)}</span> <span class="f-r">−${sum(s.files,2)}</span></span></div>${tag(s)}</div><div class="f-body">${s.files.map(f=>{const[d,n]=split(f[0]);return `<div class="A-f">${ic(f[0])}<div class="p"><span class="f-nm f-ellip" style="display:block">${n}</span><small class="f-dir f-ellip" style="display:block">${d}${f[3]?` &nbsp;${also(f)}`:''}</small></div>${sq(f[1],f[2])}${num(f[1],f[2])}</div>`}).join('')}</div>`,'A-card')).join('')};
+
+const B=()=>{const T=totals();return `<div class="A-sum"><span class="A-pill"><b>${T.n}</b> files</span><span class="A-pill"><b class="f-a">+${T.a}</b> <b class="f-r">−${T.r}</b></span></div>`+
+ D[cur].map(s=>{const by={};s.files.forEach(f=>{const d=split(f[0])[0]||'(root)';(by[d]=by[d]||[]).push(f)});
+  return sec(s,`<div class="A-h f-head"><span class="f-chev">▸</span><div class="t"><b>${s.t}</b><span>${s.files.length} files · <span class="f-a">+${sum(s.files,1)}</span> <span class="f-r">−${sum(s.files,2)}</span></span></div>${tag(s)}</div><div class="f-body" style="padding-bottom:6px">${Object.entries(by).map(([d,fs])=>`<div class="B-dir"><span>📁</span><span class="f-ellip">${d.replace(/\/$/,'')}</span></div>${fs.map(f=>`<div class="B-f">${ic(f[0])}<span class="f-nm f-ellip">${split(f[0])[1]}</span>${also(f)}${num(f[1],f[2])}</div>`).join('')}`).join('')}</div>`,'A-card')}).join('')};
+
+const C=()=>{const rows=D[cur].flatMap(s=>s.files.map(f=>({s,f})));const T=totals();return `<div class="C-tb"><span class="A-pill"><b>${T.n}</b> files</span><span class="A-pill"><b class="f-a">+${T.a}</b> <b class="f-r">−${T.r}</b></span><span class="sp"></span><span class="glass sm">Group by session</span><span class="glass sm pri">Flat</span></div>
+ <div class="A-card" style="padding:4px 4px 6px"><table class="C-t"><tr><th></th><th>File</th><th>Session</th><th class="n" style="text-align:right">Change</th></tr>`+
+ rows.map(({s,f})=>{const[d,n]=split(f[0]);return `<tr><td style="width:26px">${ic(f[0])}</td><td style="max-width:0;width:50%"><span class="f-nm f-ellip" style="display:block">${n}</span><span class="f-dir f-ellip" style="display:block;font-size:11px">${d}</span></td><td><span class="f-tag ses">${s.t.split(' · ')[0]}</span>${f[3]?`<br>${also(f)}`:''}</td><td class="n">${sq(f[1],f[2])} ${num(f[1],f[2])}</td></tr>`}).join('')+`</table></div>`};
+
+const Dd=()=>{const T=totals();const mx=Math.max(...all().map(f=>f[1]+f[2]));return `<div style="display:flex;gap:10px;align-items:baseline"><b style="font-size:15px">${T.n} files</b><span class="f-n"><span class="f-a">+${T.a}</span> <span class="f-r">−${T.r}</span></span></div>`+
+ D[cur].map(s=>sec(s,`<div class="D-h f-head"><span class="f-chev">▸</span><b>${s.t}</b>${tag(s)}<span style="flex:1"></span><span class="f-n"><span class="f-a">+${sum(s.files,1)}</span> <span class="f-r">−${sum(s.files,2)}</span></span></div><div class="f-body">${s.files.map(f=>{const[d,n]=split(f[0]);const w=(f[1]+f[2])/mx*100;return `<div class="D-f">${ic(f[0])}<span class="f-ellip"><span class="f-dir">${d}</span><span class="f-nm">${n}</span> ${also(f)}</span><div class="f-bar" style="width:${Math.max(w,8)}%"><i class="a" style="width:${f[1]/(f[1]+f[2]||1)*100}%"></i><i class="r" style="width:${f[2]/(f[1]+f[2]||1)*100}%"></i></div><span class="num f-n"><span class="f-a">+${f[1]}</span> <span class="f-r">−${f[2]}</span></span></div>`}).join('')}</div>`,'D-sec')).join('')};
+
+const cat=p=>{const k=ext(p);return k=='test'?'Tests':(k=='md'?'Docs':(k=='lock'||k=='json'?'Config':'Source'))};
+const E=()=>{const T=totals();const order=['Source','Tests','Docs','Config'];const groups=order.map(c=>[c,all().filter(f=>cat(f[0])==c)]).filter(g=>g[1].length);
+ return `<div class="A-sum"><span class="A-pill"><b>${T.n}</b> files</span>${groups.map(([c,fs])=>`<span class="A-pill">${c} <b>${fs.length}</b></span>`).join('')}</div>`+
+ `<div class="A-card" style="padding-bottom:6px">${groups.map(([c,fs])=>`<div class="E-g"><span>${c}</span><span class="x"></span><span class="f-n" style="text-transform:none;letter-spacing:0"><span class="f-a">+${sum(fs,1)}</span> <span class="f-r">−${sum(fs,2)}</span></span></div>${fs.map(f=>{const[d,n]=split(f[0]);return `<div class="E-f">${ic(f[0])}<span class="f-nm f-ellip">${n}<span class="f-dir" style="font-weight:400"> ${d.split('/').slice(-3,-1).join('/')}</span></span>${also(f)}<span class="f-tag ses" title="session">${(D[cur].find(s=>s.files.includes(f))||{t:''}).t.split(' · ')[0].replace('Slice ','#')}</span>${num(f[1],f[2])}</div>`}).join('')}`).join('')}</div>`};
+
+const OPTS=[
+ ['A · Cards with name over directory and a mini diffstat','Summary as pills and a green/red bar. Each session is a card with a "merged / not merged yet" tag. Rows are two lines: the name in normal weight, the directory under it in faint; five squares say how big and in which direction the change is, like GitHub.',A],
+ ['B · Grouped by directory inside each session','The directory is said once as a heading and the files under it show only their name. Best when a session touches many files in the same folders; costs a line per folder.',B],
+ ['C · One flat table, session as a column','All the files of the epic in one list, with the session as a chip. Good to answer "what did this epic touch", poor to answer "what did this session do". A real version would sort by column.',C],
+ ['D · Quiet, no cards: git diffstat style','Sections are headings with a hairline, not boxes. Each file has a bar proportional to the biggest change of the epic, so the heavy files jump out. The lightest on chrome.',Dd],
+ ['E · Grouped by kind: source, tests, docs, config','Ignores sessions for the grouping (the session is a small chip) and answers "is there a test for this?" at a glance, using the category the app already derives from the file name.',E]
+];
+function draw(){document.getElementById('o').style.setProperty('--w',narrow?'380px':'600px');
+ document.getElementById('o').innerHTML=OPTS.map(([h,p,f])=>`<div class="f-opt"><h3>${h}</h3><p>${p}</p><div class="f-win">${f()}</div></div>`).join('')}
+document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{cur=b.dataset.s;document.querySelectorAll('[data-s]').forEach(x=>x.classList.toggle('on',x==b));draw()});
+document.querySelector('[data-w]').onclick=e=>{narrow=!narrow;e.target.classList.toggle('on',narrow);draw()};
+document.getElementById('o').onclick=e=>{const h=e.target.closest('.f-head');if(h)h.closest('[data-sec]').classList.toggle('shut')};
+document.getElementById('lt').onclick=()=>document.body.classList.toggle('light');
+draw();
+</script></body></html>

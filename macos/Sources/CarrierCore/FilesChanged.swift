@@ -96,11 +96,16 @@ public struct FilesChangedModel: Equatable {
     public var removed: Int
 
     public var isEmpty: Bool { fileCount == 0 }
+}
 
-    /// "18 files · +640 −120". No test count: it has no source.
-    public var summary: String {
-        "\(fileCount) \(fileCount == 1 ? "file" : "files") · +\(added) −\(removed)"
-    }
+/// How many of five squares are green and how many red for a change of `added` and `removed` lines, as GitHub draws them: in
+/// proportion, with at least one of each when both are above zero; none at all for no change.
+public func diffSquares(added: Int, removed: Int) -> (green: Int, red: Int) {
+    guard added + removed > 0 else { return (0, 0) }
+    guard removed > 0 else { return (5, 0) }
+    guard added > 0 else { return (0, 5) }
+    let green = min(4, max(1, Int((5 * Double(added) / Double(added + removed)).rounded())))
+    return (green, 5 - green)
 }
 
 public func filesChangedModel(_ reply: FilesReply?) -> FilesChangedModel {

@@ -3,10 +3,10 @@ import SwiftUI
 import Testing
 @testable import Carrier
 
-private func section(_ state: SessionSection.State, counts: String? = "8 tool calls · 2 edits +42 −8 · 1 test run · 2 errors") -> SessionSection {
+private func section(_ state: SessionSection.State, counts: SessionCounts? = SessionCounts(calls: 8, edits: 2, added: 42, removed: 8, tests: 1, errors: 2)) -> SessionSection {
     SessionSection(
         id: "a", state: state, agent: "Claude", initial: "C", role: "Fixer", place: "Round 2", counts: counts,
-        countRuns: counts.map { [CountRun(text: $0, tone: .plain)] } ?? [], timeLabel: state == .stopped ? nil : "3m 05s", openByDefault: true
+        timeLabel: state == .stopped ? nil : "3m 05s", openByDefault: true
     )
 }
 

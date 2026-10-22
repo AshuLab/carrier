@@ -37,14 +37,33 @@ struct SidebarView: View {
         .listStyle(.sidebar)
         .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 320)
         .safeAreaInset(edge: .bottom) {
-            VStack(alignment: .leading, spacing: 2) {
-                Button { selection = .settings } label: { Label("Settings", systemImage: "gearshape") }
-                Button(action: onAbout) { Label("About", systemImage: "info.circle") }
+            VStack(spacing: 2) {
+                SidebarFooterRow(title: "Settings", icon: "gearshape", selected: selection == .settings) { selection = .settings }
+                SidebarFooterRow(title: "About", icon: "info.circle", selected: false, action: onAbout)
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 10)
         }
+    }
+}
+
+/// A row of the sidebar's foot, drawn like a list row: padded, with the whole width as its target and a fill when chosen or hovered.
+private struct SidebarFooterRow: View {
+    let title: String
+    let icon: String
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8).fill(.primary.opacity(selected ? 0.12 : hovered ? 0.06 : 0)))
+                .contentShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovered = $0 }
     }
 }
 

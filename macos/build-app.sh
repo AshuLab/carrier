@@ -22,6 +22,8 @@ cp .build/release/Carrier "$APP/Contents/MacOS/"
 # the golden files `--fixture` serves
 mkdir -p "$APP/Contents/Resources"
 cp -R Tests/Fixtures "$APP/Contents/Resources/Fixtures"
+# SwiftPM's resource bundle of CarrierCore: the file icons and the licence text that goes with them
+cp -R .build/release/Carrier_CarrierCore.bundle "$APP/Contents/Resources/"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -36,6 +38,12 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>LSUIElement</key><true/>
 </dict></plist>
 PLIST
+# the icons and their licence must be in the app: every icon of the source folder, and the upstream MIT text
+ICONS="$APP/Contents/Resources/Carrier_CarrierCore.bundle/Contents/Resources/FileIcons"
+for svg in Sources/CarrierCore/Resources/FileIcons/*.svg; do
+  [ -f "$ICONS/$(basename "$svg")" ] || { echo "error: $APP lacks the icon $(basename "$svg")" >&2; exit 1; }
+done
+grep -q "Permission is hereby granted" "$ICONS/LICENSE" || { echo "error: $APP lacks the Material Icon Theme licence text" >&2; exit 1; }
 codesign --force --sign - "$APP"
 echo "built $APP"
 if [ "${1:-}" = "--open" ]; then open "$APP"; fi

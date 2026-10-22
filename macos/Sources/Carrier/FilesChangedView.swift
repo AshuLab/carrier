@@ -63,12 +63,36 @@ private struct FileSectionView: View {
     }
 }
 
+/// The file's icon: a bundled SVG, or the category's symbol. The images are read once.
+struct FileIconView: View {
+    let icon: FileIcon
+    @MainActor private static var images: [URL: NSImage] = [:]
+
+    var body: some View {
+        switch icon {
+        case .bundled(_, let url):
+            if let image = Self.image(url) {
+                Image(nsImage: image).resizable().scaledToFit().frame(width: 16, height: 16)
+            }
+        case .symbol(let name):
+            Image(systemName: name).foregroundStyle(.secondary)
+        }
+    }
+
+    @MainActor private static func image(_ url: URL) -> NSImage? {
+        if let known = images[url] { return known }
+        guard let image = NSImage(contentsOf: url) else { return nil }
+        images[url] = image
+        return image
+    }
+}
+
 struct FileRowView: View {
     let row: FileRow
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: row.category.symbol).foregroundStyle(.secondary).frame(width: 18)
+            FileIconView(icon: row.icon).frame(width: 18)
             PathText(directory: row.directory, name: row.name)
             if row.alsoIn.isEmpty == false {
                 Text("⚠ also in \(row.alsoIn.joined(separator: ", "))").font(.caption).foregroundStyle(.orange)

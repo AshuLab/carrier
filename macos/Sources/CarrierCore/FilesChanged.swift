@@ -68,6 +68,7 @@ public struct FileRow: Equatable {
     public var directory: String
     public var name: String
     public var category: FileCategory
+    public var icon: FileIcon
     public var added: Int
     public var removed: Int
     /// The titles of the other working sections that edit this file too, when this section is working as well.
@@ -116,6 +117,7 @@ public func filesChangedModel(_ reply: FilesReply?) -> FilesChangedModel {
                 directory: String(file.path[..<slash]),
                 name: String(file.path[slash...]),
                 category: fileCategory(file.path),
+                icon: fileIcon(file.path),
                 added: file.added,
                 removed: file.removed,
                 alsoIn: isWorking ? file.alsoIn.filter { working.contains($0) }.map { titles[$0] ?? $0 } : []

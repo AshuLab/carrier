@@ -1,0 +1,8 @@
+Material Icon Theme, https://github.com/material-extensions/vscode-material-icon-theme
+Licence: MIT (see LICENSE, the upstream text unchanged).
+Pinned release: npm package material-icon-theme 5.39.0, published with SLSA provenance.
+Tarball: https://registry.npmjs.org/material-icon-theme/-/material-icon-theme-5.39.0.tgz
+Integrity: sha512-6dUQXJgNBlklaILIOlCZXhSBTsBmLkt11XMoTY7Uyb4ZikelGgZHOY4AdOWBA+SXz51cVWfOVnTHrTwGM91eYw==
+Files: the SVGs below, copied unchanged from the package's icons/ folder. LICENSE is the package's LICENSE.
+To refresh: download the tarball, check the integrity above (or the new one from the npm registry), copy the SVGs
+that fileIconNames in FileIcons.swift names, and update this file and THIRD-PARTY-NOTICES.md.

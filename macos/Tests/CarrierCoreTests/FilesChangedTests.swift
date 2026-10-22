@@ -60,6 +60,7 @@ private func section(_ id: String, _ kind: String, _ files: [FilesReply.File]) -
     #expect(model.summary == "3 files · +115 −22")
     let row = model.sections[0].files[0]
     #expect((row.directory, row.name, row.category) == ("src/", "a.ts", .code))
+    #expect(row.icon == fileIcon("src/a.ts"))
 }
 
 @Test func aFileAtTheRootHasNoDirectory() {

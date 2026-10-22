@@ -4,6 +4,8 @@ import SwiftUI
 
 struct PanelView: View {
     let model: PanelModel
+    /// The right panel's width: also the empty toolbar item that keeps the epic's buttons off it.
+    private static let inspectorWidth: CGFloat = 316
 
     private var snapshot: PanelSnapshot? {
         if case .running(let snapshot)? = model.state { return snapshot }
@@ -88,14 +90,20 @@ struct PanelView: View {
                         StoppedView(state: model.state, selection: $shell.selection)
                     }
                 }
-                // only an epic has something to inspect; Overview and Settings are a single column
-                if let epic, shell.inspectorShown {
-                    Divider()
+                // only an epic has something to inspect; Overview and Settings are a single column. The panel runs up behind the
+                // title bar, like the sidebar on the other side. It stays in the tree and the width of its slot goes between 0 and its own,
+                // the panel anchored to the slot's left edge so it leaves through the window's right one; a view that came and went with
+                // a transition would not move like the sidebar does
+                if let epic {
                     let data = model.epics.data[EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)]
-                    InspectorTabsView(subject: epic.subject, reply: data?.epic, sessions: data?.sessions)
-                        .frame(width: 316)
-                        .background(.background.secondary)
-                        .transition(.move(edge: .trailing))
+                    HStack(spacing: 0) {
+                        Divider().ignoresSafeArea(.container, edges: .top)
+                        InspectorTabsView(subject: epic.subject, reply: data?.epic, sessions: data?.sessions)
+                            .frame(width: Self.inspectorWidth)
+                            .background(.background.secondary, ignoresSafeAreaEdges: .all)
+                    }
+                    .frame(width: shell.inspectorShown ? Self.inspectorWidth + 1 : 0, alignment: .leading)
+                    .allowsHitTesting(shell.inspectorShown)
                 }
             }
             .navigationTitle(title)
@@ -105,6 +113,20 @@ struct PanelView: View {
             ToolbarItem(placement: .navigation) {
                 Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemImage: "sidebar.leading") }
                     .help("Show or hide the sidebar")
+            }
+            if let epic {
+                ToolbarItem(placement: .primaryAction) { EpicLinks(prURL: epic.header.prURL, issueURL: epic.header.issueURL) }
+                ToolbarSpacer(.fixed, placement: .primaryAction)
+                ToolbarItem(placement: .primaryAction) {
+                    Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                        .help("Show or hide the inspector")
+                }
+                if shell.inspectorShown {
+                    // The toolbar is the window's, so its right end is over the panel, which runs up behind the title bar. An empty item
+                    // as wide as the panel at that end keeps the buttons on the centre's side of it.
+                    ToolbarItem(placement: .primaryAction) { Color.clear.frame(width: Self.inspectorWidth, height: 1) }
+                        .sharedBackgroundVisibility(.hidden)
+                }
             }
             if let snapshot, shell.selection == .overview {
                 // two pills: the check against GitHub, then what governs Carrier itself (intake and stopping)
@@ -124,21 +146,13 @@ struct PanelView: View {
                     .help("Stop Carrier")
                 }
             }
-            if let epic {
-                ToolbarItem(placement: .primaryAction) { EpicLinks(prURL: epic.header.prURL, issueURL: epic.header.issueURL) }
-                ToolbarSpacer(.fixed, placement: .primaryAction)
-                ToolbarItem(placement: .primaryAction) {
-                    Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", systemImage: "sidebar.trailing") }
-                        .help("Show or hide the inspector")
-                }
-            }
         }
         .overlay {
             if shell.aboutShown {
                 AboutSheetView(state: model.state, onInput: shell.aboutInput)
             }
         }
-        .frame(minWidth: 980, minHeight: 600)
+        .frame(minWidth: 1100, minHeight: 600)
         .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
     }
 }

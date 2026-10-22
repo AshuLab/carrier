@@ -25,7 +25,7 @@ final class WindowController: NSObject, NSWindowDelegate {
     static let shared = WindowController()
 
     /// The smallest the window can be resized to. The hosting controller does not enforce it (see `makeWindow`), the delegate does.
-    static let minContent = NSSize(width: 980, height: 600)
+    static let minContent = NSSize(width: 1100, height: 600)
 
     private let model = PanelModel()
     private var window: NSWindow?

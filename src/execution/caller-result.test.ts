@@ -59,3 +59,30 @@ test.each([
 ])('a well-formed result with another %s is a mismatch, not invalid', (_name, value) => {
   expect(parse(value)).toMatchObject({ ok: false, kind: 'mismatch' });
 });
+
+// --- stable blocker ids and `resolved` (both optional) ---
+const withIds = { ...changes, blockers: [{ id: 'token-expiry', title: 'Token expiry' }, { title: 'No id here' }], resolved: ['old-one'] };
+
+test.each([withIds, { ...changes, resolved: [] }, { ...completed, resolved: ['old-one'] }])('accepts ids and resolved, and keeps them', (value) => {
+  expect(parse(value)).toEqual({ ok: true, result: value });
+});
+
+test('a result without ids or resolved still validates (old results)', () => {
+  expect(parse(changes)).toMatchObject({ ok: true });
+  expect(parse(completed)).toMatchObject({ ok: true });
+});
+
+test.each([
+  ['a numeric blocker id', { ...changes, blockers: [{ id: 7, title: 'x' }] }],
+  ['an empty blocker id', { ...changes, blockers: [{ id: '', title: 'x' }] }],
+  ['a very long id', { ...changes, blockers: [{ id: 'a'.repeat(65), title: 'x' }] }],
+  ['resolved that is not a list', { ...changes, resolved: 'a' }],
+  ['resolved with a number', { ...changes, resolved: [1] }],
+  ['duplicate blocker ids in a round', { ...changes, blockers: [{ id: 'a', title: 'x' }, { id: 'a', title: 'y' }] }],
+  ['duplicate resolved ids', { ...changes, resolved: ['a', 'a'] }],
+  ['a resolved id that is still a blocker', { ...changes, blockers: [{ id: 'a', title: 'x' }], resolved: ['a'] }],
+  ['an oversize blocker list', { ...changes, blockers: Array.from({ length: 51 }, (_, i) => ({ id: `b${i}`, title: 'x' })) }],
+  ['an oversize resolved list', { ...completed, resolved: Array.from({ length: 51 }, (_, i) => `r${i}`) }],
+])('rejects %s', (_name, value) => {
+  expect(parse(value)).toMatchObject({ ok: false, kind: 'invalid' });
+});

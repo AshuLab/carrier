@@ -15,7 +15,8 @@ export function resultContract(task: AgentTask, pr: { number: number; headSha: s
     stage: 'review',
     outcome: 'changes_requested',
     pr,
-    blockers: [{ title: '<blocker>', url: `https://github.com/${repo}/pull/${pr.number}#discussion_r123` }],
+    blockers: [{ id: '<stable-id>', title: '<blocker>', url: `https://github.com/${repo}/pull/${pr.number}#discussion_r123` }],
+    resolved: ['<id of an earlier blocker that is now fixed>'],
   };
   const needsHuman: CallerResult = { ...common, outcome: 'needs_human', reason: '<why a person has to step in>' };
   const examples = reviewing

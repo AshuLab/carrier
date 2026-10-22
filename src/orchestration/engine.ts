@@ -178,7 +178,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       ...(resumeSession && { resumeSession }),
       context: {
         previousSummaries: reviewing || rebuild ? previousSummaries(epic.id) : [],
-        ...(stage === 'fix' && { blockers: latestBlockers(db, epic.id) }),
+        ...((stage === 'fix' || (reviewing && (epic.round ?? 0) > 1)) && { blockers: latestBlockers(db, epic.id) }),
         ...(retryOf && { verifyStateFirst: true }),
         ...(pr && { pr }),
         ...(epic.round && { round: epic.round }),

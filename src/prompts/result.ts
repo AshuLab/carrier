@@ -9,7 +9,13 @@ export function resultContract(task: AgentTask, pr: { number: number; headSha: s
   const reviewing = stage === 'review';
   const common = { executionId, repo, epic, stage, summary: '<what you did and concluded, in a few lines>' };
 
-  const completed = (evidence: string): CallerResult => ({ ...common, outcome: 'completed', pr, verification: { ci: 'passed', evidence } });
+  const completed = (evidence: string): CallerResult => ({
+    ...common,
+    outcome: 'completed',
+    pr,
+    verification: { ci: 'passed', evidence },
+    ...(reviewing && { observations: [{ id: '<stable-id>', title: '<non-blocking finding>', url: `https://github.com/${repo}/pull/${pr.number}#discussion_r456` }] }),
+  });
   const changesRequested: CallerResult = {
     ...common,
     stage: 'review',

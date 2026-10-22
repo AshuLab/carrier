@@ -69,6 +69,7 @@ test('review prompt', () => {
     Review PR #7, round 2. First confirm the PR head is aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; if it is not, return needs_human.
     Invoke /code-review against the epic's spec and tickets, checking that earlier findings were fixed and nothing regressed, then publish the findings with /code-post.
     Give every blocker you return a short stable id (for example "token-expiry"), so a later round can say whether it persists or was fixed.
+    Findings that do not stop approval (what you would post as a nitpick or a suggestion) are observations: list them in "observations" of a completed result, each with a title, a link when you have one, and a short stable id by the same rule as blockers (reuse it when the finding persists; never reuse an id for a different finding). Leave the field out when there are none.
     Return changes_requested with the blockers if there are any. Return completed only if the review is conclusive, there are no blockers and the repo's verifications are confirmed on that same commit. If the review is inconclusive (missing context, cannot verify), return needs_human.
     Before finishing, write exactly one JSON object to /r/exec-1.json. That path is also in the environment variable CARRIER_RESULT_PATH: write to "$CARRIER_RESULT_PATH" instead of retyping it, because a path with one segment missing is a result nobody reads. Repeat executionId, repo, epic and stage as given. Allowed outputs:
     \`\`\`json
@@ -86,7 +87,14 @@ test('review prompt', () => {
       "verification": {
         "ci": "passed",
         "evidence": "<which verifications you confirmed on this commit>"
-      }
+      },
+      "observations": [
+        {
+          "id": "<stable-id>",
+          "title": "<non-blocking finding>",
+          "url": "https://github.com/AshuLab/carrier/pull/7#discussion_r456"
+        }
+      ]
     }
     \`\`\`
     \`\`\`json
@@ -208,4 +216,13 @@ test('the review prompt carries the previous blockers from round two and none in
   expect(round2).toContain('Blockers of the previous round (id and title):\n- token-expiry: Token expiry is not checked\n- (no id): No test');
   expect(round2).toContain('reuse its id');
   expect(round2).toContain('"resolved"');
+});
+
+test('the review prompt asks for observations with the stable-id rule and its example shows the field; other stages do not', () => {
+  const review = buildPrompt(task('review'));
+  expect(review).toContain('nitpick or a suggestion');
+  expect(review).toContain('"observations"');
+  expect(review).toContain('never reuse an id for a different finding');
+  expect(review).toMatch(/"outcome": "completed"[\s\S]*?"observations": \[/);
+  for (const stage of ['ship', 'fix'] as const) expect(buildPrompt(task(stage))).not.toContain('observations');
 });

@@ -6,6 +6,7 @@ import type { AgentRunner } from '../../execution/agent-runner.ts';
 import { GitWorkspaces, profileToken, type GitWorkspacesOptions } from '../../execution/git-workspaces.ts';
 import type { Workspaces } from '../../execution/workspaces.ts';
 import { epicOf } from '../../control/epic.ts';
+import { eventsOf, lastEventOf } from '../../control/events.ts';
 import { filesOf } from '../../control/files.ts';
 import { sessionsOf } from '../../control/sessions.ts';
 import { startControlServer, version } from '../../control/server.ts';
@@ -141,6 +142,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
       version,
       pollIntervalMs: config.pollIntervalMinutes * 60_000,
       watched: watchedOf(repos, engine.lastCheck),
+      lastEvent: (executionId) => lastEventOf(db, executionId),
     });
   const controls = {
     poll: () => engine.pollNow(),
@@ -149,6 +151,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     quit: deps.quit,
     logs: (id: string, count: number) => tailExecution(config.root, id, count),
     sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, deps.sessionDirs),
+    events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
     epic: (repo: string, issue: number) => epicOf(db, repo, issue),
     files: (repo: string, issue: number, executionId?: string) => filesOf(db, config.root, repo, issue, executionId),
   };

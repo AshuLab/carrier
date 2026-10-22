@@ -3,7 +3,7 @@ import { createServer, type Socket } from 'node:net';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
-import type { EpicReply, FilesReply, SessionsReply } from './replies.ts';
+import type { EpicReply, EventsReply, FilesReply, SessionsReply } from './replies.ts';
 
 const log = createScopedLogger('control');
 
@@ -48,6 +48,8 @@ export type Controls = {
   logs(executionId: string, count: number): string[];
   /** null for an epic the engine does not know. */
   sessions(repo: string, issue: number): SessionsReply | null;
+  /** null for an execution the engine does not know. */
+  events(executionId: string, after: number, limit: number): EventsReply | null;
   /** null for an epic the engine does not know. */
   epic(repo: string, issue: number): EpicReply | null;
   /** null for an epic the engine does not know. */
@@ -109,8 +111,16 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       return { id: replyId, ok: false, error: 'internal error' };
     }
   }
-  // ponytail: validated but unanswered until its slice adds the capability and the handler
-  if (parsed.data.cmd === 'events') return { id: parsed.data.id, ok: false, error: 'not supported' };
+  if (parsed.data.cmd === 'events') {
+    const { id: replyId, executionId, after, limit } = parsed.data;
+    try {
+      const reply = controls.events(executionId, after ?? 0, limit);
+      return reply === null ? { id: replyId, ok: false, error: 'unknown execution' } : { id: replyId, ok: true, data: reply };
+    } catch (error) {
+      log.error('events failed', error);
+      return { id: replyId, ok: false, error: 'internal error' };
+    }
+  }
   if (parsed.data.cmd !== 'stop') return control(parsed.data, controls);
   stopAfterReply();
   return { id: parsed.data.id, ok: true };
@@ -129,7 +139,7 @@ export async function startControlServer({ orchestratorDir, snapshot, startedAt,
     return { close: () => {} };
   }
   const sockets = new Set<Socket>();
-  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'epic', 'files'] };
+  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files'] };
   const send = (socket: Socket, message: Hello | Reply, written?: () => void) => void socket.write(`${JSON.stringify(message)}\n`, written);
 
   const server = createServer((socket) => {

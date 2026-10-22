@@ -86,3 +86,22 @@ test.each([
 ])('rejects %s', (_name, value) => {
   expect(parse(value)).toMatchObject({ ok: false, kind: 'invalid' });
 });
+
+// --- observations (completed only, optional) ---
+const obs = { ...completed, observations: [{ id: 'naming', title: 'Rename x', url: 'https://github.com/AshuLab/carrier/pull/7#discussion_r1' }, { title: 'No id, no url' }] };
+
+test.each([obs, { ...completed, observations: [] }])('accepts a completed result with observations, or an empty list, and keeps them', (value) => {
+  expect(parse(value)).toEqual({ ok: true, result: value });
+});
+
+test.each([
+  ['a duplicate observation id', { ...completed, observations: [{ id: 'a', title: 'x' }, { id: 'a', title: 'y' }] }],
+  ['an oversize observation list', { ...completed, observations: Array.from({ length: 51 }, (_, i) => ({ id: `o${i}`, title: 'x' })) }],
+  ['an empty observation title', { ...completed, observations: [{ title: '' }] }],
+  ['an observation without a title', { ...completed, observations: [{ id: 'a' }] }],
+  ['a bad observation url', { ...completed, observations: [{ title: 'x', url: 'not a url' }] }],
+  ['a numeric observation id', { ...completed, observations: [{ id: 7, title: 'x' }] }],
+  ['observations that is not a list', { ...completed, observations: 'x' }],
+])('rejects %s', (_name, value) => {
+  expect(parse(value)).toMatchObject({ ok: false, kind: 'invalid' });
+});

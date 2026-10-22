@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { createEventState, type AgentEvent } from '../execution/events.ts';
 import { claudeAdapter } from '../harnesses/claude.ts';
+import { codexAdapter } from '../harnesses/codex.ts';
 import { replayEvents } from '../harnesses/replay-events.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { recordEvents } from '../storage/events.ts';
@@ -45,12 +46,14 @@ const epicId = (db_: Db) => db_.insert(epics).values({ repo: 'AshuLab/a', issue:
 const run = '00000000-0000-4000-8000-000000000001';
 const other = '00000000-0000-4000-8000-000000000002';
 const codexRun = '00000000-0000-4000-8000-000000000003';
+const agyRun = '00000000-0000-4000-8000-000000000004';
 function seed() {
   const id = epicId(db);
   const base = { epicId: id, resultPath: '/r.json', startedAt: 1000 };
   db.insert(executions).values({ ...base, executionId: run, stage: 'ship', status: 'running' }).run();
   db.insert(executions).values({ ...base, executionId: other, stage: 'ship', status: 'finished' }).run();
   db.insert(executions).values({ ...base, executionId: codexRun, stage: 'review', status: 'finished' }).run();
+  db.insert(executions).values({ ...base, executionId: agyRun, stage: 'review', status: 'finished', harness: 'agy', model: 'm', provider: null }).run();
 }
 
 async function ask(request: object) {
@@ -106,8 +109,32 @@ test('an unknown execution is an error', async () => {
 
 test('a harness with no parser yet answers structured:false and no events, even if rows exist', async () => {
   seed();
-  recordEvents(db, codexRun, [say(1)], 0);
-  expect((await ask({ id: 1, cmd: 'events', executionId: codexRun, limit: 5 })).data).toEqual({ events: [], next: 0, running: false, structured: false });
+  recordEvents(db, agyRun, [say(1)], 0);
+  expect((await ask({ id: 1, cmd: 'events', executionId: agyRun, limit: 5 })).data).toEqual({ events: [], next: 0, running: false, structured: false });
+});
+
+test('a Codex execution answers structured events, stamped with their arrival', async () => {
+  seed();
+  const log = readFileSync(new URL('../harnesses/codex-exec.fixture.jsonl', import.meta.url), 'utf8');
+  const state = createEventState();
+  for (const line of log.trimEnd().split('\n')) recordEvents(db, codexRun, codexAdapter.parseEvents!(line, state), 700);
+  const { data } = await ask({ id: 1, cmd: 'events', executionId: codexRun, limit: 200 });
+  expect(data).toMatchObject({ next: 12, running: false, structured: true });
+  expect(data!.events.map((e) => [e.kind, e.tool, e.callId, e.at])).toEqual([
+    ['note', undefined, undefined, 700],
+    ['note', undefined, undefined, 700],
+    ['say', undefined, undefined, 700],
+    ['tool_start', 'shell', 'item_3', 700],
+    ['tool_end', 'shell', 'item_3', 700],
+    ['tool_start', 'shell', 'item_4', 700],
+    ['tool_end', 'shell', 'item_4', 700],
+    ['tool_start', 'shell', 'item_5', 700],
+    ['tool_end', 'shell', 'item_5', 700],
+    ['tool_start', 'Edit', 'item_6', 700],
+    ['tool_end', 'Edit', 'item_6', 700],
+    ['say', undefined, undefined, 700],
+  ]);
+  expect(data!.events[8]).toMatchObject({ status: 'err', summary: 'Exit code 1', output: ['ls: /no/such/dir: No such file or directory'] });
 });
 
 test('the wire shape is the golden file: every field of every kind, and nothing else', async () => {

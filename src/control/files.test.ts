@@ -140,6 +140,27 @@ test('sections come from git: two lanes with uncommitted work, three merged slic
   expect(filesOf(db, root, 'AshuLab/a', 1, '00000000-0000-4000-8000-ffffffffffff')!.sections).toEqual([]);
 });
 
+test('a file two working lanes touch names the other lane; a merged slice is never named; a rename counts as the old path leaving and the new one arriving', () => {
+  slice(101, 201, { 'shared.ts': lines(12, 'shared') }); // merged before the lanes fork
+  const first = lane(1, 'feat/x/104-d');
+  const second = lane(2, 'feat/x/105-e');
+  const third = lane(3, 'feat/x/106-f');
+  epicRow();
+  // lane 1 renames base.ts and edits shared.ts; lane 2 edits the old name and shared.ts; lane 3 edits only the new name
+  git(first, 'mv', 'base.ts', 'renamed.ts');
+  writeFileSync(join(first, 'shared.ts'), lines(14, 'shared'));
+  writeFileSync(join(second, 'base.ts'), lines(11, 'base'));
+  writeFileSync(join(second, 'shared.ts'), lines(13, 'shared'));
+  writeFileSync(join(third, 'renamed.ts'), lines(2, 'other'));
+
+  const sections = Object.fromEntries(filesOf(db, root, 'AshuLab/a', 1)!.sections.map((s) => [s.id, s]));
+  const also = (section: string) => Object.fromEntries(sections[section]!.files.map((f) => [f.path, f.alsoIn]));
+  expect(also('lane-1')).toEqual({ 'base.ts': ['lane-2'], 'renamed.ts': ['lane-3'], 'shared.ts': ['lane-2'] });
+  expect(also('lane-2')).toEqual({ 'base.ts': ['lane-1'], 'shared.ts': ['lane-1'] });
+  expect(also('lane-3')).toEqual({ 'renamed.ts': ['lane-1'] });
+  expect(also('slice-101')).toEqual({ 'shared.ts': [] }); // merged work is never flagged, and never named in a lane
+});
+
 test('an unknown epic is null; a missing, unset or foreign worktree gives no sections and no error', () => {
   expect(filesOf(db, root, 'AshuLab/a', 1)).toBeNull();
   const empty = { sections: [], total: null, truncated: false };

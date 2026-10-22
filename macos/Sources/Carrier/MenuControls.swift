@@ -55,7 +55,7 @@ final class MenuControls: NSObject, NSMenuItemValidation {
 
     @objc private func stopCarrier() {
         guard case .running(let snapshot) = state else { return }
-        if snapshot.stopNeedsConfirmation {
+        if asksBeforeStopping(snapshot, switchOn: UserDefaults.standard.object(forKey: confirmStopKey) as? Bool ?? true) {
             guard confirmStop(interrupting: snapshot.runningEpics) else { return }
         }
         sendInBackground(.stop)

@@ -28,6 +28,10 @@ struct SettingsScreen: View {
                     }
                     .padding(.horizontal, 14)
                     .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+                } else if tab == .notifications {
+                    NotificationsTabView()
+                } else if tab == .general {
+                    GeneralTabView(setup: setup)
                 } else {
                     Text("Coming soon").foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 120)
                 }

@@ -394,8 +394,9 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   // The final PR was merged or the epic issue / final PR closed without merge: the epic stops and its
   // executions too. Sessions and history stay; the label follows (labelPending) and the slot is free.
+  // Parked epics (needs_human, ready_for_test) end the same way: a person merges or closes outside Carrier.
   async function stopEnded() {
-    for (const epic of db.select().from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
+    for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, repos.map((r) => r.name)))).orderBy(asc(epics.id)).all()) {
       const end = await endOf(github, epic);
       if (!end) continue;
       db.update(epics)

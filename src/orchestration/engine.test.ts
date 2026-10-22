@@ -1165,6 +1165,22 @@ test('a merged final PR stops the running executions and leaves the epic merged,
   expect(labelsOf(1)).toEqual([]); // running removed, nothing added
 });
 
+test.each(['ready_for_test', 'needs_human'] as const)('a %s epic whose final PR is merged or whose issue is closed ends too', async (parked) => {
+  const engine = await reviewingHung();
+  engine.db.update(epics).set({ status: parked }).where(eq(epics.issue, 1)).run();
+  pull(50, { state: 'merged' });
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'merged', labelPending: false });
+
+  engine.db.update(epics).set({ status: parked, cancelReason: null }).where(eq(epics.issue, 1)).run();
+  pull(50, { state: 'open' });
+  github.issue('AshuLab/a', 1).state = 'closed';
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'cancelled', cancelReason: 'the epic issue was closed without merging' });
+});
+
 test('a final PR closed without merge cancels the epic with the reason and stops its executions', async () => {
   const engine = await reviewingHung();
   pull(50, { state: 'closed' });

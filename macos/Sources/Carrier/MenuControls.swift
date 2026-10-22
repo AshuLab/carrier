@@ -3,32 +3,44 @@ import CarrierCore
 
 /// The menu's controls: pause or resume intake, check GitHub now, stop Carrier. All on the main thread, except the
 /// sending, which blocks on the socket and so runs on a queue of its own.
+/// The symbol beside a menu item, in `color` when it has one. macOS 27 hides menu item images unless each item asks to show its own.
+func showIcon(_ symbol: String, on item: NSMenuItem, color: NSColor? = nil) {
+    let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+    item.image = color.map { image?.withSymbolConfiguration(.init(paletteColors: [$0])) } ?? image
+    if #available(macOS 27.0, *) { item.preferredImageVisibility = .visible }
+}
+
 final class MenuControls: NSObject, NSMenuItemValidation {
     static let shared = MenuControls()
 
     private let socketPath = controlSocketPath()
     private let pauseItem = NSMenuItem(title: "Pause intake", action: #selector(pauseOrResume), keyEquivalent: "")
+    private let checkItem = NSMenuItem(title: "Check GitHub now", action: #selector(checkNow), keyEquivalent: "")
+    private let stopItem = NSMenuItem(title: "Stop Carrier", action: #selector(stopCarrier), keyEquivalent: "")
     private let startMenuItem = NSMenuItem(title: "Start Carrier", action: #selector(startCarrier), keyEquivalent: "")
     private var state = ConnectionState.stopped
     private var wasPausedAtSelfTest = false
     private var reviewTabCheck = CheckThrottle()
 
-    /// Puts the four items right after `line`.
-    func install(in menu: NSMenu, after line: NSMenuItem) {
-        let checkItem = NSMenuItem(title: "Check GitHub now", action: #selector(checkNow), keyEquivalent: "")
-        let stopItem = NSMenuItem(title: "Stop Carrier", action: #selector(stopCarrier), keyEquivalent: "")
-        var index = menu.index(of: line)
-        for item in [startMenuItem, pauseItem, checkItem, stopItem] {
+    /// Adds the four items at the end of `menu`; `react` shows the ones that make sense.
+    func install(in menu: NSMenu) {
+        for (item, symbol) in [(startMenuItem, "play.fill"), (pauseItem, "pause.fill"), (checkItem, "arrow.clockwise"), (stopItem, "stop.fill")] {
             item.target = self
-            index += 1
-            menu.insertItem(item, at: index)
+            showIcon(symbol, on: item)
+            menu.addItem(item)
         }
+        react(to: state)
     }
 
-    /// The latest state of Carrier: the pause item says what clicking it would do.
+    /// The latest state of Carrier: Start shows while it is not running, the other three while it is, and the pause item says
+    /// what clicking it would do.
     func react(to state: ConnectionState) {
         self.state = state
+        let running = isRunning
+        startMenuItem.isHidden = running
+        for item in [pauseItem, checkItem, stopItem] { item.isHidden = running == false }
         pauseItem.title = paused ? "Resume intake" : "Pause intake"
+        showIcon(paused ? "play.fill" : "pause.fill", on: pauseItem)
     }
 
     /// Enabled only while Carrier is running and compatible; a stopped or incompatible one has nothing to listen.
@@ -39,6 +51,11 @@ final class MenuControls: NSObject, NSMenuItemValidation {
             item.title = start.title
             return start.enabled
         }
+        if case .running = state { return true }
+        return false
+    }
+
+    private var isRunning: Bool {
         if case .running = state { return true }
         return false
     }

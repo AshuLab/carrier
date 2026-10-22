@@ -121,10 +121,56 @@ public struct SessionSection: Equatable, Identifiable {
     public var openByDefault: Bool
     /// What Continue in Terminal resumes; nil for a running session, whatever the engine sent (ADR 0007).
     public var resume: ResumeDescriptor?
+    /// What the agent reported when it ended; nil when no result was imported.
+    public var result: ResultCard?
     /// What shows under the header when it is open.
     public var body: TranscriptBody = .items([])
     /// The subagents of the session, each with its own activity; read-only, the resume above covers the whole session.
     public var lanes: [LaneSection] = []
+}
+
+// MARK: result
+
+/// The closing card of a session: how it ended, the agent's own account and what it checked.
+public struct ResultCard: Equatable {
+    public enum Tone: Equatable { case good, warning, stop }
+
+    /// "Completed", "Changes requested", "Needs a human".
+    public var outcome: String
+    public var tone: Tone
+    public var summary: String
+    /// "CI passed: <evidence>"; nil when the result has no verification.
+    public var ci: String?
+    /// Why the agent stopped; nil unless the outcome is needs_human.
+    public var reason: String?
+}
+
+public func resultCard(_ result: SessionResult?) -> ResultCard? {
+    guard let result else { return nil }
+    let outcome: (String, ResultCard.Tone) = switch result.outcome {
+    case "completed": ("Completed", .good)
+    case "changes_requested": ("Changes requested", .warning)
+    case "needs_human": ("Needs a human", .stop)
+    default: (result.outcome.replacingOccurrences(of: "_", with: " ").capitalized, .warning) // a value added later still shows
+    }
+    return ResultCard(
+        outcome: outcome.0, tone: outcome.1, summary: result.summary,
+        ci: result.verification.map { "CI \($0.ci): \($0.evidence)" },
+        reason: result.outcome == "needs_human" ? result.reason : nil
+    )
+}
+
+/// The text with each web address in it as a link; only http and https survive `browserURL`.
+public func linkedText(_ text: String) -> AttributedString {
+    var linked = AttributedString(text)
+    let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+    for match in detector?.matches(in: text, range: NSRange(text.startIndex..., in: text)) ?? [] {
+        guard let url = match.url, let link = browserURL(url.absoluteString), let range = Range(match.range, in: text),
+              let start = AttributedString.Index(range.lowerBound, within: linked), let end = AttributedString.Index(range.upperBound, within: linked)
+        else { continue }
+        linked[start..<end].link = link
+    }
+    return linked
 }
 
 public struct SessionList: Equatable {
@@ -175,6 +221,7 @@ public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcrip
             timeLabel: time,
             openByDefault: state != .done || index == 0,
             resume: state == .running ? nil : session.resume,
+            result: resultCard(session.result),
             body: transcriptBody(transcript),
             lanes: transcript?.structured == true ? transcript?.laneSections ?? [] : []
         )

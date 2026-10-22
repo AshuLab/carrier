@@ -18,14 +18,19 @@ const codex = { harness: 'codex', model: 'gpt-5', provider: 'ollama' } as const;
 test('the sessions reply equals reply-sessions.json', () => {
   const sessions: SessionsReply = {
     sessions: [
-      { executionId: '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c', stage: 'fix', role: 'author', round: 2, agent: claude, status: 'running', startedAt: 90_000, finishedAt: null, resume: null },
+      { executionId: '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c', stage: 'fix', role: 'author', round: 2, agent: claude, status: 'running', startedAt: 90_000, finishedAt: null, resume: null, result: null },
       {
         executionId: '9a7d1c52-0b3e-4f6a-8d2c-1e5f7a9b3c4d', stage: 'review', role: 'reviewer', round: 2, agent: codex, status: 'finished', startedAt: 60_000, finishedAt: 85_000,
         resume: { harness: 'codex', sessionId: 'a1b2c3d4-0001-4000-8000-000000000002', cwd: '/work/acme/web-epic' },
+        result: {
+          outcome: 'completed', summary: 'Round 2 review of PR #12: no blockers. Review posted at https://github.com/acme/web-epic/pull/12#pullrequestreview-1.',
+          verification: { ci: 'passed', evidence: 'CI run concluded success on the head commit.' }, reason: null,
+        },
       },
       {
         executionId: '5c0e8a14-7d2b-4a93-b6f1-2d8c4e6a0b97', stage: 'ship', role: 'author', round: null, agent: claude, status: 'failed', startedAt: 1_000, finishedAt: 39_000,
         resume: { harness: 'claude', sessionId: '91d4be02-6a35-4c1e-9b7f-3e5a7c9d1f20', cwd: '/work/acme/web-epic', configDir: '/Users/dev/.claude-work' },
+        result: { outcome: 'needs_human', summary: 'Stopped before opening a pull request.', verification: null, reason: 'The ticket asks for a migration the schema forbids; which of the two wins?' },
       },
     ],
   };

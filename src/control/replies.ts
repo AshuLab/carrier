@@ -28,6 +28,17 @@ export type ExecEvent = {
 /** What it takes to continue a session in a terminal; validated by the app before it builds a command (ADR 0007). */
 export type ResumeDescriptor = { harness: PanelAgent['harness']; sessionId: string; cwd: string; configDir?: string };
 
+/** What the agent reported when its execution ended (the imported result), redacted and cut. */
+export type SessionResult = {
+  outcome: 'completed' | 'changes_requested' | 'needs_human';
+  /** At most 1500 characters. */
+  summary: string;
+  /** Only a completed result has one; the evidence is at most 600 characters. */
+  verification: { ci: 'passed' | 'absent'; evidence: string } | null;
+  /** needs_human only, at most 600 characters. */
+  reason: string | null;
+};
+
 export type SessionsReply = {
   /** Newest first. */
   sessions: {
@@ -41,6 +52,8 @@ export type SessionsReply = {
     finishedAt: number | null;
     /** null while the session runs: the engine owns it. */
     resume: ResumeDescriptor | null;
+    /** null while no result was imported (a running execution included). */
+    result: SessionResult | null;
   }[];
 };
 

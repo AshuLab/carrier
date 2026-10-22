@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { openDatabase, type Db } from '../storage/db.ts';
+import { executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { epics, epicStates } from '../storage/schema.ts';
 import { FakeClock } from './fake.ts';
@@ -61,6 +62,15 @@ test('keeps everything of queued, running, needs_human and repo_removed epics, h
   seed('nofinish', 'cancelled', null);
   purgeExpired(db, dir, now, dirs);
   for (const name of ['queued', 'running', 'needs_human', 'repo_removed', 'nofinish']) expect(kept(name)).toBe(true);
+});
+
+test('deletes the stored events with the logs they were read from, and only those', () => {
+  const now = 100 * DAY;
+  seed('old', 'merged', 0);
+  seed('recent', 'merged', now);
+  for (const name of ['old', 'recent']) db.insert(executionEvents).values({ executionId: `x-${name}`, at: 1, kind: 'say' }).run();
+  purgeExpired(db, dir, now, dirs);
+  expect(db.select().from(executionEvents).all().map((e) => e.executionId)).toEqual(['x-recent']);
 });
 
 test('keeps the interrupted executions of a running epic', () => {

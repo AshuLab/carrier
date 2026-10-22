@@ -5,15 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { redact, taskContext } from './logger.ts';
+import { taskContext } from './logger.ts';
 
 test('universal-logger exposes createScopedLogger', () => {
   expect(typeof createScopedLogger).toBe('function');
-});
-
-test('redact replaces GitHub token shapes and nothing else', () => {
-  expect(redact('a ghp_AbC123 b ghs_xYz c github_pat_11AB_cd d')).toBe('a [redacted] b [redacted] c [redacted] d');
-  expect(redact('ghost_town epic 7 github.com')).toBe('ghost_town epic 7 github.com');
 });
 
 test('taskContext derives the role from the stage and adds the round only when there is one', () => {

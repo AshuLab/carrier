@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { promisify } from 'node:util';
 import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
+import { createEventState, type AgentEvent } from '../execution/events.ts';
 import { claudeAdapter } from './claude.ts';
 import { agyAdapter } from './agy.ts';
 import { codexAdapter } from './codex.ts';
@@ -75,6 +76,7 @@ export class HostAgentRunner implements AgentRunner {
   run(task: AgentTask): AgentRun {
     const sessions: ((id: string) => void)[] = [];
     const outputs: ((stream: 'stdout' | 'stderr', chunk: string) => void)[] = [];
+    const eventSinks: ((events: AgentEvent[]) => void)[] = [];
     let sessionId: string | undefined;
     let reason: 'stopped' | 'timed_out' | undefined;
     let pid: number | undefined;
@@ -112,7 +114,11 @@ export class HostAgentRunner implements AgentRunner {
 
       let authFailed = false;
       let sessionLost = false;
-      const readLine = (line: string) => {
+      const eventState = createEventState();
+      // The events of the lines of one chunk, to be reported together; only stdout carries the stream.
+      let batch: AgentEvent[] = [];
+      const readLine = (line: string, stream: 'stdout' | 'stderr') => {
+        if (stream === 'stdout') batch.push(...(adapter.parseEvents?.(line, eventState) ?? []));
         const signalOfLine = adapter.parseLine(line);
         if (signalOfLine?.session && !sessionId) {
           sessionId = signalOfLine.session;
@@ -120,6 +126,9 @@ export class HostAgentRunner implements AgentRunner {
         }
         authFailed ||= signalOfLine?.authFailed === true;
         sessionLost ||= signalOfLine?.sessionUnavailable === true;
+      };
+      const reportEvents = () => {
+        if (batch.length > 0) eventSinks.forEach((cb) => cb(batch));
       };
       // Some errors (Codex's lost session) only show on stderr, so both streams go through the adapter.
       const lineReader = (stream: 'stdout' | 'stderr') => {
@@ -129,10 +138,15 @@ export class HostAgentRunner implements AgentRunner {
             emit(stream, chunk);
             const lines = (pending + chunk).split('\n');
             pending = lines.pop()!;
-            lines.forEach(readLine);
+            batch = [];
+            lines.forEach((line) => readLine(line, stream));
+            reportEvents();
           },
           flush: () => {
-            if (pending) readLine(pending);
+            if (!pending) return;
+            batch = [];
+            readLine(pending, stream);
+            reportEvents();
           },
         };
       };
@@ -168,6 +182,7 @@ export class HostAgentRunner implements AgentRunner {
         if (sessionId) cb(sessionId);
       },
       onOutput: (cb) => void outputs.push(cb),
+      onEvent: (cb) => void eventSinks.push(cb),
       done,
       stop: async () => {
         reason ??= 'stopped';

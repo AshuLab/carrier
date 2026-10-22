@@ -8,43 +8,46 @@ struct CarrierBoxView: View {
     var body: some View {
         let box = carrierBox(snapshot)
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label(box.title, systemImage: "circle.fill").foregroundStyle(.green).font(.headline)
-                Text(box.uptime).foregroundStyle(.secondary)
-            }
-            if let problem = box.problem {
-                Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
-            }
-            ForEach(box.rows, id: \.label) { row in
-                KeyValue(label: row.label) { Text(row.value).monospacedDigit() }
-            }
-            KeyValue(label: "Intake") {
-                HStack(spacing: 8) {
-                    Text(box.intake.value)
-                    Button(box.intake.actionTitle) { Self.send(box.intake.command) }.buttonStyle(.link)
-                }
-            }
-        }
-        .card()
-        if box.repoCount > 0 {
-            VStack(alignment: .leading, spacing: 8) {
+            OverviewTitle(title: "Carrier")
+            OverviewCard {
                 HStack {
-                    Text("Watched repositories").font(.headline)
-                    Text("\(box.repoCount)").foregroundStyle(.secondary)
+                    Label(box.title, systemImage: "circle.fill").labelStyle(StatusPillStyle()).font(.caption.weight(.semibold))
+                    Spacer()
+                    Text(box.uptime).font(.caption.monospaced()).foregroundStyle(.secondary)
                 }
-                ForEach(box.repos, id: \.name) { repo in
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack {
-                            Image(systemName: "circle.fill").font(.system(size: 7)).foregroundStyle(repo.ok ? Color.green : Color.red)
-                            Text(repo.name)
-                            Spacer()
-                            Text(repo.lastCheck).foregroundStyle(.secondary)
-                        }
-                        if let error = repo.error { Text(error).font(.caption).foregroundStyle(.red) }
+                .padding(.vertical, 11)
+                if let problem = box.problem {
+                    Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange).padding(.vertical, 8)
+                }
+                ForEach(box.rows, id: \.label) { row in
+                    KeyValue(label: row.label) { Text(row.value).fontWeight(.semibold).monospacedDigit() }
+                }
+                KeyValue(label: "Intake") {
+                    HStack(spacing: 8) {
+                        Text(box.intake.value).fontWeight(.semibold)
+                        Button(box.intake.actionTitle) { Self.send(box.intake.command) }.buttonStyle(.link)
                     }
                 }
             }
-            .card()
+        }
+        if box.repoCount > 0 {
+            VStack(alignment: .leading, spacing: 8) {
+                OverviewTitle(title: "Watched repositories", detail: "\(box.repoCount)")
+                OverviewCard {
+                    ForEach(box.repos, id: \.name) { repo in
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "circle.fill").font(.system(size: 7)).foregroundStyle(repo.ok ? Color.green : Color.red)
+                                Text(repo.name).fontWeight(.medium)
+                                Spacer()
+                                Text(repo.lastCheck).font(.caption.monospaced()).foregroundStyle(.secondary)
+                            }
+                            if let error = repo.error { Text(error).font(.caption).foregroundStyle(.red) }
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+            }
         }
     }
 
@@ -69,13 +72,19 @@ private struct KeyValue<Value: View>: View {
             value
         }
         .font(.callout)
+        .padding(.vertical, 8)
     }
 }
 
-private extension View {
-    func card() -> some View {
-        padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.08)))
+/// The green pill that says Carrier is running: a dot and the text on a tinted capsule.
+private struct StatusPillStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 5) {
+            configuration.icon.font(.system(size: 6))
+            configuration.title
+        }
+        .foregroundStyle(.green)
+        .padding(.horizontal, 9).padding(.vertical, 3)
+        .background(Capsule().fill(Color.green.opacity(0.18)))
     }
 }

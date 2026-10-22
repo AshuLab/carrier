@@ -46,6 +46,11 @@ public func uptimeLine(_ snapshot: PanelSnapshot) -> String { "up \(formatDurati
 
 public func reposLine(_ repos: Int) -> String { "watching \(repos) \(repos == 1 ? "repo" : "repos")" }
 
+/// The Overview's toolbar subtitle: "5 repos · up 22m · next check in 3m".
+public func overviewSubtitle(_ snapshot: PanelSnapshot, repos: Int) -> String {
+    ["\(repos) \(repos == 1 ? "repo" : "repos")", uptimeLine(snapshot), nextCheckLine(snapshot)].joined(separator: " · ")
+}
+
 public func nextCheckLine(_ snapshot: PanelSnapshot) -> String {
     guard let at = snapshot.nextCheckAt else { return "starting" }
     return at <= snapshot.now ? "checking now" : "next check in \(formatDuration(at - snapshot.now))"

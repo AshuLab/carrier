@@ -9,39 +9,43 @@ struct RunningView: View {
     var body: some View {
         let section = runningSection(snapshot)
         VStack(alignment: .leading, spacing: 8) {
-            Text("RUNNING").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            OverviewTitle(title: "Running", detail: "\(snapshot.slots.busy) of \(snapshot.slots.total) in use")
             if section.cards.isEmpty {
-                EmptyStateView(state: .idle).frame(height: 170)
+                OverviewCard { EmptyStateView(state: .idle).frame(height: 170) }
             } else {
                 ForEach(section.cards.indices, id: \.self) { card(section.cards[$0]) }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(section.room.title).fontWeight(.semibold)
                     Text(section.room.line).font(.caption).foregroundStyle(.secondary)
                 }
-                .padding(12)
+                .padding(.horizontal, 14).padding(.vertical, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
+                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
             }
         }
     }
 
+    /// One epic: its line and progress on top, a row for each of its agents under it.
     private func card(_ card: RunningCard) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(card.title).font(.headline)
-                Text(card.subtitle).font(.caption).foregroundStyle(.secondary)
+        OverviewCard {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(card.title).fontWeight(.semibold)
+                    Text(card.progressLine).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 8)
+                if let progress = card.progress {
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text("\(Int((progress * 100).rounded()))%").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        ProgressView(value: progress).tint(.green).frame(width: 90)
+                    }
+                }
             }
-            HStack(spacing: 8) {
-                if let progress = card.progress { ProgressView(value: progress).frame(maxWidth: 220) }
-                Text(card.progressLine).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-            }
+            .padding(.vertical, 11)
+            .contentShape(Rectangle())
+            .onTapGesture { selection = card.selection }
             ForEach(card.agents.indices, id: \.self) { agent(card.agents[$0]) }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.08)))
-        .contentShape(Rectangle())
-        .onTapGesture { selection = card.selection }
     }
 
     private func agent(_ row: AgentRow) -> some View {
@@ -49,11 +53,12 @@ struct RunningView: View {
             RunningAvatar(initial: row.initial, running: row.running)
             VStack(alignment: .leading, spacing: 1) {
                 Text([row.agent, row.role, row.round].compactMap { $0 }.joined(separator: " · ")).fontWeight(.medium)
-                Text(row.action).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(row.action).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 8)
-            Text(row.since).font(.caption).foregroundStyle(.secondary)
+            Text(row.since).font(.caption.monospaced()).foregroundStyle(.secondary)
         }
+        .padding(.vertical, 8).padding(.leading, 14)
     }
 }
 

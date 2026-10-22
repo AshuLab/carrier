@@ -32,6 +32,24 @@ struct PanelView: View {
         return epicFocus(ref, running: running, data: model.epics.data[ref], folds: model.epics.folds)
     }
 
+    /// The toolbar's title and the line under it, as in the mockup: each screen says what it is.
+    private var title: String {
+        if let epic { return "\(epic.subject.repo.split(separator: "/").last ?? "") #\(epic.subject.issue)" }
+        switch model.shell.selection {
+        case .overview where snapshot != nil: return "Overview"
+        case .settings: return "Settings"
+        default: return "Carrier"
+        }
+    }
+
+    private var subtitle: String {
+        switch model.shell.selection {
+        case .overview: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
+        case .settings: "what the app starts Carrier with"
+        case .epic: ""
+        }
+    }
+
     var body: some View {
         @Bindable var shell = model.shell
         @Bindable var epics = model.epics
@@ -60,7 +78,7 @@ struct PanelView: View {
                     SettingsScreen()
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 21) {
                             switch model.state {
                             case nil:
                                 Text("Connecting…").foregroundStyle(.secondary)
@@ -77,7 +95,8 @@ struct PanelView: View {
                     }
                 }
             }
-            .navigationTitle(epic.map { "\($0.subject.repo.split(separator: "/").last ?? "") #\($0.subject.issue)" } ?? "Carrier")
+            .navigationTitle(title)
+            .navigationSubtitle(subtitle)
             .inspector(isPresented: inspector) {
                 InspectorTabsView(subject: epic?.subject, reply: epic.flatMap { model.epics.data[EpicRef(repo: $0.subject.repo, issue: $0.subject.issue)]?.epic })
                     .inspectorColumnWidth(min: 280, ideal: 316, max: 400)
@@ -88,13 +107,20 @@ struct PanelView: View {
                 Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemImage: "sidebar.leading") }
                     .help("Show or hide the sidebar")
             }
+            if let snapshot, shell.selection == .overview {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button { MenuControls.shared.pauseOrResume() } label: {
+                        Label(snapshot.paused ? "Resume" : "Pause", systemImage: snapshot.paused ? "play.fill" : "pause.fill")
+                    }
+                    Button { MenuControls.shared.checkNow() } label: { Label("Check now", systemImage: "arrow.clockwise") }
+                    Button { MenuControls.shared.stopCarrier() } label: { Label("Stop", systemImage: "stop.fill") }.tint(.red)
+                }
+            }
             if let epic {
                 ToolbarItemGroup(placement: .primaryAction) {
                     OpenLinkButton(title: "Open PR", url: epic.header.prURL)
                     OpenLinkButton(title: "Open issue", url: epic.header.issueURL)
                 }
-            }
-            if epic != nil {
                 ToolbarItem(placement: .primaryAction) {
                     Button { shell.toggleInspector() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
                         .help("Show or hide the inspector")
@@ -134,25 +160,16 @@ private struct Overview: View {
 
     var body: some View {
         YourTurnView(snapshot: snapshot, selection: $selection)
-        CarrierBoxView(snapshot: snapshot)
         RunningView(snapshot: snapshot, selection: $selection)
         if snapshot.queue.isEmpty == false {
-            PanelSection(title: "Queue \(snapshot.queue.count)") {
-                ForEach(snapshot.queue, id: \.key) { Text("\($0.repo) #\($0.issue)") }
+            VStack(alignment: .leading, spacing: 8) {
+                OverviewTitle(title: "Up next", detail: "\(snapshot.queue.count)")
+                OverviewCard {
+                    ForEach(snapshot.queue, id: \.key) { Text("\($0.repo) #\($0.issue)").padding(.vertical, 8) }
+                }
             }
         }
-    }
-}
-
-private struct PanelSection<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased()).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            content
-        }
+        CarrierBoxView(snapshot: snapshot)
     }
 }
 

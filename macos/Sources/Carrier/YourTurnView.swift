@@ -10,19 +10,15 @@ struct YourTurnView: View {
     var body: some View {
         let items = yourTurn(snapshot)
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Your turn").font(.headline)
-                if items.isEmpty == false { Text("\(items.count) \(items.count == 1 ? "item" : "items")").foregroundStyle(.secondary) }
-            }
-            if items.isEmpty {
-                EmptyStateView(state: .nothingNeedsYou).frame(height: 170)
-            } else {
-                ForEach(items.indices, id: \.self) { row(items[$0]) }
+            OverviewTitle(title: "Your turn", detail: items.isEmpty ? nil : "\(items.count) \(items.count == 1 ? "item" : "items")")
+            OverviewCard {
+                if items.isEmpty {
+                    EmptyStateView(state: .nothingNeedsYou).frame(height: 170)
+                } else {
+                    ForEach(items.indices, id: \.self) { row(items[$0]) }
+                }
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.08)))
     }
 
     private func row(_ item: YourTurnItem) -> some View {
@@ -40,6 +36,7 @@ struct YourTurnView: View {
             OpenLink(title: "Open issue", url: item.issueLink)
             OpenLink(title: "Open PR", url: item.prLink)
         }
+        .padding(.vertical, 11)
         .contentShape(Rectangle())
         .onTapGesture { if let target = item.selection { selection = target } }
     }
@@ -52,7 +49,7 @@ private struct OpenLink: View {
 
     var body: some View {
         if let url {
-            Button(title) { NSWorkspace.shared.open(url) }.buttonStyle(.glass).controlSize(.small)
+            Button(title) { NSWorkspace.shared.open(url) }.buttonStyle(.bordered).controlSize(.small)
         }
     }
 }

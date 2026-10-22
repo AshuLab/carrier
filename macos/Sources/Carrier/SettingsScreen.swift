@@ -39,7 +39,6 @@ struct SettingsScreen: View {
             .frame(maxWidth: 720, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .top)
         }
-        .navigationTitle("Settings")
     }
 }
 

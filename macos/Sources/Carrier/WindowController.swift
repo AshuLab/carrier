@@ -21,8 +21,11 @@ private final class StopFlag {
 
 /// The window: a plain NSWindow kept for the life of the app, with the SwiftUI panel inside. It has its own monitor of
 /// Carrier, started when the window opens and stopped when it closes, so a closed window costs nothing.
-final class WindowController: NSObject {
+final class WindowController: NSObject, NSWindowDelegate {
     static let shared = WindowController()
+
+    /// The smallest the window can be resized to. The hosting controller does not enforce it (see `makeWindow`), the delegate does.
+    static let minContent = NSSize(width: 980, height: 600)
 
     private let model = PanelModel()
     private var window: NSWindow?
@@ -65,7 +68,7 @@ final class WindowController: NSObject {
     /// makes one in the centre column), the toolbar's items, how the transcript is laid out and the time to merge 5,000 events.
     var structure: String {
         guard let window else { return "no window" }
-        var lines = ["min content size: \(Int(window.contentMinSize.width)) x \(Int(window.contentMinSize.height))"]
+        var lines = ["min content size: \(Int(Self.minContent.width)) x \(Int(Self.minContent.height))"]
         func walk(_ view: NSView) {
             if let split = view as? NSSplitView {
                 // the sidebar and the detail, then the detail and the inspector: the inspector is a split of its own inside the detail
@@ -94,15 +97,23 @@ final class WindowController: NSObject {
         let host = NSHostingController(rootView: PanelView(model: model))
         // the split view's title and toolbar (the sidebar toggle) go to the window
         host.sceneBridgingOptions = .all
+        // the content does not size the window: following its minimum size loops in layout when the inspector comes and goes
+        host.sizingOptions = []
         let window = NSWindow(contentViewController: host)
         window.title = "Carrier"
         // full size content: the sidebar runs up behind the title bar, as Liquid Glass sidebars do
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.isReleasedWhenClosed = false
+        window.delegate = self
         window.setContentSize(NSSize(width: 1100, height: 700))
         window.center()
         NotificationCenter.default.addObserver(self, selector: #selector(windowClosed), name: NSWindow.willCloseNotification, object: window)
         return window
+    }
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        let least = sender.frameRect(forContentRect: NSRect(origin: .zero, size: Self.minContent)).size
+        return NSSize(width: max(frameSize.width, least.width), height: max(frameSize.height, least.height))
     }
 
     @objc private func windowClosed() {

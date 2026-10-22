@@ -49,6 +49,8 @@ private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(content
     #expect(reposLine(snapshot.repos) == "watching 2 repos")
     #expect(reposLine(1) == "watching 1 repo")
     #expect(nextCheckLine(snapshot) == "next check in 1m 00s")
+    #expect(overviewSubtitle(snapshot, repos: 5) == "5 repos · up 1m 00s · next check in 1m 00s")
+    #expect(overviewSubtitle(snapshot, repos: 1).hasPrefix("1 repo ·"))
     snapshot.nextCheckAt = snapshot.now
     #expect(nextCheckLine(snapshot) == "checking now")
     snapshot.nextCheckAt = nil

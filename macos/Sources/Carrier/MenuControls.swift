@@ -49,11 +49,11 @@ final class MenuControls: NSObject, NSMenuItemValidation {
 
     @objc private func startCarrier() { StartController.shared.start() }
 
-    @objc private func pauseOrResume() { sendInBackground(paused ? .resume : .pause) }
+    @objc func pauseOrResume() { sendInBackground(paused ? .resume : .pause) }
 
-    @objc private func checkNow() { sendInBackground(.checkNow) }
+    @objc func checkNow() { sendInBackground(.checkNow) }
 
-    @objc private func stopCarrier() {
+    @objc func stopCarrier() {
         guard case .running(let snapshot) = state else { return }
         if asksBeforeStopping(snapshot, switchOn: UserDefaults.standard.object(forKey: confirmStopKey) as? Bool ?? true) {
             guard confirmStop(interrupting: snapshot.runningEpics) else { return }

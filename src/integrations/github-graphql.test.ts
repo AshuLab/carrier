@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { epicSlicesResponse, failingCheckResponse, pullRequestResponse, sliceOf } from './github-graphql.ts';
+import { epicSlicesResponse, failingCheckResponse, pullRequestOf, pullRequestResponse, sliceOf } from './github-graphql.ts';
 
 // Recorded from the Forge bot token (docs/research/macos-app-github-graphql.md), private text replaced.
 const fixture = (name: string): unknown => JSON.parse(readFileSync(new URL(`./github-graphql-fixtures/${name}.json`, import.meta.url), 'utf8'));
@@ -53,5 +53,20 @@ describe('recorded GraphQL answers', () => {
     expect(issue.subIssues.nodes).toHaveLength(100);
     expect(issue.subIssues.pageInfo.hasNextPage).toBe(true);
     expect(issue.subIssuesSummary.total).toBe(130);
+  });
+
+  test('the pull request block counts the checks, null when there are none, and carries the draft, merge state and review decision', () => {
+    const block = (name: string) => pullRequestOf(pullRequestResponse.parse(fixture(name)));
+    expect(block('pr-checks-passing').checks).toEqual({ passing: 18, failing: 0, pending: 0 });
+    expect(block('pr-no-checks').checks).toBeNull(); // not pending
+    expect(block('pr-checks-failing')).toEqual({
+      number: 14035,
+      url: 'https://github.com/example-owner/example-repo/pull/14035',
+      draft: true,
+      mergeState: 'DIRTY',
+      reviewDecision: 'REVIEW_REQUIRED',
+      checks: { passing: 10, failing: 1, pending: 0 },
+    });
+    expect(block('pr-checks-passing')).toMatchObject({ draft: false });
   });
 });

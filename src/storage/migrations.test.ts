@@ -23,7 +23,7 @@ test('applies the Drizzle Kit migration to a temp SQLite file and reads a row ba
 
   db.insert(epics).values({ repo: 'AshuLab/carrier', issue: 3 }).run();
 
-  expect(db.select().from(epics).all()).toEqual([{ id: 1, repo: 'AshuLab/carrier', issue: 3, status: 'queued', queuedAt: 0, startedAt: null, config: null, cancelReason: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null, lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, reviewedSha: null, verification: null, needsHumanReason: null, needsHumanKind: null, title: null, labels: null, branch: null, removedFrom: null, removedReason: null, finishedAt: null }]);
+  expect(db.select().from(epics).all()).toEqual([{ id: 1, repo: 'AshuLab/carrier', issue: 3, status: 'queued', queuedAt: 0, startedAt: null, config: null, cancelReason: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null, lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, needsHumanReason: null, needsHumanKind: null, title: null, labels: null, branch: null, removedFrom: null, removedReason: null, finishedAt: null }]);
   sqlite.close();
 });
 

@@ -8,6 +8,8 @@ import { FakeAgentRunner, FakeWorkspaces } from '../execution/fake.ts';
 import { createEngine } from '../orchestration/engine.ts';
 import { FakeClock, FakeGitHub } from '../orchestration/fake.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
+import { eq } from 'drizzle-orm';
+import { epics } from '../storage/schema.ts';
 import { epicOf } from './epic.ts';
 import { startControlServer } from './server.ts';
 
@@ -90,4 +92,24 @@ test('an epic whose slices were never read answers an empty list that is not par
   await clock.advance(5 * MIN);
   engine.stop();
   expect((await askEpic()).data).toMatchObject({ slices: [], slicesTruncated: false });
+});
+
+test('the epic reply carries the pull request block, null while the epic has none', async () => {
+  const github = new FakeGitHub();
+  const clock = new FakeClock();
+  const runner = new FakeAgentRunner();
+  runner.behavior = () => ({ exit: 'stopped' });
+  github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }] };
+  const pr = { number: 50, url: 'https://github.com/AshuLab/a/pull/50', draft: true, mergeState: 'DIRTY', reviewDecision: 'REVIEW_REQUIRED', checks: { passing: 10, failing: 1, pending: 0 } };
+  github.pullRequestBlocks['AshuLab/a#50'] = pr;
+  const engine = createEngine({ db, github, clock, repos, pollIntervalMs: 5 * MIN, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, runner, workspaces: new FakeWorkspaces(), root: dir });
+  await engine.start();
+  await clock.advance(5 * MIN); // reserved, in ship
+  expect((await askEpic()).data.pr).toBeNull();
+  expect(github.pullRequestReads).toEqual([]);
+
+  db.update(epics).set({ prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  await clock.advance(5 * MIN);
+  engine.stop();
+  expect((await askEpic()).data.pr).toEqual(pr);
 });

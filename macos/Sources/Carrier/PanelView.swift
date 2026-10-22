@@ -4,6 +4,8 @@ import SwiftUI
 
 struct PanelView: View {
     let model: PanelModel
+    /// The last Check now pressed from the toolbar, for the button to say it is checking.
+    @State private var checkAsked: CheckAsked?
     /// The right panel's width: also the empty toolbar item that keeps the epic's buttons off it.
     private static let inspectorWidth: CGFloat = 316
 
@@ -131,8 +133,18 @@ struct PanelView: View {
             if let snapshot, shell.selection == .overview {
                 // two pills: the check against GitHub, then what governs Carrier itself (intake and stopping)
                 ToolbarItem(placement: .primaryAction) {
-                    Button { MenuControls.shared.checkNow() } label: { Label("Check now", systemImage: "arrow.clockwise").labelStyle(.titleAndIcon) }
-                        .help("Check GitHub now")
+                    // the engine polls on its own after the answer: the button says so until the next check is scheduled again
+                    let checking = isChecking(snapshot, asked: checkAsked, now: Date())
+                    Button {
+                        checkAsked = CheckAsked(at: Date(), nextCheckAt: snapshot.nextCheckAt)
+                        MenuControls.shared.checkNow()
+                    } label: {
+                        Label(checking ? "Checking…" : "Check now", systemImage: "arrow.clockwise")
+                            .symbolEffect(.rotate, options: .repeating, isActive: checking)
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .disabled(checking)
+                    .help(checking ? "Checking GitHub…" : "Check GitHub now")
                 }
                 ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItemGroup(placement: .primaryAction) {

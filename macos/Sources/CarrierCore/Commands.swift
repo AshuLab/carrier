@@ -41,3 +41,25 @@ public struct CheckThrottle {
         return true
     }
 }
+
+/// A Check now the person pressed: when, and the snapshot's `nextCheckAt` at that moment.
+public struct CheckAsked: Equatable {
+    public var at: Date
+    public var nextCheckAt: Int?
+
+    public init(at: Date, nextCheckAt: Int?) {
+        self.at = at
+        self.nextCheckAt = nextCheckAt
+    }
+}
+
+/// Whether a check is going on, for the button to say so. The engine answers Check now at once and polls on its own, and only
+/// schedules the next check when the poll ends: so, after pressing, `nextCheckAt` moving is the end. A check that is due (as the
+/// engine's own dashboard reads it) counts too. Shown for at least `minimum` seconds, so a fast one is still seen, and never past
+/// `limit`, in case the end never shows.
+public func isChecking(_ snapshot: PanelSnapshot, asked: CheckAsked?, now: Date, minimum: TimeInterval = 1, limit: TimeInterval = 30) -> Bool {
+    if let next = snapshot.nextCheckAt, next <= snapshot.now { return true }
+    guard let asked else { return false }
+    let elapsed = now.timeIntervalSince(asked.at)
+    return elapsed < minimum || (snapshot.nextCheckAt == asked.nextCheckAt && elapsed < limit)
+}

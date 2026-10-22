@@ -71,3 +71,25 @@ private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(content
     #expect(agoLine(done[0].finishedAt, now: 100_000) == "5s ago")
     #expect(agoLine(nil, now: 100_000) == "a while ago")
 }
+
+@Test func aCheckIsUnderWayUntilTheNextOneIsScheduledAgain() throws {
+    var snapshot = try fixture()
+    snapshot.now = 1_000_000
+    snapshot.nextCheckAt = 1_060_000
+    let start = Date(timeIntervalSince1970: 0)
+    let asked = CheckAsked(at: start, nextCheckAt: 1_060_000)
+    // nothing asked, nothing due
+    #expect(isChecking(snapshot, asked: nil, now: start) == false)
+    // just pressed: seen at least a second, whatever the snapshot says
+    snapshot.nextCheckAt = 1_120_000
+    #expect(isChecking(snapshot, asked: asked, now: start + 0.5))
+    // the next check moved: the poll ended
+    #expect(isChecking(snapshot, asked: asked, now: start + 2) == false)
+    // not moved yet: still going, until the limit
+    snapshot.nextCheckAt = 1_060_000
+    #expect(isChecking(snapshot, asked: asked, now: start + 10))
+    #expect(isChecking(snapshot, asked: asked, now: start + 31) == false)
+    // one that is due counts, asked from here or not
+    snapshot.nextCheckAt = 999_000
+    #expect(isChecking(snapshot, asked: nil, now: start))
+}

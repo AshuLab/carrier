@@ -59,6 +59,8 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(reply.threads?[1].author == nil)
     #expect(reply.threads?[1].bot == true)
     #expect(reply.threadsTruncated == false)
+    #expect(reply.slices[2].lane == 1)
+    #expect(reply.slices[2].activity == "Edit /work/acme/web-epic--lane-1/src/control/sessions.ts")
     #expect(reply.slices[0] == EpicReply.Slice(number: 121, title: "Request schemas", state: "closed", blockedBy: [], prNumber: 130, closedAt: 50_000, readAt: 99_000))
     #expect(reply.worktrees == [.init(kind: "epic", lane: nil, path: "/work/acme/web-epic"), .init(kind: "lane", lane: 1, path: "/work/acme/web-epic--lane-1")])
     #expect(reply.branch == "feat/issue-12/epic")
@@ -102,6 +104,21 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     let pr: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":[],"worktrees":[],"pr":{"number":1,"url":"u","draft":true,"mergeState":"UNKNOWN"}}"#)
     #expect(pr.pr?.checks == nil)
     #expect(pr.pr?.reviewDecision == nil)
+}
+
+@Test func aSliceWithoutTheHintsDecodesAsOneWithNone() throws {
+    let slice = #"{"number":1,"title":"t","state":"in_progress","blockedBy":[],"readAt":1"#
+    let old: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":["# + slice + #"}],"worktrees":[]}"#)
+    #expect(old.slices[0].lane == nil)
+    #expect(old.slices[0].activity == nil)
+
+    let null: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":["# + slice + #","lane":null,"activity":null}],"worktrees":[]}"#)
+    #expect(null.slices[0].lane == nil)
+    #expect(null.slices[0].activity == nil)
+
+    let present: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":["# + slice + #","lane":2,"activity":"Bash pnpm test"}],"worktrees":[]}"#)
+    #expect(present.slices[0].lane == 2)
+    #expect(present.slices[0].activity == "Bash pnpm test")
 }
 
 @Test func aReplyWithoutThreadsIsNotTheSameAsOneWithNone() throws {

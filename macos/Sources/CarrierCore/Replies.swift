@@ -107,7 +107,7 @@ public struct EpicReply: Codable, Equatable {
         public var prNumber: Int?
         public var closedAt: Int?
         public var readAt: Int
-        /// Hints for a slice in progress; the engine does not send them yet (docs/specs/macos-app-redesign.md, spike 3).
+        /// Hints for a slice in progress (docs/specs/macos-app-redesign.md, spike 3); absent from an older engine, null when the stream gave none.
         public var lane: Int? = nil
         public var activity: String? = nil
     }

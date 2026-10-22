@@ -27,7 +27,7 @@ const slice = z.object({
     nodes: z.array(z.object({ number: z.int().positive(), state: z.enum(['OPEN', 'CLOSED']), repository: z.object({ nameWithOwner: z.string() }) })),
   }),
   // Added after the spike: what mentions the slice. Absent in the recorded answers, so it defaults to nothing.
-  timelineItems: z.object({ nodes: z.array(z.object({ source: z.object({ __typename: z.string(), number: z.int().positive().optional() }) })) }).default({ nodes: [] }),
+  timelineItems: z.object({ nodes: z.array(z.object({ source: z.object({ __typename: z.string(), number: z.int().positive().optional(), headRefName: z.string().optional(), state: z.enum(['OPEN', 'CLOSED', 'MERGED']).optional(), isDraft: z.boolean().optional(), mergedAt: z.string().nullable().optional() }) })) }).default({ nodes: [] }),
 });
 
 export const epicSlicesResponse = z.object({
@@ -151,7 +151,7 @@ export const epicSlicesQuery = `query($owner: String!, $name: String!, $number: 
           number title state stateReason closedAt
           assignees(first: 3) { nodes { login } }
           blockedBy(first: 20) { nodes { number state repository { nameWithOwner } } }
-          timelineItems(first: 10, itemTypes: [CROSS_REFERENCED_EVENT]) { nodes { ... on CrossReferencedEvent { source { __typename ... on PullRequest { number } } } } }
+          timelineItems(first: 10, itemTypes: [CROSS_REFERENCED_EVENT]) { nodes { ... on CrossReferencedEvent { source { __typename ... on PullRequest { number headRefName state isDraft mergedAt } } } } }
         }
       }
     }
@@ -166,14 +166,17 @@ type SliceRead = z.infer<typeof slice>;
  */
 export function sliceOf(s: SliceRead): EpicSlice {
   const blockedBy = s.blockedBy.nodes.filter((b) => b.state === 'OPEN').map((b) => b.number);
-  // ponytail: the first pull request that mentions the slice; a later one that only cites it is not told apart.
-  const prNumber = s.timelineItems.nodes.find((n) => n.source.__typename === 'PullRequest')?.source.number ?? null;
+  // The slice's own pull request is the newest mention whose branch is `<feature>/<slice>-<name>`; the timeline also lists pull requests that only cite it (a sibling's, the final one).
+  const own = s.timelineItems.nodes.findLast(({ source }) => source.__typename === 'PullRequest' && source.headRefName?.split('/').pop()?.startsWith(`${s.number}-`))?.source;
+  const prNumber = own?.number ?? null;
+  const prState = own?.state === undefined ? null : own.state === 'MERGED' ? 'merged' : own.state === 'CLOSED' ? 'closed' : own.isDraft ? 'draft' : 'open';
+  const prMergedAt = own?.mergedAt ? Date.parse(own.mergedAt) : null;
   const assignee = s.assignees.nodes[0]?.login ?? null;
   let state: EpicSlice['state'];
   if (s.state === 'CLOSED') state = s.stateReason === 'NOT_PLANNED' || s.stateReason === 'DUPLICATE' ? 'skipped' : 'closed';
   else if (assignee !== null || prNumber !== null) state = 'in_progress';
   else state = blockedBy.length > 0 ? 'waiting' : 'ready';
-  return { number: s.number, title: s.title, state, blockedBy, assignee, prNumber, closedAt: s.closedAt === null ? null : Date.parse(s.closedAt) };
+  return { number: s.number, title: s.title, state, blockedBy, assignee, prNumber, prState, prMergedAt, closedAt: s.closedAt === null ? null : Date.parse(s.closedAt) };
 }
 
 /** A pull request with its checks, merge state, review decision and first hundred review threads; the schema above decodes its answer. Cost 1. */

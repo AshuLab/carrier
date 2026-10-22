@@ -111,11 +111,11 @@ test('the epic reply equals reply-epic.json', () => {
       },
     ],
     slices: [
-      { number: 121, title: 'Request schemas', state: 'closed', blockedBy: [], prNumber: 130, closedAt: 50_000, readAt: 99_000 },
-      { number: 122, title: 'Rejected idea', state: 'skipped', blockedBy: [], prNumber: null, closedAt: 51_000, readAt: 99_000 },
-      { number: 123, title: 'Sessions request', state: 'in_progress', blockedBy: [], prNumber: 131, closedAt: null, readAt: 99_000, lane: 1, activity: 'Edit /work/acme/web-epic--lane-1/src/control/sessions.ts' },
-      { number: 124, title: 'Events request', state: 'waiting', blockedBy: [121, 123], prNumber: null, closedAt: null, readAt: 99_000 },
-      { number: 125, title: 'Files request', state: 'ready', blockedBy: [], prNumber: null, closedAt: null, readAt: 99_000 },
+      { number: 121, title: 'Request schemas', state: 'closed', blockedBy: [], prNumber: 130, prState: 'merged', prMergedAt: 49_000, closedAt: 50_000, readAt: 99_000 },
+      { number: 122, title: 'Rejected idea', state: 'skipped', blockedBy: [], prNumber: null, prState: null, prMergedAt: null, closedAt: 51_000, readAt: 99_000 },
+      { number: 123, title: 'Sessions request', state: 'in_progress', blockedBy: [], prNumber: 131, prState: 'draft', prMergedAt: null, closedAt: null, readAt: 99_000, lane: 1, activity: 'Edit /work/acme/web-epic--lane-1/src/control/sessions.ts' },
+      { number: 124, title: 'Events request', state: 'waiting', blockedBy: [121, 123], prNumber: null, prState: null, prMergedAt: null, closedAt: null, readAt: 99_000 },
+      { number: 125, title: 'Files request', state: 'ready', blockedBy: [], prNumber: null, prState: null, prMergedAt: null, closedAt: null, readAt: 99_000 },
     ],
     slicesTruncated: false,
     threads: [

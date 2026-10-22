@@ -13,7 +13,7 @@ export const epicEvents = sqliteTable('epic_events', {
   data: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
 });
 
-export type EventPayload = Pick<AgentEvent, 'text' | 'output' | 'diff' | 'slice' | 'lane'>;
+export type EventPayload = Pick<AgentEvent, 'text' | 'description' | 'output' | 'diff' | 'slice' | 'lane'>;
 
 // What an agent did during an execution (ADR 0006), already bounded and redacted. The id is the cursor of the `events` request.
 // A tool call is two rows with the same callId. Deleted with the logs, 30 days after the epic ends.

@@ -45,8 +45,8 @@ export function buildSnapshot(
     .map((q) => ({ repo: q.repo, issue: q.issue, title: q.title, queuedAt: q.queuedAt }));
   const shown = db.select().from(epics).where(inArray(epics.status, ['running', 'needs_human'])).orderBy(asc(epics.id)).all();
   const lastExecution = (epicId: number) => db.select({ id: executions.executionId }).from(executions).where(eq(executions.epicId, epicId)).orderBy(desc(executions.startedAt), sql`rowid desc`).limit(1).get()?.id ?? null;
-  const done = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, prNumber: epics.prNumber, finishedAt: epics.finishedAt }).from(epics).where(eq(epics.status, 'ready_for_test')).orderBy(desc(epics.finishedAt)).limit(5).all()
-    .map(({ id, ...rest }) => ({ ...rest, executionId: lastExecution(id) }));
+  const done = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, title: epics.title, labels: epics.labels, prNumber: epics.prNumber, finishedAt: epics.finishedAt }).from(epics).where(eq(epics.status, 'ready_for_test')).orderBy(desc(epics.finishedAt)).limit(5).all()
+    .map(({ id, labels, ...rest }) => ({ ...rest, labels: labels ?? [], executionId: lastExecution(id) }));
   const epicAgents = (e: { config: EffectiveRepoConfig | null }): PanelAgents | null => e.config && agentsOf(e.config);
   const sessions = shown.flatMap((e) => {
     const agent = epicAgents(e);

@@ -159,6 +159,8 @@
       "state": "closed",
       "blockedBy": [],
       "prNumber": 130,
+      "prState": "merged",
+      "prMergedAt": 49000,
       "closedAt": 50000,
       "readAt": 99000
     },
@@ -168,6 +170,8 @@
       "state": "skipped",
       "blockedBy": [],
       "prNumber": null,
+      "prState": null,
+      "prMergedAt": null,
       "closedAt": 51000,
       "readAt": 99000
     },
@@ -177,6 +181,8 @@
       "state": "in_progress",
       "blockedBy": [],
       "prNumber": 131,
+      "prState": "draft",
+      "prMergedAt": null,
       "closedAt": null,
       "readAt": 99000,
       "lane": 1,
@@ -191,6 +197,8 @@
         123
       ],
       "prNumber": null,
+      "prState": null,
+      "prMergedAt": null,
       "closedAt": null,
       "readAt": 99000
     },
@@ -200,6 +208,8 @@
       "state": "ready",
       "blockedBy": [],
       "prNumber": null,
+      "prState": null,
+      "prMergedAt": null,
       "closedAt": null,
       "readAt": 99000
     }

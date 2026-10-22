@@ -71,7 +71,7 @@ test('queue, needs you, ready for test, and a problem banner', () => {
     snap({
       queue: Array.from({ length: 7 }, (_, i) => ({ repo: 'AshuLab/web', issue: 30 + i })),
       epics: [epic({ issue: 29, status: 'needs_human', needsHumanReason: 'inconclusive review: missing context' })],
-      done: [{ repo: 'AshuLab/carrier', issue: 28, prNumber: 44, finishedAt: now - 7_200_000, executionId: null }],
+      done: [{ repo: 'AshuLab/carrier', issue: 28, title: 'Menu bar', labels: [], prNumber: 44, finishedAt: now - 7_200_000, executionId: null }],
       problem: 'GitHub is unavailable: it will be tried again',
     }),
   );

@@ -31,6 +31,19 @@ describe('recorded GraphQL answers', () => {
     expect(rollup.contexts.nodes.filter((c) => c.__typename === 'CheckRun' && c.conclusion === 'FAILURE')).toHaveLength(1);
   });
 
+  test("a slice's own pull request is found by its branch, not by who mentions it", () => {
+    const pr = (number: number, headRefName: string, state: 'OPEN' | 'MERGED', extra = {}) => ({ source: { __typename: 'PullRequest', number, headRefName, state, isDraft: false, mergedAt: null, ...extra } });
+    const read = (number: number, nodes: unknown[], state: 'OPEN' | 'CLOSED' = 'CLOSED') =>
+      sliceOf({ number, title: 't', state, stateReason: state === 'CLOSED' ? 'COMPLETED' : null, closedAt: null, assignees: { nodes: [] }, blockedBy: { nodes: [] }, timelineItems: { nodes: nodes as never } });
+    // carrier #75: slice 81 is mentioned by slice 76's PR (95) and by the final PR (110), and owns 97.
+    const mentions = [pr(95, 'feat/f/76-shutdown', 'MERGED'), pr(97, 'feat/f/81-stop', 'MERGED', { mergedAt: '2026-10-20T01:59:32Z' }), pr(110, 'feat/f/epic', 'MERGED')];
+    expect(read(81, mentions)).toMatchObject({ prNumber: 97, prState: 'merged', prMergedAt: Date.parse('2026-10-20T01:59:32Z') });
+    expect(read(76, mentions)).toMatchObject({ prNumber: 95 });
+    expect(read(90, mentions)).toMatchObject({ prNumber: null, prState: null, prMergedAt: null }); // a mention is not a pull request of its own
+    expect(read(7, [pr(1, 'feat/f/7-a', 'MERGED'), pr(2, 'feat/f/7-a', 'OPEN')], 'OPEN')).toMatchObject({ prNumber: 2, prState: 'open' }); // the newest one
+    expect(read(7, [pr(3, 'feat/f/7-a', 'OPEN', { isDraft: true })], 'OPEN')).toMatchObject({ prState: 'draft', state: 'in_progress' });
+  });
+
   test('slices take their state from GitHub: no blockers, closed blockers, open blockers, skipped, merged', () => {
     const states = (name: string) => Object.fromEntries(epicSlicesResponse.parse(fixture(name)).data.repository.issue.subIssues.nodes.map((n) => [n.number, sliceOf(n)]));
     const recorded = states('epic-slices');

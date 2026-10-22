@@ -37,7 +37,7 @@ test('a hand-built stream: a call and its result paired, an edit with its diff, 
         { sign: '+', text: 'const a = 2;' },
       ],
     },
-    { at: at(2000), kind: 'tool_start', callId: 'toolu_bash', tool: 'Bash', arg: 'pnpm test' },
+    { at: at(2000), kind: 'tool_start', callId: 'toolu_bash', tool: 'Bash', arg: 'pnpm test', description: 'Run the tests' },
     {
       at: at(9000),
       kind: 'tool_end',

@@ -36,8 +36,8 @@ private func firstEpic(_ json: inout [String: Any], _ change: (inout [String: An
         .init(repo: "acme/api", issue: 21, title: "Issue 21 of acme/api", queuedAt: 21_000),
     ])
     #expect(s.done == [
-        .init(repo: "acme/web", issue: 30, prNumber: 77, finishedAt: 95_000, executionId: "exec-ship-30"),
-        .init(repo: "acme/api", issue: 31, prNumber: nil, finishedAt: 80_000, executionId: nil),
+        .init(repo: "acme/web", issue: 30, prNumber: 77, finishedAt: 95_000, executionId: "exec-ship-30", title: "Issue 30 of acme/web"),
+        .init(repo: "acme/api", issue: 31, prNumber: nil, finishedAt: 80_000, executionId: nil, title: "Issue 31 of acme/api"),
     ])
 
     #expect(s.epics.count == 9)

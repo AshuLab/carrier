@@ -9,15 +9,23 @@
     {
       "repo": "acme/web",
       "issue": 30,
+      "title": "Issue 30 of acme/web",
       "prNumber": 77,
       "finishedAt": 95000,
+      "labels": [
+        "solve:epic"
+      ],
       "executionId": "exec-ship-30"
     },
     {
       "repo": "acme/api",
       "issue": 31,
+      "title": "Issue 31 of acme/api",
       "prNumber": null,
       "finishedAt": 80000,
+      "labels": [
+        "solve:epic"
+      ],
       "executionId": null
     }
   ],

@@ -17,6 +17,8 @@ export type ExecEvent = {
   agentId?: string;
   tool?: string;
   arg?: string;
+  /** The model's short sentence for the call, when it wrote one; the app can show it instead of the command. */
+  description?: string;
   summary?: string;
   status?: 'ok' | 'err';
   durationMs?: number;
@@ -102,7 +104,11 @@ export type EpicReply = {
     state: 'closed' | 'skipped' | 'in_progress' | 'waiting' | 'ready';
     /** The numbers of the slices that still block it. */
     blockedBy: number[];
+    /** The slice's own pull request, found by its branch name. */
     prNumber: number | null;
+    prState: 'open' | 'draft' | 'merged' | 'closed' | null;
+    /** When that pull request was merged; `closedAt` is when the issue closed. */
+    prMergedAt: number | null;
     closedAt: number | null;
     readAt: number;
     /** Only on a slice in progress whose agent the author stream names (hints, docs/research/claude-subagent-attribution.md): null when it gave none. */

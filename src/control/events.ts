@@ -22,6 +22,7 @@ const wire = (row: Row): ExecEvent => ({
   ...(row.summary !== null && { summary: row.summary }),
   ...(row.status !== null && { status: row.status }),
   ...(row.durationMs !== null && { durationMs: row.durationMs }),
+  ...(row.payload?.description !== undefined && { description: row.payload.description }),
   ...(row.payload?.output !== undefined && { output: row.payload.output }),
   ...(row.payload?.diff !== undefined && { diff: row.payload.diff }),
 });

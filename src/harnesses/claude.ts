@@ -156,7 +156,10 @@ function claudeEvents(line: string, state: EventState): AgentEvent[] {
         if (text) events.push({ ...scope, kind: 'say', text: clean(text, caps.text) });
       } else if (block.type === 'tool_use' && typeof block.id === 'string' && typeof block.name === 'string') {
         state.calls.set(block.id, { at, tool: block.name });
-        events.push({ ...scope, kind: 'tool_start', callId: block.id, tool: block.name, arg: clean(argOf(block.input), caps.arg) });
+        const arg = clean(argOf(block.input), caps.arg);
+        const description = str(block.input?.description);
+        // Only when `arg` is something else: a call whose argument is its description (an Agent) would say it twice.
+        events.push({ ...scope, kind: 'tool_start', callId: block.id, tool: block.name, arg, ...(description && description !== arg && { description: clean(description, caps.summary) }) });
       }
     }
   } else if (event.type === 'user') {

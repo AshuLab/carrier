@@ -1791,3 +1791,17 @@ test('a failing pull request read keeps the last block and the poll goes on', as
   await clock.advance(5 * MIN);
   expect(cachedPr(engine.db, 1)).toEqual(block({ draft: true }));
 });
+
+test('a finished epic with a pull request and no cached block is read once; one that has a block is never read', async () => {
+  const engine = await runningWithSlices();
+  engine.db.update(epics).set({ status: 'merged', prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toEqual(['AshuLab/a#50']);
+  expect(cachedPr(engine.db, 1)).toEqual(block());
+
+  github.pullRequestBlocks['AshuLab/a#50'] = block({ draft: true });
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toEqual(['AshuLab/a#50']);
+  expect(cachedPr(engine.db, 1)).toEqual(block());
+});

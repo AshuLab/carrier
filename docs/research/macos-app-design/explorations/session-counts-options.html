@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Session header: the counts line</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* every class here starts with c- : shared.css owns .row .slice .sp .st .ring .chip .pros */
+.c-opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(470px,1fr));gap:30px;align-items:start;margin-top:8px}
+.c-opt>h3{margin:0 0 2px;font-size:14px}
+.c-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:470px;min-height:54px}
+.c-win{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:10px}
+.c-card{border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.c-h{display:flex;align-items:center;gap:11px;padding:11px 12px}
+.c-av{width:30px;height:30px;border-radius:50%;background:#5e5e63;display:grid;place-items:center;flex:none;position:relative}
+.c-av svg{width:15px;height:15px;fill:#fff}
+.c-av.run::after{content:"";position:absolute;inset:2px;border-radius:50%;border:2px solid transparent;border-top-color:#fff;border-right-color:rgba(255,255,255,.3);animation:s 1s linear infinite}
+.c-tx{flex:1;min-width:0}
+.c-tx b{font-weight:600}.c-tx b span{color:var(--dim);font-weight:500}
+.c-time{color:var(--dim);font-size:12px;white-space:nowrap}
+.c-chev{width:26px;height:26px;border-radius:50%;background:var(--card2);display:grid;place-items:center;color:var(--dim);flex:none}
+
+/* the icons are small SVGs on currentColor */
+.c-i{width:12px;height:12px;flex:none}
+
+/* A: neutral pills */
+.c-pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.c-pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 7px;border-radius:99px;background:var(--card2);color:var(--dim);font-size:11.5px;font-weight:550;white-space:nowrap}
+.c-pill b{color:var(--text);font-weight:650}
+.c-pill .a{color:var(--green)}.c-pill .r{color:var(--red)}
+.c-pill.err{background:color-mix(in srgb,var(--red) 20%,transparent);color:var(--red)}.c-pill.err b{color:var(--red)}
+
+/* B: icon + number, no background */
+.c-ico{display:flex;gap:13px;margin-top:4px;color:var(--dim);font-size:12px;flex-wrap:wrap}
+.c-ico span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.c-ico b{color:var(--text);font-weight:650}
+.c-ico .a{color:var(--green)}.c-ico .r{color:var(--red)}
+.c-ico .err,.c-ico .err b{color:var(--red)}
+
+/* C: a strip of metrics under the header */
+.c-strip{display:flex;border-top:.5px solid var(--line)}
+.c-strip div{flex:1;padding:7px 12px;display:flex;flex-direction:column;gap:0;border-right:.5px solid var(--line)}
+.c-strip div:last-child{border:0}
+.c-strip b{font-size:16px;font-weight:650;letter-spacing:-.01em;line-height:1.25}
+.c-strip small{color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+.c-strip .a{color:var(--green);font-size:11px;font-weight:600}.c-strip .r{color:var(--red);font-size:11px;font-weight:600}
+.c-strip .err b{color:var(--red)}
+
+/* D: tinted pills, one colour per kind */
+.c-tint{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 7px;border-radius:99px;font-size:11.5px;font-weight:600;white-space:nowrap;
+  background:color-mix(in srgb,var(--k) 20%,transparent);color:var(--k)}
+.c-tint.calls{--k:var(--dim)}.c-tint.edits{--k:var(--blue)}.c-tint.tests{--k:var(--orange)}.c-tint.errs{--k:var(--red)}
+body:not(.light) .c-tint.calls{background:var(--card2)}
+.c-tint i{font-style:normal;font-weight:500;opacity:.8}
+
+/* E: a bar of the mix + one short line */
+.c-mix{display:flex;align-items:center;gap:9px;margin-top:6px}
+.c-bar{display:flex;height:6px;width:130px;border-radius:4px;overflow:hidden;gap:1.5px;background:var(--card2);flex:none}
+.c-bar i{display:block;height:100%}
+.c-bar .calls{background:#6e6e78}.c-bar .edits{background:var(--blue)}.c-bar .tests{background:var(--orange)}.c-bar .errs{background:var(--red)}
+.c-mix small{color:var(--dim);font-size:11.5px;white-space:nowrap}.c-mix small b{color:var(--text);font-weight:650}
+.c-key{display:flex;gap:10px;margin-top:5px;color:var(--faint);font-size:10.5px}
+.c-key span::before{content:"";display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:4px;background:var(--k)}
+.c-key .calls{--k:#6e6e78}.c-key .edits{--k:var(--blue)}.c-key .tests{--k:var(--orange)}.c-key .errs{--k:var(--red)}
+
+/* today, for reference */
+.c-now{margin-top:1px;color:var(--dim);font-size:11.5px}.c-now .a{color:var(--green)}.c-now .r{color:var(--red)}
+</style></head><body>
+<h1>Session header: the counts line</h1>
+<div class="sub">Today it is one grey line under the name: <span class="mono">15 tool calls · 4 test runs</span>, with <span class="mono">+42 −8</span> in green and red and errors in red. It reads as a sentence, so nothing stands out and you have to read it to find the one number you care about (usually errors, or whether tests ran). Five ways to give it shape, same data, all in the header's two-line layout. Switch the case to see how each one copes with zero, many and error states.</div>
+<div class="bar">
+  <button class="tab on" data-s="rv">Reviewer · calls + tests</button>
+  <button class="tab" data-s="bd">Builder · edits, tests, errors</button>
+  <button class="tab" data-s="min">Just started · 2 calls</button>
+  <button class="tab" data-s="run">Running</button>
+  <span class="sp"></span>
+  <button class="tog" id="lt">Light / dark</button>
+</div>
+<div class="c-opts" id="o"></div>
+
+<div class="note"><b>What each one costs in the app.</b> A, B and D are SwiftUI capsules in the header (an <span class="mono">HStack</span> of small views built from <span class="mono">SessionCounts</span>; <span class="mono">countsRuns</span> and its string tests go away or shrink to the labels). C adds a second row to the card, so the closed list gets taller (about 38 pt per session). E needs the proportions, which <span class="mono">SessionCounts</span> already has. The slice-lane headers use the same counts line today; whichever wins would apply there too, probably in its smallest form.</div>
+
+<script>
+const I={
+ calls:'<svg class="c-i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5l4 3.5-4 3.5"/><path d="M8.5 12h5"/></svg>',
+ edits:'<svg class="c-i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.8 2.7l2.5 2.5-7.6 7.6-3.2.7.7-3.2z"/></svg>',
+ tests:'<svg class="c-i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M5.4 8.2l1.8 1.8 3.4-3.7"/></svg>',
+ errs:'<svg class="c-i" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2l6 10.6H2z"/><path d="M8 6.6v2.8M8 11.4v.1"/></svg>',
+ chev:'<svg width="12" height="12" viewBox="0 0 12 12"><path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ claude:'<svg viewBox="0 0 16 16"><path d="M8 1l1.1 4.2L12.5 2.6 10.5 6.5 15 7.4 10.7 8.9 13.7 12.2 9.5 10.6 8.9 15 7.5 10.8 3.8 13.6 5.7 9.6 1 8.6 5.6 7.2 3 3.8 7 6z"/></svg>'
+};
+const S={
+ rv:[{n:'Reviewer',p:'Round 1',t:'1m 29s',c:{calls:15,tests:4}},{n:'Builder',p:'Ship',t:'13m 30s',c:{calls:30,edits:3,add:120,del:14,tests:7,errs:2}}],
+ bd:[{n:'Builder',p:'Ship',t:'13m 30s',c:{calls:30,edits:3,add:120,del:14,tests:7,errs:2}},{n:'Fixer',p:'Round 2',t:'1m 08s',c:{calls:11,edits:1,add:6,del:6,tests:3}},{n:'Reviewer',p:'Round 2',t:'1m 20s',c:{calls:12,tests:2}}],
+ min:[{n:'Builder',p:'Ship',t:'12s',c:{calls:2}},{n:'Reviewer',p:'Round 1',t:'40s',c:{calls:1,errs:1}}],
+ run:[{n:'Builder',p:'Ship',t:'since 14:28',c:{calls:48,edits:6,add:312,del:41,tests:9,errs:1},run:1}]
+};
+const pl=(n,w)=>n+' '+w+(n==1?'':'s');
+const L={calls:'tool call',edits:'edit',tests:'test run',errs:'error'};
+const now=c=>`<div class="c-now">${pl(c.calls,'tool call')}${c.edits?` · ${pl(c.edits,'edit')} <span class="a">+${c.add}</span> <span class="r">−${c.del}</span>`:''}${c.tests?` · ${pl(c.tests,'test run')}`:''}${c.errs?` · <span class="r">${pl(c.errs,'error')}</span>`:''}</div>`;
+
+const A=c=>`<div class="c-pills"><span class="c-pill">${I.calls}<b>${c.calls}</b> ${c.calls==1?'call':'calls'}</span>`+
+ (c.edits?`<span class="c-pill">${I.edits}<b>${c.edits}</b> ${c.edits==1?'edit':'edits'} <span class="a">+${c.add}</span> <span class="r">−${c.del}</span></span>`:'')+
+ (c.tests?`<span class="c-pill">${I.tests}<b>${c.tests}</b> ${c.tests==1?'test run':'test runs'}</span>`:'')+
+ (c.errs?`<span class="c-pill err">${I.errs}<b>${c.errs}</b> ${c.errs==1?'error':'errors'}</span>`:'')+`</div>`;
+
+const B=c=>`<div class="c-ico"><span title="tool calls">${I.calls}<b>${c.calls}</b></span>`+
+ (c.edits?`<span title="edits">${I.edits}<b>${c.edits}</b> <span class="a">+${c.add}</span> <span class="r">−${c.del}</span></span>`:'')+
+ (c.tests?`<span title="test runs">${I.tests}<b>${c.tests}</b></span>`:'')+
+ (c.errs?`<span class="err" title="errors">${I.errs}<b>${c.errs}</b></span>`:'')+`</div>`;
+
+const D=c=>`<div class="c-pills"><span class="c-tint calls">${I.calls}${c.calls} <i>${c.calls==1?'call':'calls'}</i></span>`+
+ (c.edits?`<span class="c-tint edits">${I.edits}${c.edits} <i>${c.edits==1?'edit':'edits'}</i> +${c.add} −${c.del}</span>`:'')+
+ (c.tests?`<span class="c-tint tests">${I.tests}${c.tests} <i>${c.tests==1?'test run':'test runs'}</i></span>`:'')+
+ (c.errs?`<span class="c-tint errs">${I.errs}${c.errs} <i>${c.errs==1?'error':'errors'}</i></span>`:'')+`</div>`;
+
+const Cs=c=>`<div class="c-strip"><div><b>${c.calls}</b><small>${c.calls==1?'call':'calls'}</small></div>`+
+ (c.edits?`<div><b>${c.edits}</b><small>${c.edits==1?'edit':'edits'} <span class="a">+${c.add}</span> <span class="r">−${c.del}</span></small></div>`:'')+
+ (c.tests?`<div><b>${c.tests}</b><small>test ${c.tests==1?'run':'runs'}</small></div>`:'')+
+ (c.errs?`<div class="err"><b>${c.errs}</b><small>${c.errs==1?'error':'errors'}</small></div>`:'')+`</div>`;
+
+const bar=c=>{const parts=[['calls',c.calls-(c.edits||0)-(c.tests||0)-(c.errs||0)],['edits',c.edits||0],['tests',c.tests||0],['errs',c.errs||0]].filter(x=>x[1]>0);const tot=parts.reduce((a,x)=>a+x[1],0);
+ return parts.map(([k,v])=>`<i class="${k}" style="width:${v/tot*100}%"></i>`).join('')};
+const E=c=>`<div class="c-mix"><div class="c-bar">${bar(c)}</div><small><b>${c.calls}</b> calls${c.errs?` · <b style="color:var(--red)">${c.errs} ${c.errs==1?'error':'errors'}</b>`:''}</small></div>
+ <div class="c-key"><span class="calls">other</span>${c.edits?'<span class="edits">edits</span>':''}${c.tests?'<span class="tests">tests</span>':''}${c.errs?'<span class="errs">errors</span>':''}</div>`;
+
+const OPTS=[
+ ['Today (for reference)','One line of grey text. Only the +/− and errors have colour.',now,0],
+ ['A · Neutral pills with an icon','Each count is a pill: icon, bold number, noun. Same grey for all, so it reads as tags; only errors turn red. Quiet, and it keeps working at 4 pills because they wrap.',A,0],
+ ['B · Icon and number, no background','The lightest version: terminal, pencil, check, warning, with the number. The words move to a tooltip. Shortest, but you learn four icons.',B,0],
+ ['C · A strip of metrics under the header','Big number, small caps label, hairline between. The most visible and the easiest to scan across sessions, at the price of a taller closed card.',Cs,1],
+ ['D · Pills tinted by kind','Calls grey, edits blue, tests amber, errors red (the same colours the tool icons already use in the transcript). Most colour: you can tell kinds apart without reading.',D,0],
+ ['E · A bar of the mix','A segmented bar says what the session did (mostly commands? edits? tests?) and one number says how much. Pretty, but the exact counts are gone from the closed card.',E,0]
+];
+let cur='rv';
+const card=(s,f,strip)=>`<div class="c-card"><div class="c-h"><div class="c-av ${s.run?'run':''}">${I.claude}</div><div class="c-tx"><b>Claude <span>· ${s.n} · ${s.p}</span></b>${strip?'':f(s.c)}</div><span class="c-time">${s.t}</span><span class="c-chev">${I.chev}</span></div>${strip?f(s.c):''}</div>`;
+function draw(){document.getElementById('o').innerHTML=OPTS.map(([h,p,f,strip])=>`<div class="c-opt"><h3>${h}</h3><p>${p}</p><div class="c-win">${S[cur].map(s=>card(s,f,strip)).join('')}</div></div>`).join('')}
+document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{cur=b.dataset.s;document.querySelectorAll('[data-s]').forEach(x=>x.classList.toggle('on',x==b));draw()});
+document.getElementById('lt').onclick=()=>document.body.classList.toggle('light');
+draw();
+</script></body></html>

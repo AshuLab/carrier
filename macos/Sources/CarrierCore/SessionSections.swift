@@ -12,6 +12,10 @@ public struct SessionCounts: Equatable {
     public var removed = 0
     public var tests = 0
     public var errors = 0
+
+    public init(calls: Int = 0, edits: Int = 0, added: Int = 0, removed: Int = 0, tests: Int = 0, errors: Int = 0) {
+        (self.calls, self.edits, self.added, self.removed, self.tests, self.errors) = (calls, edits, added, removed, tests, errors)
+    }
 }
 
 private let editTools: Set<String> = ["Edit", "MultiEdit", "Write", "NotebookEdit"]
@@ -57,33 +61,15 @@ public func sessionCounts(_ events: [ExecEvent]) -> SessionCounts {
     return counts
 }
 
-public enum CountTone: Equatable { case plain, added, removed, error }
-
-/// A piece of the counts line and how the view paints it: lines added in green, removed in red, errors in red.
-public struct CountRun: Equatable {
-    public var text: String
-    public var tone: CountTone
-}
-
-/// `8 tool calls · 2 edits +42 −8 · 1 test run · 2 errors` in pieces, every part but the tool calls left out at zero.
-public func countsRuns(_ counts: SessionCounts) -> [CountRun] {
+/// `8 tool calls · 2 edits +42 −8 · 1 test run · 2 errors`, every part but the tool calls left out at zero.
+public func countsLine(_ counts: SessionCounts) -> String {
     func plural(_ n: Int, _ noun: String) -> String { "\(n) \(noun)\(n == 1 ? "" : "s")" }
-    var runs = [CountRun(text: plural(counts.calls, "tool call"), tone: .plain)]
-    if counts.edits > 0 {
-        runs += [
-            CountRun(text: " · \(plural(counts.edits, "edit")) ", tone: .plain), CountRun(text: "+\(counts.added)", tone: .added),
-            CountRun(text: " ", tone: .plain), CountRun(text: "−\(counts.removed)", tone: .removed),
-        ]
-    }
-    if counts.tests > 0 { runs.append(CountRun(text: " · \(plural(counts.tests, "test run"))", tone: .plain)) }
-    if counts.errors > 0 {
-        runs += [CountRun(text: " · ", tone: .plain), CountRun(text: plural(counts.errors, "error"), tone: .error)]
-    }
-    return runs
+    var line = plural(counts.calls, "tool call")
+    if counts.edits > 0 { line += " · \(plural(counts.edits, "edit")) +\(counts.added) −\(counts.removed)" }
+    if counts.tests > 0 { line += " · \(plural(counts.tests, "test run"))" }
+    if counts.errors > 0 { line += " · \(plural(counts.errors, "error"))" }
+    return line
 }
-
-/// The same line as plain text.
-public func countsLine(_ counts: SessionCounts) -> String { countsRuns(counts).map(\.text).joined() }
 
 // MARK: sections
 
@@ -112,9 +98,7 @@ public struct SessionSection: Equatable, Identifiable {
     /// "Ship", "Round 2".
     public var place: String
     /// nil when no events are known (the harness has no parser yet, or none has arrived): the header then has no counts.
-    public var counts: String?
-    /// The same line in pieces, for the colours; empty when `counts` is nil.
-    public var countRuns: [CountRun] = []
+    public var counts: SessionCounts?
     /// "since 16:09" while it runs, how long it took when it finished; nil for a stopped one, whose badge says it.
     public var timeLabel: String?
     /// Running and stopped open, finished folded; the newest one is open whatever it is.
@@ -133,14 +117,20 @@ public struct SessionSection: Equatable, Identifiable {
 
 /// The closing card of a session: how it ended, the agent's own account and what it checked.
 public struct ResultCard: Equatable {
+    public struct CI: Equatable {
+        /// "passed" or "absent" (no CI to check); a value added later still shows.
+        public var verdict: String
+        public var evidence: String
+    }
+
     public enum Tone: Equatable { case good, warning, stop }
 
     /// "Completed", "Changes requested", "Needs a human".
     public var outcome: String
     public var tone: Tone
     public var summary: String
-    /// "CI passed: <evidence>"; nil when the result has no verification.
-    public var ci: String?
+    /// What the agent says it checked; nil when the result has no verification.
+    public var ci: CI?
     /// Why the agent stopped; nil unless the outcome is needs_human.
     public var reason: String?
 }
@@ -155,22 +145,66 @@ public func resultCard(_ result: SessionResult?) -> ResultCard? {
     }
     return ResultCard(
         outcome: outcome.0, tone: outcome.1, summary: result.summary,
-        ci: result.verification.map { "CI \($0.ci): \($0.evidence)" },
+        ci: result.verification.map { ResultCard.CI(verdict: $0.ci, evidence: $0.evidence) },
         reason: result.outcome == "needs_human" ? result.reason : nil
     )
 }
 
 /// The text with each web address in it as a link; only http and https survive `browserURL`.
-public func linkedText(_ text: String) -> AttributedString {
-    var linked = AttributedString(text)
+public func linkedText(_ text: String) -> AttributedString { withWebLinks(AttributedString(text)) }
+
+/// `text` with its web addresses as links, and any other link it already had (a Markdown one) taken away: the agent writes
+/// this text, so only http and https may open.
+private func withWebLinks(_ text: AttributedString) -> AttributedString {
+    var linked = text
+    for run in text.runs {
+        if let link = run.link, browserURL(link.absoluteString) == nil { linked[run.range].link = nil }
+    }
+    let plain = String(text.characters)
     let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-    for match in detector?.matches(in: text, range: NSRange(text.startIndex..., in: text)) ?? [] {
-        guard let url = match.url, let link = browserURL(url.absoluteString), let range = Range(match.range, in: text),
+    for match in detector?.matches(in: plain, range: NSRange(plain.startIndex..., in: plain)) ?? [] {
+        guard let url = match.url, let link = browserURL(url.absoluteString), let range = Range(match.range, in: plain),
               let start = AttributedString.Index(range.lowerBound, within: linked), let end = AttributedString.Index(range.upperBound, within: linked)
         else { continue }
         linked[start..<end].link = link
     }
     return linked
+}
+
+/// A line of an agent's message as the view lays it out.
+public enum MarkdownBlock: Equatable {
+    case line(AttributedString)
+    /// A `- ` list item; `level` is how many steps of two spaces it is indented.
+    case bullet(level: Int, AttributedString)
+    /// A blank line, once however many there were.
+    case gap
+}
+
+/// An agent's message as Markdown, a block per line: bold, italics, code and links inside the line, `- ` lists as bullets and
+/// `#` headings as bold lines, which the inline parser leaves alone. ponytail: no code fences, tables or numbered lists, the fence
+/// lines are dropped and what is inside shows as lines of text; a block parser if agents start writing them a lot.
+public func markdownBlocks(_ text: String) -> [MarkdownBlock] {
+    let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+    func inline(_ line: String) -> AttributedString {
+        withWebLinks((try? AttributedString(markdown: line, options: options)) ?? AttributedString(line))
+    }
+    var blocks: [MarkdownBlock] = []
+    for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+        let trimmed = line.drop { $0 == " " }
+        let indent = line.count - trimmed.count
+        if trimmed.hasPrefix("```") { continue }
+        if trimmed.allSatisfy(\.isWhitespace) {
+            if blocks.isEmpty == false, blocks.last != .gap { blocks.append(.gap) }
+        } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+            blocks.append(.bullet(level: indent / 2, inline(String(trimmed.dropFirst(2)))))
+        } else if trimmed.hasPrefix("#"), case let title = trimmed.drop(while: { $0 == "#" }).drop(while: { $0 == " " }), title.isEmpty == false {
+            blocks.append(.line(inline("**\(title)**")))
+        } else {
+            blocks.append(.line(inline(String(line))))
+        }
+    }
+    if blocks.last == .gap { blocks.removeLast() }
+    return blocks
 }
 
 public struct SessionList: Equatable {
@@ -216,8 +250,7 @@ public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcrip
             initial: session.agent.harness == "codex" ? "X" : agent.prefix(1).uppercased(),
             role: ["ship": "Builder", "review": "Reviewer", "fix": "Fixer"][session.stage] ?? session.stage.capitalized,
             place: session.round.map { "Round \($0)" } ?? session.stage.capitalized,
-            counts: transcript.flatMap { $0.structured ? countsLine(sessionCounts($0.events)) : nil },
-            countRuns: transcript.flatMap { $0.structured ? countsRuns(sessionCounts($0.events)) : nil } ?? [],
+            counts: transcript.flatMap { $0.structured ? sessionCounts($0.events) : nil },
             timeLabel: time,
             openByDefault: state != .done || index == 0,
             resume: state == .running ? nil : session.resume,
@@ -237,6 +270,8 @@ public func epicFocus(_ epic: EpicRef, running: Bool, data: EpicData?, folds: Se
     return EpicFocus(
         epic: epic,
         epicRunning: running,
+        // always: the tab's count shows before the tab is opened, and the view keeps which tab is open to itself
+        filesTabVisible: true,
         transcript: list.sections.first { $0.state == .running && folds.isOpen($0) }?.id,
         counting: list.sections.filter { $0.state != .running }.map(\.id)
     )

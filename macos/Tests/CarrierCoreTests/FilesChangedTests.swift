@@ -57,7 +57,7 @@ private func section(_ id: String, _ kind: String, _ files: [FilesReply.File]) -
     #expect(model.sections.map(\.added) == [15, 100])
     #expect(model.sections.map(\.removed) == [2, 20])
     #expect((model.fileCount, model.added, model.removed) == (3, 115, 22))
-    #expect(model.summary == "3 files · +115 −22")
+    #expect((model.fileCount, model.added, model.removed) == (3, 115, 22))
     let row = model.sections[0].files[0]
     #expect((row.directory, row.name, row.category) == ("src/", "a.ts", .code))
     #expect(row.icon == fileIcon("src/a.ts"))
@@ -74,7 +74,7 @@ private func section(_ id: String, _ kind: String, _ files: [FilesReply.File]) -
         section("lane-2", "lane", [file("src/t.ts", 4, 1, alsoIn: ["lane-1"])]),
     ]))
     #expect(model.fileCount == 1)
-    #expect(model.summary == "1 file · +34 −7")
+    #expect((model.fileCount, model.added, model.removed) == (1, 34, 7))
     #expect(model.sections[0].files[0].alsoIn == ["Lane-2"])
     #expect(model.sections[1].files[0].alsoIn == ["Lane-1"])
 }
@@ -115,4 +115,13 @@ private func section(_ id: String, _ kind: String, _ files: [FilesReply.File]) -
     #expect(model.sections.map(\.openByDefault) == [true, true, false, true])
     #expect(model.sections[0].files[0].alsoIn == ["Lane 2"])
     #expect(model.fileCount == 3)
+}
+
+@Test func theFiveSquaresFollowTheProportionAndKeepBothColoursWhenBothExist() {
+    #expect(diffSquares(added: 0, removed: 0) == (0, 0))
+    #expect(diffSquares(added: 9, removed: 0) == (5, 0))
+    #expect(diffSquares(added: 0, removed: 3) == (0, 5))
+    #expect(diffSquares(added: 50, removed: 50) == (3, 2))
+    #expect(diffSquares(added: 1000, removed: 1) == (4, 1))
+    #expect(diffSquares(added: 1, removed: 1000) == (1, 4))
 }

@@ -87,6 +87,10 @@ export type EpicReply = {
     prNumber: number | null;
     closedAt: number | null;
     readAt: number;
+    /** Only on a slice in progress whose agent the author stream names (hints, docs/research/claude-subagent-attribution.md): null when it gave none. */
+    lane?: number | null;
+    /** The agent's latest tool call, cut to 80 characters; null when it is not building the slice now. */
+    activity?: string | null;
   }[];
   /** Only the first hundred slices are read: true when the epic has more than the list holds. */
   slicesTruncated: boolean;

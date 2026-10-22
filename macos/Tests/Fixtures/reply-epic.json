@@ -163,7 +163,9 @@
       "blockedBy": [],
       "prNumber": 131,
       "closedAt": null,
-      "readAt": 99000
+      "readAt": 99000,
+      "lane": 1,
+      "activity": "Edit /work/acme/web-epic--lane-1/src/control/sessions.ts"
     },
     {
       "number": 124,

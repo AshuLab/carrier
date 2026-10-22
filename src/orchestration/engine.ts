@@ -100,7 +100,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // An epic a person sent back to the queue: nothing of the previous attempt is kept, the executions stay as history.
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
-    lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, reviewedSha: null, verification: null,
+    lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null,
     needsHumanReason: null, needsHumanKind: null, finishedAt: null,
   });
 
@@ -529,6 +529,20 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     }
   }
 
+  // The pull request block of each epic that has a PR, one query per epic and none for one without. A cache of GitHub like the slices:
+  // a failed read keeps the last block; a PR that GitHub does not know leaves it as it was.
+  async function refreshPullRequests(repo: string) {
+    for (const { id, prNumber } of db.select({ id: epics.id, prNumber: epics.prNumber }).from(epics).where(and(eq(epics.repo, repo), isNotNull(epics.prNumber), inArray(epics.status, ['running', 'ready_for_test', 'needs_human']))).orderBy(asc(epics.id)).all()) {
+      try {
+        const pr = await github.readPullRequest(repo, prNumber!);
+        if (pr !== null) db.update(epics).set({ pr }).where(eq(epics.id, id)).run();
+      } catch (e) {
+        if (e instanceof AuthError) throw e;
+        log.error('pull request read failed, keeping the last block', e);
+      }
+    }
+  }
+
   // Returns the wait until the next poll.
   async function poll(): Promise<number> {
     if (stopping) return pollIntervalMs;
@@ -542,6 +556,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         for (const { issue, title, labels } of await github.listReadyEpics(repo)) found.push({ repo, issue, title, labels });
         await refreshProgress(repo);
         await refreshSlices(repo);
+        await refreshPullRequests(repo);
         checks.set(repo, { at: clock.now(), ok: true, error: null });
         read.add(repo);
       }

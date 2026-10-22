@@ -37,6 +37,16 @@ export type EpicSlice = {
   closedAt: number | null;
 };
 
+/** A pull request as GitHub says it is now: its merge state, review decision and check counts; `checks` is null when it has none, which is not pending. */
+export type PullRequestBlock = {
+  number: number;
+  url: string;
+  draft: boolean;
+  mergeState: string;
+  reviewDecision: string | null;
+  checks: { passing: number; failing: number; pending: number } | null;
+};
+
 export type LabelStyle = { color: string; description: string };
 /** How Carrier creates its labels (GitHub limits a description to 100 characters). `needs-human` is the loud one: it is the state that most needs to be seen. */
 export const labelStyles = {
@@ -55,6 +65,8 @@ export interface GitHub {
   listOpenEpics(repo: string): Promise<{ issue: number; title: string; labels: string[]; slices: Slices | null }[]>;
   /** The first hundred slices of an epic in one query; `truncated` when it has more. Throws GitHubUnavailable like the call above. */
   readSlices(repo: string, issue: number): Promise<{ slices: EpicSlice[]; truncated: boolean }>;
+  /** One query: the pull request's merge state, review decision and checks; null when it does not exist. Throws GitHubUnavailable like the call above. */
+  readPullRequest(repo: string, number: number): Promise<PullRequestBlock | null>;
   /** Throws GitHubUnavailable like every call below. */
   getIssue(repo: string, issue: number): Promise<{ state: 'open' | 'closed'; labels: string[] }>;
   /** Null when the PR does not exist; `closed` is closed without merge, a merged PR is `merged`. `headRef` is the branch it comes from. */

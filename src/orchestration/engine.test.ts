@@ -14,7 +14,7 @@ import { epicEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { FakeClock, FakeGitHub } from './fake.ts';
-import { AuthError, GitHubUnavailable, type EpicSlice } from './github.ts';
+import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock } from './github.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 
 const MIN = 60_000;
@@ -1687,4 +1687,40 @@ test('the engine decides the same with the table empty: an epic goes through shi
   }));
   expect(rows(engine.db)[0]).toMatchObject({ status: 'ready_for_test', reviewedSha: SHA });
   expect(cached(engine.db)).toEqual([]);
+});
+
+// --- the pull request block: a cache of GitHub ---
+
+const block = (extra: Partial<PullRequestBlock> = {}): PullRequestBlock => ({ number: 50, url: 'https://github.com/AshuLab/a/pull/50', draft: false, mergeState: 'CLEAN', reviewDecision: null, checks: { passing: 3, failing: 0, pending: 0 }, ...extra });
+const cachedPr = (db: Db, issue: number) => db.select({ pr: epics.pr }).from(epics).where(eq(epics.issue, issue)).get()?.pr;
+
+test('the poll reads the pull request of an epic that has one and makes no query for one that has none', async () => {
+  const engine = await runningWithSlices();
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toEqual([]);
+  expect(cachedPr(engine.db, 1)).toBeNull();
+
+  engine.db.update(epics).set({ prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  await clock.advance(5 * MIN);
+  expect(github.pullRequestReads).toEqual(['AshuLab/a#50']); // epic 2 is queued with no PR: no query
+  expect(cachedPr(engine.db, 1)).toEqual(block());
+  expect(cachedPr(engine.db, 2)).toBeNull();
+});
+
+test('a failing pull request read keeps the last block and the poll goes on', async () => {
+  const engine = await runningWithSlices();
+  engine.db.update(epics).set({ prNumber: 50 }).where(eq(epics.issue, 1)).run();
+  github.pullRequestBlocks['AshuLab/a#50'] = block();
+  await clock.advance(5 * MIN);
+
+  github.pullRequestUnavailable = new GitHubUnavailable();
+  github.pullRequestBlocks['AshuLab/a#50'] = block({ draft: true });
+  await clock.advance(5 * MIN);
+  expect(cachedPr(engine.db, 1)).toEqual(block());
+  expect(engine.error).toBeNull();
+
+  github.pullRequestUnavailable = null;
+  await clock.advance(5 * MIN);
+  expect(cachedPr(engine.db, 1)).toEqual(block({ draft: true }));
 });

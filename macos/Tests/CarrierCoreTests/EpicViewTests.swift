@@ -163,3 +163,16 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
     #expect(filesChangedCount(FilesReply(sections: [])) == 0)
     #expect(filesChangedCount(FilesReply(sections: [section("a", ["x.ts", "y.ts"]), section("b", ["y.ts", "z.ts"])])) == 3)
 }
+
+@Test func theHeaderSaysTheStateInWords() {
+    let running = epicHeader(.active(epic(.running, stage: .review, round: 2)))
+    #expect(running.state == .running)
+    #expect(running.status == "Running · review · round 2/5")
+    #expect((running.repo, running.issue) == ("acme/web", 12))
+    let stuck = epicHeader(.active(epic(.needsHuman, stage: .review, round: 5, kind: "review_limit")))
+    #expect(stuck.state == .needsYou)
+    #expect(stuck.status == "Needs you · review limit reached")
+    #expect(epicHeader(.queued(queuedEpic, position: 2)).status == "Up next · 2nd in queue")
+    #expect(epicHeader(.queued(queuedEpic, position: 2)).state == .waiting)
+    #expect(epicHeader(.finished(doneEpic)).state == .ready)
+}

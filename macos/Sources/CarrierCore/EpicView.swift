@@ -115,35 +115,48 @@ public struct EpicHeader: Equatable {
     public var title: String
     /// "owner/name · #issue".
     public var subtitle: String
+    public var repo: String
+    public var issue: Int
     /// Without the `solve:` ones.
     public var labels: [String]
     public var prURL: String?
     /// "PR #50"; nil without a number.
     public var prLabel: String?
     public var issueURL: String
+    /// The glyph beside the title.
+    public var state: EpicMenuState
+    /// The state in words, for the pill: "Running · review · round 2/5", "Needs you · review limit reached", "Up next · 2nd in queue", "Ready for test".
+    public var status: String
 }
 
 public func epicHeader(_ subject: EpicSubject, reply: EpicReply? = nil) -> EpicHeader {
     let (repo, issue) = (subject.repo, subject.issue)
     var title: String?
     var labels: [String] = []
+    var state = EpicMenuState.ready
+    var status = "Ready for test"
     var prURL: String?
     var issueURL = "https://github.com/\(repo)/issues/\(issue)"
     switch subject {
-    case .queued(let epic, _): title = epic.title
+    case .queued(let epic, let position): (title, state, status) = (epic.title, .waiting, "Up next · \(ordinal(position)) in queue")
     case .finished(let done): prURL = donePullURL(done)
     case .active(let epic):
         (title, labels, prURL, issueURL) = (epic.title, epic.labels ?? [], epic.prUrl, epic.issueUrl)
+        (state, status) = epic.status == .running ? (.running, "Running · \(runningLine(epic))") : (.needsYou, "Needs you · \(interventionLine(epic))")
     }
     prURL = prURL ?? reply?.pr?.url
     let number = reply?.pr?.number ?? prURL.flatMap { URL(string: $0)?.lastPathComponent }.flatMap(Int.init)
     return EpicHeader(
         title: title.flatMap { $0.isEmpty ? nil : $0 } ?? "\(repo) #\(issue)",
         subtitle: "\(repo) · #\(issue)",
+        repo: repo,
+        issue: issue,
         labels: labels.filter { $0.hasPrefix("solve:") == false },
         prURL: prURL,
         prLabel: number.map { "PR #\($0)" },
-        issueURL: issueURL
+        issueURL: issueURL,
+        state: state,
+        status: status
     )
 }
 

@@ -19,18 +19,18 @@ struct EpicView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 18) {
                 EpicHeaderView(header: epicHeader(subject, reply: reply))
                 GlassTabs(
                     items: EpicTab.allCases.map { item in
                         let files = max(filesChanged, filesChangedCount(files))
-                        return GlassTabs.Item(id: item, title: item.title, count: item == .filesChanged && files > 0 ? "\(files)" : nil)
+                        return GlassTabs.Item(id: item, title: item.title, icon: item.icon, count: item == .filesChanged && files > 0 ? "\(files)" : nil)
                     },
                     selection: $tab
                 )
                 tabContent
             }
-            .padding(.horizontal, 20).padding(.vertical, 14)
+            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 20)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .safeAreaBar(edge: .top) {
@@ -57,24 +57,86 @@ struct EpicView: View {
     }
 }
 
+/// The title block: the state's glyph centred beside the title, and under it a pill with the state in words, the repository and
+/// the issue as chips, and the labels. The PR is not here, the toolbar has it.
 private struct EpicHeaderView: View {
     let header: EpicHeader
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(header.title).font(.title2.weight(.bold)).lineLimit(2)
-            HStack(spacing: 8) {
-                Text(header.subtitle).foregroundStyle(.secondary)
-                ForEach(header.labels, id: \.self) { label in
-                    Text(label).font(.caption.weight(.medium)).padding(.horizontal, 7).padding(.vertical, 1)
-                        .background(Capsule().fill(Color.secondary.opacity(0.15)))
-                }
-                if let label = header.prLabel ?? (header.prURL == nil ? nil : "PR"), let url = header.prURL.flatMap(browserURL) {
-                    Link("\(label) ↗", destination: url)
+        HStack(alignment: .center, spacing: 14) {
+            HeaderGlyph(state: header.state)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(header.title).font(.title2.weight(.bold)).lineLimit(2)
+                FlowLayout(spacing: 8) {
+                    StatePill(state: header.state, text: header.status)
+                    Chip(text: header.repo, symbol: "arrow.triangle.branch")
+                    if let url = browserURL(header.issueURL) {
+                        Button { NSWorkspace.shared.open(url) } label: {
+                            Chip(text: "#\(header.issue)", symbol: "smallcircle.filled.circle")
+                        }
+                        .buttonStyle(.plain).help("Open the issue")
+                    }
+                    ForEach(header.labels, id: \.self) { label in
+                        Text(label).font(.caption.weight(.medium)).padding(.horizontal, 7).padding(.vertical, 1)
+                            .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                    }
                 }
             }
-            .font(.callout).lineLimit(1)
         }
+    }
+}
+
+/// The state's glyph at header size: a ring that turns, an orange disc with a mark, a hollow circle or a blue disc with a tick.
+private struct HeaderGlyph: View {
+    let state: EpicMenuState
+
+    var body: some View {
+        Group {
+            switch state {
+            case .running: SpinningRing(diameter: 26, lineWidth: 3)
+            case .needsYou: disc(.orange, "!")
+            case .ready: disc(.blue, "✓")
+            case .waiting: Circle().strokeBorder(Color.gray, lineWidth: 3).frame(width: 24, height: 24)
+            }
+        }
+        .frame(width: 30, height: 30)
+        .accessibilityHidden(true)
+    }
+
+    private func disc(_ color: Color, _ mark: String) -> some View {
+        Circle().fill(color).frame(width: 30, height: 30).overlay { Text(mark).font(.system(size: 15, weight: .heavy)).foregroundStyle(.white) }
+    }
+}
+
+private struct StatePill: View {
+    let state: EpicMenuState
+    let text: String
+
+    var body: some View {
+        let color: Color = switch state {
+        case .running: .green
+        case .needsYou: .orange
+        case .ready: .blue
+        case .waiting: .gray
+        }
+        HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 6, height: 6)
+            Text(text).lineLimit(1)
+        }
+        .font(.caption.weight(.semibold)).foregroundStyle(color)
+        .padding(.horizontal, 10).padding(.vertical, 3)
+        .background(Capsule().fill(color.opacity(0.2)))
+    }
+}
+
+private struct Chip: View {
+    let text: String
+    let symbol: String
+
+    var body: some View {
+        Label(text, systemImage: symbol).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
+            .padding(.horizontal, 9).padding(.vertical, 2)
+            .background(Capsule().fill(Color.secondary.opacity(0.15)))
     }
 }
 
@@ -134,6 +196,15 @@ struct PipelineStepView: View {
         case .current: .accentColor
         case .problem: .orange
         case .waiting: nil
+        }
+    }
+}
+
+private extension EpicTab {
+    var icon: String {
+        switch self {
+        case .agentOutput: "terminal"
+        case .filesChanged: "doc.text"
         }
     }
 }

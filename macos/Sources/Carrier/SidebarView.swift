@@ -29,8 +29,10 @@ struct SidebarView: View {
             .tag(Selection.overview)
             if let snapshot {
                 ForEach(sidebarGroups(snapshot, by: groupBy), id: \.title) { group in
-                    Section(group.title) {
+                    Section {
                         ForEach(group.rows, id: \.selection) { SidebarRowView(row: $0).tag($0.selection) }
+                    } header: {
+                        Text(group.title).textCase(.uppercase)
                     }
                 }
             }

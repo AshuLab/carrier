@@ -94,7 +94,7 @@ private func key(_ repo: String, _ issue: Int) -> String { "\(repo)#\(issue)" }
 
 private func shortName(_ repo: String) -> String { repo.split(separator: "/").last.map(String.init) ?? repo }
 
-private func runningLine(_ epic: PanelEpic) -> String {
+func runningLine(_ epic: PanelEpic) -> String {
     let stage = epic.stage?.rawValue ?? "starting"
     if let round = epic.round { return "\(stage) · round \(round)/\(epic.maxReviews)" }
     if let slices = epic.slices, slices.total > 0 { return "\(stage) · \(slices.done)/\(slices.total) slices" }

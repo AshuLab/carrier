@@ -6,6 +6,8 @@ struct GlassTabs<ID: Hashable>: View {
     struct Item: Identifiable {
         let id: ID
         let title: String
+        /// An SF Symbol before the title.
+        var icon: String?
         var count: String?
         var countColor: Color = .secondary
     }
@@ -22,11 +24,12 @@ struct GlassTabs<ID: Hashable>: View {
                 let chosen = item.id == selection
                 Button { withAnimation(.smooth(duration: 0.22)) { selection = item.id } } label: {
                     HStack(spacing: 5) {
+                        if let icon = item.icon { Image(systemName: icon).font(.system(size: 11, weight: .medium)) }
                         Text(item.title).fontWeight(chosen ? .semibold : .regular)
                         if let count = item.count { Text(count).foregroundStyle(item.countColor) }
                     }
-                    .font(.callout).lineLimit(1)
-                    .padding(.horizontal, 12).padding(.vertical, 5)
+                    .font(.subheadline).lineLimit(1)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
                     .frame(maxWidth: fill ? .infinity : nil)
                     .background { if chosen { Capsule().fill(.primary.opacity(0.14)).matchedGeometryEffect(id: "pill", in: pill) } }
                     .contentShape(Capsule())
@@ -35,7 +38,7 @@ struct GlassTabs<ID: Hashable>: View {
                 .accessibilityAddTraits(chosen ? .isSelected : [])
             }
         }
-        .padding(3)
+        .padding(2)
         .glassEffect(.regular, in: .capsule)
         .fixedSize(horizontal: !fill, vertical: true)
     }

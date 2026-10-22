@@ -26,17 +26,18 @@ const wire = (row: Row): ExecEvent => ({
   ...(row.payload?.diff !== undefined && { diff: row.payload.diff }),
 });
 
-const withParser = new Set(['claude', 'agy']);
+// The harnesses that have an events parser.
+const structuredHarnesses = ['claude', 'codex', 'agy'];
 
 /**
  * The events of an execution after the cursor, oldest first, at most `limit`; null for an execution the engine does not know.
- * A harness with no parser yet answers `structured: false` and no events.
+ * A harness with no parser yet (a future one; today all three have one) answers `structured: false` and no events.
  */
 export function eventsOf(db: Db, executionId: string, after: number, limit: number): EventsReply | null {
   const row = db.select({ execution: executions, config: epics.config }).from(executions).innerJoin(epics, eq(epics.id, executions.epicId)).where(eq(executions.executionId, executionId)).get();
   if (row === undefined) return null;
   const running = row.execution.status === 'running';
-  if (!withParser.has(agentOf(row.execution, row.config).harness)) return { events: [], next: after, running, structured: false };
+  if (!structuredHarnesses.includes(agentOf(row.execution, row.config).harness)) return { events: [], next: after, running, structured: false };
   const events = db.select().from(executionEvents).where(and(eq(executionEvents.executionId, executionId), gt(executionEvents.id, after))).orderBy(asc(executionEvents.id)).limit(limit).all().map(wire);
   return { events, next: events.at(-1)?.id ?? after, running, structured: true };
 }

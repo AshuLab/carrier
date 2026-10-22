@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Stand-in for the codex binary in host-runner.integration.test.ts: the --model value picks the behavior.
 // Lines have the shape codex 0.153.4 prints (`exec --json`); a lost session prints plain text on stderr.
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const args = process.argv.slice(2);
@@ -11,6 +11,11 @@ const out = (event) => console.log(JSON.stringify(event));
 if (mode === 'lost') {
   console.error('Error: thread/resume: thread/resume failed: no rollout found for thread id x (code -32600)');
   process.exit(1);
+}
+if (mode === 'stream') {
+  // A recorded run: the lines of codex-exec.fixture.jsonl, one write per line.
+  for (const line of readFileSync(new URL('./codex-exec.fixture.jsonl', import.meta.url), 'utf8').trimEnd().split('\n')) console.log(line);
+  process.exit(0);
 }
 out({ type: 'thread.started', thread_id: args[1] === 'resume' ? args[2] : `session-${process.pid}` });
 out({ type: 'turn.started' });

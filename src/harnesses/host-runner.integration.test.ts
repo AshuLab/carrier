@@ -202,6 +202,20 @@ describe('host runner with a fake codex binary', () => {
     expect(seenAgain.sessions).toEqual([sessionId]);
   });
 
+  test('the events of a recorded run are reported per chunk, in the order of the stream', async () => {
+    const run = runner.run(codexTask('codex-events', { model: 'stream' }));
+    const batches: AgentEvent[][] = [];
+    run.onEvent((events) => batches.push(events));
+    expect((await run.done).exit).toBe('ok');
+    expect(batches.flat().map((e) => [e.kind, e.callId])).toEqual([
+      ['note', undefined],
+      ['note', undefined],
+      ['say', undefined],
+      ...['item_3', 'item_4', 'item_5', 'item_6'].flatMap((id) => [['tool_start', id], ['tool_end', id]]),
+      ['say', undefined],
+    ]);
+  });
+
   test('a nonzero exit is failed', async () => {
     expect((await runner.run(codexTask('codex-fail', { model: 'fail' })).done).exit).toBe('failed');
   });

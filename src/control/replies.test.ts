@@ -18,14 +18,19 @@ const codex = { harness: 'codex', model: 'gpt-5', provider: 'ollama' } as const;
 test('the sessions reply equals reply-sessions.json', () => {
   const sessions: SessionsReply = {
     sessions: [
-      { executionId: '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c', stage: 'fix', role: 'author', round: 2, agent: claude, status: 'running', startedAt: 90_000, finishedAt: null, resume: null },
+      { executionId: '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c', stage: 'fix', role: 'author', round: 2, agent: claude, status: 'running', startedAt: 90_000, finishedAt: null, resume: null, result: null },
       {
         executionId: '9a7d1c52-0b3e-4f6a-8d2c-1e5f7a9b3c4d', stage: 'review', role: 'reviewer', round: 2, agent: codex, status: 'finished', startedAt: 60_000, finishedAt: 85_000,
         resume: { harness: 'codex', sessionId: 'a1b2c3d4-0001-4000-8000-000000000002', cwd: '/work/acme/web-epic' },
+        result: {
+          outcome: 'completed', summary: 'Round 2 review of PR #12: no blockers. Review posted at https://github.com/acme/web-epic/pull/12#pullrequestreview-1.',
+          verification: { ci: 'passed', evidence: 'CI run concluded success on the head commit.' }, reason: null,
+        },
       },
       {
         executionId: '5c0e8a14-7d2b-4a93-b6f1-2d8c4e6a0b97', stage: 'ship', role: 'author', round: null, agent: claude, status: 'failed', startedAt: 1_000, finishedAt: 39_000,
         resume: { harness: 'claude', sessionId: '91d4be02-6a35-4c1e-9b7f-3e5a7c9d1f20', cwd: '/work/acme/web-epic', configDir: '/Users/dev/.claude-work' },
+        result: { outcome: 'needs_human', summary: 'Stopped before opening a pull request.', verification: null, reason: 'The ticket asks for a migration the schema forbids; which of the two wins?' },
       },
     ],
   };
@@ -82,28 +87,33 @@ test('the epic reply equals reply-epic.json', () => {
       {
         round: 1, reviewer: codex, verdict: 'changes_requested', reviewMs: 21_000, fixMs: 30_000, reviewedSha: '1111111aaaaaaa', fixedSha: '2222222bbbbbbb',
         blockers: [blocker('b1', 'Token expiry is not checked', 'new'), blocker('b2', 'Missing test for refresh', 'new')],
+        observations: [],
         commits: [{ sha: '2222222bbbbbbb', subject: 'fix(auth): check the expiry' }, { sha: '3333333ccccccc', subject: 'test(auth): cover refresh' }],
       },
       {
         round: 2, reviewer: codex, verdict: 'changes_requested', reviewMs: 25_000, fixMs: null, reviewedSha: '4444444ddddddd', fixedSha: null,
         blockers: [blocker('b1', 'Token expiry is not checked', 'fixed'), blocker(null, 'Missing test for refresh', 'carried', true), blocker('b3', 'Log line leaks the subject', 'new')],
+        observations: [],
         commits: [],
       },
       {
         round: 3, reviewer: codex, verdict: 'approved', reviewMs: 18_000, fixMs: null, reviewedSha: '5555555eeeeeee', fixedSha: null,
         blockers: [],
+        // one with its comment, one a reviewer gave no id or link
+        observations: [{ id: 'o1', title: 'Rename the helper', url: 'https://github.com/acme/web/pull/50#discussion_o1' }, { id: null, title: 'Prefer a const here', url: null }],
         commits: [],
       },
       {
         round: 5, reviewer: codex, verdict: 'limit_reached', reviewMs: 20_000, fixMs: null, reviewedSha: '6666666fffffff', fixedSha: null,
         blockers: [blocker('b3', 'Log line leaks the subject', 'carried')],
+        observations: [],
         commits: [],
       },
     ],
     slices: [
       { number: 121, title: 'Request schemas', state: 'closed', blockedBy: [], prNumber: 130, closedAt: 50_000, readAt: 99_000 },
       { number: 122, title: 'Rejected idea', state: 'skipped', blockedBy: [], prNumber: null, closedAt: 51_000, readAt: 99_000 },
-      { number: 123, title: 'Sessions request', state: 'in_progress', blockedBy: [], prNumber: 131, closedAt: null, readAt: 99_000 },
+      { number: 123, title: 'Sessions request', state: 'in_progress', blockedBy: [], prNumber: 131, closedAt: null, readAt: 99_000, lane: 1, activity: 'Edit /work/acme/web-epic--lane-1/src/control/sessions.ts' },
       { number: 124, title: 'Events request', state: 'waiting', blockedBy: [121, 123], prNumber: null, closedAt: null, readAt: 99_000 },
       { number: 125, title: 'Files request', state: 'ready', blockedBy: [], prNumber: null, closedAt: null, readAt: 99_000 },
     ],

@@ -13,7 +13,8 @@
       "status": "running",
       "startedAt": 90000,
       "finishedAt": null,
-      "resume": null
+      "resume": null,
+      "result": null
     },
     {
       "executionId": "9a7d1c52-0b3e-4f6a-8d2c-1e5f7a9b3c4d",
@@ -32,6 +33,15 @@
         "harness": "codex",
         "sessionId": "a1b2c3d4-0001-4000-8000-000000000002",
         "cwd": "/work/acme/web-epic"
+      },
+      "result": {
+        "outcome": "completed",
+        "summary": "Round 2 review of PR #12: no blockers. Review posted at https://github.com/acme/web-epic/pull/12#pullrequestreview-1.",
+        "verification": {
+          "ci": "passed",
+          "evidence": "CI run concluded success on the head commit."
+        },
+        "reason": null
       }
     },
     {
@@ -52,6 +62,12 @@
         "sessionId": "91d4be02-6a35-4c1e-9b7f-3e5a7c9d1f20",
         "cwd": "/work/acme/web-epic",
         "configDir": "/Users/dev/.claude-work"
+      },
+      "result": {
+        "outcome": "needs_human",
+        "summary": "Stopped before opening a pull request.",
+        "verification": null,
+        "reason": "The ticket asks for a migration the schema forbids; which of the two wins?"
       }
     }
   ]

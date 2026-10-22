@@ -163,3 +163,45 @@ func otherCommandsAreNot(command: String) {
     #expect(epicFocus(ref, running: true, data: data, folds: folds).transcript == nil)
     #expect(epicFocus(ref, running: true, data: nil, folds: folds) == EpicFocus(epic: ref, epicRunning: true))
 }
+
+// MARK: the result card
+
+@Test func aCompletedResultShowsItsSummaryAndTheCILine() {
+    let result = SessionResult(outcome: "completed", summary: "Built it.", verification: .init(ci: "passed", evidence: "Run 12 succeeded."), reason: nil)
+    #expect(resultCard(result) == ResultCard(outcome: "Completed", tone: .good, summary: "Built it.", ci: "CI passed: Run 12 succeeded.", reason: nil))
+    let absent = SessionResult(outcome: "completed", summary: "Built it.", verification: .init(ci: "absent", evidence: "No CI configured."), reason: nil)
+    #expect(resultCard(absent)?.ci == "CI absent: No CI configured.")
+}
+
+@Test func aStoppedResultShowsItsReasonAndNoCILine() {
+    let result = SessionResult(outcome: "needs_human", summary: "Stopped.", verification: nil, reason: "Which of the two wins?")
+    #expect(resultCard(result) == ResultCard(outcome: "Needs a human", tone: .stop, summary: "Stopped.", ci: nil, reason: "Which of the two wins?"))
+}
+
+@Test func aReviewThatAsksForChangesHasNeitherCIOrReason() {
+    let result = SessionResult(outcome: "changes_requested", summary: "Two blockers.", verification: nil, reason: "ignored")
+    #expect(resultCard(result) == ResultCard(outcome: "Changes requested", tone: .warning, summary: "Two blockers.", ci: nil, reason: nil))
+}
+
+@Test func anOutcomeAddedLaterStillGetsALabel() {
+    #expect(resultCard(SessionResult(outcome: "gave_up", summary: "s"))?.outcome == "Gave Up")
+}
+
+@Test func noResultMeansNoCard() {
+    #expect(resultCard(nil) == nil)
+    let list = sessionList(reply(session("a", "ship", status: "finished", until: 5)))
+    #expect(list.sections[0].result == nil)
+}
+
+@Test func theSessionSectionCarriesItsCard() {
+    var done = session("a", "review", round: 1, status: "finished", until: 5)
+    done.result = SessionResult(outcome: "completed", summary: "Approved.", verification: .init(ci: "passed", evidence: "ok"), reason: nil)
+    #expect(sessionList(reply(done)).sections[0].result?.outcome == "Completed")
+}
+
+@Test func onlyWebAddressesInTheTextBecomeLinks() {
+    let text = linkedText("Review at https://github.com/acme/web/pull/1#r. See also ftp://host/file and mailto:a@b.co.")
+    let links = text.runs.compactMap(\.link)
+    #expect(links == [URL(string: "https://github.com/acme/web/pull/1#r")!])
+    #expect(String(text.characters) == "Review at https://github.com/acme/web/pull/1#r. See also ftp://host/file and mailto:a@b.co.")
+}

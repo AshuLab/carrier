@@ -32,6 +32,7 @@ export const epics = sqliteTable(
     pr: text({ mode: 'json' }).$type<PullRequestBlock>(), // what GitHub said about the PR the last time the poll asked: a cache, never read to decide anything
     reviewedSha: text(), // head the reviewer approved, set when the epic becomes ready_for_test
     verification: text({ mode: 'json' }).$type<{ ci: 'passed' | 'absent'; evidence: string }>(), // what the reviewer reported about the checks
+    observationsPassAt: integer(), // ms since epoch, when the observations pass started (once per epic); null until then
     needsHumanReason: text(),
     needsHumanKind: text({ enum: needsHumanKinds }), // what kind of stop the reason is; set together with it
     title: text(), // the issue's title and labels as the poll last read them

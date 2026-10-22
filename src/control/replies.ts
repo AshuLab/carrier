@@ -28,6 +28,17 @@ export type ExecEvent = {
 /** What it takes to continue a session in a terminal; validated by the app before it builds a command (ADR 0007). */
 export type ResumeDescriptor = { harness: PanelAgent['harness']; sessionId: string; cwd: string; configDir?: string };
 
+/** What the agent reported when its execution ended (the imported result), redacted and cut. */
+export type SessionResult = {
+  outcome: 'completed' | 'changes_requested' | 'needs_human';
+  /** At most 1500 characters. */
+  summary: string;
+  /** Only a completed result has one; the evidence is at most 600 characters. */
+  verification: { ci: 'passed' | 'absent'; evidence: string } | null;
+  /** needs_human only, at most 600 characters. */
+  reason: string | null;
+};
+
 export type SessionsReply = {
   /** Newest first. */
   sessions: {
@@ -41,6 +52,8 @@ export type SessionsReply = {
     finishedAt: number | null;
     /** null while the session runs: the engine owns it. */
     resume: ResumeDescriptor | null;
+    /** null while no result was imported (a running execution included). */
+    result: SessionResult | null;
   }[];
 };
 
@@ -63,6 +76,9 @@ export type Blocker = {
   approximate: boolean;
 };
 
+/** A non-blocking finding a `completed` review listed, shaped like a blocker without its marks. */
+export type Observation = { id: string | null; title: string; url: string | null };
+
 export type EpicReply = {
   stages: { stage: 'queued' | 'ship' | 'review' | 'fix' | 'ready'; startedAt: number; endedAt: number | null }[];
   rounds: {
@@ -70,6 +86,8 @@ export type EpicReply = {
     reviewer: PanelAgent;
     verdict: 'approved' | 'changes_requested' | 'limit_reached';
     blockers: Blocker[];
+    /** In the reviewer's order; empty when the review listed none or predates the field. */
+    observations: Observation[];
     reviewMs: number | null;
     fixMs: number | null;
     /** The head the review looked at, and the head the fix left. */
@@ -87,6 +105,10 @@ export type EpicReply = {
     prNumber: number | null;
     closedAt: number | null;
     readAt: number;
+    /** Only on a slice in progress whose agent the author stream names (hints, docs/research/claude-subagent-attribution.md): null when it gave none. */
+    lane?: number | null;
+    /** The agent's latest tool call, cut to 80 characters; null when it is not building the slice now. */
+    activity?: string | null;
   }[];
   /** Only the first hundred slices are read: true when the epic has more than the list holds. */
   slicesTruncated: boolean;

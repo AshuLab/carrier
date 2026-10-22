@@ -23,6 +23,13 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(reply.sessions[1].resume == ResumeDescriptor(harness: "codex", sessionId: "a1b2c3d4-0001-4000-8000-000000000002", cwd: "/work/acme/web-epic", configDir: nil))
     #expect(reply.sessions[2].round == nil)
     #expect(reply.sessions[2].resume?.configDir == "/Users/dev/.claude-work")
+    #expect(reply.sessions[0].result == nil)
+    #expect(reply.sessions[1].result == SessionResult(
+        outcome: "completed", summary: "Round 2 review of PR #12: no blockers. Review posted at https://github.com/acme/web-epic/pull/12#pullrequestreview-1.",
+        verification: .init(ci: "passed", evidence: "CI run concluded success on the head commit."), reason: nil))
+    #expect(reply.sessions[2].result?.outcome == "needs_human")
+    #expect(reply.sessions[2].result?.verification == nil)
+    #expect(reply.sessions[2].result?.reason == "The ticket asks for a migration the schema forbids; which of the two wins?")
 }
 
 @Test func decodesTheEventsReply() throws {
@@ -51,6 +58,10 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(reply.rounds[1].blockers[1].id == nil)
     #expect(reply.rounds[1].blockers[1].approximate)
     #expect(reply.rounds[2].blockers.isEmpty)
+    #expect(reply.rounds.map(\.observations.count) == [0, 0, 2, 0])
+    #expect(reply.rounds[2].observations.map(\.id) == ["o1", nil])
+    #expect(reply.rounds[2].observations[0].url == "https://github.com/acme/web/pull/50#discussion_o1")
+    #expect(reply.rounds[2].observations[1].url == nil)
     #expect(reply.slices.map(\.state) == ["closed", "skipped", "in_progress", "waiting", "ready"])
     #expect(reply.slices[3].blockedBy == [121, 123])
     #expect(reply.slicesTruncated == false)
@@ -59,6 +70,8 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(reply.threads?[1].author == nil)
     #expect(reply.threads?[1].bot == true)
     #expect(reply.threadsTruncated == false)
+    #expect(reply.slices[2].lane == 1)
+    #expect(reply.slices[2].activity == "Edit /work/acme/web-epic--lane-1/src/control/sessions.ts")
     #expect(reply.slices[0] == EpicReply.Slice(number: 121, title: "Request schemas", state: "closed", blockedBy: [], prNumber: 130, closedAt: 50_000, readAt: 99_000))
     #expect(reply.worktrees == [.init(kind: "epic", lane: nil, path: "/work/acme/web-epic"), .init(kind: "lane", lane: 1, path: "/work/acme/web-epic--lane-1")])
     #expect(reply.branch == "feat/issue-12/epic")
@@ -83,6 +96,7 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(sessions.sessions[0].agent.provider == nil)
     #expect(sessions.sessions[0].finishedAt == nil)
     #expect(sessions.sessions[0].resume == nil)
+    #expect(sessions.sessions[0].result == nil) // an engine that does not send `result`
 
     let events: EventsReply = try decode(#"{"events":[{"id":1,"at":2,"kind":"future_kind"}],"next":1,"running":false,"structured":false}"#)
     #expect(events.events[0] == ExecEvent(id: 1, at: 2, kind: "future_kind"))
@@ -98,10 +112,26 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(epic.rounds[0].reviewedSha == nil)
     #expect(epic.rounds[0].blockers[0].id == nil)
     #expect(epic.rounds[0].blockers[0].url == nil)
+    #expect(epic.rounds[0].observations.isEmpty) // an engine that does not send `observations`
 
     let pr: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":[],"worktrees":[],"pr":{"number":1,"url":"u","draft":true,"mergeState":"UNKNOWN"}}"#)
     #expect(pr.pr?.checks == nil)
     #expect(pr.pr?.reviewDecision == nil)
+}
+
+@Test func aSliceWithoutTheHintsDecodesAsOneWithNone() throws {
+    let slice = #"{"number":1,"title":"t","state":"in_progress","blockedBy":[],"readAt":1"#
+    let old: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":["# + slice + #"}],"worktrees":[]}"#)
+    #expect(old.slices[0].lane == nil)
+    #expect(old.slices[0].activity == nil)
+
+    let null: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":["# + slice + #","lane":null,"activity":null}],"worktrees":[]}"#)
+    #expect(null.slices[0].lane == nil)
+    #expect(null.slices[0].activity == nil)
+
+    let present: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":["# + slice + #","lane":2,"activity":"Bash pnpm test"}],"worktrees":[]}"#)
+    #expect(present.slices[0].lane == 2)
+    #expect(present.slices[0].activity == "Bash pnpm test")
 }
 
 @Test func aReplyWithoutThreadsIsNotTheSameAsOneWithNone() throws {

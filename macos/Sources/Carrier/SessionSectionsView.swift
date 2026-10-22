@@ -21,6 +21,7 @@ struct SessionSectionsView: View {
                     if open {
                         TranscriptRows(content: section.body, outputs: $outputs)
                         ForEach(section.lanes) { LaneSectionView(lane: $0, outputs: $outputs) }
+                        if let result = section.result { ResultCardView(card: result) }
                         ContinueInTerminalView(section: section)
                         SessionCard.foot
                     }
@@ -64,6 +65,32 @@ extension View {
     /// A row inside a session's card: the card's tint behind the whole width, margins included.
     func sessionRow() -> some View {
         frame(maxWidth: .infinity, alignment: .leading).background(SessionCard.tint)
+    }
+}
+
+/// The agent's closing report, under the transcript: the outcome, its summary, the CI line and, for a stop, the reason.
+struct ResultCardView: View {
+    let card: ResultCard
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(card.outcome).font(.caption.weight(.semibold)).foregroundStyle(tint)
+                .padding(.horizontal, 8).padding(.vertical, 2).background(Capsule().fill(tint.opacity(0.18)))
+            Text(linkedText(card.summary)).textSelection(.enabled)
+            if let ci = card.ci { Text(linkedText(ci)).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
+            if let reason = card.reason {
+                Text(linkedText(reason)).font(.callout).foregroundStyle(tint).textSelection(.enabled)
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8).sessionRow()
+    }
+
+    private var tint: Color {
+        switch card.tone {
+        case .good: .green
+        case .warning: .orange
+        case .stop: .red
+        }
     }
 }
 

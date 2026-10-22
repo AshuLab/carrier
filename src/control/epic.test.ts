@@ -10,7 +10,9 @@ import { createEngine } from '../orchestration/engine.ts';
 import { FakeClock, FakeGitHub } from '../orchestration/fake.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
+import { executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
+import { epicSlices } from '../storage/epic-slices.ts';
 import { epics } from '../storage/schema.ts';
 import { epicOf, MAX_ROUNDS } from './epic.ts';
 
@@ -124,6 +126,21 @@ test('with ids the marks are exact for a persisting, a fixed and a new blocker; 
   expect(marks(2)).toEqual([[null, 'carried', true], [null, 'new', true], ['a', 'fixed', true]]);
 });
 
+test('a round carries the observations its completed review listed, in order; a round without any, or from before the field, has none', () => {
+  const id = epicRow();
+  run(id, 'review', 10, 11, { outcome: 'changes_requested', ...pr(SHA), blockers: [{ title: 'A blocker' }] }, 1);
+  run(id, 'fix', 12, 13, { outcome: 'completed', ...pr(SHA) }, 1);
+  run(id, 'review', 20, 21, { outcome: 'completed', ...pr(SHA), observations: [{ id: 'o1', title: 'Rename x', url: 'https://github.com/o/r/pull/50#c1' }, { title: 'No id, no url' }, { id: 'o3', title: 'Long link', url: `https://github.com/o/r/${'u'.repeat(600)}` }] }, 2);
+  run(id, 'review', 30, 31, { outcome: 'completed', ...pr(SHA), observations: [] }, 3);
+  run(id, 'review', 40, 41, { outcome: 'completed', ...pr(SHA) }, 4);
+  expect(reply().rounds.map((r) => r.observations)).toEqual([
+    [],
+    [{ id: 'o1', title: 'Rename x', url: 'https://github.com/o/r/pull/50#c1' }, { id: null, title: 'No id, no url', url: null }, { id: 'o3', title: 'Long link', url: null }],
+    [],
+    [],
+  ]);
+});
+
 test('technical retries inside a round do not make a round', async () => {
   await drive([['Only blocker'], 'approved'], { flaky: true });
   const { rounds } = reply();
@@ -222,4 +239,59 @@ test('the reply of an epic with far more rounds than the cap, with the largest b
   expect(epic.rounds.at(-1)!.round).toBe(MAX_ROUNDS + 10);
   expect(Math.max(...epic.rounds.map((r) => r.blockers.length))).toBeLessThanOrEqual(50);
   expect(Buffer.byteLength(JSON.stringify({ id: 1, ok: true, data: epic }))).toBeLessThan(CLIENT_LINE_LIMIT);
+});
+
+test('a slice in progress shows the lane and the latest call of the agent building it, each slice its own agent; every other slice has none', () => {
+  const id = epicRow({ status: 'running', finishedAt: null });
+  const slice = (number: number, state: 'in_progress' | 'waiting') => db.insert(epicSlices).values({ epicId: id, number, title: `S${number}`, state, blockedBy: [], prNumber: null, closedAt: null, readAt: 1 }).run();
+  [10, 11, 12, 13].forEach((number) => slice(number, 'in_progress'));
+  slice(14, 'waiting');
+  const hints = () => reply().slices.map(({ number, lane, activity }) => [number, lane, activity]);
+  const noHints = [[10, null, null], [11, null, null], [12, null, null], [13, null, null], [14, null, null]];
+
+  // no running author execution: nothing, even with events stored for an earlier one
+  db.insert(executions).values({ executionId: 'old', epicId: id, stage: 'ship', status: 'finished', resultPath: '/r.json', startedAt: 1, finishedAt: 2, harness: 'claude', model: 'm', provider: null, workspace: '/w' }).run();
+  const add = (executionId: string, kind: 'task' | 'tool_start', agentId: string, fields: Partial<typeof executionEvents.$inferInsert> = {}) =>
+    db.insert(executionEvents).values({ executionId, at: 1, kind, agentId, ...fields }).run();
+  add('old', 'task', 'a-old', { payload: { slice: 10 } });
+  add('old', 'tool_start', 'a-old', { tool: 'Bash', arg: 'ls' });
+  expect(hints()).toEqual(noHints);
+
+  db.insert(executions).values({ executionId: 'live', epicId: id, stage: 'ship', status: 'running', resultPath: '/r.json', startedAt: 3, harness: 'claude', model: 'm', provider: null, workspace: '/w' }).run();
+  const task = (agentId: string, slice: number, ended = false) => add('live', 'task', agentId, { payload: { text: `Build slice #${slice}`, slice }, ...(ended && { status: 'ok' as const }) });
+  task('a-10', 10);
+  task('a-11', 11);
+  task('a-12', 12);
+  task('a-12', 12, true); // its task ended
+  task('a-14', 14); // not in progress
+  add('live', 'tool_start', 'a-10', { tool: 'Edit', arg: '/w/repo--lane-2/src/a.ts' }); // the lane from a path
+  add('live', 'tool_start', 'a-11', { tool: 'Read', arg: '/w/repo/src/b.ts' });
+  add('live', 'tool_start', 'a-12', { tool: 'Bash', arg: 'pnpm test' });
+  add('live', 'tool_start', 'a-14', { tool: 'Bash', arg: 'pnpm lint' });
+  add('live', 'tool_start', 'a-10', { tool: 'Bash', arg: `pnpm test\n${'x'.repeat(100)}` }); // the latest of a-10: long, on two lines
+  add('live', 'tool_start', 'a-11', { tool: 'Grep', arg: 'todo', payload: { lane: 3 } }); // the lane from the payload
+  add('live', 'tool_start', 'a-99', { tool: 'Bash', arg: 'unrelated' });
+  expect(hints()).toEqual([
+    [10, 2, `Bash pnpm test ${'x'.repeat(100)}`.slice(0, 80)],
+    [11, 3, 'Grep todo'],
+    [12, null, null],
+    [13, null, null], // no agent names it
+    [14, null, null],
+  ]);
+
+  // an agent that has not made a call yet: no activity, and the lane stays null
+  task('a-13', 13);
+  expect(reply().slices.find((s) => s.number === 13)).toMatchObject({ lane: null, activity: null });
+});
+
+test('the read of events is bounded to the running execution: other executions and events beyond the cap do not count', () => {
+  const id = epicRow({ status: 'running', finishedAt: null });
+  db.insert(epicSlices).values({ epicId: id, number: 10, title: 'S', state: 'in_progress', blockedBy: [], prNumber: null, closedAt: null, readAt: 1 }).run();
+  db.insert(executions).values({ executionId: 'live', epicId: id, stage: 'ship', status: 'running', resultPath: '/r.json', startedAt: 3, harness: 'claude', model: 'm', provider: null, workspace: '/w' }).run();
+  db.insert(executionEvents).values({ executionId: 'live', at: 1, kind: 'task', agentId: 'a', payload: { slice: 10 } }).run();
+  db.insert(executionEvents).values({ executionId: 'live', at: 1, kind: 'tool_start', agentId: 'a', tool: 'Bash', arg: 'first' }).run();
+  const rows = Array.from({ length: 600 }, () => ({ executionId: 'live', at: 2, kind: 'tool_start' as const, agentId: 'b', tool: 'Bash', arg: 'other agent' }));
+  db.insert(executionEvents).values(rows).run();
+  // the agent's only call fell out of the newest 500: no activity, and no scan to find it
+  expect(reply().slices[0]).toMatchObject({ lane: null, activity: null });
 });

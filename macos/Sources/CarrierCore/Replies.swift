@@ -16,10 +16,27 @@ public struct SessionsReply: Codable, Equatable {
         public var finishedAt: Int?
         /// nil while the session runs.
         public var resume: ResumeDescriptor?
+        /// What the agent reported when it ended; nil while no result was imported, and for an engine that does not send it.
+        public var result: SessionResult?
     }
 
     /// Newest first.
     public var sessions: [Session]
+}
+
+/// The engine has already redacted and cut the text.
+public struct SessionResult: Codable, Equatable {
+    public struct Verification: Codable, Equatable {
+        public var ci: String
+        public var evidence: String
+    }
+
+    public var outcome: String
+    public var summary: String
+    /// Only a completed result has one.
+    public var verification: Verification?
+    /// needs_human only.
+    public var reason: String?
 }
 
 /// Not yet validated: the app checks it before it builds a command (ADR 0007).
@@ -82,6 +99,13 @@ public struct EpicReply: Codable, Equatable {
         public var approximate: Bool
     }
 
+    /// A non-blocking finding a completed review listed.
+    public struct Observation: Codable, Equatable {
+        public var id: String?
+        public var title: String
+        public var url: String?
+    }
+
     public struct Commit: Codable, Equatable {
         public var sha: String
         public var subject: String
@@ -92,6 +116,8 @@ public struct EpicReply: Codable, Equatable {
         public var reviewer: PanelSnapshot.Agent
         public var verdict: String
         public var blockers: [Blocker]
+        /// Empty when the review listed none, and for an engine that predates the field.
+        public var observations: [Observation] = []
         public var reviewMs: Int?
         public var fixMs: Int?
         public var reviewedSha: String?
@@ -107,7 +133,7 @@ public struct EpicReply: Codable, Equatable {
         public var prNumber: Int?
         public var closedAt: Int?
         public var readAt: Int
-        /// Hints for a slice in progress; the engine does not send them yet (docs/specs/macos-app-redesign.md, spike 3).
+        /// Hints for a slice in progress (docs/specs/macos-app-redesign.md, spike 3); absent from an older engine, null when the stream gave none.
         public var lane: Int? = nil
         public var activity: String? = nil
     }
@@ -165,6 +191,23 @@ public struct EpicReply: Codable, Equatable {
     public var branch: String?
     /// nil during ship.
     public var pr: PullRequest?
+}
+
+extension EpicReply.Round {
+    /// An engine that predates `observations` leaves it out: none, not an error.
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        round = try values.decode(Int.self, forKey: .round)
+        reviewer = try values.decode(PanelSnapshot.Agent.self, forKey: .reviewer)
+        verdict = try values.decode(String.self, forKey: .verdict)
+        blockers = try values.decode([EpicReply.Blocker].self, forKey: .blockers)
+        observations = try values.decodeIfPresent([EpicReply.Observation].self, forKey: .observations) ?? []
+        reviewMs = try values.decodeIfPresent(Int.self, forKey: .reviewMs)
+        fixMs = try values.decodeIfPresent(Int.self, forKey: .fixMs)
+        reviewedSha = try values.decodeIfPresent(String.self, forKey: .reviewedSha)
+        fixedSha = try values.decodeIfPresent(String.self, forKey: .fixedSha)
+        commits = try values.decode([EpicReply.Commit].self, forKey: .commits)
+    }
 }
 
 public struct FilesReply: Codable, Equatable {

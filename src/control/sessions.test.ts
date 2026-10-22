@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { openDatabase, type Db } from '../storage/db.ts';
+import { callerResults } from '../storage/caller-results.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import { startControlServer } from './server.ts';
@@ -81,7 +82,7 @@ test('a running epic lists its session newest first, with no descriptor while it
   expect(sessions.map((s: { executionId: string }) => s.executionId.slice(-1))).toEqual(['2', '1']);
   expect(sessions[0]).toEqual({
     executionId: '00000000-0000-4000-8000-000000000002', stage: 'review', role: 'reviewer', round: 1,
-    agent: { harness: 'codex', model: 'gpt', provider: 'ollama' }, status: 'running', startedAt: 2000, finishedAt: null, resume: null,
+    agent: { harness: 'codex', model: 'gpt', provider: 'ollama' }, status: 'running', startedAt: 2000, finishedAt: null, resume: null, result: null,
   });
   expect(sessions[1].resume).toEqual({ harness: 'claude', sessionId: 'sess-1', cwd: '/work/clone', configDir: '/cfg/claude' });
 });
@@ -110,4 +111,46 @@ test('an execution from before the agent was recorded takes the agent from the e
   execution(id, 1, { stage: 'review', status: 'finished', finishedAt: 1500, sessionId: 'sess-1' });
   const { sessions } = (await ask(5)).reply.data;
   expect(sessions[0]).toMatchObject({ role: 'reviewer', round: null, agent: { harness: 'codex', model: 'm', provider: null }, resume: null });
+});
+
+const sha = 'a'.repeat(40);
+const imported = (n: number, result: object) =>
+  db.insert(callerResults).values({ executionId: `00000000-0000-4000-8000-00000000000${n}`, outcome: (result as { outcome: string }).outcome, result: JSON.stringify(result) }).run();
+const common = { repo: 'AshuLab/a', epic: 6, summary: 'Did the work.' };
+
+test('each outcome returns its result; a running session and one with no imported result have none', async () => {
+  const id = epic(6, 'ready_for_test');
+  execution(id, 1, { ...ran, status: 'finished', finishedAt: 1500 });
+  execution(id, 2, { ...ran, stage: 'review', status: 'finished', finishedAt: 2500 });
+  execution(id, 3, { ...ran, stage: 'review', status: 'finished', finishedAt: 3500 });
+  execution(id, 4, { ...ran, status: 'finished', finishedAt: 4500 });
+  execution(id, 5, { ...ran, status: 'running' });
+  imported(1, { ...common, executionId: '00000000-0000-4000-8000-000000000001', stage: 'ship', outcome: 'completed', pr: { number: 7, headSha: sha }, verification: { ci: 'absent', evidence: 'No CI configured.' } });
+  imported(2, { ...common, executionId: '00000000-0000-4000-8000-000000000002', stage: 'review', outcome: 'changes_requested', pr: { number: 7, headSha: sha }, blockers: [{ title: 'Missing test' }] });
+  imported(3, { ...common, executionId: '00000000-0000-4000-8000-000000000003', stage: 'review', outcome: 'needs_human', reason: 'Which of the two wins?' });
+  const { sessions } = (await ask(6)).reply.data;
+  expect(sessions.map((s: { result: unknown }) => s.result)).toEqual([
+    null, // running
+    null, // finished, no result imported
+    { outcome: 'needs_human', summary: 'Did the work.', verification: null, reason: 'Which of the two wins?' },
+    { outcome: 'changes_requested', summary: 'Did the work.', verification: null, reason: null },
+    { outcome: 'completed', summary: 'Did the work.', verification: { ci: 'absent', evidence: 'No CI configured.' }, reason: null },
+  ]);
+});
+
+test('a token in the summary, the evidence or the reason is redacted, and each field is cut at its limit', async () => {
+  const id = epic(7, 'needs_human');
+  const token = `ghp_${'x'.repeat(30)}`;
+  execution(id, 1, { ...ran, status: 'finished', finishedAt: 1500 });
+  execution(id, 2, { ...ran, stage: 'review', status: 'finished', finishedAt: 2500 });
+  imported(1, {
+    ...common, epic: 7, executionId: '00000000-0000-4000-8000-000000000001', stage: 'ship', outcome: 'completed', pr: { number: 7, headSha: sha },
+    summary: `${token} ${'s'.repeat(2000)}`, verification: { ci: 'passed', evidence: `${token} ${'e'.repeat(1000)}` },
+  });
+  imported(2, { ...common, epic: 7, executionId: '00000000-0000-4000-8000-000000000002', stage: 'review', outcome: 'needs_human', summary: 'Stopped.', reason: `${token} ${'r'.repeat(1000)}` });
+  const [needsHuman, completed] = (await ask(7)).reply.data.sessions.map((s: { result: object }) => s.result) as any[];
+  expect(completed.summary).toBe(`[redacted] ${'s'.repeat(1500 - '[redacted] '.length)}`);
+  expect(completed.verification.evidence).toBe(`[redacted] ${'e'.repeat(600 - '[redacted] '.length)}`);
+  expect(needsHuman.reason).toBe(`[redacted] ${'r'.repeat(600 - '[redacted] '.length)}`);
+  expect(JSON.stringify([needsHuman, completed])).not.toContain('ghp_');
 });

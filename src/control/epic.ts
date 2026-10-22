@@ -1,12 +1,13 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type { CallerResult } from '../execution/caller-result.ts';
 import type { Db } from '../storage/db.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
+import { executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import type { Blocker, EpicReply } from './replies.ts';
@@ -17,9 +18,12 @@ const log = createScopedLogger('control');
 // The reply is bounded: with these, a round weighs at most about 60 KB, far under the client's 8 MiB line.
 export const MAX_ROUNDS = 50;
 const MAX_BLOCKERS = 50;
+const MAX_OBSERVATIONS = 50;
 const MAX_COMMITS = 50;
 const MAX_TEXT = 200;
 const MAX_URL = 500;
+const MAX_ACTIVITY = 80;
+const MAX_LIVE_EVENTS = 500; // per kind, newest first, of the one running execution
 
 type Round = EpicReply['rounds'][number];
 type Found = { id: string | null; title: string; url: string | null };
@@ -80,6 +84,37 @@ function commitsBetween(cwd: string | null, from: string, to: string): Round['co
 }
 
 /**
+ * The lane and the activity of the agent building each slice, by slice number: the agent is the one whose newest `task` event
+ * names the slice and has no status (a second `task` event ends it). Only the running author execution is read, newest events
+ * first and capped, so it never grows with the table. The lane is a hint: `lane` in an event's payload, else `--lane-N` in a call's argument.
+ */
+function liveHints(db: Db, epicId: number): Map<number, { lane: number | null; activity: string | null }> {
+  const hints = new Map<number, { lane: number | null; activity: string | null }>();
+  const running = db
+    .select({ executionId: executions.executionId })
+    .from(executions)
+    .where(and(eq(executions.epicId, epicId), eq(executions.stage, 'ship'), eq(executions.status, 'running')))
+    .orderBy(desc(sql`executions.rowid`))
+    .get();
+  if (running === undefined) return hints;
+  const newest = (kind: 'task' | 'tool_start') =>
+    db.select().from(executionEvents).where(and(eq(executionEvents.executionId, running.executionId), eq(executionEvents.kind, kind))).orderBy(desc(executionEvents.id)).limit(MAX_LIVE_EVENTS).all();
+  const calls = newest('tool_start');
+  const seen = new Set<string>();
+  for (const task of newest('task')) {
+    if (task.agentId === null || seen.has(task.agentId)) continue;
+    seen.add(task.agentId);
+    const slice = task.payload?.slice;
+    if (task.status !== null || slice === undefined || hints.has(slice)) continue;
+    const mine = calls.filter((call) => call.agentId === task.agentId);
+    const lane = mine.map((call) => call.payload?.lane ?? Number(/--lane-(\d+)/.exec(call.arg ?? '')?.[1] ?? NaN)).find((n) => Number.isNaN(n) === false);
+    const call = mine[0];
+    hints.set(slice, { lane: lane ?? null, activity: call === undefined ? null : [call.tool, call.arg].filter((part) => part !== null).join(' ').replace(/\s+/g, ' ').slice(0, MAX_ACTIVITY) });
+  }
+  return hints;
+}
+
+/**
  * The stage timeline, review rounds, worktrees and branch of an epic; null for one the engine does not know.
  * Built from the executions and the stored results, so it also reads an epic that has finished. A round is a review that
  * left a result: technical retries leave none and make no round. An epic put back in the queue starts new rounds from 1
@@ -124,7 +159,9 @@ export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
     if (result === null) continue;
     const parsed = JSON.parse(result) as CallerResult;
     if (parsed.outcome === 'needs_human') continue; // the reviewer stopped: no verdict to show
-    const blockers: Found[] = parsed.outcome === 'changes_requested' ? parsed.blockers.map(({ id, title, url }) => ({ id: id ?? null, title: title.slice(0, MAX_TEXT), url: url !== undefined && url.length <= MAX_URL ? url : null })) : [];
+    const toFound = ({ id, title, url }: { id?: string; title: string; url?: string }): Found => ({ id: id ?? null, title: title.slice(0, MAX_TEXT), url: url !== undefined && url.length <= MAX_URL ? url : null });
+    const blockers: Found[] = parsed.outcome === 'changes_requested' ? parsed.blockers.map(toFound) : [];
+    const observations: Found[] = parsed.outcome === 'completed' ? (parsed.observations ?? []).slice(0, MAX_OBSERVATIONS).map(toFound) : [];
     found.push({
       attempt,
       fixed: false,
@@ -133,6 +170,7 @@ export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
         reviewer: agentOf(run, epic.config),
         verdict: parsed.outcome === 'completed' ? 'approved' : 'changes_requested',
         blockers: marked(blockers, open, parsed.resolved ?? []),
+        observations,
         reviewMs: run.finishedAt === null ? null : run.finishedAt - run.startedAt,
         fixMs: null,
         reviewedSha: parsed.pr.headSha,
@@ -175,5 +213,6 @@ export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
 
   const slices = db.select().from(epicSlices).where(eq(epicSlices.epicId, epic.id)).orderBy(epicSlices.number).all();
   const threads = db.select().from(epicReviewThreads).where(eq(epicReviewThreads.epicId, epic.id)).orderBy(epicReviewThreads.position).all();
-  return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, closedAt, readAt })), slicesTruncated: slices.some((s) => s.truncated), threads: threads.map(({ epicId, position, readAt, truncated, ...thread }) => thread), threadsTruncated: threads.some((t) => t.truncated), worktrees, branch, pr: epic.pr };
+  const hints = liveHints(db, epic.id);
+  return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, closedAt, readAt, lane: null, activity: null, ...(state === 'in_progress' && hints.get(number)) })), slicesTruncated: slices.some((s) => s.truncated), threads: threads.map(({ epicId, position, readAt, truncated, ...thread }) => thread), threadsTruncated: threads.some((t) => t.truncated), worktrees, branch, pr: epic.pr };
 }

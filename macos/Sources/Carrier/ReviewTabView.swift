@@ -169,7 +169,12 @@ private struct ReviewBlockerRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Circle().fill(color).frame(width: 5, height: 5).offset(y: -1)
-            Text(blocker.title).font(.caption).lineLimit(2)
+            // the comment that raised it; a result that predates the url is plain text
+            if let link = blocker.url.flatMap(browserURL) {
+                Link(destination: link) { Text(blocker.title).font(.caption).lineLimit(2).multilineTextAlignment(.leading) }.buttonStyle(.plain).help(link.absoluteString)
+            } else {
+                Text(blocker.title).font(.caption).lineLimit(2)
+            }
             Spacer(minLength: 4)
             Text(blocker.mark.text + (blocker.approximate ? " ≈" : "")).font(.caption2).foregroundStyle(color).fixedSize()
         }

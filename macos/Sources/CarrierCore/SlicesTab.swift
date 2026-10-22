@@ -18,7 +18,7 @@ public enum SliceGroup: CaseIterable, Hashable {
 public struct SliceRow: Equatable {
     public var number: Int
     public var title: String
-    /// In progress: the lane and the activity; waiting: `ready to start` or `after #N`; merged: its time.
+    /// In progress: the lane and the activity; waiting: `ready to start` or `after <title>` (`#N` for a blocker not in the list); merged: its time.
     public var detail: String
     /// The slice's pull request, when the engine found one.
     public var prNumber: Int?
@@ -56,6 +56,7 @@ public struct SlicesTabModel: Equatable {
 public func slicesTabModel(_ subject: EpicSubject?, reply: EpicReply?, chosen: SliceGroup? = nil, now: Int) -> SlicesTabModel {
     let slices = (reply?.slices ?? []).filter { $0.state != "skipped" }
     var rows: [SliceGroup: [SliceRow]] = [:]
+    let titles = Dictionary((reply?.slices ?? []).map { ($0.number, $0.title) }, uniquingKeysWith: { first, _ in first })
     var queued = false
     if case .queued? = subject { queued = true }
     for slice in slices {
@@ -66,7 +67,7 @@ public func slicesTabModel(_ subject: EpicSubject?, reply: EpicReply?, chosen: S
             let hints = [slice.lane.map { "lane \($0)" }, slice.activity].compactMap { $0 }
             (group, detail) = (.inProgress, hints.first.map { _ in hints.joined(separator: " · ") } ?? "working")
         default:
-            (group, detail) = (.waiting, slice.blockedBy.isEmpty ? "ready to start" : "after " + slice.blockedBy.map { "#\($0)" }.joined(separator: ", "))
+            (group, detail) = (.waiting, slice.blockedBy.isEmpty ? "ready to start" : "after " + slice.blockedBy.map { titles[$0] ?? "#\($0)" }.joined(separator: ", "))
         }
         let base = subject.map { "https://github.com/\($0.repo)" }
         rows[group, default: []].append(SliceRow(

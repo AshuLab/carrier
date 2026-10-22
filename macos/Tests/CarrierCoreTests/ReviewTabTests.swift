@@ -245,3 +245,65 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
     #expect(model.card?.view.chip.text == "reviewing")
     #expect(model.history.map(\.round) == [2, 1])
 }
+
+// MARK: threads
+
+private func thread(
+    _ id: String, line: Int? = 10, resolved: Bool = false, outdated: Bool = false, author: String? = "ana", bot: Bool = false, firstLine: String = "note"
+) -> EpicReply.ReviewThread {
+    EpicReply.ReviewThread(
+        id: id, path: "src/a.ts", line: line, resolved: resolved, outdated: outdated, author: author, bot: bot, firstLine: firstLine,
+        commentCount: 1, url: "https://example.test/\(id)"
+    )
+}
+
+private func threadsModel(_ threads: [EpicReply.ReviewThread]?, truncated: Bool? = nil, hasPullRequest: Bool = true) -> ReviewThreadsModel? {
+    var made = reply([])
+    made.threads = threads
+    made.threadsTruncated = truncated
+    if hasPullRequest { made.pr = EpicReply.PullRequest(number: 51, url: "https://github.com/acme/web/pull/51", draft: false, mergeState: "clean", reviewDecision: nil, checks: nil) }
+    return reviewTab(epic(stage: .review, round: 1), reply: made).threads
+}
+
+@Test func threadsAreUnresolvedFirstThenResolvedInGithubsOrder() {
+    let model = threadsModel([thread("a", resolved: true), thread("b"), thread("c", resolved: true), thread("d")])
+    #expect(model?.rows.map(\.id) == ["b", "d", "a", "c"])
+    #expect(model?.rows.map(\.resolved) == [false, false, true, true])
+    #expect(model?.rows[0].url == "https://example.test/b")
+}
+
+@Test func aThreadSaysWhoWroteItAndWhere() {
+    let rows = threadsModel([thread("a"), thread("b", author: "ci", bot: true), thread("c", author: nil)])?.rows
+    #expect(rows?.map(\.author) == ["ana", "ci (bot)", "unknown"])
+    #expect(rows?[0].location == "src/a.ts:10")
+    #expect(rows?[0].outdated == false)
+}
+
+@Test func aThreadWithNoLineIsItsFileAloneAndOutdated() {
+    let row = threadsModel([thread("a", line: nil)])?.rows[0]
+    #expect(row?.location == "src/a.ts")
+    #expect(row?.outdated == true)
+    #expect(threadsModel([thread("b", outdated: true)])?.rows[0].outdated == true)
+}
+
+@Test func anEmptyFirstLineShowsNothing() {
+    let rows = threadsModel([thread("a", firstLine: ""), thread("b")])?.rows
+    #expect(rows?.map(\.firstLine) == [nil, "note"])
+}
+
+@Test func theListSaysItIsPartialOnlyWhenTheEngineSaysSo() {
+    #expect(threadsModel([thread("a")], truncated: true)?.partial == true)
+    #expect(threadsModel([thread("a")], truncated: false)?.partial == false)
+    #expect(threadsModel([thread("a")])?.partial == false)
+}
+
+@Test func withoutThreadsFromTheEngineThereIsNoSectionAndWithNoneThereIsAnEmptyOne() {
+    #expect(threadsModel(nil) == nil)
+    #expect(reviewTab(nil, reply: nil).threads == nil)
+    #expect(threadsModel([])?.rows.isEmpty == true)
+}
+
+@Test func anEpicWithNoPullRequestYetHasNoThreadsSectionEvenWhenTheListIsEmpty() {
+    #expect(threadsModel([], hasPullRequest: false) == nil)
+    #expect(threadsModel([thread("a")], hasPullRequest: false)?.rows.count == 1)
+}

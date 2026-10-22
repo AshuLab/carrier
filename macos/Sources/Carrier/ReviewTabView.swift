@@ -8,6 +8,14 @@ struct ReviewTabView: View {
     @Binding var folds: ReviewFolds
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            rounds
+            if let threads = model.threads { ReviewThreadsView(threads: threads) }
+        }
+        .onAppear { MenuControls.shared.reviewTabOpened() }
+    }
+
+    @ViewBuilder private var rounds: some View {
         if let card = model.card {
             VStack(alignment: .leading, spacing: 10) {
                 if let headline = model.headline {
@@ -33,6 +41,52 @@ struct ReviewTabView: View {
                 }
             }
         }
+    }
+}
+
+private struct ReviewThreadsView: View {
+    let threads: ReviewThreadsModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Review threads").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            if threads.rows.isEmpty {
+                Text("No review threads on the pull request.").font(.callout).foregroundStyle(.secondary)
+            }
+            ForEach(threads.rows, id: \.id) { ReviewThreadRowView(row: $0) }
+            if threads.partial {
+                Text("Partial list: the pull request has more threads than are shown.").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct ReviewThreadRowView: View {
+    let row: ReviewThreadRow
+
+    var body: some View {
+        if let link = browserURL(row.url) {
+            Link(destination: link) { content }.buttonStyle(.plain).help(link.absoluteString)
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Text(row.author).font(.callout.weight(.semibold)).lineLimit(1)
+                Spacer(minLength: 4)
+                if row.outdated { Text("outdated").font(.caption2).foregroundStyle(.orange).fixedSize() }
+                Text(row.resolved ? "resolved" : "unresolved").font(.caption2).foregroundStyle(row.resolved ? Color.green : .secondary).fixedSize()
+            }
+            Text(row.location).font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            if let firstLine = row.firstLine { Text(firstLine).font(.caption).lineLimit(2) }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.07)))
+        .contentShape(Rectangle())
     }
 }
 

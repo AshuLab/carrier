@@ -54,6 +54,11 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(reply.slices.map(\.state) == ["closed", "skipped", "in_progress", "waiting", "ready"])
     #expect(reply.slices[3].blockedBy == [121, 123])
     #expect(reply.slicesTruncated == false)
+    #expect(reply.threads?.map(\.id) == ["PRRT_kwDOexample01", "PRRT_kwDOexample02"])
+    #expect(reply.threads?[1].line == nil)
+    #expect(reply.threads?[1].author == nil)
+    #expect(reply.threads?[1].bot == true)
+    #expect(reply.threadsTruncated == false)
     #expect(reply.slices[0] == EpicReply.Slice(number: 121, title: "Request schemas", state: "closed", blockedBy: [], prNumber: 130, closedAt: 50_000, readAt: 99_000))
     #expect(reply.worktrees == [.init(kind: "epic", lane: nil, path: "/work/acme/web-epic"), .init(kind: "lane", lane: 1, path: "/work/acme/web-epic--lane-1")])
     #expect(reply.branch == "feat/issue-12/epic")
@@ -97,4 +102,14 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     let pr: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":[],"worktrees":[],"pr":{"number":1,"url":"u","draft":true,"mergeState":"UNKNOWN"}}"#)
     #expect(pr.pr?.checks == nil)
     #expect(pr.pr?.reviewDecision == nil)
+}
+
+@Test func aReplyWithoutThreadsIsNotTheSameAsOneWithNone() throws {
+    let absent: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":[],"worktrees":[]}"#)
+    #expect(absent.threads == nil)
+    #expect(absent.threadsTruncated == nil)
+
+    let none: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":[],"threads":[],"threadsTruncated":false,"worktrees":[]}"#)
+    #expect(none.threads == [])
+    #expect(none.threadsTruncated == false)
 }

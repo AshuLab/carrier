@@ -33,7 +33,7 @@ struct SlicesRing: View {
     let counts: [Int]
     let centre: String
     let caption: String
-    static let size = 128.0
+    static let size = 120.0
     static let lineWidth = 11.0
 
     var body: some View {
@@ -72,7 +72,7 @@ struct SlicesTabView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     SlicesRing(counts: model.counts, centre: model.centre, caption: model.caption)
-                        .frame(maxWidth: .infinity).padding(.bottom, 10)
+                        .frame(maxWidth: .infinity).padding(.top, 16).padding(.bottom, 22)
                     ForEach(model.legend, id: \.group) { entry in
                         Button { chosen = entry.group } label: {
                             HStack(spacing: 9) {
@@ -91,6 +91,7 @@ struct SlicesTabView: View {
                     if let notice = model.notice {
                         Text(notice).font(.callout).foregroundStyle(.secondary).padding(.top, 10)
                     }
+                    if model.rows.isEmpty == false { Divider().padding(.horizontal, 10).padding(.top, 12) }
                     ForEach(model.rows, id: \.number) { row in
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Text(row.title).lineLimit(2)
@@ -99,7 +100,7 @@ struct SlicesTabView: View {
                         }
                         .padding(.horizontal, 10).padding(.vertical, 5)
                     }
-                    .padding(.top, 6)
+                    .padding(.top, 4)
                 }
             }
         }

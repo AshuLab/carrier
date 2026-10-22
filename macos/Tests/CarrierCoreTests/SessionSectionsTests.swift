@@ -31,6 +31,8 @@ private func transcript(_ events: [ExecEvent], structured: Bool = true) -> Trans
 // MARK: the counts line
 
 @Test func theCountsLineKeepsTheToolCallsAndDropsWhatIsZero() {
+    #expect(countsRuns(SessionCounts(calls: 8, edits: 2, added: 42, removed: 8, tests: 1, errors: 2)).filter { $0.tone != .plain }
+        == [CountRun(text: "+42", tone: .added), CountRun(text: "−8", tone: .removed), CountRun(text: "2 errors", tone: .error)])
     #expect(countsLine(SessionCounts()) == "0 tool calls")
     #expect(countsLine(SessionCounts(calls: 1)) == "1 tool call")
     #expect(countsLine(SessionCounts(calls: 8, edits: 2, added: 42, removed: 8, tests: 1, errors: 2)) == "8 tool calls · 2 edits +42 −8 · 1 test run · 2 errors")

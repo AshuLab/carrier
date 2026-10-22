@@ -13,7 +13,8 @@ struct SessionSectionsView: View {
     @State private var outputs = OutputFolds()
 
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 10, pinnedViews: Self.pinned) {
+        // no spacing: the rows of a session touch, so its header, rows and foot read as one card (see `SessionCard`)
+        LazyVStack(alignment: .leading, spacing: 0, pinnedViews: Self.pinned) {
             ForEach(list.sections) { section in
                 let open = folds.isOpen(section)
                 Section {
@@ -21,15 +22,48 @@ struct SessionSectionsView: View {
                         TranscriptRows(content: section.body, outputs: $outputs)
                         ForEach(section.lanes) { LaneSectionView(lane: $0, outputs: $outputs) }
                         ContinueInTerminalView(section: section)
+                        SessionCard.foot
                     }
+                    Color.clear.frame(height: 10)
                 } header: {
                     Button { folds.toggle(section) } label: { SessionHeaderView(section: section, open: open) }
                         .buttonStyle(.plain)
-                        .background(RoundedRectangle(cornerRadius: 16).fill(.bar))
+                        .background { SessionCard.headerBackground(open: open) }
+                        // a line between the header and what it folds, edge to edge
+                        .overlay(alignment: .bottom) { if open { Divider() } }
                 }
             }
             if let earlier = list.earlier { Text(earlier).font(.caption).foregroundStyle(.tertiary).padding(.horizontal, 6) }
         }
+    }
+}
+
+/// A session is one rounded card made of pieces the lazy stack can build on its own: the header (opaque, because it stays
+/// pinned over the rows scrolling under it) with its top corners, the rows between with the same tint and no corners, and the foot
+/// with the bottom ones. A folded session is its header alone, rounded all round.
+enum SessionCard {
+    static let radius: CGFloat = 16
+    static let tint = Color.secondary.opacity(0.08)
+
+    static func headerBackground(open: Bool) -> some View {
+        let shape = UnevenRoundedRectangle(
+            topLeadingRadius: radius, bottomLeadingRadius: open ? 0 : radius, bottomTrailingRadius: open ? 0 : radius, topTrailingRadius: radius
+        )
+        return ZStack {
+            shape.fill(Color(nsColor: .windowBackgroundColor))
+            shape.fill(tint)
+        }
+    }
+
+    static var foot: some View {
+        UnevenRoundedRectangle(bottomLeadingRadius: radius, bottomTrailingRadius: radius).fill(tint).frame(height: 12)
+    }
+}
+
+extension View {
+    /// A row inside a session's card: the card's tint behind the whole width, margins included.
+    func sessionRow() -> some View {
+        frame(maxWidth: .infinity, alignment: .leading).background(SessionCard.tint)
     }
 }
 
@@ -46,7 +80,7 @@ struct SessionHeaderView: View {
                     Text(" · \(section.role) · \(section.place)").foregroundStyle(.secondary)
                 }
                 .lineLimit(1)
-                if let counts = section.counts { Text(counts).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                if section.counts != nil { Text(Self.counts(section.countRuns)).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
             }
             Spacer(minLength: 8)
             if section.state == .stopped {
@@ -55,11 +89,27 @@ struct SessionHeaderView: View {
             } else if let time = section.timeLabel {
                 Text(time).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
+            // a round button, as in the mockup, not a bare glyph: it says the whole header folds
             Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(.secondary)
                 .rotationEffect(.degrees(open ? 90 : 0))
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Color.secondary.opacity(0.16)))
         }
         .padding(.horizontal, 12).padding(.vertical, 11)
         .contentShape(Rectangle())
+    }
+
+    /// The counts line with the lines added in green and the removed and the errors in red.
+    static func counts(_ runs: [CountRun]) -> AttributedString {
+        runs.reduce(into: AttributedString()) { line, run in
+            var piece = AttributedString(run.text)
+            switch run.tone {
+            case .plain: break
+            case .added: piece.foregroundColor = .green
+            case .removed, .error: piece.foregroundColor = .red
+            }
+            line += piece
+        }
     }
 }
 

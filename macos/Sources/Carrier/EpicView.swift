@@ -21,10 +21,10 @@ struct EpicView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 EpicHeaderView(header: epicHeader(subject, reply: reply))
-                GlassTabs(
+                UnderlineTabs(
                     items: EpicTab.allCases.map { item in
                         let files = max(filesChanged, filesChangedCount(files))
-                        return GlassTabs.Item(id: item, title: item.title, icon: item.icon, count: item == .filesChanged && files > 0 ? "\(files)" : nil)
+                        return UnderlineTabs.Item(id: item, title: item.title, icon: item.icon, count: item == .filesChanged && files > 0 ? "\(files)" : nil)
                     },
                     selection: $tab
                 )
@@ -209,14 +209,27 @@ private extension EpicTab {
     }
 }
 
-/// Opens a link from the engine in the default browser; shown only when there is one and it is a web link.
-struct OpenLinkButton: View {
-    let title: String
-    let url: String?
+/// The epic's links in one toolbar pill, a divider between them: its pull request (when it has one) and its issue. Each shows
+/// only when the engine gave a web link.
+struct EpicLinks: View {
+    let prURL: String?
+    let issueURL: String?
 
     var body: some View {
-        if let target = url.flatMap(browserURL) {
-            Button(title) { NSWorkspace.shared.open(target) }
+        let pr = prURL.flatMap(browserURL), issue = issueURL.flatMap(browserURL)
+        HStack(spacing: 0) {
+            link("Open PR", icon: "arrow.triangle.pull", url: pr)
+            if pr != nil, issue != nil { Divider().frame(height: 14) }
+            link("Open issue", icon: "smallcircle.filled.circle", url: issue)
+        }
+    }
+
+    @ViewBuilder private func link(_ title: String, icon: String, url: URL?) -> some View {
+        if let url {
+            Button { NSWorkspace.shared.open(url) } label: {
+                Label(title, systemImage: icon).labelStyle(.titleAndIcon).padding(.horizontal, 8).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
     }
 }

@@ -6,7 +6,7 @@ import Testing
 private func section(_ state: SessionSection.State, counts: String? = "8 tool calls · 2 edits +42 −8 · 1 test run · 2 errors") -> SessionSection {
     SessionSection(
         id: "a", state: state, agent: "Claude", initial: "C", role: "Fixer", place: "Round 2", counts: counts,
-        timeLabel: state == .stopped ? nil : "3m 05s", openByDefault: true
+        countRuns: counts.map { [CountRun(text: $0, tone: .plain)] } ?? [], timeLabel: state == .stopped ? nil : "3m 05s", openByDefault: true
     )
 }
 

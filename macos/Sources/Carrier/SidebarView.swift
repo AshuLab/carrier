@@ -12,27 +12,25 @@ struct SidebarView: View {
     var body: some View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
         List(selection: list) {
-            HStack(spacing: 8) {
-                Label("Overview", systemImage: "square.grid.2x2")
-                Spacer(minLength: 4)
-                if let snapshot { PillView(pill: sidebarPill(snapshot)) }
-                Menu {
-                    Picker("Group by", selection: $groupBy) {
-                        Text("Status").tag(GroupBy.status)
-                        Text("Repository").tag(GroupBy.repo)
-                    }
-                    .pickerStyle(.inline)
-                } label: { Image(systemName: "ellipsis") }
-                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                    .help("Group by")
-            }
-            .tag(Selection.overview)
+            Label("Overview", systemImage: "square.grid.2x2").tag(Selection.overview)
+            // how the sections below are grouped, always in view
+            UnderlineTabs(
+                items: [
+                    .init(id: GroupBy.status, title: "Status", icon: "rectangle.3.group"),
+                    .init(id: GroupBy.repo, title: "Repository", icon: "shippingbox"),
+                ],
+                selection: $groupBy, fill: true
+            )
+            .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 10, trailing: 0))
+            .listRowSeparator(.hidden)
+            .selectionDisabled()
             if let snapshot {
-                ForEach(sidebarGroups(snapshot, by: groupBy), id: \.title) { group in
+                let groups = sidebarGroups(snapshot, by: groupBy)
+                ForEach(groups.indices, id: \.self) { index in
                     Section {
-                        ForEach(group.rows, id: \.selection) { SidebarRowView(row: $0).tag($0.selection) }
+                        ForEach(groups[index].rows, id: \.selection) { SidebarRowView(row: $0).tag($0.selection) }
                     } header: {
-                        Text(group.title).textCase(.uppercase)
+                        Text(groups[index].title).textCase(.uppercase)
                     }
                 }
             }
@@ -41,7 +39,7 @@ struct SidebarView: View {
         .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 320)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 2) {
-                SidebarStatus(state: state)
+                SidebarStatus(state: state).padding(.bottom, 6)
                 SidebarFooterRow(title: "Settings", icon: "gearshape", selected: selection == .settings) { selection = .settings }
                 SidebarFooterRow(title: "About", icon: "info.circle", selected: false, action: onAbout)
             }
@@ -50,8 +48,8 @@ struct SidebarView: View {
     }
 }
 
-/// Whether Carrier runs and when it checks GitHub next: at the foot of the sidebar, so it is in view on every screen.
-/// Hovering it shows how long it has been up and the rate limit.
+/// Whether Carrier runs, when it checks GitHub next and how many of its slots are busy: a card at the foot of the sidebar, so it
+/// is in view on every screen. Hovering it shows how long it has been up and the rate limit.
 private struct SidebarStatus: View {
     let state: ConnectionState?
 
@@ -64,22 +62,39 @@ private struct SidebarStatus: View {
                 if let detail = status.detail { Text(detail).font(.caption.monospacedDigit()).foregroundStyle(.secondary) }
             }
             Spacer(minLength: 0)
+            if let slots = status.slots {
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(slots.text).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    SegmentedProgress(done: slots.busy, total: slots.total, tint: slots.color).frame(width: 40)
+                }
+                .help("\(slots.busy) of \(slots.total) slots in use")
+            }
         }
-        .padding(.horizontal, 10).padding(.vertical, 6)
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.1)))
         .help(status.help)
         .accessibilityElement(children: .combine)
     }
 
-    private func sidebarStatus(_ state: ConnectionState?) -> (title: String, detail: String?, color: Color, help: String) {
+    private typealias Slots = (text: String, busy: Int, total: Int, color: Color)
+
+    private func sidebarStatus(_ state: ConnectionState?) -> (title: String, detail: String?, color: Color, help: String, slots: Slots?) {
         switch state {
         case .running(let snapshot)?:
             let box = carrierBox(snapshot)
             let help = ([box.uptime] + box.rows.dropFirst().map { "\($0.label): \($0.value)" }).joined(separator: " · ")
-            if snapshot.paused { return ("Intake paused", nil, .orange, help) }
-            return ("Carrier running", nextCheckLine(snapshot), snapshot.problem == nil ? .green : .orange, help)
-        case .stopped?: return ("Carrier stopped", nil, .gray, "")
-        case .incompatible?: return (state?.menuLine ?? "", nil, .orange, "")
-        case nil: return ("Connecting…", nil, .gray, "")
+            let pill = sidebarPill(snapshot)
+            let tone: Color = switch pill.tone {
+            case .green: .green
+            case .orange: .orange
+            case .gray: .gray
+            }
+            let slots: Slots = (pill.text, snapshot.slots.busy, snapshot.slots.total, tone)
+            if snapshot.paused { return ("Intake paused", nil, .orange, help, slots) }
+            return ("Carrier running", nextCheckLine(snapshot), snapshot.problem == nil ? .green : .orange, help, slots)
+        case .stopped?: return ("Carrier stopped", nil, .gray, "", nil)
+        case .incompatible?: return (state?.menuLine ?? "", nil, .orange, "", nil)
+        case nil: return ("Connecting…", nil, .gray, "", nil)
         }
     }
 }
@@ -102,21 +117,6 @@ private struct SidebarFooterRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
-    }
-}
-
-struct PillView: View {
-    let pill: SidebarPill
-
-    var body: some View {
-        let color: Color = switch pill.tone {
-        case .green: .green
-        case .orange: .orange
-        case .gray: .gray
-        }
-        Text(pill.text).font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(color)
-            .padding(.horizontal, 8).padding(.vertical, 2)
-            .background(Capsule().fill(color.opacity(0.22)))
     }
 }
 

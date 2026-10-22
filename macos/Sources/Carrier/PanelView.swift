@@ -130,10 +130,8 @@ struct PanelView: View {
                 }
             }
             if let epic {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    OpenLinkButton(title: "Open PR", url: epic.header.prURL)
-                    OpenLinkButton(title: "Open issue", url: epic.header.issueURL)
-                }
+                ToolbarItem(placement: .primaryAction) { EpicLinks(prURL: epic.header.prURL, issueURL: epic.header.issueURL) }
+                ToolbarSpacer(.fixed, placement: .primaryAction)
                 ToolbarItem(placement: .primaryAction) {
                     Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleInspector() } } label: { Label("Inspector", systemImage: "sidebar.trailing") }
                         .help("Show or hide the inspector")

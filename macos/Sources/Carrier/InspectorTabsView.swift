@@ -13,9 +13,9 @@ struct InspectorTabsView: View {
         let tab = inspectorTab(subject, chosen: chosen)
         let review = inspectorCount(.review, subject, reply: reply)
         VStack(alignment: .leading, spacing: 12) {
-            GlassTabs(
+            UnderlineTabs(
                 items: InspectorTab.allCases.map { item in
-                    GlassTabs.Item(
+                    UnderlineTabs.Item(
                         id: item, title: item.title, count: inspectorCount(item, subject, reply: reply).text,
                         countColor: item == .review && review.needsYou ? .orange : .secondary
                     )

@@ -57,15 +57,33 @@ public func sessionCounts(_ events: [ExecEvent]) -> SessionCounts {
     return counts
 }
 
-/// `8 tool calls · 2 edits +42 −8 · 1 test run · 2 errors`: plain text, every part but the tool calls left out at zero.
-public func countsLine(_ counts: SessionCounts) -> String {
-    func plural(_ n: Int, _ noun: String) -> String { "\(n) \(noun)\(n == 1 ? "" : "s")" }
-    var parts = [plural(counts.calls, "tool call")]
-    if counts.edits > 0 { parts.append("\(plural(counts.edits, "edit")) +\(counts.added) −\(counts.removed)") }
-    if counts.tests > 0 { parts.append(plural(counts.tests, "test run")) }
-    if counts.errors > 0 { parts.append(plural(counts.errors, "error")) }
-    return parts.joined(separator: " · ")
+public enum CountTone: Equatable { case plain, added, removed, error }
+
+/// A piece of the counts line and how the view paints it: lines added in green, removed in red, errors in red.
+public struct CountRun: Equatable {
+    public var text: String
+    public var tone: CountTone
 }
+
+/// `8 tool calls · 2 edits +42 −8 · 1 test run · 2 errors` in pieces, every part but the tool calls left out at zero.
+public func countsRuns(_ counts: SessionCounts) -> [CountRun] {
+    func plural(_ n: Int, _ noun: String) -> String { "\(n) \(noun)\(n == 1 ? "" : "s")" }
+    var runs = [CountRun(text: plural(counts.calls, "tool call"), tone: .plain)]
+    if counts.edits > 0 {
+        runs += [
+            CountRun(text: " · \(plural(counts.edits, "edit")) ", tone: .plain), CountRun(text: "+\(counts.added)", tone: .added),
+            CountRun(text: " ", tone: .plain), CountRun(text: "−\(counts.removed)", tone: .removed),
+        ]
+    }
+    if counts.tests > 0 { runs.append(CountRun(text: " · \(plural(counts.tests, "test run"))", tone: .plain)) }
+    if counts.errors > 0 {
+        runs += [CountRun(text: " · ", tone: .plain), CountRun(text: plural(counts.errors, "error"), tone: .error)]
+    }
+    return runs
+}
+
+/// The same line as plain text.
+public func countsLine(_ counts: SessionCounts) -> String { countsRuns(counts).map(\.text).joined() }
 
 // MARK: sections
 
@@ -95,6 +113,8 @@ public struct SessionSection: Equatable, Identifiable {
     public var place: String
     /// nil when no events are known (the harness has no parser yet, or none has arrived): the header then has no counts.
     public var counts: String?
+    /// The same line in pieces, for the colours; empty when `counts` is nil.
+    public var countRuns: [CountRun] = []
     /// "since 16:09" while it runs, how long it took when it finished; nil for a stopped one, whose badge says it.
     public var timeLabel: String?
     /// Running and stopped open, finished folded; the newest one is open whatever it is.
@@ -151,6 +171,7 @@ public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcrip
             role: ["ship": "Builder", "review": "Reviewer", "fix": "Fixer"][session.stage] ?? session.stage.capitalized,
             place: session.round.map { "Round \($0)" } ?? session.stage.capitalized,
             counts: transcript.flatMap { $0.structured ? countsLine(sessionCounts($0.events)) : nil },
+            countRuns: transcript.flatMap { $0.structured ? countsRuns(sessionCounts($0.events)) : nil } ?? [],
             timeLabel: time,
             openByDefault: state != .done || index == 0,
             resume: state == .running ? nil : session.resume,

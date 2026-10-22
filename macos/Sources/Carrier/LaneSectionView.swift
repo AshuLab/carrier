@@ -12,8 +12,9 @@ struct LaneSectionView: View {
         Button { open.toggle() } label: { LaneHeaderView(lane: lane, open: open) }
             .buttonStyle(.plain)
             .padding(.horizontal, 12)
+            .sessionRow()
         if open {
-            TranscriptRows(content: .items(lane.items), outputs: $outputs).padding(.leading, 16)
+            TranscriptRows(content: .items(lane.items), outputs: $outputs, indent: 16)
         }
     }
 }
@@ -35,7 +36,7 @@ struct LaneHeaderView: View {
             Spacer(minLength: 8)
             Text(lane.counts).font(.caption).foregroundStyle(.secondary).lineLimit(1)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
     }
 }

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Sidebar — group by options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:26px;align-items:start;margin-top:8px}
+.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;min-height:52px}
+.sb{width:280px;border-radius:18px;background:var(--side);backdrop-filter:blur(30px);box-shadow:0 0 0 .5px var(--line) inset,var(--shadow);padding:12px 10px 10px;position:relative;min-height:520px;display:flex;flex-direction:column}
+.row{display:flex;align-items:center;gap:9px;padding:6px 10px;border-radius:10px;font-size:13px;cursor:default;position:relative}
+.row.sel{background:var(--sel)}
+.row small{display:block;color:var(--dim);font-size:11.5px}
+.row .t{flex:1;min-width:0}.row .t b{font-weight:600}
+.row .t b span{color:var(--dim);font-weight:500}
+.gl{width:20px;height:20px;display:grid;place-items:center;flex:none;font-size:11px;font-weight:800;color:#fff;border-radius:50%}
+.gl.n{background:var(--orange)}.gl.r{border:2.5px solid color-mix(in srgb,var(--green) 30%,transparent);border-top-color:var(--green);animation:s 1s linear infinite}.gl.w{border:2px solid #8a8a90;width:14px;height:14px;margin:0 3px}.gl.d{background:var(--blue)}
+@keyframes s{to{transform:rotate(360deg)}}
+.sec{display:flex;align-items:center;gap:6px;padding:14px 10px 4px;font-size:11px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+.sec .sp{flex:1}
+.ic{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;color:var(--dim);cursor:pointer;border:0;background:none;font:inherit}
+.ic:hover,.ic.on{background:var(--card2);color:var(--text)}
+.ic svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.menu{position:absolute;z-index:9;min-width:190px;border-radius:12px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:5px;font-size:13px}
+body:not(.light) .menu{background:rgba(54,54,58,.92)}
+.menu div{padding:5px 10px 5px 26px;border-radius:7px;position:relative;cursor:pointer}
+.menu div:hover{background:var(--blue);color:#fff}
+.menu div.on::before{content:"✓";position:absolute;left:9px}
+.menu hr{border:0;border-top:.5px solid var(--line);margin:5px 4px}
+.menu h6{margin:4px 10px 2px;font-size:11px;color:var(--faint);font-weight:600}
+.seg{display:flex;gap:2px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset;margin:4px 6px 2px}
+.seg button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 8px;border-radius:99px;cursor:pointer;display:flex;gap:5px;align-items:center;justify-content:center}
+body:not(.light) .seg button.on{background:rgba(255,255,255,.16);color:var(--text)}
+body.light .seg button.on{background:#fff;color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.seg svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.chips{display:flex;gap:6px;padding:4px 8px 0}
+.chips button{border:0;font:inherit;font-size:11.5px;font-weight:550;color:var(--dim);background:var(--card2);padding:3px 10px;border-radius:99px;cursor:pointer}
+.chips button.on{background:var(--sel);color:var(--text)}
+.lbl{display:flex;align-items:center;gap:6px;margin:6px 8px 0;padding:4px 8px;border-radius:9px;font-size:12px;color:var(--dim);cursor:pointer}
+.lbl:hover{background:var(--card2)}.lbl b{color:var(--text);font-weight:600}.lbl .sp{flex:1}
+.cnt{color:var(--faint);font-weight:500;margin-left:2px;letter-spacing:0}
+.foot{margin-top:auto;border-radius:12px;background:var(--card);padding:9px 12px;display:flex;gap:10px;align-items:center;font-size:12.5px}
+.foot i{width:8px;height:8px;border-radius:50%;background:var(--green);display:block}
+</style></head><body>
+<h1>Sidebar: how to group</h1>
+<div class="sub">Five places for the control that switches the list between Status and Repository. Click the control in each one: the list below it changes. A is what the app has now.</div>
+<div class="bar"><span class="sp"></span><button class="tog" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="opts"></div>
+<script>
+const IC={
+ dots:'<svg viewBox="0 0 16 16"><circle cx="3" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="13" cy="8" r="1"/></svg>',
+ filter:'<svg viewBox="0 0 16 16"><path d="M2 4h12M4.5 8h7M7 12h2"/></svg>',
+ stack:'<svg viewBox="0 0 16 16"><rect x="2" y="2.5" width="12" height="4" rx="1.3"/><rect x="2" y="9.5" width="12" height="4" rx="1.3"/></svg>',
+ repo:'<svg viewBox="0 0 16 16"><path d="M3 2.5h8.5a1.5 1.5 0 0 1 1.5 1.5v9H4.5A1.5 1.5 0 0 1 3 11.5z"/><path d="M3 11.5A1.5 1.5 0 0 1 4.5 10H13"/></svg>',
+ chev:'<svg viewBox="0 0 16 16"><path d="M4 6l4 4 4-4"/></svg>'
+};
+const E=[
+ ['n','Needs you','universal-logger','#40','review limit reached','logger'],
+ ['r','Running','agent-forge','#231','review · round 2/5','forge'],['r','Running','sass-blueprint','#14','ship · 9/20 slices','sass'],
+ ['w','Up next','carrier','#88','waiting for a slot','carrier'],
+ ['d','Ready for test','encaja','#606','23 h ago','encaja'],['d','Ready for test','encaja','#627','1 d ago','encaja']
+];
+const repoOf=e=>({logger:'AshuLab/universal-logger',forge:'AshuLab/agent-forge',sass:'vemec/sass-blueprint',carrier:'AshuLab/carrier',encaja:'vemec/encaja'})[e[5]];
+let mode='status',open=null;
+const rowH=e=>`<div class="row"><span class="gl ${e[0]}">${e[0]==='n'?'!':e[0]==='d'?'✓':''}</span><div class="t"><b>${e[2]} <span>${e[3]}</span></b><small>${e[4]}</small></div></div>`;
+function list(headerExtra=()=>''){
+ let groups;
+ if(mode==='status'){const order=['Needs you','Running','Up next','Ready for test'];groups=order.map(t=>[t,E.filter(e=>e[1]===t)]);}
+ else{const by={};E.forEach(e=>(by[repoOf(e).split('/')[1]]=by[repoOf(e).split('/')[1]]||[]).push(e));groups=Object.keys(by).sort().map(k=>[k,by[k]]);}
+ return `<div class="row sel" style="margin-top:2px"><span style="width:20px;text-align:center">▦</span><div class="t"><b>Overview</b></div></div>`+groups.map(([t,rs],i)=>`<div class="sec"><span>${t}</span><span class="cnt">${rs.length}</span><span class="sp"></span>${headerExtra(i)}</div>${rs.map(rowH).join('')}`).join('');
+}
+const foot='<div class="foot"><i></i><div style="flex:1"><b style="font-weight:600">Carrier running</b><div style="color:var(--dim);font-size:11.5px">next check in 1m 00s</div></div><span style="color:var(--dim);font-size:11.5px">1/3</span></div>';
+const set=m=>{mode=m;open=null;render()};
+const menuA=(id,extra='')=>open===id?`<div class="menu" style="right:8px;margin-top:2px">${extra}<div class="${mode==='status'?'on':''}" data-m="status">Status</div><div class="${mode==='repo'?'on':''}" data-m="repo">Repository</div></div>`:'';
+const O=[
+ ['A · Now: ⋯ on the first header','A menu button on the first section\'s header. Hidden behind a click, and it looks like it belongs only to that section.',
+  ()=>`${list(i=>i===0?`<button class="ic ${open==='a'?'on':''}" data-o="a">${IC.dots}</button>`:'')}${menuA('a')}`],
+ ['B · Segmented control under Overview','Always visible, one click, says what is on. Costs a line of height and is a lot of chrome for a setting people rarely change.',
+  ()=>`<div class="seg"><button class="${mode==='status'?'on':''}" data-m="status">${IC.stack}Status</button><button class="${mode==='repo'?'on':''}" data-m="repo">${IC.repo}Repository</button></div>${list()}`],
+ ['C · Icon in the sidebar\'s top corner','A small icon at the top right of the sidebar, level with Overview, opening a menu: it is the sidebar\'s option, not a section\'s. The menu has room for more (sort, hide empty sections, show ready for test).',
+  ()=>`<div style="position:absolute;right:12px;top:14px"><button class="ic ${open==='c'?'on':''}" data-o="c">${IC.filter}</button></div>${list()}${open==='c'?`<div class="menu" style="right:12px;top:40px"><h6>Group by</h6><div class="${mode==='status'?'on':''}" data-m="status">Status</div><div class="${mode==='repo'?'on':''}" data-m="repo">Repository</div><hr><h6>Show</h6><div class="on">Empty sections</div><div class="on">Ready for test</div></div>`:''}`],
+ ['D · A line that names the current choice','One quiet line above the sections: "Grouped by Status ▾". It tells the state without opening anything and opens the same menu.',
+  ()=>`<div class="lbl" data-o="d"><span>Grouped by</span><b>${mode==='status'?'Status':'Repository'}</b>${IC.chev.replace('<svg','<svg style="width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"')}<span class="sp"></span></div>${open==='d'?`<div class="menu" style="left:16px;top:34px"><div class="${mode==='status'?'on':''}" data-m="status">Status</div><div class="${mode==='repo'?'on':''}" data-m="repo">Repository</div></div>`:''}${list()}`],
+ ['E · Two chips','Two small pills, Status and Repo, right under Overview. Lighter than B (no capsule around them) and always visible.',
+  ()=>`<div class="chips"><button class="${mode==='status'?'on':''}" data-m="status">Status</button><button class="${mode==='repo'?'on':''}" data-m="repo">Repository</button></div>${list()}`]
+];
+function render(){
+ document.getElementById('opts').innerHTML=O.map(([t,d,f])=>`<div class="opt"><h3>${t}</h3><p>${d}</p><div class="sb">${f()}${foot}</div></div>`).join('');
+ document.querySelectorAll('[data-m]').forEach(el=>el.onclick=e=>{e.stopPropagation();set(el.dataset.m)});
+ document.querySelectorAll('[data-o]').forEach(el=>el.onclick=e=>{e.stopPropagation();open=open===el.dataset.o?null:el.dataset.o;render()});
+}
+document.body.onclick=()=>{if(open){open=null;render()}};
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+render();
+</script>
+</body></html>

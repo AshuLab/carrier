@@ -63,13 +63,14 @@ struct OverviewLinkRow<Content: View>: View {
 struct SegmentedProgress: View {
     let done: Int
     let total: Int
+    var tint: Color = .green
 
     var body: some View {
         let count = max(1, min(total, 20))
         let filled = total > 20 ? Int((Double(done) / Double(total) * 20).rounded()) : done
         HStack(spacing: 3) {
             ForEach(0..<count, id: \.self) { index in
-                Capsule().fill(index < filled ? Color.green : Color.secondary.opacity(0.25)).frame(height: 6)
+                Capsule().fill(index < filled ? tint : Color.secondary.opacity(0.25)).frame(height: 6)
             }
         }
         .accessibilityElement()

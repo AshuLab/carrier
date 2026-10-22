@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// A row of tabs on Liquid Glass: one glass capsule holds the segments and the chosen one is a lighter pill that slides to the
-/// next. It replaces the system segmented picker, which draws flat inside a window and cannot colour a segment's count.
-struct GlassTabs<ID: Hashable>: View {
+/// A row of tabs with no box: the words, a hairline across and a line under the chosen one that slides to the next. The quiet
+/// tabs of the app: the epic's two, the inspector's three, Settings' four and the sidebar's grouping.
+struct UnderlineTabs<ID: Hashable>: View {
     struct Item: Identifiable {
         let id: ID
         let title: String
@@ -14,12 +14,12 @@ struct GlassTabs<ID: Hashable>: View {
 
     let items: [Item]
     @Binding var selection: ID
-    /// Spread the segments over the whole width instead of hugging their labels.
+    /// Spread the tabs over the whole width instead of hugging their labels.
     var fill = false
-    @Namespace private var pill
+    @Namespace private var line
 
     var body: some View {
-        HStack(spacing: 2) {
+        HStack(spacing: fill ? 0 : 18) {
             ForEach(items) { item in
                 let chosen = item.id == selection
                 Button { withAnimation(.smooth(duration: 0.22)) { selection = item.id } } label: {
@@ -29,17 +29,20 @@ struct GlassTabs<ID: Hashable>: View {
                         if let count = item.count { Text(count).foregroundStyle(item.countColor) }
                     }
                     .font(.subheadline).lineLimit(1)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .foregroundStyle(chosen ? Color.primary : .secondary)
                     .frame(maxWidth: fill ? .infinity : nil)
-                    .background { if chosen { Capsule().fill(.primary.opacity(0.14)).matchedGeometryEffect(id: "pill", in: pill) } }
-                    .contentShape(Capsule())
+                    .padding(.top, 5).padding(.bottom, 8)
+                    .overlay(alignment: .bottom) {
+                        if chosen { Capsule().fill(.primary).frame(height: 2).matchedGeometryEffect(id: "line", in: line).offset(y: 1) }
+                    }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(chosen ? .isSelected : [])
             }
         }
-        .padding(2)
-        .glassEffect(.regular, in: .capsule)
+        .overlay(alignment: .bottom) { Divider() }
+        .frame(maxWidth: fill ? .infinity : nil)
         .fixedSize(horizontal: !fill, vertical: true)
     }
 }

@@ -36,7 +36,7 @@ struct ContinueInTerminalView: View {
                     }
                     if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12).padding(.bottom, 11)
+                .padding(.horizontal, 12).padding(.bottom, 11).sessionRow()
             }
         }
     }

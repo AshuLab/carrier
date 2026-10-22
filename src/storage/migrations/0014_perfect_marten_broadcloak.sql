@@ -15,3 +15,6 @@ CREATE TABLE `epic_review_threads` (
 	`truncated` integer DEFAULT false NOT NULL,
 	PRIMARY KEY(`epicId`, `id`)
 );
+--> statement-breakpoint
+-- The cached pull request blocks of finished epics predate the threads: clear them so the next poll reads block and threads once (a cache of GitHub, nothing decides from it).
+UPDATE `epics` SET `pr` = NULL WHERE `status` IN ('merged', 'cancelled');

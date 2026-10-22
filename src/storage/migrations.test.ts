@@ -78,3 +78,15 @@ test('the review threads migration creates a table that keeps a thread once per 
   expect(() => db.insert(epicReviewThreads).values(row).run()).toThrow();
   sqlite.close();
 });
+
+test('the review threads migration clears the cached pull request block of finished epics only', () => {
+  const sqlite = new Database(join(dir, 'threads-clear.db'));
+  const db = drizzle(sqlite);
+  const sql = readFileSync(join(import.meta.dirname, 'migrations', '0014_perfect_marten_broadcloak.sql'), 'utf8');
+  migrate(db, { migrationsFolder: join(import.meta.dirname, 'migrations') });
+  sqlite.exec("DELETE FROM `epic_review_threads`");
+  sqlite.exec("INSERT INTO `epics` (`repo`, `issue`, `status`, `pr`) VALUES ('o/r', 1, 'merged', '{}'), ('o/r', 2, 'running', '{}'), ('o/r', 3, 'ready_for_test', '{}')");
+  sqlite.exec(sql.slice(sql.indexOf('UPDATE')));
+  expect(sqlite.prepare('SELECT issue, pr FROM epics ORDER BY issue').all()).toEqual([{ issue: 1, pr: null }, { issue: 2, pr: '{}' }, { issue: 3, pr: '{}' }]);
+  sqlite.close();
+});

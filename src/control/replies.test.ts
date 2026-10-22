@@ -87,21 +87,26 @@ test('the epic reply equals reply-epic.json', () => {
       {
         round: 1, reviewer: codex, verdict: 'changes_requested', reviewMs: 21_000, fixMs: 30_000, reviewedSha: '1111111aaaaaaa', fixedSha: '2222222bbbbbbb',
         blockers: [blocker('b1', 'Token expiry is not checked', 'new'), blocker('b2', 'Missing test for refresh', 'new')],
+        observations: [],
         commits: [{ sha: '2222222bbbbbbb', subject: 'fix(auth): check the expiry' }, { sha: '3333333ccccccc', subject: 'test(auth): cover refresh' }],
       },
       {
         round: 2, reviewer: codex, verdict: 'changes_requested', reviewMs: 25_000, fixMs: null, reviewedSha: '4444444ddddddd', fixedSha: null,
         blockers: [blocker('b1', 'Token expiry is not checked', 'fixed'), blocker(null, 'Missing test for refresh', 'carried', true), blocker('b3', 'Log line leaks the subject', 'new')],
+        observations: [],
         commits: [],
       },
       {
         round: 3, reviewer: codex, verdict: 'approved', reviewMs: 18_000, fixMs: null, reviewedSha: '5555555eeeeeee', fixedSha: null,
         blockers: [],
+        // one with its comment, one a reviewer gave no id or link
+        observations: [{ id: 'o1', title: 'Rename the helper', url: 'https://github.com/acme/web/pull/50#discussion_o1' }, { id: null, title: 'Prefer a const here', url: null }],
         commits: [],
       },
       {
         round: 5, reviewer: codex, verdict: 'limit_reached', reviewMs: 20_000, fixMs: null, reviewedSha: '6666666fffffff', fixedSha: null,
         blockers: [blocker('b3', 'Log line leaks the subject', 'carried')],
+        observations: [],
         commits: [],
       },
     ],

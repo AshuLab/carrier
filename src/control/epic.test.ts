@@ -126,6 +126,21 @@ test('with ids the marks are exact for a persisting, a fixed and a new blocker; 
   expect(marks(2)).toEqual([[null, 'carried', true], [null, 'new', true], ['a', 'fixed', true]]);
 });
 
+test('a round carries the observations its completed review listed, in order; a round without any, or from before the field, has none', () => {
+  const id = epicRow();
+  run(id, 'review', 10, 11, { outcome: 'changes_requested', ...pr(SHA), blockers: [{ title: 'A blocker' }] }, 1);
+  run(id, 'fix', 12, 13, { outcome: 'completed', ...pr(SHA) }, 1);
+  run(id, 'review', 20, 21, { outcome: 'completed', ...pr(SHA), observations: [{ id: 'o1', title: 'Rename x', url: 'https://github.com/o/r/pull/50#c1' }, { title: 'No id, no url' }, { id: 'o3', title: 'Long link', url: `https://github.com/o/r/${'u'.repeat(600)}` }] }, 2);
+  run(id, 'review', 30, 31, { outcome: 'completed', ...pr(SHA), observations: [] }, 3);
+  run(id, 'review', 40, 41, { outcome: 'completed', ...pr(SHA) }, 4);
+  expect(reply().rounds.map((r) => r.observations)).toEqual([
+    [],
+    [{ id: 'o1', title: 'Rename x', url: 'https://github.com/o/r/pull/50#c1' }, { id: null, title: 'No id, no url', url: null }, { id: 'o3', title: 'Long link', url: null }],
+    [],
+    [],
+  ]);
+});
+
 test('technical retries inside a round do not make a round', async () => {
   await drive([['Only blocker'], 'approved'], { flaky: true });
   const { rounds } = reply();

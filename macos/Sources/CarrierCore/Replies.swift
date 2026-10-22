@@ -99,6 +99,13 @@ public struct EpicReply: Codable, Equatable {
         public var approximate: Bool
     }
 
+    /// A non-blocking finding a completed review listed.
+    public struct Observation: Codable, Equatable {
+        public var id: String?
+        public var title: String
+        public var url: String?
+    }
+
     public struct Commit: Codable, Equatable {
         public var sha: String
         public var subject: String
@@ -109,6 +116,8 @@ public struct EpicReply: Codable, Equatable {
         public var reviewer: PanelSnapshot.Agent
         public var verdict: String
         public var blockers: [Blocker]
+        /// Empty when the review listed none, and for an engine that predates the field.
+        public var observations: [Observation] = []
         public var reviewMs: Int?
         public var fixMs: Int?
         public var reviewedSha: String?
@@ -182,6 +191,23 @@ public struct EpicReply: Codable, Equatable {
     public var branch: String?
     /// nil during ship.
     public var pr: PullRequest?
+}
+
+extension EpicReply.Round {
+    /// An engine that predates `observations` leaves it out: none, not an error.
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        round = try values.decode(Int.self, forKey: .round)
+        reviewer = try values.decode(PanelSnapshot.Agent.self, forKey: .reviewer)
+        verdict = try values.decode(String.self, forKey: .verdict)
+        blockers = try values.decode([EpicReply.Blocker].self, forKey: .blockers)
+        observations = try values.decodeIfPresent([EpicReply.Observation].self, forKey: .observations) ?? []
+        reviewMs = try values.decodeIfPresent(Int.self, forKey: .reviewMs)
+        fixMs = try values.decodeIfPresent(Int.self, forKey: .fixMs)
+        reviewedSha = try values.decodeIfPresent(String.self, forKey: .reviewedSha)
+        fixedSha = try values.decodeIfPresent(String.self, forKey: .fixedSha)
+        commits = try values.decode([EpicReply.Commit].self, forKey: .commits)
+    }
 }
 
 public struct FilesReply: Codable, Equatable {

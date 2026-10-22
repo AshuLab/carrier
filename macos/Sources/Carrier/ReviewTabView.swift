@@ -189,6 +189,7 @@ private struct ReviewStepRow: View {
                 Text(step.title).font(.callout.weight(.semibold)).foregroundStyle(step.state == .waiting ? .secondary : .primary)
                 Text(step.subtitle).font(.caption).foregroundStyle(step.state == .stopped ? Color.orange : .secondary)
                 ForEach(step.blockers, id: \.title) { ReviewBlockerRow(blocker: $0) }
+                ForEach(Array(step.observations.enumerated()), id: \.offset) { ReviewObservationRow(observation: $0.element) }
                 ForEach(step.commits, id: \.sha) { commit in
                     HStack(spacing: 6) {
                         Text(commit.sha).font(.caption.monospaced()).foregroundStyle(.secondary)
@@ -214,6 +215,23 @@ private struct ReviewStepRow: View {
             }
         }
         .font(.caption2.weight(.bold)).frame(width: 18, height: 18)
+    }
+}
+
+private struct ReviewObservationRow: View {
+    let observation: EpicReply.Observation
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Circle().strokeBorder(Color.secondary, lineWidth: 1).frame(width: 5, height: 5).offset(y: -1)
+            if let link = observation.url.flatMap(browserURL) {
+                Link(destination: link) { Text(observation.title).font(.caption).lineLimit(2).multilineTextAlignment(.leading) }.buttonStyle(.plain).help(link.absoluteString)
+            } else {
+                Text(observation.title).font(.caption).lineLimit(2)
+            }
+            Spacer(minLength: 4)
+            Text("observation").font(.caption2).foregroundStyle(.secondary).fixedSize()
+        }
     }
 }
 

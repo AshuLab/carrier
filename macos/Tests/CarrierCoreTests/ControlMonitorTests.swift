@@ -81,6 +81,20 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     #expect(ConnectionState.running(snapshot).menuLine == "Carrier running · \(snapshot.epics.count) epics · 2/3 slots")
 }
 
+@Test func theMenuHeadingTellsWhenToLookAtIt() throws {
+    var snapshot = try decodeSnapshot(fixture())
+    snapshot.paused = false
+    snapshot.problem = nil
+    snapshot.epics = snapshot.epics.map { var epic = $0; epic.status = .running; return epic }
+    #expect(ConnectionState.stopped.menuStatus.tone == .stopped)
+    #expect(ConnectionState.incompatible.menuStatus.tone == .attention)
+    #expect(ConnectionState.running(snapshot).menuStatus.title == "Carrier running")
+    #expect(ConnectionState.running(snapshot).menuStatus.tone == .running)
+    snapshot.paused = true
+    #expect(ConnectionState.running(snapshot).menuStatus.title == "Intake paused")
+    #expect(ConnectionState.running(snapshot).menuStatus.tone == .attention)
+}
+
 @Test func theTickRunsAfterEachSnapshotOnTheSameConnection() throws {
     let snapshot = String(decoding: try fixture(), as: UTF8.self)
     let server = TestServer { connection in

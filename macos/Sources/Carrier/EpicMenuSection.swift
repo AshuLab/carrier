@@ -23,8 +23,7 @@ final class EpicMenuSection: NSObject, NSMenuDelegate {
               let separator = menu.items.firstIndex(where: \.isSeparatorItem)
         else { return }
 
-        var items = [NSMenuItem.sectionHeader(title: section.header)]
-        items += section.items.map(menuItem)
+        var items = section.items.map(menuItem)
         if let more = section.more { items.append(NSMenuItem(title: more, action: nil, keyEquivalent: "")) }
         items.append(.separator())
         for (offset, item) in items.enumerated() {
@@ -45,8 +44,7 @@ final class EpicMenuSection: NSObject, NSMenuDelegate {
             ))
             return text
         }()
-        let symbol = NSImage(systemSymbolName: epic.state.symbol, accessibilityDescription: epic.detail)
-        item.image = symbol?.withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [Self.color(epic.state)]))
+        showIcon(epic.state.symbol, on: item, color: Self.color(epic.state))
         if let badge = epic.badge { item.badge = NSMenuItemBadge(string: badge) }
         return item
     }

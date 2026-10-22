@@ -33,8 +33,9 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     /// Adds the "Open window" item at the end of the menu.
     func addMenuItem(to menu: NSMenu) {
-        let item = menu.addItem(withTitle: "Open window", action: #selector(openFromMenu), keyEquivalent: "")
+        let item = menu.addItem(withTitle: "Open window", action: #selector(openFromMenu), keyEquivalent: "o")
         item.target = self
+        showIcon("macwindow", on: item)
     }
 
     @objc private func openFromMenu() { open() }

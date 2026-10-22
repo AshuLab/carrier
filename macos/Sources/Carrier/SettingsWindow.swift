@@ -10,8 +10,9 @@ final class SettingsWindowController: NSObject {
 
     /// Adds the "Settings…" item at the end of the menu.
     func addMenuItem(to menu: NSMenu) {
-        let item = menu.addItem(withTitle: "Settings…", action: #selector(openFromMenu), keyEquivalent: "")
+        let item = menu.addItem(withTitle: "Settings…", action: #selector(openFromMenu), keyEquivalent: ",")
         item.target = self
+        showIcon("gearshape", on: item)
     }
 
     @objc private func openFromMenu() { open() }

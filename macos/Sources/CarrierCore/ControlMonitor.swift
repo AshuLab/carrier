@@ -15,6 +15,22 @@ public enum ConnectionState: Equatable {
             return "Carrier running · \(epics) \(epics == 1 ? "epic" : "epics") · \(snapshot.slots.busy)/\(snapshot.slots.total) slots"
         }
     }
+
+    public enum MenuTone: Equatable { case stopped, running, attention }
+
+    /// The menu's heading: a bold title, a quieter detail, and the colour of the dot beside them.
+    public var menuStatus: (title: String, detail: String?, tone: MenuTone) {
+        switch self {
+        case .stopped: return ("Carrier is stopped", nil, .stopped)
+        case .incompatible: return ("Carrier is an incompatible version", nil, .attention)
+        case .running(let snapshot):
+            let epics = snapshot.epics.count
+            let detail = "\(epics) \(epics == 1 ? "epic" : "epics") · \(snapshot.slots.busy)/\(snapshot.slots.total) slots"
+            let needsYou = snapshot.epics.contains { $0.status == .needsHuman }
+            let attention = snapshot.paused || needsYou || snapshot.problem != nil
+            return (snapshot.paused ? "Intake paused" : "Carrier running", detail, attention ? .attention : .running)
+        }
+    }
 }
 
 /// Keeps the state of Carrier current: asks for the snapshot every `pollInterval` while connected, tries to connect again

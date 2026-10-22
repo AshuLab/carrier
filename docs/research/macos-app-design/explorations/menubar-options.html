@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Menu bar: options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* every class here starts with x- : shared.css already owns .menu .mi .row .slice .sp .st .ring */
+.x-opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:34px;align-items:start;margin-top:8px}
+.x-opt>h3{margin:0 0 2px;font-size:14px}
+.x-opt>p{margin:0 0 12px;color:var(--dim);font-size:12.5px;max-width:360px;min-height:72px}
+.x-stage{position:relative;padding:0}
+.x-bar{height:26px;border-radius:8px 8px 0 0;background:rgba(40,40,44,.7);display:flex;align-items:center;justify-content:flex-end;padding:0 12px;gap:12px;color:#eee;font-size:12px;margin-bottom:6px}
+.x-bar .ico{background:rgba(255,255,255,.14)}
+
+/* the menu surface: native look, 1:1 with the screenshot's metrics */
+.x-m{width:310px;border-radius:12px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:6px}
+.x-i{display:flex;align-items:center;gap:8px;padding:4px 10px;border-radius:6px;min-height:22px}
+.x-i:hover{background:var(--blue);color:#fff}
+.x-i:hover .x-k,.x-i:hover .x-d{color:rgba(255,255,255,.8)}
+.x-i.off{color:var(--faint)}.x-i.off:hover{background:none;color:var(--faint)}
+.x-i .x-k{margin-left:auto;color:var(--faint);font-size:12px}
+.x-i svg{width:15px;height:15px;flex:none;opacity:.85}
+.x-sep{height:.5px;background:var(--line);margin:5px 6px}
+.x-h{font-size:11px;font-weight:600;color:var(--faint);padding:6px 10px 2px}
+.x-d{color:var(--dim);font-size:11px}
+
+/* epic rows */
+.x-e{display:flex;gap:9px;align-items:center;padding:5px 10px;border-radius:6px}
+.x-e:hover{background:var(--blue);color:#fff}.x-e:hover .x-d{color:rgba(255,255,255,.8)}
+.x-e .x-t{flex:1;min-width:0}
+.x-e .x-t b{display:block;font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.x-e .x-t span{display:block;font-size:11px;color:var(--dim)}
+.x-e:hover .x-t span{color:rgba(255,255,255,.8)}
+.x-dot{width:8px;height:8px;border-radius:50%;flex:none}
+.x-dot.o{background:var(--orange)}.x-dot.g{background:var(--green)}.x-dot.b{background:var(--blue)}.x-dot.x{background:var(--faint)}
+.x-badge{font-size:11px;font-weight:600;padding:1px 7px;border-radius:99px;background:var(--card2);color:var(--dim);flex:none}
+.x-badge.o{background:color-mix(in srgb,var(--orange) 25%,transparent);color:var(--orange)}
+.x-mini{width:34px;height:4px;border-radius:3px;background:var(--card2);overflow:hidden;flex:none}
+.x-mini i{display:block;height:100%;background:var(--green)}
+.x-pips{display:flex;gap:3px}.x-pips i{width:12px;height:4px;border-radius:2px;background:var(--card2)}.x-pips i.on{background:var(--green)}
+
+/* B: header + icon buttons */
+.x-hd{padding:8px 10px 6px;display:flex;align-items:center;gap:9px}
+.x-hd b{font-size:13px;flex:1}
+.x-hd .x-d{display:block;font-weight:400}
+.x-btns{display:flex;gap:6px;padding:2px 6px 6px}
+.x-btn{flex:1;border-radius:10px;background:var(--card2);padding:7px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--dim);box-shadow:0 0 0 .5px var(--line) inset}
+.x-btn svg{width:17px;height:17px;color:var(--text)}
+.x-btn:hover{background:var(--card2);color:var(--text);filter:brightness(1.2)}
+.x-btn.red svg{color:var(--red)}.x-btn.off{opacity:.4}
+
+/* C: popover */
+.x-p{width:340px;border-radius:20px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:14px;position:relative}
+.x-p::before{content:"";position:absolute;left:50%;top:-6px;width:12px;height:12px;background:var(--win);transform:translateX(-50%) rotate(45deg);border-radius:2px}
+.x-ph{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.x-ph b{font-size:15px;display:block}
+.x-card{background:var(--card);border-radius:14px;padding:10px 12px;box-shadow:0 0 0 .5px var(--line) inset;margin-top:8px;display:flex;flex-direction:column;gap:7px}
+.x-card:hover{background:var(--card2)}
+.x-card.hot{background:color-mix(in srgb,var(--orange) 13%,transparent);box-shadow:0 0 0 .5px color-mix(in srgb,var(--orange) 50%,transparent) inset}
+.x-card .x-top{display:flex;gap:8px;align-items:center}
+.x-card .x-top b{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.x-prog{height:4px;border-radius:3px;background:var(--card2);overflow:hidden}.x-prog i{display:block;height:100%;background:var(--green);border-radius:3px}
+.x-foot{display:flex;gap:6px;margin-top:12px;align-items:center}
+.x-round{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset;flex:none}
+.x-round svg{width:15px;height:15px}
+.x-round.red svg{color:var(--red)}
+.x-big{flex:1;justify-content:center;height:30px;padding:0 14px}
+
+/* D: counters */
+.x-cnt{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:4px 6px 6px}
+.x-cnt div{background:var(--card);border-radius:10px;padding:6px 8px;text-align:center;box-shadow:0 0 0 .5px var(--line) inset}
+.x-cnt b{display:block;font-size:19px;letter-spacing:-.02em;line-height:1.1}
+.x-cnt span{font-size:10.5px;color:var(--dim)}
+.x-cnt .o b{color:var(--orange)}.x-cnt .g b{color:var(--green)}.x-cnt .b b{color:var(--blue)}
+.x-cnt .z{opacity:.45}
+.x-empty{padding:14px 10px;text-align:center;color:var(--dim);font-size:12px}
+</style></head><body>
+<h1>Menu bar: what opens when you click the icon</h1>
+<div class="sub">Today it is a native menu: a grey status line, the four controls (Start is greyed out while running), then the epics under a tiny "Epics" header, then the window items. Problems I see in the screenshot: the status line is the least readable thing in the menu; the epics (what you open the menu for) sit below the controls; a disabled "Start Carrier" while running is noise; "Pause / Check / Stop" have the same weight as "Open window"; no hint of what needs you. Hover the rows to see the highlight.</div>
+<div class="bar">
+  <button class="tab on" data-s="working">Working + needs you</button>
+  <button class="tab" data-s="paused">Paused</button>
+  <button class="tab" data-s="idle">Idle</button>
+  <button class="tab" data-s="stopped">Stopped</button>
+  <span class="sp"></span>
+  <button class="tog" id="lt">Light / dark</button>
+</div>
+<div class="x-opts" id="o"></div>
+
+<div class="note"><b>What changes in the app per option.</b> A is pure <span class="mono">NSMenu</span> work (reorder, hide irrelevant items, SF Symbols, shortcuts): about an hour, zero risk. B keeps the native menu but adds two custom-view items (header and button row): custom views in a menu do not highlight or close the menu on their own, so each needs a handler. C is a different surface (NSPopover or a borderless glass panel) so all the menu behaviours are ours (esc, click outside, keyboard): the biggest win visually, the biggest job. D is B with counters in place of the long status text.</div>
+
+<script>
+const I={
+ pause:'<svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="2.5" width="3" height="11" rx="1"/><rect x="9.5" y="2.5" width="3" height="11" rx="1"/></svg>',
+ play:'<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.6v10.8a.6.6 0 0 0 .9.5l8.6-5.4a.6.6 0 0 0 0-1L4.9 2.1a.6.6 0 0 0-.9.5z"/></svg>',
+ check:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 8a5.5 5.5 0 1 1-1.7-4"/><path d="M12.2 1.6v2.6H9.6"/></svg>',
+ stop:'<svg viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="3" width="10" height="10" rx="2.2"/></svg>',
+ win:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2.4"/><path d="M5.6 2.8v10.4"/></svg>',
+ gear:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v1.7M8 12.7v1.7M1.6 8h1.7M12.7 8h1.7M3.5 3.5l1.2 1.2M11.3 11.3l1.2 1.2M12.5 3.5l-1.2 1.2M4.7 11.3l-1.2 1.2"/></svg>',
+ power:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1.8v5.6"/><path d="M4.6 4.2a5.2 5.2 0 1 0 6.8 0"/></svg>',
+ more:'<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="3.5" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.5" cy="8" r="1.3"/></svg>'
+};
+const S={
+ working:{run:1,paused:0,slots:[2,3],epics:[
+  {t:'universal-logger #40',d:'needs you · review round 3/5',c:'o',tag:'needs you'},
+  {t:'agent-forge #231',d:'review · round 2/5',c:'g',p:40},
+  {t:'sass-blueprint #14',d:'ship · 9/20 slices',c:'g',p:45},
+  {t:'sass-blueprint #635',d:'ready for test · PR #638',c:'b'}]},
+ paused:{run:1,paused:1,slots:[1,3],epics:[
+  {t:'agent-forge #231',d:'review · round 2/5',c:'g',p:40},
+  {t:'sass-blueprint #635',d:'ready for test · PR #638',c:'b'}]},
+ idle:{run:1,paused:0,slots:[0,3],epics:[]},
+ stopped:{run:0,paused:0,slots:[0,0],epics:[]}
+};
+const st=s=>!s.run?'Carrier is stopped':(s.paused?'Intake paused':'Carrier running');
+const sub=s=>!s.run?'Not connected':`${s.epics.length} ${s.epics.length==1?'epic':'epics'} · ${s.slots[0]}/${s.slots[1]} slots`;
+const dot=s=>!s.run?'x':s.paused?'o':s.epics.some(e=>e.tag)?'o':'g';
+const pips=s=>`<span class="x-pips">${Array.from({length:s.slots[1]||3},(_,i)=>`<i class="${i<s.slots[0]?'on':''}"></i>`).join('')}</span>`;
+const mini=e=>e.p!=null?`<span class="x-mini"><i style="width:${e.p}%"></i></span>`:e.tag?`<span class="x-badge o">${e.tag}</span>`:'';
+const rows=s=>s.epics.map(e=>`<div class="x-e"><span class="x-dot ${e.c}"></span><div class="x-t"><b>${e.t}</b><span>${e.d}</span></div>${mini(e)}</div>`).join('');
+const item=(ic,t,k='',off)=>`<div class="x-i ${off?'off':''}">${ic?I[ic]:'<span style="width:15px"></span>'}<span>${t}</span><span class="x-k">${k}</span></div>`;
+const bar=s=>`<div class="x-bar"><span class="ico"><span>${s.epics.length}</span><span class="tr"><span style="width:45%"></span></span>${s.epics.some(e=>e.tag)?'<span class="ad"></span>':''}</span><span>Thu 16:04</span></div>`;
+
+const A=s=>`<div class="x-m">
+ <div class="x-i" style="padding-bottom:2px"><span class="x-dot ${dot(s)}"></span><b style="font-weight:600">${st(s)}</b><span class="x-d" style="margin-left:auto">${sub(s)}</span></div>
+ ${s.epics.length?`<div class="x-sep"></div>${rows(s)}`:''}
+ <div class="x-sep"></div>
+ ${s.run?item(s.paused?'play':'pause',s.paused?'Resume intake':'Pause intake')+item('check','Check GitHub now')+item('stop','Stop Carrier…'):item('play','Start Carrier')}
+ <div class="x-sep"></div>
+ ${item('win','Open window','⌘O')}${item('gear','Settings…','⌘,')}${item('power','Quit Carrier','⌘Q')}
+</div>`;
+
+const B=s=>`<div class="x-m">
+ <div class="x-hd"><span class="x-dot ${dot(s)}"></span><b>${st(s)}<span class="x-d">${sub(s)}</span></b>${s.run?pips(s):''}</div>
+ <div class="x-btns">
+  ${s.run?`<div class="x-btn">${I[s.paused?'play':'pause']}${s.paused?'Resume':'Pause'}</div><div class="x-btn">${I.check}Check now</div><div class="x-btn red">${I.stop}Stop</div>`
+         :`<div class="x-btn">${I.play}Start Carrier</div><div class="x-btn off">${I.check}Check now</div><div class="x-btn off">${I.stop}Stop</div>`}
+ </div>
+ ${s.epics.length?`<div class="x-sep"></div><div class="x-h">Epics</div>${rows(s)}`:''}
+ <div class="x-sep"></div>
+ ${item('win','Open window','⌘O')}${item('gear','Settings…','⌘,')}${item('power','Quit Carrier','⌘Q')}
+</div>`;
+
+const cardOf=e=>`<div class="x-card ${e.tag?'hot':''}"><div class="x-top"><span class="x-dot ${e.c}"></span><b>${e.t}</b>${e.tag?'<span class="x-badge o">needs you</span>':''}</div><span class="x-d">${e.d}</span>${e.p!=null?`<div class="x-prog"><i style="width:${e.p}%"></i></div>`:''}</div>`;
+const C=s=>`<div class="x-p">
+ <div class="x-ph"><span class="x-dot ${dot(s)}" style="width:10px;height:10px"></span><div style="flex:1"><b>${st(s)}</b><span class="x-d">${sub(s)}</span></div>${s.run?pips(s):''}</div>
+ ${s.epics.length?s.epics.map(cardOf).join(''):`<div class="x-empty">${s.run?'Nothing in progress. Epics show up here when Carrier picks one up.':'Start Carrier to watch your repositories.'}</div>`}
+ <div class="x-foot">
+  <span class="glass pri x-big">${I.win.replace('<svg','<svg style="width:14px;height:14px"')}Open window</span>
+  ${s.run?`<span class="x-round" title="${s.paused?'Resume':'Pause'}">${I[s.paused?'play':'pause']}</span><span class="x-round" title="Check now">${I.check}</span><span class="x-round red" title="Stop">${I.stop}</span>`:`<span class="x-round" title="Start">${I.play}</span>`}
+  <span class="x-round" title="More">${I.more}</span>
+ </div></div>`;
+
+const D=s=>{const n=s.epics.filter(e=>e.tag).length,r=s.epics.filter(e=>e.c=='g').length,rd=s.epics.filter(e=>e.c=='b').length;
+ return `<div class="x-m">
+ <div class="x-hd"><span class="x-dot ${dot(s)}"></span><b>${st(s)}<span class="x-d">${s.run?`${s.slots[0]}/${s.slots[1]} slots busy`:'Not connected'}</span></b>${s.run?pips(s):`<span class="glass sm pri">Start</span>`}</div>
+ ${s.run?`<div class="x-cnt"><div class="o ${n?'':'z'}"><b>${n}</b><span>Needs you</span></div><div class="g ${r?'':'z'}"><b>${r}</b><span>Running</span></div><div class="b ${rd?'':'z'}"><b>${rd}</b><span>Ready</span></div></div>`:''}
+ ${s.epics.length?`<div class="x-sep"></div>${rows(s)}`:''}
+ <div class="x-sep"></div>
+ ${item('win','Open window','⌘O')}
+ ${s.run?item(s.paused?'play':'pause',s.paused?'Resume intake':'Pause intake')+item('check','Check GitHub now'):''}
+ ${item('gear','Settings…','⌘,')}
+ ${s.run?item('stop','Stop Carrier…'):''}${item('power','Quit Carrier','⌘Q')}
+</div>`};
+
+const OPTS=[
+ ['A · Same native menu, reordered','Status as a real heading (coloured dot, bold) instead of a disabled grey line. Epics right under it. Only the controls that make sense show: Start when stopped, Pause/Check/Stop when running. Icons + shortcuts. Cheapest, stays 100% native.',A],
+ ['B · Header + a row of three buttons','Header with the dot and the slots as three pips. Pause / Check now / Stop become one row of labelled buttons (Stop in red), so they stop looking like menu entries. Epics below, window items last.',B],
+ ['C · A glass panel instead of a menu','Click opens a small panel like the app window: header, epic cards (needs-you tinted orange, progress bars), a primary Open window button and round icon buttons. Prettiest; we own keyboard, Esc and click-outside.',C],
+ ['D · Counters first','Three counters (Needs you / Running / Ready) answer "do I have to do something?" before reading anything. Open window is the first entry, the rest of the controls follow. Native-style menu with one custom header.',D]
+];
+let cur='working';
+function draw(){const s=S[cur];document.getElementById('o').innerHTML=OPTS.map(([h,p,f])=>`<div class="x-opt"><h3>${h}</h3><p>${p}</p><div class="x-stage">${bar(s)}${f(s)}</div></div>`).join('')}
+document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{cur=b.dataset.s;document.querySelectorAll('[data-s]').forEach(x=>x.classList.toggle('on',x==b));draw()});
+document.getElementById('lt').onclick=()=>document.body.classList.toggle('light');
+draw();
+</script></body></html>

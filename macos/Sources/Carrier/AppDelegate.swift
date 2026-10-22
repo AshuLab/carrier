@@ -3,6 +3,7 @@ import CarrierCore
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
+    private let header = StatusHeaderView()
     private var fixtureServer: FixtureServer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -14,14 +15,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         UserDefaults.standard.register(defaults: [showEpicsKey: true])
         let menu = NSMenu()
         menu.delegate = EpicMenuSection.shared
-        // no action, so the menu leaves it disabled: a line to read, not a button
+        // a view of its own, not a title: a line with no action is drawn grey
         let stateLine = menu.addItem(withTitle: ConnectionState.stopped.menuLine, action: nil, keyEquivalent: "")
-        MenuControls.shared.install(in: menu, after: stateLine)
+        stateLine.view = header
+        header.show(ConnectionState.stopped.menuStatus)
+        // the epics go after this separator (EpicMenuSection), above the controls
+        menu.addItem(.separator())
+        MenuControls.shared.install(in: menu)
         menu.addItem(.separator())
         WindowController.shared.addMenuItem(to: menu)
         if fixtureServer != nil { EmptyStatesWindowController.shared.addMenuItem(to: menu) }
         SettingsWindowController.shared.addMenuItem(to: menu)
-        menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = menu.addItem(withTitle: "Quit Carrier", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        showIcon("power", on: quit)
         item.menu = menu
         statusItem = item
         watchCarrier(stateLine)
@@ -47,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 IconController.shared?.show(state)
                 line.title = state.menuLine
+                self.header.show(state.menuStatus)
                 MenuControls.shared.react(to: state)
                 EpicMenuSection.shared.react(to: state)
                 NotificationWatcher.app.react(to: state)
@@ -135,7 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("quit enabled", {
                 guard let menu = self.statusItem?.menu else { return "false" }
                 menu.update()
-                return "\(menu.item(withTitle: "Quit")?.isEnabled == true)"
+                return "\(menu.item(withTitle: "Quit Carrier")?.isEnabled == true)"
             }),
             ("open window", { WindowController.shared.open(); return WindowController.shared.status }),
             ("close window", { WindowController.shared.close(); return WindowController.shared.status }),

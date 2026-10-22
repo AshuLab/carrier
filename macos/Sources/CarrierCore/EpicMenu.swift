@@ -44,7 +44,6 @@ public struct EpicMenuItem: Equatable {
 public struct EpicMenu: Equatable {
     public static let limit = 20
 
-    public var header: String
     public var items: [EpicMenuItem]
     /// "… and 3 more" when the snapshot has more than `limit` epics.
     public var more: String?
@@ -83,7 +82,7 @@ public func epicMenu(_ snapshot: PanelSnapshot, showEpics: Bool) -> EpicMenu? {
     let all = needsYou + running + waiting + ready
     guard all.isEmpty == false else { return nil }
     let hidden = all.count - EpicMenu.limit
-    return EpicMenu(header: "Epics", items: Array(all.prefix(EpicMenu.limit)), more: hidden > 0 ? "… and \(hidden) more" : nil)
+    return EpicMenu(items: Array(all.prefix(EpicMenu.limit)), more: hidden > 0 ? "… and \(hidden) more" : nil)
 }
 
 private func roundBadge(_ epic: PanelEpic) -> String? { epic.round.map { "\($0)/\(epic.maxReviews)" } }

@@ -36,7 +36,6 @@ private func snapshot(
         done: [.init(repo: "acme/web", issue: 4, prNumber: 9, finishedAt: nil, executionId: nil)]
     )
     let menu = try #require(epicMenu(all, showEpics: true))
-    #expect(menu.header == "Epics")
     #expect(menu.more == nil)
     #expect(menu.items.map(\.state) == [EpicMenuState.needsYou, .running, .waiting, .ready])
     #expect(menu.items.map(\.title) == ["web #2", "web #1", "api #3", "web #4"])

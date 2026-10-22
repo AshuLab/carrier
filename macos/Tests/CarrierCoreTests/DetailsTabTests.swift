@@ -68,14 +68,15 @@ private func model(_ subject: EpicSubject?, _ reply: EpicReply? = nil) -> [Strin
     #expect(r["Started"]?.value == "Today 12:57")
     #expect(r["Total time"]?.value == "2h 03m")
     #expect(r["Slices"] == DetailsRow(label: "Slices", note: "all merged", value: "3 of 3"))
-    #expect(r["Review round"] == DetailsRow(label: "Review round", note: "in progress", value: "2 of 5"))
+    #expect(r["Review round"] == DetailsRow(label: "Review round", note: "in progress", value: "2 of 5", style: .badge))
     #expect(r["Blockers"]?.value == "none" && r["Blockers"]?.tone == .good)
     #expect(r["Pull request"]?.value == "PR #50" && r["Pull request"]?.url == "https://github.com/acme/web/pull/50")
-    #expect(r["Checks"] == DetailsRow(label: "Checks", note: "on the PR", value: "5 passing", tone: .good))
-    #expect(r["Branch"]?.value == "feat/x/epic")
+    #expect(r["Checks"] == DetailsRow(label: "Checks", note: "on the PR", value: "5 passing", tone: .good, style: .badge, url: "https://github.com/acme/web/pull/50/checks"))
+    #expect(r["Branch"]?.value == "feat/x/epic" && r["Branch"]?.style == .badge)
+    #expect(r["Branch"]?.url == "https://github.com/acme/web/tree/feat/x/epic")
     #expect(r["Agent"] == DetailsRow(label: "Agent", note: "gpt-5", value: "Codex"))
     #expect(r["Lanes"]?.value == "2")
-    #expect(r["Repository"]?.value == "acme/web")
+    #expect(r["Repository"]?.value == "acme/web" && r["Repository"]?.url == "https://github.com/acme/web")
 }
 
 @Test func theAuthorRunsWhileFixing() {
@@ -96,14 +97,14 @@ private func model(_ subject: EpicSubject?, _ reply: EpicReply? = nil) -> [Strin
 
 @Test func openBlockersAreCountedAndRed() {
     let r = model(active(blockers: 2))
-    #expect(r["Blockers"] == DetailsRow(label: "Blockers", note: "open", value: "2", tone: .bad))
+    #expect(r["Blockers"] == DetailsRow(label: "Blockers", note: "open", value: "2", tone: .bad, style: .badge))
 }
 
 @Test func anEpicThatNeedsYouSaysSo() {
     var epic = active(.needsHuman, round: 5)
     if case .active(var e) = epic { e.needsHumanKind = "review_limit"; epic = .active(e) }
     let r = model(epic)
-    #expect(r["Review round"] == DetailsRow(label: "Review round", note: "limit reached", value: "5 of 5", tone: .attention))
+    #expect(r["Review round"] == DetailsRow(label: "Review round", note: "limit reached", value: "5 of 5", tone: .attention, style: .badge))
     #expect(r["Stage"]?.note == "In review · needs you")
     #expect(r["Last activity"]?.note == "no movement since")
 }
@@ -116,7 +117,7 @@ private func model(_ subject: EpicSubject?, _ reply: EpicReply? = nil) -> [Strin
     #expect(r["Stage"] == DetailsRow(label: "Stage", note: "Finished", value: "23h 00m ago"))
     #expect(r["Total time"]?.value == "1h 00m")
     #expect(r["Started"]?.value == "Yesterday 15:00")
-    #expect(r["Review round"] == DetailsRow(label: "Review round", note: "approved", value: "2"))
+    #expect(r["Review round"] == DetailsRow(label: "Review round", note: "approved", value: "2", tone: .good, style: .badge))
     #expect(r["Blockers"]?.value == "none")
     #expect(r["Pull request"]?.value == "PR #50")
     #expect(r["Agent"]?.value == "—")

@@ -6,13 +6,16 @@ import Foundation
 
 public struct DetailsRow: Equatable {
     public enum Tone: Equatable { case normal, good, attention, bad, dim }
+    /// How the value is drawn: plain text, or a badge (a coloured capsule; the accent colour with an arrow when it has a `url`).
+    public enum Style: Equatable { case text, badge }
 
     public var label: String
     /// The small line under the label.
     public var note: String?
     public var value: String
     public var tone: Tone = .normal
-    /// Where the value goes when it is clicked (the pull request).
+    public var style: Style = .text
+    /// Where the value goes when it is clicked: the pull request, its checks, the branch, the repository.
     public var url: String?
 
     static let dash = "—"
@@ -38,9 +41,11 @@ public func detailsTab(_ subject: EpicSubject?, reply: EpicReply?, now: Int, tim
     case .finished(let done): finished = done
     case .queued(let epic, let position): (queuedAt, queuePlace) = (epic.queuedAt, "\(ordinal(position)) in queue")
     }
-    func row(_ label: String, _ note: String? = nil, _ value: String?, tone: DetailsRow.Tone = .normal, url: String? = nil) -> DetailsRow {
+    func row(
+        _ label: String, _ note: String? = nil, _ value: String?, tone: DetailsRow.Tone = .normal, style: DetailsRow.Style = .text, url: String? = nil
+    ) -> DetailsRow {
         guard let value else { return DetailsRow(label: label, note: note, value: DetailsRow.dash, tone: .dim) }
-        return DetailsRow(label: label, note: note, value: value, tone: tone, url: url)
+        return DetailsRow(label: label, note: note, value: value, tone: tone, style: style, url: url)
     }
 
     // Timing
@@ -80,9 +85,12 @@ public func detailsTab(_ subject: EpicSubject?, reply: EpicReply?, now: Int, tim
         roundRow = row("Review round", "starts after ship", nil)
     } else if let active, let round = active.round ?? lastRound {
         let limit = active.needsHumanKind == "review_limit"
-        roundRow = row("Review round", limit ? "limit reached" : "in progress", "\(round) of \(active.maxReviews)", tone: limit ? .attention : .normal)
+        roundRow = row(
+            "Review round", limit ? "limit reached" : "in progress", "\(round) of \(active.maxReviews)",
+            tone: limit ? .attention : .normal, style: .badge
+        )
     } else {
-        roundRow = row("Review round", finished == nil ? "in progress" : "approved", lastRound.map { "\($0)" })
+        roundRow = row("Review round", finished == nil ? "in progress" : "approved", lastRound.map { "\($0)" }, tone: finished == nil ? .normal : .good, style: .badge)
     }
     let blockers = active?.blockers ?? reply?.rounds.last.map { round in round.blockers.filter { $0.mark != "fixed" }.count }
     let progress = [
@@ -93,7 +101,7 @@ public func detailsTab(_ subject: EpicSubject?, reply: EpicReply?, now: Int, tim
         roundRow,
         row(
             "Blockers", blockers.map { $0 == 0 ? "none open" : "open" }, blockers.map { $0 == 0 ? "none" : "\($0)" },
-            tone: blockers.map { $0 == 0 ? .good : .bad } ?? .normal
+            tone: blockers.map { $0 == 0 ? .good : .bad } ?? .normal, style: .badge
         ),
     ]
 
@@ -101,7 +109,7 @@ public func detailsTab(_ subject: EpicSubject?, reply: EpicReply?, now: Int, tim
     let header = epicHeader(subject, reply: reply)
     let pullRow: DetailsRow
     if let label = header.prLabel {
-        pullRow = row("Pull request", "opens on GitHub", label, url: header.prURL)
+        pullRow = row("Pull request", "opens on GitHub", label, style: .badge, url: header.prURL)
     } else if inShip {
         pullRow = row("Pull request", "opens when every slice is merged", "not yet", tone: .dim)
     } else {
@@ -113,7 +121,8 @@ public func detailsTab(_ subject: EpicSubject?, reply: EpicReply?, now: Int, tim
             let parts = [(checks.passing, "passing"), (checks.failing, "failing"), (checks.pending, "pending")].filter { $0.0 > 0 }
             checksRow = row(
                 "Checks", "on the PR", parts.map { "\($0.0) \($0.1)" }.joined(separator: " · "),
-                tone: checks.failing > 0 ? .bad : checks.pending > 0 ? .attention : .good
+                tone: checks.failing > 0 ? .bad : checks.pending > 0 ? .attention : .good, style: .badge,
+                url: header.prURL.map { $0 + "/checks" }
             )
         } else {
             checksRow = row("Checks", "on the PR", "no checks", tone: .dim)
@@ -121,7 +130,9 @@ public func detailsTab(_ subject: EpicSubject?, reply: EpicReply?, now: Int, tim
     } else {
         checksRow = row("Checks", nil, nil)
     }
-    let pull = [pullRow, checksRow, row("Branch", nil, reply?.branch ?? active?.branch)]
+    let branch = reply?.branch ?? active?.branch
+    let branchURL = branch.flatMap { $0.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) }.map { "https://github.com/\(subject.repo)/tree/\($0)" }
+    let pull = [pullRow, checksRow, row("Branch", nil, branch, style: .badge, url: branchURL)]
 
     // Run: the agent whose turn it is, the reviewer while a review runs and the author otherwise
     let agent = active?.agents.map { active?.stage == .review ? $0.reviewer : $0.author }
@@ -129,7 +140,7 @@ public func detailsTab(_ subject: EpicSubject?, reply: EpicReply?, now: Int, tim
     let run = [
         row("Agent", agent?.model, agent.map { agentLabel($0) }),
         row("Lanes", nil, lanes > 0 ? "\(lanes)" : nil),
-        row("Repository", nil, subject.repo),
+        row("Repository", nil, subject.repo, style: .badge, url: "https://github.com/\(subject.repo)"),
     ]
 
     return DetailsTabModel(groups: [

@@ -1,11 +1,17 @@
 import { z } from 'zod';
-import type { EpicSlice, PullRequestBlock } from '../orchestration/github.ts';
+import { redact } from '../logging/redact.ts';
+import type { EpicSlice, PullRequestBlock, ReviewThread } from '../orchestration/github.ts';
 
 // What the GraphQL answers look like, as recorded in docs/research/macos-app-github-graphql.md.
 // The queries live in that note; these schemas decode what they return.
 
 /** Slices read per epic; more than this and the reply says it is partial. */
 export const SLICE_LIMIT = 100;
+
+/** Review threads read per pull request; more than this and the reply says it is partial. */
+export const THREAD_LIMIT = 100;
+/** Longest first line of a thread's opening comment that is kept. */
+const FIRST_LINE_MAX = 160;
 
 const rateLimit = z.object({ cost: z.int().positive(), remaining: z.int().nonnegative(), limit: z.int().positive(), resetAt: z.string() });
 
@@ -55,6 +61,18 @@ const statusCheckRollup = z
   })
   .nullable();
 
+const reviewThread = z.object({
+  id: z.string(),
+  isResolved: z.boolean(),
+  isOutdated: z.boolean(),
+  path: z.string(),
+  line: z.int().nullable(), // null when the thread is outdated
+  comments: z.object({
+    totalCount: z.int().nonnegative(),
+    nodes: z.array(z.object({ url: z.string(), body: z.string(), author: z.object({ login: z.string(), __typename: z.string() }).nullable() })).min(1),
+  }),
+});
+
 export const pullRequestResponse = z.object({
   data: z.object({
     rateLimit,
@@ -75,6 +93,8 @@ export const pullRequestResponse = z.object({
         changedFiles: z.int().nonnegative(),
         commits: z.object({ totalCount: z.int().nonnegative() }),
         lastCommit: z.object({ nodes: z.array(z.object({ commit: z.object({ statusCheckRollup }) })) }),
+        // Added after the spike: absent in the recorded answers, so it defaults to no threads.
+        reviewThreads: z.object({ pageInfo: z.object({ hasNextPage: z.boolean() }), nodes: z.array(reviewThread) }).default({ pageInfo: { hasNextPage: false }, nodes: [] }),
       }),
     }),
   }),
@@ -156,7 +176,7 @@ export function sliceOf(s: SliceRead): EpicSlice {
   return { number: s.number, title: s.title, state, blockedBy, assignee, prNumber, closedAt: s.closedAt === null ? null : Date.parse(s.closedAt) };
 }
 
-/** A pull request with its checks, merge state and review decision; the schema above decodes its answer. Cost 1. */
+/** A pull request with its checks, merge state, review decision and first hundred review threads; the schema above decodes its answer. Cost 1. */
 export const pullRequestQuery = `query($owner: String!, $name: String!, $number: Int!) {
   rateLimit { cost remaining limit resetAt }
   repository(owner: $owner, name: $name) {
@@ -167,6 +187,9 @@ export const pullRequestQuery = `query($owner: String!, $name: String!, $number:
       lastCommit: commits(last: 1) { nodes { commit { statusCheckRollup { state
         contexts(first: 1) { checkRunCount statusContextCount
           checkRunCountsByState { state count } statusContextCountsByState { state count } } } } } }
+      reviewThreads(first: ${THREAD_LIMIT}) { totalCount pageInfo { hasNextPage }
+        nodes { id isResolved isOutdated path line
+          comments(first: 1) { totalCount nodes { url body author { login __typename } } } } }
     }
   }
 }`;
@@ -186,4 +209,25 @@ export function pullRequestOf(response: z.infer<typeof pullRequestResponse>): Pu
     }
   }
   return { number: pr.number, url: pr.url, draft: pr.isDraft, mergeState: pr.mergeStateStatus, reviewDecision: pr.reviewDecision, checks };
+}
+
+/** The first line of the opening comment is redacted before it is cut, so a token is never left half there. */
+export function threadsOf(response: z.infer<typeof pullRequestResponse>): { threads: ReviewThread[]; truncated: boolean } {
+  const { nodes, pageInfo } = response.data.repository.pullRequest.reviewThreads;
+  const threads = nodes.map((t) => {
+    const first = t.comments.nodes[0]!;
+    return {
+      id: t.id,
+      path: t.path,
+      line: t.line,
+      resolved: t.isResolved,
+      outdated: t.isOutdated,
+      author: first.author?.login ?? null,
+      bot: first.author?.__typename === 'Bot',
+      firstLine: [...redact(first.body.split(/\r?\n/, 1)[0]!)].slice(0, FIRST_LINE_MAX).join(''),
+      commentCount: t.comments.totalCount,
+      url: first.url,
+    };
+  });
+  return { threads, truncated: pageInfo.hasNextPage };
 }

@@ -1,3 +1,4 @@
+import type { ReviewThread } from '../orchestration/github.ts';
 import type { PanelAgent } from '../status/types.ts';
 import type { executionStates } from '../storage/executions.ts';
 
@@ -89,6 +90,10 @@ export type EpicReply = {
   }[];
   /** Only the first hundred slices are read: true when the epic has more than the list holds. */
   slicesTruncated: boolean;
+  /** A cache of GitHub, in GitHub's order (ADR 0008): the final pull request's review threads, empty while none were read. */
+  threads: ReviewThread[];
+  /** Only the first hundred threads are read: true when the pull request has more than the list holds. */
+  threadsTruncated: boolean;
   /** `reviewer` is the detached checkout the reviewer works in. */
   worktrees: { kind: 'epic' | 'reviewer' | 'lane'; lane: number | null; path: string }[];
   branch: string | null;

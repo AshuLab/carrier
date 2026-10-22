@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import { epicSlicesResponse, failingCheckResponse, pullRequestOf, pullRequestResponse, sliceOf } from './github-graphql.ts';
+import { epicSlicesResponse, failingCheckResponse, pullRequestOf, pullRequestResponse, sliceOf, threadsOf } from './github-graphql.ts';
 
 // Recorded from the Forge bot token (docs/research/macos-app-github-graphql.md), private text replaced.
 const fixture = (name: string): unknown => JSON.parse(readFileSync(new URL(`./github-graphql-fixtures/${name}.json`, import.meta.url), 'utf8'));
@@ -68,5 +68,34 @@ describe('recorded GraphQL answers', () => {
       checks: { passing: 10, failing: 1, pending: 0 },
     });
     expect(block('pr-checks-passing')).toMatchObject({ draft: false });
+  });
+
+  test('review threads: null line, deleted author, bot, empty comment, a token and a long first line; more than the limit is partial', () => {
+    const { threads, truncated } = threadsOf(pullRequestResponse.parse(fixture('pr-review-threads')));
+    expect(truncated).toBe(true);
+    expect(threads.map((t) => t.id)).toEqual([1, 2, 3, 4, 5, 6, 7].map((n) => `PRRT_example${n}`));
+    expect(threads[0]).toEqual({
+      id: 'PRRT_example1',
+      path: 'src/example-1.ts',
+      line: 11,
+      resolved: true,
+      outdated: false,
+      author: 'example-user',
+      bot: false,
+      firstLine: 'Rename this variable.', // the first line only
+      commentCount: 3,
+      url: 'https://github.com/example-owner/example-repo/pull/167#discussion_r1',
+    });
+    expect(threads[1]).toMatchObject({ line: null, outdated: true });
+    expect(threads[2]).toMatchObject({ author: null, bot: false });
+    expect(threads[3]).toMatchObject({ author: 'example-reviewer-bot', bot: true });
+    expect(threads[4]!.firstLine).toBe('');
+    expect(threads[5]!.firstLine).toBe('Do not paste [redacted] into the config.');
+    expect(threads[6]!.firstLine).toHaveLength(160);
+    expect(threads[6]!.firstLine.startsWith('This first line is long. This first line')).toBe(true);
+  });
+
+  test('an answer recorded before the threads were asked has none and is not partial', () => {
+    expect(threadsOf(pullRequestResponse.parse(fixture('pr-no-checks')))).toEqual({ threads: [], truncated: false });
   });
 });

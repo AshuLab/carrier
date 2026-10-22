@@ -47,6 +47,26 @@ export type PullRequestBlock = {
   checks: { passing: number; failing: number; pending: number } | null;
 };
 
+/** A conversation on a line of the final pull request's diff, as GitHub says it is now. */
+export type ReviewThread = {
+  /** GraphQL node id: the key of the row. */
+  id: string;
+  path: string;
+  /** Null when the thread is outdated and GitHub no longer maps it. */
+  line: number | null;
+  resolved: boolean;
+  outdated: boolean;
+  /** Null for a deleted account. */
+  author: string | null;
+  /** The author's __typename is Bot. */
+  bot: boolean;
+  /** First line of the opening comment, redacted, at most 160 characters; '' when the comment is empty. */
+  firstLine: string;
+  commentCount: number;
+  /** The opening comment's url. */
+  url: string;
+};
+
 export type LabelStyle = { color: string; description: string };
 /** How Carrier creates its labels (GitHub limits a description to 100 characters). `needs-human` is the loud one: it is the state that most needs to be seen. */
 export const labelStyles = {
@@ -70,8 +90,8 @@ export interface GitHub {
   listOpenEpics(repo: string): Promise<{ issue: number; title: string; labels: string[]; slices: Slices | null }[]>;
   /** The first hundred slices of an epic in one query; `truncated` when it has more. Throws GitHubUnavailable like the call above. */
   readSlices(repo: string, issue: number): Promise<{ slices: EpicSlice[]; truncated: boolean }>;
-  /** One query: the pull request's merge state, review decision and checks; null when it does not exist. Throws GitHubUnavailable like the call above. */
-  readPullRequest(repo: string, number: number): Promise<PullRequestBlock | null>;
+  /** One query: the pull request's merge state, review decision and checks, and its first hundred review threads (`truncated` when it has more); null when it does not exist. Throws GitHubUnavailable like the call above. */
+  readPullRequest(repo: string, number: number): Promise<{ pr: PullRequestBlock; threads: ReviewThread[]; truncated: boolean } | null>;
   /** Throws GitHubUnavailable like every call below. */
   getIssue(repo: string, issue: number): Promise<{ state: 'open' | 'closed'; labels: string[] }>;
   /** Null when the PR does not exist; `closed` is closed without merge, a merged PR is `merged`. `headRef` is the branch it comes from. */

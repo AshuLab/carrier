@@ -1,0 +1,184 @@
+{
+  "data": {
+    "rateLimit": {
+      "cost": 1,
+      "remaining": 4996,
+      "limit": 5000,
+      "resetAt": "2026-10-21T23:19:26Z"
+    },
+    "repository": {
+      "pullRequest": {
+        "number": 167,
+        "url": "https://github.com/example-owner/example-repo/pull/167",
+        "isDraft": false,
+        "state": "MERGED",
+        "baseRefName": "example/base-branch",
+        "headRefName": "example/head-branch",
+        "headRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "mergeable": "UNKNOWN",
+        "mergeStateStatus": "UNKNOWN",
+        "reviewDecision": null,
+        "additions": 81,
+        "deletions": 0,
+        "changedFiles": 3,
+        "commits": {
+          "totalCount": 1
+        },
+        "lastCommit": {
+          "nodes": [
+            {
+              "commit": {
+                "statusCheckRollup": null
+              }
+            }
+          ]
+        },
+        "reviewThreads": {
+          "totalCount": 130,
+          "pageInfo": {
+            "hasNextPage": true
+          },
+          "nodes": [
+            {
+              "id": "PRRT_example1",
+              "isResolved": true,
+              "isOutdated": false,
+              "path": "src/example-1.ts",
+              "line": 11,
+              "comments": {
+                "totalCount": 3,
+                "nodes": [
+                  {
+                    "url": "https://github.com/example-owner/example-repo/pull/167#discussion_r1",
+                    "body": "Rename this variable.\n\nIt reads as a count but holds a list.",
+                    "author": {
+                      "login": "example-user",
+                      "__typename": "User"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRRT_example2",
+              "isResolved": false,
+              "isOutdated": true,
+              "path": "src/example-2.ts",
+              "line": null,
+              "comments": {
+                "totalCount": 1,
+                "nodes": [
+                  {
+                    "url": "https://github.com/example-owner/example-repo/pull/167#discussion_r2",
+                    "body": "This branch is gone now.",
+                    "author": {
+                      "login": "example-user",
+                      "__typename": "User"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRRT_example3",
+              "isResolved": false,
+              "isOutdated": false,
+              "path": "src/example-3.ts",
+              "line": 13,
+              "comments": {
+                "totalCount": 1,
+                "nodes": [
+                  {
+                    "url": "https://github.com/example-owner/example-repo/pull/167#discussion_r3",
+                    "body": "Why not reuse the helper?",
+                    "author": null
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRRT_example4",
+              "isResolved": false,
+              "isOutdated": false,
+              "path": "src/example-4.ts",
+              "line": 14,
+              "comments": {
+                "totalCount": 1,
+                "nodes": [
+                  {
+                    "url": "https://github.com/example-owner/example-repo/pull/167#discussion_r4",
+                    "body": "Consider a guard here.",
+                    "author": {
+                      "login": "example-reviewer-bot",
+                      "__typename": "Bot"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRRT_example5",
+              "isResolved": false,
+              "isOutdated": false,
+              "path": "src/example-5.ts",
+              "line": 15,
+              "comments": {
+                "totalCount": 1,
+                "nodes": [
+                  {
+                    "url": "https://github.com/example-owner/example-repo/pull/167#discussion_r5",
+                    "body": "",
+                    "author": {
+                      "login": "example-user",
+                      "__typename": "User"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRRT_example6",
+              "isResolved": false,
+              "isOutdated": false,
+              "path": "src/example-6.ts",
+              "line": 16,
+              "comments": {
+                "totalCount": 1,
+                "nodes": [
+                  {
+                    "url": "https://github.com/example-owner/example-repo/pull/167#discussion_r6",
+                    "body": "Do not paste ghp_abcdefghijklmnopqrstuvwxyzABCDEFGHIJ into the config.\nSecond line.",
+                    "author": {
+                      "login": "example-user",
+                      "__typename": "User"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": "PRRT_example7",
+              "isResolved": false,
+              "isOutdated": false,
+              "path": "src/example-7.ts",
+              "line": 17,
+              "comments": {
+                "totalCount": 1,
+                "nodes": [
+                  {
+                    "url": "https://github.com/example-owner/example-repo/pull/167#discussion_r7",
+                    "body": "This first line is long. This first line is long. This first line is long. This first line is long. This first line is long. This first line is long. This first line is long. This first line is long. This first line is long. This first line is long. \nShort second line.",
+                    "author": {
+                      "login": "example-user",
+                      "__typename": "User"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

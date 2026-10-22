@@ -101,6 +101,30 @@ Cost 1 for up to 100 contexts (11 here, `hasNextPage` false). Each node is a `Ch
 
 The engine's query for the pull request block (`pullRequestQuery`, `src/integrations/github-graphql.ts`) is query 2. The poll runs it once for each running, ready-for-test or needs-human epic that has a pull request number, none for one without, and caches the block on the epic's row. Check runs and status contexts are counted together: `SUCCESS`, `NEUTRAL`, `SKIPPED` and `COMPLETED` pass; `FAILURE`, `ERROR`, `CANCELLED`, `TIMED_OUT`, `STARTUP_FAILURE`, `ACTION_REQUIRED` and `STALE` fail; everything else is pending.
 
+## Query 4: a pull request's review threads
+
+Verified on 2026-10-22 with the orchestrator profile (`gh`, the user's own login) against a private repository's pull request with 14 threads: it answers, cost 1. It is part of the pull request query of the engine (`pullRequestQuery`), so the block and the threads are one call.
+
+```graphql
+query($owner: String!, $name: String!, $number: Int!) {
+  rateLimit { cost remaining limit resetAt }
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100) { totalCount pageInfo { hasNextPage }
+        nodes { id isResolved isOutdated path line
+          comments(first: 1) { totalCount nodes { url body author { login __typename } } } } }
+    }
+  }
+}
+```
+
+Per thread: `id` (node id), `isResolved`, `isOutdated`, `path`, `line` and the opening comment (`comments(first: 1)`) with its `url`, `body`, `author { login __typename }` and `comments.totalCount` for the whole conversation. Recorded shape:
+
+- `line` is null when the thread is outdated and GitHub no longer maps it.
+- `author` is null for a deleted account; `__typename` is `Bot` for a bot, `User` for a person.
+- `body` can be empty. The engine keeps only its first line, redacted and cut to 160 characters, never the text.
+- `pageInfo.hasNextPage` is true when there are more than the hundred asked for; the engine flags the list as partial.
+
 ## A repository with no checks
 
 `AshuLab/carrier` has no workflow, so PR 167 answers `statusCheckRollup: null` on its last commit. REST says the opposite: the combined status of such a commit is `pending` with `total_count: 0` (inventory, section 3). The app must read the null as "no checks" and show it as such (a dash or the words "No checks"), never as pending. `PENDING` with check runs counted is the only pending that means something is still running.
@@ -121,6 +145,7 @@ Recorded answers in `src/integrations/github-graphql-fixtures/`, decoded by the 
 | `pr-no-checks.json` | PR with no checks (`statusCheckRollup: null`) |
 | `pr-checks-failing.json` | PR with one failing check, counts |
 | `pr-failing-check-detail.json` | the same PR, with the failing run named |
+| `pr-review-threads.json` | generated, not recorded: seven synthetic review threads (resolved, outdated with a null line, deleted author, bot, empty comment, a token in the first line, a first line over 160 characters), `hasNextPage` true |
 
 ## Not verified
 

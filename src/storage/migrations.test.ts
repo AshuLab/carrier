@@ -5,6 +5,7 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { afterEach, beforeEach, expect, test } from 'vitest';
+import { epicReviewThreads } from './epic-review-threads.ts';
 import { executions } from './executions.ts';
 import { epics } from './schema.ts';
 
@@ -64,5 +65,16 @@ test('the epics migration applies to a database that already holds epics: their 
 
   migrate(db, { migrationsFolder: full });
   expect(db.select().from(epics).all()).toMatchObject([{ repo: 'AshuLab/carrier', issue: 3, status: 'needs_human', needsHumanReason: 'stuck', needsHumanKind: null, title: null, labels: null, branch: null }]);
+  sqlite.close();
+});
+
+test('the review threads migration creates a table that keeps a thread once per epic', () => {
+  const sqlite = new Database(join(dir, 'threads.db'));
+  const db = drizzle(sqlite);
+  migrate(db, { migrationsFolder: join(import.meta.dirname, 'migrations') });
+  const row = { epicId: 1, id: 'PRRT_a', position: 0, path: 'src/a.ts', line: null, resolved: false, outdated: true, author: null, bot: false, firstLine: '', commentCount: 1, url: 'https://github.com/o/r/pull/1#discussion_r1', readAt: 5, truncated: false };
+  db.insert(epicReviewThreads).values(row).run();
+  expect(db.select().from(epicReviewThreads).all()).toEqual([row]);
+  expect(() => db.insert(epicReviewThreads).values(row).run()).toThrow();
   sqlite.close();
 });

@@ -8,6 +8,7 @@ import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/a
 import { parseCallerResult } from '../execution/caller-result.ts';
 import { importResult } from '../execution/import-result.ts';
 import type { Workspaces } from '../execution/workspaces.ts';
+import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import type { Db } from '../storage/db.ts';
@@ -547,17 +548,24 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     }
   }
 
-  // The pull request block of each epic to refresh that has a PR, one query per epic and none for one without. A cache of GitHub like the
-  // slices: a failed read keeps the last block; a PR that GitHub does not know leaves it as it was.
+  // The pull request block and review threads of each epic to refresh that has a PR, one query per epic and none for one without. A cache of GitHub
+  // like the slices: a failed read keeps the last block and rows; a PR that GitHub does not know leaves them as they were.
   async function refreshPullRequests(repo: string) {
     for (const { id, prNumber } of toRefresh(repo, (e) => e.pr !== null || e.prNumber === null)) {
       if (prNumber === null) continue;
       try {
-        const pr = await github.readPullRequest(repo, prNumber);
-        if (pr !== null) db.update(epics).set({ pr }).where(eq(epics.id, id)).run();
+        const read = await github.readPullRequest(repo, prNumber);
+        if (read === null) continue;
+        const { pr, threads, truncated } = read;
+        const readAt = clock.now();
+        db.transaction((tx) => {
+          tx.update(epics).set({ pr }).where(eq(epics.id, id)).run();
+          tx.delete(epicReviewThreads).where(eq(epicReviewThreads.epicId, id)).run();
+          if (threads.length > 0) tx.insert(epicReviewThreads).values(threads.map((thread, position) => ({ ...thread, epicId: id, position, readAt, truncated }))).run();
+        });
       } catch (e) {
         if (e instanceof AuthError) throw e;
-        log.error('pull request read failed, keeping the last block', e);
+        log.error('pull request read failed, keeping the last block and threads', e);
       }
     }
   }

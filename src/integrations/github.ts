@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
-import { epicSlicesQuery, epicSlicesResponse, pullRequestOf, pullRequestQuery, pullRequestResponse, sliceOf } from './github-graphql.ts';
+import { epicSlicesQuery, epicSlicesResponse, pullRequestOf, pullRequestQuery, pullRequestResponse, sliceOf, threadsOf } from './github-graphql.ts';
 import { AuthError, GitHubUnavailable, epicLabel, readyLabel, type GitHub, type LabelStyle, type RateLimit, type Slices } from '../orchestration/github.ts';
 
 const execFileAsync = promisify(execFile);
@@ -181,7 +181,8 @@ export class GhGitHub implements GitHub {
   async readPullRequest(repo: string, number: number) {
     const [owner = '', name = ''] = repo.split('/');
     const body = await this.api(repo, ['graphql', '-f', `query=${pullRequestQuery}`, '-f', `owner=${owner}`, '-f', `name=${name}`, '-F', `number=${number}`]);
-    return pullRequestOf(pullRequestResponse.parse(JSON.parse(body)));
+    const response = pullRequestResponse.parse(JSON.parse(body));
+    return { pr: pullRequestOf(response), ...threadsOf(response) };
   }
 
   async getIssue(repo: string, issue: number) {

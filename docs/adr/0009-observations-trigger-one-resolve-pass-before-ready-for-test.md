@@ -1,6 +1,6 @@
 # 0009 - A review that leaves observations triggers one resolve pass by the author before the epic is ready for test
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-22
 
 ## Context

@@ -17,7 +17,7 @@ import { executions, type executionStates } from '../storage/executions.ts';
 import { executionOutput, taskContext } from '../logging/logger.ts';
 import { epics, type needsHumanKinds } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
-import { latestBlockers } from './blockers.ts';
+import { latestBlockers, latestObservations } from './blockers.ts';
 import { endOf } from './final-pr.ts';
 import { AuthError, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub, type Slices } from './github.ts';
 import { reserve } from './reserve.ts';
@@ -101,7 +101,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // An epic a person sent back to the queue: nothing of the previous attempt is kept, the executions stay as history.
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
-    lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null,
+    lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null,
     needsHumanReason: null, needsHumanKind: null, finishedAt: null,
   });
 
@@ -167,6 +167,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     }
     const executionId = randomUUID();
     const resultPath = join(root, 'orchestrator', 'results', `${executionId}.json`);
+    // A fix right after a review that completed is the observations pass; after one that asked for changes, it answers the blockers.
+    const observations = stage === 'fix' ? latestObservations(db, epic.id) : null;
     const task: AgentTask = {
       executionId,
       repo: epic.repo,
@@ -179,7 +181,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       ...(resumeSession && { resumeSession }),
       context: {
         previousSummaries: reviewing || rebuild ? previousSummaries(epic.id) : [],
-        ...((stage === 'fix' || (reviewing && (epic.round ?? 0) > 1)) && { blockers: latestBlockers(db, epic.id) }),
+        ...(observations ? { observations } : (stage === 'fix' || (reviewing && (epic.round ?? 0) > 1)) && { blockers: latestBlockers(db, epic.id) }),
         ...(retryOf && { verifyStateFirst: true }),
         ...(pr && { pr }),
         ...(epic.round && { round: epic.round }),
@@ -371,11 +373,17 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       if (result.outcome === 'needs_human') toNeedsHuman(tx, epic.id, 'agent_needs_human', result.reason);
       else if (problem) toNeedsHuman(tx, epic.id, problem.kind, problem.text);
       else if (execution.stage === 'ship') update({ stage: 'review', stageStartedAt: clock.now(), round: 1, prNumber: result.pr.number, prHeadSha: result.pr.headSha, workspace, branch });
+      // The pass ended with the head that was reviewed: nothing to review again, the reviewer's verification stands.
+      else if (execution.stage === 'fix' && latestObservations(db, epic.id) && result.pr.headSha === epic.reviewedSha) update({ status: 'ready_for_test', finishedAt: clock.now(), labelPending: true });
       else if (execution.stage === 'fix') update({ stage: 'review', stageStartedAt: clock.now(), round: (epic.round ?? 0) + 1, prHeadSha: result.pr.headSha });
       // The round stays: the fix turn answers it, and the next review numbers the following one.
       else if (result.outcome === 'changes_requested') {
         if ((epic.round ?? 0) >= maxReviews) toNeedsHuman(tx, epic.id, 'review_limit', `review limit: round ${epic.round} of ${maxReviews} still has requested changes`);
         else update({ stage: 'fix', stageStartedAt: clock.now() });
+      }
+      // The one observations pass: the author answers them on the same round, and the reviewed head and verification wait for how it ends.
+      else if (result.outcome === 'completed' && result.observations?.length && epic.observationsPassAt === null && (epic.round ?? 0) < maxReviews) {
+        update({ stage: 'fix', stageStartedAt: clock.now(), observationsPassAt: clock.now(), reviewedSha: result.pr.headSha, verification: result.verification });
       }
       else update({ status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true });
     });

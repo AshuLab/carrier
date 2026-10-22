@@ -41,6 +41,8 @@ final class WindowController: NSObject {
         self.window = window
         if stop == nil { startMonitor() }
         if let epic { model.shell.selection = .epic(repo: epic.repo, issue: epic.issue) }
+        // regular while the window is open, so the app shows in Cmd+Tab and the Dock; a menu bar app again once it closes
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }
@@ -104,6 +106,7 @@ final class WindowController: NSObject {
     }
 
     @objc private func windowClosed() {
+        NSApp.setActivationPolicy(.accessory)
         stop?.set()
         stop = nil
         model.state = nil

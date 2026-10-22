@@ -13,15 +13,15 @@ struct InspectorTabsView: View {
         let tab = inspectorTab(subject, chosen: chosen)
         let review = inspectorCount(.review, subject, reply: reply)
         VStack(alignment: .leading, spacing: 12) {
-            Picker("", selection: Binding(get: { tab }, set: { chosen = $0; InspectorStore().chosen = $0 })) {
-                ForEach(InspectorTab.allCases, id: \.self) { item in
-                    let count = inspectorCount(item, subject, reply: reply).text
-                    Text(count.map { "\(item.title) \($0)" } ?? item.title).tag(item)
-                }
-            }
-            .pickerStyle(.segmented).labelsHidden().controlSize(.small)
-            // a native segment cannot colour its own count: the control turns orange while a person is needed
-            .tint(review.needsYou ? .orange : nil)
+            GlassTabs(
+                items: InspectorTab.allCases.map { item in
+                    GlassTabs.Item(
+                        id: item, title: item.title, count: inspectorCount(item, subject, reply: reply).text,
+                        countColor: item == .review && review.needsYou ? .orange : .secondary
+                    )
+                },
+                selection: Binding(get: { tab }, set: { chosen = $0; InspectorStore().chosen = $0 }), fill: true
+            )
             switch tab {
             case .slices: SlicesTabView(subject: subject, reply: reply)
             case .review:

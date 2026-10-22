@@ -39,6 +39,10 @@ struct PanelView: View {
         let columns = Binding<NavigationSplitViewVisibility>(
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
+        // only an epic has something to inspect; Overview and Settings are a single column
+        let inspector = Binding(
+            get: { shell.inspectorShown && epic != nil }, set: { if epic != nil { shell.inspectorShown = $0 } }
+        )
         NavigationSplitView(columnVisibility: columns) {
             SidebarView(snapshot: snapshot, selection: $shell.selection, groupBy: groupBy, onAbout: shell.showAbout)
         } detail: {
@@ -74,14 +78,14 @@ struct PanelView: View {
                 }
             }
             .navigationTitle(epic.map { "\($0.subject.repo.split(separator: "/").last ?? "") #\($0.subject.issue)" } ?? "Carrier")
-            .inspector(isPresented: $shell.inspectorShown) {
+            .inspector(isPresented: inspector) {
                 InspectorTabsView(subject: epic?.subject, reply: epic.flatMap { model.epics.data[EpicRef(repo: $0.subject.repo, issue: $0.subject.issue)]?.epic })
                     .inspectorColumnWidth(min: 280, ideal: 316, max: 400)
             }
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
-                Button { shell.toggleSidebar() } label: { Label("Sidebar", systemImage: "sidebar.leading") }
+                Button { withAnimation(.smooth(duration: 0.25)) { shell.toggleSidebar() } } label: { Label("Sidebar", systemImage: "sidebar.leading") }
                     .help("Show or hide the sidebar")
             }
             if let epic {
@@ -90,9 +94,11 @@ struct PanelView: View {
                     OpenLinkButton(title: "Open issue", url: epic.header.issueURL)
                 }
             }
-            ToolbarItem(placement: .primaryAction) {
-                Button { shell.toggleInspector() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
-                    .help("Show or hide the inspector")
+            if epic != nil {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { shell.toggleInspector() } label: { Label("Inspector", systemImage: "sidebar.trailing") }
+                        .help("Show or hide the inspector")
+                }
             }
         }
         .overlay {

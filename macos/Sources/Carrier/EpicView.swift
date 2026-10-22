@@ -21,10 +21,13 @@ struct EpicView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 EpicHeaderView(header: epicHeader(subject, reply: reply))
-                Picker("", selection: $tab) {
-                    ForEach(EpicTab.allCases, id: \.self) { Text($0.title(filesChanged: max(filesChanged, filesChangedCount(files)))).tag($0) }
-                }
-                .pickerStyle(.segmented).labelsHidden().controlSize(.small).frame(maxWidth: 320)
+                GlassTabs(
+                    items: EpicTab.allCases.map { item in
+                        let files = max(filesChanged, filesChangedCount(files))
+                        return GlassTabs.Item(id: item, title: item.title, count: item == .filesChanged && files > 0 ? "\(files)" : nil)
+                    },
+                    selection: $tab
+                )
                 tabContent
             }
             .padding(.horizontal, 20).padding(.vertical, 14)

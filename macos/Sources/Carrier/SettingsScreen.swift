@@ -18,10 +18,7 @@ struct SettingsScreen: View {
                 if let message = setup.message {
                     Label(message, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
                 }
-                Picker("Tab", selection: $tab) {
-                    ForEach(Tab.allCases, id: \.self) { Text($0.rawValue) }
-                }
-                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                GlassTabs(items: Tab.allCases.map { GlassTabs.Item(id: $0, title: $0.rawValue) }, selection: $tab)
                 if tab == .engine {
                     VStack(spacing: 0) {
                         ForEach(model.rows, id: \.field) { EngineRowView(row: $0, setup: setup) }

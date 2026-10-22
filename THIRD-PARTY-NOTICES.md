@@ -19,3 +19,12 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 The same text ships inside the app, next to the icons. The pinned release, its integrity hash and how to refresh the
 subset are in `macos/Sources/CarrierCore/Resources/FileIcons/SOURCE.txt`.
+
+## LobeHub Icons
+
+The provider marks in `Carrier.app` (`macos/Sources/CarrierCore/Resources/ProviderIcons`: Claude, Codex, Antigravity) are
+copied unchanged from the npm package `@lobehub/icons-static-svg` 1.98.0 of
+[LobeHub Icons](https://github.com/lobehub/lobe-icons). Copyright (c) 2023 LobeHub, under the MIT licence; the text
+ships inside the app, next to the icons. The licence covers the artwork files, not the marks, which are trademarks of
+Anthropic, OpenAI and Google. The pinned release and its integrity hash are in
+`macos/Sources/CarrierCore/Resources/ProviderIcons/SOURCE.txt`.

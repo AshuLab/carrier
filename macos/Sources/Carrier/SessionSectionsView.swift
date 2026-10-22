@@ -113,17 +113,34 @@ struct SessionHeaderView: View {
     }
 }
 
-/// The agent's letter on a grey disc; a white ring turns inside it while the agent works.
+/// The provider's mark (its letter when there is none) on a grey disc; a white ring turns inside it while the agent works.
 struct AgentAvatar: View {
     let initial: String
     let harness: String
     let working: Bool
+    @MainActor private static var marks: [String: NSImage] = [:]
 
     var body: some View {
-        Text(initial).font(.system(size: 13, weight: .bold)).foregroundStyle(.white)
+        mark.foregroundStyle(.white)
             .frame(width: 30, height: 30)
             .background(Circle().fill(harness == "Claude" ? Color(white: 0.37) : Color(white: 0.49)))
             .overlay { if working { SpinningRing(diameter: 26, lineWidth: 2, color: .white) } }
             .help(working ? "\(harness) · working" : harness)
+    }
+
+    @ViewBuilder private var mark: some View {
+        if let image = Self.mark(harness) {
+            Image(nsImage: image).renderingMode(.template).resizable().scaledToFit().frame(width: 15, height: 15)
+        } else {
+            Text(initial).font(.system(size: 13, weight: .bold))
+        }
+    }
+
+    @MainActor private static func mark(_ harness: String) -> NSImage? {
+        if let known = marks[harness] { return known }
+        guard let url = providerIconURL(harness), let image = NSImage(contentsOf: url) else { return nil }
+        image.isTemplate = true
+        marks[harness] = image
+        return image
     }
 }

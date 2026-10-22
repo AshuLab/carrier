@@ -5,7 +5,7 @@ let package = Package(
     name: "Carrier",
     platforms: [.macOS(.v26)],
     targets: [
-        .target(name: "CarrierCore", resources: [.copy("Resources/FileIcons")]),
+        .target(name: "CarrierCore", resources: [.copy("Resources/FileIcons"), .copy("Resources/ProviderIcons")]),
         .executableTarget(name: "Carrier", dependencies: ["CarrierCore"]),
         .testTarget(name: "CarrierCoreTests", dependencies: ["CarrierCore"]),
         .testTarget(name: "CarrierTests", dependencies: ["Carrier"]),

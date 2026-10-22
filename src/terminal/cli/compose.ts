@@ -88,14 +88,15 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
   const { limits } = config;
   // Git over the network (clone, fetch) runs as the repo's author profile.
   const authorProfile = (repo: string) => config.profiles[repos.find((r) => r.name === repo)!.agents.author.profile]!;
+  const github = deps.makeGitHub({
+    profile: config.profiles[config.orchestratorProfile]!,
+    cwd: forgeCwd(config.root),
+    timeoutMs: limits.githubCallTimeoutSeconds * 1000,
+  });
   const engine = createEngine({
     db,
     clock: deps.clock,
-    github: deps.makeGitHub({
-      profile: config.profiles[config.orchestratorProfile]!,
-      cwd: forgeCwd(config.root),
-      timeoutMs: limits.githubCallTimeoutSeconds * 1000,
-    }),
+    github,
     workspaces: deps.makeWorkspaces({ root: config.root, token: (repo) => deps.mint(authorProfile(repo), repo) }),
     runner: deps.makeRunner({ credentials: profileCredentials({ profiles: config.profiles, mint: deps.mint, botId: deps.botId }) }),
     repos,
@@ -127,8 +128,9 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
   }
   // Only now: until the engine is up the terminal belongs to whoever is waiting for it (the "Starting…" spinner).
   deps.onArrived?.();
-  const snapshot = () =>
-    buildSnapshot(db, {
+  const snapshot = () => {
+    const limit = github.rateLimit();
+    return buildSnapshot(db, {
       now: deps.clock.now(),
       maxConcurrentEpics: limits.maxConcurrentEpics,
       maxReviews: limits.maxReviews,
@@ -140,8 +142,10 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
       slices: engine.slices,
       version,
       pollIntervalMs: config.pollIntervalMinutes * 60_000,
+      rateLimit: limit && { ...limit, profile: 'orchestrator' },
       watched: watchedOf(repos, engine.lastCheck),
     });
+  };
   const controls = {
     poll: () => engine.pollNow(),
     setPaused: (paused: boolean) => engine.setPaused(paused),

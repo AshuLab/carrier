@@ -85,6 +85,16 @@ test('startCarrier opens the socket once the engine is up, serves the panel\'s s
   expect(atRelease).toEqual([false]);
 });
 
+test('the snapshot carries the orchestrator profile\'s rate limit: null before GitHub answers, then the latest numbers', async () => {
+  const github = new FakeGitHub();
+  const app = await startCarrier(config(), { ...deps(), makeGitHub: () => github });
+  closers.push(() => app.close());
+
+  expect(JSON.parse((await ask())[1]!).data.engine.rateLimit).toBeNull();
+  github.limit = { remaining: 4_812, limit: 5_000, resetAt: 1_792_618_843_000 };
+  expect(JSON.parse((await ask())[1]!).data.engine.rateLimit).toEqual({ ...github.limit, profile: 'orchestrator' });
+});
+
 test('a second carrier on the same folder fails as already running and leaves the live socket alone', async () => {
   const app = await startCarrier(config(), deps());
   closers.push(() => app.close());

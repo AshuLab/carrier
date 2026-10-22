@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 import { epicSlicesQuery, epicSlicesResponse, pullRequestOf, pullRequestQuery, pullRequestResponse, sliceOf } from './github-graphql.ts';
-import { AuthError, GitHubUnavailable, epicLabel, readyLabel, type GitHub, type LabelStyle, type Slices } from '../orchestration/github.ts';
+import { AuthError, GitHubUnavailable, epicLabel, readyLabel, type GitHub, type LabelStyle, type RateLimit, type Slices } from '../orchestration/github.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -78,11 +78,30 @@ function parseResponse(stdout: string) {
   return { status: Number(match[1]), headers, body: match[3]! };
 }
 
+/** The REST bucket's numbers from the `x-ratelimit-*` headers; null when any is missing or malformed, and for the GraphQL bucket, which is separate. */
+function rateLimitOf(headers: Record<string, string>): RateLimit | null {
+  const resource = headers['x-ratelimit-resource'];
+  if (resource !== undefined && resource !== 'core') return null;
+  const [limit, remaining, reset] = ['limit', 'remaining', 'reset'].map((name) => (/^\d+$/.test(headers[`x-ratelimit-${name}`] ?? '') ? Number(headers[`x-ratelimit-${name}`]) : NaN));
+  if (!Number.isSafeInteger(limit) || !Number.isSafeInteger(remaining) || !Number.isSafeInteger(reset)) return null;
+  return { remaining: remaining!, limit: limit!, resetAt: reset! * 1000 };
+}
+
 export class GhGitHub implements GitHub {
   private readonly options: GhGitHubOptions;
+  private latestRateLimit: RateLimit | null = null;
 
   constructor(options: GhGitHubOptions) {
     this.options = options;
+  }
+
+  rateLimit() {
+    return this.latestRateLimit;
+  }
+
+  /** Keeps the numbers of the latest answer, a failure included: the call that hit the limit says it is 0. */
+  private track(headers: Record<string, string>) {
+    this.latestRateLimit = rateLimitOf(headers) ?? this.latestRateLimit;
   }
 
   /** One `gh api` call: argv separated, no shell. Returns the body of a 2xx answer, throws for anything else. */
@@ -100,6 +119,7 @@ export class GhGitHub implements GitHub {
       });
       const response = parseResponse(stdout);
       if (!response) throw new Error(`unexpected gh output: ${stdout.slice(0, 200)}`);
+      this.track(response.headers);
       if (response.status >= 300) throw statusFailure(profileName, response.status, response.headers, response.body);
       return response.body;
     } catch (error) {
@@ -108,7 +128,10 @@ export class GhGitHub implements GitHub {
       // Exceeding maxBuffer also kills the child, but that is not a timeout.
       if (failed.killed && failed.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') throw new GitHubUnavailable(undefined, `timed out after ${this.options.timeoutMs} ms`);
       const response = parseResponse(failed.stdout ?? '');
-      if (response) throw statusFailure(profileName, response.status, response.headers, response.body);
+      if (response) {
+        this.track(response.headers);
+        throw statusFailure(profileName, response.status, response.headers, response.body);
+      }
       const stderr = failed.stderr ?? '';
       if (authStderr.test(stderr)) throw new AuthError(profileName);
       if (networkStderr.test(stderr)) throw new GitHubUnavailable(undefined, stderr.trim().slice(0, 300));

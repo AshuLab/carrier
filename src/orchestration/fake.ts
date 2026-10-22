@@ -1,7 +1,12 @@
 import type { Clock } from './clock.ts';
-import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type GitHub, type LabelStyle, type Slices } from './github.ts';
+import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type GitHub, type LabelStyle, type RateLimit, type Slices } from './github.ts';
 
 export class FakeGitHub implements GitHub {
+  /** What rateLimit answers. */
+  limit: RateLimit | null = null;
+  rateLimit() {
+    return this.limit;
+  }
   /** A ready epic's labels are the issue's, as GitHub lists them. */
   ready: Record<string, { issue: number; title: string }[]> = {};
   unavailable: GitHubUnavailable | null = null;

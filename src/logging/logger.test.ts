@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { afterAll, beforeAll, expect, test } from 'vitest';
-import { taskContext } from './logger.ts';
+import { executionOutput, taskContext } from './logger.ts';
 
 test('universal-logger exposes createScopedLogger', () => {
   expect(typeof createScopedLogger).toBe('function');
@@ -68,4 +68,16 @@ test('after SIGINT the file holds everything emitted so far, whole lines and no 
   expect(ticks.length).toBeGreaterThanOrEqual(50);
   expect(ticks).toEqual(ticks.map((_, i) => i + 1));
   for (const l of lines) expect(l).toMatch(/^\[(info|error)\] /);
+});
+
+test('an execution output redacts a token split across two chunks and keeps the unfinished line until flush', () => {
+  const root = mkdtempSync(join(tmpdir(), 'carrier-out-'));
+  const output = executionOutput(root, 'e1');
+  const out = join(root, 'orchestrator', 'logs', 'executions', 'e1', 'stdout.log');
+  output.write('stdout', 'before ghp_abcdef');
+  output.write('stdout', '123456 after\nnext ghp_tail');
+  expect(readFileSync(out, 'utf8')).toBe('before [redacted] after\n');
+  output.flush();
+  expect(readFileSync(out, 'utf8')).toBe('before [redacted] after\nnext [redacted]');
+  rmSync(root, { recursive: true, force: true });
 });

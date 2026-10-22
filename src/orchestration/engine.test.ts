@@ -962,15 +962,15 @@ test('last activity is written from the first output and then at most once every
   const row = () => rows(engine.db)[0]!;
   expect(row()).toMatchObject({ stage: 'ship', stageStartedAt: 5 * MIN, lastActivityAt: null, lastError: null });
 
-  emit('stdout', 'a');
+  emit('stdout', 'a\n');
   expect(row().lastActivityAt).toBe(5 * MIN);
   await clock.advance(9_999);
-  emit('stdout', 'b');
+  emit('stdout', 'b\n');
   expect(row().lastActivityAt).toBe(5 * MIN);
   await clock.advance(1);
   emit('stderr', 'c');
   expect(row().lastActivityAt).toBe(5 * MIN + 10_000);
-  expect(readFileSync(join(dir, 'orchestrator', 'logs', 'executions', runner.tasks[0]!.executionId, 'stdout.log'), 'utf8')).toBe('ab'); // every chunk is logged, only the write is limited
+  expect(readFileSync(join(dir, 'orchestrator', 'logs', 'executions', runner.tasks[0]!.executionId, 'stdout.log'), 'utf8')).toBe('a\nb\n'); // every chunk is logged, only the write is limited
 
   finish('failed');
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(2)); // the retry

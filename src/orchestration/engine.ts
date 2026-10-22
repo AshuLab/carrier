@@ -195,11 +195,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     log.info('execution started', context);
     const run = runner.run(task);
     active.set(executionId, run);
-    const writeOutput = executionOutput(root, executionId);
+    const output = executionOutput(root, executionId);
     // The panel's "last activity": a SQLite write at most every 10 s, not one per chunk.
     let activityAt: number | null = null;
     run.onOutput((stream, chunk) => {
-      writeOutput(stream, chunk);
+      output.write(stream, chunk);
       const now = clock.now();
       if (activityAt !== null && now - activityAt < activityEveryMs) return;
       activityAt = now;
@@ -217,6 +217,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     track(
       run.done.then(async ({ exit, sessionId }) => {
         active.delete(executionId);
+        output.flush();
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
         const failure = { failed: 'the agent process ended with an error', auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
         db.update(executions)

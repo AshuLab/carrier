@@ -76,6 +76,9 @@ export type Blocker = {
   approximate: boolean;
 };
 
+/** A non-blocking finding a `completed` review listed, shaped like a blocker without its marks. */
+export type Observation = { id: string | null; title: string; url: string | null };
+
 export type EpicReply = {
   stages: { stage: 'queued' | 'ship' | 'review' | 'fix' | 'ready'; startedAt: number; endedAt: number | null }[];
   rounds: {
@@ -83,6 +86,8 @@ export type EpicReply = {
     reviewer: PanelAgent;
     verdict: 'approved' | 'changes_requested' | 'limit_reached';
     blockers: Blocker[];
+    /** In the reviewer's order; empty when the review listed none or predates the field. */
+    observations: Observation[];
     reviewMs: number | null;
     fixMs: number | null;
     /** The head the review looked at, and the head the fix left. */

@@ -18,6 +18,7 @@ const log = createScopedLogger('control');
 // The reply is bounded: with these, a round weighs at most about 60 KB, far under the client's 8 MiB line.
 export const MAX_ROUNDS = 50;
 const MAX_BLOCKERS = 50;
+const MAX_OBSERVATIONS = 50;
 const MAX_COMMITS = 50;
 const MAX_TEXT = 200;
 const MAX_URL = 500;
@@ -158,7 +159,9 @@ export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
     if (result === null) continue;
     const parsed = JSON.parse(result) as CallerResult;
     if (parsed.outcome === 'needs_human') continue; // the reviewer stopped: no verdict to show
-    const blockers: Found[] = parsed.outcome === 'changes_requested' ? parsed.blockers.map(({ id, title, url }) => ({ id: id ?? null, title: title.slice(0, MAX_TEXT), url: url !== undefined && url.length <= MAX_URL ? url : null })) : [];
+    const toFound = ({ id, title, url }: { id?: string; title: string; url?: string }): Found => ({ id: id ?? null, title: title.slice(0, MAX_TEXT), url: url !== undefined && url.length <= MAX_URL ? url : null });
+    const blockers: Found[] = parsed.outcome === 'changes_requested' ? parsed.blockers.map(toFound) : [];
+    const observations: Found[] = parsed.outcome === 'completed' ? (parsed.observations ?? []).slice(0, MAX_OBSERVATIONS).map(toFound) : [];
     found.push({
       attempt,
       fixed: false,
@@ -167,6 +170,7 @@ export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
         reviewer: agentOf(run, epic.config),
         verdict: parsed.outcome === 'completed' ? 'approved' : 'changes_requested',
         blockers: marked(blockers, open, parsed.resolved ?? []),
+        observations,
         reviewMs: run.finishedAt === null ? null : run.finishedAt - run.startedAt,
         fixMs: null,
         reviewedSha: parsed.pr.headSha,

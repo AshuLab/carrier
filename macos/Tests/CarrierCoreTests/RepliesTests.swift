@@ -58,6 +58,10 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(reply.rounds[1].blockers[1].id == nil)
     #expect(reply.rounds[1].blockers[1].approximate)
     #expect(reply.rounds[2].blockers.isEmpty)
+    #expect(reply.rounds.map(\.observations.count) == [0, 0, 2, 0])
+    #expect(reply.rounds[2].observations.map(\.id) == ["o1", nil])
+    #expect(reply.rounds[2].observations[0].url == "https://github.com/acme/web/pull/50#discussion_o1")
+    #expect(reply.rounds[2].observations[1].url == nil)
     #expect(reply.slices.map(\.state) == ["closed", "skipped", "in_progress", "waiting", "ready"])
     #expect(reply.slices[3].blockedBy == [121, 123])
     #expect(reply.slicesTruncated == false)
@@ -108,6 +112,7 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(epic.rounds[0].reviewedSha == nil)
     #expect(epic.rounds[0].blockers[0].id == nil)
     #expect(epic.rounds[0].blockers[0].url == nil)
+    #expect(epic.rounds[0].observations.isEmpty) // an engine that does not send `observations`
 
     let pr: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":[],"worktrees":[],"pr":{"number":1,"url":"u","draft":true,"mergeState":"UNKNOWN"}}"#)
     #expect(pr.pr?.checks == nil)

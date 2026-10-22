@@ -21,10 +21,11 @@ private func b(_ title: String, id: String? = nil, mark: String = "new") -> Epic
 }
 
 private func round(
-    _ n: Int, _ verdict: String = "changes_requested", _ blockers: [EpicReply.Blocker] = [], fixed: Bool = false, commits: Int = 0
+    _ n: Int, _ verdict: String = "changes_requested", _ blockers: [EpicReply.Blocker] = [], fixed: Bool = false, commits: Int = 0,
+    observations: [EpicReply.Observation] = []
 ) -> EpicReply.Round {
     EpicReply.Round(
-        round: n, reviewer: codex, verdict: verdict, blockers: blockers, reviewMs: 20_000, fixMs: fixed ? 30_000 : nil,
+        round: n, reviewer: codex, verdict: verdict, blockers: blockers, observations: observations, reviewMs: 20_000, fixMs: fixed ? 30_000 : nil,
         reviewedSha: "aaaaaaaaaa", fixedSha: fixed ? "bbbbbbbbbb" : nil,
         commits: (0..<commits).map { .init(sha: "c0ffee\($0)abcdef", subject: "fix \($0)") }
     )
@@ -131,6 +132,24 @@ private func marks(_ round: ReviewRoundView) -> [String] { (round.steps.first?.b
     #expect(fix.title == "Claude pushed 5 commits")
     #expect(fix.commits.map(\.sha) == ["c0ffee0", "c0ffee1", "c0ffee2"])
     #expect(fix.moreCommits == 2)
+}
+
+// MARK: observations
+
+@Test func aRoundListsItsObservationsInOrderAfterItsBlockersAndOneWithoutShowsNone() throws {
+    let listed = [
+        EpicReply.Observation(id: "o1", title: "Rename x", url: "https://github.com/acme/web/pull/1#discussion_o1"),
+        EpicReply.Observation(id: nil, title: "Prefer a const", url: nil),
+    ]
+    let rounds = [round(1, "changes_requested", [b("A")], fixed: true), round(2, "approved", observations: listed), round(3, "approved")]
+    let model = reviewTab(epic(stage: .review, round: 3), reply: reply(rounds))
+    #expect(model.history.map { $0.steps.first?.observations.count ?? -1 } == [2, 0]) // newest first
+    #expect(model.history[0].steps.first?.observations == listed)
+    #expect(model.card?.view.steps.first?.observations.isEmpty == true)
+    // they are not blockers: the count and the subtitle stay as they were
+    #expect(model.history[0].blockerCount == 0)
+    #expect(model.history[0].steps.first?.blockers.isEmpty == true)
+    #expect(model.history[0].steps.first?.subtitle.hasPrefix("no blockers") == true)
 }
 
 // MARK: blocker marks

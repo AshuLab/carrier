@@ -54,6 +54,8 @@ public struct ReviewStep: Equatable {
     public var title: String
     public var subtitle: String
     public var blockers: [ReviewBlocker] = []
+    /// The non-blocking findings of a review, after its blockers.
+    public var observations: [EpicReply.Observation] = []
     /// At most three.
     public var commits: [ReviewCommit] = []
     /// `+ N more`, 0 for none.
@@ -238,7 +240,8 @@ public func reviewTab(_ subject: EpicSubject?, reply: EpicReply?) -> ReviewTabMo
         steps.append(
             ReviewStep(
                 number: 1, state: .done, title: "\(reviewer) reviewed",
-                subtitle: ([counts] + (result.reviewMs.map { [formatDuration($0)] } ?? [])).joined(separator: " · "), blockers: list
+                subtitle: ([counts] + (result.reviewMs.map { [formatDuration($0)] } ?? [])).joined(separator: " · "), blockers: list,
+                observations: result.observations
             )
         )
         let commits = result.commits

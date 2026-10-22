@@ -16,10 +16,27 @@ public struct SessionsReply: Codable, Equatable {
         public var finishedAt: Int?
         /// nil while the session runs.
         public var resume: ResumeDescriptor?
+        /// What the agent reported when it ended; nil while no result was imported, and for an engine that does not send it.
+        public var result: SessionResult?
     }
 
     /// Newest first.
     public var sessions: [Session]
+}
+
+/// The engine has already redacted and cut the text.
+public struct SessionResult: Codable, Equatable {
+    public struct Verification: Codable, Equatable {
+        public var ci: String
+        public var evidence: String
+    }
+
+    public var outcome: String
+    public var summary: String
+    /// Only a completed result has one.
+    public var verification: Verification?
+    /// needs_human only.
+    public var reason: String?
 }
 
 /// Not yet validated: the app checks it before it builds a command (ADR 0007).

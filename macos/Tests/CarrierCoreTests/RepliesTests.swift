@@ -23,6 +23,13 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(reply.sessions[1].resume == ResumeDescriptor(harness: "codex", sessionId: "a1b2c3d4-0001-4000-8000-000000000002", cwd: "/work/acme/web-epic", configDir: nil))
     #expect(reply.sessions[2].round == nil)
     #expect(reply.sessions[2].resume?.configDir == "/Users/dev/.claude-work")
+    #expect(reply.sessions[0].result == nil)
+    #expect(reply.sessions[1].result == SessionResult(
+        outcome: "completed", summary: "Round 2 review of PR #12: no blockers. Review posted at https://github.com/acme/web-epic/pull/12#pullrequestreview-1.",
+        verification: .init(ci: "passed", evidence: "CI run concluded success on the head commit."), reason: nil))
+    #expect(reply.sessions[2].result?.outcome == "needs_human")
+    #expect(reply.sessions[2].result?.verification == nil)
+    #expect(reply.sessions[2].result?.reason == "The ticket asks for a migration the schema forbids; which of the two wins?")
 }
 
 @Test func decodesTheEventsReply() throws {
@@ -85,6 +92,7 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(sessions.sessions[0].agent.provider == nil)
     #expect(sessions.sessions[0].finishedAt == nil)
     #expect(sessions.sessions[0].resume == nil)
+    #expect(sessions.sessions[0].result == nil) // an engine that does not send `result`
 
     let events: EventsReply = try decode(#"{"events":[{"id":1,"at":2,"kind":"future_kind"}],"next":1,"running":false,"structured":false}"#)
     #expect(events.events[0] == ExecEvent(id: 1, at: 2, kind: "future_kind"))

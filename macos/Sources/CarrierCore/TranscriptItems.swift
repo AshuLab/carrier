@@ -44,6 +44,9 @@ public enum ToolKind: Equatable {
     }
 }
 
+/// How many rows of an edit's diff are drawn before "Show N more lines".
+public let collapsedDiffRows = 30
+
 /// How many lines of a command's output an opened call shows before "Show N more lines".
 public let collapsedOutputLines = 7
 
@@ -82,6 +85,19 @@ public struct TranscriptCard: Equatable {
 
     /// The lines an edit's card draws: none for an edit that failed.
     public var shownDiff: CardDiff? { status == .error ? nil : diff }
+
+    /// The diff rows as the card first shows them: `collapsedDiffRows` rows, and how many are left out. All of them once expanded.
+    public func visibleDiffRows(expanded: Bool) -> (rows: [DiffRow], hidden: Int) {
+        guard let rows = shownDiff?.rows else { return ([], 0) }
+        guard expanded == false, rows.count > collapsedDiffRows else { return (rows, 0) }
+        return (Array(rows.prefix(collapsedDiffRows)), rows.count - collapsedDiffRows)
+    }
+
+    /// Whether the diff has more rows than the card first shows; the footer then has "Show N more lines" (and "Show less" once opened).
+    public var diffIsCut: Bool { (shownDiff?.rows.count ?? 0) > collapsedDiffRows }
+
+    /// An edit whose diff only adds rows: it creates the file (or adds to it); the header carries a small "new" tag.
+    public var isNewFile: Bool { shownDiff.map { $0.added > 0 && $0.removed == 0 && $0.rows.count == $0.added } ?? false }
 
     /// Why an edit failed, in the engine's words; nil when it worked, is running or said nothing.
     public var editReason: String? { status == .error && summary.isEmpty == false ? summary : nil }

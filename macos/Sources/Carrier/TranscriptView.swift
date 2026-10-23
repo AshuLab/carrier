@@ -250,6 +250,7 @@ struct CopyButton: View {
 /// has the engine's reason under the header and no diff; a running one a spinner.
 struct ToolCardView: View {
     let card: TranscriptCard
+    @State private var showAll = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -258,7 +259,7 @@ struct ToolCardView: View {
                 Text(reason).font(.system(size: 12)).foregroundStyle(.red).lineLimit(2)
                     .padding(.horizontal, 10).padding(.bottom, 8)
             }
-            if let diff = card.shownDiff { DiffView(diff: diff) }
+            if card.shownDiff != nil { DiffView(card: card, showAll: $showAll) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.secondary.opacity(0.12))
@@ -271,6 +272,10 @@ struct ToolCardView: View {
                 .frame(width: 20, height: 20).background(RoundedRectangle(cornerRadius: 6).fill(card.kind.color))
             HStack(spacing: 6) {
                 Text(card.editName).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                if card.isNewFile {
+                    Text("new").font(.system(size: 9.5, weight: .semibold)).foregroundStyle(.green)
+                        .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.green.opacity(0.16)))
+                }
                 if card.editFolder.isEmpty == false {
                     Text(card.editFolder).font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary)
                         .lineLimit(1).truncationMode(.head)
@@ -322,20 +327,27 @@ struct Console<Content: View>: View {
 }
 
 /// An edit's lines on the console block, added in green and removed in red, the sign in a column of its own so a selection copies
-/// only the text.
+/// only the text. A long diff is cut at `collapsedDiffRows`; the footer opens the rest. Text and footer are inset 14, like the opened call.
 struct DiffView: View {
-    let diff: CardDiff
+    let card: TranscriptCard
+    @Binding var showAll: Bool
 
     var body: some View {
+        let shown = card.visibleDiffRows(expanded: showAll)
         Console {
-            ForEach(Array(diff.rows.enumerated()), id: \.offset) { _, row in
+            ForEach(Array(shown.rows.enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .top, spacing: 6) {
                     Text(sign(row.sign))
                     Text(row.text).textSelection(.enabled).lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .foregroundStyle(color(row.sign))
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 14)
                 .background(color(row.sign).opacity(row.sign == .context ? 0 : 0.14))
+            }
+            if card.diffIsCut {
+                Button(showAll ? "Show less" : "Show \(shown.hidden) more \(shown.hidden == 1 ? "line" : "lines")") { showAll.toggle() }
+                    .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 14).padding(.top, 7).padding(.bottom, 1)
             }
         }
     }

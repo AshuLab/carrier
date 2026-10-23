@@ -19,7 +19,7 @@ private let doneEpic = PanelSnapshot.DoneEpic(repo: "acme/web", issue: 12, prNum
 
 private func line(_ steps: [PipelineStep]) -> [String] {
     steps.map { step in
-        let state = ["done": "d", "current": "c", "waiting": "w", "problem": "p"][String(describing: step.state)]!
+        let state = ["done": "d", "current": "c", "waiting": "w", "input": "i", "error": "e", "cancelled": "x"][String(describing: step.state)]!
         return "\(step.name):\(state)\(step.label.map { ":" + $0 } ?? "")"
     }
 }
@@ -32,63 +32,59 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
     return EpicReply(stages: stages, rounds: Array(repeating: round, count: rounds), slices: [], worktrees: [], branch: nil, pr: nil)
 }
 
-@Test func aQueuedEpicSaysItsPlaceInTheQueue() {
-    #expect(line(pipelineSteps(.queued(queuedEpic, position: 1), now: 0)) == ["Queued:c:1st in queue", "Ship:w", "Review/Fix:w", "Ready:w"])
-    #expect(pipelineSteps(.queued(queuedEpic, position: 12), now: 0)[0].label == "12th in queue")
+@Test func aWaitingEpicShowsQueuedAsRunningWithNoText() {
+    #expect(line(pipelineSteps(.queued(queuedEpic, position: 1))) == ["Queued:c", "Ship:w", "Review / Fix:w", "Ready:w"])
+    #expect(line(pipelineSteps(.queued(queuedEpic, position: 12))) == ["Queued:c", "Ship:w", "Review / Fix:w", "Ready:w"])
     #expect([2, 3, 4, 11, 21, 22, 103, 111].map(ordinal) == ["2nd", "3rd", "4th", "11th", "21st", "22nd", "103rd", "111th"])
 }
 
-@Test func shipIsCurrentWithItsTimeInStageAndQueuedShowsHowLongItWaited() {
-    var running = epic(stage: .ship, since: 50_000)
-    #expect(line(pipelineSteps(.active(running), now: 110_000)) == ["Queued:d", "Ship:c:1m", "Review/Fix:w", "Ready:w"])
-    running.queuedAt = 1_000
-    running.startedAt = 46_000
-    #expect(pipelineSteps(.active(running), now: 110_000)[0].label == "45s")
-    // before the first stage there is nothing to time
-    #expect(line(pipelineSteps(.active(epic(stage: nil, since: 50_000)), now: 50_000))[1] == "Ship:c:0s")
+@Test func shipIsCurrentWithNoTimeEvenWithAReply() {
+    #expect(line(pipelineSteps(.active(epic(stage: .ship, since: 50_000)))) == ["Queued:d", "Ship:c", "Review / Fix:w", "Ready:w"])
+    #expect(line(pipelineSteps(.active(epic(stage: nil)))) == ["Queued:d", "Ship:c", "Review / Fix:w", "Ready:w"])
+    let timed = reply(stages: [.init(stage: "queued", startedAt: 0, endedAt: 360_000), .init(stage: "ship", startedAt: 360_000, endedAt: 6_840_000)])
+    #expect(line(pipelineSteps(.active(epic(stage: .ship)), reply: timed)) == ["Queued:d", "Ship:c", "Review / Fix:w", "Ready:w"])
 }
 
-@Test func reviewRoundTwoIsCurrentWithItsRound() {
-    let steps = pipelineSteps(.active(epic(stage: .review, round: 2)), now: 0)
-    #expect(line(steps) == ["Queued:d", "Ship:d", "Review/Fix:c:r2/5", "Ready:w"])
-    // a fix is the same step; before the first review there is no round yet
-    #expect(pipelineSteps(.active(epic(stage: .fix, round: 2)), now: 0)[2].label == "r2/5")
-    #expect(pipelineSteps(.active(epic(stage: .review)), now: 0)[2].label == nil)
+@Test func reviewAndFixAreTheSameCurrentStepWithNoRound() {
+    let expected = ["Queued:d", "Ship:d", "Review / Fix:c", "Ready:w"]
+    #expect(line(pipelineSteps(.active(epic(stage: .review, round: 2)))) == expected)
+    #expect(line(pipelineSteps(.active(epic(stage: .fix, round: 2)))) == expected)
+    #expect(line(pipelineSteps(.active(epic(stage: .review)))) == expected)
 }
 
-@Test func theReviewLimitIsAProblemAtReviewFix() {
-    let steps = pipelineSteps(.active(epic(.needsHuman, stage: .review, round: 5, kind: "review_limit")), now: 0)
-    #expect(line(steps) == ["Queued:d", "Ship:d", "Review/Fix:p:limit 5/5", "Ready:w"])
+@Test func theReviewLimitAndTheAgentAskingAreInputAtTheStepWhereTheEpicIsStuck() {
+    let limit = pipelineSteps(.active(epic(.needsHuman, stage: .review, round: 5, kind: "review_limit")))
+    #expect(line(limit) == ["Queued:d", "Ship:d", "Review / Fix:i:review limit reached", "Ready:w"])
+    let asking = pipelineSteps(.active(epic(.needsHuman, stage: .ship, kind: "agent_needs_human")))
+    #expect(line(asking) == ["Queued:d", "Ship:i:the agent needs you", "Review / Fix:w", "Ready:w"])
 }
 
-@Test func anEpicThatStopsDuringShipHasShipAsItsProblem() {
-    let steps = pipelineSteps(.active(epic(.needsHuman, stage: .ship, since: 0, kind: "timeout")), now: 90_000)
-    #expect(line(steps) == ["Queued:d", "Ship:p", "Review/Fix:w", "Ready:w"])
+@Test func failuresAreErrorsWithTheSidebarsWords() {
+    let words = [
+        "retries_exhausted": "retries exhausted", "timeout": "timed out", "auth": "authentication failed", "workspace": "workspace problem",
+        "pr_invalid": "pull request invalid",
+    ]
+    for (kind, text) in words {
+        #expect(line(pipelineSteps(.active(epic(.needsHuman, stage: .ship, kind: kind)))) == ["Queued:d", "Ship:e:\(text)", "Review / Fix:w", "Ready:w"])
+    }
+    #expect(line(pipelineSteps(.active(epic(.needsHuman, stage: .review, kind: "timeout"))))[2] == "Review / Fix:e:timed out")
 }
 
-@Test func aReadyEpicIsDoneEverywhereAndSaysHowLongAgo() {
-    #expect(line(pipelineSteps(.finished(doneEpic), now: 1_120_000)) == ["Queued:d", "Ship:d", "Review/Fix:d", "Ready:d:2m ago"])
-    let unknown = PanelSnapshot.DoneEpic(repo: "acme/web", issue: 12, prNumber: nil, finishedAt: nil, executionId: nil)
-    #expect(pipelineSteps(.finished(unknown), now: 0)[3].label == nil)
+@Test func aStuckEpicWithNoKindOrAnUnknownOneIsInputWithItsReason() {
+    #expect(line(pipelineSteps(.active(epic(.needsHuman, stage: .ship))))[1] == "Ship:i:needs you")
+    var odd = epic(.needsHuman, stage: .fix, kind: "from_the_future")
+    odd.needsHumanReason = "something new"
+    #expect(line(pipelineSteps(.active(odd)))[2] == "Review / Fix:i:something new")
 }
 
-@Test func theReplyAddsTheTimeOfEachFinishedStage() {
-    let finished = reply(
-        stages: [
-            .init(stage: "queued", startedAt: 0, endedAt: 360_000), .init(stage: "ship", startedAt: 360_000, endedAt: 6_840_000),
-            .init(stage: "review", startedAt: 6_840_000, endedAt: 7_000_000), .init(stage: "fix", startedAt: 7_000_000, endedAt: 7_100_000),
-            .init(stage: "review", startedAt: 7_100_000, endedAt: 7_200_000), .init(stage: "ready", startedAt: 7_200_000, endedAt: nil),
-        ],
-        rounds: 2
-    )
-    #expect(
-        line(pipelineSteps(.finished(doneEpic), reply: finished, now: 1_120_000))
-            == ["Queued:d:6m", "Ship:d:1h 48m", "Review/Fix:d:2 rounds", "Ready:d:2m ago"]
-    )
-    // the same reply while review is running: Ship keeps its time, Review/Fix keeps the round from the snapshot
-    let steps = pipelineSteps(.active(epic(stage: .review, round: 2)), reply: finished, now: 0)
-    #expect(line(steps) == ["Queued:d:6m", "Ship:d:1h 48m", "Review/Fix:c:r2/5", "Ready:w"])
-    #expect(pipelineSteps(.finished(doneEpic), reply: reply(stages: [], rounds: 1), now: 0)[2].label == "1 round")
+@Test func attentionIsInputUnlessTheKindIsAFailure() {
+    #expect(Attention(kind: nil) == .input && Attention(kind: "from_the_future") == .input)
+    #expect(["review_limit", "agent_needs_human"].map { Attention(kind: $0) } == [.input, .input])
+    #expect(["retries_exhausted", "timeout", "auth", "workspace", "pr_invalid"].map { Attention(kind: $0) } == Array(repeating: .error, count: 5))
+}
+
+@Test func aReadyEpicIsDoneEverywhereWithNoText() {
+    #expect(line(pipelineSteps(.finished(doneEpic))) == ["Queued:d", "Ship:d", "Review / Fix:d", "Ready:d"])
 }
 
 @Test func theSnapshotFindsAnEpicWhereverItIs() {
@@ -217,16 +213,13 @@ private func ended(_ status: PanelSnapshot.FinishedEpic.Status, reason: String? 
 }
 
 @Test func aMergedEpicIsDoneEverywhereAndACancelledOneStopsWhereItHadNotGot() {
-    #expect(line(pipelineSteps(.ended(ended(.merged)), now: 1_120_000)) == ["Queued:d", "Ship:d", "Review/Fix:d", "Ready:d:2m ago"])
+    #expect(line(pipelineSteps(.ended(ended(.merged)))) == ["Queued:d", "Ship:d", "Review / Fix:d", "Ready:d"])
     // without the reply only the queue is known to have been passed
-    #expect(line(pipelineSteps(.ended(ended(.cancelled)), now: 1_120_000)) == ["Queued:d", "Ship:p:cancelled 2m ago", "Review/Fix:w", "Ready:w"])
+    #expect(line(pipelineSteps(.ended(ended(.cancelled)))) == ["Queued:d", "Ship:x:cancelled", "Review / Fix:w", "Ready:w"])
     let shipped = reply(stages: [.init(stage: "queued", startedAt: 0, endedAt: 60_000), .init(stage: "ship", startedAt: 60_000, endedAt: 360_000)])
-    #expect(
-        line(pipelineSteps(.ended(ended(.cancelled)), reply: shipped, now: 1_120_000))
-            == ["Queued:d:1m", "Ship:d:5m", "Review/Fix:p:cancelled 2m ago", "Ready:w"]
-    )
+    #expect(line(pipelineSteps(.ended(ended(.cancelled)), reply: shipped)) == ["Queued:d", "Ship:d", "Review / Fix:x:cancelled", "Ready:w"])
     let reviewed = reply(stages: shipped.stages, rounds: 2)
-    #expect(line(pipelineSteps(.ended(ended(.cancelled)), reply: reviewed, now: 1_120_000))[3] == "Ready:p:cancelled 2m ago")
+    #expect(line(pipelineSteps(.ended(ended(.cancelled)), reply: reviewed))[3] == "Ready:x:cancelled")
 }
 
 @Test func aFinishedEpicOffersNoContinueButAnOverSessionOfAnotherEpicStillDoes() {

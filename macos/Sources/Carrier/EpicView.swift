@@ -8,7 +8,6 @@ struct EpicView: View {
     let subject: EpicSubject
     let reply: EpicReply?
     let filesChanged: Int
-    let now: Int
     let sessions: SessionList
     @Binding var folds: SessionFolds
     /// The `files` reply, once the window asks for it.
@@ -34,7 +33,7 @@ struct EpicView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .safeAreaBar(edge: .top) {
-            PipelineStrip(steps: pipelineSteps(subject, reply: reply, now: now))
+            PipelineStrip(steps: pipelineSteps(subject, reply: reply))
                 .padding(.horizontal, 20).padding(.vertical, 10)
         }
     }
@@ -191,7 +190,7 @@ struct PipelineStepView: View {
                 .frame(width: 17, height: 17)
                 .background(Circle().fill(fill ?? Color.secondary.opacity(0.15)))
             Text(step.name).font(.callout.weight(.medium))
-                .foregroundStyle(step.state == .current || step.state == .problem ? Color.primary : .secondary)
+                .foregroundStyle(step.state == .waiting || step.state == .done ? Color.secondary : .primary)
             if labelled, let label = step.label { Text(label).font(.caption).foregroundStyle(.tertiary) }
         }
         .lineLimit(1)
@@ -201,7 +200,8 @@ struct PipelineStepView: View {
     private var mark: String {
         switch step.state {
         case .done: "✓"
-        case .problem: "!"
+        case .input, .error: "!"
+        case .cancelled: "✕"
         case .current, .waiting: "\(index + 1)"
         }
     }
@@ -210,8 +210,9 @@ struct PipelineStepView: View {
         switch step.state {
         case .done: .green
         case .current: .accentColor
-        case .problem: .orange
-        case .waiting: nil
+        case .input: .orange
+        case .error: .red
+        case .waiting, .cancelled: nil
         }
     }
 }

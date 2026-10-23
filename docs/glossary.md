@@ -96,3 +96,6 @@ _Avoid_: failed, aborted.
 
 **Detached run** - Carrier started with `carrier start`: its own session, no terminal, its output in a log under `orchestrator/logs/`, reached through its control socket (`carrier status`, `watch`, `stop`, or the macOS app). Nothing starts it but a person; it is not a login service and nothing restarts it if it dies.
 _Avoid_: daemon, service (a launchd service is the alternative that was not chosen), background process.
+
+**Attention colours** - The two colours the macOS app uses for an epic that cannot go on alone: orange when a person's input is needed (the review limit was reached, the agent asks for help), red when something failed (retries exhausted, a timeout, failed authentication, a workspace problem, an invalid pull request). A kind the app does not know is orange, because a person has to act either way. Cancelled is neither: nothing is asked and nothing failed, so it is grey. Both colours still sit under the same "Needs you" group; only the colour tells which of the two it is.
+_Avoid_: warning colour, error orange, problem state.

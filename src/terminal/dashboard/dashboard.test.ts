@@ -329,3 +329,50 @@ test('a needs-you row and a ready-for-test row show their stages too, asked once
   expect(renderDashboard(s, { color: false }).join('\n')).not.toContain('ship ✓');
   for (const line of renderDashboard(s, { columns: 50, detail })) expect(visibleLength(line)).toBeLessThanOrEqual(50);
 });
+
+const fin = (issue: number, over: Partial<NonNullable<PanelSnapshot['finished']>[number]> = {}): NonNullable<PanelSnapshot['finished']>[number] => ({
+  repo: 'AshuLab/carrier', issue, title: `Epic ${issue}`, labels: [], prNumber: 100 + issue, finishedAt: now - 3_600_000 * issue, status: 'merged', cancelReason: null, executionId: `exec-${issue}`, ...over,
+});
+
+test('merged and cancelled epics get a DONE and a CANCELLED section after READY FOR TEST; the cancelled row shows its reason', () => {
+  const out = plain(snap({
+    done: [{ repo: 'AshuLab/carrier', issue: 28, title: 'Menu bar', labels: [], prNumber: 44, finishedAt: now - 7_200_000, executionId: null }],
+    finished: [fin(1), fin(2, { status: 'cancelled', prNumber: null, cancelReason: 'final PR closed' })],
+  }));
+  expect(out).toContain('\n DONE\n   AshuLab/carrier #1 · PR #101 · 1h 00m ago  Epic 1\n');
+  expect(out).toContain('\n CANCELLED\n   AshuLab/carrier #2 · 2h 00m ago  Epic 2\n   final PR closed\n');
+  expect(out.indexOf('READY FOR TEST')).toBeLessThan(out.indexOf('DONE'));
+  expect(out.indexOf('DONE')).toBeLessThan(out.indexOf('CANCELLED'));
+});
+
+test('a section lists the ten most recent and counts the rest; with ten or fewer there is no such line, and an empty section is not drawn', () => {
+  const eleven = plain(snap({ finished: Array.from({ length: 11 }, (_, i) => fin(i + 1)) }));
+  expect(eleven).toContain('#10 ');
+  expect(eleven).not.toContain('#11 ');
+  expect(eleven).toContain('   +1 more\n');
+  const ten = plain(snap({ finished: Array.from({ length: 10 }, (_, i) => fin(i + 1)) }));
+  expect(ten).toContain('#10 ');
+  expect(ten).not.toContain('more');
+  expect(ten).not.toContain('CANCELLED');
+  const none = plain(snap({ finished: [] }));
+  expect(none).not.toContain('DONE');
+  expect(none).not.toContain('CANCELLED');
+  expect(plain(snap())).not.toContain('DONE'); // an engine that sends no `finished`
+});
+
+test('finished epics do not suppress the Idle message, and their sections show below it', () => {
+  const out = plain(snap({ finished: [fin(1)] }));
+  expect(out).toContain('Idle.');
+  expect(out.indexOf('Idle.')).toBeLessThan(out.indexOf('DONE'));
+});
+
+test('a finished title or reason never carries a control sequence', () => {
+  const out = plain(snap({ finished: [fin(1, { status: 'cancelled', title: 'a\x1b[2Jb', cancelReason: 'c\x07d' })] }));
+  expect(out).not.toMatch(/[\x07\x1b\r]/);
+  expect(out).toContain('a [2Jb');
+});
+
+test('the logs screen names the execution of a finished row', () => {
+  const out = renderDashboard(snap({ finished: [fin(1)] }), { color: false, ui: { ...keysUi, mode: 'logs', selected: 'AshuLab/carrier#1' }, logLines: ['hi'] }).join('\n');
+  expect(out).toContain('AGENT OUTPUT · AshuLab/carrier#1 · exec-1');
+});

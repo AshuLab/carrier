@@ -6,7 +6,7 @@ import Foundation
 public let showEpicsKey = "menu.showEpics"
 
 public enum EpicMenuState: Equatable {
-    case needsYou, running, waiting, ready
+    case needsYou, running, waiting, ready, done, cancelled
 
     /// The SF Symbol of the glyph.
     public var symbol: String {
@@ -15,6 +15,8 @@ public enum EpicMenuState: Equatable {
         case .running: "circle.dotted"
         case .waiting: "circle"
         case .ready: "checkmark.circle.fill"
+        case .done: "checkmark.circle"
+        case .cancelled: "xmark.circle"
         }
     }
 
@@ -25,6 +27,8 @@ public enum EpicMenuState: Equatable {
         case .running: "green"
         case .waiting: "gray"
         case .ready: "blue"
+        case .done: "green"
+        case .cancelled: "gray"
         }
     }
 }

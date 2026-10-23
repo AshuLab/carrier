@@ -48,6 +48,17 @@ export type PanelSnapshot = {
   watched?: { repo: string; ok: boolean; error: string | null }[];
   /** The epics that ended ready for test, most recent first. */
   done: { repo: string; issue: number; title: string | null; labels: string[]; prNumber: number | null; finishedAt: number | null; executionId: string | null }[];
+  /** The merged and cancelled epics inside the finished window, newest first; absent from an engine that does not send it (the control snapshot always has it). */
+  finished?: PanelFinished[];
+};
+
+export type PanelFinished = {
+  repo: string; issue: number; title: string | null; labels: string[]; prNumber: number | null; finishedAt: number;
+  status: 'merged' | 'cancelled';
+  /** null when merged. */
+  cancelReason: string | null;
+  /** The last execution of the epic. */
+  executionId: string | null;
 };
 
 // What the control socket serves: the panel's snapshot plus what the macOS app draws. Everything here is additive (protocol 1),
@@ -100,4 +111,6 @@ export type ControlSnapshot = Omit<PanelSnapshot, 'queue' | 'epics'> & {
   watched: { repo: string; lastCheckedAt: number | null; ok: boolean; error: string | null; agents: PanelAgents }[];
   /** The running executions, at most one per running epic. */
   sessions: PanelSession[];
+  /** The merged and cancelled epics that ended inside the finished window, newest first, with no row cap. */
+  finished: PanelFinished[];
 };

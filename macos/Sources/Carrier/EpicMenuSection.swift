@@ -55,6 +55,8 @@ final class EpicMenuSection: NSObject, NSMenuDelegate {
         case .running: .systemGreen
         case .waiting: .systemGray
         case .ready: .systemBlue
+        case .done: .systemGreen
+        case .cancelled: .systemGray
         }
     }
 

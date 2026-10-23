@@ -83,8 +83,16 @@ _Avoid_: inbox, notifications, to-do.
 **Running epic card** - The Overview's card for an epic that is running: its progress and one row for each agent working on it. A dashed card after the running ones stands for free room and names the next queued epic.
 _Avoid_: slot tile, agent list.
 
-**Sidebar group** - A section of the app's sidebar that collects epics by state (Needs you, Running, Up next, Ready for test) or, when asked, by repository.
+**Sidebar group** - A section of the app's sidebar that collects epics by state (Needs you, Running, Up next, Ready for test, Done, Cancelled) or, when asked, by repository. Every group collapses; Done and Cancelled start collapsed.
 _Avoid_: category, folder.
+
+**Done** - The group of epics whose final PR was merged, shown for the finished window after the merge. Not Ready for test: nothing is waiting for a person any more. In the terminal panel it is a section of the same name.
+_Avoid_: finished (the window and the snapshot field use it, the group does not), closed, completed.
+
+**Cancelled** - The group of epics that ended without a merge (the final PR or the epic issue was closed), with the reason Carrier stored, shown for the finished window. Apart from Done so a fallen epic is never read as a delivered one.
+_Avoid_: failed, aborted.
+
+**Finished window** - How many days after an epic ends it stays listed under Done or Cancelled (`finishedWindowDays`, 15 by default, at most 30 because the retention purge deletes logs and sessions at 30). Counted from when the epic left `running`. After it the epic is only reachable by its issue and PR on GitHub; its row stays in SQLite.
 
 **Detached run** - Carrier started with `carrier start`: its own session, no terminal, its output in a log under `orchestrator/logs/`, reached through its control socket (`carrier status`, `watch`, `stop`, or the macOS app). Nothing starts it but a person; it is not a login service and nothing restarts it if it dies.
 _Avoid_: daemon, service (a launchd service is the alternative that was not chosen), background process.

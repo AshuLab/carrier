@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-/// The Behavior tab: the values of `config.json` the engine reads when it starts (CarrierCore/EngineConfig.swift), in three
+/// The Behavior tab: the values of `config.json` the engine reads when it starts (CarrierCore/EngineConfig.swift), in four
 /// groups. Saving edits the file in place; with Carrier running, "Save and restart" also restarts it (BehaviorSave.swift
 /// says what the footer offers).
 struct BehaviorTabView: View {
@@ -49,6 +49,9 @@ struct BehaviorTabView: View {
                     Picker("Log level", selection: $draft.logLevel) { ForEach(EngineConfig.logLevels, id: \.self) { Text($0) } }
                         .labelsHidden().frame(width: 90)
                 }
+            }
+            group("Finished epics") {
+                row("Keep in view for", "Days a merged or cancelled epic stays listed, 1 to 30", "finishedWindowDays", first: true) { integer("finishedWindowDays", $draft.finishedWindowDays, min: 1, unit: "days") }
             }
             group("Capacity") {
                 row("Epics at once", "Epics running at the same time", "maxConcurrentEpics", first: true) { integer("maxConcurrentEpics", $draft.maxConcurrentEpics, min: 1) }

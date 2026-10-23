@@ -16,6 +16,8 @@ struct StateGlyph: View {
         case .needsYou: Disc(color: .orange, mark: "!")
         case .waiting: Circle().strokeBorder(Color.gray, lineWidth: 2).frame(width: 14, height: 14)
         case .ready: Disc(color: .blue, mark: "✓")
+        case .done: Disc(color: .green, mark: "✓")
+        case .cancelled: Disc(color: .gray, mark: "✕")
         }
     }
 }
@@ -37,6 +39,8 @@ private extension EpicMenuState {
         case .running: "Running"
         case .waiting: "Up next"
         case .ready: "Ready for test"
+        case .done: "Done"
+        case .cancelled: "Cancelled"
         }
     }
 }

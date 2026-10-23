@@ -1,10 +1,22 @@
-import type { PanelSnapshot } from '../../status/types.ts';
+import type { PanelFinished, PanelSnapshot } from '../../status/types.ts';
 
 /** A row the person can select, in the order the dashboard shows it. */
 export type Item = { key: string; url: string; executionId: string | null };
 
 /** How many queued epics the dashboard lists before "… and N more"; selection only reaches what is listed. */
 export const maxListed = 5;
+
+/** How many finished epics of each kind the panel lists before "+N more"; selection only reaches what is listed. */
+export const maxFinished = 10;
+
+/** The DONE and CANCELLED sections that have something to show, each cut to `maxFinished` rows with the count of the rest. */
+export function finishedSections(s: PanelSnapshot): { name: 'DONE' | 'CANCELLED'; status: PanelFinished['status']; rows: PanelFinished[]; more: number }[] {
+  const all = s.finished ?? [];
+  return ([['DONE', 'merged'], ['CANCELLED', 'cancelled']] as const)
+    .map(([name, status]) => ({ name, status, all: all.filter((f) => f.status === status) }))
+    .filter((x) => x.all.length > 0)
+    .map(({ name, status, all }) => ({ name, status, rows: all.slice(0, maxFinished), more: Math.max(0, all.length - maxFinished) }));
+}
 
 const issueUrl = (repo: string, issue: number) => `https://github.com/${repo}/issues/${issue}`;
 
@@ -15,7 +27,7 @@ export function itemsOf(s: PanelSnapshot): Item[] {
     ...running.map((e) => ({ key: `${e.repo}#${e.issue}`, url: e.prUrl ?? e.issueUrl, executionId: e.executionId })),
     ...s.queue.slice(0, maxListed).map((q) => ({ key: `${q.repo}#${q.issue}`, url: issueUrl(q.repo, q.issue), executionId: null })),
     ...needsYou.map((e) => ({ key: `${e.repo}#${e.issue}`, url: e.prUrl ?? e.issueUrl, executionId: e.executionId })),
-    ...s.done.map((d) => ({ key: `${d.repo}#${d.issue}`, url: d.prNumber === null ? issueUrl(d.repo, d.issue) : `https://github.com/${d.repo}/pull/${d.prNumber}`, executionId: d.executionId })),
+    ...[...s.done, ...finishedSections(s).flatMap((x) => x.rows)].map((d) => ({ key: `${d.repo}#${d.issue}`, url: d.prNumber === null ? issueUrl(d.repo, d.issue) : `https://github.com/${d.repo}/pull/${d.prNumber}`, executionId: d.executionId })),
   ];
 }
 

@@ -96,6 +96,27 @@ private let agents = PanelSnapshot.Agents(
     }
 }
 
+@Test func decodesTheFinishedEpics() throws {
+    let s = try decodeSnapshot(fixtureData())
+    #expect(s.finished == [
+        .init(repo: "acme/web", issue: 40, title: "Issue 40 of acme/web", labels: ["solve:epic"], prNumber: 88, finishedAt: 98_000,
+              status: .merged, cancelReason: nil, executionId: "exec-ship-40"),
+        .init(repo: "acme/api", issue: 41, title: "Issue 41 of acme/api", labels: ["solve:epic"], prNumber: nil, finishedAt: 90_000,
+              status: .cancelled, cancelReason: "final PR closed without merge", executionId: nil),
+    ])
+}
+
+@Test func aSnapshotWithoutFinishedDecodesAsEmpty() throws {
+    #expect(try decodeSnapshot(Data(contentsOf: oldFixtureURL)).finished.isEmpty)
+    #expect(try decodeSnapshot(edited { $0["finished"] = nil }).finished.isEmpty)
+}
+
+@Test func aFinishedEpicWithAnUnknownStatusNamesTheField() throws {
+    #expect(throws: SnapshotError.wrongType("finished.0.status")) {
+        try decodeSnapshot(edited { var f = $0["finished"] as! [[String: Any]]; f[0]["status"] = "paused"; $0["finished"] = f })
+    }
+}
+
 @Test func aMissingRequiredFieldNamesTheField() throws {
     #expect(throws: SnapshotError.missingField("paused")) { try decodeSnapshot(edited { $0["paused"] = nil }) }
     #expect(throws: SnapshotError.missingField("epics.0.issueUrl")) { try decodeSnapshot(edited { firstEpic(&$0) { $0["issueUrl"] = nil } }) }

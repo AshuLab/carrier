@@ -226,9 +226,10 @@ func sessionState(_ status: String) -> SessionSection.State {
 }
 
 /// Newest first, as the reply is. `transcripts` holds the events fetched so far, by execution id.
+/// `resumable` is false for an epic that ended: its sessions are over and Continue in Terminal is not offered.
 public func sessionList(
     _ reply: SessionsReply?, transcripts: [String: Transcript] = [:], slices: [EpicReply.Slice] = [],
-    now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current
+    now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current, resumable: Bool = true
 ) -> SessionList {
     let all = reply?.sessions ?? []
     let shown = all.prefix(visibleSessions)
@@ -253,7 +254,7 @@ public func sessionList(
             counts: transcript.flatMap { $0.structured ? sessionCounts($0.events) : nil },
             timeLabel: time,
             openByDefault: state != .done || index == 0,
-            resume: state == .running ? nil : session.resume,
+            resume: state == .running || resumable == false ? nil : session.resume,
             result: resultCard(session.result),
             body: transcriptBody(transcript),
             lanes: transcript?.structured == true ? transcript?.laneSections(slices: slices, running: state == .running, now: now, timeZone: timeZone) ?? [] : []

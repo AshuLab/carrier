@@ -77,3 +77,16 @@ test('settle drops a selection that vanished, an expired toast, and logs of noth
   expect(settle({ ...ui, selected: 'gone#9' }, snap(), now).selected).toBe('A/a#1');
   expect(settle(ui, snap(), now + 1).toast).toBeNull();
 });
+
+test('finished rows are selectable after the ready ones, merged then cancelled, ten each, and act like a ready row', () => {
+  const fin = (issue: number, status: 'merged' | 'cancelled', prNumber: number | null) => ({ repo: 'D/d', issue, title: null, labels: [], prNumber, finishedAt: 1, status, cancelReason: status === 'cancelled' ? 'x' : null, executionId: `exec-${issue}` });
+  const s = snap({ epics: [], queue: [], finished: [...Array.from({ length: 11 }, (_, i) => fin(i + 1, 'merged', 50 + i)), fin(30, 'cancelled', null)] });
+  const items = itemsOf(s);
+  expect(items.map((i) => i.key)).toEqual(['C/c#8', ...Array.from({ length: 10 }, (_, i) => `D/d#${i + 1}`), 'D/d#30']); // the eleventh is not listed, so not reachable
+  expect(items.at(1)?.url).toBe('https://github.com/D/d/pull/50');
+  expect(items.at(-1)?.url).toBe('https://github.com/D/d/issues/30'); // no PR: the issue
+  const at = { ...initialUi, selected: 'D/d#1' };
+  expect(press(at, 'return', s).action).toEqual({ type: 'open', url: 'https://github.com/D/d/pull/50' });
+  expect(press(at, 'l', s).ui.mode).toBe('logs');
+  expect(settle({ ...at, mode: 'logs' }, s, now).mode).toBe('logs');
+});

@@ -34,6 +34,13 @@ else if (cli.flags.help) {
         if (configPath === undefined) throw noConfig('Usage: carrier status --config <path>');
         exit = await (await import('./commands/status.ts')).statusCommand(loadConfigFile(configPath));
         break;
+      case 'stop':
+      case 'pause':
+      case 'resume':
+      case 'check':
+        if (configPath === undefined) throw noConfig(`Usage: carrier ${cli.command} --config <path>`);
+        exit = await (await import('./commands/control.ts')).controlCommand(cli.command, loadConfigFile(configPath));
+        break;
       default:
         if (configPath === undefined) throw noConfig(usage(), '');
         await (await import('./commands/run.ts')).runCommand(loadConfigFile(configPath)); // runs until Ctrl+C

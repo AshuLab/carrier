@@ -1,11 +1,12 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, expect, test, vi } from 'vitest';
 import { acquireLock } from '../../storage/lock.ts';
+import { connectControl } from './control-client.ts';
 
 const main = join(import.meta.dirname, 'main.ts');
 const dir = mkdtempSync(join(tmpdir(), 'carrier-cli-'));
@@ -182,6 +183,66 @@ test('status against a carrier that speaks another protocol exits 2 naming both'
     });
     expect(result.status).toBe(2);
     expect(result.stderr).toMatch(/protocol 1.*protocol 2/);
+  } finally {
+    server.close();
+  }
+});
+
+test('pause, resume, check and stop act on a running Carrier; a second stop and the others without one say so', async () => {
+  const root = join(dir, 's'); // short: a socket path holds 103 bytes on macOS
+  const config = write('control.json', { ...valid, root, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  const socket = join(root, 'orchestrator', 'control.sock');
+  const control = (command: string) => run(command, '--config', config);
+
+  // none running yet
+  for (const command of ['pause', 'resume', 'check']) {
+    const result = control(command);
+    expect([result.status, result.stdout, result.stderr]).toEqual([1, '', 'Carrier is not running\n']);
+  }
+
+  const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
+  const closed = once(child, 'close');
+  try {
+    await vi.waitFor(() => expect(existsSync(socket)).toBe(true), { timeout: 15_000 });
+    const paused = async () => {
+      const client = await connectControl(socket);
+      try {
+        return ((await client.request('snapshot')) as { paused: boolean }).paused;
+      } finally {
+        client.close();
+      }
+    };
+    expect(await paused()).toBe(false);
+    expect(control('pause')).toMatchObject({ status: 0, stdout: 'Intake paused\n', stderr: '' });
+    await vi.waitFor(async () => expect(await paused()).toBe(true));
+    expect(control('resume')).toMatchObject({ status: 0, stdout: 'Intake resumed\n', stderr: '' });
+    await vi.waitFor(async () => expect(await paused()).toBe(false));
+    expect(control('check')).toMatchObject({ status: 0, stdout: 'Checking GitHub now\n', stderr: '' });
+
+    expect(control('stop')).toMatchObject({ status: 0, stdout: 'Carrier stopped\n', stderr: '' });
+    expect(existsSync(socket)).toBe(false);
+    expect(child.exitCode === null ? (await closed)[0] : child.exitCode).toBe(0);
+  } finally {
+    child.kill('SIGINT');
+  }
+  expect(control('stop')).toMatchObject({ status: 0, stdout: 'Carrier is not running\n', stderr: '' });
+});
+
+test('a Carrier that speaks another protocol makes the commands exit 2', async () => {
+  const root = join(dir, 'p');
+  mkdirSync(join(root, 'orchestrator'), { recursive: true });
+  const server = createServer((connection) => connection.write(`${JSON.stringify({ event: 'hello', protocol: 2 })}\n`));
+  await new Promise<void>((resolve) => server.listen(join(root, 'orchestrator', 'control.sock'), resolve));
+  try {
+    const config = write('protocol.json', { ...valid, root });
+    const result = await new Promise<{ status: number | null; stderr: string }>((resolve) => {
+      const child = spawn(process.execPath, [main, 'pause', '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
+      let stderr = '';
+      child.stderr.on('data', (chunk) => (stderr += chunk));
+      child.on('close', (status) => resolve({ status, stderr }));
+    });
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('protocol');
   } finally {
     server.close();
   }

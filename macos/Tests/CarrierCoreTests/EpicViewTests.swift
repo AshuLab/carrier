@@ -180,3 +180,63 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
     #expect(epicHeader(.queued(queuedEpic, position: 2)).state == .waiting)
     #expect(epicHeader(.finished(doneEpic)).state == .ready)
 }
+
+// MARK: finished epics
+
+private func ended(_ status: PanelSnapshot.FinishedEpic.Status, reason: String? = nil, pr: Int? = 50) -> PanelSnapshot.FinishedEpic {
+    .init(
+        repo: "acme/web", issue: 12, title: "Checkout flow", labels: ["solve:epic", "shop"], prNumber: pr, finishedAt: 1_000_000, status: status,
+        cancelReason: reason, executionId: "exec-1"
+    )
+}
+
+@Test func theSnapshotFindsAFinishedEpicAfterTheOthers() {
+    var snapshot = PanelSnapshot(
+        now: 0, slots: .init(busy: 0, total: 3), queue: [], epics: [], startedAt: 0, repos: 1, nextCheckAt: nil, problem: nil, paused: false, done: []
+    )
+    snapshot.finished = [ended(.merged)]
+    #expect(snapshot.subject(repo: "acme/web", issue: 12) == .ended(ended(.merged)))
+    #expect(snapshot.subject(repo: "acme/web", issue: 13) == nil)
+    snapshot.epics = [epic()]
+    #expect(snapshot.subject(repo: "acme/web", issue: 12) == .active(epic()))
+}
+
+@Test func aMergedEpicHeaderIsDoneWithItsPullRequestAndLabels() {
+    let header = epicHeader(.ended(ended(.merged)))
+    #expect(header.state == .done && header.status == "Done")
+    #expect(header.title == "Checkout flow" && header.labels == ["shop"])
+    #expect(header.prURL == "https://github.com/acme/web/pull/50" && header.prLabel == "PR #50")
+    #expect(header.issueURL == "https://github.com/acme/web/issues/12")
+}
+
+@Test func aCancelledEpicHeaderSaysWhy() {
+    let header = epicHeader(.ended(ended(.cancelled, reason: "final PR closed without merge", pr: nil)))
+    #expect(header.state == .cancelled && header.status == "Cancelled · final PR closed without merge")
+    #expect(header.prURL == nil)
+    #expect(epicHeader(.ended(ended(.cancelled))).status == "Cancelled")
+}
+
+@Test func aMergedEpicIsDoneEverywhereAndACancelledOneStopsWhereItHadNotGot() {
+    #expect(line(pipelineSteps(.ended(ended(.merged)), now: 1_120_000)) == ["Queued:d", "Ship:d", "Review/Fix:d", "Ready:d:2m ago"])
+    // without the reply only the queue is known to have been passed
+    #expect(line(pipelineSteps(.ended(ended(.cancelled)), now: 1_120_000)) == ["Queued:d", "Ship:p:cancelled 2m ago", "Review/Fix:w", "Ready:w"])
+    let shipped = reply(stages: [.init(stage: "queued", startedAt: 0, endedAt: 60_000), .init(stage: "ship", startedAt: 60_000, endedAt: 360_000)])
+    #expect(
+        line(pipelineSteps(.ended(ended(.cancelled)), reply: shipped, now: 1_120_000))
+            == ["Queued:d:1m", "Ship:d:5m", "Review/Fix:p:cancelled 2m ago", "Ready:w"]
+    )
+    let reviewed = reply(stages: shipped.stages, rounds: 2)
+    #expect(line(pipelineSteps(.ended(ended(.cancelled)), reply: reviewed, now: 1_120_000))[3] == "Ready:p:cancelled 2m ago")
+}
+
+@Test func aFinishedEpicOffersNoContinueButAnOverSessionOfAnotherEpicStillDoes() {
+    let resume = ResumeDescriptor(harness: "claude", sessionId: "s", cwd: "/w", configDir: nil)
+    let sessions = SessionsReply(sessions: [
+        .init(
+            executionId: "e", stage: "ship", role: "author", round: nil, agent: .init(harness: "claude", model: "m", provider: nil),
+            status: "finished", startedAt: 0, finishedAt: 10, resume: resume
+        )
+    ])
+    #expect(sessionList(sessions).sections[0].resume == resume)
+    #expect(sessionList(sessions, resumable: false).sections[0].resume == nil)
+}

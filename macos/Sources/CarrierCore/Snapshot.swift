@@ -94,6 +94,11 @@ public struct PanelSnapshot: Codable, Equatable {
         /// The stored reason; nil when merged.
         public var cancelReason: String?
         public var executionId: String?
+
+        /// The same epic as a ready-for-test one, for what is drawn from a `DoneEpic` (links, the details tab).
+        public var asDone: DoneEpic {
+            DoneEpic(repo: repo, issue: issue, prNumber: prNumber, finishedAt: finishedAt, executionId: executionId, title: title)
+        }
     }
 
     public var now: Int

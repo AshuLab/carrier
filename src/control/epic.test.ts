@@ -225,6 +225,22 @@ test('a queued epic has only its queue time, and a running one has an open stage
   expect(reply().stages).toEqual([{ stage: 'queued', startedAt: 500, endedAt: 1_000 }, { stage: 'ship', startedAt: 1_000, endedAt: null }]);
 });
 
+test('a merged epic answers like any other: its history closed at the merge, no ready stage, nothing live', () => {
+  const id = epicRow({ status: 'merged', finishedAt: 20_000 });
+  run(id, 'ship', 1_000, 5_000);
+  run(id, 'review', 5_000, 9_000, { outcome: 'completed', ...pr('a'.repeat(40)) }, 1);
+  db.insert(epicSlices).values({ epicId: id, number: 10, title: 'S', state: 'closed', blockedBy: [], prNumber: 30, closedAt: 6_000, readAt: 1 }).run();
+  expect(reply()).toMatchObject({
+    stages: [
+      { stage: 'queued', startedAt: 500, endedAt: 1_000 },
+      { stage: 'ship', startedAt: 1_000, endedAt: 5_000 },
+      { stage: 'review', startedAt: 5_000, endedAt: 20_000 },
+    ],
+    rounds: [{ round: 1, verdict: 'approved' }],
+    slices: [{ number: 10, lane: null, activity: null }],
+  });
+});
+
 test('the reply of an epic with far more rounds than the cap, with the largest blockers, stays under the client line limit', () => {
   const id = epicRow();
   const long = (c: string, size: number) => c.repeat(size);

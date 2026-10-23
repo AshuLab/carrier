@@ -10,12 +10,15 @@ public enum EpicSubject: Equatable {
     case queued(PanelSnapshot.QueuedEpic, position: Int)
     case active(PanelEpic)
     case finished(PanelSnapshot.DoneEpic)
+    /// Merged or cancelled, from the snapshot's finished window.
+    case ended(PanelSnapshot.FinishedEpic)
 
     public var repo: String {
         switch self {
         case .queued(let epic, _): epic.repo
         case .active(let epic): epic.repo
         case .finished(let epic): epic.repo
+        case .ended(let epic): epic.repo
         }
     }
 
@@ -30,6 +33,7 @@ public enum EpicSubject: Equatable {
         case .queued(let epic, _): epic.issue
         case .active(let epic): epic.issue
         case .finished(let epic): epic.issue
+        case .ended(let epic): epic.issue
         }
     }
 }
@@ -39,6 +43,7 @@ extension PanelSnapshot {
         if let epic = epics.first(where: { $0.repo == repo && $0.issue == issue }) { return .active(epic) }
         if let at = queue.firstIndex(where: { $0.repo == repo && $0.issue == issue }) { return .queued(queue[at], position: at + 1) }
         if let done = done.first(where: { $0.repo == repo && $0.issue == issue }) { return .finished(done) }
+        if let ended = finished.first(where: { $0.repo == repo && $0.issue == issue }) { return .ended(ended) }
         return nil
     }
 }
@@ -74,6 +79,17 @@ public func pipelineSteps(_ subject: EpicSubject, reply: EpicReply? = nil, now: 
             [.done, .done, .done, .done],
             [queuedFor.map(formatDuration), shipTook.map(formatDuration), rounds, done.finishedAt.map { agoLine($0, now: now) }]
         )
+    case .ended(let epic):
+        // a merged epic went through every step; a cancelled one stopped at the first step it had not reached
+        let merged = epic.status == .merged
+        let reached = [true, merged || shipTook != nil, merged || reply.map { $0.rounds.isEmpty == false } ?? false, merged]
+        let rounds = reply.map { $0.rounds.count }.flatMap { $0 > 0 ? "\($0) \($0 == 1 ? "round" : "rounds")" : nil }
+        let ago = agoLine(epic.finishedAt, now: now)
+        let labels = [queuedFor.map(formatDuration), shipTook.map(formatDuration), rounds, merged ? ago : nil]
+        let stopped = merged ? nil : reached.firstIndex(of: false)
+        var result = steps(reached.map { $0 ? .done : .waiting }, labels)
+        if let stopped { (result[stopped].state, result[stopped].label) = (.problem, "cancelled \(ago)") }
+        return result
     case .active(let epic):
         let waitedFor = queuedFor ?? epic.queuedAt.flatMap { queued in epic.startedAt.map { $0 - queued } }
         let at = epic.stage == .review || epic.stage == .fix ? 2 : 1
@@ -125,7 +141,7 @@ public struct EpicHeader: Equatable {
     public var issueURL: String
     /// The glyph beside the title.
     public var state: EpicMenuState
-    /// The state in words, for the pill: "Running · review · round 2/5", "Needs you · review limit reached", "Up next · 2nd in queue", "Ready for test".
+    /// The state in words, for the pill: "Running · review · round 2/5", "Needs you · review limit reached", "Up next · 2nd in queue", "Ready for test", "Done", "Cancelled · closed before start".
     public var status: String
 }
 
@@ -140,6 +156,9 @@ public func epicHeader(_ subject: EpicSubject, reply: EpicReply? = nil) -> EpicH
     switch subject {
     case .queued(let epic, let position): (title, state, status) = (epic.title, .waiting, "Up next · \(ordinal(position)) in queue")
     case .finished(let done): (title, prURL) = (done.title, donePullURL(done))
+    case .ended(let epic):
+        (title, labels, prURL) = (epic.title, epic.labels, donePullURL(epic.asDone))
+        (state, status) = epic.status == .merged ? (.done, "Done") : (.cancelled, epic.cancelReason.flatMap { $0.isEmpty ? nil : "Cancelled · \($0)" } ?? "Cancelled")
     case .active(let epic):
         (title, labels, prURL, issueURL) = (epic.title, epic.labels ?? [], epic.prUrl, epic.issueUrl)
         (state, status) = epic.status == .running ? (.running, "Running · \(runningLine(epic))") : (.needsYou, "Needs you · \(interventionLine(epic))")

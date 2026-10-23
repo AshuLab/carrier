@@ -458,8 +458,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         db.update(epics).set({ status: 'queued', startedAt: null, config: null, labelPending: false }).where(eq(epics.id, epic.id)).run();
         throw e;
       }
-      if (issue.state === 'closed') cancelWith('cerrada antes de iniciar');
-      else if (!issue.labels.includes(readyLabel)) cancelWith('ready removido');
+      if (issue.state === 'closed') cancelWith('closed before it started');
+      else if (!issue.labels.includes(readyLabel)) cancelWith('ready label removed');
       else {
         // Its slices exist before it is ready: read them now so the app has the list from the first second, not after the next poll.
         await readEpicSlices(epic.repo, epic.id, epic.issue);

@@ -98,3 +98,16 @@ public struct GroupFolds: Equatable {
         if open.insert(id).inserted == false { open.remove(id) }
     }
 }
+
+/// Which slice rows the user opened, by the subagent's id; a row nobody touched is closed, whatever its state.
+public struct SliceFolds: Equatable {
+    private var open: Set<String> = []
+
+    public init() {}
+
+    public func isOpen(_ id: String) -> Bool { open.contains(id) }
+
+    public mutating func toggle(_ id: String) {
+        if open.insert(id).inserted == false { open.remove(id) }
+    }
+}

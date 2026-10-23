@@ -8,12 +8,14 @@ public enum FlowItem: Equatable, Identifiable {
     case item(TranscriptItem)
     /// Two or more successful calls in a row; its id is the id of the first.
     case group(id: Int, calls: [TranscriptItem])
-    // `case slice(LaneSection)` is added by the next slice
+    /// A subagent, at the id of its first `task` start.
+    case slice(LaneSection)
 
     public var id: Int {
         switch self {
         case .item(let item): item.id
         case .group(let id, _): id
+        case .slice(let lane): lane.startId
         }
     }
 }
@@ -24,8 +26,10 @@ private func isGroupable(_ item: TranscriptItem) -> Bool {
     return card.status == .ok && card.kind != .edit && card.isSkill == false
 }
 
-/// A run of two or more groupable items in a row is one group; anything else, a lone call included, stays an item.
-public func flowItems(_ items: [TranscriptItem]) -> [FlowItem] {
+/// A run of two or more groupable items in a row is one group; anything else, a lone call included, stays an item. A slice
+/// sits before the first item with a higher id and ends a run, so a group never spans one.
+public func flowItems(_ items: [TranscriptItem], slices: [LaneSection] = []) -> [FlowItem] {
+    var later = slices.sorted { $0.startId < $1.startId }[...]
     var flow: [FlowItem] = []
     var run: [TranscriptItem] = []
     func close() {
@@ -33,13 +37,18 @@ public func flowItems(_ items: [TranscriptItem]) -> [FlowItem] {
         run = []
     }
     for item in items {
+        while let slice = later.first, slice.startId < item.id {
+            close()
+            flow.append(.slice(slice))
+            later = later.dropFirst()
+        }
         if isGroupable(item) { run.append(item) } else {
             close()
             flow.append(.item(item))
         }
     }
     close()
-    return flow
+    return flow + later.map(FlowItem.slice)
 }
 
 private func cards(_ calls: [TranscriptItem]) -> [TranscriptCard] {

@@ -15,13 +15,17 @@ struct TranscriptRows: View {
             EmptyStateView(state: .noActivity).frame(minHeight: 170).sessionRow()
         case .items(let items):
             ForEach(items) { flow in
-                Group {
-                    switch flow {
-                    case .item(let item): TranscriptItemView(item: item, outputs: $outputs)
-                    case .group(let id, let calls): ToolGroupView(id: id, calls: calls, groups: $groups, outputs: $outputs)
-                    }
+                switch flow {
+                case .item(let item):
+                    TranscriptItemView(item: item, outputs: $outputs)
+                        .padding(.horizontal, 12).padding(.vertical, flow.verticalMargin).sessionRow()
+                case .group(let id, let calls):
+                    ToolGroupView(id: id, calls: calls, groups: $groups, outputs: $outputs)
+                        .padding(.horizontal, 12).padding(.vertical, flow.verticalMargin).sessionRow()
+                case .slice(let lane):
+                    // its header and rows are rows of the stack of their own
+                    LaneSectionView(lane: lane, outputs: $outputs, groups: $groups)
                 }
-                .padding(.horizontal, 12).padding(.vertical, flow.verticalMargin).sessionRow()
             }
         case .tail(let lines):
             Text(lines.isEmpty ? "No output yet" : lines.joined(separator: "\n"))
@@ -91,7 +95,7 @@ extension FlowItem {
     var verticalMargin: CGFloat {
         switch self {
         case .item(let item): item.verticalMargin
-        case .group: 0
+        case .group, .slice: 0
         }
     }
 }

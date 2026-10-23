@@ -10,12 +10,12 @@ export const maxListed = 5;
 export const maxFinished = 10;
 
 /** The DONE and CANCELLED sections that have something to show, each cut to `maxFinished` rows with the count of the rest. */
-export function finishedSections(s: PanelSnapshot): { name: 'DONE' | 'CANCELLED'; rows: PanelFinished[]; more: number }[] {
+export function finishedSections(s: PanelSnapshot): { name: 'DONE' | 'CANCELLED'; status: PanelFinished['status']; rows: PanelFinished[]; more: number }[] {
   const all = s.finished ?? [];
   return ([['DONE', 'merged'], ['CANCELLED', 'cancelled']] as const)
-    .map(([name, status]) => ({ name, all: all.filter((f) => f.status === status) }))
+    .map(([name, status]) => ({ name, status, all: all.filter((f) => f.status === status) }))
     .filter((x) => x.all.length > 0)
-    .map(({ name, all }) => ({ name, rows: all.slice(0, maxFinished), more: Math.max(0, all.length - maxFinished) }));
+    .map(({ name, status, all }) => ({ name, status, rows: all.slice(0, maxFinished), more: Math.max(0, all.length - maxFinished) }));
 }
 
 const issueUrl = (repo: string, issue: number) => `https://github.com/${repo}/issues/${issue}`;

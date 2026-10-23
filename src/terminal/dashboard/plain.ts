@@ -21,8 +21,8 @@ export function renderPanel(s: PanelSnapshot): string[] {
     if (e.needsHumanReason) lines.push(`  reason: ${printable(e.needsHumanReason)}`);
     if (e.lastError) lines.push(`  error: ${printable(e.lastError)}`);
   }
-  for (const { name, rows, more } of finishedSections(s)) {
-    const kind = name === 'DONE' ? 'done' : 'cancelled';
+  for (const { status, rows, more } of finishedSections(s)) {
+    const kind = status === 'merged' ? 'done' : 'cancelled';
     for (const f of rows) lines.push(`${kind}  ${f.repo}#${f.issue}${f.prNumber === null ? '' : `  PR #${f.prNumber}`}  ${formatDuration(Math.max(0, now - f.finishedAt))} ago${f.title ? `  ${printable(f.title)}` : ''}${f.cancelReason ? `  reason: ${printable(f.cancelReason)}` : ''}`);
     if (more > 0) lines.push(`${kind}  +${more} more`);
   }

@@ -123,6 +123,10 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     // What the agent is doing: three lines for the selected card, one for the others.
     const now = e.executionId && activity ? activity(e.executionId, chosen ? 3 : 1) : [];
     now.forEach((l, i) => add(` ${bar} ${i === 0 ? paint('now', 'dim') : '   '}  ${paint(printable(l), 'dim')}`));
+    // The open blockers of a review or fix, by title, listed the way the queue is.
+    const titles = e.stage === 'review' || e.stage === 'fix' ? (e.blockerTitles ?? []) : [];
+    for (const t of titles.slice(0, 3)) add(` ${bar}   ${paint(`· ${printable(t)}`, 'yellow')}`);
+    if (titles.length > 0 && e.blockers > 3) add(` ${bar}   ${paint(`… and ${e.blockers - 3} more`, 'dim')}`);
   };
   if (running.length > 0) {
     section('RUNNING', 'cyan');

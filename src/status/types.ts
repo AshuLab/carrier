@@ -12,6 +12,8 @@ export type PanelEpic = {
   round: number | null;
   maxReviews: number;
   blockers: number;
+  /** Titles of the open blockers (the control snapshot carries them), shown under a review or fix card. */
+  blockerTitles?: string[];
   /** ms since epoch, when the epic entered its current stage. */
   stageSince: number;
   /** ms since epoch of the agent's last output; a different fact from the stage. */

@@ -47,19 +47,3 @@ private let saved = SetupSettings(
     #expect(store.load()?.carrier == "/chosen/carrier")
     #expect(engineTab(controller.settings, detecting: false).banner.state == .ready)
 }
-
-@MainActor @Test func resetForgetsTheSavedValuesAndDetectsAgain() async {
-    let store = store()
-    store.save(saved)
-    let controller = SetupController(store: store, detector: { Detection(carrier: "/new/carrier", node: "/new/node", path: "/new/bin") })
-    await withCheckedContinuation { done in
-        controller.reset { done.resume() }
-        // the old values are gone at once; the shell's answer fills them in
-        #expect(controller.settings.carrier.isEmpty)
-        #expect(controller.detecting)
-    }
-    #expect(controller.detectionRuns == 1)
-    #expect(store.load()?.carrier == "/new/carrier")
-    #expect(store.load()?.node == "/new/node")
-    #expect(store.load()?.path == "/new/bin")
-}

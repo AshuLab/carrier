@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Notifications tab — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--acc:#0a84ff;--run:#30d158;--need:#ff9f0a;--err:#ff453a}body.light{--acc:#007aff;--run:#28a745;--need:#e08600;--err:#e5372d}
+h2.q{font-size:15px;margin:34px 0 2px}h2.q:first-of-type{margin-top:6px}
+.q+.sub{margin-bottom:12px}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:26px;align-items:start}
+.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:560px;min-height:52px}
+.cw{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:16px 18px 18px;min-height:200px}
+.tabs{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;margin-bottom:12px;box-shadow:0 0 0 .5px var(--line) inset}
+.tabs span{color:var(--dim);font-size:12px;font-weight:550;padding:4px 14px;border-radius:99px}.tabs span.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body.light .tabs span.on{background:#fff}
+.grp{margin:14px 2px 5px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}.grp:first-child{margin-top:0}
+.card2{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 14px}
+.r{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:.5px solid var(--line);min-height:46px}.r:first-child{border:0}
+.r .t{flex:1;min-width:0}.r .t b{display:block;font-weight:550}.r .t span{display:block;color:var(--dim);font-size:12px;margin-top:1px;line-height:1.35}
+.r .t span.bad,.bad{color:var(--err)}
+.r .c{display:flex;gap:8px;align-items:center;flex:none}
+.u{color:var(--dim);font-size:12px}
+input.n{width:64px;font:inherit;text-align:right;color:var(--text);background:var(--card2);border:0;border-radius:7px;padding:4px 8px;box-shadow:0 0 0 .5px var(--line) inset}
+input.n.bad{box-shadow:0 0 0 1.5px var(--err)}
+.sp2{display:inline-flex;align-items:center;background:var(--card2);border-radius:8px;box-shadow:0 0 0 .5px var(--line) inset}
+.sp2 button{border:0;background:none;color:var(--text);font:600 14px var(--font);width:26px;height:24px;cursor:pointer;border-radius:8px}.sp2 button:hover{background:var(--card2)}
+.sp2 b{min-width:34px;text-align:center;font-weight:550}
+.seg{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 10px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.seg button.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25)}body.light .seg button.on{background:#fff}
+.sw{width:38px;height:22px;border-radius:99px;background:var(--card2);position:relative;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset}.sw::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}.sw.on{background:var(--acc)}.sw.on::after{left:18px}
+.rs{border:0;background:none;color:var(--acc);font-size:13px;cursor:pointer;padding:2px 4px;border-radius:6px;visibility:hidden}.rs.on{visibility:visible}.rs:hover{background:var(--card2)}
+.def{font-size:11px;color:var(--faint);white-space:nowrap}
+.mod{width:7px;height:7px;border-radius:50%;background:var(--acc);flex:none}
+.pend{font-size:11px;font-weight:600;color:var(--need);background:color-mix(in srgb,var(--need) 14%,transparent);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.btn{border:0;font:inherit;font-size:12.5px;font-weight:550;color:var(--text);background:var(--card2);padding:5px 14px;border-radius:99px;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset}.btn.pri{background:var(--acc);color:#fff}.btn.red{color:var(--err)}.btn[disabled]{opacity:.4;cursor:default}
+.foot{display:flex;align-items:center;gap:8px;margin-top:12px;min-height:30px}.foot .m{flex:1;color:var(--dim);font-size:12px}
+.banner{border-radius:14px;padding:10px 14px;margin-bottom:12px;display:flex;gap:12px;align-items:center;background:color-mix(in srgb,var(--need) 13%,transparent)}.banner.ok{background:color-mix(in srgb,var(--run) 12%,transparent)}
+.banner .t{flex:1}.banner .t b{display:block;font-weight:650}.banner .t span{color:var(--dim);font-size:12px}
+.confirm{border-radius:14px;padding:12px 14px;margin-top:12px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset}.confirm p{margin:0 0 8px}.confirm .b{display:flex;gap:8px;justify-content:flex-end}
+.ctl{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:0 0 18px;padding:10px 16px;border-radius:14px;background:var(--card);max-width:900px;position:sticky;top:8px;z-index:9;backdrop-filter:blur(20px)}
+.ctl span.l{color:var(--dim);font-size:12px}
+.sum{max-width:900px;margin-top:30px}.sum li{margin:5px 0;color:var(--dim)}.sum b{color:var(--text)}
+
+.rw{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:.5px solid var(--line);min-height:46px}.rw:first-child{border:0}
+.rw .t{flex:1;min-width:0}.rw .t b{display:block;font-weight:550}.rw .t span{display:block;color:var(--dim);font-size:12px;margin-top:1px}
+.rw .t span.nw{display:inline-block;margin:0 0 0 6px;font-size:10.5px;color:var(--acc)}
+.nw{font-size:10.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--acc);background:color-mix(in srgb,var(--acc) 16%,transparent);padding:1px 7px;border-radius:99px;margin-left:6px;vertical-align:middle}
+.gl{font:inherit;font-size:12.5px;font-weight:550;color:var(--text);border:0;border-radius:99px;padding:5px 13px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset,0 1px 0 rgba(255,255,255,.08) inset;cursor:pointer}
+.gl.pri{background:var(--acc);color:#fff;font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.35)}
+.gl[disabled]{opacity:.4;cursor:default}
+.ban{display:flex;gap:11px;align-items:center;border-radius:16px;padding:12px 14px;margin-bottom:12px}
+.ban.warn{background:color-mix(in srgb,#ff9f0a 14%,transparent)}.ban.info{background:color-mix(in srgb,var(--acc) 14%,transparent)}.ban.ok{background:color-mix(in srgb,var(--run) 12%,transparent)}
+.ban .t{flex:1}.ban .t b{display:block;font-weight:650}.ban .t span{color:var(--dim);font-size:12px}
+.ban .ic{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:800;font-size:12px;flex:none}
+.ban.warn .ic{background:#ff9f0a}.ban.info .ic{background:var(--acc)}.ban.ok .ic{background:var(--run)}
+/* a macOS banner */
+.nb{display:flex;gap:10px;align-items:flex-start;border-radius:16px;padding:10px 12px;background:rgba(60,60,66,.7);backdrop-filter:blur(30px);box-shadow:0 8px 24px rgba(0,0,0,.35),0 0 0 .5px rgba(255,255,255,.14) inset;color:#f5f5f7;max-width:330px}
+body.light .nb{background:rgba(250,250,252,.85);color:#1d1d1f;box-shadow:0 8px 24px rgba(30,30,60,.2),0 0 0 .5px rgba(0,0,0,.12)}
+.nb .ap{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#0a84ff,#5e5ce6);display:grid;place-items:center;font-weight:800;color:#fff;flex:none}
+.nb b{display:block;font-size:12.5px}.nb span{display:block;font-size:12px;opacity:.75;margin-top:1px}.nb time{margin-left:auto;font-size:11px;opacity:.5;white-space:nowrap}
+.ev{display:flex;gap:14px;align-items:center;padding:12px 0;border-top:.5px solid var(--line)}.ev:first-child{border:0}
+.ev .l{flex:1;min-width:0}.ev .l b{display:block;font-weight:550;margin-bottom:2px}.ev .l>span{display:block;color:var(--dim);font-size:12px;margin-bottom:8px}
+.ev .r{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.sw2{width:38px;height:22px;border-radius:99px;background:var(--card2);position:relative;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset;flex:none}.sw2::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.3)}.sw2.on{background:var(--acc)}.sw2.on::after{left:18px}
+.seg3{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.seg3 button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 11px;border-radius:99px;cursor:pointer;white-space:nowrap}.seg3 button.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25)}body.light .seg3 button.on{background:#fff}
+.dem{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:16px 18px 18px}
+.grp2{margin:14px 14px 6px;color:var(--faint);font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}.grp2:first-of-type{margin-top:0}
+.small{font-size:12px;color:var(--dim);margin:10px 4px 0}
+.fine{margin-top:26px;max-width:900px}.fine li{margin:6px 0;color:var(--dim)}.fine b{color:var(--text)}
+table.gap{border-collapse:collapse;width:100%;max-width:900px;font-size:12.5px}.gap th{text-align:left;color:var(--faint);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:6px 8px}.gap td{padding:7px 8px;border-top:.5px solid var(--line);color:var(--dim);vertical-align:top}.gap td:first-child{color:var(--text);font-weight:550;white-space:nowrap}
+</style></head><body>
+<h1>Notifications tab: how it works today and options</h1>
+
+<h2 class="q">Where it is stored, and does it work</h2>
+<table class="gap">
+ <tr><th>What</th><th>Where</th><th>State</th></tr>
+ <tr><td>Needs you</td><td>The app's user defaults, key <code>notify.needsYou</code>. On when the key is not there.</td><td>Works: it is checked on every snapshot, so the switch applies at once.</td></tr>
+ <tr><td>Ready for test</td><td>User defaults, <code>notify.readyForTest</code>. On when unset.</td><td>Works, same way.</td></tr>
+ <tr><td>Permission</td><td>macOS (System Settings › Notifications › Carrier). The app only reads it; it cannot turn it on.</td><td>In your screenshot it is <b>Denied</b>: nothing will show until you allow it there. “Send a test” asks again after you do.</td></tr>
+ <tr><td>Not in the engine</td><td>These are preferences of the app, not of <code>config.json</code>. The engine knows nothing about notifications.</td><td>As designed.</td></tr>
+</table>
+<h2 class="q">What is missing</h2>
+<table class="gap">
+ <tr><td>Clicking a notification does nothing</td><td>It should open the window on that epic. The notification centre's delegate only decides to show the banner; it does not handle the click.</td></tr>
+ <tr><td>Sound is always on</td><td>Hardcoded to the default sound. No switch.</td></tr>
+ <tr><td>It shows even when you are looking at the window</td><td>The banner is forced while the app is frontmost. No “only when I am elsewhere”.</td></tr>
+ <tr><td>Problems are not notified</td><td>GitHub refusing a profile, or Carrier stopping, only turn the menu bar dot on. By design so far; could be a third switch.</td></tr>
+ <tr><td>Epics that needed you while the app was closed</td><td>Not notified when it opens: the first snapshot only seeds. It shows them in the window.</td></tr>
+ <tr><td>“Send a test” gives no feedback</td><td>If the permission is denied, nothing visible happens.</td></tr>
+</table>
+
+<h2 class="q">Options for the tab</h2>
+<div class="sub">The state bar changes the system permission; the three layouts react to it. New items are marked <span class="nw" style="margin:0">new</span>. Switches and buttons work.</div>
+<div class="ctl">
+ <span class="l">System permission</span>
+ <div class="seg" id="perm"><button data-p="allowed" class="on">Allowed</button><button data-p="denied">Denied</button><button data-p="notAsked">Not asked yet</button><button data-p="noBundle">Only from Carrier.app</button></div>
+ <span style="flex:1"></span><button class="btn" id="theme">☾ / ☀︎ Light / dark</button>
+</div>
+<div class="opts" id="O"></div>
+
+<ul class="fine">
+ <li><b>What I would pick:</b> <b>A</b> for the structure (the permission is a banner only when it needs your attention, otherwise it takes no room; every event shows what its notification looks like and can send itself as an example) plus from <b>C</b> the new “How” switches (sound, only when I am elsewhere). The notification click that opens the epic is not a setting: I would just build it.</li>
+ <li><b>Per-event sound (B)</b> is more control than this app needs; two events and one global sound switch is enough.</li>
+ <li><b>A “problem” switch</b> is the only new event worth discussing: it would notify when GitHub refuses a repo or the engine stops. Off by default, because a flapping network would nag.</li>
+</ul>
+<script>
+const $=s=>document.querySelector(s);
+let perm='allowed';
+const S={A:{needs:true,ready:true},B:{needs:'banner+sound',ready:'banner'},C:{needs:true,ready:true,problem:false,sound:true,away:true}};
+const TABS='<div class="tabs"><span>Engine</span><span>Behavior</span><span>Repos</span><span class="on">Notifications</span><span>Menu bar</span><span>General</span></div>';
+const sw=(o,k)=>'<span class="sw2 '+(o[k]?'on':'')+'" data-o="'+o.id+'" data-k="'+k+'"></span>';
+const banner=(t,b)=>'<div class="nb"><span class="ap" style="width:34px;height:34px;display:grid;margin:0;opacity:1;font-size:15px">C</span><div style="flex:1"><b>'+t+'</b><span>'+b+'</span></div><time>now</time></div>';
+const EX={needs:['vemec/encaja #120 needs you','Review round 5 reached the limit'],ready:['AshuLab/carrier #41 is ready for test','Pull request #52'],problem:['Carrier cannot reach GitHub','GitHub refused the profile author-bot for vemec/encaja']};
+function permBanner(){
+ if(perm==='allowed')return '';
+ if(perm==='denied')return '<div class="ban warn"><span class="ic">!</span><div class="t"><b>Notifications are off for Carrier</b><span>Allow them in System Settings, then come back: nothing will show until then.</span></div><button class="gl pri">Open System Settings</button></div>';
+ if(perm==='notAsked')return '<div class="ban info"><span class="ic">i</span><div class="t"><b>Carrier has not asked yet</b><span>macOS asks the first time one is due. You can ask now.</span></div><button class="gl pri">Allow notifications</button></div>';
+ return '<div class="ban info"><span class="ic">i</span><div class="t"><b>Only available from Carrier.app</b><span>This build was not started from the app bundle.</span></div></div>';
+}
+const permText={allowed:'Allowed in System Settings',denied:'Denied in System Settings',notAsked:'Not asked yet · the first notification asks',noBundle:'Only available from Carrier.app'};
+const testDisabled=()=>perm==='noBundle'?'disabled':'';
+const events=[];
+function draw(){
+ const O=$('#O');O.innerHTML='';
+ const wrap=(id,t,d,html)=>{const w=document.createElement('div');w.className='opt';w.innerHTML='<h3>'+t+'</h3><p>'+d+'</p><div class="dem">'+html+'</div>';O.appendChild(w)};
+ const a=S.A,b=S.B,c=S.C;a.id='A';b.id='B';c.id='C';
+ // A
+ wrap('A','A · Banner only when it needs you, events with a preview','The permission takes room only when it needs your attention. Each event shows what its notification looks like, with a switch and a button that sends it as an example.',
+  TABS+permBanner()+'<div class="card2" style="padding:0 14px">'+
+  [['needs','Needs you','An epic stopped and waits for a person'],['ready','Ready for test','An epic finished and has a PR to try']].map(([k,t,d])=>'<div class="ev"><div class="l"><b>'+t+'</b><span>'+d+'</span>'+banner(EX[k][0],EX[k][1])+'</div><div class="r">'+sw(a,k)+'<button class="gl" '+testDisabled()+'>Send example</button></div></div>').join('')+'</div>'+
+  (perm==='allowed'?'<div class="small">✓ '+permText.allowed+'</div>':''));
+ // B
+ const sg=(o,k)=>'<div class="seg3" data-o="'+o.id+'" data-s="'+k+'">'+[['off','Off'],['banner','Banner'],['banner+sound','Banner + sound']].map(([v,l])=>'<button data-v="'+v+'" class="'+(o[k]===v?'on':'')+'">'+l+'</button>').join('')+'</div>';
+ wrap('B','B · A choice per event','Each event is Off, Banner or Banner and sound. The permission is one quiet line at the top. More control, more to read.',
+  TABS+'<div class="rw" style="border:0;padding-top:0"><span class="dot '+(perm==='allowed'?'g':'e')+'" style="width:9px;height:9px;border-radius:50%;background:'+(perm==='allowed'?'var(--run)':'#ff9f0a')+'"></span><div class="t"><span style="font-size:12.5px">'+permText[perm]+'</span></div><button class="gl" '+(perm==='denied'?'':'style="display:none"')+'>Open System Settings</button><button class="gl" '+testDisabled()+'>Send a test</button></div>'+
+  '<div class="card2" style="padding:0 14px">'+[['needs','Needs you','An epic stopped and waits for a person'],['ready','Ready for test','An epic finished and has a PR to try']].map(([k,t,d],i)=>'<div class="rw" '+(i?'':'style="border:0"')+'><div class="t"><b>'+t+'</b><span>'+d+'</span></div>'+sg(b,k)+'</div>').join('')+'</div>');
+ // C
+ wrap('C','C · What / How / Permission','Three short groups. What to tell me (with a new, off-by-default “a problem” event), how (sound, only when the window is not in front), and the permission at the end with the test.',
+  TABS+'<div class="grp2">What to tell me</div><div class="card2" style="padding:0 14px">'+
+  '<div class="rw"><div class="t"><b>Needs you</b><span>An epic stopped and waits for a person</span></div>'+sw(c,'needs')+'</div>'+
+  '<div class="rw"><div class="t"><b>Ready for test</b><span>An epic finished and has a PR to try</span></div>'+sw(c,'ready')+'</div>'+
+  '<div class="rw"><div class="t"><b>A problem<span class="nw">new</span></b><span>GitHub refuses a repo, or Carrier stops by itself</span></div>'+sw(c,'problem')+'</div></div>'+
+  '<div class="grp2" style="margin-top:16px">How</div><div class="card2" style="padding:0 14px">'+
+  '<div class="rw"><div class="t"><b>Play a sound<span class="nw">new</span></b><span>With each notification</span></div>'+sw(c,'sound')+'</div>'+
+  '<div class="rw"><div class="t"><b>Only when Carrier is not in front<span class="nw">new</span></b><span>No banner while its window is the one you are looking at</span></div>'+sw(c,'away')+'</div></div>'+
+  '<div class="grp2" style="margin-top:16px">Permission</div><div class="card2" style="padding:0 14px"><div class="rw"><div class="t"><b>System permission</b><span>'+permText[perm]+'</span></div>'+(perm==='denied'?'<button class="gl">Open System Settings</button>':'')+(perm==='notAsked'?'<button class="gl pri">Allow</button>':'')+'<button class="gl" '+testDisabled()+'>Send a test</button></div></div>');
+}
+document.addEventListener('click',e=>{
+ const s=e.target.closest('.sw2');
+ if(s){const o=S[s.dataset.o];o[s.dataset.k]=!o[s.dataset.k];draw();return}
+ const g=e.target.closest('.seg3 button');
+ if(g){const p=g.parentElement;S[p.dataset.o][p.dataset.s]=g.dataset.v;draw()}
+});
+$('#perm').onclick=e=>{const b=e.target.closest('button');if(!b)return;perm=b.dataset.p;document.querySelectorAll('#perm button').forEach(x=>x.classList.toggle('on',x===b));draw()};
+$('#theme').onclick=()=>document.body.classList.toggle('light');
+draw();
+</script></body></html>

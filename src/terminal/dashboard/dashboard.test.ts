@@ -184,3 +184,69 @@ test('a running card says what its agent is doing: three lines when selected, on
   const alone = renderDashboard(snap({ epics: [epic({ executionId: 'e1' })] }), { color: false, ui: { ...keysUi, selected: 'AshuLab/carrier#31' } }).join('\n');
   expect(alone).not.toContain('↑↓');
 });
+
+// A running epic's stages as the engine answers them: newest first.
+const session = (stage: 'ship' | 'review' | 'fix', minutesAgo: number, tookMin: number | null, outcome: 'completed' | 'changes_requested' | 'needs_human' | null, over: object = {}) => ({
+  executionId: `${stage}-${minutesAgo}`,
+  stage,
+  role: stage === 'review' ? ('reviewer' as const) : ('author' as const),
+  round: null,
+  agent: { harness: 'claude' as const, model: 'm', provider: null },
+  status: tookMin === null ? ('running' as const) : ('finished' as const),
+  startedAt: now - minutesAgo * 60_000,
+  finishedAt: tookMin === null ? null : now - (minutesAgo - tookMin) * 60_000,
+  resume: null,
+  result: outcome === null ? null : { outcome, summary: 's', verification: null, reason: null },
+  ...over,
+});
+const history = [session('fix', 2, null, null, { round: 1 }), session('review', 18, 4, 'changes_requested', { round: 1 }), session('ship', 32, 14, 'completed')];
+
+test('with a detail provider a running card lists its stages with how each went, the running one in brackets', () => {
+  const out = plain(snap({ epics: [epic({ stage: 'fix', round: 1 })] }), 80);
+  expect(out).not.toContain('changes'); // without a provider the card is as before
+  const withDetail = renderDashboard(snap({ epics: [epic({ stage: 'fix', round: 1 })] }), { columns: 80, color: false, detail: () => history }).join('\n');
+  expect(withDetail).toContain('┃ ship ✓ 14m 00s · review ↻ changes round 1 4m 00s · [fix] round 1 2m 00s\n');
+  expect(renderDashboard(snap({ epics: [epic()] }), { color: false, detail: () => null }).join('\n')).toBe(plain(snap({ epics: [epic()] }))); // nothing known: as before
+  expect(renderDashboard(snap({ epics: [epic()] }), { color: false, detail: () => [] }).join('\n')).toBe(plain(snap({ epics: [epic()] })));
+});
+
+test('a stage with no result shows no outcome, and a needs_human one says so', () => {
+  const failed = [session('ship', 10, null, null), session('ship', 20, 5, null, { status: 'failed' }), session('ship', 30, 5, 'needs_human')];
+  const out = renderDashboard(snap({ epics: [epic()] }), { color: false, detail: () => failed }).join('\n');
+  expect(out).toContain('┃ ship ▲ needs you 5m 00s · ship 5m 00s · [ship] 10m 00s\n');
+});
+
+test('the provider is asked once per epic while its snapshot is unchanged, and again only for the epic that changed', () => {
+  const calls: string[] = [];
+  const detail = (repo: string, issue: number) => (calls.push(`${repo}#${issue}`), history);
+  const a = epic({ issue: 1, executionId: 'e1' });
+  const b = epic({ issue: 2, executionId: 'e2' });
+  const draw = (...epics: PanelEpic[]) => renderDashboard(snap({ epics }), { color: false, detail });
+  draw(a, b);
+  draw(a, b);
+  draw(a, b);
+  expect(calls).toEqual(['AshuLab/carrier#1', 'AshuLab/carrier#2']);
+  for (const change of [{ stage: 'review' as const }, { round: 2 }, { blockers: 3 }, { executionId: 'e9' }]) {
+    calls.length = 0;
+    const changed = { ...a, ...change };
+    draw(changed, b);
+    draw(changed, b);
+    expect(calls).toEqual(['AshuLab/carrier#1']);
+    draw(a, b); // back to a state that was cached under another signature: asked once more
+    calls.length = 0;
+  }
+});
+
+test('the stages line is only styling, never wider than the terminal, and drops the oldest stages first', () => {
+  const many = Array.from({ length: 12 }, (_, i) => session(i % 2 ? 'fix' : 'review', 12 * 20 - i * 20, 3, 'changes_requested', { round: 12 - i, executionId: `x${i}` })).reverse();
+  many.unshift(session('fix', 1, null, null, { round: 13 }));
+  const s = snap({ epics: [epic({ stage: 'fix', round: 5 })] });
+  for (const columns of [50, 60, 120]) {
+    const lines = renderDashboard(s, { columns, detail: () => many });
+    for (const line of lines) expect(visibleLength(line)).toBeLessThanOrEqual(Math.min(columns, 80));
+    expect(lines.join('\n').replace(/\x1b\[[0-9;]*m/g, '')).toContain('[fix] round 13'); // the stage that is running is never the one cut
+  }
+  const colored = renderDashboard(s, { color: true, detail: () => history }).join('\n');
+  expect(colored.replace(/\x1b\[[0-9;]*m/g, '')).toBe(renderDashboard(s, { color: false, detail: () => history }).join('\n'));
+  expect(renderDashboard(s, { color: false, detail: () => many }).join('\n')).toContain('… ');
+});

@@ -18,6 +18,7 @@ import { realClock, type Clock } from '../../orchestration/clock.ts';
 import { createEngine } from '../../orchestration/engine.ts';
 import { AuthError, type GitHub } from '../../orchestration/github.ts';
 import { sessionDirsFrom, type SessionDirs } from '../../orchestration/retention.ts';
+import { renderDashboard } from '../dashboard/dashboard.ts';
 import { startInteractivePanel } from '../dashboard/interactive.ts';
 import { tailExecution } from '../dashboard/logs.ts';
 import { startPanel, type PanelOutput } from '../dashboard/panel.ts';
@@ -165,6 +166,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     availableRepos: () => deps.listRepos(limits.githubCallTimeoutSeconds * 1000),
   };
   stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop: shutdown })).close;
+  const detail = (repo: string, issue: number) => controls.sessions(repo, issue)?.sessions ?? null;
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).
   stopPanel =
     deps.panelOut.isTTY && deps.stdin?.isTTY
@@ -176,6 +178,6 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
           now: () => deps.clock.now(),
           controls,
         })
-      : startPanel(snapshot, deps.panelOut, deps.panelIntervalMs);
+      : startPanel(snapshot, deps.panelOut, deps.panelIntervalMs, (s, columns) => renderDashboard(s, { columns, detail }));
   return { engine, db, close };
 }

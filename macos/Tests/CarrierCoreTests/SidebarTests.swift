@@ -251,3 +251,14 @@ private func withFinished(_ finished: [PanelSnapshot.FinishedEpic], done: [Panel
     collapse.toggle(done([ended(7, .merged, at: 1)]), by: .status)
     #expect(collapse.isCollapsed(done([ended(7, .merged, at: 1), ended(8, .merged, at: 2)]), by: .status) == false)
 }
+
+@Test func onlyAStuckEpicHasAnAttentionAndItsKindDecidesWhich() {
+    func attention(_ kind: String?) -> Attention? {
+        sidebarGroups(snapshot([epic("a/b", 1, .needsHuman, kind: kind)]), by: .status)[0].rows[0].attention
+    }
+    #expect(attention("review_limit") == .input && attention("agent_needs_human") == .input)
+    #expect(attention("timeout") == .error)
+    #expect(attention("from_the_future") == .input && attention(nil) == .input)
+    let others = snapshot([epic("a/b", 1)], queue: [queued("a/b", 2)])
+    #expect(sidebarGroups(others, by: .status).flatMap(\.rows).allSatisfy { $0.attention == nil })
+}

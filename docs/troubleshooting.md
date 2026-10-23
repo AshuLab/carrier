@@ -19,7 +19,7 @@ The reason is in the panel and the logs. Carrier stops the epic and leaves every
 | `could not prepare the workspace: ...` | Clone, checkout or worktree failed. | Check disk, git credentials and `<root>/worktrees`. |
 | `authentication error for profile X` | Forge could not authenticate that profile. Only epics using it stop. | `agent-forge token --agent <name>` from a clone of the repo; fix the App, key or installation. |
 
-**To continue an epic that is in `needs-human`:** fix what the reason says (outside Carrier), then put the `solve:epic:ready` label back on its issue. At the next check (`r` in the panel) Carrier queues it again and starts from `ship`, which reuses the epic's worktree and its PR; the review rounds start over. Without that label the epic stays stopped, even across restarts. There is no command or key for it.
+**To continue an epic that is in `needs-human`:** fix what the reason says (outside Carrier), then use **Resume** on the epic in the macOS app. Underneath, Carrier does what you can do by hand: it puts the `solve:epic:ready` label back on the issue and checks at once (`r` in the panel does the check), so the epic is queued again and starts from `ship`, which reuses the epic's worktree and its PR; the review rounds start over. Without the app, put the label back yourself and wait for the next check. Without that label the epic stays stopped, even across restarts. Nothing checks that the cause is fixed: if it is not, the epic stops again with the new reason. If the app says the epic did not restart, the label is on and the next check takes it.
 
 ## Start-up errors
 

@@ -3,6 +3,7 @@ import { createServer, type Socket } from 'node:net';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
+import { ResumeRefused } from '../orchestration/engine.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
 import type { EpicReply, EventsReply, FilesReply, SessionsReply } from './replies.ts';
 
@@ -33,13 +34,14 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('epic'), repo, issue }),
   z.strictObject({ id, cmd: z.literal('files'), repo, issue, executionId: z.uuid().optional() }),
   z.strictObject({ id, cmd: z.literal('availableRepos') }),
+  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue }),
 ]);
 
 // src/control and dist/control both sit two folders under the package root.
 export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
-export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'availableRepos';
+export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'availableRepos' | 'resumeEpic';
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: Capability[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
 
@@ -58,6 +60,8 @@ export type Controls = {
   files(repo: string, issue: number, executionId?: string): FilesReply | null;
   /** The repos the gh login can push to; rejects when GitHub cannot be read. */
   availableRepos(): Promise<AvailableRepo[]>;
+  /** Puts a stopped epic back in motion and resolves once it started; rejects with ResumeRefused when it could not. */
+  resumeEpic(repo: string, issue: number): Promise<void>;
 };
 
 /** pause, resume, checkNow and tail. Like the panel's keys, a check is started and not waited for: its failure is the engine's to report. */
@@ -128,6 +132,19 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
         },
       );
   }
+  if (parsed.data.cmd === 'resumeEpic') {
+    const { id: replyId, repo, issue } = parsed.data;
+    return Promise.resolve()
+      .then(() => controls.resumeEpic(repo, issue))
+      .then(
+        (): Reply => ({ id: replyId, ok: true }),
+        (error): Reply => {
+          if (error instanceof ResumeRefused) return { id: replyId, ok: false, error: error.reason };
+          log.error('resumeEpic failed', error);
+          return { id: replyId, ok: false, error: 'internal error' };
+        },
+      );
+  }
   if (parsed.data.cmd === 'events') {
     const { id: replyId, executionId, after, limit } = parsed.data;
     try {
@@ -156,7 +173,7 @@ export async function startControlServer({ orchestratorDir, snapshot, startedAt,
     return { close: () => {} };
   }
   const sockets = new Set<Socket>();
-  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files', 'availableRepos'] };
+  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files', 'availableRepos', 'resumeEpic'] };
   const send = (socket: Socket, message: Hello | Reply, written?: () => void) => void socket.write(`${JSON.stringify(message)}\n`, written);
 
   const server = createServer((socket) => {

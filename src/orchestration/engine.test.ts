@@ -6,7 +6,7 @@ import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { eq } from 'drizzle-orm';
 import { epics } from '../storage/schema.ts';
-import { createEngine } from './engine.ts';
+import { createEngine, type ResumeRefused } from './engine.ts';
 import { reserve } from './reserve.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
@@ -2008,4 +2008,105 @@ test('a finished epic with a pull request and no cached block gets its threads f
   await clock.advance(5 * MIN);
   expect(github.pullRequestReads).toEqual(['AshuLab/a#50']);
   expect(storedThreads(engine.db, 1)).toEqual([`a:Thread a@${10 * MIN}`]);
+});
+
+// An epic that stopped in needs_human; the next ship hangs, so a restart is seen while it runs.
+async function stoppedEpic() {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'the CI is red' }) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' });
+  runner.behavior = () => ({ exit: 'hang' });
+  return engine;
+}
+const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+const refusal = (promise: Promise<void>) => promise.then(() => null, (e: ResumeRefused) => e.reason);
+
+test('resumeEpic puts ready on a needs_human epic, checks, and answers only once it runs again from ship', async () => {
+  const engine = await stoppedEpic();
+  const settled = vi.fn();
+  const resumed = engine.resumeEpic('AshuLab/a', 1).then(settled);
+  await flush();
+  expect(settled).not.toHaveBeenCalled(); // the poll started, the answer waits for its tick
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', needsHumanReason: null });
+  await clock.advance(1000);
+  await resumed;
+  expect(settled).toHaveBeenCalled();
+  expect(runner.tasks.filter((t) => t.stage === 'ship')).toHaveLength(2);
+  expect(labelsOf(1)).toEqual(['solve:epic:running']); // ready came off with the restart, put there by the engine first
+});
+
+test('resumeEpic on an epic the engine does not know is refused as unknown epic', async () => {
+  const engine = await start(1);
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 9))).toBe('unknown epic');
+  expect(github.issues).toEqual({});
+});
+
+test.each(['queued', 'running', 'ready_for_test', 'merged', 'cancelled'] as const)('resumeEpic on an epic that is %s is refused as not stopped and touches nothing', async (status) => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const engine = await start(0);
+  await clock.advance(5 * MIN);
+  engine.db.update(epics).set({ status }).run();
+  const before = github.issue('AshuLab/a', 1).labels.slice();
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1))).toBe('not stopped');
+  expect(labelsOf(1)).toEqual(before);
+});
+
+test('resumeEpic with GitHub failing is refused as github unavailable and the epic stays stopped', async () => {
+  const engine = await stoppedEpic();
+  github.setLabelsUnavailable = new GitHubUnavailable();
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1))).toBe('github unavailable');
+  github.setLabelsUnavailable = null;
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'the CI is red' });
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+  github.authError = new AuthError('orchestrator');
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1))).toBe('github unavailable');
+});
+
+test('resumeEpic on an epic that has not restarted thirty seconds after the label answers did not restart and leaves the label on', async () => {
+  const engine = await stoppedEpic();
+  github.unavailable = new GitHubUnavailable(); // the label goes on, the check cannot read
+  const resumed = refusal(engine.resumeEpic('AshuLab/a', 1));
+  await flush();
+  await clock.advance(29_000);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' });
+  let answered = false;
+  void resumed.then(() => (answered = true));
+  await flush();
+  expect(answered).toBe(false);
+  await clock.advance(1000);
+  expect(await resumed).toBe('did not restart');
+  expect(labelsOf(1)).toContain('solve:epic:ready');
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' });
+
+  // the next check takes it
+  github.unavailable = null;
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' });
+});
+
+test('resumeEpic while a check is already running does not start a second one and answers when that one restarts the epic', async () => {
+  const engine = await stoppedEpic();
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const listing = github.listReadyEpics.bind(github);
+  let listed = 0;
+  github.listReadyEpics = async (repo) => {
+    listed++;
+    await gate;
+    return listing(repo);
+  };
+  void engine.pollNow(); // the timer's poll, held on its first read
+  await flush();
+  github.issue('AshuLab/a', 1).labels = []; // as if the label had not been there yet
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  release();
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  expect(listed).toBe(2); // one per repo of the single poll that ran
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' });
 });

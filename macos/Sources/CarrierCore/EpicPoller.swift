@@ -117,10 +117,17 @@ public final class EpicPoller {
     private var lastAsked: [Kind: Date] = [:]
     private let now: () -> Date
     private let onUpdate: (EpicRef, EpicData) -> Void
+    private let onCapabilities: (Set<ControlClient.Capability>) -> Void
+    private var capabilities: Set<ControlClient.Capability> = []
 
-    /// `onUpdate` is called only when a reply changed what is known about that epic.
-    public init(now: @escaping () -> Date = Date.init, onUpdate: @escaping (EpicRef, EpicData) -> Void) {
+    /// `onUpdate` is called only when a reply changed what is known about that epic; `onCapabilities` when the hello of the connection
+    /// being polled lists something other than the last one did.
+    public init(
+        now: @escaping () -> Date = Date.init, onCapabilities: @escaping (Set<ControlClient.Capability>) -> Void = { _ in },
+        onUpdate: @escaping (EpicRef, EpicData) -> Void
+    ) {
         self.now = now
+        self.onCapabilities = onCapabilities
         self.onUpdate = onUpdate
     }
 
@@ -146,6 +153,10 @@ public final class EpicPoller {
         requested = []
         lock.unlock()
         pending.forEach(apply)
+        if client.capabilities != capabilities {
+            capabilities = client.capabilities
+            onCapabilities(capabilities)
+        }
         guard let focus else { return }
         let key = focus.epic
         let moment = now()

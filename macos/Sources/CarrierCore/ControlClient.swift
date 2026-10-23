@@ -62,7 +62,7 @@ public final class ControlClient {
 
     /// The optional requests an engine can answer. A name this app does not know is dropped, so a newer engine never breaks an older app.
     public enum Capability: String {
-        case sessions, events, epic, files, availableRepos
+        case sessions, events, epic, files, availableRepos, resumeEpic
     }
 
     /// What the last `hello()` said Carrier can do; empty until then.

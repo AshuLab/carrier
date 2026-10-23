@@ -2,7 +2,7 @@ import CarrierCore
 import SwiftUI
 
 /// The Agent output tab: one card per session with its header (avatar, who, counts, time or the stopped badge) and, below the
-/// last, how many earlier sessions there are. An open section shows its transcript under the header.
+/// fifth, the row that opens the older ones. An open section shows its transcript under the header.
 struct SessionSectionsView: View {
     /// The Agent output tab is a lazy stack whose section headers stay pinned; the smoke check reports it from these.
     static let layout = "lazy stack, pinned section headers"
@@ -15,27 +15,68 @@ struct SessionSectionsView: View {
     var body: some View {
         // no spacing: the rows of a session touch, so its header, rows and foot read as one card (see `SessionCard`)
         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: Self.pinned) {
-            ForEach(list.sections) { section in
-                let open = folds.isOpen(section)
-                Section {
-                    if open {
-                        TranscriptRows(content: section.body, outputs: $outputs)
-                        ForEach(section.lanes) { LaneSectionView(lane: $0, outputs: $outputs) }
-                        if let result = section.result { ResultCardView(card: result) }
-                        ContinueInTerminalView(section: section)
-                        SessionCard.foot
-                    }
-                    Color.clear.frame(height: 10)
-                } header: {
-                    Button { folds.toggle(section) } label: { SessionHeaderView(section: section, open: open) }
-                        .buttonStyle(.plain)
-                        .background { SessionCard.headerBackground(open: open) }
-                        // a line between the header and what it folds, edge to edge
-                        .overlay(alignment: .bottom) { if open { Divider() } }
-                }
+            sessionSections(list.sections)
+            if list.earlier.isEmpty == false {
+                Button { folds.toggleEarlier() } label: { EarlierSessionsRow(count: list.earlier.count, open: folds.earlierOpen) }
+                    .buttonStyle(.plain)
+                    .padding(.bottom, 10)
+                if folds.earlierOpen { sessionSections(list.earlier) }
             }
-            if let earlier = list.earlier { Text(earlier).font(.caption).foregroundStyle(.tertiary).padding(.horizontal, 6) }
         }
+    }
+
+    @ViewBuilder private func sessionSections(_ sections: [SessionSection]) -> some View {
+        ForEach(sections) { section in
+            let open = folds.isOpen(section)
+            Section {
+                if open {
+                    TranscriptRows(content: section.body, outputs: $outputs)
+                    ForEach(section.lanes) { LaneSectionView(lane: $0, outputs: $outputs) }
+                    if let result = section.result { ResultCardView(card: result) }
+                    ContinueInTerminalView(section: section)
+                    SessionCard.foot
+                }
+                Color.clear.frame(height: 10)
+            } header: {
+                Button { folds.toggle(section) } label: { SessionHeaderView(section: section, open: open) }
+                    .buttonStyle(.plain)
+                    .background { SessionCard.headerBackground(open: open) }
+                    // a line between the header and what it folds, edge to edge
+                    .overlay(alignment: .bottom) { if open { Divider() } }
+            }
+        }
+    }
+}
+
+/// The row at the cut: it opens the sessions older than the five in view. The glass of the slices' rows, a clock, the title with
+/// the count after it and the round chevron of every card, turned up while it is open.
+struct EarlierSessionsRow: View {
+    let count: Int
+    let open: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "clock").font(.system(size: 14)).foregroundStyle(.secondary)
+                .frame(width: 26, height: 26).background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.16)))
+            HStack(spacing: 0) {
+                Text("Earlier sessions").fontWeight(.semibold)
+                Text(" · \(count)").foregroundStyle(.secondary)
+            }
+            .lineLimit(1)
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(.secondary)
+                .rotationEffect(.degrees(open ? 90 : 0))
+                .frame(width: 26, height: 26)
+                .background(Circle().fill(Color.secondary.opacity(0.16)))
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 10).padding(.vertical, 9)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14))
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Earlier sessions, \(count)")
+        .accessibilityValue(open ? "Open" : "Closed")
+        .accessibilityHint(open ? "Hides the earlier sessions" : "Shows the earlier sessions")
     }
 }
 

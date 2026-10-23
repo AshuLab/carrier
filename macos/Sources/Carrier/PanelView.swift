@@ -72,7 +72,7 @@ struct PanelView: View {
                         let data = model.epics.data[EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)]
                         EpicView(
                             subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files), now: epic.now,
-                            sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:]), folds: $epics.folds, files: data?.files,
+                            sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? []), folds: $epics.folds, files: data?.files,
                             plan: queuedPlan(epic.subject)
                         )
                             .id("\(epic.subject.repo)#\(epic.subject.issue)")

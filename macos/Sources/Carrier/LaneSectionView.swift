@@ -11,10 +11,10 @@ struct LaneSectionView: View {
     var body: some View {
         Button { open.toggle() } label: { LaneHeaderView(lane: lane, open: open) }
             .buttonStyle(.plain)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 12).padding(.vertical, 4)
             .sessionRow()
         if open {
-            TranscriptRows(content: .items(lane.items), outputs: $outputs, indent: 16)
+            TranscriptRows(content: .items(lane.items), outputs: $outputs)
         }
     }
 }
@@ -24,26 +24,40 @@ struct LaneHeaderView: View {
     let open: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
-                .rotationEffect(.degrees(open ? 90 : 0))
-            if let slice = lane.slice {
-                Text("SLICE #\(slice)").font(.system(size: 10.5, weight: .bold)).foregroundStyle(.white)
-                    .padding(.horizontal, 8).padding(.vertical, 1).background(Capsule().fill(Color.blue))
-                if let number = lane.laneNumber { Text("Lane \(number)").fontWeight(.semibold).lineLimit(1) }
-            } else {
-                Text(lane.title).fontWeight(.semibold).lineLimit(1)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 10) {
+                Image(systemName: "chart.pie.fill").font(.system(size: 14)).foregroundStyle(tint)
+                    .frame(width: 26, height: 26).background(RoundedRectangle(cornerRadius: 8).fill(tint.opacity(0.22)))
+                HStack(spacing: 7) {
+                    if let slice = lane.slice { Text("#\(slice)").foregroundStyle(.secondary) }
+                    Text(lane.title)
+                }
+                .fontWeight(.semibold).lineLimit(1)
+                Spacer(minLength: 8)
+                if let duration = lane.duration { Text(formatDuration(duration)).font(.caption).foregroundStyle(.secondary) }
+                state
+                // the round button of the session's header
+                Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(open ? 90 : 0))
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(Color.secondary.opacity(0.16)))
             }
-            if lane.hint {
-                Text("hint").font(.caption2.weight(.medium)).foregroundStyle(.secondary)
-                    .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.secondary.opacity(0.16)))
-                    .help("Read from the agent's description and worktree name, not reported by the agent: it can be wrong.")
-            }
-            Spacer(minLength: 8)
-            Text(lane.counts).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            // the line is there with no lane too, so the row keeps its height
+            Text(lane.laneNumber.map { "Lane \($0) ≈" } ?? " ").font(.caption).foregroundStyle(.secondary).padding(.leading, 36)
+                .help(lane.laneNumber == nil ? "" : "Inferred from the worktree name; the agent does not report it")
         }
-        .padding(.vertical, 8).padding(.horizontal, 8)
-        .background(RoundedRectangle(cornerRadius: 10).fill(lane.slice == nil ? Color.clear : Color.blue.opacity(0.14)))
+        .padding(.horizontal, 10).padding(.vertical, 9)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14))
         .contentShape(Rectangle())
+    }
+
+    private var tint: Color { lane.state == .failed ? .red : .blue }
+
+    @ViewBuilder private var state: some View {
+        switch lane.state {
+        case .running: ProgressView().controlSize(.small).frame(width: 16, height: 16)
+        case .finished: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).frame(width: 16, height: 16)
+        case .failed: Image(systemName: "xmark.circle.fill").foregroundStyle(.red).frame(width: 16, height: 16)
+        }
     }
 }

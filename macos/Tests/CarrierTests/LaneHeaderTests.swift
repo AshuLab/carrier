@@ -3,8 +3,11 @@ import SwiftUI
 import Testing
 @testable import Carrier
 
-private func lane(hint: Bool, slice: Int? = nil) -> LaneSection {
-    LaneSection(id: "a", title: "Lane 1 · #653", hint: hint, counts: "4 tool calls", items: [], slice: slice, laneNumber: slice == nil ? nil : 1)
+private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSection {
+    LaneSection(
+        id: "a", title: "Socket client", sliceTitle: "Socket client", state: state, duration: state == .running ? nil : 180_000,
+        counts: "4 tool calls", items: [], slice: 653, laneNumber: lane
+    )
 }
 
 @MainActor private func height(_ lane: LaneSection, open: Bool) throws -> Int {
@@ -13,10 +16,10 @@ private func lane(hint: Bool, slice: Int? = nil) -> LaneSection {
     return try #require(renderer.cgImage).height
 }
 
-// A lane header is one row, folded or open, with or without the hint mark.
+// A slice's row is the same height folded or open, running, finished or failed, with or without a lane.
 @MainActor @Test func aLaneHeaderKeepsItsHeight() throws {
-    let base = try height(lane(hint: true), open: true)
-    #expect(try height(lane(hint: true), open: false) == base)
-    #expect(try height(lane(hint: false), open: true) == base)
-    #expect(try height(lane(hint: true, slice: 653), open: true) == base)
+    let base = try height(lane(), open: true)
+    #expect(try height(lane(), open: false) == base)
+    for state in [SubagentState.running, .failed] { #expect(try height(lane(state), open: true) == base) }
+    #expect(try height(lane(lane: nil), open: true) == base)
 }

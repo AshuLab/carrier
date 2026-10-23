@@ -226,7 +226,7 @@ func sessionState(_ status: String) -> SessionSection.State {
 }
 
 /// Newest first, as the reply is. `transcripts` holds the events fetched so far, by execution id.
-public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcript] = [:], timeZone: TimeZone = .current) -> SessionList {
+public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcript] = [:], slices: [EpicReply.Slice] = [], timeZone: TimeZone = .current) -> SessionList {
     let all = reply?.sessions ?? []
     let shown = all.prefix(visibleSessions)
     let sections = shown.enumerated().map { index, session -> SessionSection in
@@ -256,7 +256,7 @@ public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcrip
             resume: state == .running ? nil : session.resume,
             result: resultCard(session.result),
             body: transcriptBody(transcript),
-            lanes: transcript?.structured == true ? transcript?.laneSections ?? [] : []
+            lanes: transcript?.structured == true ? transcript?.laneSections(slices: slices, running: state == .running) ?? [] : []
         )
     }
     let rest = all.count - shown.count

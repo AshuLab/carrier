@@ -7,8 +7,6 @@ import SwiftUI
 struct TranscriptRows: View {
     let content: TranscriptBody
     @Binding var outputs: OutputFolds
-    /// How far in the rows start: a subagent's are one step in from its session's.
-    var indent: CGFloat = 0
 
     var body: some View {
         switch content {
@@ -16,7 +14,7 @@ struct TranscriptRows: View {
             EmptyStateView(state: .noActivity).frame(minHeight: 170).sessionRow()
         case .items(let items):
             ForEach(items) {
-                TranscriptItemView(item: $0, outputs: $outputs).padding(.leading, indent).padding(.horizontal, 12)
+                TranscriptItemView(item: $0, outputs: $outputs).padding(.horizontal, 12)
                     .padding(.vertical, $0.verticalMargin).sessionRow()
             }
         case .tail(let lines):

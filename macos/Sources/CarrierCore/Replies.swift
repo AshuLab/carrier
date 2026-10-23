@@ -136,6 +136,9 @@ public struct EpicReply: Codable, Equatable {
         /// Hints for a slice in progress (docs/specs/macos-app-redesign.md, spike 3); absent from an older engine, null when the stream gave none.
         public var lane: Int? = nil
         public var activity: String? = nil
+        /// The pull request's state (`open`, `draft`, `merged` or `closed`) and merge time; null with no pull request, absent from an older engine.
+        public var prState: String? = nil
+        public var prMergedAt: Int? = nil
     }
 
     /// A review thread of the final pull request, a cache of GitHub in GitHub's order.

@@ -6,7 +6,7 @@ import Testing
 private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSection {
     LaneSection(
         id: "a", title: "Socket client", sliceTitle: "Socket client", state: state, duration: state == .running ? nil : 180_000,
-        counts: SessionCounts(calls: 4), items: [], slice: 653, laneNumber: lane
+        counts: SessionCounts(calls: 4), items: [], slice: 653, laneNumber: lane, pullRequest: "PR #670 merged"
     )
 }
 
@@ -22,13 +22,16 @@ private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSec
     #expect(try height(lane(), open: false) == base)
     for state in [SubagentState.running, .failed] { #expect(try height(lane(state), open: true) == base) }
     #expect(try height(lane(lane: nil), open: true) == base)
+    var bare = lane()
+    bare.pullRequest = "no PR yet"
+    #expect(try height(bare, open: true) == base)
 }
 
 // At a narrow width the row keeps its height: the pills fall back to icon and number rather than wrap or cut off.
 @MainActor @Test func aNarrowLaneHeaderKeepsItsHeightWithEveryPill() throws {
     let busy = LaneSection(
         id: "a", title: "Socket client", sliceTitle: "Socket client", state: .finished, duration: 180_000,
-        counts: SessionCounts(calls: 12, edits: 3, added: 42, removed: 8, tests: 2, errors: 1), items: [], slice: 653, laneNumber: 1
+        counts: SessionCounts(calls: 12, edits: 3, added: 42, removed: 8, tests: 2, errors: 1), items: [], slice: 653, laneNumber: 1, pullRequest: "PR #670 merged"
     )
     func height(_ lane: LaneSection, width: CGFloat) throws -> Int {
         let renderer = ImageRenderer(content: LaneHeaderView(lane: lane, open: true).frame(width: width))
@@ -39,4 +42,5 @@ private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSec
     #expect(try height(busy, width: 480) == base)
     #expect(try height(busy, width: 300) == base)
     #expect(try height(lane(), width: 300) == base)
+    #expect(try height(lane(lane: nil), width: 300) == base)
 }

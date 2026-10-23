@@ -2,7 +2,7 @@ import { startKeys } from './keys.ts';
 import { startPanel, type PanelOutput } from './panel.ts';
 import { renderDashboard } from './dashboard.ts';
 import type { PanelSnapshot } from '../../status/types.ts';
-import type { SessionsReply } from '../../control/replies.ts';
+import type { DetailProvider } from './history.ts';
 import { initialUi, itemsOf, onKey, settle, type Action } from './ui-state.ts';
 
 /** What the keys can do. The program decides how: the panel only knows the names. */
@@ -13,8 +13,8 @@ export interface Controls {
   quit(): void;
   /** The last lines of the agent output of an execution. */
   logs(executionId: string, count: number): string[];
-  /** The stages of an epic and how each went; null when the engine does not know the epic. */
-  sessions?(repo: string, issue: number): SessionsReply | null;
+  /** The stages of an epic and how each went; the panel asks it again only when the epic changed. */
+  detail?: DetailProvider;
 }
 
 const logRows = 18;
@@ -34,7 +34,6 @@ export function startInteractivePanel({ snapshot, out, stdin, controls, now = Da
   quit?: 'stop' | 'leave';
 }) {
   let ui = initialUi;
-  const detail = controls.sessions && ((repo: string, issue: number) => controls.sessions!(repo, issue)?.sessions ?? null);
   const panel = startPanel(
     snapshot,
     out,
@@ -42,7 +41,7 @@ export function startInteractivePanel({ snapshot, out, stdin, controls, now = Da
     (s, columns) => {
       ui = settle(ui, s, now());
       const executionId = ui.mode === 'logs' ? itemsOf(s).find((i) => i.key === ui.selected)?.executionId : undefined;
-      return renderDashboard(s, { columns, ui, logLines: executionId ? controls.logs(executionId, logRows) : [], activity: controls.logs, detail, quit });
+      return renderDashboard(s, { columns, ui, logLines: executionId ? controls.logs(executionId, logRows) : [], activity: controls.logs, detail: controls.detail, quit });
     },
   );
   const perform = (action: Action | undefined) => {

@@ -3,8 +3,11 @@ import type { SessionsReply } from '../../control/replies.ts';
 import type { PanelEpic } from '../../status/types.ts';
 
 export type Sessions = SessionsReply['sessions'];
-/** What the panel asks for an epic's stages; null when nothing is known about it. */
-export type DetailProvider = (repo: string, issue: number) => Sessions | null;
+/**
+ * What the panel asks for an epic's stages; null when nothing is known about it. `undefined` is "still being asked":
+ * the answer is not remembered and the last one stays on screen, so a provider that answers later (over the socket) can be asked again.
+ */
+export type DetailProvider = (repo: string, issue: number) => Sessions | null | undefined;
 
 // ponytail: entries of epics that left the panel stay until the provider is dropped; a prune if a long run ever shows it.
 const caches = new WeakMap<DetailProvider, Map<string, { signature: string; detail: Sessions | null }>>();
@@ -18,6 +21,7 @@ export function detailOf(provider: DetailProvider, e: PanelEpic): Sessions | nul
   const hit = cache.get(key);
   if (hit?.signature === signature) return hit.detail;
   const detail = provider(e.repo, e.issue);
+  if (detail === undefined) return hit?.detail ?? null;
   cache.set(key, { signature, detail });
   return detail;
 }

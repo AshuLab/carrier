@@ -30,6 +30,10 @@ else if (cli.flags.help) {
         if (configPath === undefined) throw noConfig('Usage: carrier doctor --config <path>');
         exit = await (await import('./commands/doctor.ts')).doctorCommand(loadConfigFile(configPath));
         break;
+      case 'status':
+        if (configPath === undefined) throw noConfig('Usage: carrier status --config <path>');
+        exit = await (await import('./commands/status.ts')).statusCommand(loadConfigFile(configPath));
+        break;
       default:
         if (configPath === undefined) throw noConfig(usage(), '');
         await (await import('./commands/run.ts')).runCommand(loadConfigFile(configPath)); // runs until Ctrl+C

@@ -60,8 +60,10 @@ struct TranscriptItemView: View {
     var body: some View {
         switch item {
         case .message(_, let text):
-            MarkdownView(text: text)
-                .padding(.horizontal, 12).padding(.vertical, 10)
+            Group {
+                if let json = jsonMessage(text) { JSONMessageView(message: json) } else { MarkdownView(text: text) }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
         case .note(_, let text):
             Text(text).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)

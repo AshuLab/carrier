@@ -72,7 +72,7 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(reply.threadsTruncated == false)
     #expect(reply.slices[2].lane == 1)
     #expect(reply.slices[2].activity == "Edit /work/acme/web-epic--lane-1/src/control/sessions.ts")
-    #expect(reply.slices[0] == EpicReply.Slice(number: 121, title: "Request schemas", state: "closed", blockedBy: [], prNumber: 130, closedAt: 50_000, readAt: 99_000))
+    #expect(reply.slices[0] == EpicReply.Slice(number: 121, title: "Request schemas", state: "closed", blockedBy: [], prNumber: 130, closedAt: 50_000, readAt: 99_000, prState: "merged", prMergedAt: 49_000))
     #expect(reply.worktrees == [.init(kind: "epic", lane: nil, path: "/work/acme/web-epic"), .init(kind: "lane", lane: 1, path: "/work/acme/web-epic--lane-1")])
     #expect(reply.branch == "feat/issue-12/epic")
     #expect(reply.pr?.checks == .init(passing: 3, failing: 1, pending: 0))
@@ -142,4 +142,17 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     let none: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":[],"threads":[],"threadsTruncated":false,"worktrees":[]}"#)
     #expect(none.threads == [])
     #expect(none.threadsTruncated == false)
+}
+
+@Test func aSliceDecodesItsPullRequestStateAndMergeTimeAndAnOlderEngineHasNone() throws {
+    let slice = #"{"number":1,"title":"t","state":"closed","blockedBy":[],"prNumber":9,"readAt":1"#
+    let old: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":["# + slice + #"}],"worktrees":[]}"#)
+    #expect(old.slices[0].prNumber == 9)
+    #expect(old.slices[0].prState == nil && old.slices[0].prMergedAt == nil)
+
+    let present: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":["# + slice + #","prState":"merged","prMergedAt":49000}],"worktrees":[]}"#)
+    #expect(present.slices[0].prState == "merged" && present.slices[0].prMergedAt == 49_000)
+
+    let null: EpicReply = try decode(#"{"stages":[],"rounds":[],"slices":["# + slice + #","prState":null,"prMergedAt":null}],"worktrees":[]}"#)
+    #expect(null.slices[0].prState == nil && null.slices[0].prMergedAt == nil)
 }

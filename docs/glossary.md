@@ -62,8 +62,11 @@ _Avoid_: comment (a thread holds several), blocker (what the reviewer agent repo
 **Session** - The conversation an agent holds in its harness, identified by an id the harness can resume (`claude --resume`, `codex resume`, `agy --conversation`). Each execution has one; the app shows an execution's work as one session block and Continue in Terminal resumes it ([0007](adr/0007-continue-in-terminal-through-a-validated-descriptor.md)).
 _Avoid_: execution (the invocation with its time limit and result), thread, chat.
 
-**Lane** - One of the up to three parallel workers inside a `ship` execution, each a Claude subagent building one slice in its own worktree. Solve decides the lanes; the engine does not know them, and a lane has no session of its own, so it cannot be resumed apart from the ship session.
-_Avoid_: slot (that counts epics), thread, worker.
+**Lane** - One of the up to three parallel worktrees inside a `ship` execution (`<epic worktree>--lane-N`). A lane is a place, not a worker: it is reused, so lane 1 builds one slice and then another, and the subagent that builds a slice runs in a lane. Solve decides the lanes; the engine does not know them, and a lane has no session of its own, so it cannot be resumed apart from the ship session.
+_Avoid_: slot (that counts epics), thread, worker, subagent (a lane holds one at a time).
+
+**Subagent** - A Claude agent launched from inside an execution, with an exact `agentId` in the stream and no session of its own. A builder subagent builds one slice, in a lane. A reviewer subagent runs one pass of a review (Spec, Standards, Risk, Experience) and has no slice and no lane. The slice and the lane of a builder are inferred from the model's wording and the worktree path; the subagent, its times and its end status are exact ([research](research/claude-subagent-attribution.md)).
+_Avoid_: lane (that is where a builder runs), worker, child agent.
 
 **Slot** - One of the places the engine has for running epics at once (`maxConcurrentEpics`). It is a counter with no identity, so the app shows how many are in use and which epics occupy them, never "slot 2".
 _Avoid_: lane (that is inside one epic), thread, concurrency.

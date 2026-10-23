@@ -228,7 +228,8 @@ func sessionState(_ status: String) -> SessionSection.State {
 /// Newest first, as the reply is. `transcripts` holds the events fetched so far, by execution id.
 /// `resumable` is false for an epic that ended: its sessions are over and Continue in Terminal is not offered.
 public func sessionList(
-    _ reply: SessionsReply?, transcripts: [String: Transcript] = [:], timeZone: TimeZone = .current, resumable: Bool = true
+    _ reply: SessionsReply?, transcripts: [String: Transcript] = [:], slices: [EpicReply.Slice] = [],
+    now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current, resumable: Bool = true
 ) -> SessionList {
     let all = reply?.sessions ?? []
     let shown = all.prefix(visibleSessions)
@@ -238,10 +239,7 @@ public func sessionList(
         let time: String?
         switch state {
         case .running:
-            let formatter = DateFormatter()
-            formatter.dateFormat = "HH:mm"
-            formatter.timeZone = timeZone
-            time = "since " + formatter.string(from: Date(timeIntervalSince1970: Double(session.startedAt) / 1000))
+            time = "since " + clock(session.startedAt, timeZone: timeZone)
         case .done: time = session.finishedAt.map { formatDuration($0 - session.startedAt) }
         case .stopped: time = nil
         }
@@ -259,7 +257,7 @@ public func sessionList(
             resume: state == .running || resumable == false ? nil : session.resume,
             result: resultCard(session.result),
             body: transcriptBody(transcript),
-            lanes: transcript?.structured == true ? transcript?.laneSections ?? [] : []
+            lanes: transcript?.structured == true ? transcript?.laneSections(slices: slices, running: state == .running, now: now, timeZone: timeZone) ?? [] : []
         )
     }
     let rest = all.count - shown.count

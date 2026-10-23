@@ -138,6 +138,7 @@ test('a server that answers a request late is no-answer, and the client stays us
 test('a hello whose protocol is not 1 is incompatible', async () => {
   await fakeServer((socket) => socket.write(hello(2)));
   expect(await reason(connectControl(path()))).toBe('incompatible');
+  expect(await connectControl(path()).catch((error) => error.protocol)).toBe(2);
 });
 
 test('something that is not a hello is incompatible', async () => {

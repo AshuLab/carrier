@@ -46,6 +46,19 @@ export type EngineOptions = {
 
 const log = createScopedLogger('engine');
 const activityEveryMs = 10_000;
+const resumeWaitMs = 30_000;
+const resumeTickMs = 1_000;
+
+/** Why `resumeEpic` did nothing more than say no; the control socket sends `reason` to the client as it is. */
+export type ResumeRefusal = 'unknown epic' | 'not stopped' | 'github unavailable' | 'did not restart';
+export class ResumeRefused extends Error {
+  reason: ResumeRefusal;
+
+  constructor(reason: ResumeRefusal) {
+    super(reason);
+    this.reason = reason;
+  }
+}
 
 export type RepoCheck = { at: number; ok: boolean; error: string | null };
 
@@ -686,6 +699,28 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       if (stopping) return Promise.resolve();
       cancel?.();
       return runPoll();
+    },
+    /**
+     * Puts `ready` on a stopped epic's issue, as a person does, and checks now; resolves once the epic is no longer in
+     * needs_human. Rejects with ResumeRefused: nothing was changed unless it is `did not restart`, which leaves the label for the next check.
+     */
+    async resumeEpic(repo: string, issue: number) {
+      const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
+      if (!epic) throw new ResumeRefused('unknown epic');
+      if (epic.status !== 'needs_human') throw new ResumeRefused('not stopped');
+      try {
+        await github.setLabels(repo, issue, { add: [readyLabel], remove: [] });
+      } catch (e) {
+        if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');
+        throw e;
+      }
+      // Not awaited: the wait below has the deadline, and a poll already running is the one that answers.
+      void this.pollNow().catch((e) => log.error('check for a resumed epic failed', e));
+      const deadline = clock.now() + resumeWaitMs;
+      while (fresh(epic.id).status === 'needs_human') {
+        if (clock.now() >= deadline) throw new ResumeRefused('did not restart');
+        await new Promise<void>((resolve) => clock.after(resumeTickMs, async () => resolve()));
+      }
     },
     /** Stops (or resumes) taking epics from the queue; running epics are not touched. Resuming fills the free slots at once. */
     setPaused(value: boolean) {

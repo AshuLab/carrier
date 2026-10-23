@@ -142,6 +142,51 @@ private func lines(_ pairs: [(String, String)]) -> [ExecEvent.DiffLine] { pairs.
     #expect(diff == CardDiff(rows: [DiffRow(sign: .removed, text: "a"), DiffRow(sign: .added, text: "b")], added: 1, removed: 1))
 }
 
+// MARK: edit headers
+
+private func editCard(_ path: String, status: String = "ok", summary: String = "The file has been updated successfully.", diff: [ExecEvent.DiffLine]? = nil) -> TranscriptCard {
+    let end = ExecEvent(id: 2, at: 2, kind: "tool_end", callId: "a", tool: "Edit", summary: summary, status: status, durationMs: 80, diff: diff)
+    return card(transcriptItems([start(1, "a", "Edit", arg: path), end])[0])!
+}
+
+@Test(arguments: [
+    ("/Users/x/.solve/worktrees/carrier/the-slices-tab--lane-1/src/orchestration/engine.ts", "engine.ts", "src/orchestration"),
+    ("/Users/x/.solve/worktrees/carrier/lane-1/README.md", "README.md", ""),
+    ("/Users/x/other/repo/src/execution/fake.ts", "fake.ts", "…/src/execution"),
+    ("/tmp/notes.md", "notes.md", "…/tmp"),
+    ("src/terminal/dashboard/panel.ts", "panel.ts", "src/terminal/dashboard"),
+    ("engine.ts", "engine.ts", ""),
+])
+func anEditNamesItsFileAndShowsTheFolderRelativeToTheWorktree(path: String, name: String, folder: String) {
+    let edit = editCard(path)
+    #expect(edit.editName == name)
+    #expect(edit.editFolder == folder)
+}
+
+@Test func anEditHeaderCountsComeOnceFromTheDiffAndAnEditWithoutOneHasNone() {
+    let diff = lines([(" ", "keep"), ("-", "old"), ("+", "new"), ("+", "newer")])
+    let counted = editCard("a.ts", diff: diff)
+    #expect(counted.shownDiff?.added == 2)
+    #expect(counted.shownDiff?.removed == 1)
+    #expect(counted.editReason == nil)
+    #expect(editCard("a.ts").shownDiff == nil)
+}
+
+@Test func aFailedEditShowsTheEngineTextAndNoDiff() {
+    let failed = editCard("a.ts", status: "err", summary: "File modified since it was read.", diff: lines([("+", "x")]))
+    #expect(failed.editReason == "File modified since it was read.")
+    #expect(failed.shownDiff == nil)
+    #expect(editCard("a.ts", status: "err", summary: "").editReason == nil)
+}
+
+@Test func aRunningEditHasNothingButItsName() {
+    let running = card(transcriptItems([start(1, "a", "Edit", arg: "src/a.ts")])[0])!
+    #expect(running.status == .pending)
+    #expect(running.editName == "a.ts")
+    #expect(running.editReason == nil)
+    #expect(running.shownDiff == nil)
+}
+
 // MARK: command output
 
 private func shell(_ id: Int, _ call: String, status: String, output: [String]?) -> [ExecEvent] {

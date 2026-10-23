@@ -22,5 +22,12 @@ test('an unknown command, a second word and an unknown flag are errors that say 
 });
 
 test('the usage names every command and every init flag', () => {
-  for (const word of ['carrier init', 'carrier doctor', 'carrier schema', '--repo', '--author-profile', '--reviewer-provider', '--out', '--yes', '--config']) expect(usage()).toContain(word);
+  for (const word of ['carrier init', 'carrier doctor', 'carrier schema', 'stop', 'pause', 'resume', 'check', '--repo', '--author-profile', '--reviewer-provider', '--out', '--yes', '--config']) expect(usage()).toContain(word);
+});
+
+test('stop, pause, resume and check are commands that take no argument', () => {
+  for (const command of ['stop', 'pause', 'resume', 'check']) {
+    expect(parseCli([command, '--config', 'x.json'])).toMatchObject({ ok: true, command, flags: { config: 'x.json' } });
+    expect(parseCli([command, 'now'])).toEqual({ ok: false, message: `Unknown command: ${command} now` });
+  }
 });

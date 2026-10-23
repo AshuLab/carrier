@@ -71,13 +71,20 @@ public struct PipelineStep: Equatable {
     public var state: StepState
     /// Only the words of a stuck or cancelled step; never a time or a count.
     public var label: String?
+    /// True only for Review / Fix while the epic is in review or fix and not stuck.
+    public var loops: Bool
 }
 
 /// Queued, Ship, Review / Fix and Ready, each with its state; a stuck or cancelled step carries its words.
 public func pipelineSteps(_ subject: EpicSubject, reply: EpicReply? = nil) -> [PipelineStep] {
     let names = ["Queued", "Ship", "Review / Fix", "Ready"]
-    func steps(_ states: [StepState], words: String? = nil) -> [PipelineStep] {
-        (0..<4).map { PipelineStep(name: names[$0], state: states[$0], label: [.input, .error, .cancelled].contains(states[$0]) ? words : nil) }
+    func steps(_ states: [StepState], words: String? = nil, loops: Bool = false) -> [PipelineStep] {
+        (0..<4).map {
+            PipelineStep(
+                name: names[$0], state: states[$0], label: [.input, .error, .cancelled].contains(states[$0]) ? words : nil,
+                loops: loops && $0 == 2 && states[$0] == .current
+            )
+        }
     }
 
     switch subject {
@@ -98,7 +105,7 @@ public func pipelineSteps(_ subject: EpicSubject, reply: EpicReply? = nil) -> [P
         let stuck: StepState = Attention(kind: epic.needsHumanKind) == .error ? .error : .input
         var states = [StepState.done, .waiting, .waiting, .waiting]
         for i in 1...3 { states[i] = i < at ? .done : i == at ? (epic.status == .needsHuman ? stuck : .current) : .waiting }
-        return steps(states, words: interventionLine(epic))
+        return steps(states, words: interventionLine(epic), loops: at == 2)
     }
 }
 

@@ -106,10 +106,16 @@ private func end(_ id: Int, _ status: String) -> ExecEvent {
     #expect(lane([start, work, end(3, "ok")]).state == .finished)
     #expect(lane([start, work, end(3, "ok")], running: false).state == .finished)
     #expect(lane([start, work, end(3, "err")]).state == .failed)
-    // the first start to the end of the first run; a run after it changes neither
+    // the first start to the end of the first run; a run after it changes neither, only the state
     let again = ExecEvent(id: 4, at: 9000, kind: "task", text: "Build slice #5", agentId: "a")
     let resumed = lane([start, work, end(3, "ok"), again, end(5, "err")])
-    #expect(resumed.state == .finished && resumed.duration == 2000)
+    #expect(resumed.state == .failed && resumed.duration == 2000)
+    #expect(lane([start, work, end(3, "ok"), again, end(5, "ok")]).state == .finished)
+    // running again: the last event is a start and the session is running; in a stopped session it did not complete
+    #expect(lane([start, work, end(3, "ok"), again]).state == .running)
+    #expect(lane([start, work, end(3, "ok"), again]).duration == 2000 && lane([start, work, end(3, "ok"), again]).resumedLabel == "resumed once")
+    #expect(lane([start, work, end(3, "ok"), again], running: false).state == .failed)
+    #expect(lane([start, work, end(3, "err")]).state == .failed)
 }
 
 @Test func aStreamWithNoSubagentsHasNoLanes() {
@@ -226,4 +232,13 @@ private func lane(_ events: [ExecEvent], running: Bool = true, now: Int = at1402
     #expect(lane([run(1, 0), run(2, 60, "ok"), run(3, 300)]).resumes == 1)
     let never = lane([run(1, 0), run(2, 60, "ok")])
     #expect(never.resumes == 0 && never.resumedLabel == nil)
+}
+
+@Test func aResumedSubagentRunningAgainSaysRunningWithTheTimesOfItsFirstRun() {
+    let events = [run(1, 0), run(2, 60, "ok"), run(3, 300)]
+    let again = lane(events)
+    #expect(again.state == .running && again.timeLabel == "14:02–14:03" && again.duration == 60_000 && again.resumedLabel == "resumed once")
+    #expect(lane(events, running: false).state == .failed)
+    #expect(lane(events + [run(4, 360, "err")]).state == .failed)
+    #expect(lane(events + [run(4, 360, "ok")]).state == .finished)
 }

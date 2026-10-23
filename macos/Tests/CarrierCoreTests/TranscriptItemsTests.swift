@@ -21,7 +21,7 @@ private func card(_ item: TranscriptItem) -> TranscriptCard? {
         ExecEvent(id: 4, at: 4, kind: "say", text: "done"),
     ])
     #expect(items.map(\.id) == [1, 2, 4])
-    #expect(card(items[1]) == TranscriptCard(tool: "Read", kind: .read, arg: "src/a.ts", summary: "212 lines", status: .ok, duration: "80 ms"))
+    #expect(card(items[1]) == TranscriptCard(tool: "Read", kind: .read, arg: "src/a.ts", summary: "212 lines", status: .ok, duration: "80 ms", durationMs: 80))
 }
 
 @Test func aCallWithoutItsEndIsPendingAndHasNoDuration() {
@@ -301,4 +301,38 @@ private func reply(_ events: [ExecEvent]) -> EventsReply { EventsReply(events: e
     transcript.apply(reply([ExecEvent(id: 5, at: 5, kind: "say", text: "later")]))
     transcript.apply(reply([ExecEvent(id: 2, at: 2, kind: "say", text: "earlier")]))
     #expect(transcript.items.map(\.id) == [2, 5])
+}
+
+private func call(_ tool: String = "Bash", status: ToolStatus = .ok, ms: Int? = 80) -> TranscriptCard {
+    TranscriptCard(tool: tool, kind: ToolKind(tool: tool), arg: "x", summary: "", status: status, duration: ms.map(formatCallDuration), durationMs: ms)
+}
+
+@Test func aCallIsSlowFromTenSeconds() {
+    #expect(call(ms: 9_999).isSlow == false)
+    #expect(call(ms: 10_000).isSlow)
+    #expect(call(status: .pending, ms: nil).isSlow == false)
+}
+
+@Test func onlyTheSkillToolIsASkill() {
+    #expect(call("Skill").isSkill)
+    #expect(call("Bash").isSkill == false)
+}
+
+// A quiet line shows its duration on hover or focus, and always when slow or failed; never while it runs.
+@Test func aCallLineShowsItsDurationOnlyWhenItMatters() {
+    #expect(call().showsDuration(active: false) == false)
+    #expect(call().showsDuration(active: true))
+    #expect(call(ms: 10_000).showsDuration(active: false))
+    #expect(call(status: .error).showsDuration(active: false))
+    #expect(call(status: .pending, ms: nil).showsDuration(active: true) == false)
+}
+
+// The chevron shows on hover, when open, and always on a failed call; a call with nothing to open or still running has none.
+@Test func aCallLineShowsItsChevronOnHoverOpenOrFailure() {
+    #expect(call().showsChevron(active: false, open: false) == false)
+    #expect(call().showsChevron(active: true, open: false))
+    #expect(call().showsChevron(active: false, open: true))
+    #expect(call(status: .error).showsChevron(active: false, open: false))
+    #expect(call(status: .pending, ms: nil).showsChevron(active: true, open: false) == false)
+    #expect(call("Read").showsChevron(active: true, open: false) == false)
 }

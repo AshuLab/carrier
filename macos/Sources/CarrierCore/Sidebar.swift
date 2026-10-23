@@ -24,11 +24,15 @@ public struct SidebarRow: Equatable {
     public var repo: String
     public var issue: Int
     public var state: EpicMenuState
+    /// The epic's title; nil while the engine has none, and the view then shows `name` in its place.
+    public var title: String?
     /// The repository's name, never its owner.
     public var name: String
-    /// Under the name: the stage and round or slices, the kind of intervention, "waiting for a slot" or how long ago.
+    /// Shown on the right of the second line; nil when the sidebar is grouped by repository or when `title` is nil.
+    public var repoLabel: String?
+    /// The stage and round or slices, the kind of intervention, "waiting for a slot" or how long ago.
     public var detail: String
-    /// Shown on hover: the epic's title, or "name #issue" while the engine has none.
+    /// Shown on hover: the epic's title (or "name #issue" while the engine has none), then `owner/name`, then the reason of a cancelled epic.
     public var tooltip: String
 
     public var selection: Selection { .epic(repo: repo, issue: issue) }
@@ -68,10 +72,10 @@ public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy) -> [Si
     )
     func row(_ repo: String, _ issue: Int, _ state: EpicMenuState, _ detail: String, title own: String? = nil, note: String? = nil) -> SidebarRow {
         let name = shortName(repo)
-        let title = own ?? titles[key(repo, issue)].flatMap { $0 }
-        let tooltip = title.flatMap { $0.isEmpty ? nil : $0 } ?? "\(name) #\(issue)"
+        let title = (own ?? titles[key(repo, issue)].flatMap { $0 }).flatMap { $0.isEmpty ? nil : $0 }
         return SidebarRow(
-            repo: repo, issue: issue, state: state, name: name, detail: detail, tooltip: note.map { "\(tooltip)\n\($0)" } ?? tooltip
+            repo: repo, issue: issue, state: state, title: title, name: name, repoLabel: groupBy == .status && title != nil ? name : nil,
+            detail: detail, tooltip: ([title ?? "\(name) #\(issue)", repo] + (note.map { [$0] } ?? [])).joined(separator: "\n")
         )
     }
     func finished(_ status: PanelSnapshot.FinishedEpic.Status) -> [SidebarRow] {

@@ -468,8 +468,10 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // epic from where it was. Safe to repeat (GitHub may be down halfway): what it relaunched is `active` or running.
   let recovered = false;
   async function recover() {
-    // Orphans first: no second agent may start on a workspace while the first still acts on it.
-    for (const id of await runner.listActive()) if (!active.has(id)) {
+    // Orphans first: no second agent may start on a workspace while the first still acts on it. An orphan is an execution
+    // this root's SQLite launched: the process list is the machine's, and a live agent of another carrier is not ours to stop.
+    const ownExecution = (id: string) => db.select({ id: executions.executionId }).from(executions).where(eq(executions.executionId, id)).get() !== undefined;
+    for (const id of await runner.listActive()) if (!active.has(id) && ownExecution(id)) {
       log.warn('stopping orphan execution', { executionId: id });
       await runner.stop(id);
     }

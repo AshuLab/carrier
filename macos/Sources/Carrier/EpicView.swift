@@ -14,12 +14,15 @@ struct EpicView: View {
     var files: FilesReply?
     /// What a queued epic will do; nil for any other.
     var plan: QueuedPlan?
+    /// The reason and the Resume button of a stopped epic, with the store that remembers a Resume in flight; nil for any other.
+    var resume: (card: ResumeCard, store: EpicStore)?
     @State private var tab = EpicTab.agentOutput
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 EpicHeaderView(header: epicHeader(subject, reply: reply))
+                if let resume { ResumeCardView(card: resume.card, store: resume.store, epic: EpicRef(repo: subject.repo, issue: subject.issue)) }
                 UnderlineTabs(
                     items: EpicTab.allCases.map { item in
                         let files = max(filesChanged, filesChangedCount(files))

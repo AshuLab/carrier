@@ -165,6 +165,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     epic: (repo: string, issue: number) => epicOf(db, repo, issue),
     files: (repo: string, issue: number, executionId?: string) => filesOf(db, config.root, repo, issue, executionId),
     availableRepos: () => deps.listRepos(limits.githubCallTimeoutSeconds * 1000),
+    resumeEpic: (repo: string, issue: number) => engine.resumeEpic(repo, issue),
   };
   stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop: shutdown })).close;
   const detail = (repo: string, issue: number) => controls.sessions(repo, issue)?.sessions ?? null;

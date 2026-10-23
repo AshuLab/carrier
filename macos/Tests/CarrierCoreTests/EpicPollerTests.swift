@@ -271,3 +271,16 @@ private final class UpdateBox {
     #expect(engine.commands == ["events", "tail"])
     #expect(transcriptBody(poller.data[web]?.transcripts[execution]) == .tail(["ran tests", "edited a.ts"]))
 }
+
+@Test func thePollerSaysWhatTheHelloListedOnlyWhenItChanges() throws {
+    var told: [Set<ControlClient.Capability>] = []
+    let poller = EpicPoller(onCapabilities: { told.append($0) }, onUpdate: { _, _ in })
+    for capabilities in [["epic"], ["epic"], ["epic", "resumeEpic"]] {
+        let engine = FixtureEngine(capabilities: capabilities)
+        defer { engine.stop() }
+        let client = try #require(ControlClient.connect(path: engine.path))
+        _ = try client.hello()
+        try poller.poll(client)
+    }
+    #expect(told == [[.epic], [.epic, .resumeEpic]])
+}

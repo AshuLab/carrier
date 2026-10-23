@@ -18,6 +18,7 @@ import { executionOutput, taskContext } from '../logging/logger.ts';
 import { epics, type needsHumanKinds } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
 import { latestBlockers, latestObservations } from './blockers.ts';
+import { ResumeRefused } from './resume-refused.ts';
 import { endOf } from './final-pr.ts';
 import { AuthError, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub, type Slices } from './github.ts';
 import { reserve } from './reserve.ts';
@@ -46,6 +47,8 @@ export type EngineOptions = {
 
 const log = createScopedLogger('engine');
 const activityEveryMs = 10_000;
+const resumeWaitMs = 30_000;
+const resumeTickMs = 1_000;
 
 export type RepoCheck = { at: number; ok: boolean; error: string | null };
 
@@ -68,7 +71,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   let error: GitHubUnavailable | AuthError | null = null;
   let nextPollAt: number | null = null;
   let paused = false; // intake only: nothing new is reserved, what is running goes on
-  let polling = false;
+  let polling: Promise<void> | null = null;
   // The orchestrator's profile failed: no GitHub call is made until the poll's probe succeeds. Never another profile.
   let suspended: AuthError | null = null;
   let cancel: (() => void) | null = null;
@@ -632,14 +635,16 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   }
 
   // One poll at a time: a poll asked for by a person while the timer's is running is that one.
-  const runPoll = async () => {
-    if (polling) return;
-    polling = true;
-    try {
-      schedule(await poll());
-    } finally {
-      polling = false;
-    }
+  const runPoll = () => {
+    if (polling) return polling;
+    polling = (async () => {
+      try {
+        schedule(await poll());
+      } finally {
+        polling = null;
+      }
+    })();
+    return polling;
   };
   const schedule = (ms: number) => {
     if (stopping) return;
@@ -686,6 +691,36 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       if (stopping) return Promise.resolve();
       cancel?.();
       return runPoll();
+    },
+    /**
+     * Puts `ready` on a stopped epic's issue, as a person does, and checks now; resolves once the epic is no longer in
+     * needs_human. Rejects with ResumeRefused: nothing was changed unless it is `did not restart`, which leaves the label for the next check.
+     */
+    async resumeEpic(repo: string, issue: number) {
+      const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
+      if (!epic) throw new ResumeRefused('unknown epic');
+      if (epic.status !== 'needs_human') throw new ResumeRefused('not stopped');
+      try {
+        await github.setLabels(repo, issue, { add: [readyLabel], remove: [] });
+      } catch (e) {
+        if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');
+        throw e;
+      }
+      // Not awaited: the wait below has the deadline. A poll already running is the one that answers, but it may have listed
+      // before the label went on: once it settles with the epic still stopped, one more check is asked for.
+      const check = () => this.pollNow().catch((e) => log.error('check for a resumed epic failed', e));
+      let settled = false;
+      void check().then(() => (settled = true));
+      let again = false;
+      const deadline = clock.now() + resumeWaitMs;
+      while (fresh(epic.id).status === 'needs_human') {
+        if (clock.now() >= deadline) throw new ResumeRefused('did not restart');
+        if (settled && !again) {
+          again = true;
+          void check();
+        }
+        await new Promise<void>((resolve) => clock.after(resumeTickMs, async () => resolve()));
+      }
     },
     /** Stops (or resumes) taking epics from the queue; running epics are not touched. Resuming fills the free slots at once. */
     setPaused(value: boolean) {

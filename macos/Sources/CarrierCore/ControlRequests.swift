@@ -27,6 +27,12 @@ extension ControlClient {
         (try ask(.availableRepos, "availableRepos", "") as AvailableReposReply?)?.repos
     }
 
+    /// Asks the engine to put a stopped epic back in the queue; it answers when the epic has started again. false, with nothing sent,
+    /// when this engine cannot be asked. A refusal throws `.remote(reason)` and leaves the capability alone: it says nothing about the engine.
+    public func resumeEpic(repo: String, issue: Int) throws -> Bool {
+        try request("resumeEpic", requires: .resumeEpic, fields: try epicFields(repo, issue)) != nil
+    }
+
     private func ask<T: Decodable>(_ capability: Capability, _ command: String, _ fields: String) throws -> T? {
         guard capabilities.contains(capability) else { return nil }
         do {

@@ -15,8 +15,9 @@ public func spokenDuration(_ ms: Int) -> String {
 }
 
 /// A call line: its command, how it ended and how long it took, whether or not the duration is drawn.
-/// "git status, 7 more commands, failed, 725 milliseconds"; a running call has no duration yet.
-public func callAccessibilityLabel(_ card: TranscriptCard) -> String {
+/// "git status, 7 more commands, failed, 725 milliseconds"; a running call has no duration yet. Given `open`, a call that has
+/// details (it opens) also says "open" or "closed".
+public func callAccessibilityLabel(_ card: TranscriptCard, open: Bool? = nil) -> String {
     var parts = [card.title]
     if card.moreCommands > 0 { parts.append("\(card.moreCommands) more commands") }
     switch card.status {
@@ -25,6 +26,7 @@ public func callAccessibilityLabel(_ card: TranscriptCard) -> String {
     case .ok: parts.append("succeeded")
     }
     if card.status != .pending, let ms = card.durationMs { parts.append(spokenDuration(ms)) }
+    if let open, card.hasDetails { parts.append(open ? "open" : "closed") }
     return parts.joined(separator: ", ")
 }
 

@@ -214,7 +214,9 @@ struct ToolLineView: View {
                 .onTapGesture { if card.hasDetails { toggleOutput() } }
                 .help(card.arg)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(callAccessibilityLabel(card))
+                .accessibilityLabel(callAccessibilityLabel(card, open: outputOpen))
+                .accessibilityAddTraits(card.hasDetails ? .isButton : [])
+                .accessibilityAction { if card.hasDetails { toggleOutput() } }
             if outputOpen, card.hasDetails {
                 TerminalBlockView(card: card).padding(.top, 2).padding(.leading, LogMetrics.titleColumn - LogMetrics.iconColumn).padding(.bottom, 8)
             }

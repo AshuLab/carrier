@@ -24,6 +24,12 @@ private func card(_ arg: String = "pnpm test", status: ToolStatus = .ok, ms: Int
     #expect(callAccessibilityLabel(card("solve:ship", ms: nil, tool: "Skill")) == "solve:ship, succeeded")
 }
 
+@Test func aCallThatOpensSaysWhetherItIsOpen() {
+    #expect(callAccessibilityLabel(card(ms: 2000), open: false) == "pnpm test, succeeded, 2 seconds, closed")
+    #expect(callAccessibilityLabel(card(status: .error, ms: 725), open: true) == "pnpm test, failed, 725 milliseconds, open")
+    #expect(callAccessibilityLabel(card("src/a.ts", ms: 10, tool: "Read"), open: true) == "src/a.ts, succeeded, 10 milliseconds")
+}
+
 @Test func aGroupSaysItsCountItsDurationAndWhetherItIsOpenWithAHint() {
     let calls: [TranscriptItem] = (1...4).map { .tool(id: $0, card(ms: $0 == 1 ? 3200 : 667)) }
     #expect(callGroupAccessibilityLabel(calls, open: false) == "Ran 4 commands, 5.2 seconds, closed")

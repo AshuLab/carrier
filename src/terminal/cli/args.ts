@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { defaultConfigPath } from '../../config/default-path.ts';
 
-export const commandNames = ['init', 'doctor', 'schema', 'start'] as const;
+export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'stop', 'pause', 'resume', 'check'] as const;
 export type CommandName = (typeof commandNames)[number];
 
 export const usage = () => `Usage: carrier --config <path>          run the orchestrator
@@ -9,6 +9,8 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier init [flags]              guided setup: writes the config and checks it
        carrier doctor --config <path>    check the config and what this machine needs
        carrier schema                    print the JSON Schema of the config
+       carrier status                    show once what the running Carrier is doing (exit 1: not running)
+       carrier stop|pause|resume|check --config <path>   stop Carrier, pause or resume intake, look at GitHub now
 
 --config defaults to ${defaultConfigPath()} (where init writes it) when that file exists.
 

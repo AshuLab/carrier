@@ -50,7 +50,10 @@ struct SidebarView: View {
                 SidebarFooterRow(title: "Settings", icon: "gearshape", selected: selection == .settings) { selection = .settings }
                 SidebarFooterRow(title: "About", icon: "info.circle", selected: false, action: onAbout)
             }
-            .padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 10)
+            .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 10)
+            // opaque enough that the list scrolls under it without showing through
+            .background(.regularMaterial)
+            .overlay(alignment: .top) { Divider() }
         }
     }
 }
@@ -135,7 +138,7 @@ struct SidebarRowView: View {
             StateGlyph(state: row.state, attention: row.attention)
             VStack(alignment: .leading, spacing: 5) {
                 // two lines before the ellipsis: a title is a sentence, and the number no longer takes room from it
-                Text(row.title ?? row.name).fontWeight(.semibold).lineLimit(2)
+                Text(row.title ?? row.name).font(.system(size: 12)).lineLimit(2)
                 StateAndRepo {
                     // the number comes first so that, when the state is long, the tail is what gets cut
                     Text("\(Text("#\(row.issue) · ").foregroundStyle(.secondary))\(Text(row.detail).foregroundStyle(row.attention?.color ?? .secondary))")

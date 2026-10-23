@@ -71,6 +71,8 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     add(` ${paint(name, 'bold', ...styles)}`);
   };
   const selected = (repo: string, issue: number) => ui?.selected === `${repo}#${issue}`;
+  // An issue title is written by someone else: printable, and `fit` cuts the line. A missing one leaves the row as it was.
+  const titled = (title: string | null | undefined) => (title ? `  ${printable(title)}` : '');
   const pointer = paint('›', 'bold', 'cyan');
   // The first line of the selected row carries the pointer where the others have the bar or the indent.
   const lead = (repo: string, issue: number, plain: string) => (selected(repo, issue) ? ` ${pointer} ` : plain);
@@ -111,7 +113,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     const chain = e.stage === null ? paint('starting', 'dim') : stages.map((st) => (st === e.stage ? paint(`[${st}]`, 'bold', 'cyan') : paint(st, 'dim'))).join(paint(' ▸ ', 'dim'));
     const round = e.round === null ? '' : ` · round ${Array.from({ length: e.maxReviews }, (_, i) => (i < e.round! ? '●' : '○')).join('')}`;
     if (!first) add();
-    add(chosen ? ` ${pointer}${paint(` ${e.repo} #${e.issue} `, 'bold', 'inverse')}` : ` ${bar} ${paint(`${e.repo} #${e.issue}`, 'bold')}`); // the selected card's title is a highlighted label
+    add(chosen ? ` ${pointer}${paint(` ${e.repo} #${e.issue} `, 'bold', 'inverse')}${titled(e.title)}` : ` ${bar} ${paint(`${e.repo} #${e.issue}`, 'bold')}${titled(e.title)}`); // the selected card's title is a highlighted label
     add(` ${bar} ${chain}${round}`);
     const blockers = e.blockers > 0 ? paint(` · blockers ${e.blockers}`, 'yellow') : '';
     const slices = e.slices && e.slices.total > 0 ? ` · slices ${e.slices.done}/${e.slices.total}` : '';
@@ -129,14 +131,14 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
 
   if (s.queue.length > 0) {
     section(`QUEUED ${s.queue.length}`);
-    for (const q of s.queue.slice(0, maxListed)) add(`${lead(q.repo, q.issue, '   ')}${q.repo} #${q.issue}`);
+    for (const q of s.queue.slice(0, maxListed)) add(`${lead(q.repo, q.issue, '   ')}${q.repo} #${q.issue}${titled(q.title)}`);
     if (s.queue.length > maxListed) add(paint(`   … and ${s.queue.length - maxListed} more`, 'dim'));
   }
 
   if (needsYou.length > 0) {
     section('NEEDS YOU ▲', 'yellow');
     for (const e of needsYou) {
-      add(`${lead(e.repo, e.issue, '   ')}${paint(`${e.repo} #${e.issue}`, 'bold')}`);
+      add(`${lead(e.repo, e.issue, '   ')}${paint(`${e.repo} #${e.issue}`, 'bold')}${titled(e.title)}`);
       if (e.needsHumanReason) add(`   ${printable(e.needsHumanReason)}`);
       add(`   ${paint(e.prUrl ?? e.issueUrl, 'dim')}`);
       if (e.lastError) add(`   ${paint(`error: ${printable(e.lastError)}`, 'red')}`);
@@ -145,7 +147,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
 
   if (s.done.length > 0) {
     section('READY FOR TEST ✔', 'green');
-    for (const d of s.done) add(`${lead(d.repo, d.issue, '   ')}${d.repo} #${d.issue}${d.prNumber === null ? '' : ` · PR #${d.prNumber}`} · ${ago(d.finishedAt)}`);
+    for (const d of s.done) add(`${lead(d.repo, d.issue, '   ')}${d.repo} #${d.issue}${d.prNumber === null ? '' : ` · PR #${d.prNumber}`} · ${ago(d.finishedAt)}${titled(d.title)}`); // last: a cut title costs less than a cut PR number or time
   }
 
   if (s.epics.length === 0 && s.queue.length === 0 && s.done.length === 0) {

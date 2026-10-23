@@ -5,6 +5,8 @@ export type PanelEpic = {
   repo: string;
   issue: number;
   status: 'running' | 'needs_human';
+  /** The issue's title, when the snapshot carries it (the control snapshot does; null until the engine reads it). */
+  title?: string | null;
   stage: 'ship' | 'review' | 'fix' | null;
   /** Review round, null until the final PR is validated. */
   round: number | null;
@@ -28,7 +30,7 @@ export type PanelSnapshot = {
   now: number;
   slots: { busy: number; total: number };
   /** Queued epics, oldest first. */
-  queue: { repo: string; issue: number }[];
+  queue: { repo: string; issue: number; title?: string | null }[];
   epics: PanelEpic[];
   /** When this carrier process started (ms since epoch). */
   startedAt: number;

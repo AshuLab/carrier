@@ -79,7 +79,7 @@ test('queue, needs you, ready for test, and a problem banner', () => {
   expect(out).toContain('QUEUED 7\n   AshuLab/web #30');
   expect(out).toContain('… and 2 more');
   expect(out).toContain('NEEDS YOU ▲\n   AshuLab/carrier #29\n   inconclusive review: missing context');
-  expect(out).toContain('READY FOR TEST ✔\n   AshuLab/carrier #28 · PR #44 · 2h 00m ago');
+  expect(out).toContain('READY FOR TEST ✔\n   AshuLab/carrier #28 · PR #44 · 2h 00m ago  Menu bar');
   expect(out).not.toContain('Idle.');
 });
 
@@ -93,6 +93,33 @@ test('what an agent wrote never reaches the terminal as a control sequence', () 
   const out = plain(snap({ epics: [epic({ status: 'needs_human', needsHumanReason: 'a\x1b[2Jb', lastError: 'c\r\nd\x07' }), epic({ lastError: 'x\x1b[0my' })] }));
   expect(out).not.toMatch(/[\x07\x1b\r]/);
   expect(out).toContain('a [2Jb');
+});
+
+test('every kind of row shows the epic title when it has one, and reads as before when it has none', () => {
+  const titled = snap({
+    queue: [{ repo: 'AshuLab/web', issue: 30, title: 'Queued thing' }, { repo: 'AshuLab/web', issue: 31, title: null }, { repo: 'AshuLab/web', issue: 32 }],
+    epics: [epic({ title: 'Running thing' }), epic({ issue: 29, status: 'needs_human', needsHumanReason: 'why', title: 'Stuck thing' }), epic({ issue: 33, title: null })],
+    done: [{ repo: 'AshuLab/carrier', issue: 28, title: 'Done thing', labels: [], prNumber: 44, finishedAt: now - 7_200_000, executionId: null }],
+  });
+  const out = plain(titled);
+  expect(out).toContain('┃ AshuLab/carrier #31  Running thing\n');
+  expect(out).toContain('   AshuLab/web #30  Queued thing\n');
+  expect(out).toContain('   AshuLab/carrier #29  Stuck thing\n   why');
+  expect(out).toContain('#28 · PR #44 · 2h 00m ago  Done thing');
+  expect(out).toContain('   AshuLab/web #31\n   AshuLab/web #32\n'); // no title: no trailing gap
+  expect(out).toContain('┃ AshuLab/carrier #33\n');
+  expect(renderDashboard(titled, { color: false, ui: { ...keysUi, selected: 'AshuLab/carrier#31' } }).join('\n')).toContain(' › AshuLab/carrier #31   Running thing');
+});
+
+test('a title never carries a control sequence to the terminal, nor makes a line wider than it', () => {
+  const hostile = snap({
+    queue: [{ repo: 'AshuLab/web', issue: 30, title: 'q\x1b[2Jq' }],
+    epics: [epic({ title: 'a\x1b]0;pwned\x07b' }), epic({ issue: 29, status: 'needs_human', title: 't'.repeat(300) })],
+    done: [{ repo: 'AshuLab/carrier', issue: 28, title: 'd\r\x1b[31md'.repeat(40), labels: [], prNumber: 44, finishedAt: now, executionId: null }],
+  });
+  expect(plain(hostile)).not.toMatch(/[\x07\x1b\r]/);
+  expect(plain(hostile)).toContain('q [2Jq');
+  for (const columns of [50, 60, 120]) for (const line of renderDashboard(hostile, { columns })) expect(visibleLength(line)).toBeLessThanOrEqual(Math.min(columns, 80));
 });
 
 test('color is only styling: the same words, and none at all with color off', () => {

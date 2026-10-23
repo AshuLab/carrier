@@ -41,3 +41,9 @@ test('start takes the config flag and no other word', () => {
   expect(parseCli(['start', '--config', 'x.json'])).toMatchObject({ ok: true, command: 'start', flags: { config: 'x.json' } });
   expect(parseCli(['start', 'now'])).toEqual({ ok: false, message: 'Unknown command: start now' });
 });
+
+test('watch takes the config flag and no other word', () => {
+  expect(parseCli(['watch', '--config', 'x.json'])).toMatchObject({ ok: true, command: 'watch', flags: { config: 'x.json' } });
+  expect(parseCli(['watch', 'now'])).toEqual({ ok: false, message: 'Unknown command: watch now' });
+  expect(usage()).toContain('carrier watch');
+});

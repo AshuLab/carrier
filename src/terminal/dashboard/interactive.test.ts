@@ -66,3 +66,17 @@ test('without a terminal on stdin the keys are not read at all', () => {
   expect(stdin.setRawMode).not.toHaveBeenCalled();
   stop();
 });
+
+test('in watch, q and Ctrl+C leave through quit and the screens say so', () => {
+  const stdin = Object.assign(new EventEmitter(), { isTTY: true, setRawMode: vi.fn(), resume: vi.fn(), pause: vi.fn() });
+  const writes: string[] = [];
+  const controls = { poll: vi.fn(), setPaused: vi.fn(), open: vi.fn(), quit: vi.fn(), logs: vi.fn(() => []) } satisfies Controls;
+  const stop = startInteractivePanel({ snapshot, out: { isTTY: true, write: (t) => writes.push(t) }, stdin: stdin as never, controls, now: () => 5000, intervalMs: 3_600_000, quit: 'leave' });
+  expect(writes.at(-1)).toContain('q leave');
+  stdin.emit('keypress', '?', {});
+  expect(writes.at(-1)).toContain('leave (Carrier keeps running)');
+  stdin.emit('keypress', 'q', { name: 'q' });
+  expect(controls.quit).toHaveBeenCalledTimes(1);
+  stop();
+  expect(writes.at(-1)).toBe('\x1b[?25h'); // the cursor is given back
+});

@@ -129,7 +129,7 @@ struct ToolLineView: View {
             .onTapGesture { if card.hasDetails { toggleOutput() } }
             .help(card.arg)
             if outputOpen, card.hasDetails {
-                TerminalBlockView(card: card).padding(.top, 6)
+                TerminalBlockView(card: card).padding(.top, 6).padding(.leading, 24)
             }
         }
         .padding(.vertical, 2)
@@ -138,23 +138,23 @@ struct ToolLineView: View {
     private var status: some View { ToolStatusView(status: card.status) }
 }
 
-/// What an opened call shows, on dark glass: the command on its own strip with how it ended, the output (its first lines, the
-/// rest behind "Show N more lines") and a footer with the line count and Copy.
+/// What an opened call shows, flat on the raised grey of the message bubble: the command on its own strip, the output (its first
+/// lines, the rest behind "Show N more lines") and a footer with the line count and Copy.
 struct TerminalBlockView: View {
     let card: TranscriptCard
     @State private var showAll = false
-
-    private static let corner: CGFloat = 16
-    private static let glass = Color(red: 0.05, green: 0.05, blue: 0.063).opacity(0.7)
 
     var body: some View {
         let shown = card.visibleOutput(expanded: showAll)
         VStack(alignment: .leading, spacing: 0) {
             strip
-            if shown.lines.isEmpty == false {
-                Text(shown.lines.joined(separator: "\n")).textSelection(.enabled)
-                    .foregroundStyle(card.status == .error ? ConsoleColor.removed : ConsoleColor.text)
+            divider
+            if shown.lines.isEmpty {
+                Text("no output").font(.system(size: 11.5)).foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 9)
+            } else {
+                output(shown.lines).textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 8)
                     // a cut output fades out where it is cut
                     .mask {
                         if shown.hidden > 0 {
@@ -164,52 +164,44 @@ struct TerminalBlockView: View {
                         }
                     }
             }
-            Rectangle().fill(ConsoleColor.text.opacity(0.12)).frame(height: 0.5)
+            divider
             footer(hidden: shown.hidden)
         }
         .font(.system(size: 11.5, design: .monospaced))
-        // the strip is square: cut it to the glass's corners
-        .clipShape(RoundedRectangle(cornerRadius: Self.corner))
-        .glassEffect(.regular.tint(Self.glass), in: RoundedRectangle(cornerRadius: Self.corner))
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var divider: some View { Rectangle().fill(Color.secondary.opacity(0.2)).frame(height: 0.5) }
+
+    /// Only the `Exit code N` line of a failed call is red; the rest is normal text.
+    private func output(_ lines: [String]) -> Text {
+        guard let failure = card.failureLine else { return Text(lines.joined(separator: "\n")) }
+        let rest = lines.count > 1 ? "\n" + lines.dropFirst().joined(separator: "\n") : ""
+        return Text("\(Text(failure).foregroundStyle(.red))\(rest)")
     }
 
     private var strip: some View {
         HStack(alignment: .firstTextBaseline, spacing: 9) {
-            Text(card.kind == .shell ? "❯" : card.tool).fontWeight(.semibold).foregroundStyle(ConsoleColor.added)
-            Text(card.arg).textSelection(.enabled).foregroundStyle(ConsoleColor.command)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            outcome
+            Text(card.kind == .shell ? "❯" : card.tool).fontWeight(.semibold)
+            Text(card.arg).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 14).padding(.vertical, 9)
-        .background(Color.white.opacity(0.05))
-    }
-
-    /// "✓ 1.7 s" in green, "✕ 906 ms" in red; a spinner while the call runs.
-    @ViewBuilder private var outcome: some View {
-        if card.status == .pending {
-            ProgressView().controlSize(.mini)
-        } else {
-            let failed = card.status == .error
-            let color = failed ? ConsoleColor.removed : ConsoleColor.added
-            Text([failed ? "✕" : "✓", card.duration].compactMap { $0 }.joined(separator: " "))
-                .font(.system(size: 10.5, weight: .semibold)).foregroundStyle(color)
-                .padding(.horizontal, 8).padding(.vertical, 2).background(Capsule().fill(color.opacity(0.17)))
-        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14).padding(.vertical, 8)
     }
 
     private func footer(hidden: Int) -> some View {
         HStack(spacing: 12) {
-            Text(card.output.isEmpty ? "no output" : "\(card.output.count) \(card.output.count == 1 ? "line" : "lines")")
-                .foregroundStyle(ConsoleColor.text.opacity(0.5))
+            if let count = card.lineCount { Text(count).foregroundStyle(.tertiary) }
             if hidden > 0 || showAll {
                 Button(showAll ? "Show less" : "Show \(hidden) more \(hidden == 1 ? "line" : "lines")") { showAll.toggle() }
-                    .buttonStyle(.plain).foregroundStyle(Color(red: 0.42, green: 0.64, blue: 1))
+                    .buttonStyle(.plain).foregroundStyle(Color.accentColor)
             }
             Spacer(minLength: 0)
             CopyButton(text: card.copyText)
         }
         .font(.system(size: 11))
-        .padding(.leading, 14).padding(.trailing, 10).padding(.vertical, 9)
+        .padding(.horizontal, 14).padding(.vertical, 7)
     }
 }
 
@@ -247,7 +239,7 @@ struct CopyButton: View {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc").frame(width: 12, height: 14)
                 Text(copied ? "Copied" : "Copy").frame(width: 40, alignment: .leading)
             }
-            .font(.system(size: 11)).foregroundStyle(ConsoleColor.text.opacity(0.7)).contentShape(Rectangle())
+            .font(.system(size: 11)).foregroundStyle(.secondary).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help("Copy the command and its output")
@@ -313,11 +305,9 @@ extension ToolKind {
     }
 }
 
-/// The console's colours: its text, a command, and the lines added and removed.
+/// The console's colours: its text and the lines added and removed.
 enum ConsoleColor {
     static let text = Color(red: 0.84, green: 0.84, blue: 0.86)
-    /// The command line above what it printed.
-    static let command = Color(red: 0.6, green: 0.63, blue: 1)
     static let added = Color(red: 0.49, green: 0.91, blue: 0.53)
     static let removed = Color(red: 1, green: 0.48, blue: 0.45)
 }

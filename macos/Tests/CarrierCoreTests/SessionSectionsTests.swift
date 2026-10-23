@@ -82,7 +82,7 @@ func otherCommandsAreNot(command: String) {
     #expect(list.sections.map(\.role) == ["Fixer", "Reviewer", "Builder"])
     #expect(list.sections.map(\.place) == ["Round 2", "Round 2", "Ship"])
     #expect(list.sections.map(\.timeLabel) == ["since 00:01", "25s", "38s"])
-    #expect(list.earlier == nil)
+    #expect(list.earlier.isEmpty)
 }
 
 @Test func aStoppedSessionIsOpenHasTheBadgeStateAndNoTime() {
@@ -104,13 +104,24 @@ func otherCommandsAreNot(command: String) {
     #expect((section.role, section.place, section.state, section.openByDefault) == ("Builder", "Ship", .running, true))
 }
 
-@Test func theLineUnderTheListCountsTheSessionsThatAreNotShown() {
-    func many(_ n: Int) -> SessionsReply { SessionsReply(sessions: (0..<n).map { session("s\($0)", "fix", round: $0, status: "finished") }) }
-    #expect(sessionList(many(3)).earlier == nil)
-    #expect(sessionList(many(4)).earlier == "1 earlier session")
-    let long = sessionList(many(8))
-    #expect(long.sections.count == 3 && long.earlier == "5 earlier sessions")
-    #expect(sessionList(nil).sections.isEmpty && sessionList(nil).earlier == nil)
+private func many(_ n: Int, stopped: Set<Int> = []) -> SessionsReply {
+    SessionsReply(sessions: (0..<n).map { session("s\($0)", "fix", round: $0, status: stopped.contains($0) ? "failed" : "finished") })
+}
+
+@Test(arguments: [(5, 0), (6, 1), (12, 7)])
+func theFiveNewestAreShownAndTheRestAreEarlierNewestFirst(total: Int, older: Int) {
+    let list = sessionList(many(total))
+    #expect(list.sections.map(\.id) == (0..<min(total, 5)).map { "s\($0)" })
+    #expect(list.earlier.map(\.id) == (5..<total).map { "s\($0)" })
+    #expect(list.earlier.count == older)
+    #expect(sessionList(nil).sections.isEmpty && sessionList(nil).earlier.isEmpty)
+}
+
+@Test func anOlderSessionIsFoldedWhateverItsState() {
+    let list = sessionList(many(8, stopped: [6]))
+    #expect(list.earlier.map(\.state) == [.done, .stopped, .done])
+    #expect(list.earlier.map(\.openByDefault) == [false, false, false])
+    #expect(list.earlier.map { SessionFolds().isOpen($0) } == [false, false, false])
 }
 
 @Test func theCountsAreThereOnlyWhenTheEventsAreAndTheHarnessHasAParser() {
@@ -146,6 +157,18 @@ func otherCommandsAreNot(command: String) {
     #expect(folds.isOpen(after[2]) == false)
 }
 
+@Test func theEarlierRowOpensAndClosesWithEachPressAndLastsAsLongAsTheFolds() {
+    var folds = SessionFolds()
+    #expect(folds.earlierOpen == false)
+    folds.toggleEarlier()
+    #expect(folds.earlierOpen)
+    // a section folded by hand does not touch it
+    folds.toggle(sessionList(many(2)).sections[0])
+    #expect(folds.earlierOpen)
+    folds.toggleEarlier()
+    #expect(folds.earlierOpen == false)
+}
+
 // MARK: what the poller is asked for
 
 @Test func theOpenRunningSessionIsFollowedAndTheOthersCountedOnce() {
@@ -160,6 +183,18 @@ func otherCommandsAreNot(command: String) {
     folds.toggle(sessionList(data.sessions).sections[0])
     #expect(epicFocus(ref, running: true, data: data, folds: folds).transcript == nil)
     #expect(epicFocus(ref, running: true, data: nil, folds: folds) == EpicFocus(epic: ref, epicRunning: true, filesTabVisible: true))
+}
+
+@Test func theOlderSessionsAreCountedOnlyWhileTheEarlierRowIsOpen() {
+    let ref = EpicRef(repo: "acme/web", issue: 12)
+    var data = EpicData()
+    data.sessions = many(7)
+    var folds = SessionFolds()
+    #expect(epicFocus(ref, running: false, data: data, folds: folds).counting == ["s0", "s1", "s2", "s3", "s4"])
+    folds.toggleEarlier()
+    #expect(epicFocus(ref, running: false, data: data, folds: folds).counting == ["s0", "s1", "s2", "s3", "s4", "s5", "s6"])
+    folds.toggleEarlier()
+    #expect(epicFocus(ref, running: false, data: data, folds: folds).counting == ["s0", "s1", "s2", "s3", "s4"])
 }
 
 // MARK: the result card

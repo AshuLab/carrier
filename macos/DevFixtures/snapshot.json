@@ -22,7 +22,7 @@
     {
       "repo": "acme/web",
       "issue": 20,
-      "title": "Issue 20 of acme/web",
+      "title": "Export reports as CSV",
       "queuedAt": 20000
     }
   ],
@@ -112,7 +112,7 @@
         "total": 5
       },
       "executionId": "exec-review-12",
-      "title": "Issue 12 of acme/web",
+      "title": "Rotate the signing keys without logging every session out, and keep the old ones valid for a grace period",
       "labels": [
         "solve:epic",
         "solve:epic:ready"
@@ -156,7 +156,7 @@
       "needsHumanReason": "agent needs_human",
       "slices": null,
       "executionId": null,
-      "title": "Issue 5 of acme/api",
+      "title": null,
       "labels": [
         "solve:epic"
       ],
@@ -196,7 +196,7 @@
       "needsHumanReason": "review limit",
       "slices": null,
       "executionId": null,
-      "title": "Issue 14 of acme/web",
+      "title": "Add login",
       "labels": [
         "solve:epic"
       ],
@@ -221,7 +221,7 @@
       }
     },
     {
-      "repo": "acme/api",
+      "repo": "acme/a-really-long-repository-name-for-the-sidebar",
       "issue": 6,
       "status": "needs_human",
       "stage": "ship",
@@ -236,7 +236,7 @@
       "needsHumanReason": "timeout",
       "slices": null,
       "executionId": null,
-      "title": "Issue 6 of acme/api",
+      "title": "Paginate the audit log",
       "labels": [
         "solve:epic"
       ],

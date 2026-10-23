@@ -59,6 +59,24 @@ public struct TranscriptCard: Equatable {
     public var output: [String] = []
     /// The lines an edit changed; nil when there are none.
     public var diff: CardDiff?
+    /// The raw duration behind `duration`.
+    public var durationMs: Int?
+
+    /// 10 s or more: its duration is drawn without hover.
+    public var isSlow: Bool { (durationMs ?? 0) >= 10_000 }
+
+    /// A call to the `Skill` tool: a row of its own.
+    public var isSkill: Bool { tool == "Skill" }
+
+    /// A quiet line draws its duration on hover or focus, and always when slow or failed; never while the call runs.
+    public func showsDuration(active: Bool) -> Bool {
+        duration != nil && (active || isSlow || status == .error)
+    }
+
+    /// The chevron shows on hover, when open and always on a failed call; not on a call with nothing to open or still running.
+    public func showsChevron(active: Bool, open: Bool) -> Bool {
+        hasDetails && status != .pending && (active || open || status == .error)
+    }
 
     /// What the call's line says: a command is cut to what it starts with, anything else (a path, a pattern) is its argument.
     public var title: String { kind == .shell ? commandTitle(arg).title : arg }
@@ -224,7 +242,7 @@ struct TranscriptBuilder: Equatable {
         return TranscriptCard(
             tool: tool, kind: ToolKind(tool: tool), arg: start?.arg ?? end?.arg ?? "", summary: end?.summary ?? "",
             status: end == nil ? .pending : end?.status == "err" ? .error : .ok, duration: end?.durationMs.map(formatCallDuration),
-            output: end?.output ?? [], diff: cardDiff(end?.diff)
+            output: end?.output ?? [], diff: cardDiff(end?.diff), durationMs: end?.durationMs
         )
     }
 }

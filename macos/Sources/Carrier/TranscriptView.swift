@@ -71,6 +71,8 @@ struct TranscriptItemView: View {
             // only what changes files is a card; the rest is a line of the log
             if card.kind == .edit {
                 ToolCardView(card: card)
+            } else if card.isSkill {
+                SkillRowView(card: card)
             } else {
                 ToolLineView(card: card, outputOpen: outputs.isOpen(id, card)) { outputs.toggle(id, card) }
             }
@@ -85,57 +87,122 @@ extension TranscriptItem {
         switch self {
         case .message: 8
         case .note, .error: 6
-        case .tool: isLogLine ? 4 : 6
+        case .tool(_, let card): card.isSkill ? 2 : isLogLine ? 0 : 6
         }
     }
 
-    /// A call that does not edit: it is drawn as a line, close to the next one.
+    /// A call that does not edit: it is drawn as a line, with no air of its own (its height is the pitch of a run).
     var isLogLine: Bool {
         if case .tool(_, let card) = self { return card.kind != .edit }
         return false
     }
 }
 
-/// A call that does not change files, as one line: its small icon, what it starts with, how long it took and whether it worked.
-/// A click opens the whole command and what it printed on a console block under the line; a call that failed starts open.
+/// The right-hand columns every call row reserves, so a title is cut at the same place whether or not they show: duration 44
+/// (right aligned), status 14, chevron 10, 8 apart. A nil `chevron` leaves its slot empty.
+struct CallColumns: View {
+    let duration: String?
+    var failed = false
+    let status: ToolStatus
+    var chevron: (visible: Bool, open: Bool)?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(duration ?? "").font(.system(size: 11)).monospacedDigit().foregroundStyle(failed ? AnyShapeStyle(.red) : AnyShapeStyle(.tertiary)).lineLimit(1)
+                .frame(width: 44, alignment: .trailing)
+            Group {
+                if status != .ok { ToolStatusView(status: status).font(.system(size: 14)) }
+            }
+            .frame(width: 14, height: 14)
+            Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.tertiary)
+                .rotationEffect(.degrees(chevron?.open == true ? 90 : 0)).opacity(chevron?.visible == true ? 1 : 0)
+                .frame(width: 10)
+        }
+    }
+}
+
+/// A call that does not change files, as a quiet line of 26 pt: a bare glyph, what it starts with, and its duration when it
+/// matters. Nothing says it worked; a failure is red and keeps its chevron.
+struct CallLineView: View {
+    let card: TranscriptCard
+    let open: Bool
+    /// Hovered or focused.
+    let active: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: card.kind.icon).font(.system(size: 11)).foregroundStyle(card.status == .error ? .red : .secondary)
+                .frame(width: 16, height: 16)
+            HStack(spacing: 4) {
+                Text(card.title).font(.system(size: 12, design: .monospaced)).lineLimit(1)
+                    .truncationMode(card.kind == .shell ? .tail : .middle)
+                if card.moreCommands > 0 {
+                    Text("+\(card.moreCommands)").font(.system(size: 11)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+                        .help("\(card.moreCommands) more commands in this call")
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            CallColumns(
+                duration: card.showsDuration(active: active) ? card.duration : nil, failed: card.status == .error, status: card.status,
+                chevron: (card.showsChevron(active: active, open: open), open)
+            )
+        }
+        .frame(height: 26)
+        .background(Color.primary.opacity(active ? 0.05 : 0))
+        .contentShape(Rectangle())
+    }
+}
+
+/// A call line that opens: a click, or Return or Space with the keyboard on it, shows the whole command and what it printed on a
+/// flat grey block under the line; a call that failed starts open.
 struct ToolLineView: View {
     let card: TranscriptCard
     let outputOpen: Bool
     let toggleOutput: () -> Void
+    @State private var hovered = false
+    @FocusState private var focused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Image(systemName: card.kind.icon).font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
-                    .frame(width: 16, height: 16).background(RoundedRectangle(cornerRadius: 5).fill(card.kind.color))
-                HStack(spacing: 4) {
-                    Text(card.title).font(.system(size: 12, design: .monospaced)).lineLimit(1)
-                        .truncationMode(card.kind == .shell ? .tail : .middle)
-                    if card.moreCommands > 0 {
-                        Text("+\(card.moreCommands)").font(.system(size: 11)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
-                            .help("\(card.moreCommands) more commands in this call")
-                    }
+        VStack(alignment: .leading, spacing: 0) {
+            CallLineView(card: card, open: outputOpen, active: hovered || focused)
+                .onHover { hovered = $0 }
+                .focusable().focused($focused)
+                .onKeyPress(keys: [.return, .space]) { _ in
+                    guard card.hasDetails else { return .ignored }
+                    toggleOutput()
+                    return .handled
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if let duration = card.duration { Text(duration).font(.caption).foregroundStyle(.tertiary).lineLimit(1) }
-                status
-                if card.hasDetails {
-                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(outputOpen ? 90 : 0))
-                }
-            }
-            .font(.system(size: 12))
-            .contentShape(Rectangle())
-            .onTapGesture { if card.hasDetails { toggleOutput() } }
-            .help(card.arg)
+                .onTapGesture { if card.hasDetails { toggleOutput() } }
+                .help(card.arg)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel([card.title, card.status == .error ? "failed" : card.status == .pending ? "running" : nil, card.duration]
+                    .compactMap { $0 }.joined(separator: ", "))
             if outputOpen, card.hasDetails {
-                TerminalBlockView(card: card).padding(.top, 6).padding(.leading, 24)
+                TerminalBlockView(card: card).padding(.top, 2).padding(.leading, 24).padding(.bottom, 8)
             }
         }
-        .padding(.vertical, 2)
     }
+}
 
-    private var status: some View { ToolStatusView(status: card.status) }
+/// A call to the `Skill` tool, a milestone of its own: a grey box with a white glyph and its name in medium monospaced, 28 pt
+/// high, no chevron (nothing to open).
+struct SkillRowView: View {
+    let card: TranscriptCard
+    @State private var hovered = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: card.kind.icon).font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+                .frame(width: 16, height: 16).background(RoundedRectangle(cornerRadius: 5).fill(card.kind.color))
+            Text(card.title).font(.system(size: 12, weight: .medium, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            CallColumns(duration: card.showsDuration(active: hovered) ? card.duration : nil, failed: card.status == .error, status: card.status)
+        }
+        .frame(height: 28)
+        .background(Color.primary.opacity(hovered ? 0.05 : 0))
+        .onHover { hovered = $0 }
+        .help(card.arg)
+    }
 }
 
 /// What an opened call shows, flat on the raised grey of the message bubble: the command on its own strip, the output (its first
@@ -205,7 +272,7 @@ struct TerminalBlockView: View {
     }
 }
 
-/// How a call ended: a disc with a white tick (green) or a white cross (red), or a spinner while it runs. The disc symbols are
+/// How a call ended where it is marked: a disc with a white cross (red), or a spinner while it runs. The disc symbols are
 /// drawn in two colours: with one, the mark would be see-through and show the dark row behind it.
 struct ToolStatusView: View {
     let status: ToolStatus

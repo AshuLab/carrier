@@ -83,6 +83,20 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
     #expect(["retries_exhausted", "timeout", "auth", "workspace", "pr_invalid"].map { Attention(kind: $0) } == Array(repeating: .error, count: 5))
 }
 
+@Test func onlyReviewAndFixLoopsAndOnlyWhileItRuns() {
+    func loops(_ subject: EpicSubject, reply: EpicReply? = nil) -> [Bool] { pipelineSteps(subject, reply: reply).map(\.loops) }
+    let none = [false, false, false, false]
+    #expect(loops(.active(epic(stage: .review, round: 2))) == [false, false, true, false])
+    #expect(loops(.active(epic(stage: .fix, round: 2))) == [false, false, true, false])
+    #expect(loops(.active(epic(stage: .ship))) == none)
+    #expect(loops(.queued(queuedEpic, position: 1)) == none)
+    #expect(loops(.active(epic(.needsHuman, stage: .review, kind: "review_limit"))) == none)
+    #expect(loops(.active(epic(.needsHuman, stage: .review, kind: "timeout"))) == none)
+    #expect(loops(.finished(doneEpic)) == none)
+    #expect(loops(.ended(ended(.merged))) == none)
+    #expect(loops(.ended(ended(.cancelled)), reply: reply(stages: [.init(stage: "ship", startedAt: 0, endedAt: 1)], rounds: 1)) == none)
+}
+
 @Test func aReadyEpicIsDoneEverywhereWithNoText() {
     #expect(line(pipelineSteps(.finished(doneEpic))) == ["Queued:d", "Ship:d", "Review / Fix:d", "Ready:d"])
 }

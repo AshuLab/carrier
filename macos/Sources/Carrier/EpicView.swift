@@ -186,9 +186,15 @@ struct PipelineStepView: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Text(mark).font(.system(size: 10, weight: .bold)).foregroundStyle(fill == nil ? Color.secondary : .white)
-                .frame(width: 17, height: 17)
-                .background(Circle().fill(fill ?? Color.secondary.opacity(0.15)))
+            Group {
+                if step.loops {
+                    SpinningGlyph(symbol: "arrow.triangle.2.circlepath", diameter: 10)
+                } else {
+                    Text(mark).font(.system(size: 10, weight: .bold)).foregroundStyle(fill == nil ? Color.secondary : .white)
+                }
+            }
+            .frame(width: 17, height: 17)
+            .background(Circle().fill(fill ?? Color.secondary.opacity(0.15)))
             Text(step.name).font(.callout.weight(.medium))
                 .foregroundStyle(step.state == .waiting || step.state == .done ? Color.secondary : .primary)
             if labelled, let label = step.label { Text(label).font(.caption).foregroundStyle(.tertiary) }

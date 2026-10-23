@@ -86,7 +86,7 @@ private func card(_ item: TranscriptItem) -> TranscriptCard? {
     var structured = Transcript()
     structured.apply(EventsReply(events: [ExecEvent(id: 1, at: 1, kind: "say", text: "hi")], next: 1, running: true, structured: true))
     structured.tail = ["ignored"]
-    #expect(transcriptBody(structured) == .items([.message(id: 1, text: "hi")]))
+    #expect(transcriptBody(structured) == .items([.item(.message(id: 1, text: "hi"))]))
     #expect(transcriptBody(nil) == .items([]))
 }
 

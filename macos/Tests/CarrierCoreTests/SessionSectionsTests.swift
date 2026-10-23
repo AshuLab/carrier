@@ -270,3 +270,86 @@ func theFiveNewestAreShownAndTheRestAreEarlierNewestFirst(total: Int, older: Int
     #expect(first.runs.contains { $0.inlinePresentationIntent == .code && String(first.characters[$0.range]) == "a.ts" })
     #expect(last.runs.compactMap(\.link) == [URL(string: "https://github.com/acme/web/pull/1")!, URL(string: "https://a.co")!])
 }
+
+// MARK: the flow of a session's rows
+
+private func timed(_ id: Int, _ tool: String, arg: String = "x", ms: Int = 100, status: String = "ok", ended: Bool = true) -> [ExecEvent] {
+    let callId = "c\(id)"
+    let start = ExecEvent(id: id, at: id, kind: "tool_start", callId: callId, tool: tool, arg: arg)
+    return ended ? [start, ExecEvent(id: id + 1, at: id, kind: "tool_end", callId: callId, tool: tool, status: status, durationMs: ms)] : [start]
+}
+
+private func say(_ id: Int) -> [ExecEvent] { [ExecEvent(id: id, at: id, kind: "say", text: "hi")] }
+
+/// The shape of a section's rows: `i` an item, `g3` a group of three calls.
+private func shape(_ events: [ExecEvent]) -> [String] {
+    let sessions = reply(session("x", "ship", status: "running"))
+    guard case .items(let flow) = sessionList(sessions, transcripts: ["x": transcript(events)]).sections[0].body else { return ["tail"] }
+    return flow.map { if case .group(_, let calls) = $0 { "g\(calls.count)" } else { "i" } }
+}
+
+private func group(_ events: [ExecEvent]) -> (id: Int, calls: [TranscriptItem])? {
+    let sessions = reply(session("x", "ship", status: "running"))
+    guard case .items(let flow) = sessionList(sessions, transcripts: ["x": transcript(events)]).sections[0].body else { return nil }
+    for item in flow { if case .group(let id, let calls) = item { return (id, calls) } }
+    return nil
+}
+
+@Test func aRunOfThreeSuccessfulCallsIsOneGroupAndARunOfOneIsALine() {
+    #expect(shape(timed(1, "Bash") + timed(3, "Read") + timed(5, "Grep")) == ["g3"])
+    #expect(shape(say(1) + timed(2, "Bash") + say(4)) == ["i", "i", "i"])
+    #expect(shape(timed(1, "Bash") + timed(3, "Bash")) == ["g2"])
+}
+
+@Test func aFailureAMessageASkillOrAnEditEndsTheRun() {
+    let run = timed(1, "Bash") + timed(3, "Bash") + timed(5, "Bash", status: "err") + timed(7, "Read") + timed(9, "Read")
+    #expect(shape(run) == ["g2", "i", "g2"])
+    #expect(shape(timed(1, "Bash") + timed(3, "Bash") + say(5) + timed(6, "Bash") + timed(8, "Bash")) == ["g2", "i", "g2"])
+    #expect(shape(timed(1, "Bash") + timed(3, "Bash") + timed(5, "Skill") + timed(7, "Bash") + timed(9, "Bash") + timed(11, "Edit") + timed(13, "Bash")) == ["g2", "i", "g2", "i", "i"])
+}
+
+@Test func aPendingCallIsALineAfterTheGroupAndJoinsItOnceItEndsWell() {
+    let pending = timed(1, "Bash") + timed(3, "Bash") + timed(5, "Bash", ended: false)
+    #expect(shape(pending) == ["g2", "i"])
+    let ended = pending + [ExecEvent(id: 6, at: 6, kind: "tool_end", callId: "c5", tool: "Bash", status: "ok", durationMs: 100)]
+    #expect(shape(ended) == ["g3"])
+    #expect(group(ended)?.id == 1)
+    // ended badly, it stays a line
+    let failed = pending + [ExecEvent(id: 6, at: 6, kind: "tool_end", callId: "c5", tool: "Bash", status: "err")]
+    #expect(shape(failed) == ["g2", "i"])
+}
+
+@Test func aGroupKeepsItsIdWhenCallsAreAppendedAndTheTranscriptIsNotRebuilt() {
+    var live = Transcript()
+    func apply(_ events: [ExecEvent]) { live.apply(EventsReply(events: events, next: events.last?.id ?? 0, running: true, structured: true)) }
+    func firstGroup() -> Int? {
+        guard case .items(let flow) = transcriptBody(live) else { return nil }
+        for item in flow { if case .group(let id, _) = item { return id } }
+        return nil
+    }
+    apply(timed(10, "Bash") + timed(12, "Read"))
+    #expect(firstGroup() == 10)
+    let before = live.work
+    apply(timed(14, "Grep"))
+    #expect(firstGroup() == 10)
+    #expect(live.work - before == 2)
+}
+
+@Test func aGroupsLabelCountsByKindInFirstCallOrderAndItsDurationIsTheSum() {
+    func label(_ events: [ExecEvent]) -> String? { group(events).map { callGroupLabel($0.calls) } }
+    let events = timed(1, "Bash", ms: 1000) + timed(3, "Bash", ms: 2000) + timed(5, "Bash", ms: 3000) + timed(7, "Read", ms: 100)
+    #expect(label(events) == "Ran 3 commands · read 1 file")
+    #expect(group(events).flatMap { callGroupDuration($0.calls) } == "6.1 s")
+    #expect(label(timed(1, "Read") + timed(3, "Grep")) == "Read 1 file · searched 1 time")
+    #expect(label(timed(1, "Grep") + timed(3, "Grep")) == "Searched 2 times")
+    #expect(label(timed(1, "WebFetch") + timed(3, "WebFetch")) == "Used 2 tools")
+    #expect(label(timed(1, "Bash") + timed(3, "Read") + timed(5, "Grep") + timed(7, "WebFetch") + timed(9, "Grep")) == "Ran 1 command · read 1 file · +3 more")
+}
+
+@Test func aHarnessWithNoParserKeepsItsTail() {
+    var plain = Transcript()
+    plain.apply(EventsReply(events: [], next: 0, running: true, structured: false))
+    plain.tail = ["ran tests"]
+    let sessions = reply(session("x", "ship", status: "running", harness: "codex"))
+    #expect(sessionList(sessions, transcripts: ["x": plain]).sections[0].body == .tail(["ran tests"]))
+}

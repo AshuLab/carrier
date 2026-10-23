@@ -6,6 +6,7 @@ import SwiftUI
 struct LaneSectionView: View {
     let lane: LaneSection
     @Binding var outputs: OutputFolds
+    @Binding var groups: GroupFolds
     @State private var open = true
 
     var body: some View {
@@ -14,7 +15,7 @@ struct LaneSectionView: View {
             .padding(.horizontal, 12).padding(.vertical, 4)
             .sessionRow()
         if open {
-            TranscriptRows(content: .items(lane.items), outputs: $outputs)
+            TranscriptRows(content: .items(flowItems(lane.items)), outputs: $outputs, groups: $groups)
         }
     }
 }

@@ -20,6 +20,8 @@ public struct LaneSection: Equatable, Identifiable {
     public var slice: Int?
     /// The lane it works in, when its worktree says so (a hint).
     public var laneNumber: Int?
+    /// The slice's pull request as the row reads it: "PR #5 merged", "PR #5" (an older engine sends no state), or "no PR yet".
+    public var pullRequest: String
 }
 
 /// A subagent's first run: running (a start with no end), finished (the end event completed) or failed (it did not complete).
@@ -58,7 +60,9 @@ struct LaneState: Equatable {
     /// `running` is whether the session is: a start with no end in one that is not did not complete.
     func section(slices: [EpicReply.Slice], running: Bool) -> LaneSection {
         let slice = description.flatMap { number(after: "slice #", in: $0) }
-        let sliceTitle = slice.flatMap { number in slices.first { $0.number == number }?.title }
+        let match = slice.flatMap { number in slices.first { $0.number == number } }
+        let sliceTitle = match?.title
+        let pullRequest = match?.prNumber.map { "PR #\($0)" + (match?.prState.map { " \($0)" } ?? "") } ?? "no PR yet"
         let tasks = events.filter { $0.kind == "task" }
         let start = tasks.first { $0.status == nil }
         let end = tasks.first { $0.status != nil }
@@ -66,7 +70,7 @@ struct LaneState: Equatable {
             id: agentId, title: sliceTitle ?? description ?? "Subagent", sliceTitle: sliceTitle,
             state: end.map { $0.status == "ok" ? .finished : .failed } ?? (running ? .running : .failed),
             duration: start.flatMap { start in end.map { $0.at - start.at } },
-            counts: sessionCounts(events), items: builder.items, slice: slice, laneNumber: lane
+            counts: sessionCounts(events), items: builder.items, slice: slice, laneNumber: lane, pullRequest: pullRequest
         )
     }
 }

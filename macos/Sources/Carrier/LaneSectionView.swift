@@ -42,12 +42,17 @@ struct LaneHeaderView: View {
                     .frame(width: 26, height: 26)
                     .background(Circle().fill(Color.secondary.opacity(0.16)))
             }
-            // the line is there with no lane too, so the row keeps its height
+            // the pull request is always there, so the row keeps its height with no lane
             HStack(spacing: 8) {
                 CountPills(counts: lane.counts)
                 Spacer(minLength: 8)
-                Text(lane.laneNumber.map { "Lane \($0) ≈" } ?? " ").font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    .help(lane.laneNumber == nil ? "" : "Inferred from the worktree name; the agent does not report it")
+                HStack(spacing: 8) {
+                    if let number = lane.laneNumber {
+                        Text("Lane \(number) ≈").help("Inferred from the worktree name; the agent does not report it")
+                    }
+                    Text(lane.pullRequest)
+                }
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             .padding(.leading, 36)
         }

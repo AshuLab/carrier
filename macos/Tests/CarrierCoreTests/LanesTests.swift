@@ -173,3 +173,17 @@ private func end(_ id: Int, _ status: String) -> ExecEvent {
     #expect(lanes[0].counts == SessionCounts(calls: 4, edits: 1, added: 2, removed: 1, tests: 1, errors: 1))
     #expect(lanes[1].counts == SessionCounts(calls: 1))
 }
+
+@Test func aRowReadsItsSlicesPullRequestAndItsState() {
+    func pr(_ number: Int, _ pr: Int?, _ state: String?) -> EpicReply.Slice {
+        EpicReply.Slice(number: number, title: "S\(number)", state: "open", blockedBy: [], prNumber: pr, closedAt: nil, readAt: 0, prState: state)
+    }
+    let slices = [pr(1, 11, "merged"), pr(2, 12, "open"), pr(3, 13, "draft"), pr(4, 14, "closed"), pr(5, nil, nil), pr(6, 16, nil)]
+    // slice 7 is not in the epic's list, and the last subagent names no slice
+    let events = (1...7).map { event($0, "task", agent: "a\($0)", text: "Build slice #\($0)") } + [event(8, "task", agent: "z", text: "Tidy the docs")]
+    let sessions = SessionsReply(sessions: [SessionsReply.Session(
+        executionId: "x", stage: "ship", role: "author", round: nil, agent: .init(harness: "claude", model: "m", provider: nil),
+        status: "running", startedAt: 0, finishedAt: nil, resume: nil)])
+    let lanes = sessionList(sessions, transcripts: ["x": transcript(events)], slices: slices).sections[0].lanes
+    #expect(lanes.map(\.pullRequest) == ["PR #11 merged", "PR #12 open", "PR #13 draft", "PR #14 closed", "no PR yet", "PR #16", "no PR yet", "no PR yet"])
+}

@@ -1,7 +1,7 @@
 import { formatDuration } from '../../format/duration.ts';
 import { printable } from './printable.ts';
 import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
-import { itemsOf, maxListed, type UiState } from './ui-state.ts';
+import { finishedSections, itemsOf, maxListed, type UiState } from './ui-state.ts';
 import { detailOf, historyLine, type DetailProvider } from './history.ts';
 
 type Style = 'bold' | 'dim' | 'inverse' | 'red' | 'green' | 'yellow' | 'cyan';
@@ -101,7 +101,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     return lines.map((line) => fit(line, width + 2));
   }
   if (ui?.mode === 'logs') {
-    const target = [...s.epics, ...s.done].find((e) => selected(e.repo, e.issue));
+    const target = [...s.epics, ...s.done, ...(s.finished ?? [])].find((e) => selected(e.repo, e.issue));
     section(`AGENT OUTPUT · ${ui.selected ?? ''}${target?.executionId ? ` · ${target.executionId.slice(0, 8)}` : ''}`, 'cyan');
     if (logLines.length === 0) add(paint('   (nothing written yet)', 'dim'));
     for (const l of logLines) add(`   ${printable(l)}`);
@@ -158,10 +158,14 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     }
   }
 
+  // last: a cut title costs less than a cut PR number or time
+  const row = (d: { repo: string; issue: number; title: string | null; prNumber: number | null; finishedAt: number | null }) =>
+    `${lead(d.repo, d.issue, '   ')}${d.repo} #${d.issue}${d.prNumber === null ? '' : ` · PR #${d.prNumber}`} · ${ago(d.finishedAt)}${titled(d.title)}`;
+
   if (s.done.length > 0) {
     section('READY FOR TEST ✔', 'green');
     for (const d of s.done) {
-      add(`${lead(d.repo, d.issue, '   ')}${d.repo} #${d.issue}${d.prNumber === null ? '' : ` · PR #${d.prNumber}`} · ${ago(d.finishedAt)}${titled(d.title)}`); // last: a cut title costs less than a cut PR number or time
+      add(row(d));
       const history = detail && detailOf(detail, d);
       if (history && history.length > 0) add(`   ${historyLine(history, s.now, paint, width - 3)}`);
     }
@@ -177,6 +181,15 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
   if (s.epics.length === 0 && s.queue.length === 0 && s.done.length === 0) {
     add();
     add(`   ${paint('Idle.', 'bold')} Mark an epic ${paint('solve:epic:ready', 'cyan')} in a watched repo to start one.`);
+  }
+
+  for (const { name, rows, more } of finishedSections(s)) {
+    section(name, 'dim');
+    for (const f of rows) {
+      add(row(f));
+      if (f.cancelReason) add(`   ${printable(f.cancelReason)}`);
+    }
+    if (more > 0) add(paint(`   +${more} more`, 'dim'));
   }
 
   footer();

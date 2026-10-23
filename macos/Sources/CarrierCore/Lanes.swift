@@ -34,7 +34,7 @@ public struct LaneSection: Equatable, Identifiable {
     public var resumedLabel: String? { resumes > 0 ? "resumed " + (resumes == 1 ? "once" : "\(resumes) times") : nil }
 }
 
-/// A subagent's first run: running (a start with no end), finished (the end event completed) or failed (it did not complete).
+/// A subagent's latest run: running (a start with no end), finished (the end event completed) or failed (it did not complete).
 public enum SubagentState: Equatable { case running, finished, failed }
 
 /// The digits right after `marker`, ignoring case: `number(after: "slice #", in: "Build slice #653")` is 653.
@@ -84,7 +84,12 @@ struct LaneState: Equatable {
         let tasks = events.filter { $0.kind == "task" }
         let start = tasks.first { $0.status == nil }
         let end = tasks.first { $0.status != nil }
-        let state: SubagentState = end.map { $0.status == "ok" ? .finished : .failed } ?? (running ? .running : .failed)
+        // The latest run decides: a last start is running while the session is, else it did not complete.
+        let state: SubagentState = switch tasks.last?.status {
+        case nil: running ? .running : .failed
+        case "ok": .finished
+        default: .failed
+        }
         let timeLabel = start.flatMap { start in
             end.map { "\(clock(start.at, timeZone: timeZone))–\(clock($0.at, timeZone: timeZone))" }
                 ?? (state == .running ? "since \(clock(start.at, timeZone: timeZone))" : nil)

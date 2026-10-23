@@ -4,21 +4,28 @@ import Foundation
 // for the list when only the counts are known (docs/specs/macos-app-redesign.md, story 27). The views map them one to one.
 
 public enum SliceGroup: CaseIterable, Hashable {
-    case merged, inProgress, waiting
+    case merged, inProgress, pending
 
     public var title: String {
         switch self {
         case .merged: "Merged"
         case .inProgress: "In progress"
-        case .waiting: "Waiting"
+        case .pending: "Pending"
         }
     }
+}
+
+/// Which slices the list shows: all of them (Total) or one group, one at a time.
+public enum SliceFilter: Equatable {
+    case all
+    case only(SliceGroup)
 }
 
 public struct SliceRow: Equatable {
     public var number: Int
     public var title: String
-    /// In progress: the lane and the activity; waiting: `ready to start` or `after <title>` (`#N` for a blocker not in the list); merged: its time.
+    public var state: SliceGroup
+    /// In progress: the lane and the activity; pending: `ready to start` or `after #N <title>, #M <title>` (`#N` alone for a blocker not in the list); merged: its time.
     public var detail: String
     /// The slice's pull request, when the engine found one.
     public var prNumber: Int?
@@ -62,9 +69,9 @@ public struct SlicesLegendEntry: Equatable {
 }
 
 public struct SlicesTabModel: Equatable {
-    /// Only the groups that have slices, in ring order.
+    /// Only the groups that have slices, in ring order; the view adds Total (`total`) after them.
     public var legend: [SlicesLegendEntry]
-    public var selected: SliceGroup?
+    public var selected: SliceFilter
     public var rows: [SliceRow]
     public var merged: Int
     public var total: Int
@@ -80,11 +87,11 @@ public struct SlicesTabModel: Equatable {
     public var caption: String { merged == total && total > 0 ? "all merged" : "merged" }
 }
 
-/// A queued epic has nothing in progress: its open slices all wait. The default group is in progress, else waiting, else merged; a chosen group that is empty is ignored. Skipped slices are
-/// left out. Without the `epic` list the snapshot's counts make the ring (merged and waiting) and the list is replaced by an empty state.
-public func slicesTabModel(_ subject: EpicSubject?, reply: EpicReply?, chosen: SliceGroup? = nil, now: Int) -> SlicesTabModel {
-    let slices = (reply?.slices ?? []).filter { $0.state != "skipped" }
-    var rows: [SliceGroup: [SliceRow]] = [:]
+/// Every non-skipped slice by number, filtered. A queued epic has nothing in progress: its open slices all wait. A filter whose group has no slices
+/// behaves as `.all`. Without the `epic` list the snapshot's counts make the ring (merged and pending) and the list is replaced by an empty state.
+public func slicesTabModel(_ subject: EpicSubject?, reply: EpicReply?, filter: SliceFilter = .all, now: Int) -> SlicesTabModel {
+    let slices = (reply?.slices ?? []).filter { $0.state != "skipped" }.sorted { $0.number < $1.number }
+    var rows: [SliceRow] = []
     let titles = Dictionary((reply?.slices ?? []).map { ($0.number, $0.title) }, uniquingKeysWith: { first, _ in first })
     var queued = false
     if case .queued? = subject { queued = true }
@@ -96,30 +103,30 @@ public func slicesTabModel(_ subject: EpicSubject?, reply: EpicReply?, chosen: S
             let hints = [slice.lane.map { "lane \($0)" }, slice.activity].compactMap { $0 }
             (group, detail) = (.inProgress, hints.first.map { _ in hints.joined(separator: " · ") } ?? "working")
         default:
-            (group, detail) = (.waiting, slice.blockedBy.isEmpty ? "ready to start" : "after " + slice.blockedBy.map { titles[$0] ?? "#\($0)" }.joined(separator: ", "))
+            (group, detail) = (.pending, slice.blockedBy.isEmpty ? "ready to start" : "after " + slice.blockedBy.map { "#\($0)" + (titles[$0].map { " \($0)" } ?? "") }.joined(separator: ", "))
         }
         let base = subject.map { "https://github.com/\($0.repo)" }
-        rows[group, default: []].append(SliceRow(
-            number: slice.number, title: slice.title, detail: detail, prNumber: slice.prNumber,
+        rows.append(SliceRow(
+            number: slice.number, title: slice.title, state: group, detail: detail, prNumber: slice.prNumber,
             issueURL: base.map { "\($0)/issues/\(slice.number)" }, prURL: slice.prNumber.flatMap { number in base.map { "\($0)/pull/\(number)" } }
         ))
     }
 
-    var counts = Dictionary(uniqueKeysWithValues: SliceGroup.allCases.map { ($0, rows[$0]?.count ?? 0) })
+    var counts = Dictionary(uniqueKeysWithValues: SliceGroup.allCases.map { group in (group, rows.filter { $0.state == group }.count) })
     var unavailable: SlicesUnavailable?
     if slices.isEmpty, case .active(let epic)? = subject, let sliceCounts = epic.slices, sliceCounts.total > 0 {
         counts[.merged] = sliceCounts.done
-        counts[.waiting] = max(0, sliceCounts.total - sliceCounts.done)
+        counts[.pending] = max(0, sliceCounts.total - sliceCounts.done)
         unavailable = reply == nil ? .notShared : .notReadYet
     }
 
     let legend = SliceGroup.allCases.compactMap { group in
         counts[group].flatMap { $0 > 0 ? SlicesLegendEntry(group: group, count: $0) : nil }
     }
-    let present = Set(legend.map(\.group))
-    let selected = [chosen, .inProgress, .waiting, .merged].lazy.compactMap { $0 }.first { present.contains($0) }
+    var selected = SliceFilter.all
+    if case .only(let group) = filter, legend.contains(where: { $0.group == group }) { selected = filter }
     return SlicesTabModel(
-        legend: legend, selected: selected, rows: selected.flatMap { rows[$0] } ?? [],
+        legend: legend, selected: selected, rows: rows.filter { row in selected == .all || selected == .only(row.state) },
         merged: counts[.merged] ?? 0, total: legend.reduce(0) { $0 + $1.count }, unavailable: unavailable
     )
 }

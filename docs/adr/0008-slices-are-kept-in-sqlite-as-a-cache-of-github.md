@@ -1,6 +1,6 @@
 # 0008 - Slices are kept in SQLite as a cache of GitHub, not as authority
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-21
 
 ## Context

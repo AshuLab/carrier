@@ -109,6 +109,4 @@ export function announceStart({ framed }: { framed: boolean }) {
   };
 }
 
-export const clackUi = makeClackUi();
-
 export const cancelled = () => cancel('✖  Cancelled');

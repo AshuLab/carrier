@@ -1,6 +1,6 @@
 # 0005 - The engine runs on its own and the macOS app is a client of its control socket
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-19
 
 ## Context

@@ -21,7 +21,7 @@
 
 ## What it does
 
-Carrier is a long-running terminal app. You start it from any folder with a JSON config; it polls the repos you list and, for every epic labelled `solve:epic:ready`, drives the whole loop without supervision:
+Carrier is a long-running process: a terminal app, or in the background with `carrier start`. You start it from any folder with a JSON config; it polls the repos you list and, for every epic labelled `solve:epic:ready`, drives the whole loop without supervision:
 
 1. **Pick up.** Each interval it registers new ready epics in arrival order, and when a slot is free it takes the oldest one and relabels it `solve:epic:running`.
 2. **Ship.** An _author_ agent (Claude Code, Codex or Antigravity) runs [Solve](https://github.com/AshuLab/skills)'s `ship` on the epic inside a managed clone. Carrier then checks the final integration PR against GitHub: it exists, is open, references the epic, and its head is the expected commit.
@@ -69,11 +69,12 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 carrier/
 ├── src/
 │   ├── terminal/       # everything a terminal user sees; a web UI would be a sibling of this folder
-│   │   ├── cli/        #   the command line: args, commands/ (run, init, doctor, schema), config file, composition root, Ctrl+C
+│   │   ├── cli/        #   the command line: args, commands/ (run, start, stop/pause/resume/check, status, watch, init, doctor, schema), the control-socket client, config file, composition root, Ctrl+C
 │   │   ├── prompts/    #   the terminal contract (`Ui`) and its clack implementation: prompts, spinners, check lines
 │   │   ├── wizard/     #   `carrier init`: the flow, what it asks (questions/), what it needs from the machine (deps), the recap
-│   │   └── dashboard/  #   the panel: renderers (dashboard, plain), keys and their state, agent-output tail
+│   │   └── dashboard/  #   the panel: renderers (dashboard, plain), keys and their state, agent-output tail, each epic's stage history
 │   ├── status/         # what Carrier is doing right now, read from SQLite (the view any front-end draws)
+│   ├── control/        # the control socket: snapshot, pause/resume, check, stop, sessions, events, epic, files, availableRepos
 │   ├── doctor/         # the checks of `carrier doctor` and the remedy for each failure
 │   ├── config/         # config schema, defaults, loading/merging, per-repo resolution, JSON Schema, default path
 │   ├── orchestration/  # engine: polling, scheduler, stages, retries, restart, final-PR rules, ports + fakes
@@ -84,8 +85,9 @@ carrier/
 │   ├── storage/        # SQLite schema, migrations, lock, executions, events, retention
 │   ├── logging/        # universal-logger integration
 │   └── format/         # duration formatting
+├── macos/              # the native app: a client of the control socket (see its README)
 └── docs/
-    ├── specs/          # the spec this app was built from
+    ├── specs/          # the specs the features were built from
     ├── adr/            # architecture decision records
     ├── research/       # spike findings
     └── glossary.md     # domain vocabulary
@@ -189,8 +191,8 @@ Unattended agents run with **your** permissions: Claude with permissions bypasse
 ## Documentation
 
 - Using it: [configuration](docs/configuration.md), [preparing a repo](docs/preparing-a-repo.md) and [troubleshooting](docs/troubleshooting.md).
-- [Spec](docs/specs/autonomous-orchestrator.md) and [glossary](docs/glossary.md).
-- [ADRs](docs/adr/) — coordination vs. evaluation, SQLite as the authority, and agents on the host (which replaces the container ADR 0003).
+- [Specs](docs/specs/) (the orchestrator's is [autonomous-orchestrator](docs/specs/autonomous-orchestrator.md)), [glossary](docs/glossary.md) and the [macOS app](macos/README.md).
+- [ADRs](docs/adr/) — coordination vs. evaluation, SQLite as the authority, agents on the host (which replaces the container ADR 0003), the engine independent of the macOS app, and Carrier running detached on demand, not as a login service.
 - [Research](docs/research/) — headless agents, Antigravity, Agent Forge, logging and panel, shared root, containers (dropped, kept as reference).
 - [`AGENTS.md`](AGENTS.md) — entry point for coding agents working in this repo.
 

@@ -22,20 +22,20 @@ Each step consumes what the previous one left, so they run in order.
 `ship` ends at a draft integration PR; a review pass sits between it and `land`. Nothing starts the review of the integration PR automatically: whoever is driving, a person or an agent, runs `code-review` on that PR.
 Two sides, which may be different people or agents:
 - reviewer - `code-review` reads the PR and returns findings (it never publishes); `code-post` delivers them as PR comments once approved
-- author - `code-resolve` judges each comment on your own PR, fixes what applies, replies
+- author - `code-resolve` judges each comment on your own PR, fixes what applies, pushes, replies on each thread and leaves a summary on the PR - unattended
 
 Suggested loop: repeat until a review pass has no blockers, then the PR is ready for `land` (`land` has its own gates - no conflicts, every slice closed, a green suite, a clean mergeable PR and a human yes - so a repo that requires reviews stops at BLOCKED until they are in; on your own PR GitHub won't let you approve, so a solo review is comments only). No round limit is enforced - if it isn't converging, bring a person in.
 
 ## Where a person is needed
 - `sharpen` - a conversation; the product calls are the user's
 - `to-spec` - the open questions that are about what the product should do, and the milestone
-- `to-tickets`, `code-post`, `code-resolve`, `file-issue` - the text is approved before it's published
+- `to-tickets`, `code-post`, `file-issue` - the text is approved before it's published (`file-issue` publishes without waiting when `code-resolve` invokes it)
 - `diagnose` - the diagnosis is shown and a person picks a fix before any code changes
 - `land` - a person read the integration PR and accepts it
 - `ship` - an epic drain runs unattended and stops at the draft integration PR; it also stops on a dirty tree, a failed slice or a merge conflict
 - `setup` - a few questions, optional
 
-When nobody can answer: `code-post`, `code-resolve`, `file-issue`, `land` and `diagnose` stop and hand over (or show) what they prepared instead of acting; `sharpen`, `to-spec` and `to-tickets` wait for the answer. An agent running unattended stops at those points - it doesn't answer for the person.
+When nobody can answer: `code-post`, `file-issue`, `land` and `diagnose` stop and hand over (or show) what they prepared instead of acting; `sharpen`, `to-spec` and `to-tickets` wait for the answer. An agent running unattended stops at those points - it doesn't answer for the person.
 
 ## Reach for these any time
 - the follow skill `pushback` - stress-test an idea, plan or decision, nothing written (`sharpen` invokes it for a raw idea)
@@ -53,3 +53,4 @@ When nobody can answer: `code-post`, `code-resolve`, `file-issue`, `land` and `d
 - Tickets -> GitHub Issues
 
 What each step leaves for the next: `sharpen` a brief in `docs/specs/` -> `to-spec` the PRD, published as the epic issue -> `to-tickets` one sub-issue per slice -> `ship` a PR per slice, then one draft integration PR -> `land` the merge.
+

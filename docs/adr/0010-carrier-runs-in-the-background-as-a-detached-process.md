@@ -1,6 +1,6 @@
 # 0010 - Carrier runs in the background as a detached process started on demand, not as a login service
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-22
 
 ## Context

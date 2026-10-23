@@ -25,15 +25,16 @@ export async function attach(config: Config): Promise<CarrierClient | number> {
 }
 
 /**
- * An epic's stages over the socket; null when this engine cannot answer (its hello does not list `sessions`, and nothing is sent)
- * or the request fails or answers `unknown epic`: the epic is then drawn without detail, which never breaks the panel.
+ * An epic's stages over the socket; null when there are none to know (the engine's hello does not list `sessions` and nothing is sent,
+ * or it answers `unknown epic`) and undefined when the request failed this time. Either way the epic is drawn without detail, which
+ * never breaks the panel; only the failure is worth asking again.
  */
-export async function stagesOf(client: Pick<CarrierClient, 'hello' | 'request'>, repo: string, issue: number): Promise<Sessions | null> {
+export async function stagesOf(client: Pick<CarrierClient, 'hello' | 'request'>, repo: string, issue: number): Promise<Sessions | null | undefined> {
   if (client.hello.capabilities.includes('sessions') === false) return null;
   try {
     return ((await client.request('sessions', { repo, issue })) as SessionsReply).sessions;
-  } catch {
-    return null;
+  } catch (error) {
+    return error instanceof Error && error.message === 'unknown epic' ? null : undefined;
   }
 }
 
@@ -44,9 +45,9 @@ export async function statusCommand(config: Config): Promise<number> {
   try {
     const snapshot = (await client.request('snapshot')) as PanelSnapshot;
     const tty = process.stdout.isTTY === true;
-    // The cards show the stages of running epics only; one print, so one request each.
-    const running = snapshot.epics.filter((e) => e.status === 'running');
-    const stages = new Map(await Promise.all(running.map(async (e) => [`${e.repo}#${e.issue}`, await stagesOf(client, e.repo, e.issue)] as const)));
+    // Every epic on the panel shows its stages; one print, so one request each.
+    const shown = [...snapshot.epics, ...snapshot.done];
+    const stages = new Map(await Promise.all(shown.map(async (e) => [`${e.repo}#${e.issue}`, await stagesOf(client, e.repo, e.issue)] as const)));
     const detail = (repo: string, issue: number) => stages.get(`${repo}#${issue}`) ?? null;
     out(renderDashboard(snapshot, { color: tty, columns: tty ? process.stdout.columns : 100, detail }).join('\n'));
     return 0;

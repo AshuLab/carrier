@@ -12,8 +12,8 @@ export type DetailProvider = (repo: string, issue: number) => Sessions | null | 
 // ponytail: entries of epics that left the panel stay until the provider is dropped; a prune if a long run ever shows it.
 const caches = new WeakMap<DetailProvider, Map<string, { signature: string; detail: Sessions | null }>>();
 
-/** An epic's detail, asked again only when its stage, round, status, blockers or latest execution changed. */
-export function detailOf(provider: DetailProvider, e: PanelEpic): Sessions | null {
+/** An epic's detail, asked again only when its stage, round, status, blockers or latest execution changed (a finished epic has only the last). */
+export function detailOf(provider: DetailProvider, e: Pick<PanelEpic, 'repo' | 'issue'> & Partial<Pick<PanelEpic, 'stage' | 'round' | 'status' | 'blockers'>> & { executionId?: string | null }): Sessions | null {
   const cache = caches.get(provider) ?? new Map();
   caches.set(provider, cache);
   const key = `${e.repo}#${e.issue}`;

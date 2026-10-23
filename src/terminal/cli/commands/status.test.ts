@@ -95,3 +95,22 @@ test('against an engine whose hello does not list sessions, no sessions request 
   expect(text).toContain('A/a #1');
   expect(requests).toEqual(['snapshot']);
 });
+
+test('status asks for the stages of the epics that need a person and the ones ready for test too', async () => {
+  const asked: string[] = [];
+  const controls = {
+    poll: () => {}, setPaused: () => {}, logs: () => [],
+    sessions: (repo: string, issue: number) => (asked.push(`${repo}#${issue}`), stages(14)),
+    events: () => null, epic: () => null, files: () => null, availableRepos: () => Promise.resolve([]),
+  };
+  const more: PanelSnapshot = {
+    ...snapshot,
+    epics: [{ ...epic(1), status: 'needs_human', needsHumanReason: 'stuck' }],
+    done: [{ repo: 'A/a', issue: 3, title: null, labels: [], prNumber: 9, finishedAt: 1_000_000, executionId: 'e' }],
+  };
+  closers.push((await startControlServer({ orchestratorDir: join(root, 'orchestrator'), snapshot: () => more, startedAt: 1, controls, stop: async () => {} })).close);
+  const { code, text } = await printed();
+  expect(code).toBe(0);
+  expect(asked).toEqual(['A/a#1', 'A/a#3']);
+  expect(text.match(/ship ✓ 14m 00s/g)).toHaveLength(2);
+});

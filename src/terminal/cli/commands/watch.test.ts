@@ -137,3 +137,21 @@ test('a sessions request that errors leaves that epic without detail while the o
   expect(out.match(/ship ✓/g)).toHaveLength(1);
   expect(out).toContain('A/a #1');
 });
+
+test('a sessions request that failed this time is asked again at the next draw, and an unknown epic is not', async () => {
+  let failures = 1;
+  const { draw, sessionsAsked } = stagePanel(['sessions'], (issue) => {
+    if (issue === 2) throw new Error('unknown epic');
+    if (failures-- > 0) throw new Error('internal error');
+    return reply('e1');
+  });
+  const two = { ...epic, issue: 2 };
+  draw(epic, two);
+  await flush();
+  expect(draw(epic, two)).not.toContain('ship ✓'); // the failure was not remembered...
+  await flush();
+  expect(draw(epic, two)).toContain('ship ✓ 14m 00s'); // ...so the next draw got the answer
+  draw(epic, two);
+  expect(sessionsAsked.filter((issue) => issue === 1)).toEqual([1, 1]);
+  expect(sessionsAsked.filter((issue) => issue === 2)).toEqual([2]); // no detail to know: asked once
+});

@@ -35,7 +35,8 @@ export function socketPanel(client: Pick<CarrierClient, 'hello' | 'request'>, { 
     }
     if (known.asking === false) {
       known.asking = true;
-      void stagesOf(client, repo, issue).then((answer) => Object.assign(known, { detail: answer, asking: false, arrived: true }));
+      // A failed request is not an answer: the last one stays and the next draw asks again.
+      void stagesOf(client, repo, issue).then((answer) => Object.assign(known, answer === undefined ? { asking: false } : { detail: answer, asking: false, arrived: true }));
     }
     // ponytail: an answer that was asked before the epic's latest change is shown as if current until the next change; per-ask tokens if it ever shows.
     return undefined; // not remembered: the panel asks again at its next draw

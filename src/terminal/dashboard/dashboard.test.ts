@@ -312,3 +312,20 @@ test('q stops Carrier in the foreground and leaves it running in watch: hints, h
   expect(view('leave', { ...keysUi, mode: 'help' })).toContain('esc back · q leave');
   expect(renderDashboard(snap(), { color: false, quit: 'leave' }).at(-1)).toBe('   Ctrl+C leaves it running');
 });
+
+test('a needs-you row and a ready-for-test row show their stages too, asked once per epic', () => {
+  const calls: string[] = [];
+  const detail = (repo: string, issue: number) => (calls.push(`${repo}#${issue}`), history);
+  const s = snap({
+    epics: [epic({ issue: 29, status: 'needs_human', stage: 'review', needsHumanReason: 'inconclusive review' })],
+    done: [{ repo: 'AshuLab/carrier', issue: 28, title: 'Menu bar', labels: [], prNumber: 44, finishedAt: now - 7_200_000, executionId: 'x1' }],
+  });
+  const draw = () => renderDashboard(s, { columns: 80, color: false, detail }).join('\n');
+  const out = draw();
+  draw();
+  expect(out).toContain('inconclusive review\n   ship ✓ 14m 00s · review ↻ changes round 1 4m 00s · [fix] round 1 2m 00s\n');
+  expect(out).toContain('Menu bar\n   ship ✓ 14m 00s ·');
+  expect(calls).toEqual(['AshuLab/carrier#29', 'AshuLab/carrier#28']);
+  expect(renderDashboard(s, { color: false }).join('\n')).not.toContain('ship ✓');
+  for (const line of renderDashboard(s, { columns: 50, detail })) expect(visibleLength(line)).toBeLessThanOrEqual(50);
+});

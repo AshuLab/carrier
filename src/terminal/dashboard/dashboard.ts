@@ -151,6 +151,8 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     for (const e of needsYou) {
       add(`${lead(e.repo, e.issue, '   ')}${paint(`${e.repo} #${e.issue}`, 'bold')}${titled(e.title)}`);
       if (e.needsHumanReason) add(`   ${printable(e.needsHumanReason)}`);
+      const history = detail && detailOf(detail, e);
+      if (history && history.length > 0) add(`   ${historyLine(history, s.now, paint, width - 3)}`);
       add(`   ${paint(e.prUrl ?? e.issueUrl, 'dim')}`);
       if (e.lastError) add(`   ${paint(`error: ${printable(e.lastError)}`, 'red')}`);
     }
@@ -158,7 +160,11 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
 
   if (s.done.length > 0) {
     section('READY FOR TEST ✔', 'green');
-    for (const d of s.done) add(`${lead(d.repo, d.issue, '   ')}${d.repo} #${d.issue}${d.prNumber === null ? '' : ` · PR #${d.prNumber}`} · ${ago(d.finishedAt)}${titled(d.title)}`); // last: a cut title costs less than a cut PR number or time
+    for (const d of s.done) {
+      add(`${lead(d.repo, d.issue, '   ')}${d.repo} #${d.issue}${d.prNumber === null ? '' : ` · PR #${d.prNumber}`} · ${ago(d.finishedAt)}${titled(d.title)}`); // last: a cut title costs less than a cut PR number or time
+      const history = detail && detailOf(detail, d);
+      if (history && history.length > 0) add(`   ${historyLine(history, s.now, paint, width - 3)}`);
+    }
   }
 
   // Only while GitHub refused some repo's last check; a healthy Carrier shows nothing extra.

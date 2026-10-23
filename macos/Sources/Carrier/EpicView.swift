@@ -201,6 +201,21 @@ struct PipelineStepView: View {
         }
         .lineLimit(1)
         .help([step.name, step.label].compactMap { $0 }.joined(separator: " "))
+        // the circle is a glyph or a colour, never read: the state and the words are said instead, labels hidden or not
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(step.name)
+        .accessibilityValue([spoken, step.label].compactMap { $0 }.joined(separator: ", "))
+    }
+
+    private var spoken: String {
+        switch step.state {
+        case .done: "done"
+        case .current: "in progress"
+        case .waiting: "not started"
+        case .input: "needs your input"
+        case .error: "failed"
+        case .cancelled: "cancelled"
+        }
     }
 
     private var mark: String {

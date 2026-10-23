@@ -37,7 +37,7 @@ final class RingLayer: CALayer {
     func setAnimating(_ on: Bool) { arc.setSpinning(on) }
 }
 
-extension CALayer {
+fileprivate extension CALayer {
     /// Idempotent: an animation already attached is left alone, or it would restart every time the view updates.
     func setSpinning(_ on: Bool) {
         guard on else { return removeAnimation(forKey: RingLayer.spinKey) }

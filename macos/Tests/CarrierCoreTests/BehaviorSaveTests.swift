@@ -48,3 +48,14 @@ private func running() throws -> ConnectionState {
     #expect(restartWarning(epics: 1, asks: true) == "Restart interrupts 1 running epic. It resumes from where it was when Carrier starts again.")
     #expect(restartWarning(epics: 2, asks: true)?.hasPrefix("Restart interrupts 2 running epics. They resume") == true)
 }
+
+@Test func changingTheFinishedWindowIsAChangeLikeTheOthersAndOffersTheRestart() throws {
+    let saved = EngineConfig()
+    var draft = saved
+    draft.finishedWindowDays = 7
+    let changed = footer(try running(), dirty: draft != saved, valid: draft.problems.isEmpty)
+    #expect(changed.offersRestart && changed.canSave && changed.canRestart)
+    draft.finishedWindowDays = 31
+    let refused = footer(try running(), dirty: draft != saved, valid: draft.problems.isEmpty)
+    #expect(refused.canSave == false && refused.canRestart == false)
+}

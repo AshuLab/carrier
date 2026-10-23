@@ -5,6 +5,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private let header = StatusHeaderView()
     private var fixtureServer: FixtureServer?
+    /// Start on open looks once, at the first state the monitor delivers (main thread).
+    private var triedStartOnOpen = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // before anything reads the socket path: the fake engine's home becomes CARRIER_HOME
@@ -58,9 +60,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 MenuControls.shared.react(to: state)
                 EpicMenuSection.shared.react(to: state)
                 NotificationWatcher.app.react(to: state)
+                self.startOnOpen(firstState: state)
             }
         }
         Thread.detachNewThread { monitor.run() }
+    }
+
+    /// The person's standing choice: start Carrier once when the app opens and finds it stopped.
+    private func startOnOpen(firstState state: ConnectionState) {
+        let tried = triedStartOnOpen
+        triedStartOnOpen = true
+        guard shouldStartOnOpen(
+            enabled: UserDefaults.standard.bool(forKey: startOnOpenKey), firstState: state,
+            startReady: StartController.shared.missing.isEmpty, fixture: fixtureServer != nil, alreadyTried: tried
+        ) else { return }
+        StartController.shared.start()
     }
 
     // A menu bar app keeps running with no windows.

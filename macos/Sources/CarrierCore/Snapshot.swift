@@ -78,6 +78,24 @@ public struct PanelSnapshot: Codable, Equatable {
         public var title: String?
     }
 
+    /// A merged or cancelled epic that ended inside the engine's finished window.
+    public struct FinishedEpic: Codable, Equatable {
+        public enum Status: String, Codable {
+            case merged, cancelled
+        }
+
+        public var repo: String
+        public var issue: Int
+        public var title: String?
+        public var labels: [String]
+        public var prNumber: Int?
+        public var finishedAt: Int
+        public var status: Status
+        /// The stored reason; nil when merged.
+        public var cancelReason: String?
+        public var executionId: String?
+    }
+
     public var now: Int
     public var slots: Slots
     public var queue: [QueuedEpic]
@@ -91,6 +109,28 @@ public struct PanelSnapshot: Codable, Equatable {
     public var engine: Engine?
     public var watched: [Watched]?
     public var sessions: [Session]?
+    /// Newest first. An engine that predates the field sends none: decoded as empty.
+    public var finished: [FinishedEpic] = []
+}
+
+extension PanelSnapshot {
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        now = try c.decode(Int.self, forKey: .now)
+        slots = try c.decode(Slots.self, forKey: .slots)
+        queue = try c.decode([QueuedEpic].self, forKey: .queue)
+        epics = try c.decode([PanelEpic].self, forKey: .epics)
+        startedAt = try c.decode(Int.self, forKey: .startedAt)
+        repos = try c.decode(Int.self, forKey: .repos)
+        nextCheckAt = try c.decodeIfPresent(Int.self, forKey: .nextCheckAt)
+        problem = try c.decodeIfPresent(String.self, forKey: .problem)
+        paused = try c.decode(Bool.self, forKey: .paused)
+        done = try c.decode([DoneEpic].self, forKey: .done)
+        engine = try c.decodeIfPresent(Engine.self, forKey: .engine)
+        watched = try c.decodeIfPresent([Watched].self, forKey: .watched)
+        sessions = try c.decodeIfPresent([Session].self, forKey: .sessions)
+        finished = try c.decodeIfPresent([FinishedEpic].self, forKey: .finished) ?? []
+    }
 }
 
 public struct PanelEpic: Codable, Equatable {

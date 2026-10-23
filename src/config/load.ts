@@ -3,6 +3,7 @@ import { configSchema, type Config } from './schema.ts';
 export const defaults = {
   root: '~/.solve',
   pollIntervalMinutes: 5,
+  finishedWindowDays: 15,
   logLevel: 'info',
   limits: {
     maxConcurrentEpics: 3,

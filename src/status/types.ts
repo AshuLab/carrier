@@ -100,4 +100,13 @@ export type ControlSnapshot = Omit<PanelSnapshot, 'queue' | 'epics'> & {
   watched: { repo: string; lastCheckedAt: number | null; ok: boolean; error: string | null; agents: PanelAgents }[];
   /** The running executions, at most one per running epic. */
   sessions: PanelSession[];
+  /** The merged and cancelled epics that ended inside the finished window, newest first, with no row cap. */
+  finished: {
+    repo: string; issue: number; title: string | null; labels: string[]; prNumber: number | null; finishedAt: number;
+    status: 'merged' | 'cancelled';
+    /** null when merged. */
+    cancelReason: string | null;
+    /** The last execution of the epic. */
+    executionId: string | null;
+  }[];
 };

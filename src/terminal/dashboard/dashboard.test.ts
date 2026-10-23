@@ -214,3 +214,24 @@ test('a running card says what its agent is doing: three lines when selected, on
   const alone = renderDashboard(snap({ epics: [epic({ executionId: 'e1' })] }), { color: false, ui: { ...keysUi, selected: 'AshuLab/carrier#31' } }).join('\n');
   expect(alone).not.toContain('↑↓');
 });
+
+test('a repo GitHub refused is listed with its error; healthy repos or no watched list add nothing', () => {
+  const ok = { repo: 'AshuLab/carrier', ok: true, error: null };
+  const bad = (repo: string, error: string | null) => ({ repo, ok: false, error });
+  const none = plain(snap());
+  expect(plain(snap({ watched: [ok] }))).toBe(none);
+  expect(plain(snap({ watched: [] }))).toBe(none);
+  const one = plain(snap({ watched: [ok, bad('AshuLab/api', 'HTTP 404: Not Found')] }));
+  expect(one).toContain('REPOS GITHUB REFUSED ▲\n   AshuLab/api  HTTP 404: Not Found');
+  expect(one).not.toContain('AshuLab/carrier  ');
+  const two = plain(snap({ watched: [bad('AshuLab/api', 'HTTP 404'), bad('AshuLab/web', 'bad credentials')] }));
+  expect(two).toContain('AshuLab/api  HTTP 404\n   AshuLab/web  bad credentials');
+});
+
+test('a refused repo error loses its control sequences and never makes a line wider than the terminal', () => {
+  const s = snap({ watched: [{ repo: 'AshuLab/api', ok: false, error: `\x1b[2Jwipe${'x'.repeat(200)}` }] });
+  const out = renderDashboard(s, { columns: 60, color: false });
+  expect(out.join('\n')).not.toContain('\x1b');
+  expect(out.join('\n')).toContain('AshuLab/api   [2Jwipe');
+  for (const line of renderDashboard(s, { columns: 60 })) expect(visibleLength(line)).toBeLessThanOrEqual(60);
+});

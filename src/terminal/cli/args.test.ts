@@ -27,7 +27,7 @@ test('status is a command that takes no arguments', () => {
 });
 
 test('the usage names every command and every init flag', () => {
-  for (const word of ['carrier init', 'carrier doctor', 'carrier schema', 'carrier status', 'stop', 'pause', 'resume', 'check', '--repo', '--author-profile', '--reviewer-provider', '--out', '--yes', '--config']) expect(usage()).toContain(word);
+  for (const word of ['carrier init', 'carrier doctor', 'carrier schema', 'carrier start', 'carrier status', 'stop', 'pause', 'resume', 'check', '--repo', '--author-profile', '--reviewer-provider', '--out', '--yes', '--config']) expect(usage()).toContain(word);
 });
 
 test('stop, pause, resume and check are commands that take no argument', () => {
@@ -35,4 +35,9 @@ test('stop, pause, resume and check are commands that take no argument', () => {
     expect(parseCli([command, '--config', 'x.json'])).toMatchObject({ ok: true, command, flags: { config: 'x.json' } });
     expect(parseCli([command, 'now'])).toEqual({ ok: false, message: `Unknown command: ${command} now` });
   }
+});
+
+test('start takes the config flag and no other word', () => {
+  expect(parseCli(['start', '--config', 'x.json'])).toMatchObject({ ok: true, command: 'start', flags: { config: 'x.json' } });
+  expect(parseCli(['start', 'now'])).toEqual({ ok: false, message: 'Unknown command: start now' });
 });

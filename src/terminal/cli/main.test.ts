@@ -247,3 +247,56 @@ test('a Carrier that speaks another protocol makes the commands exit 2', async (
     server.close();
   }
 });
+
+// `start` leaves a Carrier behind on purpose, so each test registers what it started and the afterAll below stops it.
+const started: number[] = [];
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+afterAll(() => {
+  for (const pid of started) if (alive(pid)) process.kill(pid, 'SIGINT');
+});
+const start = (config: string) => spawnSync(process.execPath, [main, 'start', '--config', config], { cwd: dir, encoding: 'utf8', env: { ...process.env, CARRIER_HOME: home, PATH: `${bin}:${process.env.PATH}` } });
+const pidOf = (stdout: string) => Number(/pid (\d+)/.exec(stdout)?.[1]);
+
+test('start returns once Carrier answers on its socket and leaves it running without the terminal', async () => {
+  const root = join(dir, 's1');
+  const config = write('start.json', { ...valid, root, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  const began = Date.now();
+  const first = start(config);
+  const pid = pidOf(first.stdout);
+  started.push(pid);
+  const log = join(root, 'orchestrator', 'logs', 'start.log');
+  expect([first.status, first.stderr]).toEqual([0, '']);
+  expect(Date.now() - began).toBeLessThan(15_000);
+  expect(first.stdout).toContain(log);
+  expect(alive(pid)).toBe(true); // `start` has returned and its own process is gone
+  const client = await connectControl(join(root, 'orchestrator', 'control.sock'));
+  expect(client.hello.pid).toBe(pid);
+  client.close();
+  await vi.waitFor(() => expect(readFileSync(log, 'utf8')).toContain('slots 0/3'), { timeout: 15_000 }); // what the engine wrote
+
+  const second = start(config);
+  expect([second.status, second.stderr, second.stdout]).toEqual([0, '', expect.stringContaining(`already running (pid ${pid})`)]);
+  expect(readFileSync(log, 'utf8')).toContain('slots 0/3'); // the second start did not replace the log
+
+  process.kill(pid, 'SIGINT');
+  await vi.waitFor(() => expect(alive(pid)).toBe(false), { timeout: 15_000 });
+});
+
+test('a start that cannot come up prints the end of the log and exits 1 as soon as the child is gone', () => {
+  const root = join(dir, 's2');
+  mkdirSync(join(root, 'orchestrator', 'carrier.db'), { recursive: true }); // the engine cannot open a database that is a folder
+  const began = Date.now();
+  const result = start(write('start-bad.json', { ...valid, root }));
+  expect(result.status).toBe(1);
+  expect(Date.now() - began).toBeLessThan(10_000);
+  expect(result.stderr).toContain('Carrier exited before it was ready');
+  expect(result.stderr).toContain('carrier failed to start');
+  expect(result.stderr).toContain(join(root, 'orchestrator', 'logs', 'start.log'));
+});

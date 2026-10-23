@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // The entry point: read the command line, hand it to the command, turn a CliError into an exit code. Nothing else lives here.
+import { resolve } from 'node:path';
 import { parseCli, usage } from './args.ts';
 import { CliError } from './cli-error.ts';
 import { configPathFor, loadConfigFile, noConfig } from './config-file.ts';
@@ -29,6 +30,10 @@ else if (cli.flags.help) {
       case 'doctor':
         if (configPath === undefined) throw noConfig('Usage: carrier doctor --config <path>');
         exit = await (await import('./commands/doctor.ts')).doctorCommand(loadConfigFile(configPath));
+        break;
+      case 'start':
+        if (configPath === undefined) throw noConfig('Usage: carrier start --config <path>');
+        exit = await (await import('./commands/start.ts')).startCommand(loadConfigFile(configPath), resolve(configPath));
         break;
       case 'status':
         if (configPath === undefined) throw noConfig('Usage: carrier status --config <path>');

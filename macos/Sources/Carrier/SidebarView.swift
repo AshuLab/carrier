@@ -132,11 +132,11 @@ struct SidebarRowView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            StateGlyph(state: row.state)
+            StateGlyph(state: row.state, attention: row.attention)
             VStack(alignment: .leading, spacing: 1) {
                 SidebarRowTitle(name: row.title ?? row.name, issue: row.issue)
                 StateAndRepo {
-                    Text(row.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                    Text(row.detail).font(.caption).foregroundStyle(row.attention == nil ? .secondary : row.attention == .error ? Color.red : Color.orange).lineLimit(1).truncationMode(.tail)
                     if let repo = row.repoLabel {
                         HStack(spacing: 3) {
                             GitHubMark.image.renderingMode(.template).resizable().scaledToFit().frame(width: 10, height: 10)

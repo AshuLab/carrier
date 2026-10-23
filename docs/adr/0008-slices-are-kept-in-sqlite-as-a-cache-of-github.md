@@ -26,3 +26,7 @@ The engine queries GitHub each time the app asks. No table, but a request per cl
 ## Consequences
 
 One more table and about two points of GitHub's GraphQL budget per running epic per poll, well under the limit for a handful of epics. The list can be as old as the poll interval, and for a finished epic it is frozen at its last read, which is the right thing to show. Because the table is a cache and not an authority, it can be rebuilt or dropped at no cost, and a wrong row can never change what Carrier does. This reverses the spec's line that slice progress is not stored in SQLite, and it changes the glossary entry for slice progress.
+
+## Amendment: when the slices are read
+
+The slices are no longer read only at each poll. The rule that live epics are read every poll stays, and a read also happens when a command of the agent that changes them ends (`gh issue edit`, `gh issue close`, `gh pr create`, `gh pr merge`, `gh pr ready`, `gh pr close`; at most one read per epic every ten seconds) and once a minute for the live epics as a net. The command is only a signal to look: the data still comes from GitHub, so a missed or false detection costs one query or one timer period, never a wrong state.

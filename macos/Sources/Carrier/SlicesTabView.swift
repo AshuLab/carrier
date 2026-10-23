@@ -3,12 +3,12 @@ import CarrierCore
 import SwiftUI
 
 extension SliceGroup {
-    /// The mockup's: merged green, in progress blue, waiting the grey of the track.
+    /// The mockup's: merged green, in progress blue, pending the grey of the track.
     var color: Color {
         switch self {
         case .merged: .green
         case .inProgress: .blue
-        case .waiting: Color.secondary.opacity(0.45)
+        case .pending: Color.secondary.opacity(0.45)
         }
     }
 }
@@ -29,7 +29,7 @@ struct SlicesRingArcShape: Shape {
     }
 }
 
-/// The track, then merged and in progress on it; waiting is the bare track. The count and its caption sit in the middle.
+/// The track, then merged and in progress on it; pending is the bare track. The count and its caption sit in the middle.
 struct SlicesRing: View {
     let counts: [Int]
     let centre: String
@@ -42,7 +42,7 @@ struct SlicesRing: View {
         ZStack {
             Circle().stroke(Color.secondary.opacity(0.18), lineWidth: Self.lineWidth)
             ForEach(ringArcs(counts, radius: radius, lineWidth: Self.lineWidth, gap: 3), id: \.group) { arc in
-                if arc.group != SliceGroup.allCases.firstIndex(of: .waiting) {
+                if arc.group != SliceGroup.allCases.firstIndex(of: .pending) {
                     SlicesRingArcShape(arc: arc)
                         .stroke(SliceGroup.allCases[arc.group].color, style: StrokeStyle(lineWidth: Self.lineWidth, lineCap: arc.full ? .butt : .round))
                 }
@@ -59,14 +59,14 @@ struct SlicesRing: View {
     }
 }
 
-/// The Slices tab: ring, legend that selects a group, and that group's list.
+/// The Slices tab: ring, the totals that filter one at a time, and the list of every slice by number.
 struct SlicesTabView: View {
     let subject: EpicSubject?
     let reply: EpicReply?
-    @State private var chosen: SliceGroup?
+    @State private var filter: SliceFilter = .all
 
     var body: some View {
-        let model = slicesTabModel(subject, reply: reply, chosen: chosen, now: Int(Date().timeIntervalSince1970 * 1000))
+        let model = slicesTabModel(subject, reply: reply, filter: filter, now: Int(Date().timeIntervalSince1970 * 1000))
         if model.isEmpty {
             EmptyStateView(state: .noSlices)
         } else {
@@ -75,43 +75,45 @@ struct SlicesTabView: View {
                     SlicesRing(counts: model.counts, centre: model.centre, caption: model.caption)
                         .frame(maxWidth: .infinity).padding(.top, 16).padding(.bottom, 22)
                     ForEach(model.legend, id: \.group) { entry in
-                        Button { chosen = entry.group } label: {
-                            HStack(spacing: 9) {
-                                Circle().fill(entry.group.color).frame(width: 9, height: 9)
-                                Text(entry.group.title).fontWeight(.medium)
-                                Spacer()
-                                Text("\(entry.count)").foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal, 10).padding(.vertical, 7)
-                            .background(RoundedRectangle(cornerRadius: 10).fill(entry.group == model.selected ? Color.secondary.opacity(0.16) : .clear))
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityAddTraits(entry.group == model.selected ? .isSelected : [])
+                        total(entry.group.title, count: entry.count, color: entry.group.color, filter: .only(entry.group), selected: model.selected)
                     }
+                    total("Total", count: model.total, color: .clear, filter: .all, selected: model.selected)
                     if let why = model.unavailable {
                         EmptyStateView(icon: why.icon, title: why.title, line: why.line).frame(minHeight: 190)
                     }
-                    if model.rows.isEmpty == false { Divider().padding(.horizontal, 10).padding(.top, 12) }
-                    VStack(spacing: model.selected == .inProgress ? 8 : 0) {
-                        ForEach(model.rows, id: \.number) { row in
-                            SliceRowView(row: row, group: model.selected ?? .merged)
-                            if model.selected != .inProgress, row.number != model.rows.last?.number { Divider() }
-                        }
+                    VStack(spacing: 8) {
+                        ForEach(model.rows, id: \.number) { SliceRowView(row: $0) }
                     }
-                    .padding(.top, 4)
+                    .padding(.top, 12)
                 }
             }
         }
     }
+
+    /// One total. Selected, it is the row filled with the system accent colour: no check mark and no line under the totals.
+    private func total(_ title: String, count: Int, color: Color, filter target: SliceFilter, selected: SliceFilter) -> some View {
+        Button { filter = target } label: {
+            HStack(spacing: 9) {
+                Circle().fill(color).frame(width: 9, height: 9)
+                Text(title).fontWeight(.medium)
+                Spacer()
+                Text("\(count)").foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(RoundedRectangle(cornerRadius: 10).fill(target == selected ? Color.accentColor.opacity(0.18) : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(target == selected ? .isSelected : [])
+    }
 }
 
-/// A slice. One in progress is a card with a turning ring, "#210 Webhooks" and what it is doing; a merged or waiting one is a
-/// plain row with its mark. Under the title go its links on GitHub: the issue number and, when the engine found one, the pull
+/// A slice. One in progress is a card with a turning ring, "#210 Webhooks" and what it is doing; a merged or pending one is a
+/// plain row with its mark (a green check or an empty circle). Under the title go its links on GitHub: the issue number and, when the engine found one, the pull
 /// request. A tap on the row opens the pull request (the issue when there is none).
 struct SliceRowView: View {
     let row: SliceRow
-    let group: SliceGroup
+    private var group: SliceGroup { row.state }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -119,7 +121,7 @@ struct SliceRowView: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(group == .inProgress ? "#\(row.number) \(row.title)" : row.title)
                     .fontWeight(group == .inProgress ? .semibold : .regular)
-                    .foregroundStyle(group == .waiting ? Color.secondary : .primary).lineLimit(2)
+                    .foregroundStyle(group == .pending ? Color.secondary : .primary).lineLimit(2)
                 HStack(spacing: 6) {
                     if group != .inProgress { chip("#\(row.number)", url: row.issueURL, accent: false) }
                     if let number = row.prNumber { chip("PR #\(number)", url: row.prURL, accent: true) }
@@ -141,7 +143,7 @@ struct SliceRowView: View {
         case .merged:
             Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white)
                 .frame(width: 16, height: 16).background(Circle().fill(Color.green))
-        case .waiting: Circle().strokeBorder(Color.secondary.opacity(0.6), lineWidth: 2).frame(width: 12, height: 12)
+        case .pending: Circle().strokeBorder(Color.secondary.opacity(0.6), lineWidth: 2).frame(width: 12, height: 12)
         }
     }
 

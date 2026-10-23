@@ -24,6 +24,12 @@ export class FakeAgentRunner implements AgentRunner {
   alive = new Set<string>();
   /** What each run does; by default it hangs, so a test sees the execution while it is running. */
   behavior: (task: AgentTask) => Behavior = () => ({ exit: 'hang' });
+  private eventSinks = new Map<string, ((events: AgentEvent[]) => void)[]>();
+
+  /** Delivers a batch of events from a run later on, when the test decides. */
+  emit(executionId: string, events: AgentEvent[]) {
+    for (const cb of this.eventSinks.get(executionId) ?? []) cb(events);
+  }
 
   run(task: AgentTask): AgentRun {
     this.tasks.push(task);
@@ -32,6 +38,7 @@ export class FakeAgentRunner implements AgentRunner {
     const sessions: ((id: string) => void)[] = [];
     const outputs: ((stream: 'stdout' | 'stderr', chunk: string) => void)[] = [];
     const eventSinks: ((events: AgentEvent[]) => void)[] = [];
+    this.eventSinks.set(task.executionId, eventSinks);
     let resolveDone!: (result: { exit: AgentExit; sessionId?: string }) => void;
     const finish = (result: { exit: AgentExit; sessionId?: string }) => {
       this.alive.delete(task.executionId);

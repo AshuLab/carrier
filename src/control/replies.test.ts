@@ -116,6 +116,7 @@ test('the epic reply equals reply-epic.json', () => {
       { number: 123, title: 'Sessions request', state: 'in_progress', blockedBy: [], prNumber: 131, prState: 'draft', prMergedAt: null, closedAt: null, readAt: 99_000, lane: 1, activity: 'Edit /work/acme/web-epic--lane-1/src/control/sessions.ts' },
       { number: 124, title: 'Events request', state: 'waiting', blockedBy: [121, 123], prNumber: null, prState: null, prMergedAt: null, closedAt: null, readAt: 99_000 },
       { number: 125, title: 'Files request', state: 'ready', blockedBy: [], prNumber: null, prState: null, prMergedAt: null, closedAt: null, readAt: 99_000 },
+      { number: 126, title: 'Watch request', state: 'waiting', blockedBy: [124], prNumber: null, prState: null, prMergedAt: null, closedAt: null, readAt: 99_000 },
     ],
     slicesTruncated: false,
     threads: [

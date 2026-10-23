@@ -62,7 +62,7 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(reply.rounds[2].observations.map(\.id) == ["o1", nil])
     #expect(reply.rounds[2].observations[0].url == "https://github.com/acme/web/pull/50#discussion_o1")
     #expect(reply.rounds[2].observations[1].url == nil)
-    #expect(reply.slices.map(\.state) == ["closed", "skipped", "in_progress", "waiting", "ready"])
+    #expect(reply.slices.map(\.state) == ["closed", "skipped", "in_progress", "waiting", "ready", "waiting"])
     #expect(reply.slices[3].blockedBy == [121, 123])
     #expect(reply.slicesTruncated == false)
     #expect(reply.threads?.map(\.id) == ["PRRT_kwDOexample01", "PRRT_kwDOexample02"])

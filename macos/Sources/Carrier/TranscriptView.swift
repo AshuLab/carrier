@@ -70,7 +70,7 @@ struct TranscriptItemView: View {
         case .tool(let id, let card):
             // only what changes files is a card; the rest is a line of the log
             if card.kind == .edit {
-                ToolCardView(card: card, outputOpen: outputs.isOpen(id, card)) { outputs.toggle(id, card) }
+                ToolCardView(card: card)
             } else {
                 ToolLineView(card: card, outputOpen: outputs.isOpen(id, card)) { outputs.toggle(id, card) }
             }
@@ -248,26 +248,22 @@ struct CopyButton: View {
     }
 }
 
-/// A tool call as a card: its line on top and, under it, what it did on a dark console block across the card's width: the lines
-/// an edit changed, or what a command printed once its output is opened.
+/// An edit as a card, "name first": the file name, its folder dim, the counts once and nothing that says it worked. A failed edit
+/// has the engine's reason under the header and no diff; a running one a spinner.
 struct ToolCardView: View {
     let card: TranscriptCard
-    let outputOpen: Bool
-    let toggleOutput: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header.padding(.horizontal, 10).padding(.vertical, 6)
-            if let diff = card.diff { DiffView(diff: diff) }
-            if outputOpen, card.output.isEmpty == false {
-                Console {
-                    Text(card.output.joined(separator: "\n")).textSelection(.enabled)
-                        .foregroundStyle(card.status == .error ? ConsoleColor.removed : ConsoleColor.text)
-                        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 12)
-                }
+            header.padding(.horizontal, 10).padding(.vertical, 7).frame(minHeight: 34)
+            if let reason = card.editReason {
+                Text(reason).font(.system(size: 12)).foregroundStyle(.red).lineLimit(2)
+                    .padding(.horizontal, 10).padding(.bottom, 8)
             }
+            if let diff = card.shownDiff { DiffView(diff: diff) }
         }
-        .background(Color.secondary.opacity(0.14))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.secondary.opacity(0.12))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -275,25 +271,25 @@ struct ToolCardView: View {
         HStack(spacing: 8) {
             Image(systemName: card.kind.icon).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
                 .frame(width: 20, height: 20).background(RoundedRectangle(cornerRadius: 6).fill(card.kind.color))
-            Text(card.tool).fontWeight(.semibold)
-            Text(card.arg).font(.system(size: 12, design: .monospaced)).lineLimit(1).truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            if let diff = card.diff {
-                Text("+\(diff.added)").foregroundStyle(.green)
-                Text("−\(diff.removed)").foregroundStyle(.red)
+            HStack(spacing: 6) {
+                Text(card.editName).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                if card.editFolder.isEmpty == false {
+                    Text(card.editFolder).font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary)
+                        .lineLimit(1).truncationMode(.head)
+                }
             }
-            if card.summary.isEmpty == false { Text(card.summary).foregroundStyle(.secondary).lineLimit(1) }
-            if let duration = card.duration { Text(duration).font(.caption).foregroundStyle(.tertiary).lineLimit(1) }
-            status
-            if card.output.isEmpty == false {
-                Button(outputOpen ? "hide" : "output", action: toggleOutput).buttonStyle(.link).font(.caption)
-                    .help("\(card.output.count) \(card.output.count == 1 ? "line" : "lines")")
+            .help(card.arg).frame(maxWidth: .infinity, alignment: .leading)
+            if let diff = card.shownDiff {
+                HStack(spacing: 4) {
+                    Text("+\(diff.added)").foregroundStyle(.green)
+                    Text("−\(diff.removed)").foregroundStyle(.red)
+                }
+                .font(.system(size: 12, weight: .medium)).monospacedDigit()
             }
+            // a tick says nothing; only a failure or a running edit is marked
+            if card.status != .ok { ToolStatusView(status: card.status) }
         }
-        .font(.system(size: 12))
     }
-
-    private var status: some View { ToolStatusView(status: card.status) }
 }
 
 extension ToolKind {

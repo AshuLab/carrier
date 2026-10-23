@@ -63,6 +63,26 @@ public struct TranscriptCard: Equatable {
     /// What the call's line says: a command is cut to what it starts with, anything else (a path, a pattern) is its argument.
     public var title: String { kind == .shell ? commandTitle(arg) : arg }
 
+    /// An edit's file name.
+    public var editName: String { arg.split(separator: "/").last.map(String.init) ?? arg }
+
+    /// An edit's folder, relative to the worktree (a Solve path `…/worktrees/<repo>/<lane>/…` loses everything up to the lane
+    /// folder); an absolute path outside any worktree keeps its last two folders after "…/"; a relative one is shown as it is.
+    public var editFolder: String {
+        let parts = arg.split(separator: "/").dropLast()
+        if let at = parts.firstIndex(of: "worktrees"), parts.distance(from: at, to: parts.endIndex) >= 3 {
+            return parts.dropFirst(parts.distance(from: parts.startIndex, to: at) + 3).joined(separator: "/")
+        }
+        if arg.hasPrefix("/") { return parts.isEmpty ? "" : "…/" + parts.suffix(2).joined(separator: "/") }
+        return parts.joined(separator: "/")
+    }
+
+    /// The lines an edit's card draws: none for an edit that failed.
+    public var shownDiff: CardDiff? { status == .error ? nil : diff }
+
+    /// Why an edit failed, in the engine's words; nil when it worked, is running or said nothing.
+    public var editReason: String? { status == .error && summary.isEmpty == false ? summary : nil }
+
     /// A command always has something to show (the whole command); another call only when it printed something.
     public var hasDetails: Bool { kind == .shell || output.isEmpty == false }
 

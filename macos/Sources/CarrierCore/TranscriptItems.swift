@@ -61,7 +61,10 @@ public struct TranscriptCard: Equatable {
     public var diff: CardDiff?
 
     /// What the call's line says: a command is cut to what it starts with, anything else (a path, a pattern) is its argument.
-    public var title: String { kind == .shell ? commandTitle(arg) : arg }
+    public var title: String { kind == .shell ? commandTitle(arg).title : arg }
+
+    /// How many commands are chained after a shell call's title; the view draws it as a quiet "+N".
+    public var moreCommands: Int { kind == .shell ? commandTitle(arg).more : 0 }
 
     /// A command always has something to show (the whole command); another call only when it printed something.
     public var hasDetails: Bool { kind == .shell || output.isEmpty == false }

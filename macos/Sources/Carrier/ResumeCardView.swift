@@ -11,7 +11,7 @@ struct ResumeCardView: View {
 
     private var resuming: Bool { store.resuming.contains(epic) }
 
-    private var color: Color { card.attention == .error ? .red : .orange }
+    private var color: Color { card.attention.color }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {

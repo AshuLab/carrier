@@ -2,7 +2,8 @@ import CarrierCore
 import SwiftUI
 
 /// The glyph of an epic's state, 20 points square as in the mockup: a turning ring while it runs, a filled orange disc with a
-/// mark when it needs you (red instead of orange when `attention` says it failed), a hollow grey circle while it waits and a filled blue disc with a tick when it is ready.
+/// mark when it needs you (red when `attention` says it failed), a hollow grey circle while it waits and a filled blue disc with a
+/// tick when it is ready.
 struct StateGlyph: View {
     let state: EpicMenuState
     var attention: Attention?
@@ -14,13 +15,18 @@ struct StateGlyph: View {
     @ViewBuilder private var glyph: some View {
         switch state {
         case .running: SpinningRing()
-        case .needsYou: Disc(color: attention == .error ? .red : .orange, mark: "!")
+        case .needsYou: Disc(color: (attention ?? .input).color, mark: "!")
         case .waiting: Circle().strokeBorder(Color.gray, lineWidth: 2).frame(width: 14, height: 14)
         case .ready: Disc(color: .blue, mark: "✓")
         case .done: Disc(color: .green, mark: "✓")
         case .cancelled: Disc(color: .gray, mark: "✕")
         }
     }
+}
+
+extension Attention {
+    /// Red when something failed, orange when a person's input is needed (and for an epic whose kind is not known).
+    var color: Color { self == .error ? .red : .orange }
 }
 
 struct Disc: View {

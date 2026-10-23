@@ -324,8 +324,8 @@ test('a closed issue is cancelled, a lost ready too, and the slot goes to the ne
   const engine = await start(1);
   await clock.advance(5 * MIN);
   expect(rows(engine.db).map((e) => [e.issue, e.status, e.cancelReason])).toEqual([
-    [1, 'cancelled', 'cerrada antes de iniciar'],
-    [2, 'cancelled', 'ready removido'],
+    [1, 'cancelled', 'closed before it started'],
+    [2, 'cancelled', 'ready label removed'],
     [3, 'running', null],
   ]);
 });

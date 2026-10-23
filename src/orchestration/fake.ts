@@ -20,6 +20,7 @@ export class FakeGitHub implements GitHub {
   slicesUnavailable: GitHubUnavailable | null = null;
   /** Every slice read that reached the port, as `repo#issue`. */
   sliceReads: string[] = [];
+  slicesGate: Promise<void> | null = null;
   /** What readPullRequest answers, by `repo#number`; a pull request not listed does not exist. */
   pullRequestBlocks: Record<string, PullRequestBlock> = {};
   /** The review threads readPullRequest answers with, by `repo#number`; a pull request not listed has none. */
@@ -71,6 +72,7 @@ export class FakeGitHub implements GitHub {
     this.sliceReads.push(`${repo}#${issue}`);
     if (this.slicesUnavailable) throw this.slicesUnavailable;
     const found = this.slices[`${repo}#${issue}`];
+    await this.slicesGate; // a test holds the answer here: it was read above, it arrives when the gate opens
     return { slices: found?.slices.map((s) => ({ ...s })) ?? [], truncated: found?.truncated ?? false };
   }
 

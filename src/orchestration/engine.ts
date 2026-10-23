@@ -560,7 +560,19 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   // The slices of each epic to refresh, replacing its rows. A cache of GitHub: nothing the engine decides reads it back.
   // A failed read keeps the last rows and the poll goes on.
-  async function readEpicSlices(repo: string, id: number, issue: number) {
+  // One read at a time per epic, whoever asks (the poll, an event, the timer): a read waits for the one in flight, so it starts after
+  // the other has written and an older answer never lands over a newer one.
+  const sliceReads = new Map<number, Promise<void>>();
+  function readEpicSlices(repo: string, id: number, issue: number) {
+    const inFlight = sliceReads.get(id);
+    const read = inFlight ? inFlight.then(() => readSlicesNow(repo, id, issue)) : readSlicesNow(repo, id, issue);
+    const settled = read.catch(() => {});
+    sliceReads.set(id, settled);
+    void settled.then(() => { if (sliceReads.get(id) === settled) sliceReads.delete(id); });
+    return read;
+  }
+
+  async function readSlicesNow(repo: string, id: number, issue: number) {
     try {
       const { slices, truncated } = await github.readSlices(repo, issue);
       const readAt = clock.now();
@@ -575,7 +587,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   }
 
   // Reads one epic's slices now, or once at the end of the window when one was read less than sliceWindowMs ago: a burst makes one read
-  // per window and the last change is seen. ponytail: a read slower than the window can overlap the next; both replace the rows whole.
+  // per window and the last change is seen; one slower than the window is followed by the next, never overlapped (readEpicSlices).
   const sliceReadAt = new Map<number, number>();
   const sliceReadLater = new Map<number, () => void>();
   function readSlicesSoon(id: number, repo: string, issue: number) {

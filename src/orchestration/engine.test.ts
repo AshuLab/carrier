@@ -1829,13 +1829,16 @@ async function runningWithSlices() {
 
 test('an epic that starts has its slices cached at once, before the next poll', async () => {
   const engine = await runningWithSlices();
-  expect(new Set(github.sliceReads)).toEqual(new Set(['AshuLab/a#1'])); // epic 2 is still queued: no read
+  expect(github.sliceReads).toEqual(['AshuLab/a#1', 'AshuLab/a#1']); // the start's read and the minute timer's, which fires as the poll does; epic 2 is still queued: no read
   expect(cached(engine.db)).toEqual([`1:10:closed@${5 * MIN}`, `1:11:waiting@${5 * MIN}`]);
 });
 
 test('the poll caches the slices of live epics, replacing them, and a finished epic keeps its last list', async () => {
   const engine = await runningWithSlices();
+  github.sliceReads.length = 0;
   await clock.advance(5 * MIN);
+  expect(github.sliceReads).toHaveLength(5 + 1); // the minute timer five times and the poll's own read, epic 2 never
+  expect(new Set(github.sliceReads)).toEqual(new Set(['AshuLab/a#1']));
   expect(cached(engine.db)).toEqual([`1:10:closed@${10 * MIN}`, `1:11:waiting@${10 * MIN}`]);
 
   github.slices['AshuLab/a#1'] = { slices: [slice(11, { state: 'in_progress' })] };
@@ -1914,6 +1917,24 @@ test('a command that changes the slices makes one read when it ends, and the sto
   run('c1', claim);
   await settle();
   expect(github.sliceReads).toEqual(['AshuLab/a#1']);
+  expect(states()).toEqual(['1:10:in_progress']);
+});
+
+test('a read slower than the window is followed by the next, never overlapped, and the newer rows stay', async () => {
+  const { run, states } = await working();
+  let open = () => {};
+  github.slicesGate = new Promise<void>((resolve) => { open = resolve; });
+  run('c1', claim); // reads the rows as they are now (ready) and waits for GitHub's answer
+  await settle();
+  github.slices['AshuLab/a#1'] = { slices: [slice(10, { state: 'in_progress' })] };
+  await clock.advance(11_000); // outside the window of the first read, which has not answered yet
+  run('c2', 'gh pr create');
+  await settle();
+  expect(github.sliceReads).toHaveLength(1); // the second waits for the first
+  open();
+  await settle();
+  await settle();
+  expect(github.sliceReads).toHaveLength(2);
   expect(states()).toEqual(['1:10:in_progress']);
 });
 

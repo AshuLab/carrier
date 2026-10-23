@@ -58,11 +58,12 @@ struct PanelView: View {
         @Bindable var shell = model.shell
         @Bindable var epics = model.epics
         let groupBy = Binding(get: { model.groupBy }, set: { model.groupBy = $0; SidebarStore().groupBy = $0 })
+        let collapse = Binding(get: { model.collapse }, set: { model.collapse = $0 })
         let columns = Binding<NavigationSplitViewVisibility>(
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, state: model.state, selection: $shell.selection, groupBy: groupBy, onAbout: shell.showAbout)
+            SidebarView(snapshot: snapshot, state: model.state, selection: $shell.selection, groupBy: groupBy, collapse: collapse, onAbout: shell.showAbout)
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
             // resizes and the app dies with "more Update Constraints passes than there are views"

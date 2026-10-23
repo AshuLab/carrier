@@ -118,3 +118,48 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
         #expect(shell.selection == next)
     }
 }
+
+@Test func noCurrentGroupStartsCollapsedAndEveryOneStartsExpanded() {
+    let all = snapshot(
+        [epic("acme/web", 1), epic("acme/api", 2, .needsHuman)], queue: [queued("acme/api", 3)],
+        done: [.init(repo: "acme/web", issue: 4, prNumber: nil, finishedAt: nil, executionId: nil)]
+    )
+    let collapse = SidebarCollapse()
+    for by in GroupBy.allCases {
+        let groups = sidebarGroups(all, by: by)
+        #expect(groups.allSatisfy { $0.startsCollapsed == false && collapse.isCollapsed($0, by: by) == false })
+    }
+}
+
+@Test func aGroupThatSaysItStartsCollapsedStartsCollapsedAndOpensOnToggle() {
+    let group = SidebarGroup(title: "Done", rows: [], startsCollapsed: true)
+    var collapse = SidebarCollapse()
+    #expect(collapse.isCollapsed(group, by: .status))
+    collapse.toggle(group, by: .status)
+    #expect(collapse.isCollapsed(group, by: .status) == false)
+    collapse.toggle(group, by: .status)
+    #expect(collapse.isCollapsed(group, by: .status))
+}
+
+@Test func togglingOneGroupLeavesTheOthersAlone() {
+    let groups = sidebarGroups(snapshot([epic("acme/web", 1)]), by: .status)
+    var collapse = SidebarCollapse()
+    collapse.toggle(groups[1], by: .status)
+    #expect(groups.map { collapse.isCollapsed($0, by: .status) } == [false, true, false])
+}
+
+@Test func theStateOfAGroupSurvivesANewSnapshotAndTheGroupComingBack() {
+    var collapse = SidebarCollapse()
+    func running(_ epics: [PanelEpic], by: GroupBy = .status) -> SidebarGroup {
+        sidebarGroups(snapshot(epics), by: by).first { $0.title == (by == .status ? "Running" : "web") }!
+    }
+    collapse.toggle(running([epic("acme/web", 1)]), by: .status)
+    // rows come and go
+    #expect(collapse.isCollapsed(running([epic("acme/web", 1), epic("acme/web", 2)]), by: .status))
+    #expect(collapse.isCollapsed(running([]), by: .status))
+    // the repository grouping has its own state, and a repository that leaves and returns keeps the one it had
+    #expect(collapse.isCollapsed(running([epic("acme/web", 1)], by: .repo), by: .repo) == false)
+    collapse.toggle(running([epic("acme/web", 1)], by: .repo), by: .repo)
+    _ = sidebarGroups(snapshot(), by: .repo)
+    #expect(collapse.isCollapsed(running([epic("acme/web", 5)], by: .repo), by: .repo))
+}

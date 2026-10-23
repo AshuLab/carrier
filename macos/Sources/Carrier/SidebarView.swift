@@ -132,13 +132,46 @@ struct SidebarRowView: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            StateGlyph(state: row.state)
+            StateGlyph(state: row.state, attention: row.attention)
             VStack(alignment: .leading, spacing: 1) {
-                SidebarRowTitle(name: row.name, issue: row.issue)
-                Text(row.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                SidebarRowTitle(name: row.title ?? row.name, issue: row.issue)
+                StateAndRepo {
+                    Text(row.detail).font(.caption).foregroundStyle(row.attention?.color ?? .secondary).lineLimit(1).truncationMode(.tail)
+                    if let repo = row.repoLabel {
+                        HStack(spacing: 3) {
+                            GitHubMark.image.renderingMode(.template).resizable().scaledToFit().frame(width: 10, height: 10)
+                            Text(repo).lineLimit(1).truncationMode(.tail)
+                        }
+                        .font(.caption)
+                    }
+                }
             }
         }
         .help(row.tooltip)
+    }
+}
+
+/// The state on the left and, when there is one, the repository on the right. The state keeps what it needs; the repository takes
+/// at most half of the line and gives way first.
+private struct StateAndRepo: Layout {
+    /// The least space between the state and the repository.
+    static let gap: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
+        return CGSize(width: proposal.width ?? sizes.map(\.width).reduce(0, +), height: sizes.map(\.height).max() ?? 0)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard let state = subviews.first else { return }
+        let stateWidth = min(state.sizeThatFits(.unspecified).width, bounds.width)
+        state.place(at: bounds.origin, proposal: ProposedViewSize(width: stateWidth, height: bounds.height))
+        guard subviews.count > 1 else { return }
+        let repo = subviews[1]
+        let repoWidth = max(0, min(repo.sizeThatFits(.unspecified).width, bounds.width / 2, bounds.width - stateWidth - Self.gap))
+        repo.place(
+            at: CGPoint(x: bounds.maxX - repoWidth, y: bounds.minY), proposal: ProposedViewSize(width: repoWidth, height: bounds.height)
+        )
     }
 }
 

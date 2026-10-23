@@ -24,11 +24,17 @@ public struct SidebarRow: Equatable {
     public var repo: String
     public var issue: Int
     public var state: EpicMenuState
+    /// The epic's title; nil while the engine has none, and the view then shows `name` in its place.
+    public var title: String?
     /// The repository's name, never its owner.
     public var name: String
-    /// Under the name: the stage and round or slices, the kind of intervention, "waiting for a slot" or how long ago.
+    /// Shown on the right of the second line; nil when the sidebar is grouped by repository or when `title` is nil.
+    public var repoLabel: String?
+    /// The stage and round or slices, the kind of intervention, "waiting for a slot" or how long ago.
     public var detail: String
-    /// Shown on hover: the epic's title, or "name #issue" while the engine has none.
+    /// Only for a stuck epic: decides the colour of its glyph and of `detail`.
+    public var attention: Attention?
+    /// Shown on hover: the epic's title (or "name #issue" while the engine has none), then `owner/name`, then the reason of a cancelled epic.
     public var tooltip: String
 
     public var selection: Selection { .epic(repo: repo, issue: issue) }
@@ -66,12 +72,12 @@ public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy) -> [Si
     let titles = Dictionary(
         uniqueKeysWithValues: (snapshot.epics.map { (key($0.repo, $0.issue), $0.title) } + snapshot.queue.map { (key($0.repo, $0.issue), $0.title) })
     )
-    func row(_ repo: String, _ issue: Int, _ state: EpicMenuState, _ detail: String, title own: String? = nil, note: String? = nil) -> SidebarRow {
+    func row(_ repo: String, _ issue: Int, _ state: EpicMenuState, _ detail: String, title own: String? = nil, note: String? = nil, attention: Attention? = nil) -> SidebarRow {
         let name = shortName(repo)
-        let title = own ?? titles[key(repo, issue)].flatMap { $0 }
-        let tooltip = title.flatMap { $0.isEmpty ? nil : $0 } ?? "\(name) #\(issue)"
+        let title = (own ?? titles[key(repo, issue)].flatMap { $0 }).flatMap { $0.isEmpty ? nil : $0 }
         return SidebarRow(
-            repo: repo, issue: issue, state: state, name: name, detail: detail, tooltip: note.map { "\(tooltip)\n\($0)" } ?? tooltip
+            repo: repo, issue: issue, state: state, title: title, name: name, repoLabel: groupBy == .status && title != nil ? name : nil,
+            detail: detail, attention: attention, tooltip: ([title ?? "\(name) #\(issue)", repo] + (note.map { [$0] } ?? [])).joined(separator: "\n")
         )
     }
     func finished(_ status: PanelSnapshot.FinishedEpic.Status) -> [SidebarRow] {
@@ -83,7 +89,7 @@ public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy) -> [Si
         }
     }
 
-    let needsYou = snapshot.epics.filter { $0.status == .needsHuman }.map { row($0.repo, $0.issue, .needsYou, interventionLine($0)) }
+    let needsYou = snapshot.epics.filter { $0.status == .needsHuman }.map { row($0.repo, $0.issue, .needsYou, interventionLine($0), attention: Attention(kind: $0.needsHumanKind)) }
     let running = snapshot.epics.filter { $0.status == .running }.map { row($0.repo, $0.issue, .running, runningLine($0)) }
     let waiting = snapshot.queue.map { row($0.repo, $0.issue, .waiting, "waiting for a slot") }
     let ready = snapshot.done.map { row($0.repo, $0.issue, .ready, agoLine($0.finishedAt, now: snapshot.now)) }

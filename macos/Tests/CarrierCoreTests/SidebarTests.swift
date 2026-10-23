@@ -81,8 +81,25 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
 
 @Test func anEpicWithNoKnownTitleStillGetsARow() {
     let rows = sidebarGroups(snapshot([epic("acme/web", 4), epic("acme/web", 5, title: "Add login")], queue: [queued("acme/api", 6)]), by: .status)
-    #expect(rows[1].rows.map(\.tooltip) == ["web #4", "Add login"])
-    #expect(rows[2].rows[0].tooltip == "api #6")
+    #expect(rows[1].rows.map(\.tooltip) == ["web #4\nacme/web", "Add login\nacme/web"])
+    #expect(rows[2].rows[0].tooltip == "api #6\nacme/api")
+}
+
+@Test func aRowLeadsWithItsTitleAndNamesItsRepositoryOnTheRightOnlyWhenGroupedByStatus() {
+    let all = snapshot([epic("acme/web", 4), epic("acme/web", 5, title: "Add login"), epic("acme/web", 6, title: "")])
+    let byStatus = sidebarGroups(all, by: .status)[1].rows
+    #expect(byStatus.map(\.title) == [nil, "Add login", nil])
+    #expect(byStatus.map(\.repoLabel) == [nil, "web", nil])
+    let byRepo = sidebarGroups(all, by: .repo)[0].rows
+    #expect(byRepo.map(\.title) == [nil, "Add login", nil])
+    #expect(byRepo.map(\.repoLabel) == [nil, nil, nil])
+    #expect(byStatus.map(\.name) == ["web", "web", "web"])
+}
+
+@Test func theTooltipIsTheFullTitleThenOwnerAndName() {
+    let long = String(repeating: "a long title ", count: 12)
+    let rows = sidebarGroups(snapshot([epic("acme/web", 5, title: long)]), by: .repo)[0].rows
+    #expect(rows[0].tooltip == "\(long)\nacme/web")
 }
 
 @Test func theGroupsOfAnEmptySnapshotAreEmpty() {
@@ -216,10 +233,10 @@ private func withFinished(_ finished: [PanelSnapshot.FinishedEpic], done: [Panel
     ])
     let groups = sidebarGroups(all, by: .status)
     let done = groups[3].rows[0], cancelled = groups[4].rows
-    #expect((done.name, done.issue, done.detail, done.tooltip) == ("web", 7, "2m ago", "Add login"))
+    #expect((done.name, done.issue, done.detail, done.tooltip) == ("web", 7, "2m ago", "Add login\nacme/web"))
     #expect(cancelled[0].detail == "2m ago · final PR closed without merge")
-    #expect(cancelled[0].tooltip == "Add logout\nfinal PR closed without merge")
-    #expect((cancelled[1].detail, cancelled[1].tooltip) == ("2m ago", "web #9"))
+    #expect(cancelled[0].tooltip == "Add logout\nacme/web\nfinal PR closed without merge")
+    #expect((cancelled[1].detail, cancelled[1].tooltip) == ("2m ago", "web #9\nacme/web"))
     #expect(cancelled[0].selection == .epic(repo: "acme/web", issue: 8))
 }
 
@@ -233,4 +250,15 @@ private func withFinished(_ finished: [PanelSnapshot.FinishedEpic], done: [Panel
     func done(_ epics: [PanelSnapshot.FinishedEpic]) -> SidebarGroup { sidebarGroups(withFinished(epics), by: .status)[3] }
     collapse.toggle(done([ended(7, .merged, at: 1)]), by: .status)
     #expect(collapse.isCollapsed(done([ended(7, .merged, at: 1), ended(8, .merged, at: 2)]), by: .status) == false)
+}
+
+@Test func onlyAStuckEpicHasAnAttentionAndItsKindDecidesWhich() {
+    func attention(_ kind: String?) -> Attention? {
+        sidebarGroups(snapshot([epic("a/b", 1, .needsHuman, kind: kind)]), by: .status)[0].rows[0].attention
+    }
+    #expect(attention("review_limit") == .input && attention("agent_needs_human") == .input)
+    #expect(attention("timeout") == .error)
+    #expect(attention("from_the_future") == .input && attention(nil) == .input)
+    let others = snapshot([epic("a/b", 1)], queue: [queued("a/b", 2)])
+    #expect(sidebarGroups(others, by: .status).flatMap(\.rows).allSatisfy { $0.attention == nil })
 }

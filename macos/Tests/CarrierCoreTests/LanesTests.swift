@@ -98,10 +98,11 @@ private func end(_ id: Int, _ status: String) -> ExecEvent {
 @Test func aSubagentIsRunningUntilItsEndEventAndFinishedOrFailedByItsStatus() {
     let start = ExecEvent(id: 1, at: 1000, kind: "task", text: "Build slice #5", agentId: "a")
     let work = event(2, "say", agent: "a", text: "hi")
-    func lane(_ events: [ExecEvent], running: Bool = true) -> LaneSection { transcript(events).laneSections(running: running)[0] }
-    #expect(lane([start, work]).state == .running && lane([start, work]).duration == nil)
+    func lane(_ events: [ExecEvent], running: Bool = true) -> LaneSection { transcript(events).laneSections(running: running, now: 4000)[0] }
+    #expect(lane([start, work]).state == .running)
     // a start with no end in a session that is no longer running did not complete
     #expect(lane([start, work], running: false).state == .failed && lane([start, work], running: false).duration == nil)
+    #expect(lane([start, work], running: false).timeLabel == nil)
     #expect(lane([start, work, end(3, "ok")]).state == .finished)
     #expect(lane([start, work, end(3, "ok")], running: false).state == .finished)
     #expect(lane([start, work, end(3, "err")]).state == .failed)
@@ -186,4 +187,43 @@ private func end(_ id: Int, _ status: String) -> ExecEvent {
         status: "running", startedAt: 0, finishedAt: nil, resume: nil)])
     let lanes = sessionList(sessions, transcripts: ["x": transcript(events)], slices: slices).sections[0].lanes
     #expect(lanes.map(\.pullRequest) == ["PR #11 merged", "PR #12 open", "PR #13 draft", "PR #14 closed", "no PR yet", "PR #16", "no PR yet", "no PR yet"])
+}
+
+// 2026-01-01 14:02:00 UTC, in ms.
+private let at1402 = 1_767_276_120_000
+
+private func run(_ id: Int, _ seconds: Int, _ status: String? = nil) -> ExecEvent {
+    ExecEvent(id: id, at: at1402 + seconds * 1000, kind: "task", text: "Build slice #5", agentId: "a", status: status)
+}
+
+private func lane(_ events: [ExecEvent], running: Bool = true, now: Int = at1402 + 600_000, timeZone: String = "UTC") -> LaneSection {
+    let sessions = SessionsReply(sessions: [SessionsReply.Session(
+        executionId: "x", stage: "ship", role: "author", round: nil, agent: .init(harness: "claude", model: "m", provider: nil),
+        status: running ? "running" : "finished", startedAt: 0, finishedAt: nil, resume: nil)])
+    return sessionList(sessions, transcripts: ["x": transcript(events)], now: now, timeZone: TimeZone(identifier: timeZone)!).sections[0].lanes[0]
+}
+
+@Test func aFinishedSubagentCarriesItsTimesAndReadsThemInTheGivenTimeZone() {
+    let finished = lane([run(1, 0), run(2, 187, "ok")])
+    #expect(finished.startedAt == at1402 && finished.endedAt == at1402 + 187_000 && finished.duration == 187_000)
+    #expect(finished.timeLabel == "14:02–14:05")
+    #expect(lane([run(1, 0), run(2, 187, "ok")], timeZone: "Asia/Tokyo").timeLabel == "23:02–23:05")
+}
+
+@Test func aRunningSubagentReadsSinceItsStartAndHowLongItHasRun() {
+    let running = lane([run(1, 0)], now: at1402 + 95_000)
+    #expect(running.timeLabel == "since 14:02" && running.duration == 95_000 && running.endedAt == nil)
+    // a start with no end in a stopped session ran for no known time
+    #expect(lane([run(1, 0)], running: false, now: at1402 + 95_000).timeLabel == nil)
+}
+
+@Test func aSubagentThatRanAgainIsOneSectionWithItsFirstTimesAndSaysHowManyTimes() {
+    let once = lane([run(1, 0), run(2, 60, "ok"), run(3, 300), run(4, 360, "ok")])
+    #expect(once.timeLabel == "14:02–14:03" && once.duration == 60_000 && once.resumedLabel == "resumed once")
+    let twice = lane([run(1, 0), run(2, 60, "ok"), run(3, 300), run(4, 360, "ok"), run(5, 500), run(6, 520, "ok")])
+    #expect(twice.timeLabel == "14:02–14:03" && twice.resumedLabel == "resumed 2 times")
+    // a second run still going changes nothing about the first
+    #expect(lane([run(1, 0), run(2, 60, "ok"), run(3, 300)]).resumes == 1)
+    let never = lane([run(1, 0), run(2, 60, "ok")])
+    #expect(never.resumes == 0 && never.resumedLabel == nil)
 }

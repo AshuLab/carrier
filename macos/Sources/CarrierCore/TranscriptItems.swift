@@ -75,6 +75,15 @@ public struct TranscriptCard: Equatable {
         return (Array(output.prefix(collapsedOutputLines)), output.count - collapsedOutputLines)
     }
 
+    /// The first output line of a failed call when it starts with `Exit code`: the only line drawn red. Any other failure prints plain.
+    public var failureLine: String? {
+        guard status == .error, let first = output.first, first.hasPrefix("Exit code") else { return nil }
+        return first
+    }
+
+    /// "11 lines" for the footer; nil when the call printed nothing (the body says "no output").
+    public var lineCount: String? { output.isEmpty ? nil : "\(output.count) \(output.count == 1 ? "line" : "lines")" }
+
     /// Output opens by itself only for a call that failed; any other opens on a click.
     public var outputOpenByDefault: Bool { status == .error }
 }

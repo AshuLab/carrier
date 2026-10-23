@@ -154,6 +154,19 @@ private func shell(_ id: Int, _ call: String, status: String, output: [String]?)
     #expect(cards.map(\.outputOpenByDefault) == [false, true, false])
 }
 
+@Test func onlyAnExitCodeFirstLineOfAFailedCallIsTheFailureLine() {
+    let cards = transcriptItems(
+        shell(1, "a", status: "err", output: ["Exit code 1", "boom"]) + shell(3, "b", status: "err", output: ["fatal: not a repo", "Exit code 1"])
+            + shell(5, "c", status: "ok", output: ["Exit code 1", "fine"]) + shell(7, "d", status: "err", output: [])
+    ).compactMap(card)
+    #expect(cards.map(\.failureLine) == ["Exit code 1", nil, nil, nil])
+}
+
+@Test func aCallWithNoOutputHasNoLineCountAndOneWithOutputCountsItsLines() {
+    let cards = transcriptItems(shell(1, "a", status: "ok", output: nil) + shell(3, "b", status: "ok", output: ["one"]) + shell(5, "c", status: "ok", output: ["a", "b"])).compactMap(card)
+    #expect(cards.map(\.lineCount) == [nil, "1 line", "2 lines"])
+}
+
 @Test func theUserCanOpenAndCloseAnyOutputAndItIsKeptPerCard() {
     let items = transcriptItems(shell(1, "a", status: "ok", output: ["fine"]) + shell(3, "b", status: "err", output: ["boom"]))
     let (ok, failed) = (card(items[0])!, card(items[1])!)

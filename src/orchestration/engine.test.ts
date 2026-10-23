@@ -1822,17 +1822,20 @@ async function runningWithSlices() {
   github.slices = { 'AshuLab/a#1': { slices: [slice(10, { state: 'closed', closedAt: 1000 }), slice(11, { state: 'waiting', blockedBy: [12] })] }, 'AshuLab/a#2': { slices: [slice(20)] } };
   runner.behavior = () => ({ exit: 'stopped' });
   const engine = await start(1);
-  await clock.advance(5 * MIN); // registers and reserves; nothing was running when the slices would be read
+  await clock.advance(5 * MIN); // registers and reserves epic 1, reading its slices as it starts
   return engine;
 }
 
+test('an epic that starts has its slices cached at once, before the next poll', async () => {
+  const engine = await runningWithSlices();
+  expect(github.sliceReads).toEqual(['AshuLab/a#1']); // epic 2 is still queued: no read
+  expect(cached(engine.db)).toEqual([`1:10:closed@${5 * MIN}`, `1:11:waiting@${5 * MIN}`]);
+});
+
 test('the poll caches the slices of live epics, replacing them, and a finished epic keeps its last list', async () => {
   const engine = await runningWithSlices();
-  expect(cached(engine.db)).toEqual([]);
-  expect(github.sliceReads).toEqual([]);
-
   await clock.advance(5 * MIN);
-  expect(github.sliceReads).toEqual(['AshuLab/a#1']);
+  expect(github.sliceReads).toEqual(['AshuLab/a#1', 'AshuLab/a#1']);
   expect(cached(engine.db)).toEqual([`1:10:closed@${10 * MIN}`, `1:11:waiting@${10 * MIN}`]);
 
   github.slices['AshuLab/a#1'] = { slices: [slice(11, { state: 'in_progress' })] };
@@ -1842,7 +1845,7 @@ test('the poll caches the slices of live epics, replacing them, and a finished e
   engine.db.update(epics).set({ status: 'ready_for_test' }).where(eq(epics.issue, 1)).run();
   github.slices['AshuLab/a#1'] = { slices: [slice(11, { state: 'closed', closedAt: 2000 })] };
   await clock.advance(5 * MIN);
-  expect(cached(engine.db)).toEqual([`1:11:closed@${20 * MIN}`]); // parked is still live
+  expect(cached(engine.db)).toEqual([`1:11:closed@${20 * MIN}`, `2:20:ready@${20 * MIN}`]); // parked is still live; epic 2 took the free slot and was read as it started
 
   engine.db.update(epics).set({ status: 'merged' }).where(eq(epics.issue, 1)).run();
   github.slices['AshuLab/a#1'] = { slices: [] };
@@ -1852,6 +1855,7 @@ test('the poll caches the slices of live epics, replacing them, and a finished e
 
 test('a finished epic with no cached slices, e.g. it ended before the cache existed, is read once', async () => {
   const engine = await runningWithSlices();
+  engine.db.delete(epicSlices).run();
   engine.db.update(epics).set({ status: 'merged' }).where(eq(epics.issue, 1)).run();
   await clock.advance(5 * MIN);
   expect(cached(engine.db).filter((r) => r.startsWith('1:'))).toEqual([`1:10:closed@${10 * MIN}`, `1:11:waiting@${10 * MIN}`]);

@@ -4,19 +4,29 @@ import SwiftUI
 
 /// Icon, title and one line, centred in the space it is given; neutral colours.
 struct EmptyStateView: View {
-    let state: EmptyState
+    let icon: String
+    let title: String
+    let line: String
+
+    init(state: EmptyState) { self.init(icon: state.icon, title: state.title, line: state.line) }
+
+    init(icon: String, title: String, line: String) {
+        self.icon = icon
+        self.title = title
+        self.line = line
+    }
 
     var body: some View {
         VStack(spacing: 5) {
-            Image(systemName: state.icon)
+            Image(systemName: icon)
                 .font(.system(size: 26, weight: .regular))
                 .foregroundStyle(.secondary)
                 .frame(width: 54, height: 54)
                 .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
                 .padding(.bottom, 9)
-            Text(state.title).font(.headline)
+            Text(title).font(.headline)
             // wraps to as many lines as it needs, whatever height it is given
-            Text(state.line).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            Text(line).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true).frame(maxWidth: 280)
         }
         .padding(22)

@@ -1,7 +1,7 @@
 import Foundation
 
-// The Slices tab as plain values: the ring's arcs, the legend, the list of the selected group and the notice for an engine that
-// only has counts (docs/specs/macos-app-redesign.md, story 27). The views map them one to one.
+// The Slices tab as plain values: the ring's arcs, the legend, the list of the selected group and the empty state that stands in
+// for the list when only the counts are known (docs/specs/macos-app-redesign.md, story 27). The views map them one to one.
 
 public enum SliceGroup: CaseIterable, Hashable {
     case merged, inProgress, waiting
@@ -27,6 +27,35 @@ public struct SliceRow: Equatable {
     public var prURL: String?
 }
 
+/// Why the list is missing while the counts are there.
+public enum SlicesUnavailable: Equatable {
+    /// The engine sent no `epic` reply: it shares counts only (or its first reply has not come yet).
+    case notShared
+    /// The engine answered with an empty list: it has not read the epic's slices from GitHub yet, or the last read failed.
+    case notReadYet
+
+    public var icon: String {
+        switch self {
+        case .notShared: "text.badge.xmark"
+        case .notReadYet: "arrow.triangle.2.circlepath"
+        }
+    }
+
+    public var title: String {
+        switch self {
+        case .notShared: "Slice list unavailable"
+        case .notReadYet: "Reading the slices"
+        }
+    }
+
+    public var line: String {
+        switch self {
+        case .notShared: "This Carrier shares totals only. The count above still updates."
+        case .notReadYet: "Carrier has not read them from GitHub yet. They appear after its next check."
+        }
+    }
+}
+
 public struct SlicesLegendEntry: Equatable {
     public var group: SliceGroup
     public var count: Int
@@ -39,8 +68,8 @@ public struct SlicesTabModel: Equatable {
     public var rows: [SliceRow]
     public var merged: Int
     public var total: Int
-    /// Said instead of the list when the engine only has counts.
-    public var notice: String?
+    /// Shown instead of the list when only the counts are known.
+    public var unavailable: SlicesUnavailable?
 
     /// Nothing to show: no slices and no counts. The view shows the "No slices yet" empty state.
     public var isEmpty: Bool { total == 0 }
@@ -52,7 +81,7 @@ public struct SlicesTabModel: Equatable {
 }
 
 /// A queued epic has nothing in progress: its open slices all wait. The default group is in progress, else waiting, else merged; a chosen group that is empty is ignored. Skipped slices are
-/// left out. Without the `epic` list the snapshot's counts make the ring (merged and waiting) and the list is replaced by a notice.
+/// left out. Without the `epic` list the snapshot's counts make the ring (merged and waiting) and the list is replaced by an empty state.
 public func slicesTabModel(_ subject: EpicSubject?, reply: EpicReply?, chosen: SliceGroup? = nil, now: Int) -> SlicesTabModel {
     let slices = (reply?.slices ?? []).filter { $0.state != "skipped" }
     var rows: [SliceGroup: [SliceRow]] = [:]
@@ -77,11 +106,11 @@ public func slicesTabModel(_ subject: EpicSubject?, reply: EpicReply?, chosen: S
     }
 
     var counts = Dictionary(uniqueKeysWithValues: SliceGroup.allCases.map { ($0, rows[$0]?.count ?? 0) })
-    var notice: String?
+    var unavailable: SlicesUnavailable?
     if slices.isEmpty, case .active(let epic)? = subject, let sliceCounts = epic.slices, sliceCounts.total > 0 {
         counts[.merged] = sliceCounts.done
         counts[.waiting] = max(0, sliceCounts.total - sliceCounts.done)
-        notice = "The list of slices is not available from this Carrier."
+        unavailable = reply == nil ? .notShared : .notReadYet
     }
 
     let legend = SliceGroup.allCases.compactMap { group in
@@ -91,7 +120,7 @@ public func slicesTabModel(_ subject: EpicSubject?, reply: EpicReply?, chosen: S
     let selected = [chosen, .inProgress, .waiting, .merged].lazy.compactMap { $0 }.first { present.contains($0) }
     return SlicesTabModel(
         legend: legend, selected: selected, rows: selected.flatMap { rows[$0] } ?? [],
-        merged: counts[.merged] ?? 0, total: legend.reduce(0) { $0 + $1.count }, notice: notice
+        merged: counts[.merged] ?? 0, total: legend.reduce(0) { $0 + $1.count }, unavailable: unavailable
     )
 }
 

@@ -47,7 +47,11 @@ struct EpicView: View {
                 EmptyStateView(state: empty).frame(minHeight: 260)
                 if let plan { QueuedPlanView(plan: plan) }
             } else if sessions.sections.isEmpty {
-                Text("The agents' output appears here.").foregroundStyle(.secondary).padding(.vertical, 40)
+                if let steps = startingSteps(subject, reply: reply) {
+                    StartingView(steps: steps).frame(minHeight: 260)
+                } else {
+                    EmptyStateView(state: .noActivity).frame(minHeight: 260)
+                }
             } else {
                 SessionSectionsView(list: sessions, folds: $folds)
             }

@@ -460,7 +460,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       }
       if (issue.state === 'closed') cancelWith('cerrada antes de iniciar');
       else if (!issue.labels.includes(readyLabel)) cancelWith('ready removido');
-      else await begin(epic); // GitHubUnavailable here leaves it reserved, labelPending
+      else {
+        // Its slices exist before it is ready: read them now so the app has the list from the first second, not after the next poll.
+        await readEpicSlices(epic.repo, epic.id, epic.issue);
+        await begin(epic); // GitHubUnavailable here leaves it reserved, labelPending
+      }
     }
   }
 
@@ -542,21 +546,23 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   // The slices of each epic to refresh, replacing its rows. A cache of GitHub: nothing the engine decides reads it back.
   // A failed read keeps the last rows and the poll goes on.
+  async function readEpicSlices(repo: string, id: number, issue: number) {
+    try {
+      const { slices, truncated } = await github.readSlices(repo, issue);
+      const readAt = clock.now();
+      db.transaction((tx) => {
+        tx.delete(epicSlices).where(eq(epicSlices.epicId, id)).run();
+        if (slices.length > 0) tx.insert(epicSlices).values(slices.map((slice) => ({ ...slice, epicId: id, readAt, truncated }))).run();
+      });
+    } catch (e) {
+      if (e instanceof AuthError) throw e;
+      log.error('slices read failed, keeping the last rows', e);
+    }
+  }
+
   async function refreshSlices(repo: string) {
     const stored = new Set(db.select({ id: epicSlices.epicId }).from(epicSlices).all().map((r) => r.id));
-    for (const { id, issue } of toRefresh(repo, (e) => stored.has(e.id))) {
-      try {
-        const { slices, truncated } = await github.readSlices(repo, issue);
-        const readAt = clock.now();
-        db.transaction((tx) => {
-          tx.delete(epicSlices).where(eq(epicSlices.epicId, id)).run();
-          if (slices.length > 0) tx.insert(epicSlices).values(slices.map((slice) => ({ ...slice, epicId: id, readAt, truncated }))).run();
-        });
-      } catch (e) {
-        if (e instanceof AuthError) throw e;
-        log.error('slices read failed, keeping the last rows', e);
-      }
-    }
+    for (const { id, issue } of toRefresh(repo, (e) => stored.has(e.id))) await readEpicSlices(repo, id, issue);
   }
 
   // The pull request block and review threads of each epic to refresh that has a PR, one query per epic and none for one without. A cache of GitHub

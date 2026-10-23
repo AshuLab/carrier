@@ -89,8 +89,8 @@ struct SlicesTabView: View {
                         .buttonStyle(.plain)
                         .accessibilityAddTraits(entry.group == model.selected ? .isSelected : [])
                     }
-                    if let notice = model.notice {
-                        Text(notice).font(.callout).foregroundStyle(.secondary).padding(.top, 10)
+                    if let why = model.unavailable {
+                        EmptyStateView(icon: why.icon, title: why.title, line: why.line).frame(minHeight: 190)
                     }
                     if model.rows.isEmpty == false { Divider().padding(.horizontal, 10).padding(.top, 12) }
                     VStack(spacing: model.selected == .inProgress ? 8 : 0) {

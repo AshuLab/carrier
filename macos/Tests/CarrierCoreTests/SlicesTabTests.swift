@@ -144,21 +144,25 @@ private func model(_ slices: [EpicReply.Slice], chosen: SliceGroup? = nil, now: 
     #expect(tab.selected == .inProgress && tab.rows.count == 3)
     #expect(model(slices, chosen: .waiting).rows.count == 9)
     #expect(model(slices, chosen: .merged).rows.map(\.number) == Array(1...8))
-    #expect(tab.notice == nil && tab.isEmpty == false)
+    #expect(tab.unavailable == nil && tab.isEmpty == false)
     #expect(arcs(tab.counts).count == 3)
 }
 
-@Test func withoutTheListTheCountsMakeTheRingAndANoticeReplacesTheList() {
+@Test func withoutTheListTheCountsMakeTheRingAndAnEmptyStateReplacesTheList() {
     let counts = slicesTabModel(running(3, 5), reply: nil, now: 0)
     #expect(counts.counts == [3, 0, 2] && counts.centre == "3/5")
-    #expect(counts.rows.isEmpty && counts.notice != nil)
-    #expect(slicesTabModel(running(3, 5), reply: reply([]), now: 0) == counts)
+    #expect(counts.rows.isEmpty && counts.unavailable == .notShared)
+}
+
+@Test func anEngineThatAnsweredWithNoSlicesHasNotReadThemYet() {
+    let counts = slicesTabModel(running(3, 5), reply: reply([]), now: 0)
+    #expect(counts.counts == [3, 0, 2] && counts.rows.isEmpty && counts.unavailable == .notReadYet)
 }
 
 @Test func withNoSlicesAtAllTheTabIsEmpty() {
     #expect(slicesTabModel(running(0, 0), reply: nil, now: 0).isEmpty)
     #expect(slicesTabModel(nil, reply: nil, now: 0).isEmpty)
-    #expect(slicesTabModel(running(nil), reply: reply([]), now: 0).notice == nil)
+    #expect(slicesTabModel(running(nil), reply: reply([]), now: 0).unavailable == nil)
 }
 
 @Test func theFixtureRepliesSlicesGroupAsTheDesignExpects() throws {

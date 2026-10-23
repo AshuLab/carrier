@@ -2,6 +2,7 @@ import { formatDuration } from '../../format/duration.ts';
 import { printable } from './printable.ts';
 import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
 import { itemsOf, maxListed, type UiState } from './ui-state.ts';
+import { detailOf, historyLine, type DetailProvider } from './history.ts';
 
 type Style = 'bold' | 'dim' | 'inverse' | 'red' | 'green' | 'yellow' | 'cyan';
 const codes: Record<Style, number> = { bold: 1, dim: 2, inverse: 7, red: 31, green: 32, yellow: 33, cyan: 36 };
@@ -40,13 +41,15 @@ export type DashboardOptions = {
   logLines?: string[];
   /** The last lines an execution's agent wrote: what a running card shows as "now". */
   activity?: (executionId: string, count: number) => string[];
+  /** How each stage of an epic went; without it, or when it knows nothing of the epic, the card has no stages line. */
+  detail?: DetailProvider;
 };
 
 /**
  * The panel for a terminal: header, slots, then one section per kind of epic (running, queued, needing a person, ready
  * for test). Pure: the same snapshot gives the same lines; `color: false` gives them with no ANSI.
  */
-export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, ui, logLines = [], activity }: DashboardOptions = {}): string[] {
+export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, ui, logLines = [], activity, detail }: DashboardOptions = {}): string[] {
   const paint = (text: string, ...styles: Style[]) => (color && styles.length > 0 ? `\x1b[${styles.map((x) => codes[x]).join(';')}m${text}\x1b[0m` : text);
   const width = Math.min(Math.max(columns, 50), 80) - 2;
   const ago = (at: number | null) => (at === null ? 'a while' : `${formatDuration(Math.max(0, s.now - at))} ago`);
@@ -115,6 +118,8 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     if (!first) add();
     add(chosen ? ` ${pointer}${paint(` ${e.repo} #${e.issue} `, 'bold', 'inverse')}${titled(e.title)}` : ` ${bar} ${paint(`${e.repo} #${e.issue}`, 'bold')}${titled(e.title)}`); // the selected card's title is a highlighted label
     add(` ${bar} ${chain}${round}`);
+    const history = detail && detailOf(detail, e);
+    if (history && history.length > 0) add(` ${bar} ${historyLine(history, s.now, paint, width - 4)}`);
     const blockers = e.blockers > 0 ? paint(` · blockers ${e.blockers}`, 'yellow') : '';
     const slices = e.slices && e.slices.total > 0 ? ` · slices ${e.slices.done}/${e.slices.total}` : '';
     add(` ${bar} ${formatDuration(s.now - e.stageSince)} in stage · ${e.lastActivityAt === null ? 'no activity yet' : `active ${ago(e.lastActivityAt)}`}${blockers}${slices}`);

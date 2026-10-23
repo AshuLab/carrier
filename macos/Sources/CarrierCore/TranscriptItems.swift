@@ -271,13 +271,16 @@ public func transcriptItems(_ events: [ExecEvent]) -> [TranscriptItem] {
     return transcript.items
 }
 
-/// What an open session shows: the merged items with their runs of calls folded, or the summarised `tail` lines of a harness with no parser yet.
+/// What an open session shows: the main rows and the subagents in event order, with the runs of calls folded, or the summarised `tail` lines of a harness with no parser yet.
 public enum TranscriptBody: Equatable {
     case items([FlowItem])
     case tail([String])
 }
 
-public func transcriptBody(_ transcript: Transcript?) -> TranscriptBody {
+public func transcriptBody(
+    _ transcript: Transcript?, slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000),
+    timeZone: TimeZone = .current
+) -> TranscriptBody {
     guard let transcript else { return .items([]) }
-    return transcript.structured ? .items(flowItems(transcript.items)) : .tail(transcript.tail)
+    return transcript.structured ? .items(transcript.flow(slices: slices, running: running, now: now, timeZone: timeZone)) : .tail(transcript.tail)
 }

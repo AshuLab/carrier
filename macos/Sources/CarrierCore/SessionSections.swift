@@ -116,10 +116,9 @@ public struct SessionSection: Equatable, Identifiable {
     public var resume: ResumeDescriptor?
     /// What the agent reported when it ended; nil when no result was imported.
     public var result: ResultCard?
-    /// What shows under the header when it is open.
+    /// What shows under the header when it is open: the main rows and the subagents (read-only, the resume above covers the whole
+    /// session) in the order the events happened.
     public var body: TranscriptBody = .items([])
-    /// The subagents of the session, each with its own activity; read-only, the resume above covers the whole session.
-    public var lanes: [LaneSection] = []
 }
 
 // MARK: result
@@ -265,8 +264,7 @@ public func sessionList(
             openByDefault: index < visibleSessions && (state != .done || index == 0),
             resume: state == .running || resumable == false ? nil : session.resume,
             result: resultCard(session.result),
-            body: transcriptBody(transcript),
-            lanes: transcript?.structured == true ? transcript?.laneSections(slices: slices, running: state == .running, now: now, timeZone: timeZone) ?? [] : []
+            body: transcriptBody(transcript, slices: slices, running: state == .running, now: now, timeZone: timeZone)
         )
     }
     return SessionList(sections: Array(built.prefix(visibleSessions)), earlier: Array(built.dropFirst(visibleSessions)))

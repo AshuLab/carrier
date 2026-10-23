@@ -33,7 +33,6 @@ struct SessionSectionsView: View {
             Section {
                 if open {
                     TranscriptRows(content: section.body, outputs: $outputs, groups: $groups)
-                    ForEach(section.lanes) { LaneSectionView(lane: $0, outputs: $outputs, groups: $groups) }
                     if let result = section.result { ResultCardView(card: result) }
                     ContinueInTerminalView(section: section)
                     SessionCard.foot

@@ -194,9 +194,15 @@
       "summary": "40 lines",
       "status": "ok",
       "durationMs": 80
+    },
+    {
+      "id": 119,
+      "at": 9500,
+      "kind": "say",
+      "text": "{\n  \"slice\": \"#285\",\n  \"outcome\": \"ready-to-merge\",\n  \"branch\": \"feat/finished-epics-in-view/285-english-cancel-reasons\",\n  \"pr\": \"https://github.com/AshuLab/carrier/pull/289\",\n  \"definitionOfDone\": {\n    \"closed issue at reserve ends cancelled with 'closed before it started'\": true,\n    \"pnpm typecheck passes\": true,\n    \"pnpm test passes\": true,\n    \"tests at the agreed seam (existing engine tests, new assertions)\": true\n  },\n  \"note\": \"Changed src/orchestration/engine.ts and engine.test.ts. pnpm test: 57 files, 860 tests pass.\"\n}"
     }
   ],
-  "next": 119,
+  "next": 120,
   "running": true,
   "structured": true
 }

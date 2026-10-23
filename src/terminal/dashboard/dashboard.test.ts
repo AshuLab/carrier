@@ -122,6 +122,36 @@ test('a title never carries a control sequence to the terminal, nor makes a line
   for (const columns of [50, 60, 120]) for (const line of renderDashboard(hostile, { columns })) expect(visibleLength(line)).toBeLessThanOrEqual(Math.min(columns, 80));
 });
 
+test('a stopped epic shows why it needs a person, and just the row when it has no reason', () => {
+  const out = plain(snap({ epics: [epic({ issue: 29, status: 'needs_human', needsHumanReason: 'review limit: round 5 of 5 still has requested changes' }), epic({ issue: 30, status: 'needs_human' })] }));
+  expect(out).toContain('   AshuLab/carrier #29\n   review limit: round 5 of 5 still has requested changes\n   https://');
+  expect(out).toContain('   AshuLab/carrier #30\n   https://');
+  expect(out).not.toContain('needs_human');
+});
+
+test('a review or fix card lists up to three blocker titles and counts the rest; with none it adds nothing', () => {
+  const titles = ['one', 'two', 'three', 'four', 'five'];
+  const card = (stage: PanelEpic['stage'], n: number) => plain(snap({ epics: [epic({ stage, blockers: n, blockerTitles: titles.slice(0, n) })] }));
+  expect(card('review', 0)).not.toContain('· one');
+  expect(card('review', 0)).not.toContain('more');
+  expect(card('review', 2)).toContain(' ┃   · one\n ┃   · two\n');
+  expect(card('review', 2)).not.toContain('more');
+  expect(card('fix', 3)).toContain('· three');
+  expect(card('fix', 3)).not.toContain('more');
+  const five = card('review', 5);
+  expect(five).toContain(' ┃   · three\n ┃   … and 2 more');
+  expect(five).not.toContain('· four');
+  expect(card('ship', 2)).not.toContain('· one'); // only a review or fix has blockers to list
+});
+
+test('a blocker title or a reason never carries a control sequence, nor makes a line wider than the terminal', () => {
+  const hostile = snap({
+    epics: [epic({ stage: 'fix', blockers: 1, blockerTitles: ['b\x1b[2Jb\r\x07'.repeat(60)] }), epic({ issue: 29, status: 'needs_human', needsHumanReason: 'r\x1b]0;x\x07r'.repeat(60) })],
+  });
+  expect(plain(hostile)).not.toMatch(/[\x07\x1b\r]/);
+  for (const columns of [50, 60, 120]) for (const line of renderDashboard(hostile, { columns })) expect(visibleLength(line)).toBeLessThanOrEqual(Math.min(columns, 80));
+});
+
 test('color is only styling: the same words, and none at all with color off', () => {
   const colored = renderDashboard(snap({ epics: [epic()] }), { color: true }).join('\n');
   expect(colored).toContain('\x1b[');

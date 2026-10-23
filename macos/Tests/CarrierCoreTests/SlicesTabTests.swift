@@ -79,54 +79,79 @@ private func running(_ done: Int?, _ total: Int = 0) -> EpicSubject {
     )
 }
 
-private func model(_ slices: [EpicReply.Slice], chosen: SliceGroup? = nil, now: Int = 100_000) -> SlicesTabModel {
-    slicesTabModel(running(nil), reply: reply(slices), chosen: chosen, now: now)
+private func model(_ slices: [EpicReply.Slice], filter: SliceFilter = .all, now: Int = 100_000) -> SlicesTabModel {
+    slicesTabModel(running(nil), reply: reply(slices), filter: filter, now: now)
 }
 
-@Test func theDefaultGroupIsInProgressElseWaitingElseMerged() {
-    let all = [slice(1, "closed", closedAt: 1), slice(2, "in_progress"), slice(3, "ready")]
-    #expect(model(all).selected == .inProgress)
-    #expect(model([slice(1, "closed", closedAt: 1), slice(3, "ready")]).selected == .waiting)
-    #expect(model([slice(1, "closed", closedAt: 1)]).selected == .merged)
-    #expect(model([]).selected == nil)
+@Test func theListHoldsEverySliceByNumberWhateverTheOrderTheyCameIn() {
+    let all = [slice(5, "ready"), slice(1, "closed", closedAt: 1), slice(3, "in_progress"), slice(2, "skipped"), slice(4, "waiting", blockedBy: [3])]
+    let tab = model(all)
+    #expect(tab.selected == .all)
+    #expect(tab.rows.map(\.number) == [1, 3, 4, 5])
+    #expect(tab.rows.map(\.state) == [.merged, .inProgress, .pending, .pending])
 }
 
-@Test func aChosenGroupWinsUnlessItIsEmpty() {
-    let all = [slice(1, "closed", closedAt: 1), slice(2, "in_progress")]
-    #expect(model(all, chosen: .merged).selected == .merged)
-    #expect(model(all, chosen: .waiting).selected == .inProgress)
-}
-
-@Test func eachGroupListsItsRows() {
+@Test func eachRowHasItsStateAndDetail() {
     let all = [
         slice(1, "closed", closedAt: 40_000, pr: 9), slice(2, "in_progress", pr: 7, lane: 2, activity: "writing tests"),
-        slice(3, "ready"), slice(4, "waiting", blockedBy: [2, 3]), slice(5, "skipped"),
+        slice(3, "ready"), slice(4, "waiting", blockedBy: [2, 3]), slice(5, "skipped"), slice(6, "in_progress"),
     ]
-    #expect(model(all, chosen: .merged).rows == [
+    #expect(model(all).rows == [
         SliceRow(
-            number: 1, title: "Slice 1", detail: "1m ago", prNumber: 9, issueURL: "https://github.com/acme/web/issues/1",
+            number: 1, title: "Slice 1", state: .merged, detail: "1m ago", prNumber: 9, issueURL: "https://github.com/acme/web/issues/1",
             prURL: "https://github.com/acme/web/pull/9"
-        )
-    ])
-    #expect(model(all, chosen: .inProgress).rows == [
+        ),
         SliceRow(
-            number: 2, title: "Slice 2", detail: "lane 2 · writing tests", prNumber: 7, issueURL: "https://github.com/acme/web/issues/2",
-            prURL: "https://github.com/acme/web/pull/7"
-        )
+            number: 2, title: "Slice 2", state: .inProgress, detail: "lane 2 \u{00B7} writing tests", prNumber: 7,
+            issueURL: "https://github.com/acme/web/issues/2", prURL: "https://github.com/acme/web/pull/7"
+        ),
+        SliceRow(number: 3, title: "Slice 3", state: .pending, detail: "ready to start", prNumber: nil, issueURL: "https://github.com/acme/web/issues/3", prURL: nil),
+        SliceRow(
+            number: 4, title: "Slice 4", state: .pending, detail: "after #2 Slice 2, #3 Slice 3", prNumber: nil,
+            issueURL: "https://github.com/acme/web/issues/4", prURL: nil
+        ),
+        SliceRow(number: 6, title: "Slice 6", state: .inProgress, detail: "working", prNumber: nil, issueURL: "https://github.com/acme/web/issues/6", prURL: nil),
     ])
-    // a slice with no pull request links to its issue only
-    #expect(model(all, chosen: .waiting).rows.map(\.prURL) == [nil, nil])
-    #expect(model(all, chosen: .waiting).rows.map(\.issueURL) == ["https://github.com/acme/web/issues/3", "https://github.com/acme/web/issues/4"])
-    #expect(model(all, chosen: .waiting).rows.map(\.detail) == ["ready to start", "after Slice 2, Slice 3"])
-    #expect(model([slice(2, "in_progress")]).rows.map(\.detail) == ["working"])
-    #expect(model(all).legend == [.init(group: .merged, count: 1), .init(group: .inProgress, count: 1), .init(group: .waiting, count: 2)])
-    #expect(model(all).centre == "1/4")
-    #expect(model(all).caption == "merged")
+    #expect(model(all).legend == [.init(group: .merged, count: 1), .init(group: .inProgress, count: 2), .init(group: .pending, count: 2)])
+    #expect(model(all).total == 5 && model(all).centre == "1/5" && model(all).caption == "merged")
 }
 
-@Test func aWaitingSliceNamesItsBlockersByTitleAndKeepsTheNumberOfOneOutsideTheList() {
+@Test func aPendingSliceNamesEveryBlockerOfTheEpicAndShowsOneOutsideItAsANumber() {
     let all = [slice(2, "in_progress"), slice(3, "ready"), slice(4, "waiting", blockedBy: [2]), slice(5, "waiting", blockedBy: [12]), slice(6, "waiting", blockedBy: [3, 12, 2])]
-    #expect(model(all, chosen: .waiting).rows.map(\.detail) == ["ready to start", "after Slice 2", "after #12", "after Slice 3, #12, Slice 2"])
+    #expect(model(all).rows.map(\.detail) == ["working", "ready to start", "after #2 Slice 2", "after #12", "after #3 Slice 3, #12, #2 Slice 2"])
+}
+
+@Test(arguments: [(SliceGroup.merged, [1]), (.inProgress, [2, 6]), (.pending, [3, 4])])
+func aFilterShowsOnlyItsGroup(group: SliceGroup, numbers: [Int]) {
+    let all = [slice(1, "closed", closedAt: 1), slice(2, "in_progress"), slice(3, "ready"), slice(4, "waiting", blockedBy: [3]), slice(6, "in_progress")]
+    let tab = model(all, filter: .only(group))
+    #expect(tab.selected == .only(group))
+    #expect(tab.rows.map(\.number) == numbers)
+    // the totals do not change with the filter
+    #expect(tab.legend == model(all).legend && tab.total == 5)
+}
+
+@Test func totalShowsEverySlice() {
+    let all = [slice(1, "closed", closedAt: 1), slice(2, "in_progress"), slice(3, "ready")]
+    #expect(model(all, filter: .all).rows.map(\.number) == [1, 2, 3])
+}
+
+@Test func aFilterWhoseGroupHasNoSlicesBehavesAsTotal() {
+    let all = [slice(1, "closed", closedAt: 1), slice(3, "ready")]
+    let tab = model(all, filter: .only(.inProgress))
+    #expect(tab.selected == .all && tab.rows.map(\.number) == [1, 3])
+}
+
+@Test func skippedSlicesStayOutOfTheListTheTotalsAndTheRing() {
+    let tab = model([slice(1, "closed", closedAt: 1), slice(2, "skipped"), slice(3, "ready")])
+    #expect(tab.rows.map(\.number) == [1, 3] && tab.total == 2 && tab.counts == [1, 0, 1])
+}
+
+@Test func aQueuedEpicHasEverythingPending() {
+    let queued = EpicSubject.queued(PanelSnapshot.QueuedEpic(repo: "acme/web", issue: 1, title: nil, queuedAt: nil), position: 1)
+    let tab = slicesTabModel(queued, reply: reply([slice(1, "ready"), slice(2, "in_progress"), slice(3, "waiting", blockedBy: [2])]), now: 0)
+    #expect(tab.rows.map(\.state) == [.pending, .pending, .pending])
+    #expect(tab.legend == [.init(group: .pending, count: 3)])
 }
 
 @Test func aCompleteEpicSaysAllMerged() {
@@ -141,9 +166,9 @@ private func model(_ slices: [EpicReply.Slice], chosen: SliceGroup? = nil, now: 
     slices += (15...20).map { slice($0, "waiting", blockedBy: [$0 - 1]) }
     let tab = model(slices)
     #expect(tab.total == 20 && tab.merged == 8 && tab.counts == [8, 3, 9])
-    #expect(tab.selected == .inProgress && tab.rows.count == 3)
-    #expect(model(slices, chosen: .waiting).rows.count == 9)
-    #expect(model(slices, chosen: .merged).rows.map(\.number) == Array(1...8))
+    #expect(tab.rows.map(\.number) == Array(1...20))
+    #expect(model(slices, filter: .only(.pending)).rows.count == 9)
+    #expect(model(slices, filter: .only(.merged)).rows.map(\.number) == Array(1...8))
     #expect(tab.unavailable == nil && tab.isEmpty == false)
     #expect(arcs(tab.counts).count == 3)
 }
@@ -169,5 +194,7 @@ private func model(_ slices: [EpicReply.Slice], chosen: SliceGroup? = nil, now: 
     let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/reply-epic.json")
     let epic = try JSONDecoder().decode(EpicReply.self, from: Data(contentsOf: url))
     let tab = slicesTabModel(nil, reply: epic, now: 99_000)
-    #expect(tab.counts == [1, 1, 2] && tab.selected == .inProgress)
+    // merged, in progress, ready, blocked by several and blocked by one; the skipped one is left out
+    #expect(tab.counts == [1, 1, 3] && tab.rows.map(\.number) == [121, 123, 124, 125, 126])
+    #expect(tab.rows.map(\.detail).suffix(3) == ["after #121 Request schemas, #123 Sessions request", "ready to start", "after #124 Events request"])
 }

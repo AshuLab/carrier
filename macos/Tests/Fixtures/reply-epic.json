@@ -212,6 +212,19 @@
       "prMergedAt": null,
       "closedAt": null,
       "readAt": 99000
+    },
+    {
+      "number": 126,
+      "title": "Watch request",
+      "state": "waiting",
+      "blockedBy": [
+        124
+      ],
+      "prNumber": null,
+      "prState": null,
+      "prMergedAt": null,
+      "closedAt": null,
+      "readAt": 99000
     }
   ],
   "slicesTruncated": false,

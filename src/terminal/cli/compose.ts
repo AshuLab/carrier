@@ -10,6 +10,7 @@ import { eventsOf, lastEventOf } from '../../control/events.ts';
 import { filesOf } from '../../control/files.ts';
 import { sessionsOf } from '../../control/sessions.ts';
 import { startControlServer, version } from '../../control/server.ts';
+import { listAvailableRepos } from '../../integrations/available-repos.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
 import { GhGitHub, type GhGitHubOptions } from '../../integrations/github.ts';
 import { installFileLogging } from '../../logging/logger.ts';
@@ -40,6 +41,8 @@ export interface CarrierDeps {
   mint: NonNullable<CredentialsOptions['mint']>;
   botId?: CredentialsOptions['botId'];
   sessionDirs: SessionDirs;
+  /** The repos the gh login can push to, for the app's "add a repo"; rejects when GitHub cannot be read. */
+  listRepos: (timeoutMs: number) => ReturnType<typeof listAvailableRepos>;
   panelOut: PanelOutput;
   panelIntervalMs?: number;
   onSigint: (...args: Parameters<typeof stopOnSigint>) => () => Promise<void>;
@@ -61,6 +64,7 @@ const realDeps = (): CarrierDeps => ({
   makeRunner: (options) => new HostAgentRunner(options),
   mint: (profile, repo) => profileToken(profile)(repo),
   sessionDirs: sessionDirsFrom(),
+  listRepos: listAvailableRepos,
   panelOut: process.stdout,
   onSigint: stopOnSigint,
   stdin: process.stdin,
@@ -158,6 +162,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
     epic: (repo: string, issue: number) => epicOf(db, repo, issue),
     files: (repo: string, issue: number, executionId?: string) => filesOf(db, config.root, repo, issue, executionId),
+    availableRepos: () => deps.listRepos(limits.githubCallTimeoutSeconds * 1000),
   };
   stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop: shutdown })).close;
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).

@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import type { Config } from '../../config/schema.ts';
 import { repoNamePattern } from '../../config/schema.ts';
 import { runDoctor } from '../../doctor/doctor.ts';
+import { ghReposArgs, parseRepos } from '../../integrations/available-repos.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
 import { GhGitHub } from '../../integrations/github.ts';
 import { listLocalModels, type LocalProvider } from '../../harnesses/local.ts';
@@ -48,10 +49,7 @@ export const realDeps: InitDeps = {
       return undefined; // not logged in or no gh: the doctor reports it, here it only means no hint
     }
   },
-  listRepos: () =>
-    execFileSync('gh', ['api', 'user/repos?affiliation=owner,organization_member&sort=pushed&per_page=100', '--jq', '.[] | select(.archived or .disabled | not) | select(.permissions.push) | .full_name'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
-      .split('\n')
-      .filter(Boolean),
+  listRepos: () => parseRepos(execFileSync('gh', ghReposArgs, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })).map((repo) => repo.name),
   originRepo: () => {
     const url = spawnSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }).stdout.trim();
     const repo = /github\.com[:/]([\w.-]+\/[\w.-]+?)(?:\.git)?$/.exec(url)?.[1];

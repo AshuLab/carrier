@@ -3,6 +3,7 @@ import { createServer, type Socket } from 'node:net';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
+import type { AvailableRepo } from '../integrations/available-repos.ts';
 import type { EpicReply, EventsReply, FilesReply, SessionsReply } from './replies.ts';
 
 const log = createScopedLogger('control');
@@ -31,13 +32,14 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('events'), executionId: z.uuid(), after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200) }),
   z.strictObject({ id, cmd: z.literal('epic'), repo, issue }),
   z.strictObject({ id, cmd: z.literal('files'), repo, issue, executionId: z.uuid().optional() }),
+  z.strictObject({ id, cmd: z.literal('availableRepos') }),
 ]);
 
 // src/control and dist/control both sit two folders under the package root.
 export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
-export type Capability = 'sessions' | 'events' | 'epic' | 'files';
+export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'availableRepos';
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: Capability[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
 
@@ -54,6 +56,8 @@ export type Controls = {
   epic(repo: string, issue: number): EpicReply | null;
   /** null for an epic the engine does not know. */
   files(repo: string, issue: number, executionId?: string): FilesReply | null;
+  /** The repos the gh login can push to; rejects when GitHub cannot be read. */
+  availableRepos(): Promise<AvailableRepo[]>;
 };
 
 /** pause, resume, checkNow and tail. Like the panel's keys, a check is started and not waited for: its failure is the engine's to report. */
@@ -69,8 +73,8 @@ function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | '
   }
 }
 
-/** The reply to one line. */
-function answer(line: string, snapshot: () => unknown, controls: Controls, stopAfterReply: () => void): Reply {
+/** The reply to one line; a promise for the requests that wait on GitHub. */
+function answer(line: string, snapshot: () => unknown, controls: Controls, stopAfterReply: () => void): Reply | Promise<Reply> {
   let value: unknown;
   try {
     value = JSON.parse(line);
@@ -111,6 +115,19 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       return { id: replyId, ok: false, error: 'internal error' };
     }
   }
+  if (parsed.data.cmd === 'availableRepos') {
+    const replyId = parsed.data.id;
+    // never the reason in the reply: gh's own message can carry more than the client should see
+    return Promise.resolve()
+      .then(() => controls.availableRepos())
+      .then(
+        (repos): Reply => ({ id: replyId, ok: true, data: { repos } }),
+        (error): Reply => {
+          log.error('availableRepos failed', error);
+          return { id: replyId, ok: false, error: 'github unavailable' };
+        },
+      );
+  }
   if (parsed.data.cmd === 'events') {
     const { id: replyId, executionId, after, limit } = parsed.data;
     try {
@@ -139,7 +156,7 @@ export async function startControlServer({ orchestratorDir, snapshot, startedAt,
     return { close: () => {} };
   }
   const sockets = new Set<Socket>();
-  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files'] };
+  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files', 'availableRepos'] };
   const send = (socket: Socket, message: Hello | Reply, written?: () => void) => void socket.write(`${JSON.stringify(message)}\n`, written);
 
   const server = createServer((socket) => {
@@ -150,6 +167,8 @@ export async function startControlServer({ orchestratorDir, snapshot, startedAt,
     socket.on('close', () => sockets.delete(socket));
     send(socket, hello);
     let pending = '';
+    // replies leave in the order the requests came, also when one of them waits on GitHub
+    let replies: Promise<void> = Promise.resolve();
     socket.on('data', (chunk: string) => {
       pending += chunk;
       for (let end = pending.indexOf('\n'); end >= 0; end = pending.indexOf('\n')) {
@@ -159,7 +178,11 @@ export async function startControlServer({ orchestratorDir, snapshot, startedAt,
         // `stop`: the reply is flushed first, then the shared shutdown runs and ends with the connection closing
         let afterReply: (() => void) | undefined;
         const stopAfterReply = () => void (afterReply = () => void stop().catch((error) => log.error('stop failed', error)));
-        send(socket, answer(line, snapshot, controls, stopAfterReply), afterReply);
+        const reply = answer(line, snapshot, controls, stopAfterReply);
+        replies = replies.then(async () => {
+          const message = await reply;
+          if (socket.destroyed === false) send(socket, message, afterReply);
+        });
       }
       if (Buffer.byteLength(pending) > MAX_LINE_BYTES) tooLong(socket);
     });

@@ -9,6 +9,7 @@ struct SettingsScreen: View {
     @State private var tab = Tab.engine
     /// the Engine tab's paths, opened by the person while everything is found; not remembered
     @State private var pathsOpen = false
+    @AppStorage(startOnOpenKey) private var startOnOpen = false
 
     enum Tab: String, CaseIterable { case engine = "Engine", behavior = "Behavior", repos = "Repos", notifications = "Notifications" }
 
@@ -45,6 +46,13 @@ struct SettingsScreen: View {
                             Button("Detect again") { setup.detect() }.buttonStyle(.glass).buttonBorderShape(.capsule)
                         }
                         .padding(.horizontal, 14).padding(.vertical, 12)
+                        .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+                    }
+                    if model.banner.state == .ready {
+                        SettingsTabRow(title: "Start Carrier when the app opens", detail: "Carrier starts working on ready epics as soon as the app opens", first: true) {
+                            Toggle("Start Carrier when the app opens", isOn: $startOnOpen).labelsHidden().toggleStyle(.switch)
+                        }
+                        .padding(.horizontal, 14)
                         .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
                     }
                 } else if tab == .behavior {

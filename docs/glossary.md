@@ -68,6 +68,12 @@ _Avoid_: slot (that counts epics), thread, worker, subagent (a lane holds one at
 **Subagent** - A Claude agent launched from inside an execution, with an exact `agentId` in the stream and no session of its own. A builder subagent builds one slice, in a lane. A reviewer subagent runs one pass of a review (Spec, Standards, Risk, Experience) and has no slice and no lane. The slice and the lane of a builder are inferred from the model's wording and the worktree path; the subagent, its times and its end status are exact ([research](research/claude-subagent-attribution.md)).
 _Avoid_: lane (that is where a builder runs), worker, child agent.
 
+**Call group** - A run of two or more successful tool calls with nothing between them but other calls of the same kind of work (commands, reads, searches), shown in the Agent output tab as one row such as "Ran 4 commands · read 2 files" that unfolds to the calls. A failed call, a message, a skill, an edit or a slice ends the run; a lone call is not a group.
+_Avoid_: batch (that is slices started together), step, turn.
+
+**Slice row** - The row of the Agent output tab that stands for one subagent building one slice: its state, its slice and title, its counts and pull request, placed in the log where the slice was taken and opening in place on the subagent's own calls. One row per subagent; a resumed one is still one row.
+_Avoid_: lane (the place it runs in), lane card, task.
+
 **Slot** - One of the places the engine has for running epics at once (`maxConcurrentEpics`). It is a counter with no identity, so the app shows how many are in use and which epics occupy them, never "slot 2".
 _Avoid_: lane (that is inside one epic), thread, concurrency.
 

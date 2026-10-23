@@ -1,6 +1,6 @@
 import Foundation
 
-// The seven values of `config.json` the app lets the person change: how often Carrier looks, how loud it logs and its limits.
+// The eight values of `config.json` the app lets the person change: how often Carrier looks, how loud it logs and its limits.
 // The rules are the engine's (src/config/schema.ts and load.ts); the engine reads them once, when it starts. Everything else
 // in the file (repos, profiles, agents, root) is left as it is.
 
@@ -15,6 +15,8 @@ public struct EngineConfig: Equatable {
     /// nil is `"unlimited"`
     public var maxExecutionHours: Int? = 4
     public var githubCallTimeoutSeconds = 30
+    /// How many days a merged or cancelled epic stays in view
+    public var finishedWindowDays = 15
 
     public init() {}
 
@@ -31,6 +33,7 @@ public struct EngineConfig: Equatable {
         if limits["maxExecutionHours"] as? String == "unlimited" { maxExecutionHours = nil }
         else { maxExecutionHours = (limits["maxExecutionHours"] as? Int) ?? maxExecutionHours }
         githubCallTimeoutSeconds = (limits["githubCallTimeoutSeconds"] as? Int) ?? githubCallTimeoutSeconds
+        finishedWindowDays = (file["finishedWindowDays"] as? Int) ?? finishedWindowDays
     }
 
     /// What the engine would refuse, by field name; empty when the values are fine.
@@ -43,6 +46,7 @@ public struct EngineConfig: Equatable {
         if maxExecutionRetries < 0 { found["maxExecutionRetries"] = "Must be 0 or more" }
         if let hours = maxExecutionHours, hours < 1 { found["maxExecutionHours"] = "Must be 1 or more, or unlimited" }
         if githubCallTimeoutSeconds < 1 { found["githubCallTimeoutSeconds"] = "Must be 1 or more" }
+        if (1...30).contains(finishedWindowDays) == false { found["finishedWindowDays"] = "Must be a whole number from 1 to 30" }
         return found
     }
 
@@ -57,6 +61,7 @@ public struct EngineConfig: Equatable {
         }
         put("pollIntervalMinutes", pollIntervalMinutes, differs: pollIntervalMinutes != base.pollIntervalMinutes, in: &file)
         put("logLevel", logLevel, differs: logLevel != base.logLevel, in: &file)
+        put("finishedWindowDays", finishedWindowDays, differs: finishedWindowDays != base.finishedWindowDays, in: &file)
         var limits = file["limits"] as? [String: Any] ?? [:]
         put("maxConcurrentEpics", maxConcurrentEpics, differs: maxConcurrentEpics != base.maxConcurrentEpics, in: &limits)
         put("maxReviews", maxReviews, differs: maxReviews != base.maxReviews, in: &limits)

@@ -41,6 +41,7 @@ struct LaneHeaderView: View {
                     .rotationEffect(.degrees(open ? 90 : 0))
                     .frame(width: 26, height: 26)
                     .background(Circle().fill(Color.secondary.opacity(0.16)))
+                    .accessibilityLabel(open ? "Fold" : "Unfold")
             }
             // the pull request is always there, so the row keeps its height with no lane
             HStack(spacing: 8) {
@@ -67,9 +68,11 @@ struct LaneHeaderView: View {
 
     @ViewBuilder private var state: some View {
         switch lane.state {
-        case .running: ProgressView().controlSize(.small).frame(width: 16, height: 16)
+        case .running: ProgressView().controlSize(.small).frame(width: 16, height: 16).accessibilityLabel("Running")
         case .finished: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green).frame(width: 16, height: 16)
+            .accessibilityLabel("Finished")
         case .failed: Image(systemName: "xmark.circle.fill").foregroundStyle(.red).frame(width: 16, height: 16)
+            .accessibilityLabel("Failed")
         }
     }
 }

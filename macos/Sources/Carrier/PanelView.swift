@@ -78,7 +78,7 @@ struct PanelView: View {
                             .id("\(epic.subject.repo)#\(epic.subject.issue)")
                     } else if shell.selection == .settings {
                         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
-                        SettingsScreen()
+                        SettingsScreen(state: model.state)
                     } else if case .running(let snapshot)? = model.state {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 26) {

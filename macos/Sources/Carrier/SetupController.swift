@@ -25,8 +25,8 @@ final class SetupController: ObservableObject {
         self.detector = detector
         let saved = store.load()
         isFirstLaunch = saved == nil
-        // the config path and the root are not the shell's to say: they come from where Carrier keeps them
-        settings = saved ?? SetupSettings(detection: nil, environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory(), configJSON: Self.configFile())
+        // the config path is not the shell's to say: it comes from where Carrier keeps it
+        settings = saved ?? SetupSettings(detection: nil, environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
     }
 
     /// Asks the shell only when nothing was saved.
@@ -34,14 +34,14 @@ final class SetupController: ObservableObject {
         if isFirstLaunch { detect() }
     }
 
-    /// Forgets the saved values, puts back what Carrier itself says (config path and root) and detects again.
+    /// Forgets the saved values, puts back what Carrier itself says (the config path) and detects again.
     func reset(then done: (() -> Void)? = nil) {
-        settings = SetupSettings(detection: nil, environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory(), configJSON: Self.configFile())
+        settings = SetupSettings(detection: nil, environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
         detect(then: done)
     }
 
     /// Runs the shell off the main thread and puts what it found in the three values it can find. Edits to the config path
-    /// and the root stay; a shell that gave no answer leaves every value as it was.
+    /// stay; a shell that gave no answer leaves every value as it was.
     func detect(then done: (() -> Void)? = nil) {
         guard detecting == false else { return }
         detecting = true
@@ -67,10 +67,5 @@ final class SetupController: ObservableObject {
     /// For the self-test.
     var summary: String {
         "saved \(store.load() != nil), shell runs this launch \(detectionRuns), not found [\(settings.missing.joined(separator: ", "))]"
-    }
-
-    private static func configFile() -> Data? {
-        let path = configFilePath(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
-        return try? Data(contentsOf: URL(fileURLWithPath: path))
     }
 }

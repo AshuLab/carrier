@@ -9,7 +9,7 @@ private func store() -> SetupStore {
 }
 
 private let saved = SetupSettings(
-    carrier: "/old/carrier", node: "/old/node", path: "/old/bin", configPath: "/home/.carrier/config.json", root: "/home/.solve"
+    carrier: "/old/carrier", node: "/old/node", path: "/old/bin", configPath: "/home/.carrier/config.json"
 )
 
 @MainActor @Test func detectAgainRunsTheDetectionAndTheRowsUpdate() async {
@@ -23,7 +23,7 @@ private let saved = SetupSettings(
     #expect(tab.rows.first?.value == "/new/carrier")
     #expect(tab.rows[1].value == "/new/node")
     #expect(tab.banner.state == .ready)
-    // the config path and root are not the shell's to say
+    // the config path is not the shell's to say
     #expect(controller.settings.configPath == saved.configPath)
     #expect(store.load()?.carrier == "/new/carrier")
 }
@@ -38,7 +38,7 @@ private let saved = SetupSettings(
 
 @MainActor @Test func aChosenPathIsStoredAndTheBannerUpdates() {
     let store = store()
-    store.save(SetupSettings(node: "/n/node", path: "/bin", configPath: "/c.json", root: "/r"))
+    store.save(SetupSettings(node: "/n/node", path: "/bin", configPath: "/c.json"))
     let controller = SetupController(store: store, detector: { nil })
     #expect(engineTab(controller.settings, detecting: false).banner.title == "Start Carrier needs carrier")
 

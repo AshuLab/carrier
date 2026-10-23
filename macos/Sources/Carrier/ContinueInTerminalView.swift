@@ -17,8 +17,8 @@ struct ContinueInTerminalView: View {
 
     var body: some View {
         if let descriptor = section.resume {
-            let root = sharedRoot(
-                configJSON: try? Data(contentsOf: URL(fileURLWithPath: configFilePath(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()))),
+            let root = configRoot(
+                configPath: activeConfigPath(saved: SetupStore().load(), environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()),
                 home: NSHomeDirectory())
             if case .success(let valid) = validateResume(descriptor, root: root) {
                 VStack(alignment: .leading, spacing: 8) {

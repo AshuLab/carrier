@@ -1,8 +1,8 @@
 import CarrierCore
 import SwiftUI
 
-/// The Overview while Carrier is not running (or not answered yet): what happened, the button that starts it and what it needs to
-/// start, each thing with a tick or a mark and a way to Settings when something is missing.
+/// The Overview while Carrier is not running (or not answered yet): what happened and the button that starts it. When the setup
+/// lacks something the button is off and one line says what, with the way to Settings.
 struct StoppedView: View {
     let state: ConnectionState?
     @Binding var selection: Selection
@@ -21,7 +21,7 @@ struct StoppedView: View {
                 }
                 if state == .stopped {
                     StartCarrierButton()
-                    needs
+                    missing
                 }
             }
             .padding(28)
@@ -42,29 +42,17 @@ struct StoppedView: View {
         }
     }
 
-    /// What starting needs: the four things the settings hold, as the Engine tab shows them.
-    private var needs: some View {
-        let rows = engineTab(setup.settings, detecting: setup.detecting).rows.filter { $0.field != .path }
-        return VStack(alignment: .leading, spacing: 8) {
-            OverviewTitle(title: "What Carrier needs")
-            OverviewCard {
-                ForEach(rows, id: \.field) { row in
-                    HStack(spacing: 12) {
-                        StatusDot(found: row.found)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(row.title).fontWeight(.medium)
-                            Text(row.value ?? "Not found").font(.caption.monospaced())
-                                .foregroundStyle(row.found ? Color.secondary : .orange).lineLimit(1).truncationMode(.middle)
-                        }
-                        Spacer(minLength: 8)
-                    }
-                    .padding(.vertical, 9)
+    /// Why the button is off, when it is: the Engine tab's banner text and the way to the tab.
+    @ViewBuilder private var missing: some View {
+        let banner = engineTab(setup.settings, detecting: setup.detecting).banner
+        if banner.state != .ready {
+            VStack(spacing: 8) {
+                Label(banner.title, systemImage: banner.state == .detecting ? "magnifyingglass" : "exclamationmark.triangle.fill")
+                    .font(.callout).foregroundStyle(.orange)
+                if banner.state == .missing {
+                    Button("Open Settings") { selection = .settings }.buttonStyle(.glass).buttonBorderShape(.capsule).controlSize(.small)
                 }
             }
-            if rows.contains(where: { !$0.found }) {
-                Button("Open Settings") { selection = .settings }.buttonStyle(.bordered).controlSize(.small).padding(.leading, 14)
-            }
         }
-        .frame(maxWidth: 460)
     }
 }

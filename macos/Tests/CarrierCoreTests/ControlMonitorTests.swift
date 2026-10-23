@@ -18,7 +18,7 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     var states: [ConnectionState] = []
     var intervals: [TimeInterval] = []
     ControlMonitor(
-        socketPath: path, pollInterval: 1, retryInterval: 3,
+        socketPath: { path }, pollInterval: 1, retryInterval: 3,
         wait: { intervals.append($0); return intervals.count < waits },
         log: { _ in },
         onChange: { states.append($0) }
@@ -108,7 +108,7 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     var log: [String] = []
     var waits = 0
     ControlMonitor(
-        socketPath: server.path, wait: { _ in waits += 1; return waits < 2 }, log: { _ in },
+        socketPath: { server.path }, wait: { _ in waits += 1; return waits < 2 }, log: { _ in },
         tick: { _ in log.append("tick") }, onChange: { _ in log.append("snapshot") }
     ).run()
     #expect(log == ["snapshot", "tick", "snapshot", "tick"])

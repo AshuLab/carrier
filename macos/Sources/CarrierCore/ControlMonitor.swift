@@ -34,10 +34,10 @@ public enum ConnectionState: Equatable {
 }
 
 /// Keeps the state of Carrier current: asks for the snapshot every `pollInterval` while connected, tries to connect again
-/// every `retryInterval` while not. `run()` blocks, so it belongs on its own thread; `onChange` is called from it, once per
+/// every `retryInterval` while not. `socketPath` is asked at each attempt, so a changed config file is followed. `run()` blocks, so it belongs on its own thread; `onChange` is called from it, once per
 /// poll or attempt. `tick` is called after each snapshot on the same connection (the epic view's requests go there). `wait` is how it sleeps: it returns false to end `run()`.
 public final class ControlMonitor {
-    private let socketPath: String
+    private let socketPath: () -> String
     private let pollInterval: TimeInterval
     private let retryInterval: TimeInterval
     private let wait: (TimeInterval) -> Bool
@@ -46,7 +46,7 @@ public final class ControlMonitor {
     private let tick: (ControlClient) throws -> Void
 
     public init(
-        socketPath: String,
+        socketPath: @escaping () -> String,
         pollInterval: TimeInterval = 1,
         retryInterval: TimeInterval = 3,
         wait: @escaping (TimeInterval) -> Bool = { Thread.sleep(forTimeInterval: $0); return true },
@@ -65,7 +65,7 @@ public final class ControlMonitor {
 
     public func run() {
         repeat {
-            guard let client = ControlClient.connect(path: socketPath) else {
+            guard let client = ControlClient.connect(path: socketPath()) else {
                 onChange(.stopped)
                 continue
             }

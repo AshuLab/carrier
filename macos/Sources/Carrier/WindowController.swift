@@ -40,7 +40,9 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     @objc private func openFromMenu() { open() }
 
-    func open(selecting epic: EpicMenuItem? = nil) {
+    func open(selecting epic: EpicMenuItem? = nil) { open(epic: epic.map { EpicRef(repo: $0.repo, issue: $0.issue) }) }
+
+    func open(epic: EpicRef?) {
         let window = window ?? makeWindow()
         self.window = window
         if stop == nil { startMonitor() }
@@ -131,7 +133,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         let model = model
         let poller = model.epics.poller!
         let monitor = ControlMonitor(
-            socketPath: controlSocketPath(),
+            socketPath: { controlSocketPath() },
             // sleeps in short steps so closing the window ends the thread within a tenth of a second
             wait: { seconds in
                 let end = Date().addingTimeInterval(seconds)

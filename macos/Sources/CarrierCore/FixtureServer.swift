@@ -6,7 +6,7 @@ public enum FixtureError: Error, Equatable {
 }
 
 /// A fake Carrier for the app's `--fixture` mode: a control server on a temporary socket that answers the snapshot and the four
-/// new requests from the golden files (macos/Tests/Fixtures), so the app is exercised through its real client path with no engine.
+/// new requests from the golden files (macos/Tests/Fixtures), and `availableRepos` with a made-up list, so the app is exercised through its real client path with no engine.
 /// It owns a temporary home (`home`) holding a `config.json` whose `root` is the home itself, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 public final class FixtureServer {
@@ -24,6 +24,17 @@ public final class FixtureServer {
         "snapshot": "snapshot.json", "sessions": "reply-sessions.json", "events": "reply-events.json",
         "epic": "reply-epic.json", "files": "reply-files.json",
     ]
+    /// What `availableRepos` answers: a few owners, some private, one already in the golden snapshot's repos.
+    static let availableRepos = """
+    {"repos":[{"name":"AshuLab/web","private":true,"pushedAt":"2026-10-22T10:00:00Z"},\
+    {"name":"AshuLab/agent-forge","private":false,"pushedAt":"2026-10-20T08:30:00Z"},\
+    {"name":"AshuLab/docs","private":false,"pushedAt":"2026-09-02T12:00:00Z"},\
+    {"name":"vemec/encaja","private":true,"pushedAt":"2026-10-22T06:00:00Z"},\
+    {"name":"vemec/dotfiles","private":false,"pushedAt":null},\
+    {"name":"acme/web","private":true,"pushedAt":"2026-08-01T09:00:00Z"},\
+    {"name":"acme/api","private":true,"pushedAt":"2026-10-15T09:00:00Z"}]}
+    """
+
     /// Accepted and answered with nothing, as the real engine would; the fixture has no one to pause or stop.
     private static let controls: Set<String> = ["pause", "resume", "checkNow", "stop"]
 
@@ -41,8 +52,9 @@ public final class FixtureServer {
             let reply = EventsReply(events: longTranscriptEvents(rounds: 400), next: 3600, running: true, structured: true)
             data["events"] = try JSONEncoder().encode(reply)
         }
+        data["availableRepos"] = Data(Self.availableRepos.utf8)
         self.data = data
-        let names = ["sessions", "events", "epic", "files"].map { "\"\($0)\"" }.joined(separator: ",")
+        let names = ["sessions", "events", "epic", "files", "availableRepos"].map { "\"\($0)\"" }.joined(separator: ",")
         hello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":\(getpid()),\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\(names)]}\n".utf8)
 
         // /tmp, not the default temp folder: a socket path holds 103 bytes and that folder takes about 70

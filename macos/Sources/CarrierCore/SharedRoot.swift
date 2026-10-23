@@ -15,9 +15,24 @@ public func sharedRoot(configJSON: Data?, home: String) -> String {
     return root.hasPrefix("~/") ? home + root.dropFirst() : root
 }
 
+/// The `root` of the config file at `configPath`, as `sharedRoot` reads it.
+public func configRoot(configPath: String, home: String) -> String {
+    sharedRoot(configJSON: try? Data(contentsOf: URL(fileURLWithPath: configPath)), home: home)
+}
+
+/// The config file the app works with: `CARRIER_HOME` in the app's own environment (a dev run, the fixtures) wins, then the
+/// one chosen in the setup, then the engine's default. The root is never saved: it is read from that file each time.
+public func activeConfigPath(saved: SetupSettings?, environment: [String: String], home: String) -> String {
+    if environment["CARRIER_HOME"].map({ $0.isEmpty == false }) == true { return configFilePath(environment: environment, home: home) }
+    if let chosen = saved?.configPath, chosen.isEmpty == false { return chosen }
+    return configFilePath(environment: environment, home: home)
+}
+
+/// Tests pass `saved: nil`; the app reads what the person saved, so a changed config file is followed at once.
 public func controlSocketPath(
+    saved: SetupSettings? = SetupStore().load(),
     environment: [String: String] = ProcessInfo.processInfo.environment, home: String = NSHomeDirectory()
 ) -> String {
-    let config = try? Data(contentsOf: URL(fileURLWithPath: configFilePath(environment: environment, home: home)))
-    return sharedRoot(configJSON: config, home: home) + "/orchestrator/control.sock"
+    let configPath = activeConfigPath(saved: saved, environment: environment, home: home)
+    return configRoot(configPath: configPath, home: home) + "/orchestrator/control.sock"
 }

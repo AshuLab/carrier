@@ -5,18 +5,18 @@ import Testing
 private let home = "/Users/ana"
 private let ready = SetupSettings(
     carrier: "/Users/ana/.nvm/bin/carrier", node: "/Users/ana/.nvm/bin/node", path: "/usr/bin:/bin",
-    configPath: "/Users/ana/.carrier/config.json", root: "/Users/ana/.solve"
+    configPath: "/Users/ana/.carrier/config.json"
 )
 
 private func model(_ settings: SetupSettings, detecting: Bool = false) -> EngineTabModel {
     engineTab(settings, detecting: detecting, home: home)
 }
 
-@Test func everythingFoundIsAGreenBannerAndFiveFoundRows() {
+@Test func everythingFoundIsAGreenBannerAndFourFoundRows() {
     let tab = model(ready)
     #expect(tab.banner.state == .ready)
     #expect(tab.banner.title == "Start Carrier is ready")
-    #expect(tab.rows.map(\.title) == ["Carrier", "Node", "Config file", "Shared root", "PATH"])
+    #expect(tab.rows.map(\.title) == ["Carrier", "Node", "Config file", "PATH"])
     #expect(tab.rows.allSatisfy { $0.found })
 }
 
@@ -25,15 +25,14 @@ private func model(_ settings: SetupSettings, detecting: Bool = false) -> Engine
     #expect(rows[0].value == "~/.nvm/bin/carrier")
     #expect(rows[0].revealPath == "/Users/ana/.nvm/bin/carrier")
     // node's folder is put first: /Users/ana/.nvm/bin + /usr/bin + /bin
-    #expect(rows[4].value == "3 folders · node’s folder first")
-    #expect(rows[4].revealPath == nil)
+    #expect(rows[3].value == "3 folders · node’s folder first")
+    #expect(rows[3].revealPath == nil)
 }
 
 @Test(arguments: [
     (EngineField.carrier, "Start Carrier needs carrier"),
     (.node, "Start Carrier needs node"),
     (.configPath, "Start Carrier needs config path"),
-    (.root, "Start Carrier needs root"),
 ])
 func eachMissingValueIsNamedInTheBannerAndItsRowIsNotFound(field: EngineField, title: String) {
     var settings = ready
@@ -60,8 +59,8 @@ func eachMissingValueIsNamedInTheBannerAndItsRowIsNotFound(field: EngineField, t
     settings.node = ""
     settings.carrier = ""
     #expect(model(settings).banner.title == "Start Carrier needs node and carrier")
-    settings.root = ""
-    #expect(model(settings).banner.title == "Start Carrier needs node, carrier and root")
+    settings.configPath = ""
+    #expect(model(settings).banner.title == "Start Carrier needs node, carrier and config path")
     #expect(model(SetupSettings()).rows.allSatisfy { $0.found == false })
 }
 
@@ -72,5 +71,15 @@ func eachMissingValueIsNamedInTheBannerAndItsRowIsNotFound(field: EngineField, t
 
 @Test func theFieldsAreChosenAsFilesAndFolders() {
     let choices = model(ready).rows.map(\.choice)
-    #expect(choices == [.file, .file, .file, .folder, .edit])
+    #expect(choices == [.file, .file, .file, .edit])
+}
+
+@Test func thePathsStayClosedWhenAllIsFoundUntilAskedAndOpenThemselvesOtherwise() {
+    let readyBanner = model(ready).banner
+    #expect(enginePathsShown(readyBanner, opened: false) == false)
+    #expect(enginePathsShown(readyBanner, opened: true))
+    var missing = ready
+    missing.carrier = ""
+    #expect(enginePathsShown(model(missing).banner, opened: false))
+    #expect(enginePathsShown(model(ready, detecting: true).banner, opened: false))
 }

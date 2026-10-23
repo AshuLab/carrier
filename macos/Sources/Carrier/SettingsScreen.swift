@@ -2,37 +2,57 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// Settings as a screen of the main window: the readiness banner, four tabs, the Engine tab and the Menu bar tab. The others wait
-/// for their slices.
+/// Settings as a screen of the main window: the readiness banner (only while something is missing or being looked for), four tabs.
 struct SettingsScreen: View {
+    let state: ConnectionState?
     @ObservedObject var setup: SetupController = .shared
     @State private var tab = Tab.engine
+    /// the Engine tab's paths, opened by the person while everything is found; not remembered
+    @State private var pathsOpen = false
 
-    enum Tab: String, CaseIterable { case engine = "Engine", notifications = "Notifications", menuBar = "Menu bar", general = "General" }
+    enum Tab: String, CaseIterable { case engine = "Engine", behavior = "Behavior", repos = "Repos", notifications = "Notifications" }
 
     var body: some View {
         let model = engineTab(setup.settings, detecting: setup.detecting)
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                ReadinessBannerView(banner: model.banner, detecting: setup.detecting) { setup.detect() }
+                if model.banner.state != .ready {
+                    ReadinessBannerView(banner: model.banner, detecting: setup.detecting) { setup.detect() }
+                }
                 if let message = setup.message {
                     Label(message, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
                 }
                 UnderlineTabs(items: Tab.allCases.map { UnderlineTabs.Item(id: $0, title: $0.rawValue) }, selection: $tab)
                 if tab == .engine {
-                    VStack(spacing: 0) {
-                        ForEach(model.rows, id: \.field) { EngineRowView(row: $0, setup: setup) }
+                    if enginePathsShown(model.banner, opened: pathsOpen) {
+                        if model.banner.state == .ready {
+                            Button("Hide paths ▴") { pathsOpen = false }.buttonStyle(.borderless).frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                        VStack(spacing: 0) {
+                            ForEach(model.rows, id: \.field) { EngineRowView(row: $0, setup: setup) }
+                        }
+                        .padding(.horizontal, 14)
+                        .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+                    } else {
+                        HStack(spacing: 12) {
+                            StatusDot(found: true)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Carrier is ready to start").fontWeight(.semibold)
+                                Text("carrier, node and the config file were found").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 8)
+                            Button("Show paths ▾") { pathsOpen = true }.buttonStyle(.borderless)
+                            Button("Detect again") { setup.detect() }.buttonStyle(.glass).buttonBorderShape(.capsule)
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 12)
+                        .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
                     }
-                    .padding(.horizontal, 14)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
-                } else if tab == .menuBar {
-                    MenuBarTabView()
-                } else if tab == .notifications {
-                    NotificationsTabView()
-                } else if tab == .general {
-                    GeneralTabView(setup: setup)
+                } else if tab == .behavior {
+                    BehaviorTabView(state: state)
+                } else if tab == .repos {
+                    ReposTabView(state: state)
                 } else {
-                    Text("Coming soon").foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 120)
+                    NotificationsTabView()
                 }
             }
             .padding(18)

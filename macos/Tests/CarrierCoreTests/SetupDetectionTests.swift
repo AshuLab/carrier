@@ -77,18 +77,18 @@ private let answer = """
     #expect(enginePath(detected: "", node: "") == "")
 }
 
-@Test func theConfigPathAndRootComeFromCarrierNotFromTheShell() {
+@Test func theConfigPathComesFromCarrierNotFromTheShell() {
     let settings = SetupSettings(
         detection: Detection(carrier: "/bin/carrier", node: "/bin/node", path: "/bin"),
-        environment: ["CARRIER_HOME": "/tmp/c"], home: "/Users/ana", configJSON: Data("{\"root\":\"~/work\"}".utf8)
+        environment: ["CARRIER_HOME": "/tmp/c"], home: "/Users/ana"
     )
-    #expect(settings == SetupSettings(carrier: "/bin/carrier", node: "/bin/node", path: "/bin", configPath: "/tmp/c/config.json", root: "/Users/ana/work"))
+    #expect(settings == SetupSettings(carrier: "/bin/carrier", node: "/bin/node", path: "/bin", configPath: "/tmp/c/config.json"))
     #expect(settings.missing.isEmpty)
 }
 
 @Test func whenTheShellGaveNoAnswerThePaneListsWhatIsMissing() {
-    let settings = SetupSettings(detection: nil, environment: [:], home: "/Users/ana", configJSON: nil)
-    #expect(settings.configPath == "/Users/ana/.carrier/config.json" && settings.root == "/Users/ana/.solve")
+    let settings = SetupSettings(detection: nil, environment: [:], home: "/Users/ana")
+    #expect(settings.configPath == "/Users/ana/.carrier/config.json")
     #expect(settings.missing == ["carrier", "node", "PATH"])
 }
 
@@ -104,10 +104,10 @@ private func freshDefaults() -> (UserDefaults, String) {
     #expect(store.load() == nil)
 
     // a detection that found nothing is saved too: the shell is not asked again by itself
-    store.save(SetupSettings(configPath: "/a/config.json", root: "/a"))
-    #expect(SetupStore(defaults: defaults).load() == SetupSettings(configPath: "/a/config.json", root: "/a"))
+    store.save(SetupSettings(configPath: "/a/config.json"))
+    #expect(SetupStore(defaults: defaults).load() == SetupSettings(configPath: "/a/config.json"))
 
-    let edited = SetupSettings(carrier: "/c", node: "/n", path: "/p", configPath: "/a/config.json", root: "/r")
+    let edited = SetupSettings(carrier: "/c", node: "/n", path: "/p", configPath: "/a/config.json")
     store.save(edited)
     #expect(store.load() == edited)
 }

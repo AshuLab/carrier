@@ -36,14 +36,25 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
     /// Settings' "Send a test": asks again even after a denial, since the person may have just allowed it in System Settings.
     func sendTest() {
         denied = false
-        post([EpicNotification(title: "Carrier test", body: "Notifications work")])
+        post([EpicNotification(title: "Carrier test", body: "Notifications work", isTest: true)])
+    }
+
+    /// Takes the clicks on notifications, also those of ones shown before the app was last started. Needs a bundle.
+    func attachDelegate() {
+        guard Bundle.main.bundleIdentifier != nil else { return }
+        UNUserNotificationCenter.current().delegate = self
     }
 
     /// The system's answer; call only inside a bundle (`readPermission` checks).
     func read(_ done: @escaping (SystemNotificationAnswer) -> Void) {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let style: NotificationDelivery.Style = switch settings.alertStyle {
+            case .banner: .banners
+            case .alert: .alerts
+            default: .none
+            }
             let answer: SystemNotificationAnswer = switch settings.authorizationStatus {
-            case .authorized, .provisional, .ephemeral: .allowed
+            case .authorized, .provisional, .ephemeral: .allowed(NotificationDelivery(style: style, soundOn: settings.soundSetting == .enabled))
             case .notDetermined: .notAsked
             default: .denied
             }
@@ -73,6 +84,9 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
             content.title = notification.title
             content.body = notification.body
             content.sound = .default
+            var info: [String: Any] = ["test": notification.isTest]
+            if let epic = notification.epic { info["repo"] = epic.repo; info["issue"] = epic.issue }
+            content.userInfo = info
             center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)) { error in
                 if let error { self.log("notification not shown: \(error)") }
             }
@@ -88,10 +102,23 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
         checking = false
     }
 
-    /// Show the banner even while the app is frontmost.
+    /// Show the banner even while the app is frontmost, unless the person asked for none then (the test always shows).
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler done: @escaping (UNNotificationPresentationOptions) -> Void) {
-        done([.banner, .sound])
+        let isTest = notification.request.content.userInfo["test"] as? Bool ?? false
+        let show = shouldPresent(onlyWhenAway: UserDefaults.standard.notifiesOnlyWhenAway, appIsActive: NSApp.isActive, isTest: isTest)
+        done(show ? [.banner, .sound] : [])
+    }
+
+    /// A click opens the window, on the epic when the notification is about one.
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                withCompletionHandler done: @escaping () -> Void) {
+        let info = response.notification.request.content.userInfo
+        let epic = (info["repo"] as? String).flatMap { repo in (info["issue"] as? Int).map { EpicRef(repo: repo, issue: $0) } }
+        DispatchQueue.main.async {
+            WindowController.shared.open(epic: epic)
+            done()
+        }
     }
 
     private func log(_ message: String) {

@@ -36,6 +36,17 @@ private func root(_ json: String?) -> String {
     defer { try? FileManager.default.removeItem(atPath: folder) }
     try Data("{\"root\":\"/data/solve\"}".utf8).write(to: URL(fileURLWithPath: folder + "/config.json"))
 
-    #expect(controlSocketPath(environment: ["CARRIER_HOME": folder], home: "/Users/ana") == "/data/solve/orchestrator/control.sock")
-    #expect(controlSocketPath(environment: ["CARRIER_HOME": folder + "/none"], home: "/Users/ana") == "/Users/ana/.solve/orchestrator/control.sock")
+    #expect(controlSocketPath(saved: nil, environment: ["CARRIER_HOME": folder], home: "/Users/ana") == "/data/solve/orchestrator/control.sock")
+    #expect(controlSocketPath(saved: nil, environment: ["CARRIER_HOME": folder + "/none"], home: "/Users/ana") == "/Users/ana/.solve/orchestrator/control.sock")
+}
+
+@Test func theChosenConfigFileMovesTheSocketButCarrierHomeInTheEnvironmentWins() throws {
+    let folder = "/tmp/cc-chosen-\(UUID().uuidString.prefix(8))"
+    try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    try Data("{\"root\":\"/chosen\"}".utf8).write(to: URL(fileURLWithPath: folder + "/config.json"))
+    let saved = SetupSettings(configPath: folder + "/config.json")
+
+    #expect(controlSocketPath(saved: saved, environment: [:], home: "/Users/ana") == "/chosen/orchestrator/control.sock")
+    #expect(controlSocketPath(saved: saved, environment: ["CARRIER_HOME": folder + "/none"], home: "/Users/ana") == "/Users/ana/.solve/orchestrator/control.sock")
 }

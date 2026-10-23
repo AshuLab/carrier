@@ -1408,6 +1408,16 @@ test('a restart stops the live orphan before launching, resumes its session and 
   expect(runner.tasks.map((t) => t.epic)).toEqual([1, 2]);
 });
 
+test('a restart leaves alone a live agent this root never launched', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1);
+  runner.alive.add('e0');
+  runner.alive.add('another-carriers-agent'); // marked like ours, found in the machine's process list, absent from this SQLite
+  await start(1);
+  expect(runner.stopped).toEqual(['e0']);
+});
+
 test('a Ctrl+C then a restart resumes each interrupted execution as a new one with its session, never starting the stage over', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   runner.behavior = (task) => ({ sessionId: `s-${task.epic}`, exit: 'hang' });

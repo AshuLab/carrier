@@ -53,7 +53,7 @@ struct EpicView: View {
                     EmptyStateView(state: .noActivity).frame(minHeight: 260)
                 }
             } else {
-                SessionSectionsView(list: sessions, folds: $folds)
+                SessionSectionsView(epic: EpicRef(repo: subject.repo, issue: subject.issue), list: sessions, folds: $folds)
             }
         case .filesChanged:
             FilesChangedView(files: files)

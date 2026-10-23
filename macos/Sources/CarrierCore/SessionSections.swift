@@ -76,8 +76,17 @@ public func countsLine(_ counts: SessionCounts) -> String {
 /// What the user folded or unfolded by hand; a section nobody touched follows its default.
 public struct SessionFolds: Equatable {
     private var chosen: [String: Bool] = [:]
+    /// The epics whose "Earlier sessions" row is open: the sessions past `visibleSessions` are drawn under it. The folds are
+    /// shared by every epic of the window, so this is keyed by epic.
+    private var earlierOpen: Set<EpicRef> = []
 
     public init() {}
+
+    public func isEarlierOpen(_ epic: EpicRef) -> Bool { earlierOpen.contains(epic) }
+
+    public mutating func toggleEarlier(_ epic: EpicRef) {
+        if earlierOpen.insert(epic).inserted == false { earlierOpen.remove(epic) }
+    }
 
     public func isOpen(_ section: SessionSection) -> Bool { chosen[section.id] ?? section.openByDefault }
 
@@ -208,13 +217,14 @@ public func markdownBlocks(_ text: String) -> [MarkdownBlock] {
 }
 
 public struct SessionList: Equatable {
+    /// The newest `visibleSessions`.
     public var sections: [SessionSection]
-    /// "5 earlier sessions"; nil when there are none.
-    public var earlier: String?
+    /// The rest, newest first, never open by default; empty with `visibleSessions` or fewer.
+    public var earlier: [SessionSection]
 }
 
-/// How many sessions the list shows; the rest are counted in the line under it.
-public let visibleSessions = 3
+/// How many sessions the list shows; the rest are behind the "Earlier sessions" row.
+public let visibleSessions = 5
 
 /// Anything but running and finished is a session that stopped before it was done (failed, timed_out, interrupted, invalid_result).
 func sessionState(_ status: String) -> SessionSection.State {
@@ -232,8 +242,7 @@ public func sessionList(
     now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current, resumable: Bool = true
 ) -> SessionList {
     let all = reply?.sessions ?? []
-    let shown = all.prefix(visibleSessions)
-    let sections = shown.enumerated().map { index, session -> SessionSection in
+    let built = all.enumerated().map { index, session -> SessionSection in
         let state = sessionState(session.status)
         let transcript = transcripts[session.executionId]
         let time: String?
@@ -253,19 +262,18 @@ public func sessionList(
             place: session.round.map { "Round \($0)" } ?? session.stage.capitalized,
             counts: transcript.flatMap { $0.structured ? sessionCounts($0.events) : nil },
             timeLabel: time,
-            openByDefault: state != .done || index == 0,
+            openByDefault: index < visibleSessions && (state != .done || index == 0),
             resume: state == .running || resumable == false ? nil : session.resume,
             result: resultCard(session.result),
             body: transcriptBody(transcript),
             lanes: transcript?.structured == true ? transcript?.laneSections(slices: slices, running: state == .running, now: now, timeZone: timeZone) ?? [] : []
         )
     }
-    let rest = all.count - shown.count
-    return SessionList(sections: sections, earlier: rest > 0 ? "\(rest) earlier \(rest == 1 ? "session" : "sessions")" : nil)
+    return SessionList(sections: Array(built.prefix(visibleSessions)), earlier: Array(built.dropFirst(visibleSessions)))
 }
 
 /// What the poller should ask for to fill this list: the events of the open running session (live) and, once, those of the
-/// finished ones shown (for their counts).
+/// finished ones shown (for their counts), and those of the older ones while their row is open.
 public func epicFocus(_ epic: EpicRef, running: Bool, data: EpicData?, folds: SessionFolds) -> EpicFocus {
     let list = sessionList(data?.sessions)
     return EpicFocus(
@@ -274,6 +282,6 @@ public func epicFocus(_ epic: EpicRef, running: Bool, data: EpicData?, folds: Se
         // always: the tab's count shows before the tab is opened, and the view keeps which tab is open to itself
         filesTabVisible: true,
         transcript: list.sections.first { $0.state == .running && folds.isOpen($0) }?.id,
-        counting: list.sections.filter { $0.state != .running }.map(\.id)
+        counting: list.sections.filter { $0.state != .running }.map(\.id) + (folds.isEarlierOpen(epic) ? list.earlier.map(\.id) : [])
     )
 }

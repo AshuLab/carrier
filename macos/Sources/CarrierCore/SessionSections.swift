@@ -226,7 +226,10 @@ func sessionState(_ status: String) -> SessionSection.State {
 }
 
 /// Newest first, as the reply is. `transcripts` holds the events fetched so far, by execution id.
-public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcript] = [:], slices: [EpicReply.Slice] = [], timeZone: TimeZone = .current) -> SessionList {
+public func sessionList(
+    _ reply: SessionsReply?, transcripts: [String: Transcript] = [:], slices: [EpicReply.Slice] = [],
+    now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current
+) -> SessionList {
     let all = reply?.sessions ?? []
     let shown = all.prefix(visibleSessions)
     let sections = shown.enumerated().map { index, session -> SessionSection in
@@ -235,10 +238,7 @@ public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcrip
         let time: String?
         switch state {
         case .running:
-            let formatter = DateFormatter()
-            formatter.dateFormat = "HH:mm"
-            formatter.timeZone = timeZone
-            time = "since " + formatter.string(from: Date(timeIntervalSince1970: Double(session.startedAt) / 1000))
+            time = "since " + clock(session.startedAt, timeZone: timeZone)
         case .done: time = session.finishedAt.map { formatDuration($0 - session.startedAt) }
         case .stopped: time = nil
         }
@@ -256,7 +256,7 @@ public func sessionList(_ reply: SessionsReply?, transcripts: [String: Transcrip
             resume: state == .running ? nil : session.resume,
             result: resultCard(session.result),
             body: transcriptBody(transcript),
-            lanes: transcript?.structured == true ? transcript?.laneSections(slices: slices, running: state == .running) ?? [] : []
+            lanes: transcript?.structured == true ? transcript?.laneSections(slices: slices, running: state == .running, now: now, timeZone: timeZone) ?? [] : []
         )
     }
     let rest = all.count - shown.count

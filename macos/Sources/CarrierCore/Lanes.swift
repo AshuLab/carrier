@@ -12,8 +12,15 @@ public struct LaneSection: Equatable, Identifiable {
     /// The epic's title for `slice`; nil with no slice or no match in the list.
     public var sliceTitle: String?
     public var state: SubagentState
-    /// Ms from its first start to the end of its first run; nil while it runs.
+    /// Ms from its first start to the end of its first run, or to `now` while it runs; nil with no start.
     public var duration: Int?
+    /// The first start and the end of the first run, in ms (the engine's arrival time of those lines); nil until they arrive.
+    public var startedAt: Int?
+    public var endedAt: Int?
+    /// How many times it started again after its first end (a follow-up message with the same agent id).
+    public var resumes: Int
+    /// When it ran, as the row's right side reads it: "14:02–14:09", "since 14:02" while it runs, nil otherwise.
+    public var timeLabel: String?
     public var counts: SessionCounts
     public var items: [TranscriptItem]
     /// The slice the subagent builds, when its description says so (a hint, like the title).
@@ -22,6 +29,9 @@ public struct LaneSection: Equatable, Identifiable {
     public var laneNumber: Int?
     /// The slice's pull request as the row reads it: "PR #5 merged", "PR #5" (an older engine sends no state), or "no PR yet".
     public var pullRequest: String
+
+    /// "resumed once", "resumed 2 times"; nil for one that never ran again.
+    public var resumedLabel: String? { resumes > 0 ? "resumed " + (resumes == 1 ? "once" : "\(resumes) times") : nil }
 }
 
 /// A subagent's first run: running (a start with no end), finished (the end event completed) or failed (it did not complete).
@@ -31,6 +41,14 @@ public enum SubagentState: Equatable { case running, finished, failed }
 func number(after marker: String, in text: String) -> Int? {
     guard let range = text.range(of: marker, options: .caseInsensitive) else { return nil }
     return Int(text[range.upperBound...].prefix(while: { $0.isASCII && $0.isNumber }))
+}
+
+/// "14:02" in `timeZone`.
+func clock(_ ms: Int, timeZone: TimeZone) -> String {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "HH:mm"
+    formatter.timeZone = timeZone
+    return formatter.string(from: Date(timeIntervalSince1970: Double(ms) / 1000))
 }
 
 /// What the events of one subagent say so far.
@@ -58,7 +76,7 @@ struct LaneState: Equatable {
     }
 
     /// `running` is whether the session is: a start with no end in one that is not did not complete.
-    func section(slices: [EpicReply.Slice], running: Bool) -> LaneSection {
+    func section(slices: [EpicReply.Slice], running: Bool, now: Int, timeZone: TimeZone) -> LaneSection {
         let slice = description.flatMap { number(after: "slice #", in: $0) }
         let match = slice.flatMap { number in slices.first { $0.number == number } }
         let sliceTitle = match?.title
@@ -66,10 +84,17 @@ struct LaneState: Equatable {
         let tasks = events.filter { $0.kind == "task" }
         let start = tasks.first { $0.status == nil }
         let end = tasks.first { $0.status != nil }
+        let state: SubagentState = end.map { $0.status == "ok" ? .finished : .failed } ?? (running ? .running : .failed)
+        let timeLabel = start.flatMap { start in
+            end.map { "\(clock(start.at, timeZone: timeZone))–\(clock($0.at, timeZone: timeZone))" }
+                ?? (state == .running ? "since \(clock(start.at, timeZone: timeZone))" : nil)
+        }
         return LaneSection(
             id: agentId, title: sliceTitle ?? description ?? "Subagent", sliceTitle: sliceTitle,
-            state: end.map { $0.status == "ok" ? .finished : .failed } ?? (running ? .running : .failed),
-            duration: start.flatMap { start in end.map { $0.at - start.at } },
+            state: state,
+            duration: start.flatMap { start in (end?.at ?? (state == .running ? now : nil)).map { $0 - start.at } },
+            startedAt: start?.at, endedAt: end?.at,
+            resumes: tasks.drop { $0.status == nil }.dropFirst().filter { $0.status == nil }.count, timeLabel: timeLabel,
             counts: sessionCounts(events), items: builder.items, slice: slice, laneNumber: lane, pullRequest: pullRequest
         )
     }
@@ -77,7 +102,9 @@ struct LaneState: Equatable {
 
 extension Transcript {
     /// The subagents with events, in order of appearance. Events with no agent id are in `items`.
-    public func laneSections(slices: [EpicReply.Slice] = [], running: Bool = false) -> [LaneSection] {
-        lanes.map { $0.section(slices: slices, running: running) }
+    public func laneSections(
+        slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current
+    ) -> [LaneSection] {
+        lanes.map { $0.section(slices: slices, running: running, now: now, timeZone: timeZone) }
     }
 }

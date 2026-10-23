@@ -51,6 +51,8 @@ struct LaneHeaderView: View {
                         Text("Lane \(number) ≈").help("Inferred from the worktree name; the agent does not report it")
                     }
                     Text(lane.pullRequest)
+                    if let timeLabel = lane.timeLabel { Text(timeLabel) }
+                    if let resumed = lane.resumedLabel { Text(resumed) }
                 }
                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }

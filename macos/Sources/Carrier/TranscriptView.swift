@@ -126,6 +126,19 @@ extension TranscriptItem {
     }
 }
 
+/// The disclosure chevron of every row that opens. It turns in 0.12 s, or just jumps under Reduce Motion.
+struct LogChevron: View {
+    let open: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.tertiary)
+            .rotationEffect(.degrees(open ? 90 : 0))
+            .animation(LogMetrics.chevronTurn(reduceMotion: reduceMotion).map { .easeOut(duration: $0) }, value: open)
+            .frame(width: LogMetrics.chevronColumn)
+    }
+}
+
 /// The right-hand columns every call row reserves, so a title is cut at the same place whether or not they show: duration 44
 /// (right aligned), status 14, chevron 10, 8 apart. A nil `chevron` leaves its slot empty.
 struct CallColumns: View {
@@ -135,16 +148,14 @@ struct CallColumns: View {
     var chevron: (visible: Bool, open: Bool)?
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: LogMetrics.gap) {
             Text(duration ?? "").font(.system(size: 11)).monospacedDigit().foregroundStyle(failed ? AnyShapeStyle(.red) : AnyShapeStyle(.tertiary)).lineLimit(1)
-                .frame(width: 44, alignment: .trailing)
+                .frame(width: LogMetrics.durationColumn, alignment: .trailing)
             Group {
                 if status != .ok { ToolStatusView(status: status).font(.system(size: 14)) }
             }
-            .frame(width: 14, height: 14)
-            Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.tertiary)
-                .rotationEffect(.degrees(chevron?.open == true ? 90 : 0)).opacity(chevron?.visible == true ? 1 : 0)
-                .frame(width: 10)
+            .frame(width: LogMetrics.statusColumn, height: LogMetrics.statusColumn)
+            LogChevron(open: chevron?.open == true).opacity(chevron?.visible == true ? 1 : 0)
         }
     }
 }
@@ -158,9 +169,9 @@ struct CallLineView: View {
     let active: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: LogMetrics.gap) {
             Image(systemName: card.kind.icon).font(.system(size: 11)).foregroundStyle(card.status == .error ? .red : .secondary)
-                .frame(width: 16, height: 16)
+                .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
             HStack(spacing: 4) {
                 Text(card.title).font(.system(size: 12, design: .monospaced)).lineLimit(1)
                     .truncationMode(card.kind == .shell ? .tail : .middle)
@@ -175,7 +186,7 @@ struct CallLineView: View {
                 chevron: (card.showsChevron(active: active, open: open), open)
             )
         }
-        .frame(height: 26)
+        .frame(height: LogMetrics.callLine)
         .background(Color.primary.opacity(active ? 0.05 : 0))
         .contentShape(Rectangle())
     }
@@ -203,10 +214,9 @@ struct ToolLineView: View {
                 .onTapGesture { if card.hasDetails { toggleOutput() } }
                 .help(card.arg)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel([card.title, card.status == .error ? "failed" : card.status == .pending ? "running" : nil, card.duration]
-                    .compactMap { $0 }.joined(separator: ", "))
+                .accessibilityLabel(callAccessibilityLabel(card))
             if outputOpen, card.hasDetails {
-                TerminalBlockView(card: card).padding(.top, 2).padding(.leading, 24).padding(.bottom, 8)
+                TerminalBlockView(card: card).padding(.top, 2).padding(.leading, LogMetrics.titleColumn - LogMetrics.iconColumn).padding(.bottom, 8)
             }
         }
     }
@@ -224,17 +234,17 @@ struct ToolGroupView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button { groups.toggle(id) } label: {
-                ToolGroupHeader(label: callGroupLabel(calls), duration: callGroupDuration(calls), open: groups.isOpen(id))
+                ToolGroupHeader(calls: calls, open: groups.isOpen(id))
             }
             .buttonStyle(.plain)
-            .accessibilityValue(groups.isOpen(id) ? "Open" : "Closed")
             if groups.isOpen(id) {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(calls) { TranscriptItemView(item: $0, outputs: $outputs) }
                 }
-                .padding(.leading, 18)
+                .padding(.leading, LogMetrics.groupIndent)
                 .overlay(alignment: .leading) {
-                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(width: 1.5).padding(.leading, 4.25)
+                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(width: LogMetrics.ruleWidth)
+                        .padding(.leading, LogMetrics.groupRule - LogMetrics.iconColumn - LogMetrics.ruleWidth / 2)
                 }
             }
         }
@@ -242,27 +252,28 @@ struct ToolGroupView: View {
 }
 
 struct ToolGroupHeader: View {
-    let label: String
-    let duration: String?
+    let calls: [TranscriptItem]
     let open: Bool
     @State private var hovered = false
 
+    private var label: String { callGroupLabel(calls) }
+    private var duration: String? { callGroupDuration(calls) }
+
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.tertiary)
-                .rotationEffect(.degrees(open ? 90 : 0)).frame(width: 10)
+        HStack(spacing: LogMetrics.gap) {
+            LogChevron(open: open)
             Text(label).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             // the columns of a call, the status and chevron slots empty
             CallColumns(duration: duration, status: .ok)
         }
-        .frame(height: 28)
+        .frame(height: LogMetrics.groupLine)
         .background(Color.primary.opacity(hovered ? 0.05 : 0))
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel([label, duration].compactMap { $0 }.joined(separator: ", "))
-        .accessibilityHint("Shows the calls")
+        .accessibilityLabel(callGroupAccessibilityLabel(calls, open: open))
+        .accessibilityHint(callGroupAccessibilityHint(open: open))
     }
 }
 
@@ -273,17 +284,19 @@ struct SkillRowView: View {
     @State private var hovered = false
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: LogMetrics.gap) {
             Image(systemName: card.kind.icon).font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
-                .frame(width: 16, height: 16).background(RoundedRectangle(cornerRadius: 5).fill(card.kind.color))
+                .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth).background(RoundedRectangle(cornerRadius: 5).fill(card.kind.color))
             Text(card.title).font(.system(size: 12, weight: .medium, design: .monospaced)).lineLimit(1).truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
             CallColumns(duration: card.showsDuration(active: hovered) ? card.duration : nil, failed: card.status == .error, status: card.status)
         }
-        .frame(height: 28)
+        .frame(height: LogMetrics.skillRow)
         .background(Color.primary.opacity(hovered ? 0.05 : 0))
         .onHover { hovered = $0 }
         .help(card.arg)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(callAccessibilityLabel(card))
     }
 }
 
@@ -354,17 +367,20 @@ struct TerminalBlockView: View {
     }
 }
 
-/// How a call ended where it is marked: a disc with a white cross (red), or a spinner while it runs. The disc symbols are
-/// drawn in two colours: with one, the mark would be see-through and show the dark row behind it.
+/// How a call that did not simply work is marked: a red disc with a white cross, or a spinner while it runs (still under Reduce
+/// Motion). The disc is drawn in two colours: with one, the mark would be see-through. VoiceOver skips both: the row's label says it.
 struct ToolStatusView: View {
     let status: ToolStatus
 
     var body: some View {
-        if let icon = status.icon {
-            Image(systemName: icon).symbolRenderingMode(.palette).foregroundStyle(.white, status == .error ? Color.red : .green)
-        } else {
-            ProgressView().controlSize(.mini)
+        Group {
+            if status == .pending {
+                SpinningRing(diameter: 12, lineWidth: 1.5, color: .secondaryLabelColor)
+            } else if status == .error, let icon = status.icon {
+                Image(systemName: icon).symbolRenderingMode(.palette).foregroundStyle(.white, Color.red)
+            }
         }
+        .accessibilityHidden(true)
     }
 }
 
@@ -445,12 +461,11 @@ struct ToolCardView: View {
 }
 
 extension ToolKind {
-    /// The colour of its icon: reads and searches purple, edits blue, commands grey.
+    /// The colour of the icon box of a milestone: blue for an edit, grey for a skill. The calls have a bare glyph.
     var color: Color {
         switch self {
-        case .read, .search: Color(red: 0.56, green: 0.36, blue: 0.85)
         case .edit: .blue
-        case .shell, .other: Color(white: 0.43)
+        case .read, .search, .shell, .other: Color(white: 0.43)
         }
     }
 }

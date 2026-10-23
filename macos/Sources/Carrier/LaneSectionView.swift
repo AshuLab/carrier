@@ -16,15 +16,15 @@ struct LaneSectionView: View {
         VStack(alignment: .leading, spacing: 0) {
             Button { slices.toggle(lane.id) } label: { LaneHeaderView(lane: lane, open: open) }
                 .buttonStyle(.plain)
-                .padding(.horizontal, 12)
-                .accessibilityValue(open ? "Open" : "Closed")
+                .padding(.horizontal, LogMetrics.iconColumn)
             if open {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(flowItems(lane.items)) { FlowItemView(flow: $0, outputs: $outputs, groups: $groups, slices: $slices) }
                 }
-                .padding(.leading, 24)
+                .padding(.leading, LogMetrics.sliceIndent)
                 .overlay(alignment: .leading) {
-                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(width: 1.5).padding(.leading, 18.25)
+                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(width: LogMetrics.ruleWidth)
+                        .padding(.leading, LogMetrics.sliceRule - LogMetrics.iconColumn - LogMetrics.ruleWidth / 2)
                 }
             }
         }
@@ -40,23 +40,22 @@ struct LaneHeaderView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                state.frame(width: 16, height: 16)
+            HStack(spacing: LogMetrics.gap) {
+                state.frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
                 HStack(spacing: 5) {
                     if let slice = lane.slice { Text("#\(slice)").fontWeight(.medium).foregroundStyle(.secondary) }
                     Text(lane.title).fontWeight(.semibold)
                 }
                 .font(.system(size: 12)).lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.tertiary)
-                    .rotationEffect(.degrees(open ? 90 : 0)).frame(width: 10)
+                LogChevron(open: open)
             }
-            .frame(height: 28)
+            .frame(height: LogMetrics.sliceLine)
             HStack(spacing: 8) {
                 if starting == false { CountPills(counts: lane.counts) }
                 meta.font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
             }
-            .padding(.leading, 24)
+            .padding(.leading, LogMetrics.titleColumn - LogMetrics.iconColumn)
             .frame(maxWidth: .infinity, minHeight: 18, alignment: .leading)
             .padding(.bottom, 6)
         }
@@ -64,11 +63,10 @@ struct LaneHeaderView: View {
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibility)
+        .accessibilityLabel(laneAccessibilityLabel(lane, open: open))
     }
 
-    /// Just taken: no events to count yet.
-    private var starting: Bool { lane.state == .running && lane.items.isEmpty }
+    private var starting: Bool { lane.isStarting }
 
     /// The items of line two, split by " · ".
     private var meta: Text {
@@ -92,16 +90,9 @@ struct LaneHeaderView: View {
 
     @ViewBuilder private var state: some View {
         switch lane.state {
-        case .running: ProgressView().controlSize(.small)
+        case .running: SpinningRing(diameter: 14, lineWidth: 2, color: .secondaryLabelColor).accessibilityHidden(true)
         case .finished: Image(systemName: "checkmark.circle.fill").font(.system(size: 14)).foregroundStyle(.green)
         case .failed: Image(systemName: "xmark.circle.fill").font(.system(size: 14)).foregroundStyle(.red)
         }
-    }
-
-    private var accessibility: String {
-        let name = lane.slice.map { "Slice \($0), \(lane.title)" } ?? lane.title
-        let state = switch lane.state { case .running: "running"; case .finished: "finished"; case .failed: "failed" }
-        return [name, lane.laneNumber.map { "lane \($0)" }, state, lane.pullRequest, starting ? nil : countsLine(lane.counts)]
-            .compactMap { $0 }.joined(separator: ", ")
     }
 }

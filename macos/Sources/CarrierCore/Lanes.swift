@@ -32,6 +32,9 @@ public struct LaneSection: Equatable, Identifiable {
     /// The slice's pull request as the row reads it: "PR #5 merged", "PR #5" (an older engine sends no state), or "no PR yet".
     public var pullRequest: String
 
+    /// Just taken: running with no events to count yet.
+    public var isStarting: Bool { state == .running && items.isEmpty }
+
     /// "resumed once", "resumed 2 times"; nil for one that never ran again.
     public var resumedLabel: String? { resumes > 0 ? "resumed " + (resumes == 1 ? "once" : "\(resumes) times") : nil }
 }

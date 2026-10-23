@@ -6,11 +6,14 @@ export type Unreachable = 'not-running' | 'no-answer' | 'incompatible';
 
 export class ControlUnreachable extends Error {
   readonly reason: Unreachable;
+  /** For 'incompatible': the protocol the hello announced, when it announced one. */
+  readonly protocol: unknown;
 
   // No parameter properties: Node strips types at runtime and cannot run that syntax.
-  constructor(reason: Unreachable) {
+  constructor(reason: Unreachable, protocol?: unknown) {
     super(reason);
     this.reason = reason;
+    this.protocol = protocol;
   }
 }
 
@@ -40,10 +43,10 @@ export function connectControl(path: string, { timeoutMs = 5000 }: { timeoutMs?:
     let buffer = '';
 
     const helloTimer = setTimeout(() => fail('no-answer'), timeoutMs);
-    const fail = (reason: Unreachable) => {
+    const fail = (reason: Unreachable, protocol?: unknown) => {
       clearTimeout(helloTimer);
       socket.destroy();
-      reject(new ControlUnreachable(reason));
+      reject(new ControlUnreachable(reason, protocol));
     };
     const settle = (id: number, finish: (entry: NonNullable<ReturnType<typeof pending.get>>) => void) => {
       const entry = pending.get(id);
@@ -61,7 +64,7 @@ export function connectControl(path: string, { timeoutMs = 5000 }: { timeoutMs?:
         return hello === undefined ? fail('incompatible') : undefined;
       }
       if (hello === undefined) {
-        if (message?.event !== 'hello' || message.protocol !== 1) return fail('incompatible');
+        if (message?.event !== 'hello' || message.protocol !== 1) return fail('incompatible', message?.event === 'hello' ? message.protocol : undefined);
         clearTimeout(helloTimer);
         hello = message as Hello;
         return resolve({ hello, request, close: () => socket.destroy() });

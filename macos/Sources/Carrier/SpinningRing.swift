@@ -34,10 +34,14 @@ final class RingLayer: CALayer {
         arc.strokeColor = color
     }
 
+    func setAnimating(_ on: Bool) { arc.setSpinning(on) }
+}
+
+fileprivate extension CALayer {
     /// Idempotent: an animation already attached is left alone, or it would restart every time the view updates.
-    func setAnimating(_ on: Bool) {
-        guard on else { return arc.removeAnimation(forKey: Self.spinKey) }
-        guard arc.animation(forKey: Self.spinKey) == nil else { return }
+    func setSpinning(_ on: Bool) {
+        guard on else { return removeAnimation(forKey: RingLayer.spinKey) }
+        guard animation(forKey: RingLayer.spinKey) == nil else { return }
         let spin = CABasicAnimation(keyPath: "transform.rotation.z")
         spin.fromValue = 0
         spin.toValue = -2 * Double.pi
@@ -46,16 +50,18 @@ final class RingLayer: CALayer {
         spin.timingFunction = CAMediaTimingFunction(name: .linear)
         // uncapped, the render server recomposes at the display rate (see IconController.bounce)
         spin.preferredFrameRateRange = CAFrameRateRange(minimum: 20, maximum: 20, preferred: 20)
-        arc.add(spin, forKey: Self.spinKey)
+        add(spin, forKey: RingLayer.spinKey)
     }
 }
 
-/// Hosts a RingLayer and decides whether it turns from the window's visibility and Reduce Motion. The window is kept for the
+/// Hosts a RingLayer, or a glyph, and decides whether it turns from the window's visibility and Reduce Motion. The window is kept for the
 /// life of the app and ordering it out does not stop animations, so the host watches occlusion and closing itself.
 final class RingHostView: NSView {
     private static let live = NSHashTable<RingHostView>.weakObjects()
 
-    let ring: RingLayer
+    /// The layer that turns and the one that is centred: the ring's arc inside its ring, or the glyph itself.
+    private let spinner: CALayer, root: CALayer
+    private let ring: RingLayer?
     private let tint: NSColor
     private var observers: [NSObjectProtocol] = []
 
@@ -63,13 +69,32 @@ final class RingHostView: NSView {
     var reduceMotion = false { didSet { refresh() } }
 
     init(diameter: CGFloat, lineWidth: CGFloat, color: NSColor) {
-        tint = color
-        ring = RingLayer.make(diameter: diameter, lineWidth: lineWidth, color: color.cgColor, animate: false)
+        let ring = RingLayer.make(diameter: diameter, lineWidth: lineWidth, color: color.cgColor, animate: false)
+        self.ring = ring
+        (root, spinner, tint) = (ring, ring.arc, color)
         super.init(frame: NSRect(x: 0, y: 0, width: diameter, height: diameter))
+        setUp(diameter)
+    }
+
+    /// A white SF Symbol, `diameter` points square.
+    init(symbol: String, diameter: CGFloat) {
+        let glyph = CALayer()
+        glyph.bounds = CGRect(x: 0, y: 0, width: diameter, height: diameter)
+        // drawn at twice the size for retina, and white because a layer gets no tint from the system
+        let configuration = NSImage.SymbolConfiguration(pointSize: 2 * diameter, weight: .bold).applying(.init(paletteColors: [.white]))
+        glyph.contents = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+            .withSymbolConfiguration(configuration)?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+        glyph.contentsGravity = .resizeAspect
+        (ring, root, spinner, tint) = (nil, glyph, glyph, .white)
+        super.init(frame: NSRect(x: 0, y: 0, width: diameter, height: diameter))
+        setUp(diameter)
+    }
+
+    private func setUp(_ diameter: CGFloat) {
         wantsLayer = true
-        layer?.addSublayer(ring)
+        layer?.addSublayer(root)
         // centred from the start: layout() only runs when the view is resized
-        ring.position = CGPoint(x: diameter / 2, y: diameter / 2)
+        root.position = CGPoint(x: diameter / 2, y: diameter / 2)
         Self.live.add(self)
     }
 
@@ -81,7 +106,7 @@ final class RingHostView: NSView {
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        ring.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        root.position = CGPoint(x: bounds.midX, y: bounds.midY)
         CATransaction.commit()
     }
 
@@ -107,13 +132,13 @@ final class RingHostView: NSView {
         // a layer gets no tint from the system, so its colour is resolved again when the appearance changes
         var resolved = tint.cgColor
         effectiveAppearance.performAsCurrentDrawingAppearance { resolved = tint.cgColor }
-        ring.setColor(resolved)
+        ring?.setColor(resolved)
     }
 
-    var animating: Bool { ring.arc.animation(forKey: RingLayer.spinKey) != nil }
+    var animating: Bool { spinner.animation(forKey: RingLayer.spinKey) != nil }
 
     private func refresh() {
-        ring.setAnimating(ringAnimates(windowVisible: windowVisible, reduceMotion: reduceMotion))
+        spinner.setSpinning(ringAnimates(windowVisible: windowVisible, reduceMotion: reduceMotion))
     }
 
     /// For the self-test: the rings on screen and how many turn.
@@ -131,6 +156,25 @@ struct SpinningRing: NSViewRepresentable {
 
     func makeNSView(context: Context) -> RingHostView {
         let view = RingHostView(diameter: diameter, lineWidth: lineWidth, color: color)
+        view.reduceMotion = reduceMotion
+        return view
+    }
+
+    func updateNSView(_ view: RingHostView, context: Context) { view.reduceMotion = reduceMotion }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: RingHostView, context: Context) -> CGSize? {
+        CGSize(width: diameter, height: diameter)
+    }
+}
+
+/// A glyph that turns by the ring's rule: the same animation, and the same window-visibility and Reduce Motion gating.
+struct SpinningGlyph: NSViewRepresentable {
+    var symbol: String
+    var diameter: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeNSView(context: Context) -> RingHostView {
+        let view = RingHostView(symbol: symbol, diameter: diameter)
         view.reduceMotion = reduceMotion
         return view
     }

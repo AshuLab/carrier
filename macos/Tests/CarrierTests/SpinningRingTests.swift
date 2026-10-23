@@ -40,6 +40,19 @@ import CarrierCore
     #expect(host.animating == false)
 }
 
+@MainActor @Test func theGlyphHostFollowsTheSameGating() {
+    let host = RingHostView(symbol: "arrow.triangle.2.circlepath", diameter: 10)
+    #expect(host.layer?.sublayers?.first?.contents != nil)
+    #expect(host.animating == false)
+    host.windowVisible = true
+    #expect(host.animating)
+    host.reduceMotion = true
+    #expect(host.animating == false)
+    host.reduceMotion = false
+    host.windowVisible = false
+    #expect(host.animating == false)
+}
+
 @MainActor @Test(arguments: [EpicMenuState.needsYou, .running, .waiting, .ready])
 func everyStateDrawsAGlyph(state: EpicMenuState) throws {
     let renderer = ImageRenderer(content: StateGlyph(state: state))

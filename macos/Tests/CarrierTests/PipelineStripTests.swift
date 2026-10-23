@@ -5,8 +5,8 @@ import Testing
 @testable import Carrier
 
 private let steps: [PipelineStep] = {
-    let json = #"{"repo":"acme/web","issue":12,"status":"running","stage":"review","round":2,"maxReviews":5,"blockers":0,"stageSince":0,"issueUrl":""}"#
-    return pipelineSteps(.active(try! JSONDecoder().decode(PanelEpic.self, from: Data(json.utf8))), now: 0)
+    let json = #"{"repo":"acme/web","issue":12,"status":"needs_human","needsHumanKind":"review_limit","stage":"review","round":5,"maxReviews":5,"blockers":0,"stageSince":0,"issueUrl":""}"#
+    return pipelineSteps(.active(try! JSONDecoder().decode(PanelEpic.self, from: Data(json.utf8))))
 }()
 
 /// The height of the strip drawn at `width` points.

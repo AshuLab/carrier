@@ -73,7 +73,7 @@ struct PanelView: View {
                         let data = model.epics.data[EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)]
                         let over: Bool = if case .ended = epic.subject { true } else { false }
                         EpicView(
-                            subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files), now: epic.now,
+                            subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files),
                             sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false), folds: $epics.folds, files: data?.files,
                             plan: queuedPlan(epic.subject)
                         )

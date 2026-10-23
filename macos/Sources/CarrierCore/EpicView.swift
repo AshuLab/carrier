@@ -50,72 +50,63 @@ extension PanelSnapshot {
 
 // MARK: pipeline
 
+/// Why a stuck epic is stuck, for the colour it is drawn in: a person's input, or something that failed.
+public enum Attention: Equatable {
+    case input, error
+    /// nil kind and kinds the app does not know are `.input`: a person has to act either way.
+    public init(kind: String?) {
+        switch kind {
+        case "retries_exhausted", "timeout", "auth", "workspace", "pr_invalid": self = .error
+        default: self = .input
+        }
+    }
+}
+
 public enum StepState: Equatable {
-    case done, current, waiting, problem
+    case done, current, waiting, input, error, cancelled
 }
 
 public struct PipelineStep: Equatable {
     public var name: String
     public var state: StepState
-    /// After the name: the time of a finished stage, the round of the current one (`r2/5`), `1st in queue`.
+    /// Only the words of a stuck or cancelled step; never a time or a count.
     public var label: String?
+    /// True only for Review / Fix while the epic is in review or fix and not stuck.
+    public var loops: Bool
 }
 
-/// Queued, Ship, Review/Fix and Ready, each with its state. The names are short so the line never wraps.
-public func pipelineSteps(_ subject: EpicSubject, reply: EpicReply? = nil, now: Int) -> [PipelineStep] {
-    let names = ["Queued", "Ship", "Review/Fix", "Ready"]
-    func steps(_ states: [StepState], _ labels: [String?]) -> [PipelineStep] {
-        (0..<4).map { PipelineStep(name: names[$0], state: states[$0], label: labels[$0]) }
+/// Queued, Ship, Review / Fix and Ready, each with its state; a stuck or cancelled step carries its words.
+public func pipelineSteps(_ subject: EpicSubject, reply: EpicReply? = nil) -> [PipelineStep] {
+    let names = ["Queued", "Ship", "Review / Fix", "Ready"]
+    func steps(_ states: [StepState], words: String? = nil, loops: Bool = false) -> [PipelineStep] {
+        (0..<4).map {
+            PipelineStep(
+                name: names[$0], state: states[$0], label: [.input, .error, .cancelled].contains(states[$0]) ? words : nil,
+                loops: loops && $0 == 2 && states[$0] == .current
+            )
+        }
     }
-    let queuedFor = took(reply, ["queued"])
-    let shipTook = took(reply, ["ship"])
 
     switch subject {
-    case .queued(_, let position):
-        return steps([.current, .waiting, .waiting, .waiting], ["\(ordinal(position)) in queue", nil, nil, nil])
-    case .finished(let done):
-        let rounds = reply.map { $0.rounds.count }.flatMap { $0 > 0 ? "\($0) \($0 == 1 ? "round" : "rounds")" : nil }
-        return steps(
-            [.done, .done, .done, .done],
-            [queuedFor.map(formatDuration), shipTook.map(formatDuration), rounds, done.finishedAt.map { agoLine($0, now: now) }]
-        )
+    case .queued:
+        return steps([.current, .waiting, .waiting, .waiting])
+    case .finished:
+        return steps([.done, .done, .done, .done])
     case .ended(let epic):
         // a merged epic went through every step; a cancelled one stopped at the first step it had not reached
-        let merged = epic.status == .merged
-        let reached = [true, merged || shipTook != nil, merged || reply.map { $0.rounds.isEmpty == false } ?? false, merged]
-        let rounds = reply.map { $0.rounds.count }.flatMap { $0 > 0 ? "\($0) \($0 == 1 ? "round" : "rounds")" : nil }
-        let ago = agoLine(epic.finishedAt, now: now)
-        let labels = [queuedFor.map(formatDuration), shipTook.map(formatDuration), rounds, merged ? ago : nil]
-        let stopped = merged ? nil : reached.firstIndex(of: false)
-        var result = steps(reached.map { $0 ? .done : .waiting }, labels)
-        if let stopped { (result[stopped].state, result[stopped].label) = (.problem, "cancelled \(ago)") }
-        return result
+        if epic.status == .merged { return steps([.done, .done, .done, .done]) }
+        let shipped = reply?.stages.contains { $0.stage == "ship" && $0.endedAt != nil } ?? false
+        let reached = [true, shipped, reply.map { $0.rounds.isEmpty == false } ?? false, false]
+        var states = reached.map { $0 ? StepState.done : .waiting }
+        states[reached.firstIndex(of: false) ?? 3] = .cancelled
+        return steps(states, words: "cancelled")
     case .active(let epic):
-        let waitedFor = queuedFor ?? epic.queuedAt.flatMap { queued in epic.startedAt.map { $0 - queued } }
         let at = epic.stage == .review || epic.stage == .fix ? 2 : 1
-        let stuck = epic.status == .needsHuman
+        let stuck: StepState = Attention(kind: epic.needsHumanKind) == .error ? .error : .input
         var states = [StepState.done, .waiting, .waiting, .waiting]
-        for i in 1...3 { states[i] = i < at ? .done : i == at ? (stuck ? .problem : .current) : .waiting }
-        var labels: [String?] = [waitedFor.map(formatDuration), nil, nil, nil]
-        if at == 2 {
-            labels[1] = shipTook.map(formatDuration)
-            labels[2] = reviewLabel(epic)
-        } else if stuck == false {
-            labels[1] = formatDuration(now - epic.stageSince)
-        }
-        return steps(states, labels)
+        for i in 1...3 { states[i] = i < at ? .done : i == at ? (epic.status == .needsHuman ? stuck : .current) : .waiting }
+        return steps(states, words: interventionLine(epic), loops: at == 2)
     }
-}
-
-private func reviewLabel(_ epic: PanelEpic) -> String? {
-    if epic.needsHumanKind == "review_limit" { return "limit \(epic.maxReviews)/\(epic.maxReviews)" }
-    return epic.round.map { "r\($0)/\(epic.maxReviews)" }
-}
-
-/// The time spent in `stages` that have ended, from the reply; nil without one.
-private func took(_ reply: EpicReply?, _ stages: Set<String>) -> Int? {
-    let spans = (reply?.stages ?? []).filter { stages.contains($0.stage) }.compactMap { stage in stage.endedAt.map { $0 - stage.startedAt } }
-    return spans.isEmpty ? nil : spans.reduce(0, +)
 }
 
 /// 1st, 2nd, 3rd, 4th, 11th, 22nd.

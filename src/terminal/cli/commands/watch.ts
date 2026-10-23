@@ -1,11 +1,12 @@
 import type { Config } from '../../../config/schema.ts';
 import type { PanelSnapshot } from '../../../status/types.ts';
+import type { Sessions } from '../../dashboard/history.ts';
 import { renderDashboard } from '../../dashboard/dashboard.ts';
 import { startInteractivePanel, type Controls } from '../../dashboard/interactive.ts';
 import { startPanel } from '../../dashboard/panel.ts';
 import { ControlUnreachable, type CarrierClient } from '../control-client.ts';
 import { openUrl } from '../open-url.ts';
-import { attach } from './status.ts';
+import { attach, stagesOf } from './status.ts';
 
 const REFRESH_MS = 1000;
 const TAIL_LINES = 18; // what the logs screen shows; the cards' "now" lines take the end of the same answer
@@ -14,14 +15,34 @@ const TAIL_LINES = 18; // what the logs screen shows; the cards' "now" lines tak
  * The panel's `Controls` and snapshot over a control socket. The panel reads both synchronously, so the snapshot and
  * each execution's output are kept from the last answer and renewed in the background: `refresh` for the snapshot,
  * a new `tail` request at each read of the output. `lost` is called when the socket stops answering.
+ * The stages of each epic work the same way: the panel's cache rule decides when to ask again, the request goes out
+ * in the background, the last answer stays on screen meanwhile and the next redraw shows the new one.
  */
-export function socketPanel(client: Pick<CarrierClient, 'request'>, { open, quit, lost }: { open: (url: string) => void; quit: () => void; lost: () => void }) {
+export function socketPanel(client: Pick<CarrierClient, 'hello' | 'request'>, { open, quit, lost }: { open: (url: string) => void; quit: () => void; lost: () => void }) {
   let latest: PanelSnapshot;
   const tails = new Map<string, { lines: string[]; asking: boolean }>();
   // Another failure (the engine refused one request) leaves the panel as it was.
   const guard = (request: Promise<unknown>) => request.catch((error) => error instanceof ControlUnreachable && lost());
 
+  const stages = new Map<string, { detail: Sessions | null; asking: boolean; arrived: boolean }>();
+  const detail = (repo: string, issue: number) => {
+    const key = `${repo}#${issue}`;
+    const known = stages.get(key) ?? { detail: null, asking: false, arrived: false };
+    stages.set(key, known);
+    if (known.arrived) {
+      known.arrived = false;
+      return known.detail;
+    }
+    if (known.asking === false) {
+      known.asking = true;
+      void stagesOf(client, repo, issue).then((answer) => Object.assign(known, { detail: answer, asking: false, arrived: true }));
+    }
+    // ponytail: an answer that was asked before the epic's latest change is shown as if current until the next change; per-ask tokens if it ever shows.
+    return undefined; // not remembered: the panel asks again at its next draw
+  };
+
   const controls: Controls = {
+    detail,
     poll: () => guard(client.request('checkNow')),
     setPaused: (paused) => guard(client.request(paused ? 'pause' : 'resume')),
     open,
@@ -75,7 +96,7 @@ export async function watchCommand(config: Config): Promise<number> {
         stop =
           stdout.isTTY && stdin.isTTY
             ? startInteractivePanel({ snapshot: panel.snapshot, out: stdout, stdin, controls: panel.controls, quit: 'leave' })
-            : startPanel(panel.snapshot, stdout, REFRESH_MS, (s, columns) => renderDashboard(s, { columns, quit: 'leave' }));
+            : startPanel(panel.snapshot, stdout, REFRESH_MS, (s, columns) => renderDashboard(s, { columns, quit: 'leave', detail: panel.controls.detail }));
         let asking = false;
         timer = setInterval(() => {
           if (asking) return;

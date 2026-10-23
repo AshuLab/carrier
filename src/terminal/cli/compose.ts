@@ -176,7 +176,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
           stdin: deps.stdin,
           intervalMs: deps.panelIntervalMs,
           now: () => deps.clock.now(),
-          controls,
+          controls: { ...controls, detail },
         })
       : startPanel(snapshot, deps.panelOut, deps.panelIntervalMs, (s, columns) => renderDashboard(s, { columns, detail }));
   return { engine, db, close };

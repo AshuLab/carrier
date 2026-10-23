@@ -179,6 +179,101 @@
           "provider": "ollama"
         }
       }
+    },
+    {
+      "repo": "acme/web",
+      "issue": 14,
+      "status": "needs_human",
+      "stage": "review",
+      "round": 5,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 3000,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/web/issues/14",
+      "prUrl": null,
+      "lastError": null,
+      "needsHumanReason": "review limit",
+      "slices": null,
+      "executionId": null,
+      "title": "Issue 14 of acme/web",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 800,
+      "startedAt": 3000,
+      "finishedAt": 61000,
+      "branch": "feat/issue-14/epic",
+      "workspace": null,
+      "needsHumanKind": "review_limit",
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
+    },
+    {
+      "repo": "acme/api",
+      "issue": 6,
+      "status": "needs_human",
+      "stage": "ship",
+      "round": null,
+      "maxReviews": 5,
+      "blockers": 0,
+      "stageSince": 3000,
+      "lastActivityAt": null,
+      "issueUrl": "https://github.com/acme/api/issues/6",
+      "prUrl": null,
+      "lastError": null,
+      "needsHumanReason": "timeout",
+      "slices": null,
+      "executionId": null,
+      "title": "Issue 6 of acme/api",
+      "labels": [
+        "solve:epic"
+      ],
+      "queuedAt": 800,
+      "startedAt": 3000,
+      "finishedAt": 61000,
+      "branch": "feat/issue-6/epic",
+      "workspace": null,
+      "needsHumanKind": "timeout",
+      "blockerTitles": [],
+      "agents": {
+        "author": {
+          "harness": "claude",
+          "model": "claude-sonnet-5-5",
+          "provider": null
+        },
+        "reviewer": {
+          "harness": "codex",
+          "model": "gpt-5",
+          "provider": "ollama"
+        }
+      }
+    }
+  ],
+  "finished": [
+    {
+      "repo": "acme/api",
+      "issue": 41,
+      "title": "Issue 41 of acme/api",
+      "prNumber": null,
+      "labels": [
+        "solve:epic"
+      ],
+      "finishedAt": 90000,
+      "status": "cancelled",
+      "cancelReason": "final PR closed without merge",
+      "executionId": null
     }
   ]
 }

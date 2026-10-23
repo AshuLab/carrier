@@ -34,7 +34,7 @@ struct StartingView: View {
         switch state {
         case .done: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
         case .current: SpinningRing(diameter: 14, lineWidth: 2)
-        case .waiting, .problem: Circle().strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1.5).frame(width: 13, height: 13)
+        default: Circle().strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1.5).frame(width: 13, height: 13)
         }
     }
 }

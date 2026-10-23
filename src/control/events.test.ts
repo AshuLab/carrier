@@ -32,7 +32,7 @@ beforeEach(async () => {
     events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
     epic: () => null,
     files: () => null,
-    availableRepos: () => Promise.resolve([]),
+    availableRepos: () => Promise.resolve([]), resumeEpic: () => Promise.resolve(),
   };
   close = (await startControlServer({ orchestratorDir: dir, snapshot: () => ({}), startedAt: 1, controls, stop: async () => {} })).close;
 });

@@ -27,6 +27,11 @@ struct PanelView: View {
         return snapshot?.queuedPlan(for: queued, position: position)
     }
 
+    private func resumeCard(_ subject: EpicSubject) -> ResumeCard? {
+        guard case .active(let active) = subject else { return nil }
+        return CarrierCore.resumeCard(active, canResume: model.epics.canResume)
+    }
+
     /// What the engine is asked for: the selected epic's data, nothing with no epic selected.
     private var focus: EpicFocus? {
         guard let epic else { return nil }
@@ -75,7 +80,7 @@ struct PanelView: View {
                         EpicView(
                             subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files),
                             sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false), folds: $epics.folds, files: data?.files,
-                            plan: queuedPlan(epic.subject)
+                            plan: queuedPlan(epic.subject), resume: resumeCard(epic.subject).map { ($0, model.epics) }
                         )
                             .id("\(epic.subject.repo)#\(epic.subject.issue)")
                     } else if shell.selection == .settings {
@@ -168,6 +173,7 @@ struct PanelView: View {
         }
         .frame(minWidth: 1100, minHeight: 600)
         .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
+        .onChange(of: snapshot) { if let snapshot { model.epics.settleResuming(snapshot) } }
     }
 }
 

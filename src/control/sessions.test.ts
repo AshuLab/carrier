@@ -25,7 +25,7 @@ beforeEach(async () => {
     epic: () => null,
     events: () => null,
     files: () => null,
-    availableRepos: () => Promise.resolve([]),
+    availableRepos: () => Promise.resolve([]), resumeEpic: () => Promise.resolve(),
   };
   close = (await startControlServer({ orchestratorDir: dir, snapshot: () => ({}), startedAt: 1, controls, stop: async () => {} })).close;
 });

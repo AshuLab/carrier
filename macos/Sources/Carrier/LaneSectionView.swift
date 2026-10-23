@@ -43,8 +43,13 @@ struct LaneHeaderView: View {
                     .background(Circle().fill(Color.secondary.opacity(0.16)))
             }
             // the line is there with no lane too, so the row keeps its height
-            Text(lane.laneNumber.map { "Lane \($0) ≈" } ?? " ").font(.caption).foregroundStyle(.secondary).padding(.leading, 36)
-                .help(lane.laneNumber == nil ? "" : "Inferred from the worktree name; the agent does not report it")
+            HStack(spacing: 8) {
+                CountPills(counts: lane.counts)
+                Spacer(minLength: 8)
+                Text(lane.laneNumber.map { "Lane \($0) ≈" } ?? " ").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    .help(lane.laneNumber == nil ? "" : "Inferred from the worktree name; the agent does not report it")
+            }
+            .padding(.leading, 36)
         }
         .padding(.horizontal, 10).padding(.vertical, 9)
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14))

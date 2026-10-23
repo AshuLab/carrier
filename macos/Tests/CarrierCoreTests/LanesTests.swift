@@ -68,7 +68,7 @@ private func event(_ id: Int, _ kind: String, agent: String? = nil, text: String
 @Test func aLaneCountsItsOwnCallsOnly() throws {
     let lanes = transcript(try streamEvents()).laneSections()
     // the first lane's trimmed stream also has one result whose call is not in it, which counts as a call of its own
-    #expect(lanes.map(\.counts) == ["5 tool calls", "3 tool calls", "2 tool calls"])
+    #expect(lanes.map(\.counts.calls) == [5, 3, 2])
 }
 
 private func slice(_ number: Int, _ title: String) -> EpicReply.Slice {
@@ -150,4 +150,26 @@ private func end(_ id: Int, _ status: String) -> ExecEvent {
     #expect(list("running").map(\.title) == ["Socket client"])
     #expect(list("running").map(\.state) == [.running])
     #expect(list("interrupted").map(\.state) == [.failed])
+}
+
+@Test func theListGivesEachSubagentTheCountsOfItsOwnEvents() {
+    func tool(_ id: Int, _ agent: String, _ name: String, arg: String, status: String = "ok", diff: [ExecEvent.DiffLine] = []) -> [ExecEvent] {
+        [
+            ExecEvent(id: id, at: id, kind: "tool_start", callId: "c\(id)", agentId: agent, tool: name, arg: arg),
+            ExecEvent(id: id + 1, at: id, kind: "tool_end", callId: "c\(id)", agentId: agent, tool: name, status: status, diff: diff),
+        ]
+    }
+    let first = [event(1, "task", agent: "a", text: "Build slice #5")]
+        + tool(2, "a", "Read", arg: "/w/a.swift")
+        + tool(4, "a", "Edit", arg: "/w/a.swift", diff: [.init(sign: "+", text: "x"), .init(sign: "+", text: "y"), .init(sign: "-", text: "z")])
+        + tool(6, "a", "Bash", arg: "swift test")
+        + tool(8, "a", "Bash", arg: "false", status: "err")
+    let second = [event(20, "task", agent: "b", text: "Build slice #6")] + tool(21, "b", "Read", arg: "/w/b.swift")
+    let sessions = SessionsReply(sessions: [SessionsReply.Session(
+        executionId: "x", stage: "ship", role: "author", round: nil, agent: .init(harness: "claude", model: "m", provider: nil),
+        status: "running", startedAt: 0, finishedAt: nil, resume: nil)])
+    let lanes = sessionList(sessions, transcripts: ["x": transcript(first + second)]).sections[0].lanes
+    #expect(lanes[0].counts == sessionCounts(first))
+    #expect(lanes[0].counts == SessionCounts(calls: 4, edits: 1, added: 2, removed: 1, tests: 1, errors: 1))
+    #expect(lanes[1].counts == SessionCounts(calls: 1))
 }

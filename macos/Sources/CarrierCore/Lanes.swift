@@ -14,7 +14,7 @@ public struct LaneSection: Equatable, Identifiable {
     public var state: SubagentState
     /// Ms from its first start to the end of its first run; nil while it runs.
     public var duration: Int?
-    public var counts: String
+    public var counts: SessionCounts
     public var items: [TranscriptItem]
     /// The slice the subagent builds, when its description says so (a hint, like the title).
     public var slice: Int?
@@ -66,7 +66,7 @@ struct LaneState: Equatable {
             id: agentId, title: sliceTitle ?? description ?? "Subagent", sliceTitle: sliceTitle,
             state: end.map { $0.status == "ok" ? .finished : .failed } ?? (running ? .running : .failed),
             duration: start.flatMap { start in end.map { $0.at - start.at } },
-            counts: countsLine(sessionCounts(events)), items: builder.items, slice: slice, laneNumber: lane
+            counts: sessionCounts(events), items: builder.items, slice: slice, laneNumber: lane
         )
     }
 }

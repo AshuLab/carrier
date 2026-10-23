@@ -7,6 +7,7 @@ struct SidebarView: View {
     let state: ConnectionState?
     @Binding var selection: Selection
     @Binding var groupBy: GroupBy
+    @Binding var collapse: SidebarCollapse
     let onAbout: () -> Void
 
     var body: some View {
@@ -29,10 +30,14 @@ struct SidebarView: View {
             if let snapshot {
                 let groups = sidebarGroups(snapshot, by: groupBy)
                 ForEach(groups.indices, id: \.self) { index in
-                    Section {
-                        ForEach(groups[index].rows, id: \.selection) { SidebarRowView(row: $0).tag($0.selection) }
+                    let group = groups[index]
+                    let expanded = Binding(
+                        get: { !collapse.isCollapsed(group, by: groupBy) }, set: { _ in collapse.toggle(group, by: groupBy) }
+                    )
+                    Section(isExpanded: expanded) {
+                        ForEach(group.rows, id: \.selection) { SidebarRowView(row: $0).tag($0.selection) }
                     } header: {
-                        Text(groups[index].title).textCase(.uppercase)
+                        Text(group.title).textCase(.uppercase)
                     }
                 }
             }

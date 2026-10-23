@@ -9,6 +9,7 @@ import SwiftUI
     let shell = WindowShell()
     let epics = EpicStore()
     var groupBy = SidebarStore().groupBy
+    var collapse = SidebarCollapse()
 }
 
 /// Set from the main thread, read from the monitor's.

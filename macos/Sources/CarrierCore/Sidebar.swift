@@ -37,6 +37,26 @@ public struct SidebarRow: Equatable {
 public struct SidebarGroup: Equatable {
     public var title: String
     public var rows: [SidebarRow]
+    /// Whether the group is collapsed until the user opens it. No group says it yet.
+    public var startsCollapsed = false
+}
+
+/// What the user collapsed or expanded, by group title and grouping, kept while the app runs (not across launches). A group that
+/// has no choice yet follows its `startsCollapsed`; a group that leaves the sidebar and returns keeps the choice made.
+public struct SidebarCollapse: Equatable {
+    private var chosen: [String: Bool] = [:]
+
+    public init() {}
+
+    public func isCollapsed(_ group: SidebarGroup, by groupBy: GroupBy) -> Bool {
+        chosen[Self.key(group, groupBy)] ?? group.startsCollapsed
+    }
+
+    public mutating func toggle(_ group: SidebarGroup, by groupBy: GroupBy) {
+        chosen[Self.key(group, groupBy)] = !isCollapsed(group, by: groupBy)
+    }
+
+    private static func key(_ group: SidebarGroup, _ groupBy: GroupBy) -> String { "\(groupBy.rawValue)/\(group.title)" }
 }
 
 /// The groups for `snapshot`. By status: needs you, running, up next, ready for test (hidden when empty), rows in the

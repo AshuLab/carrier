@@ -23,7 +23,7 @@ afterEach(() => {
 const add = (issue: number, status: (typeof epicStates)[number], extra: Partial<typeof epics.$inferInsert> = {}) =>
   db.insert(epics).values({ repo: 'acme/web', issue, status, ...extra }).returning().get();
 let slices: Parameters<typeof buildSnapshot>[1]['slices'] = () => null;
-const snapshot = (now = 100_000) => buildSnapshot(db, { now, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000 });
+const snapshot = (now = 100_000) => buildSnapshot(db, { now, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000 });
 
 test('slots count the running epics, the queue lists the queued ones oldest first, and finished ones do not show', () => {
   add(5, 'queued');
@@ -79,7 +79,7 @@ test('watched lists every repo with the agents it resolves to and its last check
     { repo: 'acme/web', lastCheckedAt: null, ok: true, error: null, agents },
     { repo: 'acme/api', lastCheckedAt: 90_000, ok: false, error: 'GitHub is unavailable', agents },
   ]);
-  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 0, repos: 2, nextCheckAt: null, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 1, watched }).watched).toBe(watched);
+  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 2, nextCheckAt: null, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 1, watched }).watched).toBe(watched);
 });
 
 test('a running epic with a frozen config lists its running execution as a session, without the profile; blocker titles are capped', () => {
@@ -122,6 +122,31 @@ test('it carries the process facts and the epics that ended ready for test, most
   expect(s.done.map((d) => [d.issue, d.prNumber, d.finishedAt])).toEqual([[7, 107, 7000], [6, 106, 6000], [5, 105, 5000], [4, 104, 4000], [3, 103, 3000]]);
 });
 
+test('finished lists the merged and cancelled epics inside the window, newest first, and nothing else', () => {
+  const day = 86_400_000;
+  const now = 20 * day;
+  const edge = now - 15 * day;
+  const edgeEpic = add(1, 'merged', { finishedAt: edge, prNumber: 101, title: 'Edge', labels: ['solve:epic'] });
+  add(2, 'merged', { finishedAt: edge - 1 });
+  add(3, 'cancelled', { finishedAt: now - day, cancelReason: 'final PR closed' });
+  add(4, 'merged', { finishedAt: now - 2 * day });
+  add(5, 'merged', { finishedAt: null });
+  for (const status of epicStates.filter((s) => s !== 'merged' && s !== 'cancelled')) add(10 + epicStates.indexOf(status), status, { finishedAt: now - 1000 });
+  db.insert(executions).values({ executionId: 'exec-edge', epicId: edgeEpic.id, stage: 'ship', resultPath: '/r', startedAt: 1000 }).run();
+  const s = snapshot(now);
+  expect(s.finished.map((f) => [f.issue, f.status])).toEqual([[3, 'cancelled'], [4, 'merged'], [1, 'merged']]);
+  expect(s.finished[0]).toEqual({ repo: 'acme/web', issue: 3, title: null, labels: [], prNumber: null, finishedAt: now - day, status: 'cancelled', cancelReason: 'final PR closed', executionId: null });
+  expect(s.finished[2]).toEqual({ repo: 'acme/web', issue: 1, title: 'Edge', labels: ['solve:epic'], prNumber: 101, finishedAt: edge, status: 'merged', cancelReason: null, executionId: 'exec-edge' });
+  expect(s.done.map((d) => d.issue)).toEqual([epicStates.indexOf('ready_for_test') + 10]);
+});
+
+test('a longer window lets older finished epics in', () => {
+  add(1, 'merged', { finishedAt: 0 });
+  const build = (finishedWindowDays: number) => buildSnapshot(db, { now: 20 * 86_400_000, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, slices, version: '0.1.0', pollIntervalMs: 300_000 });
+  expect(build(15).finished).toEqual([]);
+  expect(build(20).finished.map((f) => f.issue)).toEqual([1]);
+});
+
 test('an epic and a ready-for-test epic carry the id of their latest execution, where the agent output is', () => {
   const running = add(1, 'running');
   const done = add(2, 'ready_for_test', { finishedAt: 5000 });
@@ -132,7 +157,7 @@ test('an epic and a ready-for-test epic carry the id of their latest execution, 
   const s = snapshot();
   expect(s.epics[0]?.executionId).toBe('new');
   expect(s.done[0]?.executionId).toBe('done-1');
-  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: true, slices, version: '0.1.0', pollIntervalMs: 300_000 }).paused).toBe(true);
+  expect(buildSnapshot(db, { now: 1, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: true, slices, version: '0.1.0', pollIntervalMs: 300_000 }).paused).toBe(true);
 });
 
 test('an epic carries its slices once they are known and null before', () => {

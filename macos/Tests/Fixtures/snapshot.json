@@ -128,6 +128,34 @@
       }
     }
   ],
+  "finished": [
+    {
+      "repo": "acme/web",
+      "issue": 40,
+      "title": "Issue 40 of acme/web",
+      "prNumber": 88,
+      "labels": [
+        "solve:epic"
+      ],
+      "finishedAt": 98000,
+      "status": "merged",
+      "cancelReason": null,
+      "executionId": "exec-ship-40"
+    },
+    {
+      "repo": "acme/api",
+      "issue": 41,
+      "title": "Issue 41 of acme/api",
+      "prNumber": null,
+      "labels": [
+        "solve:epic"
+      ],
+      "finishedAt": 90000,
+      "status": "cancelled",
+      "cancelReason": "final PR closed without merge",
+      "executionId": null
+    }
+  ],
   "epics": [
     {
       "repo": "acme/web",

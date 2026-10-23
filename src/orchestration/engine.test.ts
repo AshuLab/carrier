@@ -439,7 +439,7 @@ test('the snapshot gives a running session its newest event as soon as the chunk
   const engine = await start(1);
   await clock.advance(5 * MIN);
   const snapshot = buildSnapshot(engine.db, {
-    now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false,
+    now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false,
     slices: engine.slices, version: '0', pollIntervalMs: 1, lastEvent: (id) => lastEventOf(engine.db, id),
   });
   expect(snapshot.sessions).toMatchObject([{ executionId: runner.tasks[0]!.executionId, last: { kind: 'tool_start', text: 'Bash ls', at: 43 } }]);

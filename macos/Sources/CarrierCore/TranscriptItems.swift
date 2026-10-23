@@ -19,7 +19,7 @@ public enum ToolStatus: Equatable {
     }
 }
 
-public enum ToolKind: Equatable {
+public enum ToolKind: Hashable {
     case read, search, edit, shell, other
 
     public init(tool: String?) {
@@ -271,13 +271,13 @@ public func transcriptItems(_ events: [ExecEvent]) -> [TranscriptItem] {
     return transcript.items
 }
 
-/// What an open session shows: the merged items, or the summarised `tail` lines of a harness with no parser yet.
+/// What an open session shows: the merged items with their runs of calls folded, or the summarised `tail` lines of a harness with no parser yet.
 public enum TranscriptBody: Equatable {
-    case items([TranscriptItem])
+    case items([FlowItem])
     case tail([String])
 }
 
 public func transcriptBody(_ transcript: Transcript?) -> TranscriptBody {
     guard let transcript else { return .items([]) }
-    return transcript.structured ? .items(transcript.items) : .tail(transcript.tail)
+    return transcript.structured ? .items(flowItems(transcript.items)) : .tail(transcript.tail)
 }

@@ -7,15 +7,21 @@ import SwiftUI
 struct TranscriptRows: View {
     let content: TranscriptBody
     @Binding var outputs: OutputFolds
+    @Binding var groups: GroupFolds
 
     var body: some View {
         switch content {
         case .items(let items) where items.isEmpty:
             EmptyStateView(state: .noActivity).frame(minHeight: 170).sessionRow()
         case .items(let items):
-            ForEach(items) {
-                TranscriptItemView(item: $0, outputs: $outputs).padding(.horizontal, 12)
-                    .padding(.vertical, $0.verticalMargin).sessionRow()
+            ForEach(items) { flow in
+                Group {
+                    switch flow {
+                    case .item(let item): TranscriptItemView(item: item, outputs: $outputs)
+                    case .group(let id, let calls): ToolGroupView(id: id, calls: calls, groups: $groups, outputs: $outputs)
+                    }
+                }
+                .padding(.horizontal, 12).padding(.vertical, flow.verticalMargin).sessionRow()
             }
         case .tail(let lines):
             Text(lines.isEmpty ? "No output yet" : lines.joined(separator: "\n"))
@@ -76,6 +82,16 @@ struct TranscriptItemView: View {
             } else {
                 ToolLineView(card: card, outputOpen: outputs.isOpen(id, card)) { outputs.toggle(id, card) }
             }
+        }
+    }
+}
+
+extension FlowItem {
+    /// A group header has none, like a call line: its height is the pitch.
+    var verticalMargin: CGFloat {
+        switch self {
+        case .item(let item): item.verticalMargin
+        case .group: 0
         }
     }
 }
@@ -181,6 +197,60 @@ struct ToolLineView: View {
                 TerminalBlockView(card: card).padding(.top, 2).padding(.leading, 24).padding(.bottom, 8)
             }
         }
+    }
+}
+
+/// A run of successful calls folded into one row of 28 pt: a chevron, what the calls were, their summed duration in a call's
+/// column, and the status and chevron slots reserved and empty. Open, the calls hang 18 pt in behind a 1.5 pt rule under the
+/// chevron's centre, so their icons start under the label.
+struct ToolGroupView: View {
+    let id: Int
+    let calls: [TranscriptItem]
+    @Binding var groups: GroupFolds
+    @Binding var outputs: OutputFolds
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { groups.toggle(id) } label: {
+                ToolGroupHeader(label: callGroupLabel(calls), duration: callGroupDuration(calls), open: groups.isOpen(id))
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(groups.isOpen(id) ? "Open" : "Closed")
+            if groups.isOpen(id) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(calls) { TranscriptItemView(item: $0, outputs: $outputs) }
+                }
+                .padding(.leading, 18)
+                .overlay(alignment: .leading) {
+                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(width: 1.5).padding(.leading, 4.25)
+                }
+            }
+        }
+    }
+}
+
+struct ToolGroupHeader: View {
+    let label: String
+    let duration: String?
+    let open: Bool
+    @State private var hovered = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.tertiary)
+                .rotationEffect(.degrees(open ? 90 : 0)).frame(width: 10)
+            Text(label).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            // the columns of a call, the status and chevron slots empty
+            CallColumns(duration: duration, status: .ok)
+        }
+        .frame(height: 28)
+        .background(Color.primary.opacity(hovered ? 0.05 : 0))
+        .contentShape(Rectangle())
+        .onHover { hovered = $0 }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([label, duration].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityHint("Shows the calls")
     }
 }
 

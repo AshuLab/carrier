@@ -126,6 +126,24 @@ test('the panel is drawn from SQLite: slots and the running epic show up', async
   expect(seen.panel.join('')).toContain('slots 1/2');
 });
 
+test('the foreground panel is fed the control snapshot: an epic shows its title', async () => {
+  const { seen, github, clock, deps } = fakes();
+  github.ready = { 'AshuLab/a': [{ issue: 5, title: 'Menu bar' }] };
+  const app = await startCarrier(config(), { ...deps, panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 10 });
+  closers.push(async () => (await app.engine.shutdown(), app.close()));
+  await clock.advance(MIN);
+  await vi.waitFor(() => expect(seen.panel.join('').replace(/\x1b\[[0-9;]*m/g, '')).toContain('AshuLab/a #5  Menu bar'));
+});
+
+test('the foreground panel is given the in-process provider: a running epic lists its stages', async () => {
+  const { seen, github, clock, deps } = fakes();
+  github.ready = { 'AshuLab/a': [{ issue: 5, title: 'Menu bar' }] };
+  const app = await startCarrier(config(), { ...deps, panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 10 });
+  closers.push(async () => (await app.engine.shutdown(), app.close()));
+  await clock.advance(MIN);
+  await vi.waitFor(() => expect(seen.panel.join('').replace(/\x1b\[[0-9;]*m/g, '')).toMatch(/┃ \[ship\] \d+s\n/));
+});
+
 test('a second instance on the same root gets InstanceBusy before anything else happens', async () => {
   const { seen, deps } = fakes();
   const lock = acquireLock(join(root, 'orchestrator'));

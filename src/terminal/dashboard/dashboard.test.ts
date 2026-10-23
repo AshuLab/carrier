@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { fit, renderDashboard, visibleLength } from './dashboard.ts';
+import { fit, renderDashboard, visibleLength, type DashboardOptions } from './dashboard.ts';
 import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
 
 const now = 10 * 3_600_000;
@@ -79,7 +79,7 @@ test('queue, needs you, ready for test, and a problem banner', () => {
   expect(out).toContain('QUEUED 7\n   AshuLab/web #30');
   expect(out).toContain('… and 2 more');
   expect(out).toContain('NEEDS YOU ▲\n   AshuLab/carrier #29\n   inconclusive review: missing context');
-  expect(out).toContain('READY FOR TEST ✔\n   AshuLab/carrier #28 · PR #44 · 2h 00m ago');
+  expect(out).toContain('READY FOR TEST ✔\n   AshuLab/carrier #28 · PR #44 · 2h 00m ago  Menu bar');
   expect(out).not.toContain('Idle.');
 });
 
@@ -93,6 +93,63 @@ test('what an agent wrote never reaches the terminal as a control sequence', () 
   const out = plain(snap({ epics: [epic({ status: 'needs_human', needsHumanReason: 'a\x1b[2Jb', lastError: 'c\r\nd\x07' }), epic({ lastError: 'x\x1b[0my' })] }));
   expect(out).not.toMatch(/[\x07\x1b\r]/);
   expect(out).toContain('a [2Jb');
+});
+
+test('every kind of row shows the epic title when it has one, and reads as before when it has none', () => {
+  const titled = snap({
+    queue: [{ repo: 'AshuLab/web', issue: 30, title: 'Queued thing' }, { repo: 'AshuLab/web', issue: 31, title: null }, { repo: 'AshuLab/web', issue: 32 }],
+    epics: [epic({ title: 'Running thing' }), epic({ issue: 29, status: 'needs_human', needsHumanReason: 'why', title: 'Stuck thing' }), epic({ issue: 33, title: null })],
+    done: [{ repo: 'AshuLab/carrier', issue: 28, title: 'Done thing', labels: [], prNumber: 44, finishedAt: now - 7_200_000, executionId: null }],
+  });
+  const out = plain(titled);
+  expect(out).toContain('┃ AshuLab/carrier #31  Running thing\n');
+  expect(out).toContain('   AshuLab/web #30  Queued thing\n');
+  expect(out).toContain('   AshuLab/carrier #29  Stuck thing\n   why');
+  expect(out).toContain('#28 · PR #44 · 2h 00m ago  Done thing');
+  expect(out).toContain('   AshuLab/web #31\n   AshuLab/web #32\n'); // no title: no trailing gap
+  expect(out).toContain('┃ AshuLab/carrier #33\n');
+  expect(renderDashboard(titled, { color: false, ui: { ...keysUi, selected: 'AshuLab/carrier#31' } }).join('\n')).toContain(' › AshuLab/carrier #31   Running thing');
+});
+
+test('a title never carries a control sequence to the terminal, nor makes a line wider than it', () => {
+  const hostile = snap({
+    queue: [{ repo: 'AshuLab/web', issue: 30, title: 'q\x1b[2Jq' }],
+    epics: [epic({ title: 'a\x1b]0;pwned\x07b' }), epic({ issue: 29, status: 'needs_human', title: 't'.repeat(300) })],
+    done: [{ repo: 'AshuLab/carrier', issue: 28, title: 'd\r\x1b[31md'.repeat(40), labels: [], prNumber: 44, finishedAt: now, executionId: null }],
+  });
+  expect(plain(hostile)).not.toMatch(/[\x07\x1b\r]/);
+  expect(plain(hostile)).toContain('q [2Jq');
+  for (const columns of [50, 60, 120]) for (const line of renderDashboard(hostile, { columns })) expect(visibleLength(line)).toBeLessThanOrEqual(Math.min(columns, 80));
+});
+
+test('a stopped epic shows why it needs a person, and just the row when it has no reason', () => {
+  const out = plain(snap({ epics: [epic({ issue: 29, status: 'needs_human', needsHumanReason: 'review limit: round 5 of 5 still has requested changes' }), epic({ issue: 30, status: 'needs_human' })] }));
+  expect(out).toContain('   AshuLab/carrier #29\n   review limit: round 5 of 5 still has requested changes\n   https://');
+  expect(out).toContain('   AshuLab/carrier #30\n   https://');
+  expect(out).not.toContain('needs_human');
+});
+
+test('a review or fix card lists up to three blocker titles and counts the rest; with none it adds nothing', () => {
+  const titles = ['one', 'two', 'three', 'four', 'five'];
+  const card = (stage: PanelEpic['stage'], n: number) => plain(snap({ epics: [epic({ stage, blockers: n, blockerTitles: titles.slice(0, n) })] }));
+  expect(card('review', 0)).not.toContain('· one');
+  expect(card('review', 0)).not.toContain('more');
+  expect(card('review', 2)).toContain(' ┃   · one\n ┃   · two\n');
+  expect(card('review', 2)).not.toContain('more');
+  expect(card('fix', 3)).toContain('· three');
+  expect(card('fix', 3)).not.toContain('more');
+  const five = card('review', 5);
+  expect(five).toContain(' ┃   · three\n ┃   … and 2 more');
+  expect(five).not.toContain('· four');
+  expect(card('ship', 2)).not.toContain('· one'); // only a review or fix has blockers to list
+});
+
+test('a blocker title or a reason never carries a control sequence, nor makes a line wider than the terminal', () => {
+  const hostile = snap({
+    epics: [epic({ stage: 'fix', blockers: 1, blockerTitles: ['b\x1b[2Jb\r\x07'.repeat(60)] }), epic({ issue: 29, status: 'needs_human', needsHumanReason: 'r\x1b]0;x\x07r'.repeat(60) })],
+  });
+  expect(plain(hostile)).not.toMatch(/[\x07\x1b\r]/);
+  for (const columns of [50, 60, 120]) for (const line of renderDashboard(hostile, { columns })) expect(visibleLength(line)).toBeLessThanOrEqual(Math.min(columns, 80));
 });
 
 test('color is only styling: the same words, and none at all with color off', () => {
@@ -156,4 +213,119 @@ test('a running card says what its agent is doing: three lines when selected, on
 
   const alone = renderDashboard(snap({ epics: [epic({ executionId: 'e1' })] }), { color: false, ui: { ...keysUi, selected: 'AshuLab/carrier#31' } }).join('\n');
   expect(alone).not.toContain('↑↓');
+});
+
+// A running epic's stages as the engine answers them: newest first.
+const session = (stage: 'ship' | 'review' | 'fix', minutesAgo: number, tookMin: number | null, outcome: 'completed' | 'changes_requested' | 'needs_human' | null, over: object = {}) => ({
+  executionId: `${stage}-${minutesAgo}`,
+  stage,
+  role: stage === 'review' ? ('reviewer' as const) : ('author' as const),
+  round: null,
+  agent: { harness: 'claude' as const, model: 'm', provider: null },
+  status: tookMin === null ? ('running' as const) : ('finished' as const),
+  startedAt: now - minutesAgo * 60_000,
+  finishedAt: tookMin === null ? null : now - (minutesAgo - tookMin) * 60_000,
+  resume: null,
+  result: outcome === null ? null : { outcome, summary: 's', verification: null, reason: null },
+  ...over,
+});
+const history = [session('fix', 2, null, null, { round: 1 }), session('review', 18, 4, 'changes_requested', { round: 1 }), session('ship', 32, 14, 'completed')];
+
+test('with a detail provider a running card lists its stages with how each went, the running one in brackets', () => {
+  const out = plain(snap({ epics: [epic({ stage: 'fix', round: 1 })] }), 80);
+  expect(out).not.toContain('changes'); // without a provider the card is as before
+  const withDetail = renderDashboard(snap({ epics: [epic({ stage: 'fix', round: 1 })] }), { columns: 80, color: false, detail: () => history }).join('\n');
+  expect(withDetail).toContain('┃ ship ✓ 14m 00s · review ↻ changes round 1 4m 00s · [fix] round 1 2m 00s\n');
+  expect(renderDashboard(snap({ epics: [epic()] }), { color: false, detail: () => null }).join('\n')).toBe(plain(snap({ epics: [epic()] }))); // nothing known: as before
+  expect(renderDashboard(snap({ epics: [epic()] }), { color: false, detail: () => [] }).join('\n')).toBe(plain(snap({ epics: [epic()] })));
+});
+
+test('a stage with no result shows no outcome, and a needs_human one says so', () => {
+  const failed = [session('ship', 10, null, null), session('ship', 20, 5, null, { status: 'failed' }), session('ship', 30, 5, 'needs_human')];
+  const out = renderDashboard(snap({ epics: [epic()] }), { color: false, detail: () => failed }).join('\n');
+  expect(out).toContain('┃ ship ▲ needs you 5m 00s · ship 5m 00s · [ship] 10m 00s\n');
+});
+
+test('the provider is asked once per epic while its snapshot is unchanged, and again only for the epic that changed', () => {
+  const calls: string[] = [];
+  const detail = (repo: string, issue: number) => (calls.push(`${repo}#${issue}`), history);
+  const a = epic({ issue: 1, executionId: 'e1' });
+  const b = epic({ issue: 2, executionId: 'e2' });
+  const draw = (...epics: PanelEpic[]) => renderDashboard(snap({ epics }), { color: false, detail });
+  draw(a, b);
+  draw(a, b);
+  draw(a, b);
+  expect(calls).toEqual(['AshuLab/carrier#1', 'AshuLab/carrier#2']);
+  for (const change of [{ stage: 'review' as const }, { round: 2 }, { blockers: 3 }, { executionId: 'e9' }]) {
+    calls.length = 0;
+    const changed = { ...a, ...change };
+    draw(changed, b);
+    draw(changed, b);
+    expect(calls).toEqual(['AshuLab/carrier#1']);
+    draw(a, b); // back to a state that was cached under another signature: asked once more
+    calls.length = 0;
+  }
+});
+
+test('the stages line is only styling, never wider than the terminal, and drops the oldest stages first', () => {
+  const many = Array.from({ length: 12 }, (_, i) => session(i % 2 ? 'fix' : 'review', 12 * 20 - i * 20, 3, 'changes_requested', { round: 12 - i, executionId: `x${i}` })).reverse();
+  many.unshift(session('fix', 1, null, null, { round: 13 }));
+  const s = snap({ epics: [epic({ stage: 'fix', round: 5 })] });
+  for (const columns of [50, 60, 120]) {
+    const lines = renderDashboard(s, { columns, detail: () => many });
+    for (const line of lines) expect(visibleLength(line)).toBeLessThanOrEqual(Math.min(columns, 80));
+    expect(lines.join('\n').replace(/\x1b\[[0-9;]*m/g, '')).toContain('[fix] round 13'); // the stage that is running is never the one cut
+  }
+  const colored = renderDashboard(s, { color: true, detail: () => history }).join('\n');
+  expect(colored.replace(/\x1b\[[0-9;]*m/g, '')).toBe(renderDashboard(s, { color: false, detail: () => history }).join('\n'));
+  expect(renderDashboard(s, { color: false, detail: () => many }).join('\n')).toContain('… ');
+});
+
+test('a repo GitHub refused is listed with its error; healthy repos or no watched list add nothing', () => {
+  const ok = { repo: 'AshuLab/carrier', ok: true, error: null };
+  const bad = (repo: string, error: string | null) => ({ repo, ok: false, error });
+  const none = plain(snap());
+  expect(plain(snap({ watched: [ok] }))).toBe(none);
+  expect(plain(snap({ watched: [] }))).toBe(none);
+  const one = plain(snap({ watched: [ok, bad('AshuLab/api', 'HTTP 404: Not Found')] }));
+  expect(one).toContain('REPOS GITHUB REFUSED ▲\n   AshuLab/api  HTTP 404: Not Found');
+  expect(one).not.toContain('AshuLab/carrier  ');
+  const two = plain(snap({ watched: [bad('AshuLab/api', 'HTTP 404'), bad('AshuLab/web', 'bad credentials')] }));
+  expect(two).toContain('AshuLab/api  HTTP 404\n   AshuLab/web  bad credentials');
+});
+
+test('a refused repo error loses its control sequences and never makes a line wider than the terminal', () => {
+  const s = snap({ watched: [{ repo: 'AshuLab/api', ok: false, error: `\x1b[2Jwipe${'x'.repeat(200)}` }] });
+  const out = renderDashboard(s, { columns: 60, color: false });
+  expect(out.join('\n')).not.toContain('\x1b');
+  expect(out.join('\n')).toContain('AshuLab/api   [2Jwipe');
+  for (const line of renderDashboard(s, { columns: 60 })) expect(visibleLength(line)).toBeLessThanOrEqual(60);
+});
+
+test('q stops Carrier in the foreground and leaves it running in watch: hints, help and the read-only footer say which', () => {
+  const view = (quit?: 'stop' | 'leave', ui: DashboardOptions['ui'] = keysUi) => renderDashboard(snap(), { color: false, ui, quit }).join('\n');
+  expect(view()).toContain('p pause · ? help · q quit');
+  expect(view(undefined, { ...keysUi, mode: 'help' })).toContain('q         stop Carrier (same as Ctrl+C)');
+  expect(view('leave')).toContain('p pause · ? help · q leave');
+  expect(view('leave', { ...keysUi, mode: 'help' })).toContain('q         leave (Carrier keeps running)');
+  expect(view('leave', { ...keysUi, mode: 'help' })).not.toContain('stop Carrier');
+  expect(view('leave', { ...keysUi, mode: 'help' })).toContain('esc back · q leave');
+  expect(renderDashboard(snap(), { color: false, quit: 'leave' }).at(-1)).toBe('   Ctrl+C leaves it running');
+});
+
+test('a needs-you row and a ready-for-test row show their stages too, asked once per epic', () => {
+  const calls: string[] = [];
+  const detail = (repo: string, issue: number) => (calls.push(`${repo}#${issue}`), history);
+  const s = snap({
+    epics: [epic({ issue: 29, status: 'needs_human', stage: 'review', needsHumanReason: 'inconclusive review' })],
+    done: [{ repo: 'AshuLab/carrier', issue: 28, title: 'Menu bar', labels: [], prNumber: 44, finishedAt: now - 7_200_000, executionId: 'x1' }],
+  });
+  const draw = () => renderDashboard(s, { columns: 80, color: false, detail }).join('\n');
+  const out = draw();
+  draw();
+  expect(out).toContain('inconclusive review\n   ship ✓ 14m 00s · review ↻ changes round 1 4m 00s · [fix] round 1 2m 00s\n');
+  expect(out).toContain('Menu bar\n   ship ✓ 14m 00s ·');
+  expect(calls).toEqual(['AshuLab/carrier#29', 'AshuLab/carrier#28']);
+  expect(renderDashboard(s, { color: false }).join('\n')).not.toContain('ship ✓');
+  for (const line of renderDashboard(s, { columns: 50, detail })) expect(visibleLength(line)).toBeLessThanOrEqual(50);
 });

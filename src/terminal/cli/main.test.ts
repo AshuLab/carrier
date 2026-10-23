@@ -1,10 +1,12 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, expect, test, vi } from 'vitest';
 import { acquireLock } from '../../storage/lock.ts';
+import { connectControl } from './control-client.ts';
 
 const main = join(import.meta.dirname, 'main.ts');
 const dir = mkdtempSync(join(tmpdir(), 'carrier-cli-'));
@@ -145,4 +147,194 @@ test('without --config the global file is used when it exists, and init is sugge
   writeFileSync(join(home, 'config.json'), JSON.stringify({ ...valid, orchestratorProfile: 'x' }));
   const found = run('doctor');
   expect([found.status, found.stderr]).toEqual([1, expect.stringContaining(`Invalid config ${join(home, 'config.json')}`)]);
+});
+
+test('status prints the panel of the running carrier, plain when piped, and exits 0; with none running it says so and exits 1', async () => {
+  const root = join(dir, 'st');
+  const config = write('status.json', { ...valid, root, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  const none = run('status', '--config', config);
+  expect([none.status, none.stdout, none.stderr]).toEqual([1, '', expect.stringMatching(/not running.*carrier start/)]);
+
+  const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
+  const closed = once(child, 'close');
+  try {
+    await vi.waitFor(() => expect(run('status', '--config', config).status).toBe(0), { timeout: 15_000 });
+    const shown = run('status', '--config', config);
+    expect(shown.stdout).toContain('CARRIER');
+    expect(shown.stdout).toContain('Slots');
+    expect(shown.stdout).not.toContain('\x1b[');
+  } finally {
+    child.kill('SIGINT');
+  }
+  await closed;
+});
+
+test('watch prints plain lines when piped and leaves on Ctrl+C with Carrier still running; with none running it says so and exits 1; when the Carrier stops it says so and exits 1', async () => {
+  const root = join(dir, 'w');
+  const config = write('watch.json', { ...valid, root, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  const began = Date.now();
+  const none = run('watch', '--config', config);
+  expect([none.status, none.stdout, none.stderr]).toEqual([1, '', expect.stringMatching(/not running.*carrier start/)]);
+  expect(Date.now() - began).toBeLessThan(5000);
+
+  const carrier = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
+  const carrierClosed = once(carrier, 'close');
+  const watch = () => {
+    const child = spawn(process.execPath, [main, 'watch', '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const seen = { stdout: '', stderr: '' };
+    child.stdout.on('data', (chunk) => (seen.stdout += chunk));
+    child.stderr.on('data', (chunk) => (seen.stderr += chunk));
+    return { child, seen, closed: once(child, 'close') };
+  };
+  try {
+    await vi.waitFor(() => expect(run('status', '--config', config).status).toBe(0), { timeout: 15_000 });
+
+    const leaving = watch();
+    await vi.waitFor(() => expect(leaving.seen.stdout).toContain('slots 0/3'), { timeout: 15_000 });
+    expect(leaving.seen.stdout).not.toContain('\x1b[');
+    leaving.child.kill('SIGINT');
+    expect((await leaving.closed)[0]).toBe(0);
+    expect(run('status', '--config', config).status).toBe(0); // leaving did not stop it
+
+    const watching = watch();
+    await vi.waitFor(() => expect(watching.seen.stdout).toContain('slots 0/3'), { timeout: 15_000 });
+    carrier.kill('SIGINT');
+    expect((await watching.closed)[0]).toBe(1);
+    expect(watching.seen.stderr).toBe('Carrier stopped.\n');
+  } finally {
+    carrier.kill('SIGINT');
+  }
+  await carrierClosed;
+});
+
+test('status against a carrier that speaks another protocol exits 2 naming both', async () => {
+  const root = join(dir, 'sp');
+  mkdirSync(join(root, 'orchestrator'), { recursive: true });
+  const server = createServer((socket) => socket.end(`${JSON.stringify({ event: 'hello', protocol: 2, pid: 1, startedAt: 1, version: '9.0.0', capabilities: [] })}\n`));
+  await new Promise<void>((resolve) => server.listen(join(root, 'orchestrator', 'control.sock'), resolve));
+  try {
+    const result = await new Promise<{ status: number | null; stderr: string }>((resolve) => {
+      const child = spawn(process.execPath, [main, 'status', '--config', write('proto.json', { ...valid, root })], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
+      let stderr = '';
+      child.stderr.on('data', (chunk) => (stderr += chunk));
+      child.on('close', (status) => resolve({ status, stderr }));
+    });
+    expect(result.status).toBe(2);
+    expect(result.stderr).toMatch(/protocol 1.*protocol 2/);
+  } finally {
+    server.close();
+  }
+});
+
+test('pause, resume, check and stop act on a running Carrier; a second stop and the others without one say so', async () => {
+  const root = join(dir, 's'); // short: a socket path holds 103 bytes on macOS
+  const config = write('control.json', { ...valid, root, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  const socket = join(root, 'orchestrator', 'control.sock');
+  const control = (command: string) => run(command, '--config', config);
+
+  // none running yet
+  for (const command of ['pause', 'resume', 'check']) {
+    const result = control(command);
+    expect([result.status, result.stdout, result.stderr]).toEqual([1, '', 'Carrier is not running\n']);
+  }
+
+  const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
+  const closed = once(child, 'close');
+  try {
+    await vi.waitFor(() => expect(existsSync(socket)).toBe(true), { timeout: 15_000 });
+    const paused = async () => {
+      const client = await connectControl(socket);
+      try {
+        return ((await client.request('snapshot')) as { paused: boolean }).paused;
+      } finally {
+        client.close();
+      }
+    };
+    expect(await paused()).toBe(false);
+    expect(control('pause')).toMatchObject({ status: 0, stdout: 'Intake paused\n', stderr: '' });
+    await vi.waitFor(async () => expect(await paused()).toBe(true));
+    expect(control('resume')).toMatchObject({ status: 0, stdout: 'Intake resumed\n', stderr: '' });
+    await vi.waitFor(async () => expect(await paused()).toBe(false));
+    expect(control('check')).toMatchObject({ status: 0, stdout: 'Checking GitHub now\n', stderr: '' });
+
+    expect(control('stop')).toMatchObject({ status: 0, stdout: 'Carrier stopped\n', stderr: '' });
+    expect(existsSync(socket)).toBe(false);
+    expect(child.exitCode === null ? (await closed)[0] : child.exitCode).toBe(0);
+  } finally {
+    child.kill('SIGINT');
+  }
+  expect(control('stop')).toMatchObject({ status: 0, stdout: 'Carrier is not running\n', stderr: '' });
+});
+
+test('a Carrier that speaks another protocol makes the commands exit 2', async () => {
+  const root = join(dir, 'p');
+  mkdirSync(join(root, 'orchestrator'), { recursive: true });
+  const server = createServer((connection) => connection.write(`${JSON.stringify({ event: 'hello', protocol: 2 })}\n`));
+  await new Promise<void>((resolve) => server.listen(join(root, 'orchestrator', 'control.sock'), resolve));
+  try {
+    const config = write('protocol.json', { ...valid, root });
+    const result = await new Promise<{ status: number | null; stderr: string }>((resolve) => {
+      const child = spawn(process.execPath, [main, 'pause', '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
+      let stderr = '';
+      child.stderr.on('data', (chunk) => (stderr += chunk));
+      child.on('close', (status) => resolve({ status, stderr }));
+    });
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('protocol');
+  } finally {
+    server.close();
+  }
+});
+
+// `start` leaves a Carrier behind on purpose, so each test registers what it started and the afterAll below stops it.
+const started: number[] = [];
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+afterAll(() => {
+  for (const pid of started) if (alive(pid)) process.kill(pid, 'SIGINT');
+});
+const start = (config: string) => spawnSync(process.execPath, [main, 'start', '--config', config], { cwd: dir, encoding: 'utf8', env: { ...process.env, CARRIER_HOME: home, PATH: `${bin}:${process.env.PATH}` } });
+const pidOf = (stdout: string) => Number(/pid (\d+)/.exec(stdout)?.[1]);
+
+test('start returns once Carrier answers on its socket and leaves it running without the terminal', async () => {
+  const root = join(dir, 's1');
+  const config = write('start.json', { ...valid, root, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  const began = Date.now();
+  const first = start(config);
+  const pid = pidOf(first.stdout);
+  started.push(pid);
+  const log = join(root, 'orchestrator', 'logs', 'start.log');
+  expect([first.status, first.stderr]).toEqual([0, '']);
+  expect(Date.now() - began).toBeLessThan(15_000);
+  expect(first.stdout).toContain(log);
+  expect(alive(pid)).toBe(true); // `start` has returned and its own process is gone
+  const client = await connectControl(join(root, 'orchestrator', 'control.sock'));
+  expect(client.hello.pid).toBe(pid);
+  client.close();
+  await vi.waitFor(() => expect(readFileSync(log, 'utf8')).toContain('slots 0/3'), { timeout: 15_000 }); // what the engine wrote
+
+  const second = start(config);
+  expect([second.status, second.stderr, second.stdout]).toEqual([0, '', expect.stringContaining(`already running (pid ${pid})`)]);
+  expect(readFileSync(log, 'utf8')).toContain('slots 0/3'); // the second start did not replace the log
+
+  process.kill(pid, 'SIGINT');
+  await vi.waitFor(() => expect(alive(pid)).toBe(false), { timeout: 15_000 });
+});
+
+test('a start that cannot come up prints the end of the log and exits 1 as soon as the child is gone', () => {
+  const root = join(dir, 's2');
+  mkdirSync(join(root, 'orchestrator', 'carrier.db'), { recursive: true }); // the engine cannot open a database that is a folder
+  const began = Date.now();
+  const result = start(write('start-bad.json', { ...valid, root }));
+  expect(result.status).toBe(1);
+  expect(Date.now() - began).toBeLessThan(10_000);
+  expect(result.stderr).toContain('Carrier exited before it was ready');
+  expect(result.stderr).toContain('carrier failed to start');
+  expect(result.stderr).toContain(join(root, 'orchestrator', 'logs', 'start.log'));
 });

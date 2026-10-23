@@ -91,3 +91,17 @@ private let complete = SetupSettings(
     #expect(startMenuState(state: .stopped, starting: false, missing: ["node", "config path"])
         == ("Start Carrier (missing: node, config path)", false))
 }
+
+@Test func openingTheAppStartsCarrierOnlyWhenEveryConditionHolds() throws {
+    let running = ConnectionState.running(try decodeSnapshot(Data(contentsOf: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json"))))
+    func decide(enabled: Bool = true, first: ConnectionState = .stopped, ready: Bool = true, fixture: Bool = false, tried: Bool = false) -> Bool {
+        shouldStartOnOpen(enabled: enabled, firstState: first, startReady: ready, fixture: fixture, alreadyTried: tried)
+    }
+    #expect(decide())
+    #expect(decide(enabled: false) == false)
+    #expect(decide(first: running) == false)
+    #expect(decide(first: .incompatible) == false)
+    #expect(decide(ready: false) == false)
+    #expect(decide(fixture: true) == false)
+    #expect(decide(tried: true) == false)
+}

@@ -82,3 +82,6 @@ _Avoid_: slot tile, agent list.
 
 **Sidebar group** - A section of the app's sidebar that collects epics by state (Needs you, Running, Up next, Ready for test) or, when asked, by repository.
 _Avoid_: category, folder.
+
+**Detached run** - Carrier started with `carrier start`: its own session, no terminal, its output in a log under `orchestrator/logs/`, reached through its control socket (`carrier status`, `watch`, `stop`, or the macOS app). Nothing starts it but a person; it is not a login service and nothing restarts it if it dies.
+_Avoid_: daemon, service (a launchd service is the alternative that was not chosen), background process.

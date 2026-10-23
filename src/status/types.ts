@@ -5,11 +5,15 @@ export type PanelEpic = {
   repo: string;
   issue: number;
   status: 'running' | 'needs_human';
+  /** The issue's title, when the snapshot carries it (the control snapshot does; null until the engine reads it). */
+  title?: string | null;
   stage: 'ship' | 'review' | 'fix' | null;
   /** Review round, null until the final PR is validated. */
   round: number | null;
   maxReviews: number;
   blockers: number;
+  /** Titles of the open blockers (the control snapshot carries them), shown under a review or fix card. */
+  blockerTitles?: string[];
   /** ms since epoch, when the epic entered its current stage. */
   stageSince: number;
   /** ms since epoch of the agent's last output; a different fact from the stage. */
@@ -28,7 +32,7 @@ export type PanelSnapshot = {
   now: number;
   slots: { busy: number; total: number };
   /** Queued epics, oldest first. */
-  queue: { repo: string; issue: number }[];
+  queue: { repo: string; issue: number; title?: string | null }[];
   epics: PanelEpic[];
   /** When this carrier process started (ms since epoch). */
   startedAt: number;
@@ -40,6 +44,8 @@ export type PanelSnapshot = {
   problem: string | null;
   /** Intake is paused by the person at the terminal. */
   paused: boolean;
+  /** Each watched repo's last check; absent from an engine that does not send it (the control snapshot always has it). */
+  watched?: { repo: string; ok: boolean; error: string | null }[];
   /** The epics that ended ready for test, most recent first. */
   done: { repo: string; issue: number; title: string | null; labels: string[]; prNumber: number | null; finishedAt: number | null; executionId: string | null }[];
 };

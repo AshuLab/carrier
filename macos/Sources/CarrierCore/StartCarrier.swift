@@ -79,3 +79,12 @@ public func startMenuState(state: ConnectionState, starting: Bool, missing: [Str
     if missing.isEmpty { return ("Start Carrier", true) }
     return ("Start Carrier (missing: \(missing.joined(separator: ", ")))", false)
 }
+
+/// The user default behind "Start Carrier when the app opens"; false when unset.
+public let startOnOpenKey = "engine.startOnOpen"
+
+/// Whether opening the app starts Carrier: the person asked for it, the first state the monitor delivered is stopped, Start
+/// Carrier is enabled, it is not `--fixture`, and this launch has not looked yet.
+public func shouldStartOnOpen(enabled: Bool, firstState: ConnectionState, startReady: Bool, fixture: Bool, alreadyTried: Bool) -> Bool {
+    enabled && firstState == .stopped && startReady && fixture == false && alreadyTried == false
+}

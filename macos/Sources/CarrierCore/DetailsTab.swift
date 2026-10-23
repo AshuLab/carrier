@@ -36,11 +36,13 @@ public func detailsTab(
     guard let subject else { return DetailsTabModel(groups: []) }
     var active: PanelEpic?
     var finished: PanelSnapshot.DoneEpic?
+    var cancelled = false
     var queuedAt: Int?
     var queuePlace: String?
     switch subject {
     case .active(let epic): active = epic
     case .finished(let done): finished = done
+    case .ended(let epic): (finished, cancelled) = (epic.asDone, epic.status == .cancelled)
     case .queued(let epic, let position): (queuedAt, queuePlace) = (epic.queuedAt, "\(ordinal(position)) in queue")
     }
     func row(
@@ -57,7 +59,7 @@ public func detailsTab(
         let name = [PanelEpic.Stage.ship: "Shipping", .review: "In review", .fix: "Fixing"][active.stage ?? .ship] ?? "Working"
         stageRow = row("Stage", active.status == .needsHuman ? "\(name) · needs you" : name, formatDuration(now - active.stageSince))
     } else if let finished {
-        stageRow = row("Stage", "Finished", finished.finishedAt.map { agoLine($0, now: now) })
+        stageRow = row("Stage", cancelled ? "Cancelled" : "Finished", finished.finishedAt.map { agoLine($0, now: now) })
     } else {
         stageRow = row("Stage", queuePlace, queuedAt.map { formatDuration(now - $0) })
     }
@@ -95,7 +97,10 @@ public func detailsTab(
             tone: limit ? .attention : .normal, style: .badge
         )
     } else {
-        roundRow = row("Review round", finished == nil ? "in progress" : "approved", lastRound.map { "\($0)" }, tone: finished == nil ? .normal : .good, style: .badge)
+        roundRow = row(
+            "Review round", finished == nil ? "in progress" : cancelled ? "cancelled" : "approved", lastRound.map { "\($0)" },
+            tone: finished == nil || cancelled ? .normal : .good, style: .badge
+        )
     }
     let blockers = active?.blockers ?? reply?.rounds.last.map { round in round.blockers.filter { $0.mark != "fixed" }.count }
     let progress = [

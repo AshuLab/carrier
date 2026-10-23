@@ -37,7 +37,7 @@ public struct SidebarRow: Equatable {
 public struct SidebarGroup: Equatable {
     public var title: String
     public var rows: [SidebarRow]
-    /// Whether the group is collapsed until the user opens it. No group says it yet.
+    /// Whether the group is collapsed until the user opens it: Done and Cancelled.
     public var startsCollapsed = false
 }
 
@@ -59,19 +59,28 @@ public struct SidebarCollapse: Equatable {
     private static func key(_ group: SidebarGroup, _ groupBy: GroupBy) -> String { "\(groupBy.rawValue)/\(group.title)" }
 }
 
-/// The groups for `snapshot`. By status: needs you, running, up next, ready for test (hidden when empty), rows in the
-/// snapshot's order. By repository: sections ordered by name, rows by issue number.
+/// The groups for `snapshot`. By status: needs you, running, up next, then ready for test, done and cancelled (each hidden when
+/// empty; done and cancelled start collapsed), rows in the snapshot's order, finished ones newest first as the engine sends them.
+/// By repository: sections ordered by name, rows by issue number, with no finished epics.
 public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy) -> [SidebarGroup] {
     let titles = Dictionary(
         uniqueKeysWithValues: (snapshot.epics.map { (key($0.repo, $0.issue), $0.title) } + snapshot.queue.map { (key($0.repo, $0.issue), $0.title) })
     )
-    func row(_ repo: String, _ issue: Int, _ state: EpicMenuState, _ detail: String) -> SidebarRow {
+    func row(_ repo: String, _ issue: Int, _ state: EpicMenuState, _ detail: String, title own: String? = nil, note: String? = nil) -> SidebarRow {
         let name = shortName(repo)
-        let title = titles[key(repo, issue)].flatMap { $0 }
+        let title = own ?? titles[key(repo, issue)].flatMap { $0 }
+        let tooltip = title.flatMap { $0.isEmpty ? nil : $0 } ?? "\(name) #\(issue)"
         return SidebarRow(
-            repo: repo, issue: issue, state: state, name: name, detail: detail,
-            tooltip: title.flatMap { $0.isEmpty ? nil : $0 } ?? "\(name) #\(issue)"
+            repo: repo, issue: issue, state: state, name: name, detail: detail, tooltip: note.map { "\(tooltip)\n\($0)" } ?? tooltip
         )
+    }
+    func finished(_ status: PanelSnapshot.FinishedEpic.Status) -> [SidebarRow] {
+        snapshot.finished.filter { $0.status == status }.map { epic in
+            let ago = agoLine(epic.finishedAt, now: snapshot.now)
+            guard status == .cancelled else { return row(epic.repo, epic.issue, .done, ago, title: epic.title) }
+            let reason = epic.cancelReason.flatMap { $0.isEmpty ? nil : $0 }
+            return row(epic.repo, epic.issue, .cancelled, reason.map { "\(ago) · \($0)" } ?? ago, title: epic.title, note: reason)
+        }
     }
 
     let needsYou = snapshot.epics.filter { $0.status == .needsHuman }.map { row($0.repo, $0.issue, .needsYou, interventionLine($0)) }
@@ -81,11 +90,15 @@ public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy) -> [Si
 
     switch groupBy {
     case .status:
-        let groups = [
+        let hiddenWhenEmpty = [
+            SidebarGroup(title: "Ready for test", rows: ready),
+            SidebarGroup(title: "Done", rows: finished(.merged), startsCollapsed: true),
+            SidebarGroup(title: "Cancelled", rows: finished(.cancelled), startsCollapsed: true),
+        ].filter { $0.rows.isEmpty == false }
+        return [
             SidebarGroup(title: "Needs you", rows: needsYou), SidebarGroup(title: "Running", rows: running),
             SidebarGroup(title: "Up next", rows: waiting),
-        ]
-        return ready.isEmpty ? groups : groups + [SidebarGroup(title: "Ready for test", rows: ready)]
+        ] + hiddenWhenEmpty
     case .repo:
         let byRepo = Dictionary(grouping: needsYou + running + waiting + ready, by: \.repo)
         return byRepo.keys.sorted { (shortName($0).lowercased(), $0) < (shortName($1).lowercased(), $1) }.map { repo in

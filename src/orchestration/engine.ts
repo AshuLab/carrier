@@ -18,6 +18,7 @@ import { executionOutput, taskContext } from '../logging/logger.ts';
 import { epics, type needsHumanKinds } from '../storage/schema.ts';
 import type { Clock } from './clock.ts';
 import { latestBlockers, latestObservations } from './blockers.ts';
+import { changesSlices } from './changes-slices.ts';
 import { ResumeRefused } from './resume-refused.ts';
 import { endOf } from './final-pr.ts';
 import { AuthError, GitHubUnavailable, labelStyles, needsHumanLabel, ownedLabels, readyForTestLabel, readyLabel, runningLabel, type GitHub, type Slices } from './github.ts';
@@ -49,6 +50,10 @@ const log = createScopedLogger('engine');
 const activityEveryMs = 10_000;
 const resumeWaitMs = 30_000;
 const resumeTickMs = 1_000;
+// Slices read outside the poll: at most one read per epic in each window, and a timer as a net for what no event signals.
+const sliceWindowMs = 10_000;
+const sliceTimerMs = 60_000;
+const liveStatuses: Epic['status'][] = ['running', 'needs_human', 'ready_for_test'];
 
 export type RepoCheck = { at: number; ok: boolean; error: string | null };
 
@@ -208,12 +213,19 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       activityAt = now;
       db.update(epics).set({ lastActivityAt: now }).where(eq(epics.id, epic.id)).run();
     });
+    const sliceCalls = new Set<string>(); // calls of this execution that started and have not ended; gone with it
     // A failed insert must not break the run: the log still has everything, and the replay script can fill the rows.
     run.onEvent((events) => {
       try {
         recordEvents(db, executionId, events, clock.now());
       } catch (e) {
         log.error('could not store the events of a chunk', e, context);
+      }
+      // A command that changes the slices is only a signal to look, and GitHub shows the change once it has ended, error or not.
+      for (const { kind, callId, arg } of events) {
+        if (callId === undefined) continue;
+        if (kind === 'tool_start' && arg !== undefined && changesSlices(arg)) sliceCalls.add(callId);
+        else if (kind === 'tool_end' && sliceCalls.delete(callId)) readSlicesSoon(epic.id, epic.repo, epic.issue);
       }
     });
     run.onSession((sessionId) => db.update(executions).set({ sessionId }).where(eq(executions.executionId, executionId)).run());
@@ -542,9 +554,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // The one refresh rule of the caches of GitHub (ADR 0008), shared by the slices and the pull request block: live epics (running, parked)
   // are read every poll; a finished one keeps what it has and is read once only when it has nothing cached, e.g. it ended before the cache existed.
   function toRefresh(repo: string, hasCache: (epic: { id: number; prNumber: number | null; pr: unknown }) => boolean) {
-    const live = ['running', 'needs_human', 'ready_for_test'];
     return db.select({ id: epics.id, issue: epics.issue, status: epics.status, prNumber: epics.prNumber, pr: epics.pr }).from(epics).where(eq(epics.repo, repo)).orderBy(asc(epics.id)).all()
-      .filter((e) => live.includes(e.status) || (['merged', 'cancelled'].includes(e.status) && !hasCache(e)));
+      .filter((e) => liveStatuses.includes(e.status) || (['merged', 'cancelled'].includes(e.status) && !hasCache(e)));
   }
 
   // The slices of each epic to refresh, replacing its rows. A cache of GitHub: nothing the engine decides reads it back.
@@ -562,6 +573,42 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       log.error('slices read failed, keeping the last rows', e);
     }
   }
+
+  // Reads one epic's slices now, or once at the end of the window when one was read less than sliceWindowMs ago: a burst makes one read
+  // per window and the last change is seen. ponytail: a read slower than the window can overlap the next; both replace the rows whole.
+  const sliceReadAt = new Map<number, number>();
+  const sliceReadLater = new Map<number, () => void>();
+  function readSlicesSoon(id: number, repo: string, issue: number) {
+    if (stopping || suspended || sliceReadLater.has(id)) return;
+    const read = async () => {
+      sliceReadLater.delete(id);
+      if (stopping || suspended) return;
+      sliceReadAt.set(id, clock.now());
+      try {
+        await readEpicSlices(repo, id, issue);
+      } catch (e) {
+        failed(e); // only a rejected profile gets here: it suspends the engine like in a poll
+      }
+    };
+    const wait = (sliceReadAt.get(id) ?? -sliceWindowMs) + sliceWindowMs - clock.now();
+    if (wait <= 0) track(read());
+    else sliceReadLater.set(id, clock.after(wait, read));
+  }
+
+  // The net: every minute, whatever the events said, the slices of the live epics (also a slice taken by hand on GitHub).
+  let cancelSliceTimer: (() => void) | null = null;
+  const sliceTimer = () => {
+    if (stopping) return;
+    cancelSliceTimer = clock.after(sliceTimerMs, async () => {
+      const configured = repos.map((r) => r.name);
+      for (const { id, repo, issue } of db.select().from(epics).where(and(inArray(epics.status, liveStatuses), inArray(epics.repo, configured))).orderBy(asc(epics.id)).all()) readSlicesSoon(id, repo, issue);
+      sliceTimer();
+    });
+  };
+  const stopSliceReads = () => {
+    cancelSliceTimer?.();
+    for (const cancelRead of sliceReadLater.values()) cancelRead();
+  };
 
   async function refreshSlices(repo: string) {
     const stored = new Set(db.select({ id: epicSlices.epicId }).from(epicSlices).all().map((r) => r.id));
@@ -665,9 +712,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         }
       }
       schedule(pollIntervalMs);
+      sliceTimer();
     },
     stop() {
       cancel?.();
+      stopSliceReads();
       stopRetention?.();
     },
     /**
@@ -678,6 +727,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     async shutdown() {
       stopping = true;
       cancel?.();
+      stopSliceReads();
       stopRetention?.();
       await Promise.all([...active.values()].map((run) => run.stop()));
       while (inflight.size > 0) await Promise.all([...inflight]);

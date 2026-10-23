@@ -12,23 +12,45 @@ final class StartController: ObservableObject {
 
     var missing: [String] { startMissing(SetupController.shared.settings) }
 
-    func start() {
-        guard starting == false else { return }
-        guard let command = startCommand(settings: SetupController.shared.settings, environment: ProcessInfo.processInfo.environment) else { return }
+    private var root: String { configRoot(configPath: SetupController.shared.settings.configPath, home: NSHomeDirectory()) }
+
+    /// `done` is called on the main thread with whether Carrier came up (also false when nothing was started).
+    func start(done: ((Bool) -> Void)? = nil) {
+        guard starting == false else { done?(false); return }
+        guard let command = startCommand(settings: SetupController.shared.settings, root: root, environment: ProcessInfo.processInfo.environment) else { done?(false); return }
         starting = true
         DispatchQueue.global().async {
             let failure = Self.launch(command)
             DispatchQueue.main.async {
                 self.starting = false
                 if let failure { Self.showAlert(reason: failure.reason, tail: failure.tail) }
+                done?(failure == nil)
             }
+        }
+    }
+
+    /// Stops the running Carrier, waits for its socket to go, starts it again. `done` is called on the main thread with whether
+    /// it came up; a failed start shows its own alert. The Behavior tab asks the person before it calls this.
+    func restart(done: @escaping (Bool) -> Void) {
+        NotificationWatcher.app.expectStop()
+        let path = controlSocketPath()
+        DispatchQueue.global().async {
+            do { try send(.stop, socketPath: path) } catch {
+                FileHandle.standardError.write(Data("carrier: restart: stop failed: \(error)\n".utf8))
+                DispatchQueue.main.async { done(false) }
+                return
+            }
+            // ponytail: polls the socket for 15 s, no signal from the engine that it is gone
+            let deadline = Date().addingTimeInterval(15)
+            while ControlClient.connect(path: path) != nil, Date() < deadline { Thread.sleep(forTimeInterval: 0.25) }
+            DispatchQueue.main.async { self.start(done: done) }
         }
     }
 
     /// For the self-test: what a press would do, without doing it (it would start the real Carrier).
     func selfTest(state: ConnectionState) -> String {
         let item = startMenuState(state: state, starting: starting, missing: missing)
-        guard item.enabled, let command = startCommand(settings: SetupController.shared.settings, environment: [:]) else {
+        guard item.enabled, let command = startCommand(settings: SetupController.shared.settings, root: root, environment: [:]) else {
             return "start disabled: \(item.title)"
         }
         return "start enabled, would run \(command.node) \(command.arguments.joined(separator: " ")), log \(command.logPath)"
@@ -143,7 +165,7 @@ private final class ExitCode {
     func set(_ code: Int32) { lock.lock(); self.code = code; lock.unlock() }
 }
 
-/// The window's Start Carrier button, shown while Carrier is stopped; disabled while the settings lack something (the list next to it says what).
+/// The window's Start Carrier button, shown while Carrier is stopped; disabled while the settings lack something (the stopped view says what).
 struct StartCarrierButton: View {
     @ObservedObject private var start = StartController.shared
     @ObservedObject private var setup = SetupController.shared
@@ -152,7 +174,8 @@ struct StartCarrierButton: View {
         let missing = startMissing(setup.settings)
         VStack(spacing: 6) {
             HStack {
-                Button("Start Carrier") { start.start() }.buttonStyle(.borderedProminent).controlSize(.large)
+                Button { start.start() } label: { Label("Start Carrier", systemImage: "play.fill") }
+                    .buttonStyle(PrimaryCapsuleButtonStyle(large: true))
                     .disabled(missing.isEmpty == false || start.starting)
                 if start.starting {
                     ProgressView().controlSize(.small)

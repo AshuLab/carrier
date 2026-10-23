@@ -105,11 +105,14 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('events'), executionId: z.uuid(), after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200) }),
   z.strictObject({ id, cmd: z.literal('epic'), repo, issue: z.number().int().positive() }),
   z.strictObject({ id, cmd: z.literal('files'), repo, issue: z.number().int().positive(), executionId: z.uuid().optional() }),
+  z.strictObject({ id, cmd: z.literal('availableRepos') }),
 ]);
-type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: ('sessions' | 'events' | 'epic' | 'files')[] };
+type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: ('sessions' | 'events' | 'epic' | 'files' | 'availableRepos')[] };
 ```
 
-The repository check rejects an empty string, three segments and a `.` or `..` part. An unknown epic gets an error reply. Every reply is bounded by count and bytes and stays under the client's line limit.
+The repository check rejects an empty string, three segments and a `.` or `..` part. An unknown epic gets an error reply.
+
+`availableRepos` (added for the Settings screen's "add a repo") answers `{ repos: { name: 'owner/name'; private: boolean; pushedAt: string | null }[] }`: the repos the machine's `gh` login can push to (owner and organization member, archived and disabled left out, the first 100 by latest push, names that are not `owner/name` dropped), the same query `carrier init` uses. It waits on GitHub, so it runs without blocking the engine, within `limits.githubCallTimeoutSeconds`, and the replies of a connection still go out in the order of its requests. Any failure (no `gh`, not logged in, offline, timeout) is `{ ok: false, error: 'github unavailable' }`; the reason goes to the log, never to the client. Every reply is bounded by count and bytes and stays under the client's line limit.
 
 The snapshot additions are optional and nullable on the Swift side, so an old engine and a new app, and the reverse, both work:
 

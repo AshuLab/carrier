@@ -20,7 +20,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.socketPath))
     let hello = try client.hello()
-    #expect(hello.capabilities == [.sessions, .events, .epic, .files])
+    #expect(hello.capabilities == [.sessions, .events, .epic, .files, .availableRepos])
     let repo = ",\"repo\":\"AshuLab/web\",\"issue\":5"
     let id = ",\"executionId\":\"3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c\""
     #expect(try sameJSON(client.request("snapshot"), golden("snapshot.json")))
@@ -44,7 +44,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     var states: [ConnectionState] = []
-    ControlMonitor(socketPath: server.socketPath, wait: { _ in false }, log: { _ in }, onChange: { states.append($0) }).run()
+    ControlMonitor(socketPath: { server.socketPath }, wait: { _ in false }, log: { _ in }, onChange: { states.append($0) }).run()
     let snapshot = try decodeSnapshot(golden("snapshot.json"))
     #expect(states == [.running(snapshot)])
     #expect(states[0].menuLine == "Carrier running · \(snapshot.epics.count) \(snapshot.epics.count == 1 ? "epic" : "epics") · \(snapshot.slots.busy)/\(snapshot.slots.total) slots")
@@ -53,7 +53,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
 @Test func pointingCarrierHomeAtTheFixtureFindsItsSocket() throws {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
-    #expect(controlSocketPath(environment: ["CARRIER_HOME": server.home], home: "/nonexistent") == server.socketPath)
+    #expect(controlSocketPath(saved: nil, environment: ["CARRIER_HOME": server.home], home: "/nonexistent") == server.socketPath)
 }
 
 @Test func stopRemovesTheSocketAndTheTemporaryHome() throws {

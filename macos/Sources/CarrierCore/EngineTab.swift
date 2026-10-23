@@ -1,11 +1,11 @@
 import Foundation
 
-// The Engine tab of Settings as plain values: the readiness banner and the five paths, each found or not
+// The Engine tab of Settings as plain values: the readiness banner and the four paths, each found or not
 // (docs/specs/macos-app-redesign.md, story 30). The views map them one to one; the values are the saved `SetupSettings`.
 
-/// The five values the app starts Carrier with, in the order the tab lists them.
+/// The four values the app starts Carrier with, in the order the tab lists them.
 public enum EngineField: CaseIterable {
-    case carrier, node, configPath, root, path
+    case carrier, node, configPath, path
 }
 
 extension SetupSettings {
@@ -15,7 +15,6 @@ extension SetupSettings {
             case .carrier: carrier
             case .node: node
             case .configPath: configPath
-            case .root: root
             case .path: path
             }
         }
@@ -24,7 +23,6 @@ extension SetupSettings {
             case .carrier: carrier = newValue
             case .node: node = newValue
             case .configPath: configPath = newValue
-            case .root: root = newValue
             case .path: path = newValue
             }
         }
@@ -60,6 +58,12 @@ public struct EngineTabModel: Equatable {
     public var rows: [EngineRow]
 }
 
+/// Whether the Engine tab lists the paths: always when something needs the person (a path missing, or detecting), and when all
+/// is found only after they asked to see them.
+public func enginePathsShown(_ banner: ReadinessBanner, opened: Bool) -> Bool {
+    banner.state != .ready || opened
+}
+
 public func engineTab(_ settings: SetupSettings, detecting: Bool, home: String = NSHomeDirectory()) -> EngineTabModel {
     func shown(_ path: String) -> String {
         path == home ? "~" : path.hasPrefix(home + "/") ? "~" + path.dropFirst(home.count) : path
@@ -81,7 +85,6 @@ public func engineTab(_ settings: SetupSettings, detecting: Bool, home: String =
         row(.carrier, "Carrier", "The script that starts Carrier", .file),
         row(.node, "Node", "Runs Carrier", .file),
         row(.configPath, "Config file", "Where Carrier keeps its settings", .file),
-        row(.root, "Shared root", "Where orchestrator/ lives", .folder),
         pathRow,
     ]
 

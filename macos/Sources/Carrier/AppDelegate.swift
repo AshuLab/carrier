@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.menu = menu
         statusItem = item
         watchCarrier(stateLine)
+        SystemNotificationCentre.shared.attachDelegate()
         SetupController.shared.detectIfFirstLaunch()
 
         if CommandLine.arguments.contains("--smoke-window") {
@@ -49,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Keeps the menu line current from a thread of its own; the title is set on the main queue, which also runs while the menu is open.
     private func watchCarrier(_ line: NSMenuItem) {
-        let monitor = ControlMonitor(socketPath: controlSocketPath()) { state in
+        let monitor = ControlMonitor(socketPath: { controlSocketPath() }) { state in
             DispatchQueue.main.async {
                 IconController.shared?.show(state)
                 line.title = state.menuLine

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Behavior tab: buttons and fields — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--acc:#0a84ff;--run:#30d158;--need:#ff9f0a;--err:#ff453a}body.light{--acc:#007aff;--run:#28a745;--need:#e08600;--err:#e5372d}
+h2.q{font-size:15px;margin:34px 0 2px}h2.q:first-of-type{margin-top:6px}
+.q+.sub{margin-bottom:12px}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:26px;align-items:start}
+.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:560px;min-height:52px}
+.cw{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:16px 18px 18px;min-height:200px}
+.tabs{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;margin-bottom:12px;box-shadow:0 0 0 .5px var(--line) inset}
+.tabs span{color:var(--dim);font-size:12px;font-weight:550;padding:4px 14px;border-radius:99px}.tabs span.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body.light .tabs span.on{background:#fff}
+.grp{margin:14px 2px 5px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}.grp:first-child{margin-top:0}
+.card2{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 14px}
+.r{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:.5px solid var(--line);min-height:46px}.r:first-child{border:0}
+.r .t{flex:1;min-width:0}.r .t b{display:block;font-weight:550}.r .t span{display:block;color:var(--dim);font-size:12px;margin-top:1px;line-height:1.35}
+.r .t span.bad,.bad{color:var(--err)}
+.r .c{display:flex;gap:8px;align-items:center;flex:none}
+.u{color:var(--dim);font-size:12px}
+input.n{width:64px;font:inherit;text-align:right;color:var(--text);background:var(--card2);border:0;border-radius:7px;padding:4px 8px;box-shadow:0 0 0 .5px var(--line) inset}
+input.n.bad{box-shadow:0 0 0 1.5px var(--err)}
+.sp2{display:inline-flex;align-items:center;background:var(--card2);border-radius:8px;box-shadow:0 0 0 .5px var(--line) inset}
+.sp2 button{border:0;background:none;color:var(--text);font:600 14px var(--font);width:26px;height:24px;cursor:pointer;border-radius:8px}.sp2 button:hover{background:var(--card2)}
+.sp2 b{min-width:34px;text-align:center;font-weight:550}
+.seg{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 10px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.seg button.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25)}body.light .seg button.on{background:#fff}
+.sw{width:38px;height:22px;border-radius:99px;background:var(--card2);position:relative;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset}.sw::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}.sw.on{background:var(--acc)}.sw.on::after{left:18px}
+.rs{border:0;background:none;color:var(--acc);font-size:13px;cursor:pointer;padding:2px 4px;border-radius:6px;visibility:hidden}.rs.on{visibility:visible}.rs:hover{background:var(--card2)}
+.def{font-size:11px;color:var(--faint);white-space:nowrap}
+.mod{width:7px;height:7px;border-radius:50%;background:var(--acc);flex:none}
+.pend{font-size:11px;font-weight:600;color:var(--need);background:color-mix(in srgb,var(--need) 14%,transparent);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.btn{border:0;font:inherit;font-size:12.5px;font-weight:550;color:var(--text);background:var(--card2);padding:5px 14px;border-radius:99px;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset}.btn.pri{background:var(--acc);color:#fff}.btn.red{color:var(--err)}.btn[disabled]{opacity:.4;cursor:default}
+.foot{display:flex;align-items:center;gap:8px;margin-top:12px;min-height:30px}.foot .m{flex:1;color:var(--dim);font-size:12px}
+.banner{border-radius:14px;padding:10px 14px;margin-bottom:12px;display:flex;gap:12px;align-items:center;background:color-mix(in srgb,var(--need) 13%,transparent)}.banner.ok{background:color-mix(in srgb,var(--run) 12%,transparent)}
+.banner .t{flex:1}.banner .t b{display:block;font-weight:650}.banner .t span{color:var(--dim);font-size:12px}
+.confirm{border-radius:14px;padding:12px 14px;margin-top:12px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset}.confirm p{margin:0 0 8px}.confirm .b{display:flex;gap:8px;justify-content:flex-end}
+.ctl{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:0 0 18px;padding:10px 16px;border-radius:14px;background:var(--card);max-width:900px;position:sticky;top:8px;z-index:9;backdrop-filter:blur(20px)}
+.ctl span.l{color:var(--dim);font-size:12px}
+.sum{max-width:900px;margin-top:30px}.sum li{margin:5px 0;color:var(--dim)}.sum b{color:var(--text)}
+
+.demo{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:16px 18px 18px}
+.stack{display:flex;flex-direction:column;gap:14px}
+.lab{font-size:11px;color:var(--faint);margin:0 0 5px}
+.bl{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+/* primary buttons */
+.pb{border:0;font:inherit;font-size:13px;font-weight:600;color:#fff;padding:6px 16px;border-radius:99px;cursor:pointer;transition:transform .12s,filter .12s}
+.pb:active{transform:scale(.97)}
+.pb.a{background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 92%,#fff),var(--acc));box-shadow:0 0 0 .5px rgba(255,255,255,.35) inset,0 1px 0 rgba(255,255,255,.35) inset,0 4px 14px color-mix(in srgb,var(--acc) 45%,transparent)}
+.pb.b{background:var(--acc);box-shadow:0 1px 2px rgba(0,0,0,.35)}
+.pb.c{background:color-mix(in srgb,var(--acc) 26%,transparent);color:color-mix(in srgb,var(--acc) 80%,#fff);box-shadow:0 0 0 .5px color-mix(in srgb,var(--acc) 55%,transparent) inset,0 1px 0 rgba(255,255,255,.12) inset;backdrop-filter:blur(14px)}
+body.light .pb.c{color:var(--acc)}
+.pb.d{background:var(--text);color:var(--bg)}
+.pb:hover:not([disabled]){filter:brightness(1.1)}
+.pb[disabled]{background:var(--card2);color:var(--faint);box-shadow:none;cursor:default}
+.gb{border:0;font:inherit;font-size:13px;font-weight:550;color:var(--text);padding:6px 14px;border-radius:99px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset,0 1px 0 rgba(255,255,255,.08) inset;cursor:pointer}
+.gb[disabled]{color:var(--faint);cursor:default;opacity:.7}
+.gb:hover:not([disabled]){background:color-mix(in srgb,var(--card2) 70%,var(--text) 10%)}
+/* fields */
+.f{display:inline-flex;align-items:center;gap:6px}
+.f input{font:inherit;color:var(--text);text-align:right;border:0;outline:0;width:56px}
+.f.a input{background:#000;border-radius:6px;padding:4px 8px;box-shadow:0 0 0 .5px var(--line) inset}
+.f.a input:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 55%,transparent),0 0 0 .5px var(--acc) inset}
+.f.b input{background:var(--card2);border-radius:99px;padding:4px 12px;text-align:center;width:60px}
+.f.b input:focus{box-shadow:0 0 0 1.5px var(--acc);background:var(--card)}
+.f.c{background:var(--card2);border-radius:99px;padding:3px 12px 3px 6px;gap:4px}
+.f.c input{background:none;text-align:right;width:36px}
+.f.c u{text-decoration:none;color:var(--dim);font-size:12px}
+.f.c:focus-within{box-shadow:0 0 0 1.5px var(--acc)}
+.f.d{border-radius:9px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:2px}
+.f.d button{border:0;background:none;color:var(--dim);font:600 14px var(--font);width:24px;height:24px;border-radius:7px;cursor:pointer}.f.d button:hover{background:var(--card2);color:var(--text)}
+.f.d input{background:none;text-align:center;width:38px}
+.f.d:focus-within{box-shadow:0 0 0 1.5px var(--acc)}
+.f.a.bad input,.f.b.bad input,.f.c.bad,.f.d.bad{box-shadow:0 0 0 1.5px var(--err)!important}
+.unit{color:var(--dim);font-size:12px}
+.row2{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:.5px solid var(--line);min-height:46px}.row2:first-child{border:0}
+.row2 .t{flex:1}.row2 .t b{display:block;font-weight:550}.row2 .t span{display:block;color:var(--dim);font-size:12px}.row2 .t span.bad{color:var(--err)}
+.seg2{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.seg2 button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 11px;border-radius:99px;cursor:pointer}.seg2 button.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25)}body.light .seg2 button.on{background:#fff}
+.sw{width:38px;height:22px;border-radius:99px;background:var(--card2);position:relative;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset;flex:none}.sw::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}.sw.on{background:var(--acc)}.sw.on::after{left:18px}
+.cb{width:15px;height:15px;border-radius:4px;background:#000;box-shadow:0 0 0 .5px var(--line) inset;display:inline-block;vertical-align:middle;margin-right:6px}
+.foot2{display:flex;gap:8px;align-items:center;margin-top:12px}.foot2 .m{flex:1;color:var(--dim);font-size:12px}
+</style></head><body>
+<h1>Behavior tab: the primary button and the fields</h1>
+<div class="sub">What is in the app now: the primary button is the system's prominent glass, the number fields are black boxes with the system's blue focus ring, and “Unlimited” is a checkbox beside the hours field. Below, options for each. Hover, click and type in them; the fields really take focus, so you see the focus state.</div>
+<div class="ctl"><span style="flex:1"></span><button class="btn" id="theme">☾ / ☀︎ Light / dark</button></div>
+
+<h2 class="q">1 · The primary button</h2><div class="sub">“Save and restart”, “Save” and “Add repo” in its three states: normal, hover (move the mouse) and disabled. The other buttons are the plain glass ones.</div>
+<div class="opts" id="P"></div>
+
+<h2 class="q">2 · The number fields</h2><div class="sub">The same row (Check GitHub every, with the unit) in each style, then the focus and the error state of each, side by side. Click into the fields.</div>
+<div class="opts" id="F"></div>
+
+<h2 class="q">3 · “Unlimited” beside the hours</h2><div class="sub">Right now a checkbox that disables the field. Three alternatives.</div>
+<div class="opts" id="U"></div>
+
+<ul class="sum">
+ <li><b>What I would pick:</b> button <b>A</b> (accent with a soft highlight and glow: reads as the one action, keeps the glass feel), fields <b>B</b> (a light pill with no border and the accent ring on focus, instead of a black hole), hours <b>Segmented</b> (“Limit | Unlimited”, the number appears only for Limit).</li>
+ <li><b>Fields in SwiftUI:</b> a plain text field in my own style (fill, corner radius, @FocusState for the ring), so it behaves like any text field; nothing changes in how the value is read or validated.</li>
+</ul>
+<script>
+const $=s=>document.querySelector(s);
+function opt(host,t,d,html){const w=document.createElement('div');w.className='opt';w.innerHTML='<h3>'+t+'</h3><p>'+d+'</p><div class="demo">'+html+'</div>';$(host).appendChild(w)}
+const gl=['Revert','Save only'];
+const P=(cls,t,d)=>opt('#P',t,d,'<div class="stack"><div><div class="lab">Normal and hover</div><div class="bl"><button class="gb" disabled>Revert</button><button class="gb">Save only</button><button class="pb '+cls+'">Save and restart</button></div></div><div><div class="lab">Disabled (nothing to save)</div><div class="bl"><button class="gb" disabled>Revert</button><button class="gb" disabled>Save only</button><button class="pb '+cls+'" disabled>Save and restart</button></div></div></div>');
+P('a','A · Accent, highlight and glow','Accent fill with a lighter top edge and a soft glow: the strongest, still glassy.');
+P('b','B · Flat accent','A solid accent capsule with a thin shadow. The plainest and most readable; less glass.');
+P('c','C · Tinted glass','Translucent accent with an accent outline and accent text: quiet, fits the other glass buttons, the weakest as the main action.');
+P('d','D · Inverted','White on dark, dark on light, no colour: calm and very clear, but it does not use the accent the rest of the app uses.');
+const row=(cls,inner)=>'<div class="row2"><div class="t"><b>Check GitHub every</b><span>Minutes between looks for ready epics</span></div>'+inner+'</div>';
+const states=(cls,mk)=>'<div class="stack"><div><div class="lab">Normal</div>'+row(cls,mk('5',''))+'</div><div class="bl" style="gap:26px"><div><div class="lab">Focus (click in)</div>'+mk('5','')+'</div><div><div class="lab">Error</div>'+mk('0','bad')+'</div></div><div class="msg bad" style="font-size:12px;color:var(--err)">Must be more than 0</div></div>';
+opt('#F','A · What it is now','A black box with the system focus ring.',states('a',(v,c)=>'<span class="f a '+c+'"><input value="'+v+'"><span class="unit">min</span></span>'));
+opt('#F','B · Light pill','Soft fill, no border, centred value; the focus is an accent ring.',states('b',(v,c)=>'<span class="f b '+c+'"><input value="'+v+'"><span class="unit">min</span></span>'));
+opt('#F','C · Unit inside','One pill holds the number and its unit, so they read as one value and the row has less to line up.',states('c',(v,c)=>'<span class="f c '+c+'"><input value="'+v+'"><u>min</u></span>'));
+opt('#F','D · With − and +','The same text field with small step buttons: typing still works, a click moves it by one.',states('d',(v,c)=>'<span class="f d '+c+'"><button onclick="var i=this.nextElementSibling;i.value=Math.max(0,+i.value-1)">−</button><input value="'+v+'"><button onclick="var i=this.previousElementSibling;i.value=+i.value+1">+</button></span><span class="unit">min</span>'));
+const hrow=inner=>'<div class="row2"><div class="t"><b>Time per agent run</b><span>Limit of one agent run</span></div>'+inner+'</div>';
+opt('#U','A · Checkbox (now)','A checkbox that greys the field out.',hrow('<span class="unit"><i class="cb"></i>Unlimited</span><span class="f a"><input value="4"><span class="unit">h</span></span>'));
+opt('#U','B · Switch','The same, as the app’s other on/off controls.',hrow('<span class="unit">Unlimited</span><span class="sw" onclick="this.classList.toggle(\'on\')"></span><span class="f b"><input value="4"><span class="unit">h</span></span>'));
+opt('#U','C · Segmented','“Limit | Unlimited”; the number is shown only for Limit. Clear in one glance.',hrow('<span class="f b" id="hrs"><input value="4"><span class="unit">h</span></span><div class="seg2" onclick="var b=event.target.closest(\'button\');if(!b)return;this.querySelectorAll(\'button\').forEach(x=>x.classList.toggle(\'on\',x===b));document.getElementById(\'hrs\').style.display=b.dataset.v===\'u\'?\'none\':\'\'"><button class="on" data-v="l">Limit</button><button data-v="u">Unlimited</button></div>'));
+$('#theme').onclick=()=>document.body.classList.toggle('light');
+</script></body></html>

@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Engine settings (Behavior tab) — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--acc:#0a84ff;--run:#30d158;--need:#ff9f0a;--err:#ff453a}body.light{--acc:#007aff;--run:#28a745;--need:#e08600;--err:#e5372d}
+h2.q{font-size:15px;margin:34px 0 2px}h2.q:first-of-type{margin-top:6px}
+.q+.sub{margin-bottom:12px}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:26px;align-items:start}
+.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:560px;min-height:52px}
+.cw{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:16px 18px 18px;min-height:200px}
+.tabs{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;margin-bottom:12px;box-shadow:0 0 0 .5px var(--line) inset}
+.tabs span{color:var(--dim);font-size:12px;font-weight:550;padding:4px 14px;border-radius:99px}.tabs span.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body.light .tabs span.on{background:#fff}
+.grp{margin:14px 2px 5px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}.grp:first-child{margin-top:0}
+.card2{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 14px}
+.r{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:.5px solid var(--line);min-height:46px}.r:first-child{border:0}
+.r .t{flex:1;min-width:0}.r .t b{display:block;font-weight:550}.r .t span{display:block;color:var(--dim);font-size:12px;margin-top:1px;line-height:1.35}
+.r .t span.bad,.bad{color:var(--err)}
+.r .c{display:flex;gap:8px;align-items:center;flex:none}
+.u{color:var(--dim);font-size:12px}
+input.n{width:64px;font:inherit;text-align:right;color:var(--text);background:var(--card2);border:0;border-radius:7px;padding:4px 8px;box-shadow:0 0 0 .5px var(--line) inset}
+input.n.bad{box-shadow:0 0 0 1.5px var(--err)}
+.sp2{display:inline-flex;align-items:center;background:var(--card2);border-radius:8px;box-shadow:0 0 0 .5px var(--line) inset}
+.sp2 button{border:0;background:none;color:var(--text);font:600 14px var(--font);width:26px;height:24px;cursor:pointer;border-radius:8px}.sp2 button:hover{background:var(--card2)}
+.sp2 b{min-width:34px;text-align:center;font-weight:550}
+.seg{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 10px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.seg button.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25)}body.light .seg button.on{background:#fff}
+.sw{width:38px;height:22px;border-radius:99px;background:var(--card2);position:relative;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset}.sw::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}.sw.on{background:var(--acc)}.sw.on::after{left:18px}
+.rs{border:0;background:none;color:var(--acc);font-size:13px;cursor:pointer;padding:2px 4px;border-radius:6px;visibility:hidden}.rs.on{visibility:visible}.rs:hover{background:var(--card2)}
+.def{font-size:11px;color:var(--faint);white-space:nowrap}
+.mod{width:7px;height:7px;border-radius:50%;background:var(--acc);flex:none}
+.pend{font-size:11px;font-weight:600;color:var(--need);background:color-mix(in srgb,var(--need) 14%,transparent);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.btn{border:0;font:inherit;font-size:12.5px;font-weight:550;color:var(--text);background:var(--card2);padding:5px 14px;border-radius:99px;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset}.btn.pri{background:var(--acc);color:#fff}.btn.red{color:var(--err)}.btn[disabled]{opacity:.4;cursor:default}
+.foot{display:flex;align-items:center;gap:8px;margin-top:12px;min-height:30px}.foot .m{flex:1;color:var(--dim);font-size:12px}
+.banner{border-radius:14px;padding:10px 14px;margin-bottom:12px;display:flex;gap:12px;align-items:center;background:color-mix(in srgb,var(--need) 13%,transparent)}.banner.ok{background:color-mix(in srgb,var(--run) 12%,transparent)}
+.banner .t{flex:1}.banner .t b{display:block;font-weight:650}.banner .t span{color:var(--dim);font-size:12px}
+.confirm{border-radius:14px;padding:12px 14px;margin-top:12px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset}.confirm p{margin:0 0 8px}.confirm .b{display:flex;gap:8px;justify-content:flex-end}
+.ctl{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:0 0 18px;padding:10px 16px;border-radius:14px;background:var(--card);max-width:900px;position:sticky;top:8px;z-index:9;backdrop-filter:blur(20px)}
+.ctl span.l{color:var(--dim);font-size:12px}
+.sum{max-width:900px;margin-top:30px}.sum li{margin:5px 0;color:var(--dim)}.sum b{color:var(--text)}
+</style></head><body>
+<h1>Engine settings: how the Behavior tab could look and work</h1>
+<div class="sub">The seven values of <code>config.json</code> the app edits. Everything below is clickable. Three questions: how the tab is laid out, how a number is entered, and what happens after Save, since the engine reads the file only when it starts. The bar at the top says what Carrier is doing, and the saving options below react to it.</div>
+<div class="ctl">
+ <span class="l">Carrier is</span>
+ <div class="seg" id="mode"><button data-m="stopped">Stopped</button><button data-m="idle" class="on">Running, no epics</button><button data-m="busy">Running, 2 epics</button></div>
+ <span style="flex:1"></span><button class="btn" id="theme">☾ / ☀︎ Light / dark</button>
+</div>
+
+<h2 class="q">1 · Layout</h2>
+<div class="sub">Same seven values, three ways to show them. A is what is built now.</div>
+<div class="opts" id="L"></div>
+
+<h2 class="q">2 · Entering a number</h2>
+<div class="sub">The built version is a plain text field that only takes the value on Enter or when you leave it. These two make the common choices one click and keep a typo from reaching the file. Shown on the two values where it matters most.</div>
+<div class="opts" id="N"></div>
+
+<h2 class="q">3 · Saving, and applying it</h2>
+<div class="sub">Edit a value with the steppers, then use the buttons. Switch the bar at the top to see what each option does when Carrier is stopped, running idle or running epics. Restarting interrupts running epics; they resume on the next start.</div>
+<div class="opts" id="S"></div>
+
+<ul class="sum">
+ <li><b>What I would pick:</b> layout <b>B</b> (grouped, steppers with units, so each value reads as a sentence), numbers <b>Presets + custom</b> for the poll interval and hours (steppers for the rest), saving <b>S3</b> (one button that says what it does, a confirmation only when epics would be interrupted).</li>
+ <li><b>Not in any option, by design:</b> repos, profiles and agents (they stay in <code>carrier init</code> and the JSON), and <code>root</code> (read-only, it is where the socket lives).</li>
+ <li><b>Not knowable from the app:</b> which values the running Carrier started with. The snapshot only tells the poll interval and the slots, so "applies after restart" is tracked by the app from the Save it did itself.</li>
+</ul>
+
+<script>
+const D={poll:5,log:'info',epics:3,reviews:5,retries:3,hours:4,timeout:30};
+const META={
+ poll:{t:'Check GitHub every',d:'Minutes between looks for ready epics',u:'min',min:1,step:1},
+ log:{t:'Log level',d:'How much Carrier writes to its log'},
+ epics:{t:'Epics at once',d:'Epics running at the same time',min:1,step:1},
+ reviews:{t:'Review rounds',d:'Rounds before the epic goes to needs-human',min:1,step:1},
+ retries:{t:'Retries',d:'After a technical failure of an agent run',min:0,step:1},
+ hours:{t:'Time per agent run',d:'Limit of one agent run',u:'h',min:1,step:1},
+ timeout:{t:'GitHub call timeout',d:'Each short call to GitHub',u:'s',min:5,step:5}
+};
+const GROUPS=[['Rhythm',['poll','log']],['Capacity',['epics','reviews']],['Agent runs',['retries','hours','timeout']]];
+const $=s=>document.querySelector(s);const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+let mode='idle';
+const TABS='<div class="tabs"><span>Engine</span><span class="on">Behavior</span><span>Notifications</span><span>Menu bar</span><span>General</span></div>';
+
+function problem(k,v){
+ if(k==='poll'&&!(v>0))return 'Must be more than 0';
+ if((k==='epics'||k==='reviews'||k==='timeout')&&!(Number.isInteger(+v)&&v>=1))return 'Must be 1 or more';
+ if(k==='retries'&&!(Number.isInteger(+v)&&v>=0))return 'Must be 0 or more';
+ if(k==='hours'&&v!=='∞'&&!(Number.isInteger(+v)&&v>=1))return 'Must be 1 or more, or unlimited';
+ return '';
+}
+const same=(a,b)=>Object.keys(D).every(k=>a[k]===b[k]);
+
+/* ---- controls ---- */
+const ctlInput=(o,k)=>`<input class="n ${problem(k,o.v[k])?'bad':''}" data-k="${k}" data-in value="${o.v[k]}">`+(META[k].u?`<span class="u">${META[k].u}</span>`:'');
+const ctlStep=(o,k)=>{
+ if(k==='hours'&&o.v.hours==='∞')return `<div class="seg"><button data-k="hours" data-set="4">Limit</button><button class="on">Unlimited</button></div>`;
+ const u=META[k].u?`<span class="u">${META[k].u}</span>`:'';
+ const inf=k==='hours'?`<button class="btn" style="padding:2px 9px;font-size:11.5px" data-k="hours" data-set="∞">∞</button>`:'';
+ return `<div class="sp2"><button data-k="${k}" data-d="-1">−</button><b>${o.v[k]}</b><button data-k="${k}" data-d="1">+</button></div>${u}${inf}`;
+};
+const LOGSEG=(o)=>`<div class="seg">${['debug','info','warn','error'].map(l=>`<button data-k="log" data-set="${l}" class="${o.v.log===l?'on':''}">${l}</button>`).join('')}</div>`;
+const PRESETS={poll:[1,5,15,30],hours:[1,2,4,8,'∞']};
+const ctlPreset=(o,k)=>{
+ const p=PRESETS[k],v=o.v[k],custom=!p.includes(v);
+ return `<div class="seg">${p.map(x=>`<button data-k="${k}" data-set="${x}" class="${v===x?'on':''}">${x==='∞'?'∞':x+(k==='poll'?' min':' h')}</button>`).join('')}<button class="${custom?'on':''}" data-k="${k}" data-custom>${custom?v+(k==='poll'?' min':' h'):'Custom…'}</button></div>`;
+};
+
+function row(o,k,ctl,extra=''){
+ const m=META[k],bad=problem(k,o.v[k]);
+ return `<div class="r"><div class="t"><b>${m.t}</b><span class="${bad?'bad':''}">${bad||m.d}</span></div><div class="c">${extra}${k==='log'?LOGSEG(o):ctl(o,k)}</div></div>`;
+}
+function bind(o){
+ o.el.onclick=e=>{
+  const b=e.target.closest('button,.sw');if(!b)return;
+  const k=b.dataset.k;
+  if(b.dataset.d){let v=+o.v[k]+ +b.dataset.d*META[k].step;if(v<META[k].min)v=META[k].min;o.v[k]=v;changed(o)}
+  else if(b.dataset.set!==undefined){const s=b.dataset.set;o.v[k]=s==='∞'?'∞':isNaN(+s)?s:+s;changed(o)}
+  else if(b.dataset.custom!==undefined){const x=prompt('Value',o.v[k]);if(x!==null){o.v[k]=isNaN(+x)||x===''?x:+x;changed(o)}}
+  else if(b.dataset.reset){o.v[b.dataset.reset]=D[b.dataset.reset];changed(o)}
+  else if(b.dataset.act){o.act&&o.act(b.dataset.act)}
+ };
+ o.el.onchange=e=>{const i=e.target;if(i.dataset.in!==undefined){o.v[i.dataset.k]=i.value.trim()===''||isNaN(+i.value)?i.value:+i.value;changed(o)}};
+}
+function changed(o){o.onChange?o.onChange(o):0;draw(o)}
+function draw(o){o.el.innerHTML=o.html(o)}
+function mk(host,title,desc,o){
+ const w=document.createElement('div');w.className='opt';w.innerHTML=`<h3>${title}</h3><p>${desc}</p><div class="cw"></div>`;
+ host.appendChild(w);o.el=w.querySelector('.cw');o.v={...D};bind(o);draw(o);(window.ALL=window.ALL||[]).push(o);
+}
+
+/* ---- 1 layout ---- */
+mk($('#L'),'A · One list (built)','Every value a row with a field on the right. Nothing says what the default is, and nothing groups them.',{
+ html:o=>TABS+`<div class="card2">${Object.keys(D).map(k=>row(o,k,ctlInput)).join('')}</div>`});
+mk($('#L'),'B · Grouped, steppers with units','Three groups named for what they do. Steppers, so a typo cannot be entered; the unit sits next to the number.',{
+ html:o=>TABS+GROUPS.map(([g,ks])=>`<div class="grp">${g}</div><div class="card2">${ks.map(k=>row(o,k,ctlStep)).join('')}</div>`).join('')});
+mk($('#L'),'C · One list, defaults and reset','Like A, but each row shows its default, a dot when it is not the default, and a ↺ to put it back. Good to see at a glance what you changed.',{
+ html:o=>TABS+`<div class="card2">${Object.keys(D).map(k=>{
+  const dif=o.v[k]!==D[k];
+  return row(o,k,ctlStep,`<span class="def">default ${D[k]}${META[k].u||''}</span><button class="rs ${dif?'on':''}" data-reset="${k}" title="Back to the default">↺</button>`).replace('<div class="t">',`<div class="t">`).replace('<b>',`<b>${dif?'<i class="mod" style="display:inline-block;margin-right:6px;vertical-align:middle"></i>':''}`)}).join('')}</div>`});
+
+/* ---- 2 numbers ---- */
+mk($('#N'),'Presets + custom','The usual answers are one click; anything else opens a small prompt that checks the value before it is taken. For the poll interval and the hours.',{
+ html:o=>`<div class="card2">${row(o,'poll',ctlPreset)}${row(o,'hours',ctlPreset)}${row(o,'epics',ctlStep)}</div>`});
+mk($('#N'),'Text field with live check','What is built, with the error shown under the field as you type (the field is red, Save would stay off). Type 0 or abc in the first one.',{
+ html:o=>`<div class="card2">${row(o,'poll',ctlInput)}${row(o,'hours',ctlInput)}${row(o,'epics',ctlInput)}</div>`});
+
+/* ---- 3 saving ---- */
+const KS=['poll','epics','hours'];
+function flowRows(o,pill){
+ return `<div class="card2">${KS.map(k=>{
+  const pend=pill&&o.pending&&o.pending.includes(k);
+  return row(o,k,ctlStep,pend?`<span class="pend">after restart</span>`:'')}).join('')}</div>`;
+}
+function banner(o){
+ if(!o.pending||!o.pending.length)return o.note?`<div class="banner ok"><div class="t"><b>${o.note}</b></div></div>`:'';
+ if(mode==='stopped')return `<div class="banner ok"><div class="t"><b>Saved</b><span>Carrier is stopped; it will use these when it starts.</span></div></div>`;
+ return `<div class="banner"><div class="t"><b>Restart Carrier to use the new values</b><span>It is running with the old ones.</span></div><button class="btn pri" data-act="restart">Restart now</button></div>`;
+}
+function confirmBox(o){
+ return o.confirming?`<div class="confirm"><p><b>Restart interrupts 2 running epics.</b><br><span class="u">They resume from where they were when Carrier starts again.</span></p><div class="b"><button class="btn" data-act="cancel">Cancel</button><button class="btn red" data-act="go">Restart and interrupt</button></div></div>`:'';
+}
+function doSave(o,restart){
+ const ks=KS.filter(k=>o.v[k]!==o.saved[k]);o.saved={...o.v};
+ if(mode==='stopped'||restart){o.pending=[];o.note=restart?'Carrier restarted with the new values':'';}
+ else o.pending=[...new Set([...(o.pending||[]),...ks])];
+}
+function restartFlow(o,then){
+ if(mode==='busy'){o.confirming=true;o.then=then;draw(o)}else then();
+}
+const common={
+ act(a){
+  const o=this;
+  if(a==='restart')restartFlow(o,()=>{o.pending=[];o.note='Carrier restarted with the new values';draw(o)});
+  else if(a==='cancel'){o.confirming=false;draw(o)}
+  else if(a==='go'){o.confirming=false;o.then();draw(o)}
+  else if(a==='revert'){o.v={...o.saved};draw(o)}
+  else if(a==='save'){doSave(o,false);o.note='';draw(o)}
+  else if(a==='saverestart'){const go=()=>{doSave(o,true);draw(o)};restartFlow(o,go)}
+  else if(a==='savestop'){doSave(o,false);draw(o)}
+ }
+};
+mk($('#S'),'S1 · Save / Revert, then a banner','Nothing is written until Save. After Save, if Carrier is running, a banner offers the restart; the rows you changed keep an “after restart” tag.',Object.assign({},common,{
+ saved:{...D},pending:[],
+ html:o=>{const dirty=!same(o.v,o.saved);
+  return TABS+banner(o)+flowRows(o,true)+confirmBox(o)+`<div class="foot"><span class="m">${dirty?'Unsaved changes':'Carrier reads these when it starts.'}</span><button class="btn" data-act="revert" ${dirty?'':'disabled'}>Revert</button><button class="btn pri" data-act="save" ${dirty?'':'disabled'}>Save</button></div>`}}));
+mk($('#S'),'S2 · Saves as you change','Every change is written at once, no button. A tag on each changed row says it applies after a restart, and the banner offers it. Quick, but a slip of the stepper is already in the file.',Object.assign({},common,{
+ saved:{...D},pending:[],
+ onChange(o){doSave(o,false)},
+ html:o=>TABS+banner(o)+flowRows(o,true)+confirmBox(o)}));
+mk($('#S'),'S3 · One button that says what it does','Save and Restart when Carrier is running, just Save when it is stopped. A confirmation only when epics would be interrupted. No banner to forget about.',Object.assign({},common,{
+ saved:{...D},pending:[],
+ html:o=>{const dirty=!same(o.v,o.saved);
+  const run=mode!=='stopped';
+  return TABS+(o.note?`<div class="banner ok"><div class="t"><b>${o.note}</b></div></div>`:'')+flowRows(o,false)+confirmBox(o)+
+  `<div class="foot"><span class="m">${dirty?(run?'Carrier is running with the old values.':'Carrier is stopped.'):'Carrier reads these when it starts.'}</span><button class="btn" data-act="revert" ${dirty?'':'disabled'}>Revert</button>`+
+  (run?`<button class="btn pri" data-act="saverestart" ${dirty?'':'disabled'}>Save and restart</button><button class="btn" data-act="savestop" ${dirty?'':'disabled'} title="Writes the file, keeps Carrier running as it is">Save only</button>`:`<button class="btn pri" data-act="savestop" ${dirty?'':'disabled'}>Save</button>`)+`</div>`}}));
+
+/* ---- globals ---- */
+$('#mode').onclick=e=>{const b=e.target.closest('button');if(!b)return;mode=b.dataset.m;
+ document.querySelectorAll('#mode button').forEach(x=>x.classList.toggle('on',x===b));
+ (window.ALL||[]).forEach(o=>{o.confirming=false;if(mode==='stopped'&&o.pending)o.pending=[];draw(o)})};
+$('#theme').onclick=()=>document.body.classList.toggle('light');
+</script>
+</body></html>

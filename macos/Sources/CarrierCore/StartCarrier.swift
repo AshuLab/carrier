@@ -18,18 +18,19 @@ public struct StartCommand: Equatable {
     public var logsDir: String { (logPath as NSString).deletingLastPathComponent }
 }
 
-/// What the settings lack to start Carrier. The root is there because the log and the socket live under it.
+/// What the settings lack to start Carrier.
 public func startMissing(_ settings: SetupSettings) -> [String] {
-    [("node", settings.node), ("carrier", settings.carrier), ("config path", settings.configPath), ("root", settings.root)]
+    [("node", settings.node), ("carrier", settings.carrier), ("config path", settings.configPath)]
         .filter { $0.1.isEmpty }.map(\.0)
 }
 
-/// nil when `startMissing` is not empty. `environment` is the app's own; only its PATH is replaced.
-public func startCommand(settings: SetupSettings, environment: [String: String]) -> StartCommand? {
+/// nil when `startMissing` is not empty. `root` is the config file's, where the log and the socket live. `environment` is the
+/// app's own; only its PATH is replaced.
+public func startCommand(settings: SetupSettings, root: String, environment: [String: String]) -> StartCommand? {
     guard startMissing(settings).isEmpty else { return nil }
     var environment = environment
     environment["PATH"] = enginePath(detected: settings.path, node: settings.node)
-    let orchestrator = settings.root + "/orchestrator"
+    let orchestrator = root + "/orchestrator"
     return StartCommand(
         node: settings.node, arguments: [settings.carrier, "--config", settings.configPath], environment: environment,
         orchestratorDir: orchestrator, logPath: orchestrator + "/logs/app-start.log", socketPath: orchestrator + "/control.sock"

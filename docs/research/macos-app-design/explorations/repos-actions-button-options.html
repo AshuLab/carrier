@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Repos: the actions button — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--acc:#0a84ff;--run:#30d158;--need:#ff9f0a;--err:#ff453a}body.light{--acc:#007aff;--run:#28a745;--need:#e08600;--err:#e5372d}
+h2.q{font-size:15px;margin:34px 0 2px}h2.q:first-of-type{margin-top:6px}
+.q+.sub{margin-bottom:12px}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:26px;align-items:start}
+.opt>h3{margin:0 0 2px;font-size:14px}.opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:560px;min-height:52px}
+.cw{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:16px 18px 18px;min-height:200px}
+.tabs{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;margin-bottom:12px;box-shadow:0 0 0 .5px var(--line) inset}
+.tabs span{color:var(--dim);font-size:12px;font-weight:550;padding:4px 14px;border-radius:99px}.tabs span.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body.light .tabs span.on{background:#fff}
+.grp{margin:14px 2px 5px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}.grp:first-child{margin-top:0}
+.card2{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 14px}
+.r{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:.5px solid var(--line);min-height:46px}.r:first-child{border:0}
+.r .t{flex:1;min-width:0}.r .t b{display:block;font-weight:550}.r .t span{display:block;color:var(--dim);font-size:12px;margin-top:1px;line-height:1.35}
+.r .t span.bad,.bad{color:var(--err)}
+.r .c{display:flex;gap:8px;align-items:center;flex:none}
+.u{color:var(--dim);font-size:12px}
+input.n{width:64px;font:inherit;text-align:right;color:var(--text);background:var(--card2);border:0;border-radius:7px;padding:4px 8px;box-shadow:0 0 0 .5px var(--line) inset}
+input.n.bad{box-shadow:0 0 0 1.5px var(--err)}
+.sp2{display:inline-flex;align-items:center;background:var(--card2);border-radius:8px;box-shadow:0 0 0 .5px var(--line) inset}
+.sp2 button{border:0;background:none;color:var(--text);font:600 14px var(--font);width:26px;height:24px;cursor:pointer;border-radius:8px}.sp2 button:hover{background:var(--card2)}
+.sp2 b{min-width:34px;text-align:center;font-weight:550}
+.seg{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 10px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.seg button.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25)}body.light .seg button.on{background:#fff}
+.sw{width:38px;height:22px;border-radius:99px;background:var(--card2);position:relative;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset}.sw::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}.sw.on{background:var(--acc)}.sw.on::after{left:18px}
+.rs{border:0;background:none;color:var(--acc);font-size:13px;cursor:pointer;padding:2px 4px;border-radius:6px;visibility:hidden}.rs.on{visibility:visible}.rs:hover{background:var(--card2)}
+.def{font-size:11px;color:var(--faint);white-space:nowrap}
+.mod{width:7px;height:7px;border-radius:50%;background:var(--acc);flex:none}
+.pend{font-size:11px;font-weight:600;color:var(--need);background:color-mix(in srgb,var(--need) 14%,transparent);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.btn{border:0;font:inherit;font-size:12.5px;font-weight:550;color:var(--text);background:var(--card2);padding:5px 14px;border-radius:99px;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset}.btn.pri{background:var(--acc);color:#fff}.btn.red{color:var(--err)}.btn[disabled]{opacity:.4;cursor:default}
+.foot{display:flex;align-items:center;gap:8px;margin-top:12px;min-height:30px}.foot .m{flex:1;color:var(--dim);font-size:12px}
+.banner{border-radius:14px;padding:10px 14px;margin-bottom:12px;display:flex;gap:12px;align-items:center;background:color-mix(in srgb,var(--need) 13%,transparent)}.banner.ok{background:color-mix(in srgb,var(--run) 12%,transparent)}
+.banner .t{flex:1}.banner .t b{display:block;font-weight:650}.banner .t span{color:var(--dim);font-size:12px}
+.confirm{border-radius:14px;padding:12px 14px;margin-top:12px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset}.confirm p{margin:0 0 8px}.confirm .b{display:flex;gap:8px;justify-content:flex-end}
+.ctl{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:0 0 18px;padding:10px 16px;border-radius:14px;background:var(--card);max-width:900px;position:sticky;top:8px;z-index:9;backdrop-filter:blur(20px)}
+.ctl span.l{color:var(--dim);font-size:12px}
+.sum{max-width:900px;margin-top:30px}.sum li{margin:5px 0;color:var(--dim)}.sum b{color:var(--text)}
+
+.demo{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:16px 18px 18px}
+.rr{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:.5px solid var(--line);position:relative}.rr:first-child{border:0}
+.rr .mid{flex:1;min-width:0}
+.rr .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rr .nm b{font-weight:600}.rr .nm i{font-style:normal;color:var(--dim);font-weight:400}
+.rr .ln2{color:var(--dim);font-size:12px;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rr .ln2.bad{color:var(--err)}
+.rr .path{font:11px var(--mono);color:var(--faint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gh{width:16px;height:16px;fill:currentColor;flex:none}
+.tile{width:34px;height:34px;border-radius:10px;background:var(--card2);display:grid;place-items:center;position:relative;flex:none;box-shadow:0 0 0 .5px var(--line) inset}
+.tile .gh{width:18px;height:18px}
+.tile .sd{position:absolute;right:-3px;bottom:-3px;width:11px;height:11px;border-radius:50%;border:2px solid var(--bg);background:var(--faint)}
+body.light .tile .sd{border-color:#fff}
+.sd.g{background:var(--run)!important}.sd.e{background:var(--err)!important}.sd.n{background:var(--faint)!important}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:550;padding:2px 9px;border-radius:99px;background:var(--card2);color:var(--dim);white-space:nowrap}
+.pill i{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
+.pill.g{color:var(--run);background:color-mix(in srgb,var(--run) 14%,transparent)}.pill.e{color:var(--err);background:color-mix(in srgb,var(--err) 14%,transparent)}.pill.n{color:var(--dim)}
+.pill.o{color:var(--need,#ff9f0a);background:color-mix(in srgb,#ff9f0a 16%,transparent)}.pill.b{color:var(--acc);background:color-mix(in srgb,var(--acc) 16%,transparent)}
+.trash{border:0;background:none;color:var(--faint);width:28px;height:28px;border-radius:8px;display:grid;place-items:center;cursor:pointer;flex:none}
+.trash svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.hov .trash{opacity:0;transition:opacity .12s}.hov .rr:hover .trash,.hov .trash:focus{opacity:1}
+.trash:hover{background:color-mix(in srgb,var(--err) 16%,transparent);color:var(--err)}
+.lk{border:0;background:none;color:var(--acc);font:inherit;font-size:12px;cursor:pointer;padding:3px 6px;border-radius:6px}.lk:hover{background:var(--card2)}
+.kebab{border:0;background:none;color:var(--dim);width:28px;height:28px;border-radius:8px;cursor:pointer;font-size:16px;line-height:1}.kebab:hover{background:var(--card2);color:var(--text)}
+.menu{position:absolute;right:0;top:40px;z-index:5;min-width:190px;border-radius:12px;background:var(--bg);box-shadow:0 12px 34px rgba(0,0,0,.45),0 0 0 .5px var(--line) inset;padding:5px}
+body.light .menu{background:#fff}
+.menu button{display:flex;gap:9px;align-items:center;width:100%;border:0;background:none;color:var(--text);font:inherit;padding:6px 10px;border-radius:7px;cursor:pointer;text-align:left}.menu button:hover{background:var(--sel)}.menu button.red{color:var(--err)}.menu hr{border:0;border-top:.5px solid var(--line);margin:4px 2px}
+.group-h{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);margin:2px 14px 6px}
+
+.mb{border:0;color:var(--text);cursor:pointer;font:inherit;flex:none}
+.mb.a{width:30px;height:30px;border-radius:50%;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset,0 1px 0 rgba(255,255,255,.1) inset;font-size:15px;line-height:1}
+.mb.a:hover{background:color-mix(in srgb,var(--card2) 60%,var(--text) 16%)}
+.mb.b{width:28px;height:28px;border-radius:50%;background:none;color:var(--dim);opacity:0;font-size:16px;transition:opacity .12s,background .12s}
+.rr:hover .mb.b,.mb.b.open,.mb.b:focus{opacity:1}.mb.b:hover,.mb.b.open{background:var(--card2);color:var(--text)}
+.mb.c{padding:5px 12px;border-radius:99px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset,0 1px 0 rgba(255,255,255,.1) inset;font-size:12.5px;font-weight:550;display:inline-flex;gap:6px;align-items:center}
+.mb.c:hover{background:color-mix(in srgb,var(--card2) 60%,var(--text) 16%)}
+.mb.d{width:30px;height:30px;border-radius:50%;background:none;color:var(--dim);display:grid;place-items:center}.mb.d:hover{background:var(--card2);color:var(--text)}
+.mb.e{width:30px;height:30px;border-radius:50%;background:none;color:var(--dim);display:grid;place-items:center}.mb.e:hover{background:var(--card2);color:var(--text)}
+.mb svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.menu{min-width:240px}
+.menu button svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none;opacity:.85}
+.menu button[disabled]{color:var(--faint);cursor:default}.menu button[disabled]:hover{background:none}
+.tl{position:relative;display:flex;align-items:center;gap:4px}
+.ghm{width:16px;height:16px;fill:currentColor;flex:none}
+</style></head><body>
+<h1>Repos: the actions button</h1>
+<div class="sub">Today it is a bare “⋯” with no outline, small and easy to miss, and it is the only way to open the repo, reveal it or stop watching it. Five ways of showing it, each with the open menu, now with icons. Click a button to open its menu; hover the rows. “Reveal clone in Finder” is greyed, with the reason, on the second row, which has no clone yet.</div>
+<div class="ctl"><span style="flex:1"></span><button class="btn" id="theme">☾ / ☀︎ Light / dark</button></div>
+<div class="opts" id="O"></div>
+<ul class="sum">
+ <li><b>Why “Reveal clone in Finder” was grey:</b> it is only on when the folder exists. Carrier clones a repo when it first needs it, so a repo that never ran an epic (agent-forge and universal-logger here) has none yet. The menu now says so.</li>
+ <li><b>What I would pick:</b> <b>A</b>, a round glass button with the dots, always visible: it matches the app's other glass buttons and nobody has to discover it. <b>B</b> is the quietest and closest to Finder and Mail, but hides the only way in until you hover. <b>E</b> adds a shortcut for the most common action, at the price of two controls per row.</li>
+</ul>
+<script>
+const $=s=>document.querySelector(s);
+const GH='<svg class="ghm" viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>';
+const I={
+ open:'<svg viewBox="0 0 16 16"><path d="M9 2.5h4.5V7M13.5 2.5L7.5 8.5M12 9.5v3a1 1 0 01-1 1H3.5a1 1 0 01-1-1V5a1 1 0 011-1h3"/></svg>',
+ folder:'<svg viewBox="0 0 16 16"><path d="M1.8 4.2a1 1 0 011-1h3l1.4 1.5h6a1 1 0 011 1v6.1a1 1 0 01-1 1H2.8a1 1 0 01-1-1z"/></svg>',
+ copy:'<svg viewBox="0 0 16 16"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 00-1-1h-6a1 1 0 00-1 1v6a1 1 0 001 1h2"/></svg>',
+ trash:'<svg viewBox="0 0 16 16"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.6 9.2a1 1 0 001 .8h4.8a1 1 0 001-.8L12 4M6.5 7v4M9.5 7v4"/></svg>',
+ circ:'<svg viewBox="0 0 16 16" style="width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.4"><circle cx="8" cy="8" r="6.3"/><circle cx="5" cy="8" r=".6" fill="currentColor"/><circle cx="8" cy="8" r=".6" fill="currentColor"/><circle cx="11" cy="8" r=".6" fill="currentColor"/></svg>'
+};
+const R=[{o:'AshuLab',n:'carrier',cloned:true,line:'Checked 3m ago',path:'~/.solve/repos/AshuLab/carrier'},
+         {o:'AshuLab',n:'agent-forge',cloned:false,line:'Checked 3m ago',path:'~/.solve/repos/AshuLab/agent-forge'}];
+let openMenu=null;
+const menu=(r,k)=>'<div class="menu"><button>'+I.open+'Open on GitHub</button><button '+(r.cloned?'':'disabled')+'>'+I.folder+(r.cloned?'Reveal clone in Finder':'Reveal clone in Finder (not cloned yet)')+'</button><button>'+I.copy+'Copy owner/name</button><hr><button class="red">'+I.trash+'Stop watching…</button></div>';
+function btn(kind,i,r){
+ const key=kind+i,open=openMenu===key;
+ const attrs='data-k="'+key+'"';
+ if(kind==='a')return '<button class="mb a" '+attrs+' title="Actions">⋯</button>';
+ if(kind==='b')return '<button class="mb b '+(open?'open':'')+'" '+attrs+' title="Actions">⋯</button>';
+ if(kind==='c')return '<button class="mb c" '+attrs+'>Actions <span style="font-size:10px;opacity:.7">▾</span></button>';
+ if(kind==='d')return '<button class="mb d" '+attrs+' title="Actions">'+I.circ+'</button>';
+ return '<button class="mb d" title="Open on GitHub" style="color:var(--acc)">'+I.open+'</button><button class="mb a" '+attrs+' title="More">⋯</button>';
+}
+function rows(kind){
+ return '<div class="card2" style="padding:0 14px">'+R.map((r,i)=>{
+  const key=kind+i;
+  return '<div class="rr" style="padding:12px 0"><span class="tile">'+GH+'<span class="sd g"></span></span><div class="mid"><div class="nm" style="font-size:13.5px"><i>'+r.o+'/</i><b>'+r.n+'</b></div><div class="ln2">'+r.line+'</div><div class="path">'+r.path+'</div></div><div class="tl">'+btn(kind,i,r)+(openMenu===key?menu(r):'')+'</div></div>';
+ }).join('')+'</div>';
+}
+const OPTS=[['a','A · Round glass button','The dots in a round glass button, always visible. The same family as Revert and Save.'],
+ ['b','B · Dots on hover','No button until the pointer is on the row (or the dots have focus); then a round highlight. The quietest.'],
+ ['c','C · “Actions ▾”','A glass pill with a word and a chevron: nobody can miss that it is a menu. The widest.'],
+ ['d','D · Circled dots','The “ellipsis.circle” look: an outlined icon, no fill. Plain and recognisable, a little old-fashioned.'],
+ ['e','E · Open shortcut plus dots','A blue open-on-GitHub icon for the most common action, and the round dots for the rest.']];
+function draw(){
+ $('#O').innerHTML='';
+ OPTS.forEach(([k,t,d])=>{const w=document.createElement('div');w.className='opt';w.innerHTML='<h3>'+t+'</h3><p>'+d+'</p><div class="demo">'+rows(k)+'</div>';$('#O').appendChild(w)});
+}
+document.addEventListener('click',e=>{
+ const b=e.target.closest('[data-k]');
+ if(b){openMenu=openMenu===b.dataset.k?null:b.dataset.k;draw();return}
+ if(openMenu!==null){openMenu=null;draw()}
+});
+$('#theme').onclick=()=>document.body.classList.toggle('light');
+draw();
+</script></body></html>

@@ -13,7 +13,7 @@ func showIcon(_ symbol: String, on item: NSMenuItem, color: NSColor? = nil) {
 final class MenuControls: NSObject, NSMenuItemValidation {
     static let shared = MenuControls()
 
-    private let socketPath = controlSocketPath()
+    private var socketPath: String { controlSocketPath() }
     private let pauseItem = NSMenuItem(title: "Pause intake", action: #selector(pauseOrResume), keyEquivalent: "")
     private let checkItem = NSMenuItem(title: "Check GitHub now", action: #selector(checkNow), keyEquivalent: "")
     private let stopItem = NSMenuItem(title: "Stop Carrier", action: #selector(stopCarrier), keyEquivalent: "")
@@ -82,6 +82,7 @@ final class MenuControls: NSObject, NSMenuItemValidation {
         if asksBeforeStopping(snapshot, switchOn: UserDefaults.standard.object(forKey: confirmStopKey) as? Bool ?? true) {
             guard confirmStop(interrupting: snapshot.runningEpics) else { return }
         }
+        NotificationWatcher.app.expectStop()
         sendInBackground(.stop)
     }
 

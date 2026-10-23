@@ -1,6 +1,6 @@
 import Foundation
 
-// The four requests that exist only when the engine advertises them in its hello. Each returns nil, sending nothing, when the
+// The requests that exist only when the engine advertises them in its hello. Each returns nil, sending nothing, when the
 // capability is missing. An error reply or a reply that does not decode marks the capability unavailable until the next hello
 // (a newer engine answering something this app cannot read is treated as having none of it); a dead connection does not.
 extension ControlClient {
@@ -20,6 +20,11 @@ extension ControlClient {
     public func files(repo: String, issue: Int, executionId: String? = nil) throws -> FilesReply? {
         let session = try executionId.map { ",\"executionId\":\"\(try uuid($0))\"" } ?? ""
         return try ask(.files, "files", try epicFields(repo, issue) + session)
+    }
+
+    /// The repos the engine's gh login can push to, for the Repos tab's picker. nil when this engine cannot list them.
+    public func availableRepos() throws -> [AvailableRepo]? {
+        (try ask(.availableRepos, "availableRepos", "") as AvailableReposReply?)?.repos
     }
 
     private func ask<T: Decodable>(_ capability: Capability, _ command: String, _ fields: String) throws -> T? {

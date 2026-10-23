@@ -108,9 +108,15 @@ struct ToolLineView: View {
             HStack(spacing: 8) {
                 Image(systemName: card.kind.icon).font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
                     .frame(width: 16, height: 16).background(RoundedRectangle(cornerRadius: 5).fill(card.kind.color))
-                Text(card.title).font(.system(size: 12, design: .monospaced)).lineLimit(1)
-                    .truncationMode(card.kind == .shell ? .tail : .middle)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: 4) {
+                    Text(card.title).font(.system(size: 12, design: .monospaced)).lineLimit(1)
+                        .truncationMode(card.kind == .shell ? .tail : .middle)
+                    if card.moreCommands > 0 {
+                        Text("+\(card.moreCommands)").font(.system(size: 11)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+                            .help("\(card.moreCommands) more commands in this call")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 if let duration = card.duration { Text(duration).font(.caption).foregroundStyle(.tertiary).lineLimit(1) }
                 status
                 if card.hasDetails {

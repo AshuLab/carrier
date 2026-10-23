@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { acquireLock } from '../storage/lock.ts';
 import type { EpicReply, EventsReply, FilesReply } from './replies.ts';
-import { ResumeRefused } from '../orchestration/engine.ts';
+import { ResumeRefused } from '../orchestration/resume-refused.ts';
 import { socketPathFits, startControlServer } from './server.ts';
 
 let dir: string;

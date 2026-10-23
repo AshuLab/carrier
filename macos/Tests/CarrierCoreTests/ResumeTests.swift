@@ -156,3 +156,36 @@ private func connect(_ engine: FixtureEngine) throws -> ControlClient {
     #expect(epics.filter { $0.status == .running }.allSatisfy { resumeCard($0, canResume: true) == nil })
     #expect(epics.filter { $0.status == .needsHuman }.allSatisfy { resumeCard($0, canResume: true) != nil })
 }
+
+// MARK: a Resume in flight
+
+private func snapshot(_ epics: [PanelEpic]) throws -> PanelSnapshot {
+    let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/snapshot.json")
+    var snapshot = try decodeSnapshot(Data(contentsOf: url))
+    snapshot.epics = epics
+    return snapshot
+}
+
+@Test func aResumeInFlightSurvivesUntilTheSnapshotShowsTheEpicOutOfNeedsHuman() throws {
+    let (store, ref) = (EpicStore(), EpicRef(repo: "acme/web", issue: 12))
+    store.startResuming(ref)
+    store.answeredResume(ref, refusal: nil) // the engine said the epic started: the snapshot may not have caught up
+    store.settleResuming(try snapshot([stuck("timeout")]))
+    #expect(store.resuming == [ref])
+    store.settleResuming(try snapshot([stuck("timeout", status: .running)]))
+    #expect(store.resuming.isEmpty)
+}
+
+@Test func aRefusalEndsTheResumeAndKeepsItsWordsWhileTheEpicStaysStopped() throws {
+    let (store, ref) = (EpicStore(), EpicRef(repo: "acme/web", issue: 12))
+    store.startResuming(ref)
+    store.answeredResume(ref, refusal: "GitHub did not answer, so nothing was resumed. Try again.")
+    #expect(store.resuming.isEmpty && store.resumeRefusals[ref] != nil)
+    store.settleResuming(try snapshot([stuck("timeout")]))
+    #expect(store.resumeRefusals[ref] != nil)
+    store.startResuming(ref)
+    #expect(store.resumeRefusals[ref] == nil)
+    store.answeredResume(ref, refusal: "x")
+    store.settleResuming(try snapshot([]))
+    #expect(store.resumeRefusals.isEmpty)
+}

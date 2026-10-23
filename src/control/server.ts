@@ -3,8 +3,8 @@ import { createServer, type Socket } from 'node:net';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
-import { ResumeRefused } from '../orchestration/engine.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
+import { ResumeRefused } from '../orchestration/resume-refused.ts';
 import type { EpicReply, EventsReply, FilesReply, SessionsReply } from './replies.ts';
 
 const log = createScopedLogger('control');

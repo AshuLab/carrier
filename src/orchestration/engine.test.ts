@@ -6,7 +6,8 @@ import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { eq } from 'drizzle-orm';
 import { epics } from '../storage/schema.ts';
-import { createEngine, type ResumeRefused } from './engine.ts';
+import { createEngine } from './engine.ts';
+import type { ResumeRefused } from './resume-refused.ts';
 import { reserve } from './reserve.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
 import type { AgentTask } from '../execution/agent-runner.ts';
@@ -2084,6 +2085,34 @@ test('resumeEpic on an epic that has not restarted thirty seconds after the labe
   // the next check takes it
   github.unavailable = null;
   await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' });
+});
+
+test('resumeEpic asks for one more check when the check that was running had listed before the label went on', async () => {
+  const engine = await stoppedEpic();
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const listing = github.listReadyEpics.bind(github);
+  let stale = true; // only the first poll reads before the label and answers after it
+  github.listReadyEpics = async (repo) => {
+    if (!stale) return listing(repo);
+    const before = await listing(repo);
+    await gate;
+    return before;
+  };
+  github.issue('AshuLab/a', 1).labels = [];
+  void engine.pollNow(); // the timer's poll, held after it read
+  await flush();
+  stale = false;
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  release();
+  await flush();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human' }); // the held poll never saw the label
+  await clock.advance(1000); // the held poll has settled: the next tick asks for one more
+  await flush();
+  await clock.advance(1000);
+  await resumed;
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' });
 });
 

@@ -80,7 +80,7 @@ struct PanelView: View {
                         EpicView(
                             subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files),
                             sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false), folds: $epics.folds, files: data?.files,
-                            plan: queuedPlan(epic.subject), resume: resumeCard(epic.subject)
+                            plan: queuedPlan(epic.subject), resume: resumeCard(epic.subject).map { ($0, model.epics) }
                         )
                             .id("\(epic.subject.repo)#\(epic.subject.issue)")
                     } else if shell.selection == .settings {
@@ -173,6 +173,7 @@ struct PanelView: View {
         }
         .frame(minWidth: 1100, minHeight: 600)
         .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
+        .onChange(of: snapshot) { if let snapshot { model.epics.settleResuming(snapshot) } }
     }
 }
 

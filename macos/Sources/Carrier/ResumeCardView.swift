@@ -2,14 +2,14 @@ import CarrierCore
 import SwiftUI
 
 /// The card of a stopped epic, between its title and its tabs: the reason, what resuming does and, for an engine that can be asked,
-/// the Resume button. Resume asks first in a sheet; the button reads "Resuming…" until the engine answers; a refusal stays in the card.
+/// the Resume button. Resume asks first in a sheet; the button reads "Resuming…" until the engine answers and the snapshot shows the epic out of needs-human (`EpicStore.resuming`); a refusal stays in the card.
 struct ResumeCardView: View {
     let card: ResumeCard
-    let repo: String
-    let issue: Int
+    let store: EpicStore
+    let epic: EpicRef
     @State private var confirming = false
-    @State private var resuming = false
-    @State private var refusal: String?
+
+    private var resuming: Bool { store.resuming.contains(epic) }
 
     private var color: Color { card.attention == .error ? .red : .orange }
 
@@ -19,7 +19,7 @@ struct ResumeCardView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(card.title).font(.headline)
                 Text(card.words).foregroundStyle(.secondary)
-                if let refusal { Text(refusal).font(.callout).foregroundStyle(color) }
+                if let refusal = store.resumeRefusals[epic] { Text(refusal).font(.callout).foregroundStyle(color) }
             }
             Spacer(minLength: 12)
             if card.showsButton {
@@ -54,16 +54,11 @@ struct ResumeCardView: View {
     }
 
     private func resume() {
-        (resuming, refusal) = (true, nil)
-        let (path, repo, issue) = (controlSocketPath(), repo, issue)
+        store.startResuming(epic)
+        let (path, store, epic) = (controlSocketPath(), store, epic)
         DispatchQueue.global().async {
-            let result = resumeEpic(socketPath: path, repo: repo, issue: issue)
-            DispatchQueue.main.async {
-                refusal = resumeFailureWords(result)
-                guard result == .resumed else { return resuming = false }
-                // the card goes with the stuck state at the next snapshot; where it does not (the fixture), the button comes back
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { resuming = false }
-            }
+            let result = resumeEpic(socketPath: path, repo: epic.repo, issue: epic.issue)
+            DispatchQueue.main.async { store.answeredResume(epic, refusal: resumeFailureWords(result)) }
         }
     }
 }

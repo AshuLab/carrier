@@ -72,6 +72,16 @@ describe('invalid config', () => {
     expect(errorsOf({ pollIntervalMinutes: 'soon' }).map((e) => e.path)).toEqual(['pollIntervalMinutes']);
   });
 
+  test('finishedWindowDays defaults to 15 and accepts 1 and 30', () => {
+    expect(load({})).toMatchObject({ ok: true, config: { finishedWindowDays: 15 } });
+    expect(load({ finishedWindowDays: 1 })).toMatchObject({ ok: true, config: { finishedWindowDays: 1 } });
+    expect(load({ finishedWindowDays: 30 })).toMatchObject({ ok: true, config: { finishedWindowDays: 30 } });
+  });
+
+  test.each([0, 31, 7.5, '7'])('finishedWindowDays %j is refused and the error names the field', (value) => {
+    expect(errorsOf({ finishedWindowDays: value }).map((e) => e.path)).toEqual(['finishedWindowDays']);
+  });
+
   test('maxConcurrentEpics 0', () => {
     expect(errorsOf({ limits: { maxConcurrentEpics: 0 } }).map((e) => e.path)).toEqual(['limits.maxConcurrentEpics']);
   });

@@ -29,6 +29,7 @@ export const configSchema = z
   .strictObject({
     root: z.string().min(1).transform(expandHome),
     pollIntervalMinutes: z.number().positive(),
+    finishedWindowDays: z.int().min(1).max(30),
     logLevel: z.enum(LogLevel),
     repos: z
       .array(

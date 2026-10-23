@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { latestBlockers } from '../orchestration/blockers.ts';
 import type { Db } from '../storage/db.ts';
@@ -27,10 +27,10 @@ const maxBlockerTitleLength = 200;
 export function buildSnapshot(
   db: Db,
   {
-    now, maxConcurrentEpics, maxReviews, startedAt, repos, nextCheckAt, problem, paused, slices,
+    now, maxConcurrentEpics, maxReviews, finishedWindowDays, startedAt, repos, nextCheckAt, problem, paused, slices,
     version, pollIntervalMs, rateLimit = null, watched = [], lastEvent = () => null,
   }: {
-    now: number; maxConcurrentEpics: number; maxReviews: number; startedAt: number; repos: number; nextCheckAt: number | null; problem: string | null; paused: boolean;
+    now: number; maxConcurrentEpics: number; maxReviews: number; finishedWindowDays: number; startedAt: number; repos: number; nextCheckAt: number | null; problem: string | null; paused: boolean;
     slices: (repo: string, issue: number) => PanelEpic['slices'];
     version: string;
     pollIntervalMs: number;
@@ -47,6 +47,9 @@ export function buildSnapshot(
   const lastExecution = (epicId: number) => db.select({ id: executions.executionId }).from(executions).where(eq(executions.epicId, epicId)).orderBy(desc(executions.startedAt), sql`rowid desc`).limit(1).get()?.id ?? null;
   const done = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, title: epics.title, labels: epics.labels, prNumber: epics.prNumber, finishedAt: epics.finishedAt }).from(epics).where(eq(epics.status, 'ready_for_test')).orderBy(desc(epics.finishedAt)).limit(5).all()
     .map(({ id, labels, ...rest }) => ({ ...rest, labels: labels ?? [], executionId: lastExecution(id) }));
+  const finished = db.select({ id: epics.id, repo: epics.repo, issue: epics.issue, title: epics.title, labels: epics.labels, prNumber: epics.prNumber, finishedAt: epics.finishedAt, status: epics.status, cancelReason: epics.cancelReason }).from(epics)
+    .where(and(inArray(epics.status, ['merged', 'cancelled']), gte(epics.finishedAt, now - finishedWindowDays * 86_400_000))).orderBy(desc(epics.finishedAt)).all()
+    .map(({ id, labels, finishedAt, status, cancelReason, ...rest }) => ({ ...rest, labels: labels ?? [], finishedAt: finishedAt!, status: status as 'merged' | 'cancelled', cancelReason: status === 'cancelled' ? cancelReason : null, executionId: lastExecution(id) }));
   const epicAgents = (e: { config: EffectiveRepoConfig | null }): PanelAgents | null => e.config && agentsOf(e.config);
   const sessions = shown.flatMap((e) => {
     const agent = epicAgents(e);
@@ -69,6 +72,7 @@ export function buildSnapshot(
     engine: { version, pollIntervalMs, maxConcurrentEpics, rateLimit },
     watched,
     sessions,
+    finished,
     epics: shown.map((e) => {
       const blockers = latestBlockers(db, e.id);
       return {

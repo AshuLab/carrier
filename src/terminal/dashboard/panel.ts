@@ -26,6 +26,7 @@ export function startPanel(
   let drawn = 0;
   const seen = new Map<string, string>();
   let queueSeen = '';
+  let finishedSeen = '';
 
   // The panel owns the screen, so the cursor is hidden while it runs and always given back, also when the process dies on its own.
   const hideCursor = '\x1b[?25l';
@@ -51,7 +52,13 @@ export function startPanel(
       const key = `${e.repo}#${e.issue}`;
       if (seen.get(key) === stateOf(e)) continue;
       seen.set(key, stateOf(e));
-      out.write(`${at} ${renderPanel({ ...s, epics: [e] }).slice(1).map((l) => l.trim()).join(' | ')}\n`);
+      out.write(`${at} ${renderPanel({ ...s, epics: [e], finished: [] }).slice(1).map((l) => l.trim()).join(' | ')}\n`);
+    }
+    // The finished rows when the set changes: their "ago" ticks and does not count.
+    const finished = (s.finished ?? []).map((f) => `${f.repo}#${f.issue}`).join(',');
+    if (finished !== finishedSeen) {
+      finishedSeen = finished;
+      for (const l of renderPanel({ ...s, epics: [] }).slice(1)) out.write(`${at} ${l}\n`);
     }
   };
 

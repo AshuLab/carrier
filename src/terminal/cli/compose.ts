@@ -140,6 +140,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
       now: deps.clock.now(),
       maxConcurrentEpics: limits.maxConcurrentEpics,
       maxReviews: limits.maxReviews,
+      finishedWindowDays: config.finishedWindowDays,
       startedAt,
       repos: config.repos.length,
       nextCheckAt: engine.nextPollAt,

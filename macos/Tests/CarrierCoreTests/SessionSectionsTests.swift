@@ -158,15 +158,16 @@ func theFiveNewestAreShownAndTheRestAreEarlierNewestFirst(total: Int, older: Int
 }
 
 @Test func theEarlierRowOpensAndClosesWithEachPressAndLastsAsLongAsTheFolds() {
+    let ref = EpicRef(repo: "acme/web", issue: 12)
     var folds = SessionFolds()
-    #expect(folds.earlierOpen == false)
-    folds.toggleEarlier()
-    #expect(folds.earlierOpen)
+    #expect(folds.isEarlierOpen(ref) == false)
+    folds.toggleEarlier(ref)
+    #expect(folds.isEarlierOpen(ref))
     // a section folded by hand does not touch it
     folds.toggle(sessionList(many(2)).sections[0])
-    #expect(folds.earlierOpen)
-    folds.toggleEarlier()
-    #expect(folds.earlierOpen == false)
+    #expect(folds.isEarlierOpen(ref))
+    folds.toggleEarlier(ref)
+    #expect(folds.isEarlierOpen(ref) == false)
 }
 
 // MARK: what the poller is asked for
@@ -191,10 +192,22 @@ func theFiveNewestAreShownAndTheRestAreEarlierNewestFirst(total: Int, older: Int
     data.sessions = many(7)
     var folds = SessionFolds()
     #expect(epicFocus(ref, running: false, data: data, folds: folds).counting == ["s0", "s1", "s2", "s3", "s4"])
-    folds.toggleEarlier()
+    folds.toggleEarlier(ref)
     #expect(epicFocus(ref, running: false, data: data, folds: folds).counting == ["s0", "s1", "s2", "s3", "s4", "s5", "s6"])
-    folds.toggleEarlier()
+    folds.toggleEarlier(ref)
     #expect(epicFocus(ref, running: false, data: data, folds: folds).counting == ["s0", "s1", "s2", "s3", "s4"])
+}
+
+@Test func theEarlierRowOfOneEpicDoesNotOpenAnothers() {
+    let a = EpicRef(repo: "acme/web", issue: 12)
+    let b = EpicRef(repo: "acme/web", issue: 13)
+    var data = EpicData()
+    data.sessions = many(7)
+    var folds = SessionFolds()
+    folds.toggleEarlier(a)
+    #expect(folds.isEarlierOpen(a) && folds.isEarlierOpen(b) == false)
+    #expect(epicFocus(a, running: false, data: data, folds: folds).counting.count == 7)
+    #expect(epicFocus(b, running: false, data: data, folds: folds).counting == ["s0", "s1", "s2", "s3", "s4"])
 }
 
 // MARK: the result card

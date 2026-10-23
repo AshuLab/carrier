@@ -53,7 +53,7 @@ struct EpicView: View {
                     EmptyStateView(state: .noActivity).frame(minHeight: 260)
                 }
             } else {
-                SessionSectionsView(list: sessions, folds: $folds)
+                SessionSectionsView(epic: EpicRef(repo: subject.repo, issue: subject.issue), list: sessions, folds: $folds)
             }
         case .filesChanged:
             FilesChangedView(files: files)
@@ -101,6 +101,8 @@ private struct HeaderGlyph: View {
             case .running: SpinningRing(diameter: 26, lineWidth: 3)
             case .needsYou: disc(.orange, "!")
             case .ready: disc(.blue, "✓")
+            case .done: disc(.green, "✓")
+            case .cancelled: disc(.gray, "✕")
             case .waiting: Circle().strokeBorder(Color.gray, lineWidth: 3).frame(width: 24, height: 24)
             }
         }
@@ -122,7 +124,8 @@ private struct StatePill: View {
         case .running: .green
         case .needsYou: .orange
         case .ready: .blue
-        case .waiting: .gray
+        case .waiting, .cancelled: .gray
+        case .done: .green
         }
         HStack(spacing: 6) {
             Circle().fill(color).frame(width: 6, height: 6)

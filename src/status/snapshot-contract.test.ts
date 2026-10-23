@@ -47,6 +47,9 @@ test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTUR
   add('acme/api', 21, 'queued', { queuedAt: 21_000 });
   const shipped = add('acme/web', 30, 'ready_for_test', { prNumber: 77, finishedAt: 95_000 });
   add('acme/api', 31, 'ready_for_test', { finishedAt: 80_000 });
+  const merged = add('acme/web', 40, 'merged', { prNumber: 88, finishedAt: 98_000 });
+  add('acme/api', 41, 'cancelled', { finishedAt: 90_000, cancelReason: 'final PR closed without merge' });
+  exec('exec-ship-40', merged.id, 'ship', 3_000);
   exec('exec-ship-12', inReview.id, 'ship', 1_000);
   db.update(executions).set({ status: 'finished', finishedAt: 39_000 }).where(eq(executions.executionId, 'exec-ship-12')).run();
   exec('exec-review-12', inReview.id, 'review', 40_000);
@@ -56,7 +59,7 @@ test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTUR
   db.insert(callerResults).values({ executionId: 'exec-review-12', outcome: 'changes_requested', result: JSON.stringify({ blockers: [{ title: 'a' }, { title: 'b' }] }) }).run();
 
   const snapshot = buildSnapshot(db, {
-    now: 100_000, maxConcurrentEpics: 3, maxReviews: 5, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: 'GitHub is not answering', paused: true,
+    now: 100_000, maxConcurrentEpics: 3, maxReviews: 5, finishedWindowDays: 15, startedAt: 40_000, repos: 2, nextCheckAt: 160_000, problem: 'GitHub is not answering', paused: true,
     slices: (repo, issue) => (repo === 'acme/web' && issue === 12 ? { done: 3, total: 5 } : null),
     version: '0.1.0', pollIntervalMs: 300_000,
     rateLimit: { remaining: 4_812, limit: 5_000, resetAt: 130_000, profile: 'orchestrator' },

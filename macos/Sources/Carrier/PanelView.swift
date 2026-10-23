@@ -58,11 +58,12 @@ struct PanelView: View {
         @Bindable var shell = model.shell
         @Bindable var epics = model.epics
         let groupBy = Binding(get: { model.groupBy }, set: { model.groupBy = $0; SidebarStore().groupBy = $0 })
+        let collapse = Binding(get: { model.collapse }, set: { model.collapse = $0 })
         let columns = Binding<NavigationSplitViewVisibility>(
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, state: model.state, selection: $shell.selection, groupBy: groupBy, onAbout: shell.showAbout)
+            SidebarView(snapshot: snapshot, state: model.state, selection: $shell.selection, groupBy: groupBy, collapse: collapse, onAbout: shell.showAbout)
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
             // resizes and the app dies with "more Update Constraints passes than there are views"
@@ -70,9 +71,10 @@ struct PanelView: View {
                 Group {
                     if let epic {
                         let data = model.epics.data[EpicRef(repo: epic.subject.repo, issue: epic.subject.issue)]
+                        let over: Bool = if case .ended = epic.subject { true } else { false }
                         EpicView(
                             subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files), now: epic.now,
-                            sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now), folds: $epics.folds, files: data?.files,
+                            sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false), folds: $epics.folds, files: data?.files,
                             plan: queuedPlan(epic.subject)
                         )
                             .id("\(epic.subject.repo)#\(epic.subject.issue)")

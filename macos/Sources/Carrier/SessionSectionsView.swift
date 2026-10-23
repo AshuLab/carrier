@@ -8,6 +8,7 @@ struct SessionSectionsView: View {
     static let layout = "lazy stack, pinned section headers"
     static let pinned: PinnedScrollableViews = .sectionHeaders
 
+    let epic: EpicRef
     let list: SessionList
     @Binding var folds: SessionFolds
     @State private var outputs = OutputFolds()
@@ -17,10 +18,10 @@ struct SessionSectionsView: View {
         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: Self.pinned) {
             sessionSections(list.sections)
             if list.earlier.isEmpty == false {
-                Button { folds.toggleEarlier() } label: { EarlierSessionsRow(count: list.earlier.count, open: folds.earlierOpen) }
+                Button { folds.toggleEarlier(epic) } label: { EarlierSessionsRow(count: list.earlier.count, open: folds.isEarlierOpen(epic)) }
                     .buttonStyle(.plain)
                     .padding(.bottom, 10)
-                if folds.earlierOpen { sessionSections(list.earlier) }
+                if folds.isEarlierOpen(epic) { sessionSections(list.earlier) }
             }
         }
     }

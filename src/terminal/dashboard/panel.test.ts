@@ -100,3 +100,15 @@ test('the cursor is hidden by the first draw, returned on stop and also if the p
   stopPlain();
   expect(plain.writes.join('')).not.toContain('\x1b[?25'); // a pipe never gets cursor codes
 });
+
+test('without a terminal the finished epics are written once, and again only when the set changes', () => {
+  const { out, writes } = output(false);
+  state = { ...state, epics: [], finished: [{ repo: 'acme/web', issue: 3, title: 'T', labels: [], prNumber: 9, finishedAt: 0, status: 'merged', cancelReason: null, executionId: null }] };
+  const stop = startPanel(snapshot, out);
+  vi.advanceTimersByTime(3000);
+  expect(writes.filter((w) => w.includes('done  acme/web#3  PR #9')).length).toBe(1);
+  state = { ...state, finished: [] };
+  vi.advanceTimersByTime(1000);
+  expect(writes.filter((w) => w.includes('done  acme/web#3')).length).toBe(1);
+  stop();
+});

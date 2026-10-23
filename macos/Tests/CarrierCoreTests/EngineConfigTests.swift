@@ -29,7 +29,8 @@ private let file = Data(#"{"root":"~/work","repos":[{"name":"a/b"}],"limits":{"m
     config.maxExecutionRetries = -1
     config.maxExecutionHours = 0
     config.githubCallTimeoutSeconds = 0
-    #expect(Set(config.problems.keys) == ["pollIntervalMinutes", "logLevel", "maxConcurrentEpics", "maxReviews", "maxExecutionRetries", "maxExecutionHours", "githubCallTimeoutSeconds"])
+    config.finishedWindowDays = 0
+    #expect(Set(config.problems.keys) == ["pollIntervalMinutes", "logLevel", "maxConcurrentEpics", "maxReviews", "maxExecutionRetries", "maxExecutionHours", "githubCallTimeoutSeconds", "finishedWindowDays"])
     config.maxExecutionRetries = 0
     config.maxExecutionHours = nil
     #expect(config.problems["maxExecutionRetries"] == nil && config.problems["maxExecutionHours"] == nil)
@@ -59,4 +60,35 @@ private let file = Data(#"{"root":"~/work","repos":[{"name":"a/b"}],"limits":{"m
     var config = EngineConfig()
     config.maxReviews = 0
     #expect(config.applied(to: file) == nil)
+}
+
+@Test func theFinishedWindowDefaultsTo15AndIsReadFromTheFile() {
+    #expect(EngineConfig().finishedWindowDays == 15)
+    #expect(EngineConfig(json: Data("{}".utf8)).finishedWindowDays == 15)
+    #expect(EngineConfig(json: Data(#"{"finishedWindowDays":7}"#.utf8)).finishedWindowDays == 7)
+}
+
+@Test func theFinishedWindowTakesWholeDaysFrom1To30() {
+    var config = EngineConfig()
+    for days in [0, 31, -1] {
+        config.finishedWindowDays = days
+        #expect(config.problems["finishedWindowDays"] == "Must be a whole number from 1 to 30")
+        #expect(config.applied(to: file) == nil)
+    }
+    for days in [1, 30] {
+        config.finishedWindowDays = days
+        #expect(config.problems.isEmpty)
+    }
+}
+
+@Test func theFinishedWindowIsSavedAtTheTopLevelWithoutTouchingTheRest() throws {
+    var config = EngineConfig(json: file)
+    config.finishedWindowDays = 7
+    let written = object(config.applied(to: file))
+    #expect(written["finishedWindowDays"] as? Int == 7)
+    #expect(written["root"] as? String == "~/work" && (written["repos"] as? [Any])?.count == 1)
+    #expect((written["limits"] as? [String: Any])?["maxReviews"] as? Int == 7)
+    #expect(EngineConfig(json: try #require(config.applied(to: file))) == config)
+    config.finishedWindowDays = 15  // back to the default: leaves the file
+    #expect(object(config.applied(to: file))["finishedWindowDays"] == nil)
 }

@@ -42,6 +42,8 @@ export type PanelSnapshot = {
   problem: string | null;
   /** Intake is paused by the person at the terminal. */
   paused: boolean;
+  /** Each watched repo's last check; absent from an engine that does not send it (the control snapshot always has it). */
+  watched?: { repo: string; ok: boolean; error: string | null }[];
   /** The epics that ended ready for test, most recent first. */
   done: { repo: string; issue: number; title: string | null; labels: string[]; prNumber: number | null; finishedAt: number | null; executionId: string | null }[];
 };

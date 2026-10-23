@@ -7,10 +7,13 @@ import Foundation
 public struct LaneSection: Equatable, Identifiable {
     /// The agent id: the key, never the lane or the slice (a lane is reused).
     public var id: String
-    /// "Lane 1 · #653", "#653", "Lane 3"; the subagent's own description when neither was found.
+    /// The slice's title in the epic's list; else the subagent's own description ("Subagent" before it arrives).
     public var title: String
-    /// The lane number or the slice was inferred, so the section says so.
-    public var hint: Bool
+    /// The epic's title for `slice`; nil with no slice or no match in the list.
+    public var sliceTitle: String?
+    public var state: SubagentState
+    /// Ms from its first start to the end of its first run; nil while it runs.
+    public var duration: Int?
     public var counts: String
     public var items: [TranscriptItem]
     /// The slice the subagent builds, when its description says so (a hint, like the title).
@@ -18,6 +21,9 @@ public struct LaneSection: Equatable, Identifiable {
     /// The lane it works in, when its worktree says so (a hint).
     public var laneNumber: Int?
 }
+
+/// A subagent's first run: running (a start with no end), finished (the end event completed) or failed (it did not complete).
+public enum SubagentState: Equatable { case running, finished, failed }
 
 /// The digits right after `marker`, ignoring case: `number(after: "slice #", in: "Build slice #653")` is 653.
 func number(after marker: String, in text: String) -> Int? {
@@ -49,11 +55,17 @@ struct LaneState: Equatable {
         builder.reset()
     }
 
-    var section: LaneSection {
+    /// `running` is whether the session is: a start with no end in one that is not did not complete.
+    func section(slices: [EpicReply.Slice], running: Bool) -> LaneSection {
         let slice = description.flatMap { number(after: "slice #", in: $0) }
-        let parts = [lane.map { "Lane \($0)" }, slice.map { "#\($0)" }].compactMap { $0 }
+        let sliceTitle = slice.flatMap { number in slices.first { $0.number == number }?.title }
+        let tasks = events.filter { $0.kind == "task" }
+        let start = tasks.first { $0.status == nil }
+        let end = tasks.first { $0.status != nil }
         return LaneSection(
-            id: agentId, title: parts.isEmpty ? description ?? "Subagent" : parts.joined(separator: " · "), hint: parts.isEmpty == false,
+            id: agentId, title: sliceTitle ?? description ?? "Subagent", sliceTitle: sliceTitle,
+            state: end.map { $0.status == "ok" ? .finished : .failed } ?? (running ? .running : .failed),
+            duration: start.flatMap { start in end.map { $0.at - start.at } },
             counts: countsLine(sessionCounts(events)), items: builder.items, slice: slice, laneNumber: lane
         )
     }
@@ -61,5 +73,7 @@ struct LaneState: Equatable {
 
 extension Transcript {
     /// The subagents with events, in order of appearance. Events with no agent id are in `items`.
-    public var laneSections: [LaneSection] { lanes.map(\.section) }
+    public func laneSections(slices: [EpicReply.Slice] = [], running: Bool = false) -> [LaneSection] {
+        lanes.map { $0.section(slices: slices, running: running) }
+    }
 }

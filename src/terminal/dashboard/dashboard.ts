@@ -128,6 +128,10 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     // What the agent is doing: three lines for the selected card, one for the others.
     const now = e.executionId && activity ? activity(e.executionId, chosen ? 3 : 1) : [];
     now.forEach((l, i) => add(` ${bar} ${i === 0 ? paint('now', 'dim') : '   '}  ${paint(printable(l), 'dim')}`));
+    // The open blockers of a review or fix, by title, listed the way the queue is.
+    const titles = e.stage === 'review' || e.stage === 'fix' ? (e.blockerTitles ?? []) : [];
+    for (const t of titles.slice(0, 3)) add(` ${bar}   ${paint(`· ${printable(t)}`, 'yellow')}`);
+    if (titles.length > 0 && e.blockers > 3) add(` ${bar}   ${paint(`… and ${e.blockers - 3} more`, 'dim')}`);
   };
   if (running.length > 0) {
     section('RUNNING', 'cyan');
@@ -153,6 +157,13 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
   if (s.done.length > 0) {
     section('READY FOR TEST ✔', 'green');
     for (const d of s.done) add(`${lead(d.repo, d.issue, '   ')}${d.repo} #${d.issue}${d.prNumber === null ? '' : ` · PR #${d.prNumber}`} · ${ago(d.finishedAt)}${titled(d.title)}`); // last: a cut title costs less than a cut PR number or time
+  }
+
+  // Only while GitHub refused some repo's last check; a healthy Carrier shows nothing extra.
+  const refused = (s.watched ?? []).filter((w) => !w.ok);
+  if (refused.length > 0) {
+    section('REPOS GITHUB REFUSED ▲', 'yellow');
+    for (const w of refused) add(`   ${paint(w.repo, 'bold')}  ${paint(printable(w.error ?? 'the last check failed'), 'red')}`);
   }
 
   if (s.epics.length === 0 && s.queue.length === 0 && s.done.length === 0) {

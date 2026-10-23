@@ -8,29 +8,37 @@ struct TranscriptRows: View {
     let content: TranscriptBody
     @Binding var outputs: OutputFolds
     @Binding var groups: GroupFolds
+    @Binding var slices: SliceFolds
 
     var body: some View {
         switch content {
         case .items(let items) where items.isEmpty:
             EmptyStateView(state: .noActivity).frame(minHeight: 170).sessionRow()
         case .items(let items):
-            ForEach(items) { flow in
-                switch flow {
-                case .item(let item):
-                    TranscriptItemView(item: item, outputs: $outputs)
-                        .padding(.horizontal, 12).padding(.vertical, flow.verticalMargin).sessionRow()
-                case .group(let id, let calls):
-                    ToolGroupView(id: id, calls: calls, groups: $groups, outputs: $outputs)
-                        .padding(.horizontal, 12).padding(.vertical, flow.verticalMargin).sessionRow()
-                case .slice(let lane):
-                    // its header and rows are rows of the stack of their own
-                    LaneSectionView(lane: lane, outputs: $outputs, groups: $groups)
-                }
-            }
+            ForEach(items) { FlowItemView(flow: $0, outputs: $outputs, groups: $groups, slices: $slices).sessionRow() }
         case .tail(let lines):
             Text(lines.isEmpty ? "No output yet" : lines.joined(separator: "\n"))
                 .font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary)
                 .textSelection(.enabled).padding(12).sessionRow()
+        }
+    }
+}
+
+/// One entry of the log with its margins: a line, a group of calls or a slice row. A slice's own rows are drawn with it too.
+struct FlowItemView: View {
+    let flow: FlowItem
+    @Binding var outputs: OutputFolds
+    @Binding var groups: GroupFolds
+    @Binding var slices: SliceFolds
+
+    var body: some View {
+        switch flow {
+        case .item(let item):
+            TranscriptItemView(item: item, outputs: $outputs).padding(.horizontal, 12).padding(.vertical, flow.verticalMargin)
+        case .group(let id, let calls):
+            ToolGroupView(id: id, calls: calls, groups: $groups, outputs: $outputs).padding(.horizontal, 12).padding(.vertical, flow.verticalMargin)
+        case .slice(let lane):
+            LaneSectionView(lane: lane, outputs: $outputs, groups: $groups, slices: $slices)
         }
     }
 }

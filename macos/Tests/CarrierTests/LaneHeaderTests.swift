@@ -17,12 +17,22 @@ private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSec
     return try #require(renderer.cgImage).height
 }
 
-// A slice's row is the same height folded or open, running, finished or failed, with or without a lane.
+// A slice's row is two lines, 28 + at least 18 + 6 below, with no surface; the same height folded or open, running, finished or
+// failed, with or without a lane or a pull request.
 @MainActor @Test func aLaneHeaderKeepsItsHeight() throws {
     let base = try height(lane(), open: true)
+    #expect(base >= 2 * (28 + 18 + 6))
     #expect(try height(lane(), open: false) == base)
     for state in [SubagentState.running, .failed] { #expect(try height(lane(state), open: true) == base) }
     #expect(try height(lane(lane: nil), open: true) == base)
+    // a slice with no number is titled by its description
+    var untitled = lane()
+    untitled.slice = nil
+    #expect(try height(untitled, open: true) == base)
+    // just started: no pills, only "starting…"
+    var starting = lane(.running)
+    (starting.items, starting.counts, starting.timeLabel) = ([], SessionCounts(), nil)
+    #expect(try height(starting, open: true) == base)
     var bare = lane()
     bare.pullRequest = "no PR yet"
     #expect(try height(bare, open: true) == base)

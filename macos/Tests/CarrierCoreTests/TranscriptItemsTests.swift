@@ -257,6 +257,16 @@ private func shell(_ id: Int, _ call: String, status: String, output: [String]?)
     #expect(folds.isOpen(items[0].id, ok) == false)
 }
 
+@Test func aSliceRowIsClosedUntilTheUserOpensItAndTheChoiceIsKeptPerSubagent() {
+    var folds = SliceFolds()
+    #expect(folds.isOpen("a") == false)
+    folds.toggle("a")
+    #expect(folds.isOpen("a"))
+    #expect(folds.isOpen("b") == false)
+    folds.toggle("a")
+    #expect(folds.isOpen("a") == false)
+}
+
 // MARK: long transcripts
 
 private func reply(_ events: [ExecEvent]) -> EventsReply { EventsReply(events: events, next: events.last?.id ?? 0, running: true, structured: true) }

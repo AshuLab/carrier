@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Agent output — design spec</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* s- prefix: nothing collides with shared.css. 1 px here = 1 pt in the app. */
+body{padding-bottom:120px}
+.s-wrap{max-width:1240px}
+h2.s-h{font-size:18px;margin:46px 0 4px;padding-top:10px;border-top:.5px solid var(--line)}
+h3.s-h3{font-size:14px;margin:26px 0 2px}
+.s-lead{color:var(--dim);max-width:860px;margin:0 0 12px;line-height:1.5}
+.s-lead b,.s-lead code,.s-t2 code,.s-rules code{color:var(--text)}
+code{font:12px var(--mono);background:var(--card);padding:1px 5px;border-radius:5px}
+.s-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(520px,1fr));gap:22px 22px;align-items:start}
+.s-grid.s-wide{grid-template-columns:repeat(auto-fill,minmax(760px,1fr))}
+.s-spec>h4{margin:0 0 1px;font-size:12.5px;font-weight:650}
+.s-spec>p{margin:0 0 7px;color:var(--dim);font-size:12px;line-height:1.45;max-width:560px}
+.s-spec>p b{color:var(--text)}
+.s-bar{position:sticky;top:0;z-index:20;display:flex;gap:8px;align-items:center;padding:8px 0 10px;background:linear-gradient(var(--bg),transparent)}
+
+/* ---- the session card: the window's colour plus the card tint (SessionCard.tint) ---- */
+.s-card{border-radius:16px;background:linear-gradient(var(--card),var(--card)),var(--bg);box-shadow:0 0 0 .5px var(--line) inset;padding:6px 0;overflow:hidden;position:relative}
+.s-card.s-bare{padding:0}
+
+/* ---- rows ---- */
+.s-row{display:flex;align-items:center;gap:8px;padding:0 12px;height:26px;font-size:12px;position:relative}
+.s-row.s-hover,.s-row:hover{background:color-mix(in srgb,var(--text) 5%,transparent)}
+.s-row.s-focus{outline:2px solid var(--blue);outline-offset:-2px;border-radius:6px}
+.s-ic{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--dim)}
+.s-ic svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.s-ic.s-red{color:var(--red)}
+.s-t{flex:1;min-width:0;font:12px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-n{font:11px var(--font);color:var(--faint);margin-left:5px}
+.s-du{width:44px;text-align:right;font:11px var(--font);font-variant-numeric:tabular-nums;color:var(--faint);white-space:nowrap;flex:none;opacity:0}
+.s-row:hover .s-du,.s-row.s-hover .s-du,.s-du.s-on{opacity:1}
+.s-du.s-bad{color:var(--red)}
+.s-sl{width:14px;height:14px;flex:none;display:grid;place-items:center}
+.s-x{width:14px;height:14px;border-radius:50%;background:var(--red);display:block}
+.s-x svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:1.6;stroke-linecap:round}
+.s-chv{width:10px;height:10px;flex:none;color:var(--faint);opacity:0;transition:transform .12s}
+.s-chv svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;display:block}
+.s-row:hover .s-chv,.s-row.s-hover .s-chv,.s-chv.s-on{opacity:1}
+.s-chv.s-open{transform:rotate(90deg);opacity:1}
+.s-spin{width:12px;height:12px;border-radius:50%;border:1.8px solid color-mix(in srgb,var(--text) 22%,transparent);border-top-color:var(--dim);animation:ss .9s linear infinite;flex:none}
+@media (prefers-reduced-motion:reduce){.s-spin{animation:none}}
+@keyframes ss{to{transform:rotate(360deg)}}
+.s-skbox{width:16px;height:16px;border-radius:5px;background:#6e6e78;display:grid;place-items:center;flex:none}
+.s-skbox svg{width:10px;height:10px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.s-sk{font:500 12px var(--mono)}
+
+/* ---- text ---- */
+.s-msg{margin:8px 12px;border-radius:12px;background:var(--card2);padding:10px 12px;font-size:13px;line-height:1.5}
+.s-msg ul{margin:5px 0 0;padding:0;list-style:none}.s-msg li{display:flex;gap:7px;margin-top:5px}.s-msg li::before{content:"•";color:var(--dim)}
+.s-msg code{font-size:12px}
+.s-note,.s-err{margin:6px 12px;font-size:12px;line-height:1.45}
+.s-note{color:var(--dim)}.s-err{color:var(--red)}
+
+/* ---- groups ---- */
+.s-grp{display:flex;align-items:center;gap:8px;padding:0 12px;height:28px;font-size:12px;color:var(--dim);cursor:pointer;position:relative}
+.s-grp:hover,.s-grp.s-hover{background:color-mix(in srgb,var(--text) 5%,transparent)}
+.s-grp b{color:var(--text);font-weight:550}
+.s-grp .s-lab{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.s-grp .s-chv{opacity:1}
+.s-grp .s-du{opacity:1}
+.s-kids{position:relative;padding-left:18px}
+.s-kids::before{content:"";position:absolute;left:17px;top:0;bottom:0;width:1.5px;background:color-mix(in srgb,var(--text) 14%,transparent);border-radius:1px}
+.s-kids .s-row{padding-left:12px}
+
+/* ---- detail (flat grey) ---- */
+.s-det{margin:2px 12px 8px 36px;border-radius:12px;background:var(--card2);overflow:hidden;font:11.5px/1.5 var(--mono)}
+.s-kids .s-det{margin-left:36px}
+.s-det .s-cmd{padding:8px 14px;color:var(--dim);display:flex;gap:9px;align-items:baseline;word-break:break-all;border-bottom:.5px solid var(--line)}
+.s-det .s-cmd i{font-style:normal;color:var(--dim);font-weight:600}
+.s-det .s-out{padding:8px 14px;white-space:pre-wrap;color:var(--text);position:relative}
+.s-det .s-out.s-fade{-webkit-mask-image:linear-gradient(#000 78%,rgba(0,0,0,.25));mask-image:linear-gradient(#000 78%,rgba(0,0,0,.25))}
+.s-det .s-out .s-b{color:var(--red)}
+.s-det .s-none{padding:9px 14px;color:var(--faint);font:11.5px var(--font)}
+.s-det .s-ft{display:flex;gap:12px;padding:7px 14px;border-top:.5px solid var(--line);font:11px var(--font);color:var(--faint)}
+.s-ft a{color:var(--blue)}.s-ft .s-sp{flex:1}.s-ft .s-cp{color:var(--dim)}
+
+/* ---- edit card ---- */
+.s-ed{margin:6px 12px;border-radius:12px;background:var(--card2);overflow:hidden}
+.s-eh{display:flex;gap:8px;align-items:center;padding:7px 10px;min-height:34px}
+.s-eic{width:20px;height:20px;border-radius:6px;background:#0a84ff;display:grid;place-items:center;flex:none}
+.s-eic svg{width:11px;height:11px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.s-en{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.s-en b{font-weight:600}.s-en span{font:11px var(--mono);color:var(--faint);margin-left:6px}
+.s-cnt{font:500 12px var(--font);font-variant-numeric:tabular-nums}.s-cnt.s-a{color:var(--green)}.s-cnt.s-r{color:var(--red)}
+.s-ef{padding:0 10px 8px 38px;font-size:12px;color:var(--red);line-height:1.4}
+.s-df{background:#0d0d10;font:11.5px/17px var(--mono);color:#d6d6dc;padding:5px 0}
+.s-df div{padding:0 14px;white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.s-df .s-a{background:rgba(124,233,135,.14);color:#7ce987}.s-df .s-r{background:rgba(255,123,114,.14);color:#ff7b72}
+.s-df .s-more{background:#0d0d10;font:11px var(--font);color:#6aa3ff;padding:5px 14px 3px;border-top:.5px solid rgba(255,255,255,.1);margin-top:4px}
+
+/* ---- lane card ---- */
+.s-ln{position:relative}
+.s-lh{cursor:pointer;padding-bottom:6px}
+.s-lh:hover,.s-lh.s-hover{background:color-mix(in srgb,var(--text) 5%,transparent)}
+.s-lh .s-row{background:none!important}
+.s-lt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-weight:600}
+.s-lt i{font-style:normal;font-weight:500;color:var(--dim);margin-right:6px}
+.s-l2{display:flex;align-items:center;gap:8px;padding:0 12px 0 36px;flex-wrap:wrap;row-gap:3px;min-height:18px}
+.s-kids.s-lk{padding-left:24px}
+.s-kids.s-lk::before{left:19px}
+.s-meta{font-size:11px;color:var(--dim);white-space:nowrap}.s-meta .s-g{color:var(--green)}.s-meta .s-rd{color:var(--red)}
+.s-meta span+span::before{content:"·";margin:0 6px;color:var(--faint)}
+.s-pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--dim);background:color-mix(in srgb,var(--dim) 16%,transparent);border-radius:99px;padding:2px 8px;white-space:nowrap}
+.s-pill b{color:var(--text);font-weight:600}.s-pill.s-red{color:var(--red);background:rgba(255,69,58,.18)}.s-pill.s-red b{color:var(--red)}
+.s-pill svg{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.s-pill .s-ga{color:var(--green)}.s-pill .s-gr{color:var(--red)}
+.s-ok{width:14px;height:14px;border-radius:50%;background:var(--green);display:block}
+.s-ok svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---- measures ---- */
+.s-seg{display:flex;height:20px;margin:6px 0 0;font:600 9.5px var(--font);color:#fff;border-radius:4px;overflow:hidden;gap:1px}
+.s-seg div{display:grid;place-items:center;white-space:nowrap;overflow:hidden;background:#5a6fd6}
+.s-seg .s-f{flex:1;background:#8a8a95}.s-seg .s-g8{background:transparent;color:var(--faint);width:8px;box-shadow:0 0 0 .5px var(--line) inset;font-size:8px}.s-seg .s-i{background:#3f9d6b}
+.s-leg{font-size:11px;color:var(--faint);margin-top:4px}
+table.s-tb{border-collapse:collapse;width:100%;max-width:1100px;font-size:12px}
+.s-tb th{text-align:left;color:var(--faint);font-weight:600;font-size:11px;padding:6px 10px;border-bottom:.5px solid var(--line);white-space:nowrap}
+.s-tb td{padding:6px 10px;border-bottom:.5px solid var(--line);vertical-align:top;color:var(--dim);line-height:1.4}
+.s-tb td:first-child{color:var(--text);white-space:nowrap}
+.s-tb code{font-size:11px}
+.s-sw{display:inline-block;width:34px;height:16px;border-radius:5px;vertical-align:middle;margin-right:8px;box-shadow:0 0 0 .5px var(--line) inset}
+.s-ichg{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;max-width:1100px}
+.s-ichg>div{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--card);font-size:12px;color:var(--dim)}
+.s-ichg b{color:var(--text);font-weight:600;display:block}.s-ichg code{font-size:11px}
+.s-rules{max-width:900px;color:var(--dim);line-height:1.55;font-size:13px}
+.s-rules li{margin:5px 0}.s-rules b{color:var(--text)}
+.s-rules ol,.s-rules ul{padding-left:20px}
+.s-tag{display:inline-block;font:600 10px var(--font);padding:1px 7px;border-radius:99px;background:var(--card2);color:var(--dim);margin-left:6px;vertical-align:middle}
+.s-tag.s-new{background:rgba(48,209,88,.18);color:var(--green)}.s-tag.s-chg{background:rgba(255,159,10,.18);color:var(--orange)}.s-tag.s-del{background:rgba(255,69,58,.18);color:var(--red)}
+.s-warn{margin:8px 0 0;padding:12px 16px;border-radius:12px;background:rgba(255,159,10,.1);color:var(--dim);max-width:900px;line-height:1.5;font-size:12.5px}
+.s-warn b{color:var(--orange)}
+</style></head><body><div class="s-wrap">
+<div class="s-bar"><h1 style="margin:0;flex:1">Agent output — design spec</h1><button class="tog" onclick="document.body.classList.toggle('light')">Light / Dark</button></div>
+<div class="sub">What we decided, drawn to the point: every state, the numbers (1 px here = 1 pt in the app), the colours as SwiftUI values, the rules, and what to touch. Dark by default; the button switches the whole page to light so both can be checked.</div>
+
+<h2 class="s-h">0 · What was decided</h2>
+<ol class="s-rules">
+<li><b>Lines — D (quiet + grouped).</b> A run of ≥ 2 successful calls folds into one group row. A lone call is one quiet line. A failed call is never inside a group; it breaks the run, shows a red ✕ and starts open. No ✓ for success anywhere in the log.</li>
+<li><b>Detail — flat grey.</b> The opened call is a flat grey block (same grey as the message bubble), no glass, no pill. Red only for what failed (<code>Exit code N</code>), the rest in normal text.</li>
+<li><b>Edit — name first.</b> File name bold, folder dim after it, counts once, no ✓, no duration, no inline summary.</li>
+<li><b>Slices — R (the card where it starts).</b> The flow is one chronological list. A slice is a row (two lines, chevron at the side) placed where it was taken; the row is alive (spinner → ✓ / ✕), its lines open in place under it. Lanes are no longer stacked after the main agent.</li>
+</ol>
+
+<h2 class="s-h">1 · Tokens</h2>
+<h3 class="s-h3">1.1 Anatomy of the pieces, in points</h3>
+<p class="s-lead">Every row is inset <b>12</b> from the card's edge (the same as the session header). The columns on the right are <b>reserved</b> on every call line, whether they show something or not, so titles always cut at the same x and nothing jumps on hover.</p>
+<div class="s-grid">
+<div class="s-spec"><h4>Call line · height 26</h4><p>inset 12 · icon 16 · 8 · title (grows) · 8 · duration column 44 (right aligned) · 8 · status 14 · 8 · chevron 10 · inset 12. These three right-hand columns are the same on <b>every</b> row type (calls, groups, skills, slices), so durations and chevrons line up down the whole log.</p>
+<div class="s-card"><div class="s-row s-hover"><span class="s-ic" id="a1"></span><span class="s-t">git status --porcelain<span class="s-n">+7</span></span><span class="s-du">2.0 s</span><span class="s-sl"></span><span class="s-chv s-on" id="a1c"></span></div></div>
+<div class="s-seg"><div class="s-i" style="width:12px">12</div><div class="s-i" style="width:16px">16</div><div class="s-g8">8</div><div class="s-f">title</div><div class="s-g8">8</div><div style="width:44px">44</div><div class="s-g8">8</div><div style="width:14px">14</div><div class="s-g8">8</div><div style="width:10px">10</div><div class="s-i" style="width:12px">12</div></div></div>
+
+<div class="s-spec"><h4>Group header · height 28</h4><p>inset 12 · chevron 10 · 8 · label (grows) · 8 · duration column 44 · 8 · status 14 (empty) · 8 · chevron slot 10 (empty) · inset 12. The duration therefore sits in the same column as a call's. The children are indented 18 with a 1.5 rule at x = 17 (the chevron's centre); their row inset is 12, so their icons start at x = 30, exactly under the label.</p>
+<div class="s-card" id="a2"></div>
+<div class="s-seg"><div class="s-i" style="width:12px">12</div><div style="width:10px">10</div><div class="s-g8">8</div><div class="s-f">label</div><div class="s-g8">8</div><div style="width:44px">44</div><div class="s-g8">8</div><div style="width:14px">14</div><div class="s-g8">8</div><div style="width:10px">10</div><div class="s-i" style="width:12px">12</div></div></div>
+
+<div class="s-spec"><h4>Edit card · header min 34</h4><p>card inset 12, radius 12 · header padding 10 × 7 · icon 20 (radius 6) · 8 · name + folder · 8 · counts (4 apart). The diff block touches the card's edges; its text inset is 14, the same as the call detail's.</p>
+<div class="s-card" id="a3"></div>
+<div class="s-seg"><div class="s-i" style="width:10px">10</div><div style="width:20px">20</div><div class="s-g8">8</div><div class="s-f">name + folder</div><div class="s-g8">8</div><div style="width:30px">+12</div><div style="width:4px">4</div><div style="width:20px">−1</div><div class="s-i" style="width:10px">10</div></div></div>
+
+<div class="s-spec"><h4>Slice row · two lines, no box</h4><p>It is a row like the others: line 1 (height 28) = state 16 · 8 · "#N title" · 8 · chevron slot 10, in the <b>same</b> columns as a call line (the chevron is always visible: it is the only way in). Line 2 repeats today's info, indented 36 so it starts under the title: pills, then the meta. 6 below. Hover tints both lines.</p>
+<div class="s-card" id="a4"></div>
+<div class="s-seg"><div class="s-i" style="width:12px">12</div><div style="width:16px">16</div><div class="s-g8">8</div><div class="s-f">#N title</div><div class="s-g8">8</div><div style="width:10px">10</div><div class="s-i" style="width:12px">12</div></div><div class="s-leg">line 1</div><div class="s-seg"><div class="s-i" style="width:36px">36</div><div class="s-f">pills · meta</div><div class="s-i" style="width:12px">12</div></div><div class="s-leg">line 2</div></div>
+</div>
+
+<h3 class="s-h3">1.2 Vertical rhythm</h3>
+<p class="s-lead">Each item carries its own top/bottom margin; the gap between two neighbours is the sum of both. A call line and a group header have <b>none</b> (their height is the pitch), so a run of lines is even; blocks (bubble, card) bring their own air.</p>
+<table class="s-tb"><tr><th>Item</th><th>Height / padding</th><th>Margin top · bottom</th><th>Notes</th></tr>
+<tr><td>Call line</td><td>26</td><td>0 · 0</td><td>pitch 26 in a run; the title is one line</td></tr>
+<tr><td>Group header</td><td>28</td><td>0 · 0</td><td>children follow with no extra gap</td></tr>
+<tr><td>Skill row</td><td>28</td><td>2 · 2</td><td>a milestone: a little more air than a call</td></tr>
+<tr><td>Message bubble</td><td>padding 12 × 10, radius 12</td><td>8 · 8</td><td>unchanged</td></tr>
+<tr><td>Note · error line</td><td>text 12</td><td>6 · 6</td><td>unchanged margins, smaller text (was 12 callout)</td></tr>
+<tr><td>Call detail (flat)</td><td>radius 12</td><td>2 · 8</td><td>leading 36 (under the title), trailing 12; inside a group leading 54</td></tr>
+<tr><td>Edit card</td><td>header ≥ 34, radius 12</td><td>6 · 6</td><td>two edits in a row: 12 apart</td></tr>
+<tr><td>Slice row</td><td>line 1: 28 · line 2: ≥ 18 · bottom 6 → about 52</td><td>0 · 0</td><td>no box, no radius; three parallel slices stack one under the other</td></tr>
+<tr><td>Slice body (open)</td><td>—</td><td>—</td><td>its rows are normal rows (inset 12) in a block indented 24 with the rule at x = 19 (the state glyph's centre), so their icons start at 36, under the title</td></tr>
+</table>
+
+<h3 class="s-h3">1.3 Typography</h3>
+<table class="s-tb"><tr><th>Where</th><th>SwiftUI</th><th>Colour</th><th>Why</th></tr>
+<tr><td>Agent message</td><td><code>.system(size: 13)</code>, line spacing 3</td><td>.primary</td><td>the one thing meant to be read: the largest, brightest text</td></tr>
+<tr><td>Note</td><td><code>.system(size: 12)</code></td><td>.secondary</td><td></td></tr>
+<tr><td>Error line</td><td><code>.system(size: 12)</code></td><td>.red</td><td></td></tr>
+<tr><td>Call title</td><td><code>.system(size: 12, design: .monospaced)</code></td><td>.primary</td><td>commands are code</td></tr>
+<tr><td>"+N" after a title</td><td><code>.system(size: 11)</code> (not mono)</td><td>.tertiary</td><td>reads as a quiet count, not as part of the command; <code>.help</code> says "N more commands in this call"</td></tr>
+<tr><td>Duration</td><td><code>.system(size: 11)</code> + <code>.monospacedDigit()</code></td><td>.tertiary · failed: .red</td><td>digits do not jitter</td></tr>
+<tr><td>Group label</td><td><code>.system(size: 12)</code>; the count <code>.medium</code></td><td>.secondary · count .primary</td><td></td></tr>
+<tr><td>Skill name</td><td><code>.system(size: 12, weight: .medium, design: .monospaced)</code></td><td>.primary</td><td>milestone, slightly heavier than a call</td></tr>
+<tr><td>Detail text</td><td><code>.system(size: 11.5, design: .monospaced)</code></td><td>command .secondary · output .primary</td><td>same as today</td></tr>
+<tr><td>Detail footer</td><td><code>.system(size: 11)</code></td><td>count .tertiary · action .accentColor · Copy .secondary</td><td></td></tr>
+<tr><td>Edit name / folder</td><td>name <code>.system(size: 12, weight: .semibold)</code> · folder <code>.system(size: 11, design: .monospaced)</code></td><td>.primary · .tertiary</td><td></td></tr>
+<tr><td>Edit counts</td><td><code>.system(size: 12, weight: .medium)</code> + <code>.monospacedDigit()</code></td><td>.green · .red</td><td></td></tr>
+<tr><td>Diff rows</td><td><code>.system(size: 11.5, design: .monospaced)</code>, row height 17</td><td>ConsoleColor</td><td>unchanged</td></tr>
+<tr><td>Slice row title</td><td><code>.system(size: 12, weight: .semibold)</code>; "#N" <code>.medium</code> .secondary</td><td>.primary</td><td>same size as the session header's name</td></tr>
+<tr><td>Slice row meta</td><td><code>.system(size: 11)</code>, items split by " · "</td><td>.secondary; "merged" .green; "did not complete" .red</td><td></td></tr>
+<tr><td>Count pills</td><td>unchanged (<code>CountPills</code>, caption 10)</td><td>unchanged</td><td>reused as is</td></tr>
+</table>
+
+<h3 class="s-h3">1.4 Colours</h3>
+<p class="s-lead">Three surface levels and nothing else: the <b>card</b>, the <b>raised</b> surface for what sits on it, and the <b>console</b> (near black, the same in light and dark) for diffs only. Everything adapts on its own because it is <code>.secondary</code> at an opacity.</p>
+<table class="s-tb"><tr><th>Token</th><th>SwiftUI</th><th>Used by</th></tr>
+<tr><td><span class="s-sw" style="background:var(--card)"></span>card</td><td><code>SessionCard.tint</code> = <code>Color.secondary.opacity(0.08)</code></td><td>the session card (already there)</td></tr>
+<tr><td><span class="s-sw" style="background:var(--card2)"></span>raised</td><td><code>Color.secondary.opacity(0.12)</code></td><td>message bubble · call detail · edit card <span class="s-tag s-chg">unify: edit card was 0.14</span>. The slice has no surface of its own any more.</td></tr>
+<tr><td><span class="s-sw" style="background:color-mix(in srgb,var(--text) 5%,transparent)"></span>row hover</td><td><code>Color.primary.opacity(0.05)</code></td><td>call line, group header, slice row (both lines)</td></tr>
+<tr><td><span class="s-sw" style="background:#0d0d10"></span>console</td><td><code>Color(red: 0.05, green: 0.05, blue: 0.063)</code></td><td>diff block only (<code>Console</code>, unchanged)</td></tr>
+<tr><td><span class="s-sw" style="background:#7ce987"></span><span class="s-sw" style="background:#ff7b72;width:20px"></span>diff</td><td><code>ConsoleColor.added</code> / <code>.removed</code>; row fill at 0.14</td><td>diff rows (unchanged)</td></tr>
+<tr><td><span class="s-sw" style="background:var(--red)"></span>failure</td><td><code>.red</code></td><td>✕ disc, failed duration, failed call's icon, <code>Exit code</code>, "did not complete", error count pill</td></tr>
+<tr><td><span class="s-sw" style="background:var(--green)"></span>success</td><td><code>.green</code></td><td><b>only</b> on a slice row (✓) and "merged", and "+N" in counts. Never on a call.</td></tr>
+<tr><td><span class="s-sw" style="background:#0a84ff"></span>edit icon</td><td><code>.blue</code> box</td><td>edit header icon (unchanged)</td></tr>
+<tr><td><span class="s-sw" style="background:#6e6e78"></span>skill box</td><td><code>Color(white: 0.43)</code></td><td>skill row icon (unchanged)</td></tr>
+<tr><td><span class="s-sw" style="background:var(--blue)"></span>action link</td><td><code>.accentColor</code></td><td>"Show N more lines" (was a fixed light blue for the dark glass)</td></tr>
+</table>
+
+<h3 class="s-h3">1.5 Icons</h3>
+<p class="s-lead">Drawn here as approximations; the app uses these SF Symbols. Kind icons lose their coloured boxes: a bare glyph in <code>.secondary</code> says the kind without painting every row.</p>
+<div class="s-ichg" id="icons"></div>
+
+<h2 class="s-h">2 · Every state</h2>
+<h3 class="s-h3">2.1 Text items</h3>
+<div class="s-grid" id="s21"></div>
+<h3 class="s-h3">2.2 Call lines</h3>
+<div class="s-grid" id="s22"></div>
+<h3 class="s-h3">2.3 Groups</h3>
+<div class="s-grid" id="s23"></div>
+<h3 class="s-h3">2.4 Call detail (flat grey)</h3>
+<div class="s-grid" id="s24"></div>
+<h3 class="s-h3">2.5 Edits</h3>
+<div class="s-grid" id="s25"></div>
+<h3 class="s-h3">2.6 Slice rows</h3>
+<div class="s-grid" id="s26"></div>
+<h3 class="s-h3">2.7 Empty and unparsed</h3>
+<div class="s-grid" id="s27"></div>
+
+<h2 class="s-h">3 · A whole session, in the order it happened</h2>
+<p class="s-lead">The Builder run from the screenshots, with the three slices taken at once. Read it top to bottom: that is the order of the events. Switch to light with the button on top.</p>
+<div class="s-grid s-wide"><div class="s-spec" id="s3"></div><div class="s-spec" id="s3b"></div></div>
+
+<h2 class="s-h">4 · Rules</h2>
+<div class="s-rules"><h3 class="s-h3" style="margin-top:0">Grouping</h3><ol>
+<li>Walk the items in order. A <b>run</b> is consecutive calls that are <b>finished, ok</b> and of kind shell, read, search or other (not skill, not edit).</li>
+<li>Run of 1 → a plain quiet line. Run of ≥ 2 → one group.</li>
+<li>Anything else ends the run: a message, note, error, skill, edit, slice row, a <b>failed</b> call, a <b>pending</b> call.</li>
+<li>A <b>pending</b> call is always its own line (spinner) after the group; when it finishes ok it joins the run, and the count goes up by one. If it fails, it stays a line with ✕.</li>
+<li>Label: counts by kind in the order of the first call, joined by " · ": shell "Ran N command(s)", read "read N file(s)", search "searched N time(s)", other "used N tool(s)". Capitalise the first word. Max two parts, the rest "+N more".</li>
+<li>Duration = the sum of its calls' durations (not wall time), formatted like a call's.</li>
+<li>Folded by default. What the user opens is remembered by the group's id (the id of its first call), like <code>OutputFolds</code>. A group keeps its id when calls are appended, so it does not close while a live run grows.</li>
+</ol>
+<h3 class="s-h3">Titles</h3><ol>
+<li>A shell title skips a leading <code>cd …</code> (and <code>cd … &amp;&amp;</code> / <code>;</code>), then is the first real command. If nothing is left, it shows the <code>cd</code>.</li>
+<li>"+N" = the other commands chained after it, in tertiary 11 pt, with a help tooltip. Paths (read, search): cut in the middle, the file name stays. Shell: cut at the end.</li>
+<li>An edit shows the file name bold and the folder dim, <b>relative to the worktree</b> (strip everything up to and including the worktree folder; if unknown, the last two folders with a leading …/).</li>
+</ol>
+<h3 class="s-h3">What shows on a call line</h3><ol>
+<li><b>Duration:</b> on hover or keyboard focus; always for a failed call (red); always for a call ≥ 10 s (tertiary), because slow is information. The column is reserved.</li>
+<li><b>Status:</b> nothing for ok; a 14 pt red ✕ disc for failed; a 12 pt spinner for pending.</li>
+<li><b>Chevron:</b> only on a call with details; on hover/focus, always when open (rotated 90°) and always on a failed call (it is the thing to look at). A call without details (a read with no output) has no chevron and is not clickable.</li>
+<li><b>Failed calls</b> start open (as today). The user's choice wins afterwards.</li>
+</ol>
+<h3 class="s-h3">Detail</h3><ol>
+<li>Top strip: a shell shows "❯ command"; any other kind shows the tool name in place of ❯ (Read, Grep…), then the argument. Dim, wraps, selectable.</li>
+<li>Output: the first 7 lines, then a fade over the last visible line and "Show N more lines"; once expanded, "Show less". Red only on the line that starts with <code>Exit code</code> in a failed call; everything else normal.</li>
+<li>No output: "no output" in the body, footer without "Show more". Footer keeps "N lines", Copy.</li>
+<li>No outcome pill, no duration (it is on the line above).</li>
+</ol>
+<h3 class="s-h3">Edits</h3><ol>
+<li>Counts once, from the diff. The engine's <code>summary</code> text is not shown for an ok edit. For a <b>failed</b> edit it is the reason, in red under the header (max 2 lines), and there is no diff.</li>
+<li>Diff longer than 30 rows: the first 30, then the console footer "Show N more lines" (same control as the detail).</li>
+<li>An edit that creates a file (only added rows) gets a small "new" tag after the name.</li>
+<li>Edits are milestones: never grouped, 6 pt around.</li>
+</ol>
+<h3 class="s-h3">Slices in time</h3><ol>
+<li>Build <b>one list</b> from the main items and the lanes. Order by event id. A slice row sits at the id of its <b>first <code>task</code> event with no status</b> (the start).</li>
+<li>Each lane's own lines are the row's body, with the same grouping rules. They are not in the main list.</li>
+<li>The row is alive: its state comes from the lane's <code>task</code> events (running / finished / failed), as today. A resume is text in the meta ("resumed once"); the state keeps describing the first run (open question below).</li>
+<li>Collapsed by default, every state. The user's choice is kept by lane id.</li>
+<li>A main-agent line that happened while a slice ran (an error, a message) sits <b>below</b> that slice's card in the list, because its id is higher. That is the point.</li>
+<li>Title: the slice's title in the epic's list; else the lane's own description; else "Subagent". "#N" only when a slice number is known.</li>
+</ol>
+<h3 class="s-h3">Accessibility</h3><ol>
+<li>A call line reads: "<i>command</i>, failed, 725 milliseconds" / "succeeded, 2 seconds" / "running". Duration is always in the label even when not drawn.</li>
+<li>A group: "Ran 4 commands, 5.2 seconds, closed" + hint "Shows the calls".</li>
+<li>A slice row: "Slice 246, The engine reads…, lane 1, finished, pull request 250 merged, 17 calls" + closed/open.</li>
+<li>Rows are buttons (focus ring 2 pt accent, radius 6); Space/Return toggle. The ✕ and the spinner are hidden from VoiceOver: the label already says it.</li>
+<li>The spinner is still under Reduce Motion (no rotation). The chevron turn is 0.12 s and is dropped under Reduce Motion. Nothing else animates.</li>
+</ol></div>
+
+<h2 class="s-h">4b · Alignment checklist</h2>
+<p class="s-lead">One x for each thing, measured from the session card's left edge. If a view does not match this table, it is wrong.</p>
+<table class="s-tb"><tr><th>What</th><th>x (leading)</th><th>Shared by</th></tr>
+<tr><td>Icon / glyph column</td><td>12</td><td>call lines, skill, slice state, message bubble edge, note and error text, edit card edge</td></tr>
+<tr><td>Title text</td><td>36 (= 12 + 16 + 8)</td><td>call title, skill name, slice title and slice line 2, call detail block</td></tr>
+<tr><td>Group chevron · rule</td><td>12 · 17</td><td>group header (the rule runs under the chevron's centre)</td></tr>
+<tr><td>Group children icon</td><td>30</td><td>= the group label's x (12 + 10 + 8)</td></tr>
+<tr><td>Group children title</td><td>54</td><td>detail block inside a group starts here (18 + 36)</td></tr>
+<tr><td>Slice body rule</td><td>19</td><td>the centre of the state glyph (12 + 8 − 1)</td></tr>
+<tr><td>Slice body icons · titles</td><td>36 · 60</td><td>(24 + 12) · detail inside = 24 + 36</td></tr>
+</table>
+<table class="s-tb" style="margin-top:14px"><tr><th>What</th><th>x (from the trailing edge)</th><th>Shared by</th></tr>
+<tr><td>Chevron column</td><td>12 → 22</td><td>call chevron · slice chevron · (group: empty slot)</td></tr>
+<tr><td>Status column</td><td>30 → 44</td><td>✕ · spinner (calls) · (group, skill: empty)</td></tr>
+<tr><td>Duration column</td><td>52 → 96</td><td>every duration, right aligned: calls, groups, skills</td></tr>
+</table>
+<table class="s-tb" style="margin-top:14px"><tr><th>Corner radius</th><th>pt</th><th>Where</th></tr>
+<tr><td>Session card</td><td>16</td><td>outer, unchanged</td></tr>
+<tr><td>Bubble · detail · edit card</td><td>12</td><td>all three equal; inset 12 from the card, so they nest inside the 16 without a pinch</td></tr>
+<tr><td>Focus ring · icon boxes</td><td>6 · 5–6</td><td>ring on a row; skill box 5, edit box 6</td></tr>
+<tr><td>Pills</td><td>capsule</td><td>count pills, "new" tag</td></tr>
+</table>
+<table class="s-tb" style="margin-top:14px"><tr><th>Text inset inside a block</th><th>pt</th><th>Where</th></tr>
+<tr><td>Detail strip, output, footer</td><td>14</td><td>the call detail</td></tr>
+<tr><td>Diff rows and "Show N more lines"</td><td>14</td><td>the edit's console <span class="s-tag s-chg">was 12; now equal to the detail</span></td></tr>
+<tr><td>Bubble text</td><td>12 (sides) · 10 (top/bottom)</td><td>message bubble</td></tr>
+<tr><td>Edit header</td><td>10 (sides) · 7 (top/bottom)</td><td>icon at 10, name at 38</td></tr>
+</table>
+
+<h2 class="s-h">5 · To build</h2>
+<table class="s-tb"><tr><th>File</th><th>Change</th></tr>
+<tr><td><code>CarrierCore/CommandTitle.swift</code> <span class="s-tag s-chg">change</span></td><td>skip a leading <code>cd</code> segment; keep "+N" as a separate value (title, extra) so the view can style it.</td></tr>
+<tr><td><code>CarrierCore/TranscriptItems.swift</code> <span class="s-tag s-chg">change</span></td><td><code>TranscriptCard</code>: <code>isSlow</code> (≥ 10 s), <code>isSkill</code>. New <code>TranscriptFlow</code> step after the builder: items → [<code>.line</code>, <code>.group</code>, …] per the grouping rules. <code>ToolStatus.icon</code> only for error.</td></tr>
+<tr><td><code>CarrierCore/EpicPoller.swift</code> + <code>Lanes.swift</code> <span class="s-tag s-chg">change</span></td><td><code>Transcript</code> keeps for each lane the <b>event id of its first <code>task</code> start</b> (<code>LaneSection.startId</code>). Nothing else about routing changes.</td></tr>
+<tr><td><code>CarrierCore/SessionSections.swift</code> <span class="s-tag s-chg">change</span></td><td><code>SessionSection.body</code> + <code>lanes</code> become one <code>flow: [FlowItem]</code> (<code>.item</code>, <code>.slice</code>) merged by id. Counts stay.</td></tr>
+<tr><td><code>Carrier/TranscriptView.swift</code> <span class="s-tag s-chg">change</span></td><td><code>ToolLineView</code> quiet (reserved columns, no coloured box); new <code>ToolGroupView</code>; <code>TerminalBlockView</code> flat grey (no glass, no pill, adaptive colours); edit card "name first", clamp at 30 rows.</td></tr>
+<tr><td><code>Carrier/LaneSectionView.swift</code> <span class="s-tag s-chg">change</span></td><td>Header: no glass and no box, a normal row plus the info line as drawn, chevron in the call lines' column; collapsed by default; body = the same rows view behind the 1.5 pt rule.</td></tr>
+<tr><td><code>Carrier/SessionSectionsView.swift</code> <span class="s-tag s-chg">change</span></td><td>Draw the flow instead of "rows then lanes".</td></tr>
+<tr><td><code>Tests/…</code> <span class="s-tag s-new">new</span></td><td>grouping (run of 1, of 2, broken by each kind, pending joins, failed breaks) · title skips cd · flow order with two lanes started together and a main error in between · slow threshold · label by kind · edit clamp · folder relative to worktree.</td></tr>
+</table>
+<div class="s-warn"><b>Open points to confirm with real events</b> — (1) skills: the row is a skill when the call's tool is <code>Skill</code>; I have not seen a real dump, only the screenshots. (2) A lane that is resumed and running again: today the state describes the first run, so the card would say "finished" while it works; showing "running" again needs the last <code>task</code> start without an end — small, but it changes <code>SubagentState</code>. (3) "Exit code N" is red only when the first output line starts with it; other failures print plain.</div>
+
+<script>
+if (location.hash === '#light') document.body.classList.add('light');
+const $ = id => document.getElementById(id);
+const P = {
+ term:'<svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2.5"/><path d="M4.5 6.5l2 1.5-2 1.5M8.5 10h3"/></svg>',
+ doc:'<svg viewBox="0 0 16 16"><path d="M4 1.8h5.5L12.5 5v9.2H4z"/><path d="M6 8h4.5M6 10.5h4.5"/></svg>',
+ search:'<svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.3"/><path d="M10.3 10.3l3.5 3.5"/></svg>',
+ tool:'<svg viewBox="0 0 16 16"><path d="M3 13l5-5M9.5 3.5l3 3M8 5l3 3-4.5 4.5L3.5 9.5z"/></svg>',
+ pen:'<svg viewBox="0 0 16 16"><path d="M3 13l1-3.5L11 2.5l2.5 2.5-7 7z"/></svg>',
+ chev:'<svg viewBox="0 0 10 10"><path d="M3 1.5l3.5 3.5L3 8.5"/></svg>',
+ x:'<svg viewBox="0 0 14 14"><path d="M4.6 4.6l4.8 4.8M9.4 4.6l-4.8 4.8"/></svg>',
+ ok:'<svg viewBox="0 0 14 14"><path d="M4 7.3l2 2 4-4.3"/></svg>',
+ warn:'<svg viewBox="0 0 16 16"><path d="M8 2.2l6.2 11H1.8z"/><path d="M8 6.5v3.2M8 11.5v.1"/></svg>',
+ check:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M5.5 8.2l1.8 1.8 3.3-3.6"/></svg>',
+ clock:'<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.3 1.4"/></svg>',
+};
+const KIND = {shell:P.term, read:P.doc, search:P.search, other:P.tool};
+const chv = (cls='') => `<span class="s-chv ${cls}">${P.chev}</span>`;
+const du = (t, cls='') => `<span class="s-du ${cls}">${t||''}</span>`;
+const xdisc = `<span class="s-sl"><span class="s-x">${P.x}</span></span>`;
+const slot = `<span class="s-sl"></span>`;
+
+// a call line
+function line(o) { // kind,t,n,d,st(ok|err|pending),det,open,hover,focus,slow
+  const bad = o.st === 'err', pend = o.st === 'pending';
+  const status = bad ? xdisc : pend ? `<span class="s-sl"><span class="s-spin"></span></span>` : slot;
+  const cv = o.det ? chv(o.open ? 's-open' : bad ? 's-on' : '') : `<span class="s-chv"></span>`;
+  return `<div class="s-row${o.hover?' s-hover':''}${o.focus?' s-focus':''}"><span class="s-ic${bad?' s-red':''}">${KIND[o.kind||'shell']}</span><span class="s-t">${o.t}${o.n?`<span class="s-n">+${o.n}</span>`:''}</span>${pend?du(''):du(o.d, bad?'s-on s-bad':o.slow?'s-on':'')}${status}${cv}</div>`;
+}
+const skill = (t, d) => `<div class="s-row" style="height:28px;margin:2px 0"><span class="s-skbox">${P.tool}</span><span class="s-t s-sk">${t}</span>${du(d)}<span class="s-sl"></span><span class="s-chv"></span></div>`;
+const msg = (t, extra='') => `<div class="s-msg">${t}${extra}</div>`;
+const grp = (label, d, open, kids) => `<div class="s-grp"><span class="s-chv ${open?'s-open':''}" style="opacity:1">${P.chev}</span><span class="s-lab">${label}</span>${du(d,'s-on')}<span class="s-sl"></span><span class="s-chv"></span></div>${open?`<div class="s-kids">${kids}</div>`:''}`;
+
+// the flat detail
+function det(o) { // cmd, tool, out(lines), bad, hidden, expanded, none
+  const head = `<div class="s-cmd"><i>${o.tool ? o.tool : '❯'}</i><span>${o.cmd}</span></div>`;
+  const body = o.none ? `<div class="s-none">no output</div>` : `<div class="s-out${o.hidden&&!o.expanded?' s-fade':''}">${o.out.map((l,i)=> o.bad && i===0 && /^Exit code/.test(l) ? `<span class="s-b">${l}</span>` : l).join('\n')}</div>`;
+  const n = o.total ?? (o.none ? 0 : o.out.length);
+  const more = o.hidden ? `<a>${o.expanded ? 'Show less' : `Show ${o.hidden} more lines`}</a>` : '';
+  return `<div class="s-det">${head}${body}<div class="s-ft"><span>${n ? n+' lines' : ''}</span>${more}<span class="s-sp"></span><span class="s-cp">⧉ Copy</span></div></div>`;
+}
+const OUT = ['Exit code 1', "fake agent-forge and a temporary root, so start, status, pause, resume, check and stop run against a real engine without GitHub or an agent.", '- Stories 6 to 9: renderDashboard in dashboard.test.ts, the broadest pure seam, with a snapshot and a fake detail provider.', '- The refresh rule (story 7): the same seam with a provider that counts its calls across repeated renders.', '- Story 10: interactive.test.ts with a fake output, keys and controls.', '- Story 4’s keys and the q difference: ui-state.test.ts and interactive.test.ts.', '- Story 11: the client and renderDashboard against a fake engine that does not advertise sessions.'];
+const CMD = 'gh issue view 244 --repo AshuLab/carrier --json body --jq .body | tail -c +8800; echo ====; gh issue view 244 --repo AshuLab/carrier --json title,state,labels,subIssues';
+
+// an edit
+function edit(o) { // name,dir,a,r,df,st,why,more,isnew
+  const bad = o.st === 'err', pend = o.st === 'pending';
+  const right = bad ? xdisc : pend ? `<span class="s-sl"><span class="s-spin"></span></span>` : (o.df ? `<span class="s-cnt s-a">+${o.a}</span><span class="s-cnt s-r">−${o.r}</span>` : '');
+  const rows = (o.df||[]).map(r => `<div class="${r[0]==='+'?'s-a':r[0]==='-'?'s-r':''}">${r[0]==='-'?'−':r[0]} ${r.slice(1)}</div>`).join('');
+  return `<div class="s-ed"><div class="s-eh"><span class="s-eic">${P.pen}</span><span class="s-en"><b>${o.name}</b>${o.isnew?' <span style="font:600 9.5px var(--font);color:var(--green);background:rgba(48,209,88,.16);border-radius:99px;padding:1px 6px;margin-left:6px">new</span>':''}${o.dir?`<span>${o.dir}</span>`:''}</span>${right}</div>${bad?`<div class="s-ef">${o.why}</div>`:''}${o.df?`<div class="s-df">${rows}${o.more?`<div class="s-more">Show ${o.more} more lines</div>`:''}</div>`:''}</div>`;
+}
+const DF = ['-async function readEpicSlices(repo: string, id: number, issue: number) {','+function readEpicSlices(repo: string, id: number, issue: number) {','+  const read = (sliceReads.get(id) ?? Promise.resolve()).then(() => readSlicesNow(repo, id, issue));','+  const settled = read.catch(() => {});','+  return read;','+}',' ',' async function readSlicesNow(repo: string, id: number, issue: number) {'];
+
+// a slice row: line 1 is a normal row, line 2 repeats the card's info; no box
+const pill = (ic, n, w, cls='') => `<span class="s-pill ${cls}">${P[ic]}<b>${n}</b>${w?' '+w:''}</span>`;
+function lane(o) { // n,t,st(run|ok|bad),calls,edits,tests,errors,meta[],open,body,hover,short
+  const st = o.st==='run' ? `<span class="s-sl" style="width:16px"><span class="s-spin"></span></span>` : o.st==='ok' ? `<span class="s-sl" style="width:16px"><span class="s-ok">${P.ok}</span></span>` : `<span class="s-sl" style="width:16px"><span class="s-x">${P.x}</span></span>`;
+  const W = a => o.short ? null : a;
+  const pills = o.calls==null ? '' : pill('term', o.calls, W(o.calls===1?'call':'calls')) + (o.edits?pill('pen', o.edits, W(o.edits===1?'edit':'edits')):'') + (o.tests?pill('check', o.tests, W(o.tests===1?'test run':'test runs')):'') + (o.errors?pill('warn', o.errors, W(o.errors===1?'error':'errors'),'s-red'):'');
+  return `<div class="s-ln"><div class="s-lh${o.hover?' s-hover':''}"><div class="s-row" style="height:28px">${st}<span class="s-lt">${o.n?`<i>#${o.n}</i>`:''}${o.t}</span>${chv(o.open?'s-open':'s-on')}</div><div class="s-l2">${pills}<span class="s-meta">${o.meta.map(m=>`<span>${m}</span>`).join('')}</span></div></div>${o.open?`<div class="s-kids s-lk">${o.body}</div>`:''}</div>`;
+}
+const pr = (n, s) => s ? `PR #${n} <span class="s-g">${s}</span>` : `PR #${n}`;
+const LB = line({t:'cd ~/.solve/worktrees/carrier/lane-1', n:6, d:'6.6 s'}) + line({t:'pnpm test', n:2, d:'14.6 s', slow:true}) + msg('Changed the matcher so a closing paren is allowed.') + line({kind:'read', t:'src/orchestration/engine.ts', d:'180 ms', det:true});
+
+const spec = (h, p, body, bare) => `<div class="s-spec"><h4>${h}</h4><p>${p}</p><div class="s-card${bare?' s-bare':''}">${body}</div></div>`;
+const put = (id, arr) => $(id).innerHTML = arr.join('');
+
+// anatomy
+$('a1').innerHTML = P.term; $('a1c').innerHTML = P.chev;
+$('a2').innerHTML = grp('Ran <b>4 commands</b> · read 2 files', '5.2 s', true, line({t:'git status --porcelain', n:7}) + line({t:'sed -n 1,200p docs/agents/solve.md', n:1}) + line({kind:'read', t:'docs/agents/solve.md'}));
+$('a3').innerHTML = edit({name:'engine.ts', dir:'src/orchestration', a:12, r:1, df:DF.slice(0,3)});
+$('a4').innerHTML = lane({n:246, t:'The engine reads the slices again when the agent changes them', st:'ok', calls:17, edits:2, tests:6, errors:1, meta:['Lane 1 ≈', pr(250,'merged'), '14:02–14:10']});
+
+// icons
+$('icons').innerHTML = [
+ [P.term,'Shell call','terminal · 11 · regular · secondary'],[P.doc,'Read','doc.text · same'],[P.search,'Search','magnifyingglass · same'],[P.tool,'Other tool','wrench.and.screwdriver · same'],
+ ['<span class="s-skbox">'+P.tool+'</span>','Skill (milestone)','box 16 r5 · glyph 9 bold white · Color(white:.43)'],
+ ['<span class="s-eic">'+P.pen+'</span>','Edit','box 20 r6 · pencil 11 semibold white · .blue'],
+ ['<span class="s-x">'+P.x+'</span>','Failed','xmark.circle.fill · palette white/red · 14'],
+ ['<span class="s-spin"></span>','Pending','ProgressView mini · 12'],
+ ['<span class="s-ok">'+P.ok+'</span>','Slice finished','checkmark.circle.fill · palette white/green · 14 (slice row only)'],
+ ['<span class="s-chv s-on" style="opacity:1">'+P.chev+'</span>','Disclosure','chevron.right · 9 bold · tertiary · rotates 90°'],
+].map(([i,t,c]) => `<div><span class="s-ic" style="width:24px;height:24px;color:var(--dim)">${i}</span><span><b>${t}</b><code>${c}</code></span></div>`).join('');
+
+// 2.1
+put('s21', [
+ spec('Agent message', 'Bubble, 13 pt, bullets hang, inline code in mono 12. Unchanged except margins.', msg('Round 1 of PR #269 is done: no blockers, and the result is <code>completed</code>. The PR head was <code>3392ebab</code>, as required.', '<ul><li><span><b>Checks:</b> <code>pnpm typecheck</code> passed; <code>swift test</code> passed (445 tests).</span></li><li><span><b>Spec:</b> I traced all 12 stories to code and tests.</span></li></ul>')),
+ spec('Note · error line', 'A note is secondary, an error red; both 12 pt, margin 6, no bubble.', '<div class="s-note">Output was cut: 4 KB of 90 KB shown.</div><div class="s-err">The agent process ended with an error.</div>'),
+ spec('Skill row', 'A milestone: grey box icon, mono 12 medium, 28 high with 2 around. Duration on hover, no chevron (nothing to open).', skill('solve:ship','150 ms') + skill('solve:code-review','162 ms')),
+]);
+
+// 2.2
+put('s22', [
+ spec('Shell call — rest', 'Quiet: terminal glyph in secondary, title, nothing else. The "+7" says seven more commands were chained.', line({t:'git status --porcelain', n:7, d:'2.0 s', det:true}) + line({t:'sed -n 1,200p docs/agents/solve.md', n:1, d:'173 ms', det:true})),
+ spec('Hover / keyboard focus', 'Row tint 5 %, duration and chevron appear (the columns were reserved). Focus adds a 2 pt accent ring (radius 6).', line({t:'git status --porcelain', n:7, d:'2.0 s', det:true, hover:true}) + line({t:'sed -n 1,200p docs/agents/solve.md', n:1, d:'173 ms', det:true, focus:true, hover:true})),
+ spec('Slow call', '≥ 10 s keeps its duration visible (tertiary): slow is information.', line({t:'swift test 2>&1', n:4, d:'29.4 s', det:true, slow:true}) + line({t:'pnpm typecheck 2>&1', n:3, d:'20.2 s', det:true, slow:true})),
+ spec('Pending', 'A spinner where the status goes, no duration, no chevron yet. Not part of a group until it ends.', line({t:'pnpm test', n:2, st:'pending'})),
+ spec('Failed — closed / open', 'Red glyph, red ✕, red duration always visible; starts open. The title stays primary: the red is for the state, not the command.', line({t:'cd $P', n:10, d:'8.8 s', st:'err', det:true}) + line({t:'gh issue view 244 --repo AshuLab/carrier --js…', n:10, d:'725 ms', st:'err', det:true, open:true}) + det({cmd:CMD, out:OUT.slice(0,3), bad:true, total:3})),
+ spec('Other kinds', 'Read, search and other tools use the same quiet line with their own glyph. Paths cut in the middle, the file name survives. Without output there is no chevron.', line({kind:'read', t:'src/orchestration/…/engine.test.ts', d:'180 ms'}) + line({kind:'search', t:'"readSlices|onEvent" src/orchestration', d:'210 ms', det:true}) + line({kind:'other', t:'WebFetch docs.github.com/…', d:'1.1 s', det:true})),
+ spec('Long title', 'One line always. A shell title shows the first real command (the leading <code>cd</code> is skipped), cut at the end.', line({t:'gh issue view 244 --repo AshuLab/carrier --json body --jq .body | tail -c +8800', n:3, d:'787 ms', det:true}) + line({t:'/Users/vemec/.claude/plugins/cache/ashulab/solve/skills/ship/SKILL.md', kind:'read', d:'192 ms'})),
+]);
+
+// 2.3
+const k3 = line({t:'git status --porcelain', n:7}) + line({t:'sed -n 1,200p docs/agents/solve.md', n:1}) + line({kind:'read', t:'docs/agents/solve.md'}) + line({t:'gh issue view 244 --repo AshuLab/carrier --js…', n:3});
+put('s23', [
+ spec('Group — folded', 'Chevron on the left (fold), the label, the summed duration on the right, always visible. Counts by kind.', grp('Ran <b>3 commands</b> · read <b>1 file</b>', '3.1 s', false, '')),
+ spec('Group — open', 'The calls under it, indented 18 with the 1.5 pt rule. Same quiet lines; hover and chevrons still work inside.', grp('Ran <b>3 commands</b> · read <b>1 file</b>', '3.1 s', true, k3)),
+ spec('A run of one is a line', 'One ok call between messages is not worth a group.', msg('Reading the worktree file now.') + line({t:'git worktree list', n:12, d:'1.5 s', det:true}) + msg('Epic #244 has 11 slices.')),
+ spec('A failure breaks the run', 'Two groups, the failed call between them, open. A pending call (the live tail) stays out of the group until it ends.', grp('Ran <b>3 commands</b>', '4.9 s', false, '') + line({t:'gh issue view 244 --repo AshuLab/carrier --js…', n:10, d:'725 ms', st:'err', det:true}) + grp('Ran <b>2 commands</b>', '2.0 s', false, '') + line({t:'pnpm test', n:2, st:'pending'})),
+ spec('Other labels', 'By kind, first-call order, two parts at most.', grp('Read <b>5 files</b>', '1.2 s', false, '') + grp('Searched <b>3 times</b> · read <b>2 files</b>', '0.9 s', false, '') + grp('Used <b>2 tools</b>', '2.4 s', false, '') + grp('Ran <b>9 commands</b> · read 4 files · +2 more', '14.0 s', false, '')),
+ spec('Skills and edits are not grouped', 'They are milestones: the run ends at them and starts again after.', grp('Ran <b>2 commands</b>', '2.2 s', false, '') + skill('solve:code-review','162 ms') + grp('Ran <b>4 commands</b>', '3.8 s', false, '') + edit({name:'engine.ts', dir:'src/orchestration', a:1, r:1, df:['-  const a = 1;','+  const a = 2;']}) + grp('Ran <b>2 commands</b>', '1.9 s', false, '')),
+]);
+
+// 2.4
+put('s24', [
+ spec('Failed, with output', 'Flat grey like the bubble. Command dim on top (❯ for shell), output normal, only <b>Exit code 1</b> red. The first 7 lines, a fade, "Show 4 more lines" in the accent colour, Copy at the right.', det({cmd:CMD, out:OUT, bad:true, hidden:4, total:11})),
+ spec('Expanded', '"Show less" once all the lines are in. Nothing else moves.', det({cmd:CMD, out:OUT.concat(['- Story 12: the cli parses start, stop and resume.','- Story 13: the macOS client reads the event ids.']), bad:true, hidden:4, expanded:true, total:11})),
+ spec('No output', 'Says so in the body; the footer has no "Show more".', det({cmd:'git fetch -q origin main 2>&1', none:true, bad:true})),
+ spec('Ok call, opened by the user', 'Same block, nothing red. The strip says the tool for non-shell calls.', det({cmd:'src/orchestration/engine.ts', tool:'Read', out:['export function createEngine(deps: EngineDeps) {','  const sliceReads = new Map<number, Promise<void>>();','  …'], total:240, hidden:233}).replace('Show 233 more lines','Show 233 more lines')),
+ spec('Inside an open group', 'Leading margin 54 (36 + the group indent), so it still hangs under its title.', grp('Ran <b>3 commands</b>', '3.1 s', true, line({t:'git status --porcelain', n:7, det:true, open:true}) + det({cmd:'git status --porcelain', out:[' M macos/Sources/Carrier/EpicView.swift','?? docs/research/…/agent-output-spec.html'], total:2}) + line({t:'sed -n 1,200p docs/agents/solve.md', n:1}) + line({kind:'read', t:'docs/agents/solve.md'}))),
+ spec('Long command', 'The strip wraps; it never scrolls sideways.', det({cmd:CMD + '; git fetch -q; git branch -r | grep -i 244; ls docs/adr docs/specs; gh pr list --state all --limit 15 --json number,title,headRefName,state', out:['Exit code 1','(eval):1: no matches found: --include=*.ts'], bad:true, total:2})),
+]);
+
+// 2.5
+put('s25', [
+ spec('Edit — ok', 'Name bold, folder dim and relative to the worktree, counts once. No ✓, no duration, no summary text.', edit({name:'engine.ts', dir:'src/orchestration', a:12, r:1, df:DF})),
+ spec('Edit — new file', 'Only added rows: a small "new" tag after the name.', edit({name:'fake-clock.ts', dir:'src/execution', a:24, r:0, isnew:true, df:['+export class FakeClock {','+  private now = 0;','+  advance(ms: number) { this.now += ms; }','+}']})),
+ spec('Edit — pending', 'Header only with a spinner while the call runs.', edit({name:'engine.ts', dir:'src/orchestration', st:'pending'})),
+ spec('Edit — failed', 'Red ✕, the engine text as the reason (max 2 lines), no diff.', edit({name:'engine.ts', dir:'src/orchestration', st:'err', why:'The file /Users/…/engine.ts has been modified since it was read, either by the user or by a linter.'})),
+ spec('Edit — long diff', 'Clamped at 30 rows; the console footer opens the rest.', edit({name:'panel.ts', dir:'src/terminal/dashboard', a:48, r:6, df:DF.concat(DF).slice(0,12), more:36})),
+ spec('Edit — no diff known', 'An edit the engine sent without lines: the header with no counts.', edit({name:'README.md', dir:''})),
+ spec('Two edits in a row', '12 apart (6 + 6). Never grouped.', edit({name:'engine.ts', dir:'src/orchestration', a:12, r:1, df:DF.slice(0,3)}) + edit({name:'fake.ts', dir:'src/orchestration', a:1, r:0, df:['+  slicesGate: Promise<void> | null = null;']})),
+]);
+
+// 2.6
+put('s26', [
+ spec('Running', 'Spinner, "#N title", the live counts, "since 14:02", "no PR yet". Collapsed; the chevron is always there.', lane({n:246, t:'The engine reads the slices again when the agent changes them', st:'run', calls:6, edits:1, meta:['Lane 1 ≈','no PR yet','since 14:02']})),
+ spec('Finished', 'Green ✓. The PR with its state; "merged" green. Duration as the time range.', lane({n:247, t:'The slices tab shows the state of each pull request', st:'ok', calls:12, edits:1, tests:3, meta:['Lane 2 ≈', pr(251,'merged'), '14:02–14:07']})),
+ spec('Failed', 'Red ✕, "did not complete" in red as the first meta item, the error pill.', lane({n:248, t:'The sidebar counts the slices waiting for you', st:'bad', calls:9, edits:1, errors:2, meta:['<span class="s-rd">did not complete</span>','Lane 3 ≈','no PR yet','14:03–14:08']})),
+ spec('Resumed', 'A resume is text; the state keeps describing the first run (see the open point).', lane({n:248, t:'The sidebar counts the slices waiting for you', st:'ok', calls:14, edits:2, meta:['Lane 3 ≈', pr(252,'merged'), '14:03–14:12','resumed once']})),
+ spec('No slice match', 'The lane\'s own description, no "#N", no PR. Line 2 still starts at 36.', lane({t:'Tidy the docs', st:'ok', calls:2, meta:['Lane 3 ≈','no PR yet','14:11–14:12']})),
+ spec('Just started', 'No events yet: no pills, "starting".', lane({n:249, t:'The CLI prints the next batch', st:'run', meta:['starting…']})),
+ spec('Open', 'The body is the lane\'s own lines with the same rules (groups, quiet lines, messages, edits), in normal rows under the title, behind the 1.5 pt rule. The chevron turns down.', lane({n:246, t:'The engine reads the slices again when the agent changes them', st:'ok', calls:17, edits:2, tests:6, meta:['Lane 1 ≈', pr(250,'merged'), '14:02–14:10'], open:true, hover:true, body: grp('Ran <b>5 commands</b>', '9.8 s', false, '') + msg('Changed the matcher so a closing paren is allowed.') + line({t:'pnpm test', n:2, d:'14.6 s', slow:true}) + edit({name:'engine.ts', dir:'src/orchestration', a:12, r:1, df:DF.slice(0,3)})})),
+ spec('Narrow', 'The title gives way first (cut at the end); the pills drop their words and keep icon + number (<code>CountPills</code> already does this with <code>ViewThatFits</code>), and the meta wraps to a row of its own, still indented 36.', `<div style="max-width:300px">${lane({n:246, t:'The engine reads the slices again when the agent changes them', st:'ok', short:true, calls:17, edits:2, tests:6, errors:1, meta:['Lane 1 ≈', pr(250,'merged'), '14:02–14:10','resumed once']})}</div>`),
+]);
+
+// 2.7
+put('s27', [
+ spec('No activity yet', 'Existing empty state (<code>.noActivity</code>), unchanged.', `<div style="min-height:170px;display:grid;place-items:center;color:var(--faint);text-align:center"><div style="font-size:22px">◌</div><div style="font-size:13px;color:var(--dim);margin-top:4px">No activity yet</div><div style="font-size:12px">The agent has not done anything.</div></div>`),
+ spec('Harness with no parser', 'The summarised <code>tail</code> lines, as today: mono 12 secondary, selectable, padding 12. No groups, no cards.', `<div style="padding:12px;font:12px/1.5 var(--mono);color:var(--dim);white-space:pre-wrap">[codex] reading repo\n[codex] running tests\n[codex] 12 passed</div>`),
+]);
+
+// 3 — the whole session
+const flow = () => skill('solve:ship','150 ms') +
+ msg("Let me start by reading the repo's solve docs, the worktrees file, and the epic.") +
+ grp('Ran <b>3 commands</b> · read 1 file', '3.1 s', false, '') +
+ line({t:'gh issue view 244 --repo AshuLab/carrier --js…', n:10, d:'725 ms', st:'err', det:true, open:true}) +
+ det({cmd:CMD, out:OUT, bad:true, hidden:4, total:11}) +
+ grp('Ran <b>3 commands</b>', '4.9 s', false, '') +
+ msg("Epic #244 has 11 slices. I'm creating the worktree now, then I'll start the first batch (#246, #247, #248).") +
+ line({t:'git worktree add ../epic-244', n:2, d:'1.5 s', det:true}) +
+ lane({n:246, t:'The engine reads the slices again when the agent changes them', st:'ok', calls:17, edits:2, tests:6, meta:['Lane 1 ≈', pr(250,'merged'), '14:02–14:10']}) +
+ lane({n:247, t:'The slices tab shows the state of each pull request', st:'ok', calls:12, edits:1, tests:3, meta:['Lane 2 ≈', pr(251,'merged'), '14:02–14:07']}) +
+ lane({n:248, t:'The sidebar counts the slices waiting for you', st:'ok', calls:14, edits:2, meta:['Lane 3 ≈', pr(252,'merged'), '14:03–14:12','resumed once']}) +
+ line({t:'gh pr list --state all', n:1, d:'1.1 s', det:true}) +
+ msg("#247 is done (PR #251). #248 did not complete; I'll send it again with the failing test.") +
+ edit({name:'engine.ts', dir:'src/orchestration', a:12, r:1, df:DF.slice(0,4)}) +
+ '<div class="s-note">Output was cut: 4 KB of 90 KB shown.</div>' +
+ line({t:'pnpm test', n:2, st:'pending'});
+put('s3', [`<h4>In order</h4><p>Dark or light: switch with the button. The three slice rows are where they were taken (the batch), and what the agent did and said while they ran sits below them.</p><div class="s-card" style="padding:6px 0">${flow()}</div>`]);
+put('s3b', [`<h4>Reading it</h4><p>Marked: what each part of the page is for.</p><div class="s-rules" style="font-size:12.5px"><ol>
+<li><b>solve:ship</b> — a skill: a milestone with its own box icon.</li>
+<li>The group folds the three first calls; the failed one is <b>out</b> of it, open, with only <b>Exit code 1</b> in red.</li>
+<li>Another group, then the agent's message that announces the batch.</li>
+<li>A <b>single</b> ok call stays a line (a run of one).</li>
+<li>Three slice rows in the order they started. Each updates in place (running → ✓ / ✕); #248 says "resumed once".</li>
+<li>After the batch: what the main agent did while they ran, in order — a call, a message, an edit (name first), a note.</li>
+<li>The last line is pending (spinner) and is not in a group yet.</li>
+</ol><p style="margin-top:14px">What disappeared from the old log: the ✓ on every call, the coloured icon box on every call, the duration on every call, the glass terminal block with its pill, the lane glass headers stacked at the end, the ✓ and double counts on edits.</p></div>`]);
+</script>
+</div></body></html>

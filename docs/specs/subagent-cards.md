@@ -2,6 +2,8 @@
 
 Status: spec
 
+Superseded in part by [agent-output-quiet-log.md](agent-output-quiet-log.md): the slice row is no longer on a glass surface, rows follow event order instead of order of appearance, and an opened row has no indent. The title join, the count pills, the pull request and the lane hint stay as written here.
+
 ## Problem
 
 Diego opens the macOS app's Agent output tab after (or while) a ship session ran several subagents and cannot tell them apart. They appear as six identical flat rows, `SLICE #246 Lane 1 hint` to `SLICE #251 Lane 3 hint`, in order of appearance, each with a blue pill, a lane number and a grey `hint` mark. Nothing says what a row ran, how it ended, when it ran or what it cost: no slice title, no end state, no times, and the line of counts that exists is cut off. The `hint` mark repeats on every row and only explains itself in a tooltip.

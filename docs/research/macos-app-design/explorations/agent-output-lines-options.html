@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Agent output — the log lines, quieter</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* every class here starts with q- so nothing collides with shared.css */
+.q-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(540px,1fr));gap:30px 26px;align-items:start;margin-top:8px}
+.q-opt>h3{margin:0 0 2px;font-size:14px}.q-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:560px}
+.q-opt>small{display:block;margin-top:7px;color:var(--faint);font-size:12px}
+h2.q-sec{font-size:16px;margin:36px 0 2px}
+.q-card{border-radius:16px;background:#2b2b2e;box-shadow:0 0 0 .5px var(--line) inset;padding:6px 0;overflow:hidden}
+.q-row{display:flex;align-items:center;gap:8px;padding:4px 12px;font-size:12px;min-height:26px}
+.q-row .q-t{flex:1;min-width:0;font:12px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-row:hover{background:rgba(255,255,255,.04)}
+.q-du{color:var(--faint);font-size:11px;white-space:nowrap}
+.q-hov{opacity:0}.q-row:hover .q-hov{opacity:1}
+.q-ic{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--faint)}
+.q-ic svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.q-ic.q-bad{color:var(--red)}
+.q-skill{width:16px;height:16px;border-radius:5px;background:#6e6e78;display:grid;place-items:center;flex:none;color:#fff}
+.q-skill svg{width:10px;height:10px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.q-x{width:14px;height:14px;border-radius:50%;background:var(--red);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center;flex:none}
+.q-er{color:var(--red)}
+.q-chev{color:var(--faint);font-size:11px;width:10px;text-align:center;flex:none}
+.q-msg{margin:5px 12px;border-radius:12px;background:rgba(255,255,255,.09);padding:9px 12px;line-height:1.45;font-size:13px}
+/* groups */
+.q-grp{display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:12.5px;color:var(--dim);cursor:pointer;list-style:none}
+.q-grp::-webkit-details-marker{display:none}
+.q-grp b{color:var(--text);font-weight:550}.q-grp .q-sp{flex:1}
+.q-grp:hover{background:rgba(255,255,255,.04)}
+details[open]>.q-grp .q-chev{transform:rotate(90deg)}
+.q-inner{margin:0 0 4px 17px;border-left:1.5px solid var(--line)}
+/* rail */
+.q-rail{margin:4px 0 4px 22px;border-left:1.5px solid var(--line)}
+.q-rail .q-row{position:relative;padding-left:16px}
+.q-rail .q-row::before{content:"";position:absolute;left:-4.5px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;background:var(--faint)}
+.q-rail .q-row.q-fail::before{background:var(--red);box-shadow:0 0 0 3px rgba(255,69,58,.22)}
+.q-rail .q-m{position:relative;padding:4px 12px 4px 16px}
+.q-rail .q-m::before{content:"";position:absolute;left:-5px;top:16px;width:8px;height:8px;border-radius:2px;background:var(--text);opacity:.75}
+.q-rail .q-m .q-msg{margin:0;display:inline-block}
+/* strip */
+.q-strip{display:flex;flex-wrap:wrap;gap:3px;padding:4px 12px 6px 12px;align-items:center}
+.q-sq{width:14px;height:14px;border-radius:4px;background:rgba(255,255,255,.14)}
+.q-sq.q-f{background:var(--red)}
+.q-strip .q-cap{margin-left:8px;color:var(--faint);font-size:11.5px}
+/* digest */
+.q-dig{display:flex;gap:8px;align-items:baseline;padding:5px 12px;font-size:12px;color:var(--dim);cursor:pointer}
+.q-dig:hover{background:rgba(255,255,255,.04)}
+.q-dig code{font:11.5px var(--mono);color:var(--dim)}
+.q-dig .q-f{color:var(--red)}
+.q-dig .q-sp{flex:1}
+/* detail */
+.q-det{margin:4px 12px 8px 36px;border-radius:12px;overflow:hidden;font:11.5px/1.5 var(--mono)}
+.q-det.q-glass{background:rgba(13,13,16,.75);box-shadow:0 0 0 .5px rgba(255,255,255,.18) inset}
+.q-det.q-flat{background:rgba(255,255,255,.07)}
+.q-det .q-cmd{padding:8px 14px;display:flex;gap:9px;align-items:baseline;word-break:break-all}
+.q-glass .q-cmd{background:rgba(255,255,255,.05);color:#9aa0ff}
+.q-flat .q-cmd{color:var(--dim);border-bottom:.5px solid var(--line)}
+.q-cmd i{font-style:normal;color:var(--green);font-weight:600}
+.q-det pre{margin:0;padding:8px 14px;white-space:pre-wrap;font:inherit;color:#d6d6dc}
+.q-flat pre{color:var(--text)}
+.q-det pre .q-b{color:#ff7b72}
+.q-det .q-ft{display:flex;gap:12px;padding:7px 14px;border-top:.5px solid var(--line);font:11px var(--font);color:var(--faint)}
+.q-ft a{color:var(--blue)}.q-ft .q-sp{flex:1}
+.q-pill{font:600 10.5px var(--font);padding:2px 8px;border-radius:99px;background:rgba(255,69,58,.17);color:var(--red);white-space:nowrap}
+.q-bare{margin:2px 12px 8px 36px;padding:2px 0 2px 12px;border-left:2px solid rgba(255,69,58,.55);font:11.5px/1.5 var(--mono);color:var(--dim);white-space:pre-wrap}
+.q-bare .q-b{color:#ff7b72}.q-bare a{font:11px var(--font);color:var(--blue)}
+/* edits */
+.q-ed{margin:6px 12px;border-radius:12px;background:rgba(255,255,255,.06);overflow:hidden;box-shadow:0 0 0 .5px var(--line) inset}
+.q-ed .q-eh{display:flex;gap:8px;align-items:center;padding:7px 10px;font-size:12px}
+.q-ed .q-et{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-ed .q-et b{font-weight:600}.q-ed .q-et span{color:var(--faint);font:11px var(--mono)}
+.q-eic{width:20px;height:20px;border-radius:6px;background:#0a84ff;display:grid;place-items:center;flex:none}
+.q-eic svg{width:11px;height:11px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.q-ed .q-df{background:#0d0d10;font:11.5px/1.5 var(--mono);color:#d6d6dc;padding:5px 0}
+.q-df div{padding:0 12px;white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.q-df .q-a{background:rgba(124,233,135,.14);color:#7ce987}.q-df .q-r{background:rgba(255,123,114,.14);color:#ff7b72}
+.q-g{color:var(--green)}.q-rr{color:var(--red)}
+.q-ok{width:14px;height:14px;border-radius:50%;background:var(--green);color:#fff;font-size:9px;font-weight:800;display:grid;place-items:center}
+details.q-edd>summary{list-style:none;cursor:pointer}details.q-edd>summary::-webkit-details-marker{display:none}
+
+/* slices in time */
+.q-ts{color:var(--faint);font:10.5px var(--mono);width:38px;flex:none}
+.q-ln{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:1px 7px;border-radius:99px;background:rgba(255,255,255,.08);color:var(--dim);white-space:nowrap}
+.q-ln i{width:7px;height:7px;border-radius:50%;display:block}
+.q-mk{display:flex;align-items:center;gap:8px;padding:5px 12px;font-size:12.5px}
+.q-mk .q-tt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.q-mk b{font-weight:600}
+.q-mk .q-sl{color:var(--dim)}
+.q-lc{margin:5px 12px;border-radius:14px;background:rgba(255,255,255,.07);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.q-lc>summary{display:flex;align-items:center;gap:9px;padding:8px 11px;list-style:none;cursor:pointer;font-size:12.5px}
+.q-lc>summary::-webkit-details-marker{display:none}
+.q-lc .q-tt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.q-lc[open]>summary .q-chev{transform:rotate(90deg)}
+.q-lc .q-body{border-top:.5px solid var(--line);padding:4px 0}
+.q-spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.2);border-top-color:var(--blue);animation:qs 1s linear infinite;flex:none}
+@keyframes qs{to{transform:rotate(360deg)}}
+.q-st{font-size:11.5px;white-space:nowrap}
+.q-tag{width:3px;align-self:stretch;border-radius:2px;flex:none}
+.q-fl{display:flex;gap:6px;padding:4px 12px 6px;flex-wrap:wrap}
+.q-fl span{font-size:11px;font-weight:550;padding:2px 9px;border-radius:99px;background:rgba(255,255,255,.08);color:var(--dim)}
+.q-fl span.q-on{background:var(--sel);color:var(--text)}
+.q-batch{margin:5px 12px;border-radius:14px;background:rgba(255,255,255,.05);box-shadow:0 0 0 .5px var(--line) inset}
+.q-batch>summary{display:flex;align-items:center;gap:9px;padding:8px 11px;list-style:none;cursor:pointer;font-size:12.5px}
+.q-batch>summary::-webkit-details-marker{display:none}
+.q-batch .q-lc{margin:0 8px 6px;background:rgba(255,255,255,.05)}
+.q-pick{margin:30px 0 0;padding:14px 18px;border-radius:14px;background:var(--card);max-width:920px;color:var(--dim);line-height:1.5}
+.q-pick b{color:var(--text)}
+</style></head><body>
+<h1>Agent output — the log lines, quieter</h1>
+<div class="sub">The data is the Builder run you sent. In all your sessions ~95 % of the calls are OK, so a green tick on each line says nothing: the eye should land on what failed, on what the agent said and on what it changed.</div>
+
+<h2 class="q-sec">What shows today</h2>
+<div class="note">
+<b>Items:</b> agent <b>message</b> (grey bubble, markdown or JSON card) · <b>note</b> (grey line) · <b>error</b> (red line) · <b>tool call</b> as a line (coloured icon, title, duration, ✓/✕ disc, chevron; opens a terminal block, failed ones start open) · <b>edit</b> as a card (header + diff) · around them the lane cards (subagents), the result card and "Continue in terminal".<br>
+<b>Noise:</b> (1) ✓ disc and duration on every line; (2) the same coloured terminal icon on every line; (3) the title is the <i>first</i> command, so <code>cd /Users/…/worktrees/… && …</code> shows ten identical <code>cd /Users/vemec/.solve/worktrees/carrier/the-… +6</code> lines; (4) the "+N" is cryptic; (5) the open detail is heavy dark glass and paints the whole output red; (6) an edit's +N −N shows twice and the path is absolute.
+</div>
+
+<h2 class="q-sec">1 · The lines — seven ways</h2>
+<div class="q-grid" id="lines"></div>
+
+<h2 class="q-sec">2 · The open detail of a failed call — three ways</h2>
+<div class="q-grid" id="details"></div>
+
+<h2 class="q-sec">3 · An edit — three ways</h2>
+<div class="q-grid" id="edits"></div>
+
+<h2 class="q-sec">4 · Taking a slice, in the order it happened</h2>
+<div class="note"><b>How the app builds it today</b> (<code>EpicPoller.swift</code> <code>route</code>, <code>Lanes.swift</code>, <code>SessionSectionsView.swift</code>): every event has a global <code>id</code> and an <code>at</code> time, but an event with an <code>agentId</code> goes to its lane and the rest to the main list. The view then draws <b>all the main rows first, then every lane</b> (each with its glass header, open by default, in order of first appearance), then the result card. The <code>task</code> event is what says a slice was taken (start, no status) or returned (end, ok/err), and <code>TranscriptBuilder</code> drops it, so the main flow never shows it.<br>
+<b>So:</b> "starting the first batch (#246, #247, #248)" is followed by the next main line, not by the slices it started; an error of the main agent that happened while a slice ran sits above all the lanes; nothing marks taken / returned / resumed. The fix needs no engine change: the ids already give the order; the view builds one list from the main items and the lane events, placing each slice at the id of its <code>task</code> start.<br>
+Scenario below: the Builder starts three slices at once; #247 finishes first, #248 fails and is resumed.</div>
+<div class="q-grid" id="slices"></div>
+
+<div class="q-pick"><b>My pick: D for the lines, R for the slices</b> (a live card where the slice starts, so the flow keeps its order and the card says taken → returned → PR; S on top if a run fans out many). Q is the cheap first step. Lines: (groups for the OK runs, quiet lines inside, the failure out on its own), <b>"flat grey" for the detail</b> and <b>"name first" for the edit</b>. If you want even less, E reads like a chat: only what the agent says, with one dim line of calls between. F is the most compact but you lose what each call was without hovering.<br>
+Independent of the choice: the title skips a leading <code>cd</code>. Grouping needs a small change in the item list (a run of OK lines becomes one group item); the rest is view-only.</div>
+
+<script>
+const TERM = '<svg viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2.5"/><path d="M4.5 6.5l2 1.5-2 1.5M8.5 10h3"/></svg>';
+const GEAR = '<svg viewBox="0 0 16 16"><path d="M3 13l5-5M9.5 3.5l3 3M8 5l3 3-4.5 4.5L3.5 9.5z"/></svg>';
+const PEN = '<svg viewBox="0 0 16 16"><path d="M3 13l1-3.5L11 2.5l2.5 2.5-7 7z"/></svg>';
+const ms = s => s.endsWith('ms') ? parseFloat(s) : parseFloat(s) * 1000;
+const fmt = n => n < 1000 ? Math.round(n) + ' ms' : (n / 1000).toFixed(1) + ' s';
+
+const items = [
+  {k:'skill', t:'solve:ship', d:'150 ms'},
+  {k:'msg', t:"Let me start by reading the repo's solve docs, the worktrees file, and the epic."},
+  {k:'cmd', t:'git status --porcelain', n:7, d:'2.0 s'},
+  {k:'cmd', t:'sed -n 1,200p docs/agents/solve.md', n:1, d:'173 ms'},
+  {k:'cmd', t:'gh issue view 244 --repo AshuLab/carrier --js…', n:3, d:'787 ms'},
+  {k:'cmd', t:'gh issue view 244 --repo AshuLab/carrier --js…', n:10, d:'725 ms', bad:true},
+  {k:'cmd', t:'gh issue view 244 --repo AshuLab/carrier --js…', n:5, d:'2.0 s'},
+  {k:'cmd', t:'git log --oneline main..$E', n:6, d:'2.8 s'},
+  {k:'cmd', t:'cat ~/.claude/plugins/cache/ashulab…', n:4, d:'192 ms'},
+  {k:'msg', t:"Epic #244 has 11 slices and its design artifacts are on the remote epic branch. I'm creating the worktree now, then I'll start the first batch (#246, #247, #248)."},
+  {k:'cmd', t:'git worktree list', n:12, d:'1.5 s'},
+  {k:'cmd', t:'export P=~/.solve/worktrees/carrier/epic-244', n:10, d:'8.8 s', bad:true},
+];
+const name = c => c.t.split(' ')[0];
+const sfx = c => c.n ? ` <span class="q-du">+${c.n}</span>` : '';
+
+// consecutive OK commands become a run; everything else stays on its own
+function chunks(list) {
+  const out = [];
+  for (const it of list) {
+    const last = out[out.length - 1];
+    if (it.k === 'cmd' && !it.bad) {
+      if (last && last.k === 'run') last.calls.push(it); else out.push({k:'run', calls:[it]});
+    } else out.push(it);
+  }
+  return out;
+}
+const runTime = r => fmt(r.calls.reduce((s, c) => s + ms(c.d), 0));
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+const msg = i => `<div class="q-msg">${i.t}</div>`;
+const skill = i => `<div class="q-row"><span class="q-skill"><svg viewBox="0 0 16 16"><path d="M3 13l5-5M9.5 3.5l3 3M8 5l3 3-4.5 4.5L3.5 9.5z"/></svg></span><span class="q-t">${i.t}</span><span class="q-du q-hov">${i.d}</span></div>`;
+const quiet = c => `<div class="q-row"><span class="q-ic">${TERM}</span><span class="q-t">${c.t}${sfx(c)}</span><span class="q-du q-hov">${c.d}</span><span class="q-chev q-hov">›</span></div>`;
+const failed = (c, open) => `<div class="q-row"><span class="q-ic q-bad">${TERM}</span><span class="q-t">${c.t}${sfx(c)}</span><span class="q-du q-er">${c.d}</span><span class="q-x">✕</span><span class="q-chev">${open ? '⌄' : '›'}</span></div>`;
+const DETAIL_FLAT = `<div class="q-det q-flat"><div class="q-cmd"><i>❯</i><span>gh issue view 244 --repo AshuLab/carrier --json body --jq .body | tail -c +8800; echo ====; gh issue view …</span></div>
+<pre><span class="q-b">Exit code 1</span>
+fake \`agent-forge\` and a temporary root, so \`start\`, \`status\`, \`pause\` run against a real engine without GitHub or an agent.
+- Stories 6 to 9: \`renderDashboard\` in \`dashboard.test.ts\`, the broadest pure seam…</pre>
+<div class="q-ft"><span>14 lines</span><a>Show 7 more lines</a><span class="q-sp"></span><span>⧉ Copy</span></div></div>`;
+const group = (r, openByDefault, inner) => `<details${openByDefault ? ' open' : ''}><summary class="q-grp"><span class="q-chev">›</span><span>Ran <b>${plural(r.calls.length, 'command')}</b></span><span class="q-sp"></span><span class="q-du">${runTime(r)}</span></summary><div class="q-inner">${inner}</div></details>`;
+
+const lines = {
+  A: {h:'A · Quiet lines', p:'Same rows, less ink: no ✓ on success (only the red ✕ when it failed), duration and chevron on hover, one neutral icon, title skips the leading <code>cd</code>.',
+      f:'Smallest change. Still one line per call, so a 23-call review is 23 lines.',
+      r: l => l.map(i => i.k === 'msg' ? msg(i) : i.k === 'skill' ? skill(i) : i.bad ? failed(i, false) : quiet(i)).join('')},
+  B: {h:'B · Grouped runs', p:'Consecutive OK calls fold into one row ("Ran 4 commands · 5 s"); click to expand (try the first). A failure breaks the run and shows on its own.',
+      f:'A 23-call run reads in 6–8 lines.',
+      r: l => chunks(l).map((c, n) => c.k === 'msg' ? msg(c) : c.k === 'skill' ? skill(c) : c.k === 'run' ? group(c, false, c.calls.map(quiet).join('')) : failed(c, false)).join('')},
+  C: {h:'C · Rail', p:'A thin rail. Calls are tiny dots on it (faint when OK, a red ring when failed); the agent\'s words hang off it as milestones. No icons, no discs.',
+      f:'Reads like a timeline. Costs a column of width and keeps one line per call.',
+      r: l => { let o = '', rail = ''; const flush = () => { if (rail) o += `<div class="q-rail">${rail}</div>`; rail = ''; };
+        for (const i of l) { if (i.k === 'msg') { rail += `<div class="q-m">${msg(i)}</div>`; }
+          else if (i.k === 'skill') { rail += `<div class="q-row"><span class="q-t" style="font-weight:600">${i.t}</span></div>`; }
+          else rail += `<div class="q-row${i.bad ? ' q-fail' : ''}"><span class="q-t">${i.t}${sfx(i)}</span><span class="q-du ${i.bad ? 'q-er' : 'q-hov'}">${i.d}</span></div>`; }
+        flush(); return o; }},
+  D: {h:'D · A + B (my pick)', p:'OK runs grouped, the lines inside quiet, the failure out of the group with its detail open, messages and skills as the anchors.',
+      f:'Skills (<code>solve:ship</code>) and edits keep their own row/card: they are milestones, not commands.',
+      r: l => { let first = true; return chunks(l).map(c => c.k === 'msg' ? msg(c) : c.k === 'skill' ? skill(c) : c.k === 'run' ? group(c, false, c.calls.map(quiet).join('')) : failed(c, first) + (first ? (first = false, DETAIL_FLAT) : '')).join(''); }},
+  E: {h:'E · Chat-like', p:'Only what the agent says is a block; the calls between two messages are one dim line, <code>9 calls · 1 failed ›</code>. A failed call is named on that line.',
+      f:'Calmest. You see the story; the work is behind one click.',
+      r: l => { let o = '', run = []; const flush = () => { if (!run.length) return; const bad = run.filter(c => c.bad);
+          o += `<details><summary class="q-grp"><span class="q-chev">›</span><span><b>${plural(run.length, 'call')}</b>${bad.length ? ` · <span class="q-er">${bad.length} failed</span>` : ''}</span><span class="q-sp"></span><span class="q-du">${fmt(run.reduce((s, c) => s + ms(c.d), 0))}</span></summary><div class="q-inner">${run.map(c => c.bad ? failed(c, false) : quiet(c)).join('')}</div></details>`; run = []; };
+        for (const i of l) { if (i.k === 'cmd') run.push(i); else { flush(); o += i.k === 'msg' ? msg(i) : skill(i); } } flush(); return o; }},
+  F: {h:'F · Strip', p:'Each call is a small square (grey = OK, red = failed) in a strip under the message. Hover names it; click opens the call.',
+      f:'Most compact and shows rhythm and failures at once; you cannot read what each call was without hovering.',
+      r: l => { let o = '', run = []; const flush = () => { if (!run.length) return;
+          o += `<div class="q-strip">${run.map(c => `<span class="q-sq${c.bad ? ' q-f' : ''}" title="${c.t}"></span>`).join('')}<span class="q-cap">${plural(run.length, 'call')} · ${fmt(run.reduce((s, c) => s + ms(c.d), 0))}</span></div>`; run = []; };
+        for (const i of l) { if (i.k === 'cmd') run.push(i); else { flush(); o += i.k === 'msg' ? msg(i) : skill(i); } } flush(); return o; }},
+  G: {h:'G · Digest sentence', p:'Each run is one line that names the commands in words: <code>git status, sed, gh issue view +4 · 5.2 s</code>; a failed one is named in red inside the sentence.',
+      f:'Keeps what each call was without a row per call. Long runs end in "+N more".',
+      r: l => chunks(l).map(c => c.k === 'msg' ? msg(c) : c.k === 'skill' ? skill(c) : c.k === 'run'
+          ? `<div class="q-dig"><span class="q-chev">›</span><span><code>${[...new Set(c.calls.map(name))].slice(0, 3).join(', ')}${c.calls.length > 3 ? ` +${c.calls.length - 3} more` : ''}</code></span><span class="q-sp"></span><span class="q-du">${runTime(c)}</span></div>`
+          : `<div class="q-dig"><span class="q-chev">›</span><span><code class="q-f">${name(c)} failed</code> <span class="q-du">${c.t.slice(name(c).length)}</span></span><span class="q-sp"></span><span class="q-du q-er">${c.d}</span></div>`).join('')},
+};
+document.getElementById('lines').innerHTML = Object.values(lines).map(o =>
+  `<div class="q-opt"><h3>${o.h}</h3><p>${o.p}</p><div class="q-card">${o.r(items)}</div><small>${o.f}</small></div>`).join('');
+
+const GLASS = `<div class="q-det q-glass" style="margin:6px 12px"><div class="q-cmd"><i>❯</i><span style="flex:1">gh issue view 244 --repo AshuLab/carrier --json body --jq .body | tail -c +8800; echo ====; …</span><span class="q-pill">✕ 725 ms</span></div>
+<pre style="color:#ff7b72">Exit code 1
+fake \`agent-forge\` and a temporary root, so \`start\`, \`status\`, \`pause\` run against a real engine…
+- Stories 6 to 9: \`renderDashboard\` in \`dashboard.test.ts\`…</pre><div class="q-ft"><span>14 lines</span><a>Show 7 more lines</a><span class="q-sp"></span><span>⧉ Copy</span></div></div>`;
+const row = failed(items[5], true);
+const BARE = `<div class="q-bare"><span class="q-b">Exit code 1</span>
+fake \`agent-forge\` and a temporary root, so \`start\`, \`status\`, \`pause\` run against a real engine…
+- Stories 6 to 9: \`renderDashboard\` in \`dashboard.test.ts\`…
+<a>Show 7 more lines</a> · <a>⧉ Copy</a></div>`;
+document.getElementById('details').innerHTML = [
+  ['Now — dark glass, all red', 'Heavy against the grey cards; the whole output is red; the ✕ pill repeats the duration of the line above.', row + GLASS],
+  ['Flat grey, red only for what failed', 'Same grey as the cards. The command in a dim top line, the output in normal text, only <code>Exit code 1</code> red. No pill.', row + DETAIL_FLAT.replace('margin','margin')],
+  ['No box — a red rule', 'No container at all: the output hangs under the line with a thin red rule on its left. The lightest; the console look is gone.', row + BARE],
+].map(([h, p, body]) => `<div class="q-opt"><h3>${h}</h3><p>${p}</p><div class="q-card">${body}</div></div>`).join('');
+
+const DIFF = `<div class="q-df"><div class="q-r">− async function readEpicSlices(repo: string, id: number, issue: number) {</div><div class="q-a">+ function readEpicSlices(repo: string, id: number, issue: number) {</div><div class="q-a">+   const read = (sliceReads.get(id) ?? Promise.resolve()).then(() =&gt; readSlicesNow(repo, id, issue));</div></div>`;
+const ICO = `<span class="q-eic"><svg viewBox="0 0 16 16"><path d="M3 13l1-3.5L11 2.5l2.5 2.5-7 7z"/></svg></span>`;
+document.getElementById('edits').innerHTML = [
+  ['Now', 'Absolute path, +12 −1 twice, a ✓ disc and the duration.',
+   `<div class="q-ed"><div class="q-eh">${ICO}<b>Edit</b><span class="q-et"><span>/Users/vemec/.solve/worktrees/carrier/the-slices-tab-shows-every-slice-of-the-epic-up-to-date/src/orchestration/engine.ts</span></span><span class="q-g">+12</span><span class="q-rr">−1</span><span class="q-g">+12</span><span class="q-rr">−1</span><span class="q-du">146 ms</span><span class="q-ok">✓</span></div>${DIFF}</div>`],
+  ['Name first', 'File name bold, folder dim after it (relative to the worktree), the counts once, no ✓.',
+   `<div class="q-ed"><div class="q-eh">${ICO}<span class="q-et"><b>engine.ts</b> <span>src/orchestration</span></span><span class="q-g">+12</span><span class="q-rr">−1</span></div>${DIFF}</div>`],
+  ['Folded line', 'The diff is behind the line like any call (closed by default; open here to see it). The log stays one rhythm; the +/− counts say what changed.',
+   `<details class="q-edd" style="margin:2px 0"><summary class="q-row"><span class="q-eic" style="width:16px;height:16px;border-radius:5px"><svg viewBox="0 0 16 16"><path d="M3 13l1-3.5L11 2.5l2.5 2.5-7 7z"/></svg></span><span class="q-t"><b style="font-family:var(--font);font-weight:600">engine.ts</b> <span class="q-du">src/orchestration</span></span><span class="q-g">+12</span><span class="q-rr">−1</span><span class="q-chev">›</span></summary><div style="margin:2px 12px 8px"><div class="q-ed" style="margin:0">${DIFF}</div></div></details>
+    <div class="q-row"><span class="q-ic">${TERM}</span><span class="q-t">swift test 2&gt;&amp;1 +4</span><span class="q-du q-hov">29.4 s</span></div>`],
+].map(([h, p, body]) => `<div class="q-opt"><h3>${h}</h3><p>${p}</p><div class="q-card">${body}</div></div>`).join('');
+
+// ---- 4 · slices in time
+const LANE = {1:'#0a84ff', 2:'#bf5af2', 3:'#ff9f0a'};
+const lane = n => `<span class="q-ln"><i style="background:${LANE[n]}"></i>Lane ${n}</span>`;
+const ST = {run:'<span class="q-spin"></span>', ok:'<span class="q-ok">✓</span>', bad:'<span class="q-x">✕</span>'};
+const S = {
+  246:{t:'The engine reads the slices again when the agent changes them', l:1, pr:'PR #250 merged', calls:17, edits:2},
+  247:{t:'The slices tab shows the state of each pull request', l:2, pr:'PR #251 merged', calls:12, edits:1},
+  248:{t:'The sidebar counts the slices waiting for you', l:3, pr:'PR #252 merged', calls:9, edits:1},
+};
+const mainCall = (c, d) => quiet({t:c, n:0, d});
+const sub = n => `<div class="q-row"><span class="q-ic">${TERM}</span><span class="q-t">cd ~/.solve/worktrees/carrier/lane-${n} +${n+3}</span><span class="q-du q-hov">2.1 s</span></div><div class="q-row"><span class="q-ic">${TERM}</span><span class="q-t">pnpm test +2</span><span class="q-du q-hov">14.6 s</span></div>`;
+// the events in the order they happened
+const tl = [
+  {at:'14:02', k:'msg', t:"Epic #244 has 11 slices. I'm creating the worktree now, then I'll start the first batch (#246, #247, #248)."},
+  {at:'14:02', k:'main', t:'git worktree add ../epic-244 +2', d:'1.5 s'},
+  {at:'14:02', k:'take', s:246}, {at:'14:02', k:'take', s:247}, {at:'14:03', k:'take', s:248},
+  {at:'14:04', k:'main', t:'gh pr list --state all +1', d:'1.1 s'},
+  {at:'14:07', k:'done', s:247, ok:true, dur:'5 min'},
+  {at:'14:08', k:'done', s:248, ok:false, dur:'5 min'},
+  {at:'14:08', k:'msg', t:"#247 is done (PR #251). #248 did not complete; I'll send it again with the failing test."},
+  {at:'14:09', k:'resume', s:248},
+  {at:'14:10', k:'done', s:246, ok:true, dur:'8 min'},
+  {at:'14:12', k:'done', s:248, ok:true, dur:'3 min'},
+  {at:'14:12', k:'msg', t:'All three are merged. Next batch: #249, #250.'},
+];
+const sTitle = n => `<b>#${n}</b> <span class="q-sl">${S[n].t}</span>`;
+const sliceBodies = {};
+const slices = {
+  P: {h:'P · Today', p:'The main agent first; then each lane under its glass header, open by default. The batch is announced and never followed.',
+      f:'You cannot tell what the agent did while the slices ran, nor when each slice was taken or returned.',
+      r: () => tl.filter(x => x.k==='msg'||x.k==='main').map(x => x.k==='msg' ? msg(x) : mainCall(x.t, x.d)).join('') +
+        [246,247,248].map(n => `<div class="q-lc"><div style="display:flex;align-items:center;gap:9px;padding:8px 11px;font-size:12.5px"><span class="q-tt" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sTitle(n)}</span><span class="q-du">${S[n].calls} calls</span>${ST.ok}<span class="q-chev">⌄</span></div><div class="q-body">${sub(S[n].l)}</div></div>`).join('')},
+  Q: {h:'Q · Markers in the flow', p:'One row where a slice is taken, one where it comes back (✓ / ✕ with its PR, or resumed). The lane\'s own lines stay in its card at the end, as today; the marker opens it.',
+      f:'Smallest change: the lanes keep their cards; the flow gets the missing events.',
+      r: () => tl.map(x => x.k==='msg' ? msg(x)
+        : x.k==='main' ? mainCall(x.t, x.d)
+        : x.k==='take' ? `<div class="q-mk"><span class="q-ts">${x.at}</span><span class="q-chev">▸</span><span class="q-tt">Took ${sTitle(x.s)}</span>${lane(S[x.s].l)}</div>`
+        : x.k==='resume' ? `<div class="q-mk"><span class="q-ts">${x.at}</span><span class="q-chev">↻</span><span class="q-tt">Sent <b>#${x.s}</b> <span class="q-sl">again</span></span>${lane(S[x.s].l)}</div>`
+        : `<div class="q-mk"><span class="q-ts">${x.at}</span>${x.ok?ST.ok:ST.bad}<span class="q-tt"><b>#${x.s}</b> <span class="q-sl">${x.ok ? 'returned · '+S[x.s].pr : 'did not complete'}</span></span><span class="q-du">${x.dur}</span></div>`).join('')},
+  R: {h:'R · The card where it starts', p:'The lane is a collapsed card in the flow at the moment it starts; the card is alive (spinner → ✓ PR #251 · 5 min). Open it to see its lines in place. A resume is a line inside the same card.',
+      f:'The flow keeps its order and the slice is one thing, not two markers. Parallel starts stack as three cards.',
+      r: () => { const seen = {}; return tl.filter(x => x.k!=='done' && x.k!=='resume').map(x => x.k==='msg' ? msg(x) : x.k==='main' ? mainCall(x.t, x.d)
+        : `<details class="q-lc"><summary><span class="q-ts" style="width:auto">${x.at}</span>${x.s===248?ST.ok:ST.ok}<span class="q-tt">${sTitle(x.s)}</span>${lane(S[x.s].l)}<span class="q-du">${S[x.s].calls} calls${S[x.s].edits?` · ${S[x.s].edits} edit`:''}</span><span class="q-st q-g">${S[x.s].pr}</span><span class="q-chev">›</span></summary><div class="q-body">${sub(S[x.s].l)}</div></details>`).join(''); }},
+  S_: {h:'S · One batch', p:'Slices started together are one "Batch" row (#246 #247 #248 · 3 lanes · 2 done, 1 resumed). It opens to the three cards. What the main agent does meanwhile follows the batch, in order.',
+      f:'Best when the Builder fans out many slices; adds a level to open.',
+      r: () => { let out = ''; let batched = false; for (const x of tl) { if (x.k==='take') { if (!batched) { batched = true;
+          out += `<details class="q-batch" open><summary><span class="q-ts" style="width:auto">14:02</span><span class="q-tt"><b>Batch</b> <span class="q-sl">#246 · #247 · #248</span></span><span class="q-st q-g">3 returned</span><span class="q-chev">›</span></summary>` +
+            [246,247,248].map(n => `<details class="q-lc"><summary>${ST.ok}<span class="q-tt">${sTitle(n)}</span>${lane(S[n].l)}<span class="q-du">${n===248?'resumed once · ':''}${S[n].calls} calls</span><span class="q-chev">›</span></summary><div class="q-body">${sub(S[n].l)}</div></details>`).join('') + `</details>`; } }
+          else if (x.k==='msg') out += msg(x); else if (x.k==='main') out += mainCall(x.t, x.d); } return out; }},
+  T: {h:'T · One stream, tagged by lane', p:'Strict event order, main and lanes together. Each lane line carries its colour as a rule on the left; chips at the top filter (All · Main · Lane 1 · 2 · 3).',
+      f:'The truest chronology and it works for any number of lanes; busier, so it wants the quiet lines of A/D.',
+      r: () => { const L = (n, t, d) => `<div style="display:flex"><span class="q-tag" style="background:${LANE[n]};margin:2px 0 2px 12px"></span><div style="flex:1">${mainCall(t, d)}</div></div>`;
+        return `<div class="q-fl"><span class="q-on">All</span><span>Main</span><span>Lane 1</span><span>Lane 2</span><span>Lane 3</span></div>` +
+          msg(tl[0]) + mainCall(tl[1].t, tl[1].d) +
+          [246,247,248].map(n => `<div class="q-mk"><span class="q-ts">14:0${n===248?3:2}</span><span class="q-chev">▸</span><span class="q-tt">Took ${sTitle(n)}</span>${lane(S[n].l)}</div>`).join('') +
+          L(2,'cd ~/.solve/worktrees/carrier/lane-2 +5','2.1 s') + L(1,'cd ~/.solve/worktrees/carrier/lane-1 +6','6.6 s') + L(3,'cd ~/.solve/worktrees/carrier/lane-3 +4','180 ms') +
+          mainCall('gh pr list --state all +1','1.1 s') + L(2,'pnpm test +2','14.6 s') +
+          `<div class="q-mk"><span class="q-ts">14:07</span>${ST.ok}<span class="q-tt"><b>#247</b> <span class="q-sl">returned · PR #251 merged</span></span><span class="q-du">5 min</span></div>` +
+          L(3,'pnpm typecheck 2>&1 +1','19.0 s') +
+          `<div class="q-mk"><span class="q-ts">14:08</span>${ST.bad}<span class="q-tt"><b>#248</b> <span class="q-sl">did not complete</span></span></div>` +
+          msg(tl[8]); }},
+};
+document.getElementById('slices').innerHTML = Object.values(slices).map(o =>
+  `<div class="q-opt"><h3>${o.h}</h3><p>${o.p}</p><div class="q-card">${o.r()}</div><small>${o.f}</small></div>`).join('');
+</script>
+</body></html>

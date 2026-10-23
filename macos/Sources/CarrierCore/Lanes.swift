@@ -7,6 +7,8 @@ import Foundation
 public struct LaneSection: Equatable, Identifiable {
     /// The agent id: the key, never the lane or the slice (a lane is reused).
     public var id: String
+    /// Where it sits in the session's list: the id of its first `task` start, or of its first event when it has none.
+    public var startId: Int
     /// The slice's title in the epic's list; else the subagent's own description ("Subagent" before it arrives).
     public var title: String
     /// The epic's title for `slice`; nil with no slice or no match in the list.
@@ -30,11 +32,14 @@ public struct LaneSection: Equatable, Identifiable {
     /// The slice's pull request as the row reads it: "PR #5 merged", "PR #5" (an older engine sends no state), or "no PR yet".
     public var pullRequest: String
 
+    /// Just taken: running with no events to count yet.
+    public var isStarting: Bool { state == .running && items.isEmpty }
+
     /// "resumed once", "resumed 2 times"; nil for one that never ran again.
     public var resumedLabel: String? { resumes > 0 ? "resumed " + (resumes == 1 ? "once" : "\(resumes) times") : nil }
 }
 
-/// A subagent's first run: running (a start with no end), finished (the end event completed) or failed (it did not complete).
+/// A subagent's latest run: running (a start with no end), finished (the end event completed) or failed (it did not complete).
 public enum SubagentState: Equatable { case running, finished, failed }
 
 /// The digits right after `marker`, ignoring case: `number(after: "slice #", in: "Build slice #653")` is 653.
@@ -84,13 +89,18 @@ struct LaneState: Equatable {
         let tasks = events.filter { $0.kind == "task" }
         let start = tasks.first { $0.status == nil }
         let end = tasks.first { $0.status != nil }
-        let state: SubagentState = end.map { $0.status == "ok" ? .finished : .failed } ?? (running ? .running : .failed)
+        // The latest run decides: a last start is running while the session is, else it did not complete.
+        let state: SubagentState = switch tasks.last?.status {
+        case nil: running ? .running : .failed
+        case "ok": .finished
+        default: .failed
+        }
         let timeLabel = start.flatMap { start in
             end.map { "\(clock(start.at, timeZone: timeZone))–\(clock($0.at, timeZone: timeZone))" }
                 ?? (state == .running ? "since \(clock(start.at, timeZone: timeZone))" : nil)
         }
         return LaneSection(
-            id: agentId, title: sliceTitle ?? description ?? "Subagent", sliceTitle: sliceTitle,
+            id: agentId, startId: (start ?? events[0]).id, title: sliceTitle ?? description ?? "Subagent", sliceTitle: sliceTitle,
             state: state,
             duration: start.flatMap { start in (end?.at ?? (state == .running ? now : nil)).map { $0 - start.at } },
             startedAt: start?.at, endedAt: end?.at,
@@ -101,6 +111,16 @@ struct LaneState: Equatable {
 }
 
 extension Transcript {
+    /// The session's list in event order: the main rows with the subagents at the place they were taken (`flowItems`). The main
+    /// thread's call that launched a subagent shares its `callId` with the subagent's `task` start and is left out: the slice stands for it.
+    public func flow(
+        slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current
+    ) -> [FlowItem] {
+        let launches = Set(lanes.flatMap { $0.events.filter { $0.kind == "task" && $0.status == nil }.compactMap(\.callId) })
+        let launched = Set(events.filter { $0.agentId == nil && $0.callId.map(launches.contains) == true }.map(\.id))
+        return flowItems(items.filter { launched.contains($0.id) == false }, slices: laneSections(slices: slices, running: running, now: now, timeZone: timeZone))
+    }
+
     /// The subagents with events, in order of appearance. Events with no agent id are in `items`.
     public func laneSections(
         slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current

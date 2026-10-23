@@ -12,6 +12,8 @@ struct SessionSectionsView: View {
     let list: SessionList
     @Binding var folds: SessionFolds
     @State private var outputs = OutputFolds()
+    @State private var groups = GroupFolds()
+    @State private var slices = SliceFolds()
 
     var body: some View {
         // no spacing: the rows of a session touch, so its header, rows and foot read as one card (see `SessionCard`)
@@ -31,8 +33,7 @@ struct SessionSectionsView: View {
             let open = folds.isOpen(section)
             Section {
                 if open {
-                    TranscriptRows(content: section.body, outputs: $outputs)
-                    ForEach(section.lanes) { LaneSectionView(lane: $0, outputs: $outputs) }
+                    TranscriptRows(content: section.body, outputs: $outputs, groups: $groups, slices: $slices)
                     if let result = section.result { ResultCardView(card: result) }
                     ContinueInTerminalView(section: section)
                     SessionCard.foot

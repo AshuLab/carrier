@@ -40,6 +40,14 @@ private func transcript(_ events: [ExecEvent]) -> Transcript {
     return transcript
 }
 
+extension SessionSection {
+    /// The subagents in the section's list, in its order.
+    var slices: [LaneSection] {
+        guard case .items(let flow) = body else { return [] }
+        return flow.compactMap { if case .slice(let lane) = $0 { lane } else { nil } }
+    }
+}
+
 private func event(_ id: Int, _ kind: String, agent: String? = nil, text: String? = nil, arg: String? = nil) -> ExecEvent {
     ExecEvent(id: id, at: id, kind: kind, text: text, callId: arg.map { _ in "c\(id)" }, agentId: agent, tool: arg == nil ? nil : "Bash", arg: arg)
 }
@@ -106,10 +114,16 @@ private func end(_ id: Int, _ status: String) -> ExecEvent {
     #expect(lane([start, work, end(3, "ok")]).state == .finished)
     #expect(lane([start, work, end(3, "ok")], running: false).state == .finished)
     #expect(lane([start, work, end(3, "err")]).state == .failed)
-    // the first start to the end of the first run; a run after it changes neither
+    // the first start to the end of the first run; a run after it changes neither, only the state
     let again = ExecEvent(id: 4, at: 9000, kind: "task", text: "Build slice #5", agentId: "a")
     let resumed = lane([start, work, end(3, "ok"), again, end(5, "err")])
-    #expect(resumed.state == .finished && resumed.duration == 2000)
+    #expect(resumed.state == .failed && resumed.duration == 2000)
+    #expect(lane([start, work, end(3, "ok"), again, end(5, "ok")]).state == .finished)
+    // running again: the last event is a start and the session is running; in a stopped session it did not complete
+    #expect(lane([start, work, end(3, "ok"), again]).state == .running)
+    #expect(lane([start, work, end(3, "ok"), again]).duration == 2000 && lane([start, work, end(3, "ok"), again]).resumedLabel == "resumed once")
+    #expect(lane([start, work, end(3, "ok"), again], running: false).state == .failed)
+    #expect(lane([start, work, end(3, "err")]).state == .failed)
 }
 
 @Test func aStreamWithNoSubagentsHasNoLanes() {
@@ -133,11 +147,11 @@ private func end(_ id: Int, _ status: String) -> ExecEvent {
         executionId: "x", stage: "ship", role: "author", round: nil, agent: .init(harness: "claude", model: "m", provider: nil),
         status: "finished", startedAt: 0, finishedAt: 5, resume: nil)])
     let events = [event(1, "task", agent: "a", text: "Build slice #5"), event(2, "say", agent: "a", text: "hi")]
-    #expect(sessionList(sessions, transcripts: ["x": transcript(events)]).sections[0].lanes.map(\.title) == ["Build slice #5"])
+    #expect(sessionList(sessions, transcripts: ["x": transcript(events)]).sections[0].slices.map(\.title) == ["Build slice #5"])
     var plain = Transcript()
     plain.apply(EventsReply(events: events, next: 2, running: true, structured: false))
-    #expect(sessionList(sessions, transcripts: ["x": plain]).sections[0].lanes.isEmpty)
-    #expect(sessionList(sessions).sections[0].lanes.isEmpty)
+    #expect(sessionList(sessions, transcripts: ["x": plain]).sections[0].slices.isEmpty)
+    #expect(sessionList(sessions).sections[0].slices.isEmpty)
 }
 
 @Test func theListJoinsTheEpicsSlicesAndTellsARunningSessionFromAStoppedOne() {
@@ -146,7 +160,7 @@ private func end(_ id: Int, _ status: String) -> ExecEvent {
             executionId: "x", stage: "ship", role: "author", round: nil, agent: .init(harness: "claude", model: "m", provider: nil),
             status: status, startedAt: 0, finishedAt: nil, resume: nil)])
         let events = [event(1, "task", agent: "a", text: "Build slice #5"), event(2, "say", agent: "a", text: "hi")]
-        return sessionList(sessions, transcripts: ["x": transcript(events)], slices: [slice(5, "Socket client")]).sections[0].lanes
+        return sessionList(sessions, transcripts: ["x": transcript(events)], slices: [slice(5, "Socket client")]).sections[0].slices
     }
     #expect(list("running").map(\.title) == ["Socket client"])
     #expect(list("running").map(\.state) == [.running])
@@ -169,7 +183,7 @@ private func end(_ id: Int, _ status: String) -> ExecEvent {
     let sessions = SessionsReply(sessions: [SessionsReply.Session(
         executionId: "x", stage: "ship", role: "author", round: nil, agent: .init(harness: "claude", model: "m", provider: nil),
         status: "running", startedAt: 0, finishedAt: nil, resume: nil)])
-    let lanes = sessionList(sessions, transcripts: ["x": transcript(first + second)]).sections[0].lanes
+    let lanes = sessionList(sessions, transcripts: ["x": transcript(first + second)]).sections[0].slices
     #expect(lanes[0].counts == sessionCounts(first))
     #expect(lanes[0].counts == SessionCounts(calls: 4, edits: 1, added: 2, removed: 1, tests: 1, errors: 1))
     #expect(lanes[1].counts == SessionCounts(calls: 1))
@@ -185,7 +199,7 @@ private func end(_ id: Int, _ status: String) -> ExecEvent {
     let sessions = SessionsReply(sessions: [SessionsReply.Session(
         executionId: "x", stage: "ship", role: "author", round: nil, agent: .init(harness: "claude", model: "m", provider: nil),
         status: "running", startedAt: 0, finishedAt: nil, resume: nil)])
-    let lanes = sessionList(sessions, transcripts: ["x": transcript(events)], slices: slices).sections[0].lanes
+    let lanes = sessionList(sessions, transcripts: ["x": transcript(events)], slices: slices).sections[0].slices
     #expect(lanes.map(\.pullRequest) == ["PR #11 merged", "PR #12 open", "PR #13 draft", "PR #14 closed", "no PR yet", "PR #16", "no PR yet", "no PR yet"])
 }
 
@@ -200,7 +214,7 @@ private func lane(_ events: [ExecEvent], running: Bool = true, now: Int = at1402
     let sessions = SessionsReply(sessions: [SessionsReply.Session(
         executionId: "x", stage: "ship", role: "author", round: nil, agent: .init(harness: "claude", model: "m", provider: nil),
         status: running ? "running" : "finished", startedAt: 0, finishedAt: nil, resume: nil)])
-    return sessionList(sessions, transcripts: ["x": transcript(events)], now: now, timeZone: TimeZone(identifier: timeZone)!).sections[0].lanes[0]
+    return sessionList(sessions, transcripts: ["x": transcript(events)], now: now, timeZone: TimeZone(identifier: timeZone)!).sections[0].slices[0]
 }
 
 @Test func aFinishedSubagentCarriesItsTimesAndReadsThemInTheGivenTimeZone() {
@@ -226,4 +240,88 @@ private func lane(_ events: [ExecEvent], running: Bool = true, now: Int = at1402
     #expect(lane([run(1, 0), run(2, 60, "ok"), run(3, 300)]).resumes == 1)
     let never = lane([run(1, 0), run(2, 60, "ok")])
     #expect(never.resumes == 0 && never.resumedLabel == nil)
+}
+
+@Test func aResumedSubagentRunningAgainSaysRunningWithTheTimesOfItsFirstRun() {
+    let events = [run(1, 0), run(2, 60, "ok"), run(3, 300)]
+    let again = lane(events)
+    #expect(again.state == .running && again.timeLabel == "14:02–14:03" && again.duration == 60_000 && again.resumedLabel == "resumed once")
+    #expect(lane(events, running: false).state == .failed)
+    #expect(lane(events + [run(4, 360, "err")]).state == .failed)
+    #expect(lane(events + [run(4, 360, "ok")]).state == .finished)
+}
+
+// MARK: the list in event order
+
+private func running(_ events: [ExecEvent]) -> [FlowItem] {
+    let sessions = SessionsReply(sessions: [SessionsReply.Session(
+        executionId: "x", stage: "ship", role: "author", round: nil, agent: .init(harness: "claude", model: "m", provider: nil),
+        status: "running", startedAt: 0, finishedAt: nil, resume: nil)])
+    guard case .items(let flow) = sessionList(sessions, transcripts: ["x": transcript(events)]).sections[0].body else { return [] }
+    return flow
+}
+
+/// `m4` a main row with id 4, `sA` the slice of agent A.
+private func order(_ flow: [FlowItem]) -> [String] {
+    flow.map {
+        switch $0 {
+        case .item(let item): "m\(item.id)"
+        case .group(let id, _): "g\(id)"
+        case .slice(let lane): "s" + lane.id
+        }
+    }
+}
+
+private func say(_ id: Int) -> ExecEvent { event(id, "say", text: "m") }
+
+@Test func eachSubagentSitsWhereItWasTakenAndWhatTheMainAgentDidMeanwhileFollowsIt() {
+    let events = [say(1), say(2), say(3), event(4, "task", agent: "A", text: "Build slice #1"), event(5, "task", agent: "B", text: "Build slice #2")]
+        + (6...10).map(say)
+    #expect(order(running(events)) == ["m1", "m2", "m3", "sA", "sB", "m6", "m7", "m8", "m9", "m10"])
+}
+
+@Test func aSubagentWithNoTaskStartSitsAtItsFirstEventAndAResumeDoesNotMoveIt() {
+    let events = [say(1), event(2, "say", agent: "A", text: "hi"), say(3), event(4, "task", agent: "B", text: "Build slice #2"), say(5),
+                  ExecEvent(id: 6, at: 6, kind: "task", text: "Build slice #2", agentId: "B", status: "ok"), event(7, "task", agent: "B", text: "Build slice #2")]
+    #expect(order(running(events)) == ["m1", "sA", "m3", "sB", "m5"])
+}
+
+@Test func aLateEventWithALowerIdRebuildsTheSameList() {
+    let events = [say(1), event(2, "task", agent: "A", text: "Build slice #1"), say(3), event(4, "say", agent: "A", text: "in")]
+    var late = Transcript()
+    late.apply(EventsReply(events: [events[2], events[3]], next: 4, running: true, structured: true))
+    late.apply(EventsReply(events: [events[0], events[1]], next: 4, running: true, structured: true))
+    #expect(late.flow() == transcript(events).flow())
+    #expect(order(late.flow()) == ["m1", "sA", "m3"])
+}
+
+@Test func aSliceEndsARunOfCallsSoAGroupNeverSpansIt() {
+    func call(_ id: Int) -> [ExecEvent] {
+        [ExecEvent(id: id, at: id, kind: "tool_start", callId: "c\(id)", tool: "Bash", arg: "ls"),
+         ExecEvent(id: id + 1, at: id, kind: "tool_end", callId: "c\(id)", tool: "Bash", status: "ok", durationMs: 1)]
+    }
+    let events = call(1) + call(3) + [event(5, "task", agent: "A", text: "Build slice #1")] + call(6) + call(8)
+    #expect(order(running(events)) == ["g1", "sA", "g6"])
+}
+
+@Test func theMainAgentCallThatLaunchedASubagentIsLeftOutAndOneWithNoSubagentStaysALine() {
+    func agentCall(_ id: Int, _ callId: String) -> [ExecEvent] {
+        [ExecEvent(id: id, at: id, kind: "tool_start", callId: callId, tool: "Agent", arg: "launch"),
+         ExecEvent(id: id + 1, at: id, kind: "tool_end", callId: callId, tool: "Agent", status: "ok")]
+    }
+    let launch = ExecEvent(id: 3, at: 3, kind: "task", text: "Build slice #1", callId: "launch-1", agentId: "A")
+    // the Agent call (events 1-2) is matched to the subagent's start by callId; the one for "later" has no subagent yet
+    let events = agentCall(1, "launch-1") + [launch] + agentCall(4, "later")
+    #expect(order(running(events)) == ["sA", "m4"])
+    // its end can arrive first; the item is still left out
+    let endFirst = [ExecEvent(id: 1, at: 1, kind: "tool_end", callId: "launch-1", tool: "Agent", status: "ok"), launch]
+    #expect(order(running(endFirst)) == ["sA"])
+    #expect(order(running(agentCall(1, "later"))) == ["m1"])
+}
+
+@Test func anAppendedEventProcessesOnlyItself() {
+    var result = transcript([say(1), event(2, "task", agent: "A", text: "Build slice #1"), say(3)])
+    let before = result.work
+    result.apply(EventsReply(events: [say(4)], next: 4, running: true, structured: true))
+    #expect(result.work == before + 1)
 }

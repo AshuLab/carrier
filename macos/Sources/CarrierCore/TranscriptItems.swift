@@ -19,7 +19,7 @@ public enum ToolStatus: Equatable {
     }
 }
 
-public enum ToolKind: Equatable {
+public enum ToolKind: Hashable {
     case read, search, edit, shell, other
 
     public init(tool: String?) {
@@ -44,6 +44,9 @@ public enum ToolKind: Equatable {
     }
 }
 
+/// How many rows of an edit's diff are drawn before "Show N more lines".
+public let collapsedDiffRows = 30
+
 /// How many lines of a command's output an opened call shows before "Show N more lines".
 public let collapsedOutputLines = 7
 
@@ -59,9 +62,63 @@ public struct TranscriptCard: Equatable {
     public var output: [String] = []
     /// The lines an edit changed; nil when there are none.
     public var diff: CardDiff?
+    /// The raw duration behind `duration`.
+    public var durationMs: Int?
+
+    /// 10 s or more: its duration is drawn without hover.
+    public var isSlow: Bool { (durationMs ?? 0) >= 10_000 }
+
+    /// A call to the `Skill` tool: a row of its own.
+    public var isSkill: Bool { tool == "Skill" }
+
+    /// A quiet line draws its duration on hover or focus, and always when slow or failed; never while the call runs.
+    public func showsDuration(active: Bool) -> Bool {
+        duration != nil && (active || isSlow || status == .error)
+    }
+
+    /// The chevron shows on hover, when open and always on a failed call; not on a call with nothing to open or still running.
+    public func showsChevron(active: Bool, open: Bool) -> Bool {
+        hasDetails && status != .pending && (active || open || status == .error)
+    }
 
     /// What the call's line says: a command is cut to what it starts with, anything else (a path, a pattern) is its argument.
-    public var title: String { kind == .shell ? commandTitle(arg) : arg }
+    public var title: String { kind == .shell ? commandTitle(arg).title : arg }
+
+    /// How many commands are chained after a shell call's title; the view draws it as a quiet "+N".
+    public var moreCommands: Int { kind == .shell ? commandTitle(arg).more : 0 }
+
+    /// An edit's file name.
+    public var editName: String { arg.split(separator: "/").last.map(String.init) ?? arg }
+
+    /// An edit's folder, relative to the worktree (a Solve path `…/worktrees/<repo>/<lane>/…` loses everything up to the lane
+    /// folder); an absolute path outside any worktree keeps its last two folders after "…/"; a relative one is shown as it is.
+    public var editFolder: String {
+        let parts = arg.split(separator: "/").dropLast()
+        if let at = parts.firstIndex(of: "worktrees"), parts.distance(from: at, to: parts.endIndex) >= 3 {
+            return parts.dropFirst(parts.distance(from: parts.startIndex, to: at) + 3).joined(separator: "/")
+        }
+        if arg.hasPrefix("/") { return parts.isEmpty ? "" : "…/" + parts.suffix(2).joined(separator: "/") }
+        return parts.joined(separator: "/")
+    }
+
+    /// The lines an edit's card draws: none for an edit that failed.
+    public var shownDiff: CardDiff? { status == .error ? nil : diff }
+
+    /// The diff rows as the card first shows them: `collapsedDiffRows` rows, and how many are left out. All of them once expanded.
+    public func visibleDiffRows(expanded: Bool) -> (rows: [DiffRow], hidden: Int) {
+        guard let rows = shownDiff?.rows else { return ([], 0) }
+        guard expanded == false, rows.count > collapsedDiffRows else { return (rows, 0) }
+        return (Array(rows.prefix(collapsedDiffRows)), rows.count - collapsedDiffRows)
+    }
+
+    /// Whether the diff has more rows than the card first shows; the footer then has "Show N more lines" (and "Show less" once opened).
+    public var diffIsCut: Bool { (shownDiff?.rows.count ?? 0) > collapsedDiffRows }
+
+    /// An edit whose diff only adds rows: it creates the file (or adds to it); the header carries a small "new" tag.
+    public var isNewFile: Bool { shownDiff.map { $0.added > 0 && $0.removed == 0 && $0.rows.count == $0.added } ?? false }
+
+    /// Why an edit failed, in the engine's words; nil when it worked, is running or said nothing.
+    public var editReason: String? { status == .error && summary.isEmpty == false ? summary : nil }
 
     /// A command always has something to show (the whole command); another call only when it printed something.
     public var hasDetails: Bool { kind == .shell || output.isEmpty == false }
@@ -74,6 +131,15 @@ public struct TranscriptCard: Equatable {
         guard expanded == false, output.count > collapsedOutputLines else { return (output, 0) }
         return (Array(output.prefix(collapsedOutputLines)), output.count - collapsedOutputLines)
     }
+
+    /// The first output line of a failed call when it starts with `Exit code`: the only line drawn red. Any other failure prints plain.
+    public var failureLine: String? {
+        guard status == .error, let first = output.first, first.hasPrefix("Exit code") else { return nil }
+        return first
+    }
+
+    /// "11 lines" for the footer; nil when the call printed nothing (the body says "no output").
+    public var lineCount: String? { output.isEmpty ? nil : "\(output.count) \(output.count == 1 ? "line" : "lines")" }
 
     /// Output opens by itself only for a call that failed; any other opens on a click.
     public var outputOpenByDefault: Bool { status == .error }
@@ -192,7 +258,7 @@ struct TranscriptBuilder: Equatable {
         return TranscriptCard(
             tool: tool, kind: ToolKind(tool: tool), arg: start?.arg ?? end?.arg ?? "", summary: end?.summary ?? "",
             status: end == nil ? .pending : end?.status == "err" ? .error : .ok, duration: end?.durationMs.map(formatCallDuration),
-            output: end?.output ?? [], diff: cardDiff(end?.diff)
+            output: end?.output ?? [], diff: cardDiff(end?.diff), durationMs: end?.durationMs
         )
     }
 }
@@ -205,13 +271,16 @@ public func transcriptItems(_ events: [ExecEvent]) -> [TranscriptItem] {
     return transcript.items
 }
 
-/// What an open session shows: the merged items, or the summarised `tail` lines of a harness with no parser yet.
+/// What an open session shows: the main rows and the subagents in event order, with the runs of calls folded, or the summarised `tail` lines of a harness with no parser yet.
 public enum TranscriptBody: Equatable {
-    case items([TranscriptItem])
+    case items([FlowItem])
     case tail([String])
 }
 
-public func transcriptBody(_ transcript: Transcript?) -> TranscriptBody {
+public func transcriptBody(
+    _ transcript: Transcript?, slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000),
+    timeZone: TimeZone = .current
+) -> TranscriptBody {
     guard let transcript else { return .items([]) }
-    return transcript.structured ? .items(transcript.items) : .tail(transcript.tail)
+    return transcript.structured ? .items(transcript.flow(slices: slices, running: running, now: now, timeZone: timeZone)) : .tail(transcript.tail)
 }

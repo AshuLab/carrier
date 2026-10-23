@@ -6,15 +6,17 @@ import Foundation
 /// The longest a title gets before it ends in an ellipsis.
 let maxCommandTitle = 46
 
-/// "git fetch -q +2" for `git fetch -q && git branch -r | grep x`: the first command that does something, and how many more
-/// are chained after it. Leading `VAR=value` assignments do not count as commands. Quotes and `$( )` keep a `;`, `&&` or `|`
+/// "git fetch -q" and 2 for `git fetch -q && git branch -r | grep x`: the first command that does something, and how many more
+/// are chained after it. Leading `VAR=value` assignments do not count as commands, and neither does a leading `cd …` when
+/// something else follows it (a command that is only `cd` keeps it as its title). Quotes and `$( )` keep a `;`, `&&` or `|`
 /// inside them from splitting.
-public func commandTitle(_ command: String) -> String {
+public func commandTitle(_ command: String) -> (title: String, more: Int) {
     let parts = commands(in: command)
-    let real = parts.filter { isAssignment($0) == false }
-    guard let first = real.first ?? parts.first else { return command }
+    var real = parts.filter { isAssignment($0) == false }
+    if real.count > 1, real[0] == "cd" || real[0].hasPrefix("cd ") { real.removeFirst() }
+    guard let first = real.first ?? parts.first else { return (command, 0) }
     let head = first.count > maxCommandTitle ? String(first.prefix(maxCommandTitle - 1)) + "…" : first
-    return real.count > 1 ? "\(head) +\(real.count - 1)" : head
+    return (head, max(real.count - 1, 0))
 }
 
 private func commands(in text: String) -> [String] {

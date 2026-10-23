@@ -187,6 +187,37 @@ func anEditNamesItsFileAndShowsTheFolderRelativeToTheWorktree(path: String, name
     #expect(running.shownDiff == nil)
 }
 
+// MARK: long diffs
+
+private func added(_ count: Int) -> [ExecEvent.DiffLine] { (1...count).map { .init(sign: "+", text: "line \($0)") } }
+
+@Test(arguments: [(30, 30, 0), (31, 30, 1), (100, 30, 70)])
+func aDiffIsCutAtThirtyRowsAndSaysHowManyAreLeftOut(rows: Int, shown: Int, hidden: Int) {
+    let edit = editCard("a.ts", diff: added(rows))
+    let cut = edit.visibleDiffRows(expanded: false)
+    #expect(cut.rows.count == shown)
+    #expect(cut.hidden == hidden)
+    // the header counts are those of the whole diff
+    #expect(edit.shownDiff?.added == rows)
+    // once opened, every row, and the footer still has "Show less" to offer
+    #expect(edit.visibleDiffRows(expanded: true).rows.count == rows)
+    #expect(edit.visibleDiffRows(expanded: true).hidden == 0)
+    #expect(edit.diffIsCut == (hidden > 0))
+}
+
+@Test func anEditWithNoDiffHasNoRowsToCut() {
+    #expect(editCard("a.ts").visibleDiffRows(expanded: false).rows.isEmpty)
+    #expect(editCard("a.ts", status: "err", diff: added(40)).visibleDiffRows(expanded: false).rows.isEmpty)
+}
+
+@Test func anEditThatOnlyAddsLinesIsNewAndOneWithARemovedOrContextRowIsNot() {
+    #expect(editCard("a.ts", diff: added(4)).isNewFile)
+    #expect(editCard("a.ts", diff: lines([("+", "a"), ("-", "b")])).isNewFile == false)
+    #expect(editCard("a.ts", diff: lines([("+", "a"), (" ", "keep")])).isNewFile == false)
+    #expect(editCard("a.ts").isNewFile == false)
+    #expect(editCard("a.ts", status: "err", diff: added(2)).isNewFile == false)
+}
+
 // MARK: command output
 
 private func shell(_ id: Int, _ call: String, status: String, output: [String]?) -> [ExecEvent] {

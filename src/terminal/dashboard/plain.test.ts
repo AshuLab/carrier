@@ -94,3 +94,22 @@ test('epic with a last error', () => {
       error: the agent process ended with an error"
   `);
 });
+
+const fin = (issue: number, over: Partial<NonNullable<PanelSnapshot['finished']>[number]> = {}): NonNullable<PanelSnapshot['finished']>[number] => ({
+  repo: 'acme/web', issue, title: `Epic ${issue}`, labels: [], prNumber: 100 + issue, finishedAt: now - 3_600_000 * issue, status: 'merged', cancelReason: null, executionId: null, ...over,
+});
+
+test('finished epics are listed after the live ones: merged, then cancelled with the reason, ten each and a count of the rest', () => {
+  const lines = renderPanel(snapshot({ finished: [...Array.from({ length: 11 }, (_, i) => fin(i + 1)), fin(20, { status: 'cancelled', prNumber: null, cancelReason: 'final PR closed' })] }));
+  expect(lines[1]).toBe('done  acme/web#1  PR #101  1h 00m ago  Epic 1');
+  expect(lines).toContain('done  acme/web#10  PR #110  10h 00m ago  Epic 10');
+  expect(lines.some((l) => l.includes('#11 '))).toBe(false);
+  expect(lines[11]).toBe('done  +1 more');
+  expect(lines[12]).toBe('cancelled  acme/web#20  20h 00m ago  Epic 20  reason: final PR closed');
+  expect(lines).toHaveLength(13);
+});
+
+test('no finished epics, or an engine that sends none, adds no lines', () => {
+  expect(renderPanel(snapshot({ finished: [] }))).toHaveLength(1);
+  expect(renderPanel(snapshot())).toHaveLength(1);
+});

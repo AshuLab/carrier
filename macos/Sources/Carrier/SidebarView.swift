@@ -131,12 +131,15 @@ struct SidebarRowView: View {
     let row: SidebarRow
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 12) {
             StateGlyph(state: row.state, attention: row.attention)
-            VStack(alignment: .leading, spacing: 1) {
-                SidebarRowTitle(name: row.title ?? row.name, issue: row.issue)
+            VStack(alignment: .leading, spacing: 5) {
+                // two lines before the ellipsis: a title is a sentence, and the number no longer takes room from it
+                Text(row.title ?? row.name).fontWeight(.semibold).lineLimit(2)
                 StateAndRepo {
-                    Text(row.detail).font(.caption).foregroundStyle(row.attention?.color ?? .secondary).lineLimit(1).truncationMode(.tail)
+                    // the number comes first so that, when the state is long, the tail is what gets cut
+                    Text("\(Text("#\(row.issue) · ").foregroundStyle(.secondary))\(Text(row.detail).foregroundStyle(row.attention?.color ?? .secondary))")
+                        .font(.caption).monospacedDigit().lineLimit(1).truncationMode(.tail)
                     if let repo = row.repoLabel {
                         HStack(spacing: 3) {
                             GitHubMark.image.renderingMode(.template).resizable().scaledToFit().frame(width: 10, height: 10)
@@ -147,6 +150,7 @@ struct SidebarRowView: View {
                 }
             }
         }
+        .padding(.vertical, 4)
         .help(row.tooltip)
     }
 }
@@ -172,18 +176,5 @@ private struct StateAndRepo: Layout {
         repo.place(
             at: CGPoint(x: bounds.maxX - repoWidth, y: bounds.minY), proposal: ProposedViewSize(width: repoWidth, height: bounds.height)
         )
-    }
-}
-
-/// The name cuts with an ellipsis; the number never does: it has layout priority.
-struct SidebarRowTitle: View {
-    let name: String
-    let issue: Int
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Text(name).fontWeight(.semibold).lineLimit(1).truncationMode(.tail)
-            Text("#\(issue)").foregroundStyle(.secondary).monospacedDigit().lineLimit(1).fixedSize().layoutPriority(1)
-        }
     }
 }

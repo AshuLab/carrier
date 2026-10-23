@@ -39,6 +39,10 @@ else if (cli.flags.help) {
         if (configPath === undefined) throw noConfig('Usage: carrier status --config <path>');
         exit = await (await import('./commands/status.ts')).statusCommand(loadConfigFile(configPath));
         break;
+      case 'watch':
+        if (configPath === undefined) throw noConfig('Usage: carrier watch --config <path>');
+        exit = await (await import('./commands/watch.ts')).watchCommand(loadConfigFile(configPath));
+        break;
       case 'stop':
       case 'pause':
       case 'resume':

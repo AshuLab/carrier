@@ -169,6 +169,44 @@ test('status prints the panel of the running carrier, plain when piped, and exit
   await closed;
 });
 
+test('watch prints plain lines when piped and leaves on Ctrl+C with Carrier still running; with none running it says so and exits 1; when the Carrier stops it says so and exits 1', async () => {
+  const root = join(dir, 'w');
+  const config = write('watch.json', { ...valid, root, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  const began = Date.now();
+  const none = run('watch', '--config', config);
+  expect([none.status, none.stdout, none.stderr]).toEqual([1, '', expect.stringMatching(/not running.*carrier start/)]);
+  expect(Date.now() - began).toBeLessThan(5000);
+
+  const carrier = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
+  const carrierClosed = once(carrier, 'close');
+  const watch = () => {
+    const child = spawn(process.execPath, [main, 'watch', '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const seen = { stdout: '', stderr: '' };
+    child.stdout.on('data', (chunk) => (seen.stdout += chunk));
+    child.stderr.on('data', (chunk) => (seen.stderr += chunk));
+    return { child, seen, closed: once(child, 'close') };
+  };
+  try {
+    await vi.waitFor(() => expect(run('status', '--config', config).status).toBe(0), { timeout: 15_000 });
+
+    const leaving = watch();
+    await vi.waitFor(() => expect(leaving.seen.stdout).toContain('slots 0/3'), { timeout: 15_000 });
+    expect(leaving.seen.stdout).not.toContain('\x1b[');
+    leaving.child.kill('SIGINT');
+    expect((await leaving.closed)[0]).toBe(0);
+    expect(run('status', '--config', config).status).toBe(0); // leaving did not stop it
+
+    const watching = watch();
+    await vi.waitFor(() => expect(watching.seen.stdout).toContain('slots 0/3'), { timeout: 15_000 });
+    carrier.kill('SIGINT');
+    expect((await watching.closed)[0]).toBe(1);
+    expect(watching.seen.stderr).toBe('Carrier stopped.\n');
+  } finally {
+    carrier.kill('SIGINT');
+  }
+  await carrierClosed;
+});
+
 test('status against a carrier that speaks another protocol exits 2 naming both', async () => {
   const root = join(dir, 'sp');
   mkdirSync(join(root, 'orchestrator'), { recursive: true });

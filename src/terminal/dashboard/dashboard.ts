@@ -43,13 +43,15 @@ export type DashboardOptions = {
   activity?: (executionId: string, count: number) => string[];
   /** How each stage of an epic went; without it, or when it knows nothing of the epic, the card has no stages line. */
   detail?: DetailProvider;
+  /** What `q` and Ctrl+C do: 'stop' Carrier (the foreground, the default) or 'leave' it running (`watch`). */
+  quit?: 'stop' | 'leave';
 };
 
 /**
  * The panel for a terminal: header, slots, then one section per kind of epic (running, queued, needing a person, ready
  * for test). Pure: the same snapshot gives the same lines; `color: false` gives them with no ANSI.
  */
-export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, ui, logLines = [], activity, detail }: DashboardOptions = {}): string[] {
+export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, ui, logLines = [], activity, detail, quit = 'stop' }: DashboardOptions = {}): string[] {
   const paint = (text: string, ...styles: Style[]) => (color && styles.length > 0 ? `\x1b[${styles.map((x) => codes[x]).join(';')}m${text}\x1b[0m` : text);
   const width = Math.min(Math.max(columns, 50), 80) - 2;
   const ago = (at: number | null) => (at === null ? 'a while' : `${formatDuration(Math.max(0, s.now - at))} ago`);
@@ -84,17 +86,17 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
   const hints = () => {
     const items = itemsOf(s);
     const current = items.find((i) => i.key === ui?.selected);
-    return [items.length > 1 && '↑↓ select', current && 'enter open', current?.executionId && 'l logs', 'r check now', s.paused ? 'p resume' : 'p pause', '? help', 'q quit'].filter(Boolean).join(' · ');
+    return [items.length > 1 && '↑↓ select', current && 'enter open', current?.executionId && 'l logs', 'r check now', s.paused ? 'p resume' : 'p pause', '? help', quit === 'stop' ? 'q quit' : 'q leave'].filter(Boolean).join(' · ');
   };
   const footer = () => {
     if (ui?.toast) add(`   ${paint(`› ${printable(ui.toast.text)}`, 'cyan')}`);
     add();
-    add(`   ${paint(ui === undefined ? 'Ctrl+C stops it' : ui.mode === 'dashboard' ? hints() : 'esc back · q quit', 'dim')}`);
+    add(`   ${paint(ui === undefined ? (quit === 'stop' ? 'Ctrl+C stops it' : 'Ctrl+C leaves it running') : ui.mode === 'dashboard' ? hints() : `esc back · ${quit === 'stop' ? 'q quit' : 'q leave'}`, 'dim')}`);
   };
 
   if (ui?.mode === 'help') {
     section('KEYS');
-    for (const [key, what] of [['↑ ↓ j k', 'select an epic'], ['enter', 'open its PR (or issue) in the browser'], ['l', 'agent output of the selected epic'], ['r', 'check GitHub now'], ['p', 'pause or resume taking new epics'], ['?', 'this help'], ['esc', 'back'], ['q', 'stop Carrier (same as Ctrl+C)']]) add(`   ${paint(key!.padEnd(9), 'bold', 'cyan')} ${what}`);
+    for (const [key, what] of [['↑ ↓ j k', 'select an epic'], ['enter', 'open its PR (or issue) in the browser'], ['l', 'agent output of the selected epic'], ['r', 'check GitHub now'], ['p', 'pause or resume taking new epics'], ['?', 'this help'], ['esc', 'back'], ['q', quit === 'stop' ? 'stop Carrier (same as Ctrl+C)' : 'leave (Carrier keeps running)']]) add(`   ${paint(key!.padEnd(9), 'bold', 'cyan')} ${what}`);
     footer();
     return lines.map((line) => fit(line, width + 2));
   }

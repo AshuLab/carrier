@@ -23,13 +23,15 @@ const logRows = 18;
  * The dashboard with keys: select an epic, open it, read its agent's output, check GitHub now, pause intake, quit.
  * Every key redraws at once instead of waiting for the next second. Returns the stop function.
  */
-export function startInteractivePanel({ snapshot, out, stdin, controls, now = Date.now, intervalMs }: {
+export function startInteractivePanel({ snapshot, out, stdin, controls, now = Date.now, intervalMs, quit }: {
   snapshot: () => PanelSnapshot;
   out: PanelOutput;
   stdin: Parameters<typeof startKeys>[0];
   controls: Controls;
   now?: () => number;
   intervalMs?: number;
+  /** What `q` does, as the screens say it; see `DashboardOptions.quit`. */
+  quit?: 'stop' | 'leave';
 }) {
   let ui = initialUi;
   const detail = controls.sessions && ((repo: string, issue: number) => controls.sessions!(repo, issue)?.sessions ?? null);
@@ -40,7 +42,7 @@ export function startInteractivePanel({ snapshot, out, stdin, controls, now = Da
     (s, columns) => {
       ui = settle(ui, s, now());
       const executionId = ui.mode === 'logs' ? itemsOf(s).find((i) => i.key === ui.selected)?.executionId : undefined;
-      return renderDashboard(s, { columns, ui, logLines: executionId ? controls.logs(executionId, logRows) : [], activity: controls.logs, detail });
+      return renderDashboard(s, { columns, ui, logLines: executionId ? controls.logs(executionId, logRows) : [], activity: controls.logs, detail, quit });
     },
   );
   const perform = (action: Action | undefined) => {

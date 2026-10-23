@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { fit, renderDashboard, visibleLength } from './dashboard.ts';
+import { fit, renderDashboard, visibleLength, type DashboardOptions } from './dashboard.ts';
 import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
 
 const now = 10 * 3_600_000;
@@ -300,4 +300,15 @@ test('a refused repo error loses its control sequences and never makes a line wi
   expect(out.join('\n')).not.toContain('\x1b');
   expect(out.join('\n')).toContain('AshuLab/api   [2Jwipe');
   for (const line of renderDashboard(s, { columns: 60 })) expect(visibleLength(line)).toBeLessThanOrEqual(60);
+});
+
+test('q stops Carrier in the foreground and leaves it running in watch: hints, help and the read-only footer say which', () => {
+  const view = (quit?: 'stop' | 'leave', ui: DashboardOptions['ui'] = keysUi) => renderDashboard(snap(), { color: false, ui, quit }).join('\n');
+  expect(view()).toContain('p pause · ? help · q quit');
+  expect(view(undefined, { ...keysUi, mode: 'help' })).toContain('q         stop Carrier (same as Ctrl+C)');
+  expect(view('leave')).toContain('p pause · ? help · q leave');
+  expect(view('leave', { ...keysUi, mode: 'help' })).toContain('q         leave (Carrier keeps running)');
+  expect(view('leave', { ...keysUi, mode: 'help' })).not.toContain('stop Carrier');
+  expect(view('leave', { ...keysUi, mode: 'help' })).toContain('esc back · q leave');
+  expect(renderDashboard(snap(), { color: false, quit: 'leave' }).at(-1)).toBe('   Ctrl+C leaves it running');
 });

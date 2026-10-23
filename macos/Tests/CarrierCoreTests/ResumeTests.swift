@@ -176,6 +176,20 @@ private func snapshot(_ epics: [PanelEpic]) throws -> PanelSnapshot {
     #expect(store.resuming.isEmpty)
 }
 
+@Test func aResumeEndsWhenASnapshotAfterTheAnswerStillShowsTheEpicStopped() throws {
+    let (store, ref) = (EpicStore(), EpicRef(repo: "acme/web", issue: 12))
+    store.startResuming(ref)
+    store.answeredResume(ref, refusal: nil, at: 1_000)
+    var before = try snapshot([stuck("timeout")])
+    before.now = 900 // generated before the answer: the epic may not have left needs-human in it yet
+    store.settleResuming(before)
+    #expect(store.resuming == [ref])
+    var after = try snapshot([stuck("workspace")])
+    after.now = 1_100 // generated after the answer and the epic is stopped: it failed again at once
+    store.settleResuming(after)
+    #expect(store.resuming.isEmpty)
+}
+
 @Test func aRefusalEndsTheResumeAndKeepsItsWordsWhileTheEpicStaysStopped() throws {
     let (store, ref) = (EpicStore(), EpicRef(repo: "acme/web", issue: 12))
     store.startResuming(ref)

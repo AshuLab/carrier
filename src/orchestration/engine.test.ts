@@ -1829,14 +1829,13 @@ async function runningWithSlices() {
 
 test('an epic that starts has its slices cached at once, before the next poll', async () => {
   const engine = await runningWithSlices();
-  expect(github.sliceReads).toEqual(['AshuLab/a#1']); // epic 2 is still queued: no read
+  expect(new Set(github.sliceReads)).toEqual(new Set(['AshuLab/a#1'])); // epic 2 is still queued: no read
   expect(cached(engine.db)).toEqual([`1:10:closed@${5 * MIN}`, `1:11:waiting@${5 * MIN}`]);
 });
 
 test('the poll caches the slices of live epics, replacing them, and a finished epic keeps its last list', async () => {
   const engine = await runningWithSlices();
   await clock.advance(5 * MIN);
-  expect(github.sliceReads).toEqual(['AshuLab/a#1', 'AshuLab/a#1']);
   expect(cached(engine.db)).toEqual([`1:10:closed@${10 * MIN}`, `1:11:waiting@${10 * MIN}`]);
 
   github.slices['AshuLab/a#1'] = { slices: [slice(11, { state: 'in_progress' })] };
@@ -1883,6 +1882,89 @@ test('a failing slices read keeps the previous rows and the poll goes on', async
   github.slicesUnavailable = null;
   await clock.advance(5 * MIN);
   expect(cached(engine.db)).toEqual([`1:99:ready@${20 * MIN}`]);
+});
+
+// --- slices: read again when the agent changes them, and every minute as a net ---
+
+const claim = 'gh issue edit 10 --add-assignee @me';
+// Epic 1 running with an agent that hangs, epic 2 queued; the clock is 10 s past the poll that started it, outside the window of its first read.
+async function working() {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  github.slices = { 'AshuLab/a#1': { slices: [slice(10)] } };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await clock.advance(10_000);
+  github.sliceReads.length = 0;
+  const executionId = runner.tasks[0]!.executionId;
+  const run = (callId: string, command: string, status: 'ok' | 'err' | null = 'ok') => {
+    runner.emit(executionId, [{ kind: 'tool_start', callId, tool: 'Bash', arg: command }]);
+    if (status) runner.emit(executionId, [{ kind: 'tool_end', callId, tool: 'Bash', status }]);
+  };
+  const states = () => cached(engine.db).map((r) => r.split('@')[0]);
+  return { engine, run, states };
+}
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+test('a command that changes the slices makes one read when it ends, and the stored rows change', async () => {
+  const { run, states } = await working();
+  github.slices['AshuLab/a#1'] = { slices: [slice(10, { state: 'in_progress' })] };
+  run('c1', claim, null);
+  await settle();
+  expect(github.sliceReads).toEqual([]); // started: GitHub does not show it yet
+  run('c1', claim);
+  await settle();
+  expect(github.sliceReads).toEqual(['AshuLab/a#1']);
+  expect(states()).toEqual(['1:10:in_progress']);
+});
+
+test('a command that is not on the list makes no read, and one that ends in error makes it', async () => {
+  const { run } = await working();
+  run('c1', 'gh issue view 10');
+  run('c2', 'git push -u origin x');
+  await settle();
+  expect(github.sliceReads).toEqual([]);
+  run('c3', 'gh pr create --base x', 'err');
+  await settle();
+  expect(github.sliceReads).toEqual(['AshuLab/a#1']);
+});
+
+test('a burst of commands reads at most once every ten seconds and the last read sees the last change', async () => {
+  const { run, states } = await working();
+  run('c1', claim);
+  await settle();
+  expect(github.sliceReads).toHaveLength(1);
+  github.slices['AshuLab/a#1'] = { slices: [slice(10, { state: 'in_progress' })] };
+  run('c2', 'gh pr create');
+  github.slices['AshuLab/a#1'] = { slices: [slice(10, { state: 'closed', closedAt: 1 })] };
+  run('c3', 'gh pr merge 5');
+  await settle();
+  await clock.advance(9_999);
+  expect(github.sliceReads).toHaveLength(1);
+  await clock.advance(1);
+  expect(github.sliceReads).toHaveLength(2); // one read for the two, at the end of the window
+  expect(states()).toEqual(['1:10:closed']);
+});
+
+test('with no events the live epics are read every minute, and a finished one is not', async () => {
+  const { engine } = await working();
+  await clock.advance(50_000);
+  expect(github.sliceReads).toEqual(['AshuLab/a#1']); // epic 2 is queued: not live
+  await clock.advance(MIN);
+  expect(github.sliceReads).toEqual(['AshuLab/a#1', 'AshuLab/a#1']);
+  engine.db.update(epics).set({ status: 'merged' }).where(eq(epics.issue, 1)).run();
+  await clock.advance(2 * MIN);
+  expect(github.sliceReads).toHaveLength(2);
+});
+
+test('a failing read after a command keeps the last rows', async () => {
+  const { run, states } = await working();
+  const before = states();
+  github.slicesUnavailable = new GitHubUnavailable();
+  github.slices['AshuLab/a#1'] = { slices: [slice(99)] };
+  run('c1', claim);
+  await settle();
+  expect(github.sliceReads).toEqual(['AshuLab/a#1']);
+  expect(states()).toEqual(before);
 });
 
 test('the engine decides the same with the table empty: an epic goes through ship and review to ready for test', async () => {

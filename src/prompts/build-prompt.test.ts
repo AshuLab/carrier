@@ -33,7 +33,7 @@ test('ship prompt', () => {
       "repo": "AshuLab/carrier",
       "epic": 3,
       "stage": "ship",
-      "summary": "<what you did and concluded, in a few lines>",
+      "summary": "<one or two sentences for the next agent of this epic: what you did and concluded>",
       "outcome": "completed",
       "pr": {
         "number": 1,
@@ -41,7 +41,7 @@ test('ship prompt', () => {
       },
       "verification": {
         "ci": "passed",
-        "evidence": "<which verifications you ran and their result>"
+        "evidence": "<one line: which verifications you ran and their result>"
       }
     }
     \`\`\`
@@ -51,7 +51,7 @@ test('ship prompt', () => {
       "repo": "AshuLab/carrier",
       "epic": 3,
       "stage": "ship",
-      "summary": "<what you did and concluded, in a few lines>",
+      "summary": "<one or two sentences for the next agent of this epic: what you did and concluded>",
       "outcome": "needs_human",
       "reason": "<why a person has to step in>"
     }
@@ -78,7 +78,7 @@ test('review prompt', () => {
       "repo": "AshuLab/carrier",
       "epic": 3,
       "stage": "review",
-      "summary": "<what you did and concluded, in a few lines>",
+      "summary": "<one or two sentences for the next agent of this epic: what you did and concluded>",
       "outcome": "completed",
       "pr": {
         "number": 7,
@@ -86,7 +86,7 @@ test('review prompt', () => {
       },
       "verification": {
         "ci": "passed",
-        "evidence": "<which verifications you confirmed on this commit>"
+        "evidence": "<one line: which verifications you confirmed on this commit>"
       },
       "observations": [
         {
@@ -103,7 +103,7 @@ test('review prompt', () => {
       "repo": "AshuLab/carrier",
       "epic": 3,
       "stage": "review",
-      "summary": "<what you did and concluded, in a few lines>",
+      "summary": "<one or two sentences for the next agent of this epic: what you did and concluded>",
       "outcome": "changes_requested",
       "pr": {
         "number": 7,
@@ -127,7 +127,7 @@ test('review prompt', () => {
       "repo": "AshuLab/carrier",
       "epic": 3,
       "stage": "review",
-      "summary": "<what you did and concluded, in a few lines>",
+      "summary": "<one or two sentences for the next agent of this epic: what you did and concluded>",
       "outcome": "needs_human",
       "reason": "<why a person has to step in>"
     }
@@ -153,7 +153,7 @@ test('fix prompt', () => {
       "repo": "AshuLab/carrier",
       "epic": 3,
       "stage": "fix",
-      "summary": "<what you did and concluded, in a few lines>",
+      "summary": "<one or two sentences for the next agent of this epic: what you did and concluded>",
       "outcome": "completed",
       "pr": {
         "number": 7,
@@ -161,7 +161,7 @@ test('fix prompt', () => {
       },
       "verification": {
         "ci": "passed",
-        "evidence": "<which verifications you ran and their result>"
+        "evidence": "<one line: which verifications you ran and their result>"
       }
     }
     \`\`\`
@@ -171,7 +171,7 @@ test('fix prompt', () => {
       "repo": "AshuLab/carrier",
       "epic": 3,
       "stage": "fix",
-      "summary": "<what you did and concluded, in a few lines>",
+      "summary": "<one or two sentences for the next agent of this epic: what you did and concluded>",
       "outcome": "needs_human",
       "reason": "<why a person has to step in>"
     }

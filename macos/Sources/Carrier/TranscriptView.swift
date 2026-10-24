@@ -12,6 +12,8 @@ struct TranscriptRows: View {
 
     var body: some View {
         switch content {
+        case .loading:
+            LoadingRow().sessionRow()
         case .items(let items) where items.isEmpty:
             EmptyStateView(state: .noActivity).frame(minHeight: 170).sessionRow()
         case .items(let items):
@@ -21,6 +23,19 @@ struct TranscriptRows: View {
                 .font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary)
                 .textSelection(.enabled).padding(12).sessionRow()
         }
+    }
+}
+
+/// What a session or the tab shows while its events have not arrived: a spinner and one word, in the place of the rows.
+struct LoadingRow: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text("Loading…").foregroundStyle(.secondary)
+        }
+        .font(.callout)
+        .frame(maxWidth: .infinity, minHeight: 64)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -34,9 +49,10 @@ struct FlowItemView: View {
     var body: some View {
         switch flow {
         case .item(let item):
-            TranscriptItemView(item: item, outputs: $outputs).padding(.horizontal, 12).padding(.vertical, flow.verticalMargin)
+            // a log line keeps its margin inside its hover, which runs edge to edge; the rest has it outside
+            TranscriptItemView(item: item, outputs: $outputs).padding(.horizontal, item.isLogLine ? 0 : LogMetrics.iconColumn).padding(.vertical, flow.verticalMargin)
         case .group(let id, let calls):
-            ToolGroupView(id: id, calls: calls, groups: $groups, outputs: $outputs).padding(.horizontal, 12).padding(.vertical, flow.verticalMargin)
+            ToolGroupView(id: id, calls: calls, groups: $groups, outputs: $outputs).padding(.vertical, flow.verticalMargin)
         case .slice(let lane):
             LaneSectionView(lane: lane, outputs: $outputs, groups: $groups, slices: $slices)
         }
@@ -186,6 +202,7 @@ struct CallLineView: View {
                 chevron: (card.showsChevron(active: active, open: open), open)
             )
         }
+        .padding(.horizontal, LogMetrics.iconColumn)
         .frame(height: LogMetrics.callLine)
         .background(Color.primary.opacity(active ? 0.05 : 0))
         .contentShape(Rectangle())
@@ -218,7 +235,7 @@ struct ToolLineView: View {
                 .accessibilityAddTraits(card.hasDetails ? .isButton : [])
                 .accessibilityAction { if card.hasDetails { toggleOutput() } }
             if outputOpen, card.hasDetails {
-                TerminalBlockView(card: card).padding(.top, 2).padding(.leading, LogMetrics.titleColumn - LogMetrics.iconColumn).padding(.bottom, 8)
+                TerminalBlockView(card: card).padding(.top, 2).padding(.leading, LogMetrics.titleColumn).padding(.trailing, LogMetrics.iconColumn).padding(.bottom, 8)
             }
         }
     }
@@ -246,7 +263,7 @@ struct ToolGroupView: View {
                 .padding(.leading, LogMetrics.groupIndent)
                 .overlay(alignment: .leading) {
                     Rectangle().fill(Color.secondary.opacity(0.3)).frame(width: LogMetrics.ruleWidth)
-                        .padding(.leading, LogMetrics.groupRule - LogMetrics.iconColumn - LogMetrics.ruleWidth / 2)
+                        .padding(.leading, LogMetrics.groupRule - LogMetrics.ruleWidth / 2)
                 }
             }
         }
@@ -269,6 +286,8 @@ struct ToolGroupHeader: View {
             // the columns of a call, the status and chevron slots empty
             CallColumns(duration: duration, status: .ok)
         }
+        // the row's margin is inside the hover, which runs edge to edge: with so little room, square corners at the edge look right
+        .padding(.horizontal, LogMetrics.iconColumn)
         .frame(height: LogMetrics.groupLine)
         .background(Color.primary.opacity(hovered ? 0.05 : 0))
         .contentShape(Rectangle())
@@ -293,6 +312,7 @@ struct SkillRowView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             CallColumns(duration: card.showsDuration(active: hovered) ? card.duration : nil, failed: card.status == .error, status: card.status)
         }
+        .padding(.horizontal, LogMetrics.iconColumn)
         .frame(height: LogMetrics.skillRow)
         .background(Color.primary.opacity(hovered ? 0.05 : 0))
         .onHover { hovered = $0 }

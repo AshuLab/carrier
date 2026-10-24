@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>The closing row as a footer</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* every class here starts with q2- : shared.css owns .row .slice .sp .st .ring .chip .pros .card .term .h .dot */
+.q2-opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(640px,1fr));gap:30px;align-items:start;margin-top:8px}
+.q2-opt>h3{margin:0 0 2px;font-size:14px}
+.q2-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:640px;min-height:54px}
+/* the session card: the tint the log rows sit on */
+.q2-win{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:14px}
+.q2-sess{border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.q2-rows{padding:8px 0}
+.q2-msg{margin:0 12px;background:var(--card2);border-radius:12px;padding:9px 12px;font-size:12.5px;line-height:1.5}
+.q2-msg ul{margin:6px 0 0;padding-left:16px;color:var(--dim)}.q2-msg li b{color:var(--text);font-weight:600}
+.q2-msg code{font:11.5px var(--mono);color:var(--text)}
+.q2-pad{padding:10px 12px}
+/* pills and chips */
+.q2-pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:99px;background:color-mix(in srgb,var(--c) 20%,transparent);color:var(--c);white-space:nowrap}
+.q2-g{--c:var(--green)}.q2-o{--c:var(--orange)}.q2-r{--c:var(--red)}.q2-n{--c:var(--dim)}
+.q2-pill svg,.q2-i{width:12px;height:12px;flex:none}
+.q2-ev{font:11px/1.5 var(--mono);color:var(--dim)}
+.q2-flat{background:var(--card);border-radius:10px;padding:8px 11px}
+.q2-rsn{padding:7px 10px;border-radius:10px;background:color-mix(in srgb,var(--c) 14%,transparent);color:var(--c);font-size:12.5px}
+.q2-link{color:var(--blue)}
+.q2-cut{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.q2-clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.q2-fl{display:flex;align-items:center;gap:8px}.q2-sp{flex:1}
+.q2-chev{width:10px;height:10px;color:var(--faint);transition:transform .12s;flex:none}
+.q2-open>.q2-hd .q2-chev,.q2-open .q2-turn{transform:rotate(90deg)}
+.q2-hide{display:none}.q2-open>.q2-hide{display:block}
+.q2-hd{cursor:pointer}
+/* a log row: 12 pt in, hover edge to edge, like the rest of the log */
+.q2-line{display:flex;align-items:center;gap:8px;height:28px;padding:0 12px;cursor:pointer}
+.q2-line:hover{background:rgba(255,255,255,.05)}body.light .q2-line:hover{background:rgba(0,0,0,.04)}
+.q2-gl{width:16px;height:16px;display:grid;place-items:center;flex:none;color:var(--c)}
+.q2-gl svg{width:15px;height:15px}
+.q2-t{font-size:12px;font-weight:600;color:var(--text)}
+.q2-d{font-size:12px;color:var(--dim)}
+.q2-time{font-size:11px;color:var(--faint);width:44px;text-align:right;flex:none}
+.q2-body{padding:2px 12px 10px 36px}
+.q2-bar{width:3px;border-radius:2px;background:var(--c);flex:none;align-self:stretch}
+
+/* footer variants */
+.q3-in{margin:0 12px;background:var(--card2);border-radius:12px;overflow:hidden}
+.q3-in .q2-msg{margin:0;border-radius:0;background:none}
+.q3-hair{border-top:.5px solid var(--line)}
+.q3-band{background:rgba(0,0,0,.18);border-top:.5px solid var(--line)}body.light .q3-band{background:rgba(0,0,0,.04)}
+.q3-cont{display:flex;align-items:center;gap:8px;padding:8px 12px;color:var(--dim);font-size:12px}
+.q3-cont b{font-weight:550;color:var(--text)}
+.q3-air{height:14px}
+</style></head><body>
+<h1>The closing row as a footer</h1>
+<div class="sub">Option C from before, but not glued to the prose above: it is the <b>footer</b> of the session, set apart from the last message. Same row (glyph, <i>Completed · CI passed</i>, counts, time, chevron), same content when opened. Four ways to set it apart; under each one is the <b>Continue in Terminal</b> row the app already draws after the result, to judge the spacing in context. <b>Click the row to open it.</b></div>
+<div class="bar">
+  <button class="tab on" data-s="ok">Completed · CI passed</button>
+  <button class="tab" data-s="abs">Completed · no CI</button>
+  <button class="tab" data-s="chg">Changes requested</button>
+  <button class="tab" data-s="hum">Needs a human</button>
+  <span class="sp"></span>
+  <button class="tog" id="lt">Light / dark</button>
+</div>
+<div class="q2-opts" id="o"></div>
+<div class="note"><b>Same rules as before.</b> A stop's reason is never behind a click. The summary is not drawn. Blockers and resolved (dashed) need the engine to send them. The hover runs edge to edge of whatever contains the row: the bubble in A, the card in B, C and D.</div>
+
+<script>
+const I={
+ ok:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M5.3 8.2l1.9 1.9 3.5-3.9"/></svg>',
+ chg:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.2l6 10.6H2z"/><path d="M8 6.6v2.8M8 11.4v.1"/></svg>',
+ hum:'<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="5.2" r="2.3"/><path d="M3 13.5c.6-2.6 2.5-3.8 5-3.8s4.4 1.2 5 3.8"/></svg>',
+ chev:'<svg class="q2-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 1.5L6.5 5 3 8.5"/></svg>',
+ ext:'<svg viewBox="0 0 12 12" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5H2.5v7h7V7M7 2.5h2.5V5M9.5 2.5L5.5 6.5"/></svg>',
+ term:'<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="2"/><path d="M5 7l2 1.5L5 10M8.5 10H11"/></svg>'
+};
+const S={
+ ok:{c:'g',t:'Completed',ic:'ok',time:'6.2 min',ci:'passed',
+  ev:'GitHub CI run 40032513298 on a789f682 passed (ci UTC and ci America/Montevideo). Ran employee/__tests__/schemas.test.ts locally: 27 passed.',blockers:[],resolved:['schedule-ceiling-server-bypass']},
+ abs:{c:'g',t:'Completed',ic:'ok',time:'3.1 min',ci:'absent',ev:'No workflows in .github/. Ran pnpm test locally: 112 passed.',blockers:[],resolved:[]},
+ chg:{c:'o',t:'Changes requested',ic:'chg',time:'4.8 min',ci:null,ev:'',blockers:['The export ignores the active filters','The date column is not localized'],resolved:[]},
+ hum:{c:'r',t:'Needs a human',ic:'hum',time:'2.4 min',ci:null,ev:'',blockers:[],resolved:[],
+  reason:'The constraint fails on 14 existing rows in employees.contract. Someone has to decide whether to clean the data or relax the constraint.'}
+};
+let cur=S[location.hash.slice(1)]?location.hash.slice(1):'ok';
+const col=s=>({g:'green',o:'orange',r:'red'})[s.c];
+const ciWord=s=>s.ci=='passed'?'CI passed':s.ci=='absent'?'No CI':'';
+const reason=s=>s.reason?`<div class="q2-rsn" style="--c:var(--red)">${s.reason}</div>`:'';
+const list=(a,mark,col2,strike,tag)=>a.length?`<div style="border:1px dashed var(--line);border-radius:10px;padding:2px 0;margin-bottom:8px">${a.map(b=>`<div class="q2-fl q2-d" style="padding:4px 10px"><span style="color:var(--${col2})">${mark}</span><span style="flex:1;${strike?'text-decoration:line-through':'color:var(--text)'}">${b}</span>${tag}</div>`).join('')}</div>`:'';
+const detail=s=>list(s.blockers,'●','orange',0,`<span class="q2-link">${I.ext}</span>`)+list(s.resolved,'✓','green',1,'<span class="q2-faint">resolved</span>')+(s.ci?`<div class="q2-flat q2-ev">${s.ev}</div>`:'');
+const hasDetail=s=>s.ci||s.blockers.length||s.resolved.length;
+const dash='border-bottom:1px dashed var(--faint)';
+/* the row of option C; pad = left inset of the opened block */
+const row=s=>`<div class="q2-hd q2-line" ${hasDetail(s)?'data-t':''}><span class="q2-gl">${I[s.ic]}</span><span class="q2-t">${s.t}</span>${s.ci?`<span class="q2-d">· ${ciWord(s)}</span>`:''}${s.blockers.length?`<span class="q2-d" style="${dash}">· ${s.blockers.length} blocker${s.blockers.length>1?'s':''}</span>`:''}${s.resolved.length?`<span class="q2-d" style="${dash}">· ${s.resolved.length} resolved</span>`:''}<span class="q2-sp"></span><span class="q2-time">${s.time}</span>${hasDetail(s)?I.chev:'<span style="width:10px"></span>'}</div>
+ ${s.reason?`<div style="padding:0 12px 10px 36px">${reason(s)}</div>`:''}<div class="q2-hide q2-body">${detail(s)}</div>`;
+const foot=s=>`<div style="--c:var(--${col(s)})">${row(s)}</div>`;
+const LASTHTML=`<div class="q2-msg"><b>Round 2 of PR #701 is approved at a789f682, with no blockers.</b> I did not run the full /code-review and /code-post skills. I checked the diff and the code paths by hand and posted the review with gh.
+ <ul><li><b>Head commit:</b> it matches a789f682.</li><li><b>Blocker schedule-ceiling-server-bypass:</b> fixed. The ceiling in <code>checkContractMinimumWage</code> now runs before the category early-return…</li><li><b>Verification:</b> CI run 40032513298 on a789f682 passed in both UTC and America/Montevideo. All 27 tests passed.</li></ul></div>`;
+const CONT=`<div class="q3-cont">${I.term}<b>Continue in Terminal</b><span class="q2-faint">· resumes this session</span></div>`;
+
+/* A: inside the bubble, under a hairline */
+const A=s=>`<div class="q3-in">${LASTHTML}<div class="q3-hair">${foot(s)}</div></div>${CONT}`;
+/* B: a hairline across the card, the bubble stays whole above */
+const B=s=>`${LASTHTML}<div class="q3-hair" style="margin-top:10px">${foot(s)}</div>${CONT}`;
+/* C: a band with its own tint across the card */
+const C=s=>`${LASTHTML}<div class="q3-band" style="margin-top:10px">${foot(s)}</div>${CONT}`;
+/* D: air only, no line */
+const D=s=>`${LASTHTML}<div class="q3-air"></div>${foot(s)}${CONT}`;
+
+const OPTS=[
+ ['A · Inside the last message, under a hairline','The row is the foot of the bubble: same grey, a thin line above it, and the hover stops at the bubble\'s rounded edge. It reads as part of the message, so it works only if the last message is always there.',A],
+ ['B · A hairline across the card','The bubble stays whole; a thin line runs the width of the session card and the row sits under it. Quiet, and it reads as "the end of the log" without a new colour.',B],
+ ['C · A tinted band (the lean)','The row sits in a band with its own, slightly darker tint across the card, like a status bar: the strongest separation without drawing a card. It also gives the opened block a place of its own.',C],
+ ['D · Air only','No line and no tint, only 14 pt of air above the row. The lightest, and the closest to the log, but the least separated: it relies on the glyph and the weight alone.',D]
+];
+function draw(){const s=S[cur];document.getElementById('o').innerHTML=OPTS.map(([h,p,f])=>`<div class="q2-opt"><h3>${h}</h3><p>${p}</p><div class="q2-win"><div class="q2-sess"><div class="q2-rows" style="padding-bottom:0">${f(s)}</div></div></div></div>`).join('')}
+document.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{cur=b.dataset.s;document.querySelectorAll('[data-s]').forEach(x=>x.classList.toggle('on',x==b));draw()});
+document.getElementById('o').onclick=e=>{const h=e.target.closest('[data-t]');if(h)h.parentElement.classList.toggle('q2-open')};
+document.getElementById('lt').onclick=()=>document.body.classList.toggle('light');
+document.querySelectorAll('[data-s]').forEach(x=>x.classList.toggle('on',x.dataset.s==cur));
+draw();
+</script></body></html>

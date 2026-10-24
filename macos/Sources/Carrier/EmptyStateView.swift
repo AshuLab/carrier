@@ -34,6 +34,34 @@ struct EmptyStateView: View {
     }
 }
 
+/// An empty state's shape (the tile, a title, a line) while what it will show is still on its way: the spinner takes the symbol's
+/// place. It appears after a quarter of a second, so a load that is quick never flashes it.
+struct LoadingStateView: View {
+    let title: String
+    let line: String
+    @State private var shown = false
+
+    var body: some View {
+        VStack(spacing: 5) {
+            ProgressView().controlSize(.regular)
+                .frame(width: 54, height: 54)
+                .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
+                .padding(.bottom, 9)
+            Text(title).font(.headline)
+            Text(line).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true).frame(maxWidth: 280)
+        }
+        .padding(22)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .opacity(shown ? 1 : 0)
+        .task {
+            try? await Task.sleep(for: .milliseconds(250))
+            withAnimation(.easeIn(duration: 0.2)) { shown = true }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 /// All of them, as in the mockup's gallery; reachable from the menu in `--fixture` mode.
 struct EmptyStatesGallery: View {
     var body: some View {

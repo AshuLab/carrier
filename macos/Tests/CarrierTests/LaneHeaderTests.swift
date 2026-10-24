@@ -64,19 +64,6 @@ private func lane(_ state: SubagentState = .finished, lane: Int? = 1) -> LaneSec
     #expect(try height(lane(lane: nil), width: 300) == base)
 }
 
-// The "Earlier sessions" row is the same height closed or open, whatever the count.
-@MainActor @Test func theEarlierSessionsRowKeepsItsHeight() throws {
-    func height(count: Int, open: Bool) throws -> Int {
-        let renderer = ImageRenderer(content: EarlierSessionsRow(count: count, open: open).frame(width: 480))
-        renderer.scale = 2
-        return try #require(renderer.cgImage).height
-    }
-    let closed = try height(count: 1, open: false)
-    #expect(closed > 0)
-    #expect(try height(count: 1, open: true) == closed)
-    #expect(try height(count: 120, open: false) == closed)
-}
-
 private func shell(_ id: Int, _ tool: String = "Bash") -> TranscriptItem {
     .tool(id: id, TranscriptCard(tool: tool, kind: ToolKind(tool: tool), arg: "pnpm test", summary: "", status: .ok, duration: "1.0 s", durationMs: 1000))
 }

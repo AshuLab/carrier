@@ -2,11 +2,13 @@ import CarrierCore
 import SwiftUI
 
 /// The Agent output tab: one card per session with its header (avatar, who, counts, time or the stopped badge) and, below the
-/// fifth, the row that opens the older ones. An open section shows its transcript under the header.
+/// fifth, the row (above the first one) that opens the older ones. The newest session is the last, like the last line of a chat. An open section shows its transcript under the header.
 struct SessionSectionsView: View {
     /// The Agent output tab is a lazy stack whose section headers stay pinned; the smoke check reports it from these.
     static let layout = "lazy stack, pinned section headers"
     static let pinned: PinnedScrollableViews = .sectionHeaders
+    /// The last thing in the list: what the page scrolls to when a new session starts.
+    static let endID = "end of the sessions"
 
     let epic: EpicRef
     let list: SessionList
@@ -18,13 +20,9 @@ struct SessionSectionsView: View {
     var body: some View {
         // no spacing: the rows of a session touch, so its header, rows and foot read as one card (see `SessionCard`)
         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: Self.pinned) {
+            // the log runs top to bottom as it happened, the newest session last
             sessionSections(list.sections)
-            if list.earlier.isEmpty == false {
-                Button { folds.toggleEarlier(epic) } label: { EarlierSessionsRow(count: list.earlier.count, open: folds.isEarlierOpen(epic)) }
-                    .buttonStyle(.plain)
-                    .padding(.bottom, 10)
-                if folds.isEarlierOpen(epic) { sessionSections(list.earlier) }
-            }
+            Color.clear.frame(height: 1).id(Self.endID)
         }
     }
 
@@ -34,7 +32,7 @@ struct SessionSectionsView: View {
             Section {
                 if open {
                     TranscriptRows(content: section.body, outputs: $outputs, groups: $groups, slices: $slices)
-                    if let result = section.result { ResultCardView(card: result) }
+                    if let result = section.result { ResultCardView(card: result, open: folds.isResultOpen(section)) { folds.toggleResult(section) } }
                     ContinueInTerminalView(section: section)
                     SessionCard.foot
                 }
@@ -47,38 +45,6 @@ struct SessionSectionsView: View {
                     .overlay(alignment: .bottom) { if open { Divider() } }
             }
         }
-    }
-}
-
-/// The row at the cut: it opens the sessions older than the five in view. The glass of the slices' rows, a clock, the title with
-/// the count after it and the round chevron of every card, turned up while it is open.
-struct EarlierSessionsRow: View {
-    let count: Int
-    let open: Bool
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "clock").font(.system(size: 14)).foregroundStyle(.secondary)
-                .frame(width: 26, height: 26).background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.16)))
-            HStack(spacing: 0) {
-                Text("Earlier sessions").fontWeight(.semibold)
-                Text(" · \(count)").foregroundStyle(.secondary)
-            }
-            .lineLimit(1)
-            Spacer(minLength: 8)
-            Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(.secondary)
-                .rotationEffect(.degrees(open ? 90 : 0))
-                .frame(width: 26, height: 26)
-                .background(Circle().fill(Color.secondary.opacity(0.16)))
-                .accessibilityHidden(true)
-        }
-        .padding(.horizontal, 10).padding(.vertical, 9)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 14))
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Earlier sessions, \(count)")
-        .accessibilityValue(open ? "Open" : "Closed")
-        .accessibilityHint(open ? "Hides the earlier sessions" : "Shows the earlier sessions")
     }
 }
 
@@ -111,39 +77,63 @@ extension View {
     }
 }
 
-/// The agent's closing report, under the transcript: the outcome as a pill, the summary, and for a stop the reason; what it
-/// checked sits in a quiet block of its own, led by the CI verdict.
+/// The agent's closing report, the foot of the session under a hairline: one row like those of the log (a glyph, how it ended, the
+/// CI verdict) that opens on the evidence in the flat block of a command's output. A stop's reason is drawn under the row, never
+/// behind a click. The summary is not drawn: it is the engine's hand-off to the next agent, and the agent's last message above
+/// already tells the person.
 struct ResultCardView: View {
     let card: ResultCard
+    let open: Bool
+    let toggle: () -> Void
+    @State private var hovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            pill(icon, card.outcome, tint)
-            MarkdownView(text: card.summary)
+        VStack(alignment: .leading, spacing: 0) {
+            Divider()
+            if card.hasDetails {
+                Button(action: toggle) { row }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(resultAccessibilityLabel(card, open: open))
+                    .accessibilityHint(open ? "Hides the evidence" : "Shows the evidence")
+            } else {
+                row.accessibilityElement(children: .ignore).accessibilityLabel(resultAccessibilityLabel(card, open: open))
+            }
             if let reason = card.reason {
                 Text(linkedText(reason)).font(.callout).foregroundStyle(tint).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 10).padding(.vertical, 7)
                     .background(RoundedRectangle(cornerRadius: 10).fill(tint.opacity(0.14)))
+                    .padding(.horizontal, LogMetrics.iconColumn).padding(.bottom, 10)
             }
-            if let ci = card.ci {
-                (Text(verdict(ci.verdict)).fontWeight(.semibold).foregroundStyle(verdictColor(ci.verdict)) + Text(" · ") + Text(linkedText(ci.evidence)))
-                    .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+            if open, let ci = card.ci {
+                Text(linkedText(ci.evidence)).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 9).padding(.vertical, 6)
+                    .padding(.horizontal, 10).padding(.vertical, 8)
                     .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
+                    .padding(.horizontal, LogMetrics.iconColumn).padding(.bottom, 10)
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 10).sessionRow()
+        .sessionRow()
     }
 
-    private func pill(_ symbol: String, _ text: String, _ color: Color) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: symbol).font(.system(size: 10, weight: .semibold))
-            Text(text)
+    private var row: some View {
+        HStack(spacing: LogMetrics.gap) {
+            Image(systemName: icon).font(.system(size: 13)).foregroundStyle(tint)
+                .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
+            HStack(spacing: 4) {
+                Text(card.outcome).fontWeight(.semibold)
+                if let ci = card.ci { Text("· \(verdict(ci.verdict))").foregroundStyle(verdictColor(ci.verdict)) }
+            }
+            .font(.system(size: 12)).lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // the columns of a call, so the chevron stands where the log's chevrons stand
+            CallColumns(duration: nil, status: .ok, chevron: (card.hasDetails, open))
         }
-        .font(.caption.weight(.semibold)).foregroundStyle(color)
-        .padding(.horizontal, 10).padding(.vertical, 3).background(Capsule().fill(color.opacity(0.18)))
+        .padding(.horizontal, LogMetrics.iconColumn)
+        .frame(height: LogMetrics.groupLine)
+        .background(Color.primary.opacity(hovered && card.hasDetails ? 0.05 : 0))
+        .contentShape(Rectangle())
+        .onHover { hovered = $0 }
     }
 
     private func verdict(_ word: String) -> String {
@@ -156,8 +146,7 @@ struct ResultCardView: View {
 
     private func verdictColor(_ word: String) -> Color {
         switch word {
-        case "passed": .green
-        case "absent": .secondary
+        case "passed", "absent": .secondary
         default: .orange
         }
     }

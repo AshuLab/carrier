@@ -7,7 +7,7 @@ const json = (result: CallerResult) => '```json\n' + JSON.stringify(result, null
 export function resultContract(task: AgentTask, pr: { number: number; headSha: string }): string[] {
   const { executionId, repo, epic, stage, resultPath } = task;
   const reviewing = stage === 'review';
-  const common = { executionId, repo, epic, stage, summary: '<what you did and concluded, in a few lines>' };
+  const common = { executionId, repo, epic, stage, summary: '<one or two sentences for the next agent of this epic: what you did and concluded>' };
 
   const completed = (evidence: string): CallerResult => ({
     ...common,
@@ -26,8 +26,8 @@ export function resultContract(task: AgentTask, pr: { number: number; headSha: s
   };
   const needsHuman: CallerResult = { ...common, outcome: 'needs_human', reason: '<why a person has to step in>' };
   const examples = reviewing
-    ? [completed('<which verifications you confirmed on this commit>'), changesRequested, needsHuman]
-    : [completed('<which verifications you ran and their result>'), needsHuman];
+    ? [completed('<one line: which verifications you confirmed on this commit>'), changesRequested, needsHuman]
+    : [completed('<one line: which verifications you ran and their result>'), needsHuman];
 
   return [
     `Before finishing, write exactly one JSON object to ${resultPath}. That path is also in the environment variable CARRIER_RESULT_PATH: write to "$CARRIER_RESULT_PATH" instead of retyping it, because a path with one segment missing is a result nobody reads. Repeat executionId, repo, epic and stage as given. Allowed outputs:`,

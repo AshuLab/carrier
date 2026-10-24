@@ -223,7 +223,7 @@ private final class UpdateBox {
     #expect(poller.data[web]?.transcripts[execution]?.events.count == 1)
 }
 
-@Test func theEventsOfTheSessionsToCountAreReadOnceEachAPageAtATimeAfterTheRest() throws {
+@Test func theEventsOfTheSessionsToCountAreReadOnceEachInTheFirstPollsAfterTheRest() throws {
     let other = "a1b2c3d4-0002-4000-8000-000000000002"
     let ended = #"{"events":[{"id":1,"at":2,"kind":"say"}],"next":1,"running":false,"structured":true}"#
     let engine = FixtureEngine(capabilities: ["sessions", "events", "epic", "files"], replies: ["events": ended])
@@ -241,7 +241,8 @@ private final class UpdateBox {
         try poller.poll(client)
         sent.append(Array(engine.commands.dropFirst(before)))
     }
-    #expect(sent == [["epic", "sessions", "events"], ["events"], [], ["epic"]])
+    // both sessions in the first poll: a page is a request, not a second
+    #expect(sent == [["epic", "sessions", "events", "events"], [], [], ["epic"]])
     #expect(engine.requests.compactMap { $0["executionId"] as? String } == [execution, other])
     #expect(Set(poller.data[web]?.transcripts.keys ?? [:].keys) == [execution, other])
 }
@@ -255,8 +256,34 @@ private final class UpdateBox {
     let poller = EpicPoller(onUpdate: { _, _ in })
     poller.show(EpicFocus(epic: web, epicRunning: true, counting: [execution]))
     try poller.poll(client)
+    // the next page follows in the same poll, from the cursor (this engine answers the same page forever, so the poll stops at its limit)
+    #expect(engine.requests.map { $0["after"] as? Int } == [0] + Array(repeating: 200, count: EpicPoller.pagesPerPoll - 1))
+}
+
+@Test func aPollReadsNoMoreThanItsPagesAndTheRestWaitsForTheNextOne() throws {
+    let ended = #"{"events":[{"id":1,"at":2,"kind":"say"}],"next":1,"running":false,"structured":true}"#
+    let engine = FixtureEngine(capabilities: ["events"], replies: ["events": ended])
+    defer { engine.stop() }
+    let client = try #require(ControlClient.connect(path: engine.path))
+    _ = try client.hello()
+    let sessions = (0..<(EpicPoller.pagesPerPoll + 2)).map { String(format: "a1b2c3d4-%04d-4000-8000-000000000001", $0) }
+    let poller = EpicPoller(onUpdate: { _, _ in })
+    poller.show(EpicFocus(epic: web, epicRunning: true, counting: sessions))
     try poller.poll(client)
-    #expect(engine.requests.map { $0["after"] as? Int } == [0, 200])
+    #expect(engine.requests.count == EpicPoller.pagesPerPoll)
+    try poller.poll(client)
+    #expect(Set(engine.requests.compactMap { $0["executionId"] as? String }) == Set(sessions))
+}
+
+@Test func aSessionTheEngineRefusesEndsWithAnEmptyTranscriptAndNotALoadingThatNeverEnds() throws {
+    let engine = FixtureEngine(capabilities: ["events"], replies: [:])
+    defer { engine.stop() }
+    let client = try #require(ControlClient.connect(path: engine.path))
+    _ = try client.hello()
+    let poller = EpicPoller(onUpdate: { _, _ in })
+    poller.show(EpicFocus(epic: web, epicRunning: true, counting: [execution]))
+    try poller.poll(client)
+    #expect(transcriptBody(poller.data[web]?.transcripts[execution]) != .loading)
 }
 
 @Test func aSessionWithoutAParserHasItsTailReadWithItsEvents() throws {

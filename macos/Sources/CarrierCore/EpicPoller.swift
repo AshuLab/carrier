@@ -91,8 +91,8 @@ public struct EpicFocus: Equatable {
 
 /// Asks the engine for the data behind what is on screen, at the cadence of the PRD: `epic` every 3 s, `sessions` every 5 s
 /// (both at once when the epic opens), `events` every 1 s while a running session's transcript is visible, `files` when the
-/// tab opens and every 10 s while the epic runs. The events of the sessions to count are read once each, a page per call, after
-/// the rest. Nothing with no focus (window closed) and nothing the engine did not advertise.
+/// tab opens and every 10 s while the epic runs. The events of the sessions to count are read once each, newest session first,
+/// a page per request and up to `pagesPerPoll` requests per poll, after the rest. Nothing with no focus (window closed) and nothing the engine did not advertise.
 /// Call `poll` from the connection's thread; `show` may be called from any other, it takes effect at the next `poll`; `now` is the clock.
 public final class EpicPoller {
     private enum Kind: CaseIterable {
@@ -107,6 +107,10 @@ public final class EpicPoller {
             }
         }
     }
+
+    /// How many pages of events one poll may read for the sessions to count: the socket is local and a page takes milliseconds, so
+    /// the counts of an epic with many sessions arrive in a poll or two instead of one session per second.
+    static let pagesPerPoll = 8
 
     public private(set) var data: [EpicRef: EpicData] = [:]
     private var focus: EpicFocus?
@@ -179,23 +183,28 @@ public final class EpicPoller {
                 continue
             }
         }
-        try count(focus, client)
+        for _ in 0..<Self.pagesPerPoll {
+            guard try count(focus, client) else { break }
+        }
     }
 
-    /// One page of the events of the first session still to count.
-    private func count(_ focus: EpicFocus, _ client: ControlClient) throws {
-        guard let id = focus.counting.first(where: { counted.contains($0) == false && $0 != focus.transcript }) else { return }
+    /// One page of the events of the first session still to count; false when there is none left.
+    private func count(_ focus: EpicFocus, _ client: ControlClient) throws -> Bool {
+        guard let id = focus.counting.first(where: { counted.contains($0) == false && $0 != focus.transcript }) else { return false }
         let key = focus.epic
         do {
             let after = data[key]?.transcripts[id]?.next ?? 0
-            guard let reply = try client.events(executionId: id, after: after) else { return }
+            guard let reply = try client.events(executionId: id, after: after) else { return false }
             update(key) { $0.transcripts[id, default: Transcript()].apply(reply) }
             if reply.structured == false { try tail(id, key, client) }
             // a full page may be followed by another
             if reply.running == false && reply.events.count < 200 { counted.insert(id) }
         } catch ControlError.remote, ControlError.badLine, ControlError.timeout {
+            // given up on: the session shows what it has (nothing) and not a loading that never ends
             counted.insert(id)
+            update(key) { if $0.transcripts[id] == nil { $0.transcripts[id] = Transcript() } }
         }
+        return true
     }
 
     /// The latest summarised lines of a session whose harness has no events.

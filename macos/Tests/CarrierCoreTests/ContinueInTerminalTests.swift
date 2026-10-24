@@ -290,7 +290,7 @@ private final class RecordingOpener: TerminalOpener {
     }
     // Even if the engine sent one for a running session (it does not), the app does not offer it.
     let sections = sessionList(SessionsReply(sessions: [session("a", "running"), session("b", "failed"), session("c", "finished")])).sections
-    #expect(sections.map(\.resume) == [nil, descriptor, descriptor])
+    #expect(sections.map(\.resume) == [descriptor, descriptor, nil])
 }
 
 @Test func aFolderNameWithAControlCharacterIsRejected() throws {

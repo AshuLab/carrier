@@ -273,6 +273,8 @@ public func transcriptItems(_ events: [ExecEvent]) -> [TranscriptItem] {
 
 /// What an open session shows: the main rows and the subagents in event order, with the runs of calls folded, or the summarised `tail` lines of a harness with no parser yet.
 public enum TranscriptBody: Equatable {
+    /// The events of the session have not arrived yet: a loading row, not "No activity yet".
+    case loading
     case items([FlowItem])
     case tail([String])
 }
@@ -281,6 +283,6 @@ public func transcriptBody(
     _ transcript: Transcript?, slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000),
     timeZone: TimeZone = .current
 ) -> TranscriptBody {
-    guard let transcript else { return .items([]) }
+    guard let transcript else { return .loading }
     return transcript.structured ? .items(transcript.flow(slices: slices, running: running, now: now, timeZone: timeZone)) : .tail(transcript.tail)
 }

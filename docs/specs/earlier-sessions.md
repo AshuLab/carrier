@@ -1,6 +1,6 @@
 # The Agent output tab lets you open the sessions it folds away
 
-Status: spec
+Status: superseded. The Agent output tab now lists every session, oldest first with the newest at the bottom, so there is no cut and no `Earlier sessions` row. Kept as the record of the decision.
 
 ## Problem
 

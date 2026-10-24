@@ -1,6 +1,6 @@
 import Foundation
 
-// The Agent output tab's list: one section per agent session of an epic, newest first, built from the `sessions` reply and the
+// The Agent output tab's list: one section per agent session of an epic, oldest first (the newest at the bottom), built from the `sessions` reply and the
 // events fetched so far (docs/specs/macos-app-redesign.md, story 19). The views map it one to one.
 
 // MARK: counts
@@ -76,16 +76,15 @@ public func countsLine(_ counts: SessionCounts) -> String {
 /// What the user folded or unfolded by hand; a section nobody touched follows its default.
 public struct SessionFolds: Equatable {
     private var chosen: [String: Bool] = [:]
-    /// The epics whose "Earlier sessions" row is open: the sessions past `visibleSessions` are drawn under it. The folds are
-    /// shared by every epic of the window, so this is keyed by epic.
-    private var earlierOpen: Set<EpicRef> = []
+    /// The sections whose result row is open.
+    private var resultOpen: Set<String> = []
 
     public init() {}
 
-    public func isEarlierOpen(_ epic: EpicRef) -> Bool { earlierOpen.contains(epic) }
+    public func isResultOpen(_ section: SessionSection) -> Bool { resultOpen.contains(section.id) }
 
-    public mutating func toggleEarlier(_ epic: EpicRef) {
-        if earlierOpen.insert(epic).inserted == false { earlierOpen.remove(epic) }
+    public mutating func toggleResult(_ section: SessionSection) {
+        if resultOpen.insert(section.id).inserted == false { resultOpen.remove(section.id) }
     }
 
     public func isOpen(_ section: SessionSection) -> Bool { chosen[section.id] ?? section.openByDefault }
@@ -123,7 +122,8 @@ public struct SessionSection: Equatable, Identifiable {
 
 // MARK: result
 
-/// The closing card of a session: how it ended, the agent's own account and what it checked.
+/// The closing row of a session: how it ended and what the agent says it checked. Its summary is the engine's hand-off to the
+/// next agent, not for the person: the agent's own last message already tells it.
 public struct ResultCard: Equatable {
     public struct CI: Equatable {
         /// "passed" or "absent" (no CI to check); a value added later still shows.
@@ -136,11 +136,13 @@ public struct ResultCard: Equatable {
     /// "Completed", "Changes requested", "Needs a human".
     public var outcome: String
     public var tone: Tone
-    public var summary: String
     /// What the agent says it checked; nil when the result has no verification.
     public var ci: CI?
     /// Why the agent stopped; nil unless the outcome is needs_human.
     public var reason: String?
+
+    /// Whether the row opens: only the evidence is behind it, the reason of a stop is always drawn.
+    public var hasDetails: Bool { ci != nil }
 }
 
 public func resultCard(_ result: SessionResult?) -> ResultCard? {
@@ -152,7 +154,7 @@ public func resultCard(_ result: SessionResult?) -> ResultCard? {
     default: (result.outcome.replacingOccurrences(of: "_", with: " ").capitalized, .warning) // a value added later still shows
     }
     return ResultCard(
-        outcome: outcome.0, tone: outcome.1, summary: result.summary,
+        outcome: outcome.0, tone: outcome.1,
         ci: result.verification.map { ResultCard.CI(verdict: $0.ci, evidence: $0.evidence) },
         reason: result.outcome == "needs_human" ? result.reason : nil
     )
@@ -216,14 +218,11 @@ public func markdownBlocks(_ text: String) -> [MarkdownBlock] {
 }
 
 public struct SessionList: Equatable {
-    /// The newest `visibleSessions`.
+    /// Whether the `sessions` reply has arrived: until it does the tab is loading, not empty.
+    public var loaded: Bool
+    /// Every session, oldest first: the log reads top to bottom as it happened, and the last one is what is happening now.
     public var sections: [SessionSection]
-    /// The rest, newest first, never open by default; empty with `visibleSessions` or fewer.
-    public var earlier: [SessionSection]
 }
-
-/// How many sessions the list shows; the rest are behind the "Earlier sessions" row.
-public let visibleSessions = 5
 
 /// Anything but running and finished is a session that stopped before it was done (failed, timed_out, interrupted, invalid_result).
 func sessionState(_ status: String) -> SessionSection.State {
@@ -234,11 +233,14 @@ func sessionState(_ status: String) -> SessionSection.State {
     }
 }
 
-/// Newest first, as the reply is. `transcripts` holds the events fetched so far, by execution id.
-/// `resumable` is false for an epic that ended: its sessions are over and Continue in Terminal is not offered.
+/// The reply is newest first; the list is the other way round, like a chat. `transcripts` holds the events fetched so far, by execution id.
+/// `resumable` is false for an epic that ended: its sessions are over and Continue in Terminal is not offered. Given `folds`,
+/// only the sessions that are open get their body built: a folded one is not drawn, and building every transcript at every update
+/// (once a second, with the clock) is what made an epic with many sessions slow.
 public func sessionList(
     _ reply: SessionsReply?, transcripts: [String: Transcript] = [:], slices: [EpicReply.Slice] = [],
-    now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current, resumable: Bool = true
+    now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current, resumable: Bool = true,
+    folds: SessionFolds? = nil
 ) -> SessionList {
     let all = reply?.sessions ?? []
     let built = all.enumerated().map { index, session -> SessionSection in
@@ -252,7 +254,7 @@ public func sessionList(
         case .stopped: time = nil
         }
         let agent = agentName(session.agent.harness)
-        return SessionSection(
+        var section = SessionSection(
             id: session.executionId,
             state: state,
             agent: agent,
@@ -261,13 +263,17 @@ public func sessionList(
             place: session.round.map { "Round \($0)" } ?? session.stage.capitalized,
             counts: transcript.flatMap { $0.structured ? sessionCounts($0.events) : nil },
             timeLabel: time,
-            openByDefault: index < visibleSessions && (state != .done || index == 0),
+            openByDefault: index == 0,
             resume: state == .running || resumable == false ? nil : session.resume,
             result: resultCard(session.result),
-            body: transcriptBody(transcript, slices: slices, running: state == .running, now: now, timeZone: timeZone)
+            body: .items([])
         )
+        if folds?.isOpen(section) ?? true {
+            section.body = transcriptBody(transcript, slices: slices, running: state == .running, now: now, timeZone: timeZone)
+        }
+        return section
     }
-    return SessionList(sections: Array(built.prefix(visibleSessions)), earlier: Array(built.dropFirst(visibleSessions)))
+    return SessionList(loaded: reply != nil, sections: built.reversed())
 }
 
 /// What the poller should ask for to fill this list: the events of the open running session (live) and, once, those of the
@@ -280,6 +286,7 @@ public func epicFocus(_ epic: EpicRef, running: Bool, data: EpicData?, folds: Se
         // always: the tab's count shows before the tab is opened, and the view keeps which tab is open to itself
         filesTabVisible: true,
         transcript: list.sections.first { $0.state == .running && folds.isOpen($0) }?.id,
-        counting: list.sections.filter { $0.state != .running }.map(\.id) + (folds.isEarlierOpen(epic) ? list.earlier.map(\.id) : [])
+        // newest first: it is the one a person opens
+        counting: list.sections.reversed().filter { $0.state != .running }.map(\.id)
     )
 }

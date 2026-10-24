@@ -9,24 +9,26 @@ struct StoppedView: View {
     @ObservedObject private var setup = SetupController.shared
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 22) {
-                VStack(spacing: 6) {
-                    Image(systemName: icon).font(.system(size: 26)).foregroundStyle(.secondary)
-                        .frame(width: 54, height: 54)
-                        .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
-                        .padding(.bottom, 9)
-                    Text(title).font(.title3.weight(.semibold))
-                    Text(line).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 340)
+        // the content is at least as tall as the window, so it sits in the middle both ways and scrolls only when it does not fit
+        GeometryReader { window in
+            ScrollView {
+                VStack(spacing: 22) {
+                    VStack(spacing: 6) {
+                        Image(systemName: icon).font(.system(size: 26)).foregroundStyle(.secondary)
+                            .frame(width: 54, height: 54)
+                            .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
+                            .padding(.bottom, 9)
+                        Text(title).font(.title3.weight(.semibold))
+                        Text(line).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 340)
+                    }
+                    if state == .stopped {
+                        StartCarrierButton()
+                        missing
+                    }
                 }
-                if state == .stopped {
-                    StartCarrierButton()
-                    missing
-                }
+                .padding(28)
+                .frame(maxWidth: .infinity, minHeight: window.size.height)
             }
-            .padding(28)
-            .frame(maxWidth: .infinity)
-            .frame(minHeight: 420)
         }
     }
 

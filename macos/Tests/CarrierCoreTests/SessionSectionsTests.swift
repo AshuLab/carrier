@@ -68,35 +68,35 @@ func otherCommandsAreNot(command: String) {
 
 // MARK: the list
 
-@Test func aRunningSessionIsOpenAndWearsTheRingAndTheFinishedOnesBelowAreFolded() {
+@Test func aRunningSessionIsOpenAndWearsTheRingAndTheFinishedOnesAboveAreFolded() {
     let list = sessionList(reply(
         session("c", "fix", round: 2, status: "running", at: 90_000),
         session("b", "review", round: 2, status: "finished", harness: "codex", at: 60_000, until: 85_000),
         session("a", "ship", status: "finished", at: 1000, until: 39_000)
     ), timeZone: TimeZone(identifier: "UTC")!)
-    #expect(list.sections.map(\.id) == ["c", "b", "a"])
-    #expect(list.sections.map(\.state) == [.running, .done, .done])
-    #expect(list.sections.map(\.openByDefault) == [true, false, false])
+    // oldest first, the running one at the bottom
+    #expect(list.sections.map(\.id) == ["a", "b", "c"])
+    #expect(list.sections.map(\.state) == [.done, .done, .running])
+    #expect(list.sections.map(\.openByDefault) == [false, false, true])
     #expect(list.sections.map(\.agent) == ["Claude", "Codex", "Claude"])
     #expect(list.sections.map(\.initial) == ["C", "X", "C"])
-    #expect(list.sections.map(\.role) == ["Fixer", "Reviewer", "Builder"])
-    #expect(list.sections.map(\.place) == ["Round 2", "Round 2", "Ship"])
-    #expect(list.sections.map(\.timeLabel) == ["since 00:01", "25s", "38s"])
-    #expect(list.earlier.isEmpty)
+    #expect(list.sections.map(\.role) == ["Builder", "Reviewer", "Fixer"])
+    #expect(list.sections.map(\.place) == ["Ship", "Round 2", "Round 2"])
+    #expect(list.sections.map(\.timeLabel) == ["38s", "25s", "since 00:01"])
 }
 
 @Test func aStoppedSessionIsOpenHasTheBadgeStateAndNoTime() {
     for status in ["failed", "timed_out", "interrupted", "invalid_result"] {
         let list = sessionList(reply(session("b", "fix", round: 1, status: status), session("a", "ship", status: "finished", until: 5)))
-        #expect(list.sections.map(\.state) == [.stopped, .done])
-        #expect(list.sections.map(\.openByDefault) == [true, false])
-        #expect(list.sections[0].timeLabel == nil)
+        #expect(list.sections.map(\.state) == [.done, .stopped])
+        #expect(list.sections.map(\.openByDefault) == [false, true])
+        #expect(list.sections[1].timeLabel == nil)
     }
 }
 
 @Test func whenEverySessionIsFinishedTheNewestIsOpen() {
     let list = sessionList(reply(session("c", "review", round: 1, status: "finished"), session("b", "ship", status: "finished")))
-    #expect(list.sections.map(\.openByDefault) == [true, false])
+    #expect(list.sections.map(\.openByDefault) == [false, true])
 }
 
 @Test func aShipSessionIsTheBuilderAndHasNoRound() {
@@ -108,20 +108,11 @@ private func many(_ n: Int, stopped: Set<Int> = []) -> SessionsReply {
     SessionsReply(sessions: (0..<n).map { session("s\($0)", "fix", round: $0, status: stopped.contains($0) ? "failed" : "finished") })
 }
 
-@Test(arguments: [(5, 0), (6, 1), (12, 7)])
-func theFiveNewestAreShownAndTheRestAreEarlierNewestFirst(total: Int, older: Int) {
-    let list = sessionList(many(total))
-    #expect(list.sections.map(\.id) == (0..<min(total, 5)).map { "s\($0)" })
-    #expect(list.earlier.map(\.id) == (5..<total).map { "s\($0)" })
-    #expect(list.earlier.count == older)
-    #expect(sessionList(nil).sections.isEmpty && sessionList(nil).earlier.isEmpty)
-}
-
-@Test func anOlderSessionIsFoldedWhateverItsState() {
-    let list = sessionList(many(8, stopped: [6]))
-    #expect(list.earlier.map(\.state) == [.done, .stopped, .done])
-    #expect(list.earlier.map(\.openByDefault) == [false, false, false])
-    #expect(list.earlier.map { SessionFolds().isOpen($0) } == [false, false, false])
+@Test(arguments: [0, 1, 5, 12])
+func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
+    let list = sessionList(many(total, stopped: [3, 7]))
+    #expect(list.sections.map(\.id) == (0..<total).reversed().map { "s\($0)" })
+    #expect(list.sections.map(\.openByDefault) == (0..<total).map { $0 == total - 1 })
 }
 
 @Test func theCountsAreThereOnlyWhenTheEventsAreAndTheHarnessHasAParser() {
@@ -130,7 +121,7 @@ func theFiveNewestAreShownAndTheRestAreEarlierNewestFirst(total: Int, older: Int
         "c": transcript(call(1, "a", "Read") + call(3, "b", "Read")),
         "b": transcript(call(1, "a", "Read"), structured: false),
     ])
-    #expect(list.sections.map { $0.counts.map(countsLine) } == ["2 tool calls", nil, nil])
+    #expect(list.sections.map { $0.counts.map(countsLine) } == [nil, nil, "2 tool calls"])
 }
 
 @Test func anEmptyTranscriptShowsZeroToolCalls() {
@@ -143,31 +134,18 @@ func theFiveNewestAreShownAndTheRestAreEarlierNewestFirst(total: Int, older: Int
 @Test func foldingAndUnfoldingASectionIsKeptWhateverTheRepliesDoAfterwards() {
     let before = sessionList(reply(session("b", "fix", status: "running"), session("a", "ship", status: "finished"))).sections
     var folds = SessionFolds()
-    #expect(before.map { folds.isOpen($0) } == [true, false])
+    #expect(before.map { folds.isOpen($0) } == [false, true])
 
     folds.toggle(before[0])
     folds.toggle(before[1])
-    #expect(before.map { folds.isOpen($0) } == [false, true])
+    #expect(before.map { folds.isOpen($0) } == [true, false])
 
     // the running one stops and a new one arrives: what was chosen stays, what was not follows its default
     let after = sessionList(reply(session("c", "review", status: "running"), session("b", "fix", status: "finished"), session("a", "ship", status: "finished"))).sections
     #expect(after.map { folds.isOpen($0) } == [true, false, true])
 
-    folds.toggle(after[2])
-    #expect(folds.isOpen(after[2]) == false)
-}
-
-@Test func theEarlierRowOpensAndClosesWithEachPressAndLastsAsLongAsTheFolds() {
-    let ref = EpicRef(repo: "acme/web", issue: 12)
-    var folds = SessionFolds()
-    #expect(folds.isEarlierOpen(ref) == false)
-    folds.toggleEarlier(ref)
-    #expect(folds.isEarlierOpen(ref))
-    // a section folded by hand does not touch it
-    folds.toggle(sessionList(many(2)).sections[0])
-    #expect(folds.isEarlierOpen(ref))
-    folds.toggleEarlier(ref)
-    #expect(folds.isEarlierOpen(ref) == false)
+    folds.toggle(after[0])
+    #expect(folds.isOpen(after[0]) == false)
 }
 
 // MARK: what the poller is asked for
@@ -181,52 +159,68 @@ func theFiveNewestAreShownAndTheRestAreEarlierNewestFirst(total: Int, older: Int
     #expect(focus.transcript == "c" && focus.counting == ["b", "a"])
 
     // folded: not followed
-    folds.toggle(sessionList(data.sessions).sections[0])
+    folds.toggle(sessionList(data.sessions).sections.last!)
     #expect(epicFocus(ref, running: true, data: data, folds: folds).transcript == nil)
     #expect(epicFocus(ref, running: true, data: nil, folds: folds) == EpicFocus(epic: ref, epicRunning: true, filesTabVisible: true))
 }
 
-@Test func theOlderSessionsAreCountedOnlyWhileTheEarlierRowIsOpen() {
-    let ref = EpicRef(repo: "acme/web", issue: 12)
-    var data = EpicData()
-    data.sessions = many(7)
-    var folds = SessionFolds()
-    #expect(epicFocus(ref, running: false, data: data, folds: folds).counting == ["s0", "s1", "s2", "s3", "s4"])
-    folds.toggleEarlier(ref)
-    #expect(epicFocus(ref, running: false, data: data, folds: folds).counting == ["s0", "s1", "s2", "s3", "s4", "s5", "s6"])
-    folds.toggleEarlier(ref)
-    #expect(epicFocus(ref, running: false, data: data, folds: folds).counting == ["s0", "s1", "s2", "s3", "s4"])
+// MARK: loading and lazy bodies
+
+@Test func aSessionWhoseEventsHaveNotArrivedIsLoadingAndOneWithNoEventsIsEmpty() {
+    let sessions = reply(session("a", "ship", status: "finished"))
+    #expect(sessionList(sessions).sections[0].body == .loading)
+    #expect(sessionList(sessions, transcripts: ["a": transcript([])]).sections[0].body == .items([]))
 }
 
-@Test func theEarlierRowOfOneEpicDoesNotOpenAnothers() {
-    let a = EpicRef(repo: "acme/web", issue: 12)
-    let b = EpicRef(repo: "acme/web", issue: 13)
-    var data = EpicData()
-    data.sessions = many(7)
+@Test func theListIsLoadingUntilTheSessionsReplyArrives() {
+    #expect(sessionList(nil).loaded == false)
+    #expect(sessionList(SessionsReply(sessions: [])).loaded)
+}
+
+@Test func onlyTheOpenSessionsGetABodyWhenTheFoldsAreGiven() {
+    let sessions = reply(session("b", "fix", status: "finished"), session("a", "ship", status: "finished"))
+    let all = ["a": transcript(call(1, "x", "Read")), "b": transcript(call(1, "y", "Read"))]
+    #expect(sessionList(sessions, transcripts: all).sections.map(\.body) != [.items([]), .items([])])
     var folds = SessionFolds()
-    folds.toggleEarlier(a)
-    #expect(folds.isEarlierOpen(a) && folds.isEarlierOpen(b) == false)
-    #expect(epicFocus(a, running: false, data: data, folds: folds).counting.count == 7)
-    #expect(epicFocus(b, running: false, data: data, folds: folds).counting == ["s0", "s1", "s2", "s3", "s4"])
+    let list = sessionList(sessions, transcripts: all, folds: folds)
+    #expect(list.sections[0].body == .items([]))
+    #expect(list.sections[1].body != .items([]))
+    folds.toggle(list.sections[0])
+    #expect(sessionList(sessions, transcripts: all, folds: folds).sections[0].body != .items([]))
 }
 
 // MARK: the result card
 
-@Test func aCompletedResultShowsItsSummaryAndTheCILine() {
+@Test func aCompletedResultShowsTheCIVerdictAndNotTheSummary() {
     let result = SessionResult(outcome: "completed", summary: "Built it.", verification: .init(ci: "passed", evidence: "Run 12 succeeded."), reason: nil)
-    #expect(resultCard(result) == ResultCard(outcome: "Completed", tone: .good, summary: "Built it.", ci: .init(verdict: "passed", evidence: "Run 12 succeeded."), reason: nil))
+    #expect(resultCard(result) == ResultCard(outcome: "Completed", tone: .good, ci: .init(verdict: "passed", evidence: "Run 12 succeeded."), reason: nil))
     let absent = SessionResult(outcome: "completed", summary: "Built it.", verification: .init(ci: "absent", evidence: "No CI configured."), reason: nil)
     #expect(resultCard(absent)?.ci == .init(verdict: "absent", evidence: "No CI configured."))
+    #expect(resultCard(result)?.hasDetails == true)
+}
+
+@Test func theResultRowOpensOnlyWhenThereIsEvidenceAndSaysSo() {
+    let stop = resultCard(SessionResult(outcome: "needs_human", summary: "s", verification: nil, reason: "Which?"))!
+    #expect(stop.hasDetails == false)
+    #expect(resultAccessibilityLabel(stop, open: false) == "Needs a human")
+    let done = resultCard(SessionResult(outcome: "completed", summary: "s", verification: .init(ci: "passed", evidence: "e"), reason: nil))!
+    #expect(resultAccessibilityLabel(done, open: false) == "Completed, CI passed, closed")
+    #expect(resultAccessibilityLabel(done, open: true) == "Completed, CI passed, open")
+    let list = sessionList(reply(session("a", "ship", status: "finished", until: 5)))
+    var folds = SessionFolds()
+    #expect(folds.isResultOpen(list.sections[0]) == false)
+    folds.toggleResult(list.sections[0])
+    #expect(folds.isResultOpen(list.sections[0]))
 }
 
 @Test func aStoppedResultShowsItsReasonAndNoCILine() {
     let result = SessionResult(outcome: "needs_human", summary: "Stopped.", verification: nil, reason: "Which of the two wins?")
-    #expect(resultCard(result) == ResultCard(outcome: "Needs a human", tone: .stop, summary: "Stopped.", ci: nil, reason: "Which of the two wins?"))
+    #expect(resultCard(result) == ResultCard(outcome: "Needs a human", tone: .stop, ci: nil, reason: "Which of the two wins?"))
 }
 
 @Test func aReviewThatAsksForChangesHasNeitherCIOrReason() {
     let result = SessionResult(outcome: "changes_requested", summary: "Two blockers.", verification: nil, reason: "ignored")
-    #expect(resultCard(result) == ResultCard(outcome: "Changes requested", tone: .warning, summary: "Two blockers.", ci: nil, reason: nil))
+    #expect(resultCard(result) == ResultCard(outcome: "Changes requested", tone: .warning, ci: nil, reason: nil))
 }
 
 @Test func anOutcomeAddedLaterStillGetsALabel() {

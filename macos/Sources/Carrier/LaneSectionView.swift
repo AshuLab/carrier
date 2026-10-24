@@ -16,7 +16,6 @@ struct LaneSectionView: View {
         VStack(alignment: .leading, spacing: 0) {
             Button { slices.toggle(lane.id) } label: { LaneHeaderView(lane: lane, open: open) }
                 .buttonStyle(.plain)
-                .padding(.horizontal, LogMetrics.iconColumn)
             if open {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(flowItems(lane.items)) { FlowItemView(flow: $0, outputs: $outputs, groups: $groups, slices: $slices) }
@@ -59,6 +58,7 @@ struct LaneHeaderView: View {
             .frame(maxWidth: .infinity, minHeight: 18, alignment: .leading)
             .padding(.bottom, 6)
         }
+        .padding(.horizontal, LogMetrics.iconColumn)
         .background(Color.primary.opacity(hovered ? 0.05 : 0))
         .contentShape(Rectangle())
         .onHover { hovered = $0 }

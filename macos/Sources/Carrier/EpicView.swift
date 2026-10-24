@@ -17,8 +17,24 @@ struct EpicView: View {
     /// The reason and the Resume button of a stopped epic, with the store that remembers a Resume in flight; nil for any other.
     var resume: (card: ResumeCard, store: EpicStore)?
     @State private var tab = EpicTab.agentOutput
+    /// Whether the page is at its end: a session that starts scrolls it into view only then, so reading further up is not interrupted.
+    @State private var atEnd = true
 
     var body: some View {
+        ScrollViewReader { page in
+            scroll
+                // the sessions run oldest to newest: the page opens on the newest, and follows a new one while it sits at the end
+                .defaultScrollAnchor(tab == .agentOutput ? .bottom : nil, for: .initialOffset)
+                .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.containerSize.height >= $0.contentSize.height - 60 } action: { _, now in
+                    atEnd = now
+                }
+                .onChange(of: sessions.sections.last?.id) {
+                    if atEnd, tab == .agentOutput { withAnimation { page.scrollTo(SessionSectionsView.endID, anchor: .bottom) } }
+                }
+        }
+    }
+
+    private var scroll: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 EpicHeaderView(header: epicHeader(subject, reply: reply))
@@ -48,6 +64,8 @@ struct EpicView: View {
             if let empty = subject.outputEmptyState {
                 EmptyStateView(state: empty).frame(minHeight: 260)
                 if let plan { QueuedPlanView(plan: plan) }
+            } else if sessions.loaded == false {
+                LoadingStateView(title: "Loading activity", line: "Reading what the agents did on this epic.").frame(minHeight: 260)
             } else if sessions.sections.isEmpty {
                 if let steps = startingSteps(subject, reply: reply) {
                     StartingView(steps: steps).frame(minHeight: 260)
@@ -259,16 +277,16 @@ struct EpicLinks: View {
     var body: some View {
         let pr = prURL.flatMap(browserURL), issue = issueURL.flatMap(browserURL)
         HStack(spacing: 0) {
-            link("Open PR", icon: "arrow.triangle.pull", url: pr)
+            link("Open PR", url: pr) { GitHubMark.image.renderingMode(.template).resizable().scaledToFit().frame(width: 13, height: 13) }
             if pr != nil, issue != nil { Divider().frame(height: 14) }
-            link("Open issue", icon: "smallcircle.filled.circle", url: issue)
+            link("Open issue", url: issue) { Image(systemName: "number").font(.system(size: 12, weight: .medium)) }
         }
     }
 
-    @ViewBuilder private func link(_ title: String, icon: String, url: URL?) -> some View {
+    @ViewBuilder private func link(_ title: String, url: URL?, @ViewBuilder icon: () -> some View) -> some View {
         if let url {
             Button { NSWorkspace.shared.open(url) } label: {
-                Label(title, systemImage: icon).labelStyle(.titleAndIcon).padding(.horizontal, 8).contentShape(Rectangle())
+                Label { Text(title) } icon: { icon() }.labelStyle(.titleAndIcon).padding(.horizontal, 8).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }

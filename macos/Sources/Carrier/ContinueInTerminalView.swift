@@ -9,11 +9,13 @@ struct WorkspaceTerminalOpener: TerminalOpener {
     }
 }
 
-/// Under an open session that is not running: a block with the command and a button for a stopped one, a glass button for the
-/// others. Nothing for a session with no descriptor (running) or one the validation refuses.
+/// Under an open session that is not running: a row of the log's own, edge to edge, that opens a Terminal on the command. The
+/// command (and, for a stopped session, what it will do) is its tooltip. Nothing for a session with no descriptor (running) or one
+/// the validation refuses.
 struct ContinueInTerminalView: View {
     let section: SessionSection
     @State private var failure: String?
+    @State private var hovered = false
 
     var body: some View {
         if let descriptor = section.resume {
@@ -21,23 +23,35 @@ struct ContinueInTerminalView: View {
                 configPath: activeConfigPath(saved: SetupStore().load(), environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()),
                 home: NSHomeDirectory())
             if case .success(let valid) = validateResume(descriptor, root: root) {
-                VStack(alignment: .leading, spacing: 8) {
-                    if section.state == .stopped {
-                        Text("Continue this session").fontWeight(.semibold)
-                        Text("Opens a new Terminal in the folder it started in and resumes \(section.agent) so you can keep talking to it.")
-                            .foregroundStyle(.secondary)
-                        Text(resumeCommand(valid)).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-                            .padding(8).background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
-                        Button { open(descriptor, root: root) } label: { Label("Continue in Terminal", systemImage: "apple.terminal") }
-                            .buttonStyle(.glass).buttonBorderShape(.capsule)
-                    } else {
-                        Button { open(descriptor, root: root) } label: { Label("Resume in Terminal", systemImage: "apple.terminal") }
-                            .buttonStyle(.glass).buttonBorderShape(.capsule).help(resumeCommand(valid))
+                VStack(alignment: .leading, spacing: 0) {
+                    Button { open(descriptor, root: root) } label: {
+                        HStack(spacing: LogMetrics.gap) {
+                            Image(systemName: "apple.terminal").font(.system(size: 12)).foregroundStyle(.secondary)
+                                .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
+                            HStack(spacing: 4) {
+                                Text("Continue in Terminal").fontWeight(.medium)
+                                Text("· resumes this session").foregroundStyle(.secondary)
+                            }
+                            .font(.system(size: 12)).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, LogMetrics.iconColumn)
+                        .frame(maxWidth: .infinity, minHeight: LogMetrics.groupLine, alignment: .leading)
+                        .background(Color.primary.opacity(hovered ? 0.05 : 0))
+                        .contentShape(Rectangle())
                     }
-                    if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
+                    .buttonStyle(.plain)
+                    .onHover { hovered = $0 }
+                    .help(section.state == .stopped
+                        ? "Opens a new Terminal in the folder it started in and resumes \(section.agent) so you can keep talking to it.\n\(resumeCommand(valid))"
+                        : resumeCommand(valid))
+                    .accessibilityHint("Opens Terminal and resumes this session")
+                    if let failure {
+                        Text(failure).font(.caption).foregroundStyle(.red).padding(.horizontal, LogMetrics.iconColumn).padding(.bottom, 8)
+                    }
                 }
-                // the card's foot already gives the bottom 12 pt: the same as the left
-                .padding(.horizontal, 12).padding(.top, 12).sessionRow()
+                // the card's foot gives the bottom 12 pt
+                .sessionRow()
             }
         }
     }

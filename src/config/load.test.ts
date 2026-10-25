@@ -183,3 +183,31 @@ describe('harness and provider', () => {
     expect(viaRepo.map((e) => e.path)).toEqual(['repos.0.agents.author']);
   });
 });
+
+describe('persona', () => {
+  const author = valid.agents.author;
+  const withPersona = (persona: unknown) => ({ agents: { ...valid.agents, author: { ...author, persona } } });
+
+  test('an agent takes a persona with a name, a prompt or both, globally and per repo', () => {
+    for (const persona of [{ name: 'Ada' }, { prompt: 'Be strict about migrations.' }, { name: 'Ada', prompt: 'Be strict.' }]) {
+      expect(load(withPersona(persona))).toMatchObject({ ok: true, config: { agents: { author: { persona } } } });
+    }
+    expect(load({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { persona: { name: 'Rex' } } } }] })).toMatchObject({ ok: true, config: { repos: [{ agents: { reviewer: { persona: { name: 'Rex' } } } }] } });
+  });
+
+  test('the name is one trimmed line of 1 to 40 characters', () => {
+    expect(load(withPersona({ name: '  Ada  ' }))).toMatchObject({ config: { agents: { author: { persona: { name: 'Ada' } } } } });
+    expect(load(withPersona({ name: 'a'.repeat(40) }))).toMatchObject({ ok: true });
+    for (const name of ['', '   ', 'Ada\nLovelace', 'Ada\rL', 'a'.repeat(41)]) expect([...new Set(errorsOf(withPersona({ name })).map((e) => e.path))]).toEqual(['agents.author.persona.name']);
+  });
+
+  test('the prompt is 1 to 4000 characters', () => {
+    expect(load(withPersona({ prompt: 'a'.repeat(4000) }))).toMatchObject({ ok: true });
+    for (const prompt of ['', '  ', 'a'.repeat(4001)]) expect(errorsOf(withPersona({ prompt })).map((e) => e.path)).toEqual(['agents.author.persona.prompt']);
+  });
+
+  test('a persona is an object with only name and prompt', () => {
+    for (const persona of ['Ada', null, ['Ada']]) expect(errorsOf(withPersona(persona)).map((e) => e.path)).toEqual(['agents.author.persona']);
+    expect(errorsOf(withPersona({ name: 'Ada', role: 'x' })).map((e) => e.path)).toEqual(['agents.author.persona']);
+  });
+});

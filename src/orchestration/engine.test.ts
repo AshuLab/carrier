@@ -844,6 +844,22 @@ test('changes_requested below the limit keeps the round and launches the author 
   expect(labelsOf(1)).toEqual(['solve:epic:running']);
 });
 
+test('ship, review and fix carry the persona of their role: the author\'s for ship and fix, the reviewer\'s for review', async () => {
+  const personas = { author: { name: 'Ada', prompt: 'Be terse.' }, reviewer: { name: 'Rex' } };
+  const config = repos.map((r) => ({ ...r, agents: { author: { ...agents.author, persona: personas.author }, reviewer: { ...agents.reviewer, persona: personas.reviewer } } }));
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) }
+    : task.stage === 'review' ? { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: 'x' }] }) }
+    : { exit: 'stopped' };
+  const engine = await start(1, config);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(runner.tasks.map((t) => [t.stage, t.persona])).toEqual([['ship', personas.author], ['review', personas.reviewer], ['fix', personas.author]]);
+});
+
 test('the epic worktree is read back from git after ship and kept: the fix turns, retries included, run in it; ship ran in the clone', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50, { headRef: 'feat/demo/epic' });

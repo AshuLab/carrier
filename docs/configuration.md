@@ -52,7 +52,7 @@ A role, author or reviewer, can have a persona: a name and a prompt that say who
 }
 ```
 
-A repo's `agents.<role>.persona` replaces the global persona of that role whole, not field by field. The name is trimmed and cannot contain a line break; the prompt is trimmed and cannot be empty.
+A repo's `agents.<role>.persona` replaces the global persona of that role whole, not field by field. When `carrier init` edits a config, an empty answer keeps a persona field and `-` clears it. The name is trimmed and cannot contain a line break; the prompt is trimmed and cannot be empty.
 
 ## Profiles
 
@@ -63,7 +63,7 @@ A profile names a GitHub identity. There are two kinds and neither holds a secre
 
 With `identities: "separate"` (the default) the author and the reviewer need **different identities**, so that the reviewer's comments and approvals are not the author's own. The config rejects the same profile name for both, and `carrier doctor` also catches two names pointing to the same bot or both being `gh`.
 
-With `identities: "shared"` the author and the reviewer may use the same profile (for example `gh` for both), for someone who cannot get a second GitHub identity. Both roles then act with everything that login's token can do. The config and `carrier doctor` no longer require them to differ; `carrier doctor` still checks that each profile can get a token and read each repo. Two different profiles stay valid under `shared`, for a repo whose override uses a bot. See [ADR 0011](adr/0011-author-and-reviewer-may-share-one-github-identity-signed-visibly.md).
+With `identities: "shared"` the author and the reviewer may use the same profile (for example `gh` for both), for someone who cannot get a second GitHub identity. Both roles then act with everything that login's token can do. An epic counts as shared, and its agents sign, when both roles resolve to the same account: the same profile, two names for your `gh` login, or two names for the same bot. The config and `carrier doctor` no longer require them to differ; `carrier doctor` still checks that each profile can get a token and read each repo. Two different profiles stay valid under `shared`, for a repo whose override uses a bot. See [ADR 0011](adr/0011-author-and-reviewer-may-share-one-github-identity-signed-visibly.md).
 
 ## Per-repo overrides
 

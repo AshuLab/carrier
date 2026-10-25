@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { socketPathFits } from '../control/server.ts';
-import { resolveRepoConfig } from '../config/resolve.ts';
+import { resolveRepoConfig, sameAccount } from '../config/resolve.ts';
 import type { Config } from '../config/schema.ts';
 import { profileToken } from '../execution/git-workspaces.ts';
 import { forgeCwd } from '../integrations/forge-cwd.ts';
@@ -85,7 +85,7 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
     onStart('author and reviewer are different identities');
     const clashes = repos.flatMap((repo) => {
       const [author, reviewer] = rolesOf(repo).map((agent) => config.profiles[agent.profile]!);
-      return identity(author!) === identity(reviewer!) ? [`${repo.name}: author and reviewer both use ${identity(author!)}`] : [];
+      return sameAccount(author!, reviewer!) ? [`${repo.name}: author and reviewer both use ${identity(author!)}`] : [];
     });
     report(clashes.length === 0 ? { name: 'author and reviewer are different identities', status: 'ok' } : { name: 'author and reviewer are different identities', status: 'fail', detail: clashes.join('; '), fix: fixes.clash });
   }

@@ -49,7 +49,27 @@ describe('resolveRepoConfig', () => {
     });
     expect(JSON.parse(JSON.stringify(effective))).toEqual(effective);
     expect(JSON.stringify(effective)).not.toContain('secret');
-    expect(Object.keys(effective)).toEqual(['name', 'agents']);
+    expect(Object.keys(effective)).toEqual(['name', 'sharedIdentity', 'agents']);
+  });
+});
+
+describe('sharedIdentity', () => {
+  const shared = (user: object) => resolveFirst({ identities: 'shared', ...user }).sharedIdentity;
+  const same = { ...base.agents, reviewer: { ...base.agents.reviewer, profile: 'a' } };
+
+  test('the same profile, or two names for the same gh login or the same bot, is shared', () => {
+    expect(shared({ agents: same })).toBe(true);
+    expect(shared({})).toBe(true); // a and b are both gh
+    expect(shared({ profiles: { a: { kind: 'forge', agent: 'x' }, b: { kind: 'forge', agent: 'x' } } })).toBe(true);
+  });
+
+  test('a bot against a login, or two bots, is not', () => {
+    expect(shared({ profiles: { a: { kind: 'forge', agent: 'x' }, b: { kind: 'gh' } } })).toBe(false);
+    expect(shared({ profiles: { a: { kind: 'forge', agent: 'x' }, b: { kind: 'forge', agent: 'y' } } })).toBe(false);
+  });
+
+  test('a repo override that brings in a bot is not', () => {
+    expect(shared({ agents: same, profiles: { ...base.profiles, c: { kind: 'forge', agent: 'x' } }, repos: [{ name: 'x/y', agents: { reviewer: { profile: 'c' } } }] })).toBe(false);
   });
 });
 

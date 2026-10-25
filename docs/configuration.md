@@ -34,6 +34,7 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `finishedWindowDays` | no | `15` | Days a merged or cancelled epic stays in the snapshot after it ends, a whole number from 1 to 30 (30 is the retention purge). |
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |
+| `identities` | no | `separate` | `separate` or `shared`. Under `separate` the author and the reviewer must be different identities. Under `shared` they may use the same profile, normally your `gh` login. See [Profiles](#profiles). |
 | `limits.maxConcurrentEpics` | no | `3` | Epics running at the same time. |
 | `limits.maxReviews` | no | `5` | Review rounds before the epic goes to `needs-human`. |
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
@@ -47,7 +48,9 @@ A profile names a GitHub identity. There are two kinds and neither holds a secre
 - `{ "kind": "forge", "agent": "<name in your Agent Forge registry>" }`: a bot (a GitHub App) through [Agent Forge](https://github.com/AshuLab/agent-forge). Each run gets a short-lived token with the minimum scope.
 - `{ "kind": "gh" }`: your own `gh` login.
 
-The author and the reviewer need **different identities**, so that the reviewer's comments and approvals are not the author's own. The config rejects the same profile name for both, and `carrier doctor` also catches two names pointing to the same bot or both being `gh`.
+With `identities: "separate"` (the default) the author and the reviewer need **different identities**, so that the reviewer's comments and approvals are not the author's own. The config rejects the same profile name for both, and `carrier doctor` also catches two names pointing to the same bot or both being `gh`.
+
+With `identities: "shared"` the author and the reviewer may use the same profile (for example `gh` for both), for someone who cannot get a second GitHub identity. Both roles then act with everything that login's token can do. The config and `carrier doctor` no longer require them to differ; `carrier doctor` still checks that each profile can get a token and read each repo. Two different profiles stay valid under `shared`, for a repo whose override uses a bot. See [ADR 0011](adr/0011-author-and-reviewer-may-share-one-github-identity-signed-visibly.md).
 
 ## Per-repo overrides
 
@@ -57,7 +60,7 @@ A repo inherits every value from the global `agents` and replaces only what it n
 { "name": "AshuLab/big-repo", "agents": { "reviewer": { "model": "<other-model>" }, "author": { "profile": "other-bot" } } }
 ```
 
-Profile names used in an override must exist in `profiles`. The author and the reviewer must still differ after the override.
+Profile names used in an override must exist in `profiles`. Under `identities: "separate"` the author and the reviewer must still differ after the override.
 
 ## Things that are checked
 

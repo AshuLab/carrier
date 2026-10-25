@@ -31,6 +31,8 @@ export const configSchema = z
     pollIntervalMinutes: z.number().positive(),
     finishedWindowDays: z.int().min(1).max(30),
     logLevel: z.enum(LogLevel),
+    /** `shared`: the author and the reviewer may be the same GitHub profile (ADR 0011). */
+    identities: z.enum(['separate', 'shared']),
     repos: z
       .array(
         z.strictObject({
@@ -90,7 +92,8 @@ export const configSchema = z
       else ctx.addIssue({ code: 'custom', path: ['repos', i, 'name'], message: `repo "${repo.name}" has the same folder name as "${first}"; Solve's worktree paths have no owner` });
     });
 
-    // Author and reviewer must differ, globally and for each repo once its overrides are applied.
+    // Under separate identities, author and reviewer must differ, globally and for each repo once its overrides are applied.
+    if (config.identities !== 'separate') return;
     // A global clash is reported once, not again for every repo that inherits it.
     const clash = (path: (string | number)[], where: string, profile: string) =>
       ctx.addIssue({

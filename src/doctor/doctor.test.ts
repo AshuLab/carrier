@@ -101,6 +101,27 @@ test('two gh profiles are one identity', async () => {
   expect(failed(checks).map((c) => c.name)).toEqual(['author and reviewer are different identities']);
 });
 
+const sharedGh = { identities: 'shared', profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } } };
+const noForge = (command: string) => command !== 'agent-forge';
+
+test('a shared identity with the same login for both roles has no failed check and no clash check', async () => {
+  const checks = await runDoctor(config(sharedGh), deps({ which: noForge }));
+  expect(failed(checks)).toEqual([]);
+  expect(checks.map((c) => c.name)).not.toContain('author and reviewer are different identities');
+});
+
+test('the same config under separate identities fails the clash check', async () => {
+  const checks = await runDoctor(config({ ...sharedGh, identities: 'separate' }), deps({ which: noForge }));
+  expect(failed(checks).map((c) => c.name)).toEqual(['author and reviewer are different identities']);
+});
+
+test('a shared login that cannot get a token or read a repo still fails', async () => {
+  const noToken = await runDoctor(config(sharedGh), deps({ which: noForge, mint: async () => { throw new Error('no login'); } }));
+  expect(failed(noToken).map((c) => c.name)).toEqual(['your gh login can mint a token for AshuLab/carrier']);
+  const noRead = await runDoctor(config(sharedGh), deps({ which: noForge, listLabels: async () => { throw new Error('404'); } }));
+  expect(failed(noRead).map((c) => c.name)).toEqual(['your gh login can read AshuLab/carrier']);
+});
+
 test('a per-repo override can make the roles clash even when the globals differ', async () => {
   const clash = config({
     profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'forge', agent: 'tassadar-agent' }, c: { kind: 'forge', agent: 'artanis-agent' } },

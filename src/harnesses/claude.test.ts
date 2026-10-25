@@ -184,3 +184,10 @@ test('attributeSubagentLines ties subagent lines to an agent, a lane and a slice
   // task_* bookkeeping lines carry no agent_id: they stay with the main thread.
   expect(result[lines.findIndex((l) => l.subtype === 'task_progress')]).toEqual({ agentId: null });
 });
+
+test('the prompt carries the 401 rule only when the context has a forgeAgent', () => {
+  const withAgent = buildClaudeCommand(task, { ...ctx, forgeAgent: 'artanis-agent' });
+  expect(withAgent.args).toContain(buildPrompt(task, { forgeAgent: 'artanis-agent' }));
+  expect(withAgent.args.join('\n')).toContain('agent-forge gh artanis-agent <the same arguments>');
+  expect(buildClaudeCommand(task, ctx).args.join('\n')).not.toContain('agent-forge');
+});

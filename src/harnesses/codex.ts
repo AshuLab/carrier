@@ -16,7 +16,7 @@ export function buildCodexCommand(task: AgentTask, ctx: CommandContext): AgentCo
     args: [
       'exec',
       ...(task.resumeSession ? ['resume', task.resumeSession] : []),
-      buildPrompt(task),
+      buildPrompt(task, { forgeAgent: ctx.forgeAgent }),
       // JSONL: thread.started carries the session id while the run is going.
       '--json',
       '--model',

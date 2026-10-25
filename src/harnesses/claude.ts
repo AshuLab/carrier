@@ -11,7 +11,7 @@ export function buildClaudeCommand(task: AgentTask, ctx: CommandContext): AgentC
     bin: ctx.binary,
     args: [
       '-p',
-      buildPrompt(task),
+      buildPrompt(task, { forgeAgent: ctx.forgeAgent }),
       '--permission-mode',
       'bypassPermissions',
       // stream-json (not json) so the session id arrives while the run is going.

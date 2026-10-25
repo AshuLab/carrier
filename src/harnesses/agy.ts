@@ -16,7 +16,7 @@ export function buildAgyCommand(task: AgentTask, ctx: CommandContext): AgentComm
     bin: ctx.binary,
     args: [
       '-p',
-      buildPrompt(task),
+      buildPrompt(task, { forgeAgent: ctx.forgeAgent }),
       // stream-json (not json) so the conversation id arrives while the run is going.
       '--output-format',
       'stream-json',

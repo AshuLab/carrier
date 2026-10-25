@@ -860,6 +860,37 @@ test('ship, review and fix carry the persona of their role: the author\'s for sh
   expect(runner.tasks.map((t) => [t.stage, t.persona])).toEqual([['ship', personas.author], ['review', personas.reviewer], ['fix', personas.author]]);
 });
 
+test.each([[['same', 'same'], true], [['a', 'b'], false]] as const)('with profiles %j sharedIdentity is %s in ship, review and fix', async (profiles, expected) => {
+  const config = repos.map((r) => ({ ...r, agents: { author: { ...agents.author, profile: profiles[0] }, reviewer: { ...agents.reviewer, profile: profiles[1] } } }));
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) }
+    : task.stage === 'review' ? { write: result(task, { outcome: 'changes_requested', pr: { number: 50, headSha: SHA }, blockers: [{ title: 'x' }] }) }
+    : { exit: 'stopped' };
+  const engine = await start(1, config);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+
+  expect(runner.tasks.map((t) => [t.stage, t.sharedIdentity])).toEqual([['ship', expected], ['review', expected], ['fix', expected]]);
+});
+
+test('an epic resumed after the config changed keeps the sharedIdentity it started with', async () => {
+  const shared = repos.map((r) => ({ ...r, agents: { author: { ...agents.author, profile: 'same' }, reviewer: { ...agents.reviewer, profile: 'same' } } }));
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => (task.resumeSession ? { write: completed(task) } : { sessionId: 's-1', exit: 'failed' });
+  const first = await start(1, shared);
+  await clock.advance(5 * MIN);
+  await first.idle();
+  first.stop();
+  const second = await start(1, repos); // the profiles now differ
+  await clock.advance(5 * MIN);
+  await second.idle();
+
+  expect(runner.tasks.length).toBeGreaterThan(1);
+  expect(runner.tasks.every((t) => t.stage === 'ship' && t.sharedIdentity === true)).toBe(true);
+});
+
 test('the epic worktree is read back from git after ship and kept: the fix turns, retries included, run in it; ship ran in the clone', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50, { headRef: 'feat/demo/epic' });

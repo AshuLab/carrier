@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { parseCallerResult } from '../execution/caller-result.ts';
 import { buildPrompt } from './build-prompt.ts';
+import { signatureOf } from './persona.ts';
 
 const pr = { number: 7, headSha: 'a'.repeat(40) };
 const task = (stage: AgentTask['stage'], context: Partial<AgentTask['context']> = {}, harness: AgentTask['harness'] = 'claude'): AgentTask => ({
@@ -250,4 +251,20 @@ test.each(['ship', 'review', 'fix'] as const)('the %s persona goes after the rol
   expect(lines.slice(3)).toEqual(plain.slice(1));
   expect(buildPrompt({ ...task(stage), persona: { prompt: 'Only a prompt.' } }).split('\n')[1]).toBe('Only a prompt.');
   expect(buildPrompt({ ...task(stage), persona: {} })).toBe(buildPrompt(task(stage)));
+});
+
+test('signatureOf names the role and the persona, and leaves no brackets without a name', () => {
+  expect(signatureOf('reviewer', 'Atlas')).toBe('🤖 Reviewer [Atlas] via Carrier');
+  expect(signatureOf('author')).toBe('🤖 Author via Carrier');
+  expect(signatureOf('author', '')).toBe('🤖 Author via Carrier');
+});
+
+test.each([['ship', 'Author'], ['review', 'Reviewer'], ['fix', 'Author']] as const)('under a shared identity the %s prompt asks for the %s signature on everything published', (stage, role) => {
+  const rule = buildPrompt({ ...task(stage), sharedIdentity: true, persona: { name: 'Atlas' } }).split('\n')[2]!;
+  expect(rule).toContain(`${role} [Atlas] via Carrier`);
+  for (const what of ['review comment', 'review body', 'pull request body', 'reply on a thread', 'commit message']) expect(rule).toContain(what);
+  expect(buildPrompt({ ...task(stage), sharedIdentity: true })).toContain(`🤖 ${role} via Carrier`);
+  expect(buildPrompt({ ...task(stage), sharedIdentity: true }).split('\n')[1]).toMatch(/: 🤖 \w+ via Carrier$/);
+  expect(buildPrompt({ ...task(stage), sharedIdentity: false, persona: { name: 'Atlas' } })).not.toContain('via Carrier');
+  expect(buildPrompt({ ...task(stage), sharedIdentity: false })).toBe(buildPrompt(task(stage)));
 });

@@ -11,6 +11,7 @@ export interface AgentTask {
   model: string;
   provider?: 'lmstudio' | 'ollama'; // `model` is served by that local server
   persona?: { name?: string; prompt?: string }; // of the role, told in the prompt
+  sharedIdentity?: boolean; // the epic's author and reviewer use one GitHub profile: the prompt asks for the signature
   workspace: string; // checkout where the agent runs
   resultPath: string; // where the caller writes its JSON
   timeoutMs: number | null; // null = unlimited

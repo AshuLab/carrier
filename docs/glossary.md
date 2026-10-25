@@ -44,7 +44,7 @@ _Avoid_: error, failure, pause.
 **Author** - Agent that invokes `ship` and handles the findings; it keeps its identity throughout the epic.
 _Avoid_: implementer, developer.
 
-**Reviewer** - Agent with an identity different from the author's that reviews the final PR in a separate checkout, publishes findings and verifies the fixes.
+**Reviewer** - Agent that reviews the final PR in a separate checkout, publishes findings and verifies the fixes. Its GitHub profile differs from the author's, unless the user chose a shared identity.
 _Avoid_: external reviewer, review bot.
 
 **Shared root** - Folder (by default `~/.solve/`) where Solve and Carrier keep `repos/`, `worktrees/` and `orchestrator/`. It is independent of where the app's code lives or from where it is started.
@@ -108,3 +108,15 @@ _Avoid_: warning colour, error orange, problem state.
 
 **Resume (an epic)** - Putting an epic that stopped in needs-human back in the queue once a person has dealt with the cause. It does what the person did by hand before: `solve:epic:ready` goes back on the issue, the `needs-human` mirror comes off, and the epic starts again from ship, reusing its worktree and its pull request, with the review rounds starting over. Nothing checks that the cause is really fixed: if it is not, the epic stops again with the new error. The macOS app asks the engine to do it, with a confirmation first.
 _Avoid_: retry (an execution retry is the automatic one after a technical failure), continue (continue in terminal is about a session), restart.
+
+**Separate identities** - Setup where the author and the reviewer use different GitHub profiles: two Agent Forge bots, or one bot and the user's `gh` login. It is the default, and what makes the reviewer's comments not the author's own.
+_Avoid_: dual identity, bot mode.
+
+**Shared identity** - Setup where the author and the reviewer use the same GitHub profile, normally the user's own `gh` login, so everything the agents publish goes out under that account. It exists for the user who cannot install a GitHub App on the repos they work in. Each role signs what it publishes, and the agents act with everything that login can do.
+_Avoid_: single login, same-account mode, bot-less mode.
+
+**Persona** - What a role (author or reviewer) is given besides its harness and model: a name the user chooses and an optional prompt that says who the agent is and how it behaves. Carrier adds it to the agent's prompt in either identity setup. It is not a GitHub profile: the profile says which account posts, the persona says who is speaking.
+_Avoid_: identity (it is ambiguous with the GitHub profile), system prompt, bot name.
+
+**Signature** - The closing line a role puts on everything it publishes under a shared identity: `🤖 <Role> [NAME] via Carrier`, with the persona's name in the brackets. It is mandatory, the user cannot turn it off, and it is what tells the agent's words from the user's own when both come from one account.
+_Avoid_: watermark, marker, footer.

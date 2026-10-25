@@ -74,3 +74,10 @@ test('parseCodexLine reads the session from a real captured stream and never thr
   expect(signals.filter(Boolean)).toEqual([{ session: '00000000-0000-7000-8000-000000000000' }]);
   expect(lines.length).toBe(15);
 });
+
+test('the prompt carries the 401 rule only when the context has a forgeAgent', () => {
+  const withAgent = buildCodexCommand(task, { ...ctx, forgeAgent: 'artanis-agent' });
+  expect(withAgent.args).toContain(buildPrompt(task, { forgeAgent: 'artanis-agent' }));
+  expect(withAgent.args.join('\n')).toContain('agent-forge gh artanis-agent <the same arguments>');
+  expect(buildCodexCommand(task, ctx).args.join('\n')).not.toContain('agent-forge');
+});

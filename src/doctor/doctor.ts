@@ -80,13 +80,15 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
     }
   }
 
-  // The schema compares profile names; two names can still point at the same bot or the same login.
-  onStart('author and reviewer are different identities');
-  const clashes = repos.flatMap((repo) => {
-    const [author, reviewer] = rolesOf(repo).map((agent) => config.profiles[agent.profile]!);
-    return identity(author!) === identity(reviewer!) ? [`${repo.name}: author and reviewer both use ${identity(author!)}`] : [];
-  });
-  report(clashes.length === 0 ? { name: 'author and reviewer are different identities', status: 'ok' } : { name: 'author and reviewer are different identities', status: 'fail', detail: clashes.join('; '), fix: fixes.clash });
+  // The schema compares profile names; two names can still point at the same bot or the same login. A shared identity allows it.
+  if (config.identities === 'separate') {
+    onStart('author and reviewer are different identities');
+    const clashes = repos.flatMap((repo) => {
+      const [author, reviewer] = rolesOf(repo).map((agent) => config.profiles[agent.profile]!);
+      return identity(author!) === identity(reviewer!) ? [`${repo.name}: author and reviewer both use ${identity(author!)}`] : [];
+    });
+    report(clashes.length === 0 ? { name: 'author and reviewer are different identities', status: 'ok' } : { name: 'author and reviewer are different identities', status: 'fail', detail: clashes.join('; '), fix: fixes.clash });
+  }
 
   // Without gh, or without agent-forge for a forge profile, the checks below would only repeat the same failure.
   const usable = (profile: GitHubProfile) => hasGit && hasGh && (profile.kind === 'gh' || hasForge);

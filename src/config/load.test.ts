@@ -117,6 +117,39 @@ describe('maxExecutionHours', () => {
   });
 });
 
+describe('identities', () => {
+  const same = { profiles: { me: { kind: 'gh' }, bot: { kind: 'gh' } }, orchestratorProfile: 'me', agents: { author: { profile: 'me', harness: 'claude', model: 'm' }, reviewer: { profile: 'me', harness: 'codex', model: 'm' } } };
+  const perRepo = { ...valid, repos: [{ name: 'a/one' }, { name: 'a/two', agents: { reviewer: { profile: 'author-bot' } } }, { name: 'a/three', agents: { reviewer: { profile: 'author-bot' } } }] };
+
+  test('defaults to separate', () => {
+    expect(load({})).toMatchObject({ ok: true, config: { identities: 'separate' } });
+  });
+
+  test.each([{}, { identities: 'separate' }])('the same profile for both roles is refused when identities is absent or separate: %j', (identities) => {
+    expect(errorsOf({ ...same, ...identities }).map((e) => e.path)).toEqual(['agents']);
+  });
+
+  test('a per-repo override that makes the roles equal is refused once per repo under separate and accepted under shared', () => {
+    expect(loadConfig(defaults, perRepo).ok).toBe(false);
+    const errors = (loadConfig(defaults, perRepo) as { errors: { path: string }[] }).errors;
+    expect(errors.map((e) => e.path)).toEqual(['repos.1.agents', 'repos.2.agents']);
+    expect(loadConfig(defaults, { ...perRepo, identities: 'shared' }).ok).toBe(true);
+  });
+
+  test('shared accepts the same profile for both roles and also two different ones', () => {
+    expect(load({ ...same, identities: 'shared' })).toMatchObject({ ok: true, config: { identities: 'shared' } });
+    expect(load({ identities: 'shared' })).toMatchObject({ ok: true, config: { identities: 'shared' } });
+  });
+
+  test('shared still checks that the profiles exist', () => {
+    expect(errorsOf({ ...same, identities: 'shared', orchestratorProfile: 'ghost' }).map((e) => e.path)).toEqual(['orchestratorProfile']);
+  });
+
+  test.each(['both', 'Shared', '', true])('rejects %j', (identities) => {
+    expect(errorsOf({ identities }).map((e) => e.path)).toEqual(['identities']);
+  });
+});
+
 describe('root', () => {
   test('expands ~', () => {
     expect(load({ root: '~/work' })).toMatchObject({ ok: true, config: { root: join(homedir(), 'work') } });

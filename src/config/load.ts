@@ -5,6 +5,7 @@ export const defaults = {
   pollIntervalMinutes: 5,
   finishedWindowDays: 15,
   logLevel: 'info',
+  identities: 'separate',
   limits: {
     maxConcurrentEpics: 3,
     maxReviews: 5,

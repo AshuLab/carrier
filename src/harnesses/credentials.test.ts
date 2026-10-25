@@ -27,10 +27,12 @@ test('a Forge profile gets its own token and the bot commit identity with the nu
 
   expect(a).toEqual({
     githubToken: 'ghs_artanis-agent_1',
+    forgeAgent: 'artanis-agent',
     gitIdentity: { name: 'artanis-agent[bot]', email: '325794106+artanis-agent[bot]@users.noreply.github.com' },
   });
   expect(b).toEqual({
     githubToken: 'ghs_tassadar-agent_2',
+    forgeAgent: 'tassadar-agent',
     gitIdentity: { name: 'tassadar-agent[bot]', email: '42+tassadar-agent[bot]@users.noreply.github.com' },
   });
   expect(minted).toEqual(['artanis-agent@AshuLab/carrier', 'tassadar-agent@AshuLab/other']);
@@ -42,7 +44,7 @@ test('a gh profile keeps the user\'s own login: its token, no identity override,
     mint: async (profile) => (profile.kind === 'gh' ? 'gho_mine' : 'unexpected'),
     botId: async () => Promise.reject(new Error('must not be asked')),
   });
-  expect(await credentials(task('diego'))).toEqual({ githubToken: 'gho_mine' });
+  expect(await credentials(task('diego'))).toEqual({ githubToken: 'gho_mine' }); // and no forgeAgent
 });
 
 test('the token goes to the child environment and to nothing else of the command', async () => {

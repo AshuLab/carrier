@@ -43,6 +43,6 @@ export function profileCredentials({ profiles, mint, botId = botIdFromGitHub() }
     const githubToken = await mint(profile, task.repo);
     if (profile.kind === 'gh') return { githubToken };
     const name = `${profile.agent}[bot]`;
-    return { githubToken, gitIdentity: { name, email: `${await botId(profile.agent, githubToken)}+${name}@users.noreply.github.com` } };
+    return { githubToken, forgeAgent: profile.agent, gitIdentity: { name, email: `${await botId(profile.agent, githubToken)}+${name}@users.noreply.github.com` } };
   };
 }

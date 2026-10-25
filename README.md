@@ -35,7 +35,7 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 - **Setup** — `carrier init` (guided, or all flags) writes the config; `carrier doctor` checks it and the machine; `carrier schema` prints the config's JSON Schema.
 - **Run without a terminal** — `carrier start --config <path>` launches Carrier as a detached run (its own session, its output in `<root>/orchestrator/logs/start.log`) and returns once the control socket answers, within 15 seconds; on a root where Carrier already runs it says so, does nothing and exits 0, and if it does not come up it prints the end of the log and exits 1. `carrier stop`, `pause`, `resume` and `check` do from any terminal what the panel's `Ctrl+C`, `p` and `r` do (`check` looks at GitHub now) and confirm in one line: exit 0 on success (`stop` also when none runs), 1 when no Carrier runs (or answers), 2 when it speaks another protocol. See [ADR 0010](docs/adr/0010-carrier-runs-in-the-background-as-a-detached-process.md).
 - **Status** — `carrier status` prints the panel of the running Carrier once, from any terminal; exit 0 it runs, 1 it is not running, 2 it speaks another protocol. `carrier watch` attaches the live panel to it with the same keys as the foreground one, except `q` (and `Ctrl+C`) only leave: Carrier keeps running. It exits 1 when none runs or when the Carrier it watches stops. Both show each epic's stage history (running, needing you, or ready for test), asked over the socket; a Carrier that does not list `sessions` in its hello is drawn from the snapshot alone, and an epic whose request fails is drawn without it.
-- **Config** — a user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, harness, provider and model; author and reviewer must resolve to different profiles.
+- **Config** — a user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, harness, provider and model; under separate identities (the default) author and reviewer must resolve to different profiles.
 - **Polling and queue** — FIFO across repos with pagination, rate-limit and outage handling; one instance per root folder (an exclusive SQLite lock released by the OS on death).
 - **Scheduler** — atomic reservation, configurable concurrency, label management (`running`, `ready-for-test`, `needs-human` are created in each repo if missing).
 - **Stages** — ship, review and fix loops with a typed caller result (`completed`, `changes_requested`, `needs_human`) imported idempotently in a single transaction.
@@ -100,7 +100,7 @@ carrier/
 - macOS and Node.js 22 or newer. Working from a clone needs Node.js 26 and pnpm 12.
 - `git` and the GitHub CLI (`gh`).
 - At least one of the `claude`, `codex` and `agy` (Antigravity) CLIs, installed and logged in from the terminal where you run Carrier. For local models, LM Studio or Ollama running.
-- [Agent Forge](https://github.com/AshuLab/agent-forge) with two bot profiles (one for the author, one for the reviewer), or `gh` profiles for the identities you want to use.
+- Two different GitHub identities, one per role: [Agent Forge](https://github.com/AshuLab/agent-forge) bot profiles, or your own `gh` login for one of them. Or, if you cannot get a second one, a **shared identity**: your `gh` login for both roles (`carrier init` offers it, or `--identities shared`). Both roles then act with everything that login's token can do.
 - The target repos use the [Solve](https://github.com/AshuLab/skills) flow.
 
 ### 2. Install
@@ -117,7 +117,7 @@ Or run it without installing: `pnpm dlx @ashulab/carrier`. To work on Carrier it
 carrier init
 ```
 
-It looks at the machine (stopping with the fix if `git`, `gh` or every agent CLI is missing, and listing the models your local servers have), asks for the repos to watch (picked from the repos your `gh` login can push to, grouped by owner), the identity of the author and the reviewer, and the CLI and model each one uses, writes the config to `~/.carrier/config.json` (one global file per user; change it with `--out`) and runs the checks below. Run again on an existing config, it offers to edit it with its answers as the starting points. Before saving it shows a recap to confirm, and the checks that follow print only what fails (otherwise a single count), then it shows how many epics are waiting and offers to start Carrier. If there is no second GitHub identity it can run `agent-forge add` for you on the spot. Every question has a flag (`carrier init --help`), and `--yes` never asks, so an agent can run it too:
+It looks at the machine (stopping with the fix if `git`, `gh` or every agent CLI is missing, and listing the models your local servers have), asks for the repos to watch (picked from the repos your `gh` login can push to, grouped by owner), whether the author and the reviewer use separate identities or one shared identity (your `gh` login for both, after a note that both act with everything its token can do; it never reads Agent Forge), the identity of each role under separate identities, and the CLI and model each one uses, writes the config to `~/.carrier/config.json` (one global file per user; change it with `--out`) and runs the checks below. Run again on an existing config, it offers to edit it with its answers as the starting points. Before saving it shows a recap to confirm, and the checks that follow print only what fails (otherwise a single count), then it shows how many epics are waiting and offers to start Carrier. If there is no second GitHub identity it can run `agent-forge add` for you on the spot. Every question has a flag (`carrier init --help`), and `--yes` never asks, so an agent can run it too (`--identities shared --yes` takes the `gh` login for both roles and prints the note; it cannot go with `--author-profile` or `--reviewer-profile`):
 
 ```bash
 carrier init --yes --repo AshuLab/my-repo \
@@ -131,7 +131,7 @@ Check a config (yours or a hand-written one) at any time:
 carrier doctor
 ```
 
-It verifies the tools are installed, that the author and the reviewer really are different identities, that each identity can get a token for each repo, and that the orchestrator can read it. `carrier schema` prints the JSON Schema of the config for your editor.
+It verifies the tools are installed, that the author and the reviewer really are different identities (under separate identities), that each identity can get a token for each repo, and that the orchestrator can read it. `carrier schema` prints the JSON Schema of the config for your editor.
 
 #### The file, by hand
 

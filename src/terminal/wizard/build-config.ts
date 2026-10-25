@@ -3,7 +3,8 @@ import { harnessNames, type HarnessName } from '../../harnesses/names.ts';
 
 export type Identity = { kind: 'forge'; agent: string } | { kind: 'gh' };
 export type Role = { identity: Identity; harness: HarnessName; model: string; provider?: LocalProvider };
-export type Answers = { repos: string[]; author: Role; reviewer: Role };
+export type Identities = 'separate' | 'shared';
+export type Answers = { repos: string[]; author: Role; reviewer: Role; identities?: Identities };
 
 /** `forge:<agent>` or `gh`, the form used by flags and by the prompts' values. */
 export function parseIdentity(text: string): Identity {
@@ -32,10 +33,11 @@ export function parseProvider(text: string): LocalProvider {
 const profileName = (identity: Identity) => (identity.kind === 'gh' ? 'gh' : identity.agent);
 
 /** The user config (what goes in the file): only what has no default. The author's profile also acts as orchestrator. */
-export function buildConfig({ repos, author, reviewer }: Answers) {
+export function buildConfig({ repos, author, reviewer, identities }: Answers) {
   const [a, r] = [profileName(author.identity), profileName(reviewer.identity)];
   return {
     repos: repos.map((name) => ({ name })),
+    ...(identities === 'shared' && { identities }), // the default, separate, is not written
     profiles: { [a]: author.identity, [r]: reviewer.identity },
     orchestratorProfile: a,
     agents: {

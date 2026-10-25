@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
+import { defaults, loadConfig } from '../../config/load.ts';
 import { Cancelled, type Ui } from '../prompts/types.ts';
 import { fakeDeps, okCheck, quietUi, useTempDir } from './testing.ts';
 import { runInit } from './wizard.ts';
@@ -169,4 +170,92 @@ test('gh without a login is a warning, not a stop', async () => {
   const { ui, asked } = quietUi();
   await runInit({ repo: ['A/b'], out: join(dir, 'm2.json') }, ui, fakeDeps({ ghLogin: () => undefined }).deps);
   expect(asked.find((q) => q.startsWith('warn:gh is not logged in'))).toContain('gh auth login');
+});
+
+// A shared identity: the gh login for both roles, no Agent Forge.
+const sharedMessage = 'GitHub identities: one for each role, or one shared?';
+const touchesForge = () => {
+  throw new Error('Agent Forge must not be read under a shared identity');
+};
+
+test('choosing shared by answer asks no identity, never touches Forge, and writes a config that loads', async () => {
+  const { deps, written } = fakeDeps({ forgeAgents: touchesForge, forgeAdd: touchesForge });
+  const { ui, asked } = quietUi({ [sharedMessage]: 'shared', 'Use your gh login for both roles?': true });
+  const notes: string[] = [];
+  const out = join(dir, 's1.json');
+  await runInit({ repo: ['A/b'], out }, { ...ui, note: (_m, title) => void notes.push(title) }, deps);
+  const written1 = JSON.parse(written[out]!);
+  expect(written1).toEqual({
+    repos: [{ name: 'A/b' }],
+    identities: 'shared',
+    profiles: { gh: { kind: 'gh' } },
+    orchestratorProfile: 'gh',
+    agents: { author: { profile: 'gh', harness: 'claude', model: 'sonnet' }, reviewer: { profile: 'gh', harness: 'codex', model: 'gpt-test' } },
+  });
+  expect(loadConfig(defaults, written1).ok).toBe(true);
+  expect(asked.some((q) => q.startsWith('GitHub identity for'))).toBe(false);
+  expect(notes.indexOf('Shared identity')).toBeGreaterThan(-1);
+});
+
+test('--identities shared with --yes is the consent, and the note about the token is still printed', async () => {
+  const { deps, written } = fakeDeps({ forgeAgents: touchesForge });
+  const { ui, asked } = quietUi();
+  const notes: Record<string, string> = {};
+  const out = join(dir, 's2.json');
+  await runInit({ repo: ['A/b'], identities: 'shared', out, yes: true }, { ...ui, note: (m, t) => void (notes[t] = m) }, deps);
+  expect(notes['Shared identity']).toContain('everything your gh token can do');
+  expect(asked.some((q) => q.startsWith('Use your gh login'))).toBe(false);
+  expect(JSON.parse(written[out]!).identities).toBe('shared');
+});
+
+test('declining the note goes back to the question, where separate can be picked', async () => {
+  const { deps, written } = fakeDeps();
+  const { ui } = quietUi({ 'Use your gh login for both roles?': false });
+  let n = 0;
+  const out = join(dir, 's3.json');
+  await runInit({ repo: ['A/b'], out }, { ...ui, select: async (o) => (o.message === sharedMessage ? (((n += 1) === 1 ? 'shared' : 'separate') as never) : ui.select(o)) }, deps);
+  expect(JSON.parse(written[out]!)).not.toHaveProperty('identities');
+});
+
+test('a shared identity without a gh login stops with gh auth login and writes nothing', async () => {
+  const { deps, written } = fakeDeps({ ghLogin: () => undefined });
+  await expect(runInit({ repo: ['A/b'], identities: 'shared', out: join(dir, 's4.json'), yes: true }, quietUi().ui, deps)).rejects.toThrow('gh auth login');
+  expect(written).toEqual({});
+});
+
+test('--identities shared with a profile flag fails and says the shared identity is the gh login', async () => {
+  for (const profile of [{ authorProfile: 'gh' }, { reviewerProfile: 'forge:bot' }]) {
+    const { deps, written } = fakeDeps();
+    await expect(runInit({ repo: ['A/b'], identities: 'shared', ...profile, out: join(dir, 's5.json'), yes: true }, quietUi().ui, deps)).rejects.toThrow('the shared identity is the gh login');
+    expect(written).toEqual({});
+  }
+  await expect(runInit({ repo: ['A/b'], identities: 'both', out: join(dir, 's5.json'), yes: true }, quietUi().ui, fakeDeps().deps)).rejects.toThrow('expected separate or shared');
+});
+
+test('--identities separate asks the identity questions and writes no identities key', async () => {
+  const { deps, written } = fakeDeps();
+  const { ui, asked } = quietUi();
+  const out = join(dir, 's6.json');
+  await runInit({ repo: ['A/b'], identities: 'separate', out }, ui, deps);
+  expect(asked).not.toContain(sharedMessage);
+  expect(asked).toContain('GitHub identity for the author');
+  expect(JSON.parse(written[out]!)).not.toHaveProperty('identities');
+});
+
+test('editing a shared config starts with shared selected, and the recap shows the identity setup', async () => {
+  const shared = {
+    repos: [{ name: 'X/y' }],
+    identities: 'shared',
+    profiles: { gh: { kind: 'gh' } },
+    orchestratorProfile: 'gh',
+    agents: { author: { profile: 'gh', harness: 'claude', model: 'opus' }, reviewer: { profile: 'gh', harness: 'codex', model: 'gpt-test' } },
+  };
+  const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => shared, forgeAgents: touchesForge });
+  const { ui } = quietUi({ 'Use your gh login for both roles?': true });
+  const initial: unknown[] = [];
+  const notes: Record<string, string> = {};
+  await withHome(() => runInit({}, { ...ui, select: async (o) => (o.message === sharedMessage && initial.push(o.initialValue), ui.select(o)), note: (m, t) => void (notes[t] = m) }, deps));
+  expect(initial).toEqual(['shared']);
+  expect(notes['This is what will be saved']).toContain('Identity  shared: both roles act as your gh login');
+  expect(JSON.parse(written[join(dir, 'home', 'config.json')]!)).toEqual(shared);
 });

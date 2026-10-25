@@ -5,7 +5,7 @@ import { installFix } from '../../doctor/fixes.ts';
 import { localKinds, type LocalProvider } from '../../harnesses/local.ts';
 import { harnessNames } from '../../harnesses/names.ts';
 import { Cancelled, type Ui } from '../prompts/types.ts';
-import { buildConfig, parseIdentity } from './build-config.ts';
+import { buildConfig, parseIdentity, type Role } from './build-config.ts';
 import { realDeps, type InitDeps } from './deps.ts';
 import type { InitFlags } from './flags.ts';
 import type { ForgeAgent } from './forge-registry.ts';
@@ -13,6 +13,7 @@ import { priorFrom, type Prior } from './prior.ts';
 import { askAgent } from './questions/agent.ts';
 import { askIdentities } from './questions/identities.ts';
 import { askIdentity } from './questions/identity.ts';
+import { askPersona } from './questions/persona.ts';
 import { askOut } from './questions/out.ts';
 import { askRepos } from './questions/repos.ts';
 import { summary, tilde } from './summary.ts';
@@ -86,11 +87,15 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   // One role at a time (who it acts as, which CLI, which model), each under its own box, so the two read as separate things.
   if (!(flags.authorProfile && flags.author)) ui.note('Implements the epic: runs ship, then answers the reviewer.', 'Author');
   const authorIdentity = shared ? ghIdentity : flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, readForge, login, [], deps, interactive, prior?.author.identity);
-  const author = { identity: authorIdentity, ...(await askAgent(ui, 'author', { flag: flags.author, provider: flags.authorProvider }, harnesses, locals, deps, 'claude', prior?.author)) };
+  const author: Role = { identity: authorIdentity, ...(await askAgent(ui, 'author', { flag: flags.author, provider: flags.authorProvider }, harnesses, locals, deps, 'claude', prior?.author)) };
+  const authorPersona = await askPersona(ui, 'author', { name: flags.authorPersonaName, prompt: flags.authorPersonaPrompt }, interactive, prior?.author.persona);
+  if (authorPersona) author.persona = authorPersona;
 
   if (!(flags.reviewerProfile && flags.reviewer)) ui.note(`Reviews the final PR. ${shared ? 'Acts as the same gh login.' : 'Needs a different GitHub identity from the author.'}`, 'Reviewer');
   const reviewerIdentity = shared ? ghIdentity : flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, readForge, login, [authorIdentity], deps, interactive, prior?.reviewer.identity);
-  const reviewer = { identity: reviewerIdentity, ...(await askAgent(ui, 'reviewer', { flag: flags.reviewer, provider: flags.reviewerProvider }, harnesses, locals, deps, harnesses.includes('codex') ? 'codex' : 'claude', prior?.reviewer)) };
+  const reviewer: Role = { identity: reviewerIdentity, ...(await askAgent(ui, 'reviewer', { flag: flags.reviewer, provider: flags.reviewerProvider }, harnesses, locals, deps, harnesses.includes('codex') ? 'codex' : 'claude', prior?.reviewer)) };
+  const reviewerPersona = await askPersona(ui, 'reviewer', { name: flags.reviewerPersonaName, prompt: flags.reviewerPersonaPrompt }, interactive, prior?.reviewer.persona);
+  if (reviewerPersona) reviewer.persona = reviewerPersona;
 
   const user = buildConfig({ repos, author, reviewer, identities });
   const loaded = loadConfig(defaults, user);

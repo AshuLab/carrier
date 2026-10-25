@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { defaults, loadConfig } from '../../config/load.ts';
 import { buildConfig, parseHarnessModel, parseIdentity } from './build-config.ts';
 
 test('buildConfig names a forge profile after its agent and the login "gh"', () => {
@@ -19,4 +20,14 @@ test('buildConfig writes identities only when shared, with one profile for both 
   const shared = buildConfig({ ...answers, identities: 'shared' });
   expect(shared).toMatchObject({ identities: 'shared', profiles: { gh: { kind: 'gh' } }, orchestratorProfile: 'gh' });
   expect(shared.agents.author.profile).toBe(shared.agents.reviewer.profile);
+});
+
+test('buildConfig writes a persona only when given, and the config loads', () => {
+  const author = { identity: parseIdentity('gh'), ...parseHarnessModel('claude:sonnet') };
+  const reviewer = { identity: parseIdentity('forge:bot'), ...parseHarnessModel('codex:x'), persona: { name: 'Rex', prompt: 'Strict.' } };
+  const config = buildConfig({ repos: ['A/b'], author, reviewer });
+  expect(config.agents.author).not.toHaveProperty('persona');
+  expect(config.agents.reviewer).toMatchObject({ persona: { name: 'Rex', prompt: 'Strict.' } });
+  const loaded = loadConfig(defaults, config);
+  expect(loaded.ok && loaded.config.agents.reviewer.persona).toEqual({ name: 'Rex', prompt: 'Strict.' });
 });

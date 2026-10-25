@@ -1,8 +1,10 @@
 import { localKinds, type LocalProvider } from '../../harnesses/local.ts';
+import type { Config } from '../../config/schema.ts';
 import { harnessNames, type HarnessName } from '../../harnesses/names.ts';
 
 export type Identity = { kind: 'forge'; agent: string } | { kind: 'gh' };
-export type Role = { identity: Identity; harness: HarnessName; model: string; provider?: LocalProvider };
+export type Persona = NonNullable<Config['agents']['author']['persona']>;
+export type Role = { identity: Identity; harness: HarnessName; model: string; provider?: LocalProvider; persona?: Persona };
 export type Identities = 'separate' | 'shared';
 export type Answers = { repos: string[]; author: Role; reviewer: Role; identities?: Identities };
 
@@ -41,8 +43,8 @@ export function buildConfig({ repos, author, reviewer, identities }: Answers) {
     profiles: { [a]: author.identity, [r]: reviewer.identity },
     orchestratorProfile: a,
     agents: {
-      author: { profile: a, harness: author.harness, model: author.model, ...(author.provider && { provider: author.provider }) },
-      reviewer: { profile: r, harness: reviewer.harness, model: reviewer.model, ...(reviewer.provider && { provider: reviewer.provider }) },
+      author: { profile: a, harness: author.harness, model: author.model, ...(author.provider && { provider: author.provider }), ...(author.persona && { persona: author.persona }) },
+      reviewer: { profile: r, harness: reviewer.harness, model: reviewer.model, ...(reviewer.provider && { provider: reviewer.provider }), ...(reviewer.persona && { persona: reviewer.persona }) },
     },
   };
 }

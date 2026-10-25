@@ -21,6 +21,8 @@ init flags (each one skips its question; --yes never asks):
   --author-profile <forge:<agent>|gh>   --reviewer-profile <forge:<agent>|gh>
   --author <harness>:<model>            --reviewer <harness>:<model>           harness: claude, codex or agy
   --author-provider <lmstudio|ollama>   --reviewer-provider <lmstudio|ollama>   the model runs on that local server
+  --author-persona-name <text>   --reviewer-persona-name <text>   who the role says it is: one line, up to 40 characters
+  --author-persona-prompt <text> --reviewer-persona-prompt <text> how the role behaves: up to 4000 characters
   --out <path>                   default is the --config default above
   --yes                          no questions; overwrite the output file`;
 
@@ -34,6 +36,10 @@ const options = {
   reviewer: { type: 'string' },
   'author-provider': { type: 'string' },
   'reviewer-provider': { type: 'string' },
+  'author-persona-name': { type: 'string' },
+  'author-persona-prompt': { type: 'string' },
+  'reviewer-persona-name': { type: 'string' },
+  'reviewer-persona-prompt': { type: 'string' },
   out: { type: 'string' },
   yes: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },

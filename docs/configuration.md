@@ -30,6 +30,7 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `orchestratorProfile` | yes | | Profile used to read issues and PRs and to change labels. It may be the author's. |
 | `agents.author` / `agents.reviewer` | yes | | `{ profile, harness, model, provider? }` for each role. `harness` is the agent CLI that runs it: `claude` (Claude Code), `codex` or `agy` (Antigravity). For Claude prefer an alias (`sonnet`, `opus`, ...): the CLI resolves it to the latest model, so it does not go stale. Codex has no aliases: use an id from `codex`'s own list; for Antigravity, one from `agy models` (`carrier init` offers all of them). |
 | `agents.<role>.provider` | no | the harness's own cloud | Who serves the model: `lmstudio` or `ollama` for a local server. See [Local models](#local-models). |
+| `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
 | `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `finishedWindowDays` | no | `15` | Days a merged or cancelled epic stays in the snapshot after it ends, a whole number from 1 to 30 (30 is the retention purge). |
@@ -40,6 +41,18 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
+
+## Personas
+
+A role, author or reviewer, can have a persona: a name and a prompt that say who the agent is and how it behaves. Carrier adds them to that agent's prompt, right after the line that says which role it is and before what the stage asks. The persona belongs to the role, not to a stage: the author's is used in `ship` and `fix`, the reviewer's in `review`. Either field can be left out, and without a persona the prompt is the one it always was.
+
+```json
+"agents": {
+  "reviewer": { "profile": "reviewer-bot", "harness": "codex", "model": "<model>", "persona": { "name": "Rex", "prompt": "Be strict about migrations." } }
+}
+```
+
+A repo's `agents.<role>.persona` replaces the global persona of that role whole, not field by field. The name is trimmed and cannot contain a line break; the prompt is trimmed and cannot be empty.
 
 ## Profiles
 

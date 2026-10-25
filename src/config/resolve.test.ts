@@ -83,3 +83,11 @@ describe('override validation', () => {
     expect(errorsOf({ repos: [{ name: 'x/y', agents: { judge: {} } }] })).toHaveLength(1);
   });
 });
+
+test('a repo persona replaces the global one of that role whole', () => {
+  const global = { author: { ...base.agents.author, persona: { name: 'Ada', prompt: 'Be terse.' } }, reviewer: { ...base.agents.reviewer, persona: { name: 'Rex' } } };
+  const { agents } = resolveFirst({ agents: global, repos: [{ name: 'x/y', agents: { author: { persona: { prompt: 'Be verbose.' } } } }] });
+  expect(agents.author.persona).toEqual({ prompt: 'Be verbose.' });
+  expect(agents.reviewer.persona).toEqual({ name: 'Rex' });
+  expect(resolveFirst({ agents: global }).agents.author.persona).toEqual({ name: 'Ada', prompt: 'Be terse.' });
+});

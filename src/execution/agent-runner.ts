@@ -10,6 +10,7 @@ export interface AgentTask {
   harness: HarnessName;
   model: string;
   provider?: 'lmstudio' | 'ollama'; // `model` is served by that local server
+  persona?: { name?: string; prompt?: string }; // of the role, told in the prompt
   workspace: string; // checkout where the agent runs
   resultPath: string; // where the caller writes its JSON
   timeoutMs: number | null; // null = unlimited

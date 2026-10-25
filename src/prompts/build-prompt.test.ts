@@ -241,3 +241,13 @@ test('the review prompt asks for observations with the stable-id rule and its ex
   expect(review).toMatch(/"outcome": "completed"[\s\S]*?"observations": \[/);
   for (const stage of ['ship', 'fix'] as const) expect(buildPrompt(task(stage))).not.toContain('observations');
 });
+
+test.each(['ship', 'review', 'fix'] as const)('the %s persona goes after the role line and before the stage; without one the prompt is unchanged', (stage) => {
+  const plain = buildPrompt(task(stage)).split('\n');
+  const lines = buildPrompt({ ...task(stage), persona: { name: 'Ada', prompt: 'Be strict about migrations.' } }).split('\n');
+  expect(lines.slice(0, 1)).toEqual(plain.slice(0, 1));
+  expect(lines.slice(1, 3)).toEqual(['Your name is Ada.', 'Be strict about migrations.']);
+  expect(lines.slice(3)).toEqual(plain.slice(1));
+  expect(buildPrompt({ ...task(stage), persona: { prompt: 'Only a prompt.' } }).split('\n')[1]).toBe('Only a prompt.');
+  expect(buildPrompt({ ...task(stage), persona: {} })).toBe(buildPrompt(task(stage)));
+});

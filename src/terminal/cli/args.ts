@@ -17,6 +17,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
 
 init flags (each one skips its question; --yes never asks):
   --repo <owner/name>            repeat for several repos
+  --identities <separate|shared>  separate: a different identity per role (default); shared: your gh login for both
   --author-profile <forge:<agent>|gh>   --reviewer-profile <forge:<agent>|gh>
   --author <harness>:<model>            --reviewer <harness>:<model>           harness: claude, codex or agy
   --author-provider <lmstudio|ollama>   --reviewer-provider <lmstudio|ollama>   the model runs on that local server
@@ -26,6 +27,7 @@ init flags (each one skips its question; --yes never asks):
 const options = {
   config: { type: 'string' },
   repo: { type: 'string', multiple: true },
+  identities: { type: 'string' },
   'author-profile': { type: 'string' },
   'reviewer-profile': { type: 'string' },
   author: { type: 'string' },

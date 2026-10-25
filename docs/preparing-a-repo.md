@@ -19,9 +19,9 @@ Solve does not receive Carrier's `root`: it reads where to put worktrees from th
 
 ## Identities
 
-- The author and the reviewer need two different identities. Bots are the clean way: create a GitHub App per bot ([how](https://github.com/AshuLab/agent-forge/blob/main/docs/github-app.md)), install it on the owner of the repo, and register it with `agent-forge add`.
+- Under separate identities (the default), the author and the reviewer need two different identities. Bots are the clean way: create a GitHub App per bot ([how](https://github.com/AshuLab/agent-forge/blob/main/docs/github-app.md)), install it on the owner of the repo, and register it with `agent-forge add`.
 - The App must be installed on the account or org that owns the repo. Forge picks the installation from the owner of the repo it is run in; Carrier does that for you.
-- Your own `gh` login can be one of the two roles, never both.
+- Your own `gh` login can be one of the two roles, never both, unless you choose a shared identity: if you cannot get a second one (an organization whose owner will not install a bot), pick "One shared identity" in `carrier init` or pass `--identities shared`. It needs `gh auth login`, and both roles then act with everything that login's token can do, the reviewer included.
 
 ## Antigravity (`agy`) as a harness
 

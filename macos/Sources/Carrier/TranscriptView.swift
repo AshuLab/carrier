@@ -204,7 +204,7 @@ struct CallLineView: View {
         }
         .padding(.horizontal, LogMetrics.iconColumn)
         .frame(height: LogMetrics.callLine)
-        .background(Color.primary.opacity(active ? 0.05 : 0))
+        .rowHover(active)
         .contentShape(Rectangle())
     }
 }
@@ -235,7 +235,7 @@ struct ToolLineView: View {
                 .accessibilityAddTraits(card.hasDetails ? .isButton : [])
                 .accessibilityAction { if card.hasDetails { toggleOutput() } }
             if outputOpen, card.hasDetails {
-                TerminalBlockView(card: card).padding(.top, 2).padding(.leading, LogMetrics.titleColumn).padding(.trailing, LogMetrics.iconColumn).padding(.bottom, 8)
+                TerminalBlockView(card: card).padding(.top, 2).padding(.horizontal, LogMetrics.iconColumn).padding(.bottom, 8)
             }
         }
     }
@@ -260,11 +260,7 @@ struct ToolGroupView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(calls) { TranscriptItemView(item: $0, outputs: $outputs) }
                 }
-                .padding(.leading, LogMetrics.groupIndent)
-                .overlay(alignment: .leading) {
-                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(width: LogMetrics.ruleWidth)
-                        .padding(.leading, LogMetrics.groupRule - LogMetrics.ruleWidth / 2)
-                }
+                .thread(indent: LogMetrics.groupIndent, rule: LogMetrics.groupRule, tint: .secondary)
             }
         }
     }
@@ -289,7 +285,7 @@ struct ToolGroupHeader: View {
         // the row's margin is inside the hover, which runs edge to edge: with so little room, square corners at the edge look right
         .padding(.horizontal, LogMetrics.iconColumn)
         .frame(height: LogMetrics.groupLine)
-        .background(Color.primary.opacity(hovered ? 0.05 : 0))
+        .rowHover(hovered)
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
         .accessibilityElement(children: .ignore)
@@ -314,7 +310,7 @@ struct SkillRowView: View {
         }
         .padding(.horizontal, LogMetrics.iconColumn)
         .frame(height: LogMetrics.skillRow)
-        .background(Color.primary.opacity(hovered ? 0.05 : 0))
+        .rowHover(hovered)
         .onHover { hovered = $0 }
         .help(card.arg)
         .accessibilityElement(children: .ignore)
@@ -553,4 +549,53 @@ struct DiffView: View {
         case .context: ConsoleColor.text
         }
     }
+}
+
+// MARK: - The thread of a slice or a group
+
+private struct RuleReachKey: EnvironmentKey { static let defaultValue: CGFloat = 0 }
+
+extension EnvironmentValues {
+    /// How far a row's hover fill runs left of the row, to meet the rule of the thread it hangs from.
+    fileprivate var ruleReach: CGFloat {
+        get { self[RuleReachKey.self] }
+        set { self[RuleReachKey.self] = newValue }
+    }
+}
+
+private struct RowHover: ViewModifier {
+    let active: Bool
+    @Environment(\.ruleReach) private var reach
+
+    func body(content: Content) -> some View {
+        content.background { Rectangle().fill(Color.primary.opacity(active ? 0.05 : 0)).padding(.leading, -reach) }
+    }
+}
+
+private struct ThreadRule: ViewModifier {
+    let indent: CGFloat
+    let rule: CGFloat
+    let tint: Color
+    @State private var hovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.leading, indent)
+            .environment(\.ruleReach, indent - rule - LogMetrics.ruleWidth / 2)
+            .overlay(alignment: .leading) {
+                Capsule().fill(hovered ? tint.opacity(0.7) : Color.secondary.opacity(0.25)).frame(width: LogMetrics.ruleWidth)
+                    .padding(.leading, rule - LogMetrics.ruleWidth / 2)
+            }
+            .onHover { hovered = $0 }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: hovered)
+    }
+}
+
+extension View {
+    /// The fill of a hovered row of the log; inside a thread it reaches the rule.
+    func rowHover(_ active: Bool) -> some View { modifier(RowHover(active: active)) }
+
+    /// Hangs the rows `indent` pt in behind a rule at `rule`: rounded, soft, and tinted while any row of the thread is hovered.
+    func thread(indent: CGFloat, rule: CGFloat, tint: Color) -> some View { modifier(ThreadRule(indent: indent, rule: rule, tint: tint)) }
 }

@@ -20,11 +20,7 @@ struct LaneSectionView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(flowItems(lane.items)) { FlowItemView(flow: $0, outputs: $outputs, groups: $groups, slices: $slices) }
                 }
-                .padding(.leading, LogMetrics.sliceIndent)
-                .overlay(alignment: .leading) {
-                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(width: LogMetrics.ruleWidth)
-                        .padding(.leading, LogMetrics.sliceRule - LogMetrics.iconColumn - LogMetrics.ruleWidth / 2)
-                }
+                .thread(indent: LogMetrics.sliceIndent, rule: LogMetrics.sliceRule, tint: lane.threadTint)
             }
         }
     }
@@ -40,14 +36,16 @@ struct LaneHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: LogMetrics.gap) {
-                state.frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
+                // keeps the title in its column; the state is drawn centred on both lines below
+                Color.clear.frame(width: LogMetrics.iconWidth, height: 1)
                 HStack(spacing: 5) {
                     if let slice = lane.slice { Text("#\(slice)").fontWeight(.medium).foregroundStyle(.secondary) }
                     Text(lane.title).fontWeight(.semibold)
                 }
                 .font(.system(size: 12)).lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                LogChevron(open: open)
+                // keeps the title short of the chevron, which is drawn centred on both lines below
+                Color.clear.frame(width: LogMetrics.chevronColumn, height: 1)
             }
             .frame(height: LogMetrics.sliceLine)
             HStack(spacing: 8) {
@@ -56,10 +54,12 @@ struct LaneHeaderView: View {
             }
             .padding(.leading, LogMetrics.titleColumn - LogMetrics.iconColumn)
             .frame(maxWidth: .infinity, minHeight: 18, alignment: .leading)
-            .padding(.bottom, 6)
+            .padding(.bottom, 8)
         }
+        .overlay(alignment: .leading) { state.frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth) }
+        .overlay(alignment: .trailing) { LogChevron(open: open) }
         .padding(.horizontal, LogMetrics.iconColumn)
-        .background(Color.primary.opacity(hovered ? 0.05 : 0))
+        .rowHover(hovered)
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
         .accessibilityElement(children: .ignore)
@@ -93,6 +93,17 @@ struct LaneHeaderView: View {
         case .running: SpinningRing(diameter: 14, lineWidth: 2, color: .secondaryLabelColor).accessibilityHidden(true)
         case .finished: Image(systemName: "checkmark.circle.fill").font(.system(size: 14)).foregroundStyle(.green)
         case .failed: Image(systemName: "xmark.circle.fill").font(.system(size: 14)).foregroundStyle(.red)
+        }
+    }
+}
+
+private extension LaneSection {
+    /// The colour of the thread's rule while hovered: the state glyph's.
+    var threadTint: Color {
+        switch state {
+        case .finished: .green
+        case .failed: .red
+        case .running: .secondary
         }
     }
 }

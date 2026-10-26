@@ -45,7 +45,7 @@ private func card(_ tool: String = "Bash", status: ToolStatus = .ok, ms: Int? = 
         #expect(try rendered(CallLineView(card: card(), open: false, active: false)) == LogMetrics.callLine)
         #expect(try rendered(ToolGroupHeader(calls: calls, open: false)) == LogMetrics.groupLine)
         #expect(try rendered(SkillRowView(card: card("Skill", arg: "solve:ship"))) == LogMetrics.skillRow)
-        // line one 28, line two at least 18, 6 below
-        #expect(try rendered(LaneHeaderView(lane: slice, open: false)) == LogMetrics.sliceLine + 18 + 6)
+        // line one 28, line two at least 18, 8 below
+        #expect(try rendered(LaneHeaderView(lane: slice, open: false)) == LogMetrics.sliceLine + 18 + 8)
     }
 }

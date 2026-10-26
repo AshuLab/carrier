@@ -218,6 +218,30 @@ describe('failures', () => {
     expect(error).toBeInstanceOf(GitHubUnavailable);
     return (error as GitHubUnavailable).retryAfterMs;
   };
+  const messageOf = async (reply: Omit<Reply, 'match'>) => {
+    const { github } = setup([{ match: 'issues/1', ...reply }]);
+    const error = await github.getIssue(repo, 1).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(GitHubUnavailable);
+    return { kind: (error as GitHubUnavailable).kind, message: (error as GitHubUnavailable).message };
+  };
+
+  test('each failure says its kind and detail in the message', async () => {
+    expect(await messageOf(failure(429, { message: 'slow down' }, { 'Retry-After': '60' }))).toEqual({ kind: 'rate_limited', message: 'GitHub unavailable (rate_limited: HTTP 429)' });
+    expect(await messageOf(failure(403, { message: 'API rate limit exceeded' }))).toEqual({ kind: 'rate_limited', message: 'GitHub unavailable (rate_limited: HTTP 403)' });
+    expect(await messageOf(failure(502, { message: 'bad gateway' }))).toEqual({ kind: 'server_error', message: 'GitHub unavailable (server_error: HTTP 502)' });
+    expect(await messageOf(failure(503, {}, { 'Retry-After': '5' }))).toEqual({ kind: 'server_error', message: 'GitHub unavailable (server_error: HTTP 503)' });
+    expect(await messageOf({ stderr: 'error connecting to api.github.com', exit: 1 })).toEqual({ kind: 'network', message: 'GitHub unavailable (network: error connecting to api.github.com)' });
+  });
+
+  test('a network stderr is redacted, on one line and cut to 300 characters in the message', async () => {
+    const token = `ghp_${'a1B2'.repeat(9)}`;
+    const { message } = await messageOf({ stderr: `error connecting to api.github.com\ntoken ${token}\n${'x'.repeat(400)}`, exit: 1 });
+    expect(message).not.toContain(token);
+    expect(message).toContain('[redacted]');
+    expect(message).not.toContain('\n');
+    const detail = message.slice('GitHub unavailable (network: '.length, -1);
+    expect(detail.length).toBeLessThanOrEqual(300);
+  });
 
   test('rate limit: Retry-After and the reset time become retryAfterMs', async () => {
     expect(await unavailable(failure(429, { message: 'slow down' }, { 'Retry-After': '60' }))).toBe(60_000);
@@ -272,7 +296,7 @@ describe('failures', () => {
   test('a call that outlives the timeout is cut and is Unavailable', async () => {
     const { github } = setup([{ match: 'issues/1', ...ok({}), sleepMs: 5000 }], 300);
     const started = Date.now();
-    await expect(github.getIssue(repo, 1)).rejects.toBeInstanceOf(GitHubUnavailable);
+    await expect(github.getIssue(repo, 1)).rejects.toMatchObject({ kind: 'timeout', message: 'GitHub unavailable (timeout: timed out after 300 ms)' });
     expect(Date.now() - started).toBeLessThan(3000);
   });
 });

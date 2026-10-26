@@ -5,16 +5,20 @@ import { installFix } from '../../doctor/fixes.ts';
 import { localKinds, type LocalProvider } from '../../harnesses/local.ts';
 import { harnessNames } from '../../harnesses/names.ts';
 import { Cancelled, type Ui } from '../prompts/types.ts';
-import { buildConfig, parseIdentity } from './build-config.ts';
+import { buildConfig, parseIdentity, type Role } from './build-config.ts';
 import { realDeps, type InitDeps } from './deps.ts';
 import type { InitFlags } from './flags.ts';
 import type { ForgeAgent } from './forge-registry.ts';
 import { priorFrom, type Prior } from './prior.ts';
 import { askAgent } from './questions/agent.ts';
+import { askIdentities } from './questions/identities.ts';
 import { askIdentity } from './questions/identity.ts';
+import { askPersona } from './questions/persona.ts';
 import { askOut } from './questions/out.ts';
 import { askRepos } from './questions/repos.ts';
 import { summary, tilde } from './summary.ts';
+
+const ghIdentity = { kind: 'gh' } as const;
 
 /** The setup flow: look at the machine, ask what is missing, recap, save, check, offer to start. */
 export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDeps) {
@@ -29,7 +33,6 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       ui.warn(`Could not read the Agent Forge registry: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
-  readForge();
   const harnesses = harnessNames.filter((p) => deps.which(p));
   const login = deps.ghLogin();
   // Local model servers are optional: a server that is not running is shown as such, not as a failure.
@@ -77,23 +80,31 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
 
   const repos = flags.repo ?? (await askRepos(ui, deps, prior?.repos));
 
+  const identities = await askIdentities(ui, flags, login, interactive, prior?.identities);
+  const shared = identities === 'shared'; // both roles are the gh login: no identity to ask, and Agent Forge is never read
+  if (!shared) readForge();
+
   // One role at a time (who it acts as, which CLI, which model), each under its own box, so the two read as separate things.
   if (!(flags.authorProfile && flags.author)) ui.note('Implements the epic: runs ship, then answers the reviewer.', 'Author');
-  const authorIdentity = flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, readForge, login, [], deps, interactive, prior?.author.identity);
-  const author = { identity: authorIdentity, ...(await askAgent(ui, 'author', { flag: flags.author, provider: flags.authorProvider }, harnesses, locals, deps, 'claude', prior?.author)) };
+  const authorIdentity = shared ? ghIdentity : flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, readForge, login, [], deps, interactive, prior?.author.identity);
+  const author: Role = { identity: authorIdentity, ...(await askAgent(ui, 'author', { flag: flags.author, provider: flags.authorProvider }, harnesses, locals, deps, 'claude', prior?.author)) };
+  const authorPersona = await askPersona(ui, 'author', { name: flags.authorPersonaName, prompt: flags.authorPersonaPrompt }, interactive, prior?.author.persona);
+  if (authorPersona) author.persona = authorPersona;
 
-  if (!(flags.reviewerProfile && flags.reviewer)) ui.note('Reviews the final PR. Needs a different GitHub identity from the author.', 'Reviewer');
-  const reviewerIdentity = flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, readForge, login, [authorIdentity], deps, interactive, prior?.reviewer.identity);
-  const reviewer = { identity: reviewerIdentity, ...(await askAgent(ui, 'reviewer', { flag: flags.reviewer, provider: flags.reviewerProvider }, harnesses, locals, deps, harnesses.includes('codex') ? 'codex' : 'claude', prior?.reviewer)) };
+  if (!(flags.reviewerProfile && flags.reviewer)) ui.note(`Reviews the final PR. ${shared ? 'Acts as the same gh login.' : 'Needs a different GitHub identity from the author.'}`, 'Reviewer');
+  const reviewerIdentity = shared ? ghIdentity : flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, readForge, login, [authorIdentity], deps, interactive, prior?.reviewer.identity);
+  const reviewer: Role = { identity: reviewerIdentity, ...(await askAgent(ui, 'reviewer', { flag: flags.reviewer, provider: flags.reviewerProvider }, harnesses, locals, deps, harnesses.includes('codex') ? 'codex' : 'claude', prior?.reviewer)) };
+  const reviewerPersona = await askPersona(ui, 'reviewer', { name: flags.reviewerPersonaName, prompt: flags.reviewerPersonaPrompt }, interactive, prior?.reviewer.persona);
+  if (reviewerPersona) reviewer.persona = reviewerPersona;
 
-  const user = buildConfig({ repos, author, reviewer });
+  const user = buildConfig({ repos, author, reviewer, identities });
   const loaded = loadConfig(defaults, user);
   if (!loaded.ok) throw new Error(`the answers do not make a valid config:\n${loaded.errors.map((e) => `  ${e.path}: ${e.message}`).join('\n')}`);
 
   out ??= resolve(await askOut(ui, fallback));
   if (!settled && deps.exists(out) && !flags.yes && !(await ui.confirm(`${out} exists. Overwrite it?`))) throw new Error(`${out} already exists`);
   if (interactive) {
-    ui.note(summary(repos, author, reviewer, out), 'This is what will be saved');
+    ui.note(summary(repos, author, reviewer, out, identities), 'This is what will be saved');
     if (!(await ui.confirm('Save it?'))) throw new Cancelled();
   }
   deps.write(out, `${JSON.stringify(user, null, 2)}\n`);

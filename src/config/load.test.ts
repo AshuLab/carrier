@@ -117,6 +117,39 @@ describe('maxExecutionHours', () => {
   });
 });
 
+describe('identities', () => {
+  const same = { profiles: { me: { kind: 'gh' }, bot: { kind: 'gh' } }, orchestratorProfile: 'me', agents: { author: { profile: 'me', harness: 'claude', model: 'm' }, reviewer: { profile: 'me', harness: 'codex', model: 'm' } } };
+  const perRepo = { ...valid, repos: [{ name: 'a/one' }, { name: 'a/two', agents: { reviewer: { profile: 'author-bot' } } }, { name: 'a/three', agents: { reviewer: { profile: 'author-bot' } } }] };
+
+  test('defaults to separate', () => {
+    expect(load({})).toMatchObject({ ok: true, config: { identities: 'separate' } });
+  });
+
+  test.each([{}, { identities: 'separate' }])('the same profile for both roles is refused when identities is absent or separate: %j', (identities) => {
+    expect(errorsOf({ ...same, ...identities }).map((e) => e.path)).toEqual(['agents']);
+  });
+
+  test('a per-repo override that makes the roles equal is refused once per repo under separate and accepted under shared', () => {
+    expect(loadConfig(defaults, perRepo).ok).toBe(false);
+    const errors = (loadConfig(defaults, perRepo) as { errors: { path: string }[] }).errors;
+    expect(errors.map((e) => e.path)).toEqual(['repos.1.agents', 'repos.2.agents']);
+    expect(loadConfig(defaults, { ...perRepo, identities: 'shared' }).ok).toBe(true);
+  });
+
+  test('shared accepts the same profile for both roles and also two different ones', () => {
+    expect(load({ ...same, identities: 'shared' })).toMatchObject({ ok: true, config: { identities: 'shared' } });
+    expect(load({ identities: 'shared' })).toMatchObject({ ok: true, config: { identities: 'shared' } });
+  });
+
+  test('shared still checks that the profiles exist', () => {
+    expect(errorsOf({ ...same, identities: 'shared', orchestratorProfile: 'ghost' }).map((e) => e.path)).toEqual(['orchestratorProfile']);
+  });
+
+  test.each(['both', 'Shared', '', true])('rejects %j', (identities) => {
+    expect(errorsOf({ identities }).map((e) => e.path)).toEqual(['identities']);
+  });
+});
+
 describe('root', () => {
   test('expands ~', () => {
     expect(load({ root: '~/work' })).toMatchObject({ ok: true, config: { root: join(homedir(), 'work') } });
@@ -181,5 +214,33 @@ describe('harness and provider', () => {
     expect(errorsOf({ agents: { ...valid.agents, author: agy } })).toEqual([{ path: 'agents.author.provider', message: 'agy cannot use the provider "ollama"' }]);
     const viaRepo = errorsOf({ agents: { ...valid.agents, author: { profile: 'author-bot', harness: 'codex', model: 'm', provider: 'ollama' } }, repos: [{ name: 'AshuLab/carrier', agents: { author: { harness: 'agy' } } }] });
     expect(viaRepo.map((e) => e.path)).toEqual(['repos.0.agents.author']);
+  });
+});
+
+describe('persona', () => {
+  const author = valid.agents.author;
+  const withPersona = (persona: unknown) => ({ agents: { ...valid.agents, author: { ...author, persona } } });
+
+  test('an agent takes a persona with a name, a prompt or both, globally and per repo', () => {
+    for (const persona of [{ name: 'Ada' }, { prompt: 'Be strict about migrations.' }, { name: 'Ada', prompt: 'Be strict.' }]) {
+      expect(load(withPersona(persona))).toMatchObject({ ok: true, config: { agents: { author: { persona } } } });
+    }
+    expect(load({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { persona: { name: 'Rex' } } } }] })).toMatchObject({ ok: true, config: { repos: [{ agents: { reviewer: { persona: { name: 'Rex' } } } }] } });
+  });
+
+  test('the name is one trimmed line of 1 to 40 characters', () => {
+    expect(load(withPersona({ name: '  Ada  ' }))).toMatchObject({ config: { agents: { author: { persona: { name: 'Ada' } } } } });
+    expect(load(withPersona({ name: 'a'.repeat(40) }))).toMatchObject({ ok: true });
+    for (const name of ['', '   ', 'Ada\nLovelace', 'Ada\rL', 'a'.repeat(41)]) expect([...new Set(errorsOf(withPersona({ name })).map((e) => e.path))]).toEqual(['agents.author.persona.name']);
+  });
+
+  test('the prompt is 1 to 4000 characters', () => {
+    expect(load(withPersona({ prompt: 'a'.repeat(4000) }))).toMatchObject({ ok: true });
+    for (const prompt of ['', '  ', 'a'.repeat(4001)]) expect(errorsOf(withPersona({ prompt })).map((e) => e.path)).toEqual(['agents.author.persona.prompt']);
+  });
+
+  test('a persona is an object with only name and prompt', () => {
+    for (const persona of ['Ada', null, ['Ada']]) expect(errorsOf(withPersona(persona)).map((e) => e.path)).toEqual(['agents.author.persona']);
+    expect(errorsOf(withPersona({ name: 'Ada', role: 'x' })).map((e) => e.path)).toEqual(['agents.author.persona']);
   });
 });

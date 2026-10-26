@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { parseCallerResult } from '../execution/caller-result.ts';
 import { buildPrompt } from './build-prompt.ts';
+import { signatureOf } from './persona.ts';
 
 const pr = { number: 7, headSha: 'a'.repeat(40) };
 const task = (stage: AgentTask['stage'], context: Partial<AgentTask['context']> = {}, harness: AgentTask['harness'] = 'claude'): AgentTask => ({
@@ -251,4 +252,30 @@ test.each(['ship', 'review', 'fix'] as const)('the %s prompt of a Forge bot says
 test.each(['ship', 'review', 'fix'] as const)('the %s prompt without a Forge agent does not mention Forge', (stage) => {
   expect(buildPrompt(task(stage))).not.toContain('agent-forge');
   expect(buildPrompt(task(stage), {})).toBe(buildPrompt(task(stage)));
+});
+
+test.each(['ship', 'review', 'fix'] as const)('the %s persona goes after the role line and before the stage; without one the prompt is unchanged', (stage) => {
+  const plain = buildPrompt(task(stage)).split('\n');
+  const lines = buildPrompt({ ...task(stage), persona: { name: 'Ada', prompt: 'Be strict about migrations.' } }).split('\n');
+  expect(lines.slice(0, 1)).toEqual(plain.slice(0, 1));
+  expect(lines.slice(1, 3)).toEqual(['Your name is Ada.', 'Be strict about migrations.']);
+  expect(lines.slice(3)).toEqual(plain.slice(1));
+  expect(buildPrompt({ ...task(stage), persona: { prompt: 'Only a prompt.' } }).split('\n')[1]).toBe('Only a prompt.');
+  expect(buildPrompt({ ...task(stage), persona: {} })).toBe(buildPrompt(task(stage)));
+});
+
+test('signatureOf names the role and the persona, and leaves no brackets without a name', () => {
+  expect(signatureOf('reviewer', 'Atlas')).toBe('🤖 Reviewer [Atlas] via Carrier');
+  expect(signatureOf('author')).toBe('🤖 Author via Carrier');
+  expect(signatureOf('author', '')).toBe('🤖 Author via Carrier');
+});
+
+test.each([['ship', 'Author'], ['review', 'Reviewer'], ['fix', 'Author']] as const)('under a shared identity the %s prompt asks for the %s signature on everything published', (stage, role) => {
+  const rule = buildPrompt({ ...task(stage), sharedIdentity: true, persona: { name: 'Atlas' } }).split('\n')[2]!;
+  expect(rule).toContain(`${role} [Atlas] via Carrier`);
+  for (const what of ['review comments', 'pull request body', 'replies on threads', 'any other comment, issue or issue body', 'commit message', 'before any trailers']) expect(rule).toContain(what);
+  expect(buildPrompt({ ...task(stage), sharedIdentity: true })).toContain(`🤖 ${role} via Carrier`);
+  expect(buildPrompt({ ...task(stage), sharedIdentity: true }).split('\n')[1]).toMatch(/: 🤖 \w+ via Carrier$/);
+  expect(buildPrompt({ ...task(stage), sharedIdentity: false, persona: { name: 'Atlas' } })).not.toContain('via Carrier');
+  expect(buildPrompt({ ...task(stage), sharedIdentity: false })).toBe(buildPrompt(task(stage)));
 });

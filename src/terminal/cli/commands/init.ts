@@ -11,7 +11,7 @@ export async function initCommand(flags: Flags): Promise<number | undefined> {
   let started;
   try {
     started = await runInit(
-      { repo: flags.repo, authorProfile: flags['author-profile'], reviewerProfile: flags['reviewer-profile'], author: flags.author, reviewer: flags.reviewer, authorProvider: flags['author-provider'], reviewerProvider: flags['reviewer-provider'], out: flags.out, yes: flags.yes },
+      { repo: flags.repo, identities: flags.identities, authorProfile: flags['author-profile'], reviewerProfile: flags['reviewer-profile'], author: flags.author, reviewer: flags.reviewer, authorProvider: flags['author-provider'], reviewerProvider: flags['reviewer-provider'], authorPersonaName: flags['author-persona-name'], authorPersonaPrompt: flags['author-persona-prompt'], reviewerPersonaName: flags['reviewer-persona-name'], reviewerPersonaPrompt: flags['reviewer-persona-prompt'], out: flags.out, yes: flags.yes },
       ui,
     );
   } catch (error) {

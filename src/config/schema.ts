@@ -11,7 +11,14 @@ const expandHome = (path: string) =>
 /** `owner/name`, each part a plain folder name: the managed clone lives in `repos/<owner>/<name>`. */
 export const repoNamePattern = /^(?!\.{1,2}\/)(?!.*\/\.{1,2}$)[\w.-]+\/[\w.-]+$/;
 
+/** Who the agent of a role says it is: a one-line name (it ends up in GitHub text) and a prompt. A repo's persona replaces the global one whole. */
+export const persona = z.strictObject({
+  name: z.string().trim().min(1).max(40).regex(/^[^\r\n]+$/).optional(),
+  prompt: z.string().trim().min(1).max(4000).optional(),
+});
+
 const agent = z.strictObject({
+  persona: persona.optional(),
   profile: z.string().min(1),
   harness: z.enum(harnessNames),
   model: z.string().min(1),
@@ -31,6 +38,8 @@ export const configSchema = z
     pollIntervalMinutes: z.number().positive(),
     finishedWindowDays: z.int().min(1).max(30),
     logLevel: z.enum(LogLevel),
+    /** `shared`: the author and the reviewer may be the same GitHub profile (ADR 0011). */
+    identities: z.enum(['separate', 'shared']),
     repos: z
       .array(
         z.strictObject({
@@ -90,13 +99,14 @@ export const configSchema = z
       else ctx.addIssue({ code: 'custom', path: ['repos', i, 'name'], message: `repo "${repo.name}" has the same folder name as "${first}"; Solve's worktree paths have no owner` });
     });
 
-    // Author and reviewer must differ, globally and for each repo once its overrides are applied.
+    // Under separate identities, author and reviewer must differ, globally and for each repo once its overrides are applied.
+    if (config.identities !== 'separate') return;
     // A global clash is reported once, not again for every repo that inherits it.
     const clash = (path: (string | number)[], where: string, profile: string) =>
       ctx.addIssue({
         code: 'custom',
         path,
-        message: `${where}agents.author.profile and agents.reviewer.profile must differ, both are "${profile}"`,
+        message: `${where}agents.author.profile and agents.reviewer.profile must differ, both are "${profile}" (or set identities to "shared" to use one account for both)`,
       });
     if (config.agents.author.profile === config.agents.reviewer.profile) {
       clash(['agents'], '', config.agents.author.profile);

@@ -183,6 +183,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       epic: epic.issue,
       stage,
       ...(reviewing ? epic.config!.agents.reviewer : epic.config!.agents.author),
+      sharedIdentity: epic.config!.sharedIdentity === true,
       workspace,
       resultPath,
       timeoutMs: maxExecutionHours === 'unlimited' ? null : maxExecutionHours * 3_600_000,

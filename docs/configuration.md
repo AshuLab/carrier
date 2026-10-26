@@ -30,15 +30,29 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `orchestratorProfile` | yes | | Profile used to read issues and PRs and to change labels. It may be the author's. |
 | `agents.author` / `agents.reviewer` | yes | | `{ profile, harness, model, provider? }` for each role. `harness` is the agent CLI that runs it: `claude` (Claude Code), `codex` or `agy` (Antigravity). For Claude prefer an alias (`sonnet`, `opus`, ...): the CLI resolves it to the latest model, so it does not go stale. Codex has no aliases: use an id from `codex`'s own list; for Antigravity, one from `agy models` (`carrier init` offers all of them). |
 | `agents.<role>.provider` | no | the harness's own cloud | Who serves the model: `lmstudio` or `ollama` for a local server. See [Local models](#local-models). |
+| `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
 | `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `finishedWindowDays` | no | `15` | Days a merged or cancelled epic stays in the snapshot after it ends, a whole number from 1 to 30 (30 is the retention purge). |
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |
+| `identities` | no | `separate` | `separate` or `shared`. Under `separate` the author and the reviewer must be different identities. Under `shared` they may use the same profile, normally your `gh` login. See [Profiles](#profiles). |
 | `limits.maxConcurrentEpics` | no | `3` | Epics running at the same time. |
 | `limits.maxReviews` | no | `5` | Review rounds before the epic goes to `needs-human`. |
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
+
+## Personas
+
+A role, author or reviewer, can have a persona: a name and a prompt that say who the agent is and how it behaves. Carrier adds them to that agent's prompt, right after the line that says which role it is and before what the stage asks. The persona belongs to the role, not to a stage: the author's is used in `ship` and `fix`, the reviewer's in `review`. Either field can be left out, and without a persona the prompt is the one it always was.
+
+```json
+"agents": {
+  "reviewer": { "profile": "reviewer-bot", "harness": "codex", "model": "<model>", "persona": { "name": "Rex", "prompt": "Be strict about migrations." } }
+}
+```
+
+A repo's `agents.<role>.persona` replaces the global persona of that role whole, not field by field. When `carrier init` edits a config, an empty answer keeps a persona field and `-` clears it. The name is trimmed and cannot contain a line break; the prompt is trimmed and cannot be empty.
 
 ## Profiles
 
@@ -47,7 +61,9 @@ A profile names a GitHub identity. There are two kinds and neither holds a secre
 - `{ "kind": "forge", "agent": "<name in your Agent Forge registry>" }`: a bot (a GitHub App) through [Agent Forge](https://github.com/AshuLab/agent-forge). Each run gets a short-lived token with the minimum scope.
 - `{ "kind": "gh" }`: your own `gh` login.
 
-The author and the reviewer need **different identities**, so that the reviewer's comments and approvals are not the author's own. The config rejects the same profile name for both, and `carrier doctor` also catches two names pointing to the same bot or both being `gh`.
+With `identities: "separate"` (the default) the author and the reviewer need **different identities**, so that the reviewer's comments and approvals are not the author's own. The config rejects the same profile name for both, and `carrier doctor` also catches two names pointing to the same bot or both being `gh`.
+
+With `identities: "shared"` the author and the reviewer may use the same profile (for example `gh` for both), for someone who cannot get a second GitHub identity. Both roles then act with everything that login's token can do. An epic counts as shared, and its agents sign, when both roles resolve to the same account: the same profile, two names for your `gh` login, or two names for the same bot. The config and `carrier doctor` no longer require them to differ; `carrier doctor` still checks that each profile can get a token and read each repo. Two different profiles stay valid under `shared`, for a repo whose override uses a bot. See [ADR 0011](adr/0011-author-and-reviewer-may-share-one-github-identity-signed-visibly.md).
 
 ## Per-repo overrides
 
@@ -57,7 +73,7 @@ A repo inherits every value from the global `agents` and replaces only what it n
 { "name": "AshuLab/big-repo", "agents": { "reviewer": { "model": "<other-model>" }, "author": { "profile": "other-bot" } } }
 ```
 
-Profile names used in an override must exist in `profiles`. The author and the reviewer must still differ after the override.
+Profile names used in an override must exist in `profiles`. Under `identities: "separate"` the author and the reviewer must still differ after the override.
 
 ## Things that are checked
 

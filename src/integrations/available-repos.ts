@@ -24,8 +24,8 @@ export function parseRepos(output: string): { repos: AvailableRepo[]; hasMore: b
   return { repos, hasMore: Number(count) === pageSize };
 }
 
-/** The first page, without blocking the engine; throws when gh is missing, not logged in, offline or past `timeoutMs`. */
-export async function listAvailableRepos(timeoutMs: number): Promise<AvailableRepo[]> {
-  const { stdout } = await promisify(execFile)('gh', ghReposArgs(1), { encoding: 'utf8', timeout: timeoutMs });
-  return parseRepos(stdout).repos;
+/** One page, without blocking the engine; throws when gh is missing, not logged in, offline or past `timeoutMs`. */
+export async function listAvailableRepos(page: number, timeoutMs: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }> {
+  const { stdout } = await promisify(execFile)('gh', ghReposArgs(page), { encoding: 'utf8', timeout: timeoutMs });
+  return parseRepos(stdout);
 }

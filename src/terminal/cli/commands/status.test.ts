@@ -44,7 +44,7 @@ test('status prints the stage lines of a running epic taken over the socket', as
   const controls = {
     poll: () => {}, setPaused: () => {}, logs: () => [],
     sessions: (repo: string, issue: number) => (asked.push(`${repo}#${issue}`), stages(14)),
-    events: () => null, epic: () => null, files: () => null, availableRepos: () => Promise.resolve([]), resumeEpic: () => Promise.resolve(),
+    events: () => null, epic: () => null, files: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(),
   };
   closers.push((await startControlServer({ orchestratorDir: join(root, 'orchestrator'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
   const { code, text } = await printed();
@@ -60,7 +60,7 @@ test('a sessions request that errors or answers unknown epic leaves that epic wi
       if (issue === 1) return null; // unknown epic
       return stages(7);
     },
-    events: () => null, epic: () => null, files: () => null, availableRepos: () => Promise.resolve([]), resumeEpic: () => Promise.resolve(),
+    events: () => null, epic: () => null, files: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(),
   };
   closers.push((await startControlServer({ orchestratorDir: join(root, 'orchestrator'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
   const { code, text } = await printed();
@@ -101,7 +101,7 @@ test('status asks for the stages of the epics that need a person and the ones re
   const controls = {
     poll: () => {}, setPaused: () => {}, logs: () => [],
     sessions: (repo: string, issue: number) => (asked.push(`${repo}#${issue}`), stages(14)),
-    events: () => null, epic: () => null, files: () => null, availableRepos: () => Promise.resolve([]), resumeEpic: () => Promise.resolve(),
+    events: () => null, epic: () => null, files: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(),
   };
   const more: PanelSnapshot = {
     ...snapshot,

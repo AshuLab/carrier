@@ -33,7 +33,7 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('events'), executionId: z.uuid(), after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200) }),
   z.strictObject({ id, cmd: z.literal('epic'), repo, issue }),
   z.strictObject({ id, cmd: z.literal('files'), repo, issue, executionId: z.uuid().optional() }),
-  z.strictObject({ id, cmd: z.literal('availableRepos') }),
+  z.strictObject({ id, cmd: z.literal('availableRepos'), page: z.int().min(1).max(100).optional() }),
   z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue }),
 ]);
 
@@ -41,7 +41,7 @@ export const request = z.union([
 export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
-export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'availableRepos' | 'resumeEpic';
+export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic';
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: Capability[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
 
@@ -58,8 +58,8 @@ export type Controls = {
   epic(repo: string, issue: number): EpicReply | null;
   /** null for an epic the engine does not know. */
   files(repo: string, issue: number, executionId?: string): FilesReply | null;
-  /** The repos the gh login can push to; rejects when GitHub cannot be read. */
-  availableRepos(): Promise<AvailableRepo[]>;
+  /** One page of the repos the gh login can push to, and whether there is a next one; rejects when GitHub cannot be read. */
+  availableRepos(page: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }>;
   /** Puts a stopped epic back in motion and resolves once it started; rejects with ResumeRefused when it could not. */
   resumeEpic(repo: string, issue: number): Promise<void>;
 };
@@ -120,12 +120,12 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
     }
   }
   if (parsed.data.cmd === 'availableRepos') {
-    const replyId = parsed.data.id;
+    const { id: replyId, page } = parsed.data;
     // never the reason in the reply: gh's own message can carry more than the client should see
     return Promise.resolve()
-      .then(() => controls.availableRepos())
+      .then(() => controls.availableRepos(page ?? 1))
       .then(
-        (repos): Reply => ({ id: replyId, ok: true, data: { repos } }),
+        (data): Reply => ({ id: replyId, ok: true, data }),
         (error): Reply => {
           log.error('availableRepos failed', error);
           return { id: replyId, ok: false, error: 'github unavailable' };
@@ -173,7 +173,7 @@ export async function startControlServer({ orchestratorDir, snapshot, startedAt,
     return { close: () => {} };
   }
   const sockets = new Set<Socket>();
-  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files', 'availableRepos', 'resumeEpic'] };
+  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files', 'availableRepos', 'availableReposPaged', 'resumeEpic'] };
   const send = (socket: Socket, message: Hello | Reply, written?: () => void) => void socket.write(`${JSON.stringify(message)}\n`, written);
 
   const server = createServer((socket) => {

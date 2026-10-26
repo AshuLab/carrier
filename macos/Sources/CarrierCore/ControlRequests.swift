@@ -22,9 +22,13 @@ extension ControlClient {
         return try ask(.files, "files", try epicFields(repo, issue) + session)
     }
 
-    /// The repos the engine's gh login can push to, for the Repos tab's picker. nil when this engine cannot list them.
-    public func availableRepos() throws -> [AvailableRepo]? {
-        (try ask(.availableRepos, "availableRepos", "") as AvailableReposReply?)?.repos
+    /// One page of the repos the engine's gh login can push to, for the Repos tab's picker. nil when this engine cannot list them.
+    /// An engine without `availableReposPaged` refuses `page`: it is asked for none, answers its one list, and has no more.
+    public func availableRepos(page: Int = 1) throws -> (repos: [AvailableRepo], hasMore: Bool)? {
+        let paged = capabilities.contains(.availableReposPaged)
+        guard paged || page == 1 else { return nil }
+        guard let reply = try ask(.availableRepos, "availableRepos", paged ? ",\"page\":\(page)" : "") as AvailableReposReply? else { return nil }
+        return (reply.repos, paged && reply.hasMore == true)
     }
 
     /// Asks the engine to put a stopped epic back in the queue; it answers when the epic has started again. false, with nothing sent,

@@ -235,7 +235,7 @@ struct ToolLineView: View {
                 .accessibilityAddTraits(card.hasDetails ? .isButton : [])
                 .accessibilityAction { if card.hasDetails { toggleOutput() } }
             if outputOpen, card.hasDetails {
-                TerminalBlockView(card: card).padding(.top, 2).padding(.leading, LogMetrics.titleColumn).padding(.trailing, LogMetrics.iconColumn).padding(.bottom, 8)
+                TerminalBlockView(card: card).padding(.top, 2).padding(.horizontal, LogMetrics.iconColumn).padding(.bottom, 8)
             }
         }
     }

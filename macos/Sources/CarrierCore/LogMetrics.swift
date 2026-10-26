@@ -8,7 +8,7 @@ public enum LogMetrics {
     public static let iconColumn: CGFloat = 12
     public static let iconWidth: CGFloat = 16
     public static let gap: CGFloat = 8
-    /// The x of a call's title, a skill's name, a slice's title and the detail block: icon column + icon + gap.
+    /// The x of a call's title, a skill's name, and a slice's title: icon column + icon + gap.
     public static let titleColumn: CGFloat = iconColumn + iconWidth + gap
     /// A group's children hang this far in, behind a rule under the group chevron's centre.
     public static let groupIndent: CGFloat = 18

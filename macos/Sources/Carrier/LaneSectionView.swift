@@ -40,14 +40,16 @@ struct LaneHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: LogMetrics.gap) {
-                state.frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
+                // keeps the title in its column; the state is drawn centred on both lines below
+                Color.clear.frame(width: LogMetrics.iconWidth, height: 1)
                 HStack(spacing: 5) {
                     if let slice = lane.slice { Text("#\(slice)").fontWeight(.medium).foregroundStyle(.secondary) }
                     Text(lane.title).fontWeight(.semibold)
                 }
                 .font(.system(size: 12)).lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                LogChevron(open: open)
+                // keeps the title short of the chevron, which is drawn centred on both lines below
+                Color.clear.frame(width: LogMetrics.chevronColumn, height: 1)
             }
             .frame(height: LogMetrics.sliceLine)
             HStack(spacing: 8) {
@@ -56,8 +58,10 @@ struct LaneHeaderView: View {
             }
             .padding(.leading, LogMetrics.titleColumn - LogMetrics.iconColumn)
             .frame(maxWidth: .infinity, minHeight: 18, alignment: .leading)
-            .padding(.bottom, 6)
+            .padding(.bottom, 8)
         }
+        .overlay(alignment: .leading) { state.frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth) }
+        .overlay(alignment: .trailing) { LogChevron(open: open) }
         .padding(.horizontal, LogMetrics.iconColumn)
         .background(Color.primary.opacity(hovered ? 0.05 : 0))
         .contentShape(Rectangle())

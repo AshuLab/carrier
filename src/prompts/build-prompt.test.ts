@@ -243,6 +243,17 @@ test('the review prompt asks for observations with the stable-id rule and its ex
   for (const stage of ['ship', 'fix'] as const) expect(buildPrompt(task(stage))).not.toContain('observations');
 });
 
+test.each(['ship', 'review', 'fix'] as const)('the %s prompt of a Forge bot says how to recover from a 401 in gh', (stage) => {
+  const prompt = buildPrompt(task(stage), { forgeAgent: 'artanis-agent' });
+  expect(prompt).toContain('Your GitHub token expires about an hour after this run starts. If a `gh` call fails with 401 (Bad credentials), run it again as `agent-forge gh artanis-agent <the same arguments>` from inside the workspace. git renews its own credentials.');
+  expect(prompt.split('\n')[3]).toContain('agent-forge gh artanis-agent'); // right after the ground rules
+});
+
+test.each(['ship', 'review', 'fix'] as const)('the %s prompt without a Forge agent does not mention Forge', (stage) => {
+  expect(buildPrompt(task(stage))).not.toContain('agent-forge');
+  expect(buildPrompt(task(stage), {})).toBe(buildPrompt(task(stage)));
+});
+
 test.each(['ship', 'review', 'fix'] as const)('the %s persona goes after the role line and before the stage; without one the prompt is unchanged', (stage) => {
   const plain = buildPrompt(task(stage)).split('\n');
   const lines = buildPrompt({ ...task(stage), persona: { name: 'Ada', prompt: 'Be strict about migrations.' } }).split('\n');

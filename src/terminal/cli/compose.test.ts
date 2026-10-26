@@ -111,7 +111,7 @@ test('workspaces use the root and mint the repo\'s author profile; the runner mi
   expect(seen.minted).toEqual(['tassadar-agent@AshuLab/a', 'artanis-agent@AshuLab/b']);
 
   const credentials = await seen.runner!.credentials({ profile: 'author-bot', repo: 'AshuLab/b' } as never);
-  expect(credentials).toEqual({ githubToken: 'ghs_fake', gitIdentity: { name: 'artanis-agent[bot]', email: '99+artanis-agent[bot]@users.noreply.github.com' } });
+  expect(credentials).toEqual({ githubToken: 'ghs_fake', forgeAgent: 'artanis-agent', gitIdentity: { name: 'artanis-agent[bot]', email: '99+artanis-agent[bot]@users.noreply.github.com' } });
 });
 
 test('the panel is drawn from SQLite: slots and the running epic show up', async () => {

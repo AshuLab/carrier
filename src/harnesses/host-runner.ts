@@ -17,7 +17,7 @@ export interface HostRunnerOptions {
   /** Overrides the real binary found on PATH, per harness. */
   binaries?: Partial<Record<AgentTask['harness'], string>>;
   /** Token (and bot commit identity) of the task's GitHub profile, minted for this execution only. */
-  credentials: (task: AgentTask) => Promise<{ githubToken: string; gitIdentity?: { name: string; email: string } }>;
+  credentials: (task: AgentTask) => Promise<{ githubToken: string; gitIdentity?: { name: string; email: string }; forgeAgent?: string }>;
   /** Time a stopped agent gets to exit after SIGTERM before SIGKILL. */
   graceMs?: number;
 }

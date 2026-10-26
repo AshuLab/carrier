@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
@@ -86,6 +86,73 @@ test('git pushes with the execution token, not with the helpers of the person ru
   }
 });
 
+// A fake `agent-forge` first in the PATH: it logs each call's argv (one line per argument) and behaves as FAKE_FORGE says.
+function withFakeForge(run: (ask: (forgeAgent: string | undefined, operation: string, mode?: 'token' | 'fail' | 'silent' | 'hang') => string, calls: () => string[]) => void) {
+  const dir = mkdtempSync(join(tmpdir(), 'carrier-forge-'));
+  try {
+    const log = join(dir, 'calls.log');
+    writeFileSync(join(dir, 'agent-forge'), `#!/bin/sh\nprintf 'call\\n' >> "${log}"\nfor a in "$@"; do printf 'arg=%s\\n' "$a" >> "${log}"; done\ncase "$FAKE_FORGE" in token) echo ghs_fresh;; fail) echo boom >&2; exit 1;; hang) sleep 30; echo ghs_late;; esac\n`);
+    chmodSync(join(dir, 'agent-forge'), 0o755);
+    const globalConfig = join(dir, 'gitconfig');
+    writeFileSync(globalConfig, '');
+    const ask = (forgeAgent: string | undefined, operation: string, mode = 'token') => {
+      const env = childEnv({ ...ctx, githubToken: 'ghs_start', forgeAgent, baseEnv: { PATH: `${dir}:${process.env.PATH}`, HOME: dir, GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: '1', FAKE_FORGE: mode, CARRIER_FORGE_TIMEOUT: '1' } });
+      return execFileSync('git', ['credential', operation], { env, input: 'protocol=https\nhost=github.com\n\n', encoding: 'utf8' });
+    };
+    run(ask, () => { try { return readFileSync(log, 'utf8').split('\n').filter(Boolean); } catch { return []; } });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('a Forge bot gets a token minted when git asks, not the one the run started with', () => {
+  withFakeForge((ask, calls) => {
+    const asked = ask('artanis-agent', 'fill');
+    expect(asked).toContain('password=ghs_fresh');
+    expect(asked).not.toContain('ghs_start');
+    expect(calls()).toEqual(['call', 'arg=token', 'arg=--agent', 'arg=artanis-agent']);
+  });
+});
+
+test('when Forge fails or prints nothing, git gets the token the run started with', () => {
+  withFakeForge((ask) => {
+    expect(ask('artanis-agent', 'fill', 'fail')).toContain('password=ghs_start');
+    expect(ask('artanis-agent', 'fill', 'silent')).toContain('password=ghs_start');
+  });
+});
+
+test('when Forge hangs, git gets the token the run started with once the time limit passes', () => {
+  withFakeForge((ask) => {
+    const started = Date.now();
+    expect(ask('artanis-agent', 'fill', 'hang')).toContain('password=ghs_start');
+    expect(Date.now() - started).toBeLessThan(10_000);
+  });
+});
+
+test('a gh profile (no CARRIER_FORGE_AGENT) answers with the starting token and never calls agent-forge', () => {
+  withFakeForge((ask, calls) => {
+    expect(ask(undefined, 'fill')).toContain('password=ghs_start');
+    expect(calls()).toEqual([]);
+  });
+});
+
+test('an agent name with quotes, semicolons and command substitution runs nothing and reaches Forge whole', () => {
+  withFakeForge((ask, calls) => {
+    const hostile = `x"; touch pwned; echo '$(touch pwned2)' \`touch pwned3\` $HOME #`;
+    expect(ask(hostile, 'fill')).toContain('password=ghs_fresh');
+    expect(calls()).toEqual(['call', 'arg=token', 'arg=--agent', `arg=${hostile}`]);
+    expect(existsSync(join(process.cwd(), 'pwned'))).toBe(false);
+  });
+});
+
+test('git store and erase answer nothing and do not call agent-forge', () => {
+  withFakeForge((ask, calls) => {
+    expect(ask('artanis-agent', 'approve')).toBe('');
+    expect(ask('artanis-agent', 'reject')).toBe('');
+    expect(calls()).toEqual([]);
+  });
+});
+
 test('resolveBinary skips the Superset wrappers', () => {
   const executable = (path: string) => path.endsWith('/claude');
   expect(resolveBinary('claude', '/Users/x/.superset/bin:/Users/x/.local/bin:/usr/bin', executable)).toBe('/Users/x/.local/bin/claude');
@@ -124,4 +191,11 @@ test('attributeSubagentLines ties subagent lines to an agent, a lane and a slice
   expect(result[0]).toEqual({ agentId: null });
   // task_* bookkeeping lines carry no agent_id: they stay with the main thread.
   expect(result[lines.findIndex((l) => l.subtype === 'task_progress')]).toEqual({ agentId: null });
+});
+
+test('the prompt carries the 401 rule only when the context has a forgeAgent', () => {
+  const withAgent = buildClaudeCommand(task, { ...ctx, forgeAgent: 'artanis-agent' });
+  expect(withAgent.args).toContain(buildPrompt(task, { forgeAgent: 'artanis-agent' }));
+  expect(withAgent.args.join('\n')).toContain('agent-forge gh artanis-agent <the same arguments>');
+  expect(buildClaudeCommand(task, ctx).args.join('\n')).not.toContain('agent-forge');
 });

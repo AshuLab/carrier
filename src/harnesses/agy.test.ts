@@ -65,3 +65,10 @@ test('a real recorded stream: only the init line is a signal and every line is J
   expect(done.map((e) => e.step_update.tool_name)).toEqual(['run_command', 'run_command', 'read_file', 'edit_file', 'run_command']);
   expect(done[1].step_update).toMatchObject({ duration_seconds: expect.any(Number), tool_info: { parameters: { CommandLine: 'ls /nonexistent' }, output: expect.stringContaining('exited with code 1') } });
 });
+
+test('the prompt carries the 401 rule only when the context has a forgeAgent', () => {
+  const withAgent = buildAgyCommand(task, { ...ctx, forgeAgent: 'artanis-agent' });
+  expect(withAgent.args).toContain(buildPrompt(task, { forgeAgent: 'artanis-agent' }));
+  expect(withAgent.args.join('\n')).toContain('agent-forge gh artanis-agent <the same arguments>');
+  expect(buildAgyCommand(task, ctx).args.join('\n')).not.toContain('agent-forge');
+});

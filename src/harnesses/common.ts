@@ -32,6 +32,8 @@ export interface CommandContext {
   githubToken: string;
   /** Commit author for bots: Forge does not export it outside its interactive mode. */
   gitIdentity?: { name: string; email: string };
+  /** Forge agent of a forge profile; git asks `agent-forge` for a fresh token with it. A name, not a secret. */
+  forgeAgent?: string;
   /** Environment the child inherits. */
   baseEnv: NodeJS.ProcessEnv;
 }
@@ -42,9 +44,19 @@ export const markerFor = (executionId: string) => `carrier-exec-${executionId}`;
 // git over HTTPS ignores GH_TOKEN: it asks the user's credential helpers (on macOS the keychain, i.e. the person's own login),
 // so without this every push and branch operation of a bot would be made as that person. The first entry empties the helper
 // list; the second answers with the execution's token, read from the environment when git asks (the token is not in the value).
-const gitUsesToken = '!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f';
+// For a Forge bot (CARRIER_FORGE_AGENT set; read as a variable, never pasted into this text) it asks `agent-forge` for a token
+// minted now, since the one the run started with expires after about an hour; if Forge prints nothing, fails or takes longer
+// than 10 seconds (a watchdog kills it; `timeout` is not on a stock macOS, and CARRIER_FORGE_TIMEOUT is only for the tests), the starting token.
+// Only `get` answers: git's `store` and `erase` must not mint tokens for nothing.
+const gitUsesToken =
+  '!f() { [ "$1" = get ] || return 0; echo username=x-access-token; t=; ' +
+  'if [ -n "$CARRIER_FORGE_AGENT" ] && o=$(mktemp); then ' +
+  'agent-forge token --agent "$CARRIER_FORGE_AGENT" >"$o" 2>/dev/null & p=$!; ' +
+  '(sleep "${CARRIER_FORGE_TIMEOUT:-10}"; kill $p) >/dev/null 2>&1 & w=$!; ' +
+  '{ wait $p; kill $w; wait $w; } 2>/dev/null; t=$(cat "$o"); rm -f "$o"; fi; ' +
+  'echo "password=${t:-$GH_TOKEN}"; }; f';
 
-export function childEnv({ githubToken, gitIdentity, baseEnv }: CommandContext): Record<string, string> {
+export function childEnv({ githubToken, gitIdentity, forgeAgent, baseEnv }: CommandContext): Record<string, string> {
   const identity = gitIdentity && {
     GIT_AUTHOR_NAME: gitIdentity.name,
     GIT_AUTHOR_EMAIL: gitIdentity.email,
@@ -62,7 +74,7 @@ export function childEnv({ githubToken, gitIdentity, baseEnv }: CommandContext):
     [`GIT_CONFIG_KEY_${first + 1}`]: 'credential.helper',
     [`GIT_CONFIG_VALUE_${first + 1}`]: gitUsesToken,
   };
-  return { ...env, GH_TOKEN: githubToken, GITHUB_TOKEN: githubToken, ...credentialHelper, ...identity };
+  return { ...env, GH_TOKEN: githubToken, GITHUB_TOKEN: githubToken, ...credentialHelper, ...identity, ...(forgeAgent && { CARRIER_FORGE_AGENT: forgeAgent }) };
 }
 
 const isExecutable = (path: string) => {

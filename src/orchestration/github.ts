@@ -1,9 +1,13 @@
+export type UnavailableKind = 'rate_limited' | 'server_error' | 'timeout' | 'network';
+
 export class GitHubUnavailable extends Error {
+  readonly kind: UnavailableKind;
   readonly retryAfterMs?: number;
 
   // No parameter property: Node strips types at runtime and cannot run that syntax.
-  constructor(retryAfterMs?: number, cause?: string) {
-    super('GitHub unavailable', { cause });
+  constructor(kind: UnavailableKind, detail: string, retryAfterMs?: number) {
+    super(`GitHub unavailable (${kind}: ${detail})`);
+    this.kind = kind;
     this.retryAfterMs = retryAfterMs;
   }
 }

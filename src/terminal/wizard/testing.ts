@@ -61,7 +61,7 @@ export const fakeDeps = (over: Partial<InitDeps> = {}) => {
     which: () => true,
     forgeAgents: () => [{ name: 'artanis-agent', label: 'Artanis' }, { name: 'tassadar-agent' }],
     ghLogin: () => 'diego',
-    listRepos: () => [],
+    listRepos: () => ({ names: [], hasMore: false }),
     originRepo: () => 'AshuLab/carrier',
     codexModel: () => 'gpt-test',
     codexModels: () => [],

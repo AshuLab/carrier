@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Config } from '../../config/schema.ts';
 import { repoNamePattern } from '../../config/schema.ts';
+import { defaults } from '../../config/load.ts';
 import { runDoctor } from '../../doctor/doctor.ts';
 import { ghReposArgs, parseRepos } from '../../integrations/available-repos.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
@@ -17,8 +18,8 @@ export interface InitDeps {
   which: (command: string) => boolean;
   forgeAgents: () => ForgeAgent[];
   ghLogin: () => string | undefined;
-  /** `owner/name` of the repos the gh login can push to, most recently pushed first. Throws when it cannot list. */
-  listRepos: () => string[];
+  /** `owner/name` of the repos the gh login can push to on that page (1 is the first), most recently pushed first, and whether GitHub has more pages. Throws when it cannot list. */
+  listRepos: (page: number) => { names: string[]; hasMore: boolean };
   originRepo: () => string | undefined;
   codexModel: () => string | undefined;
   /** The models Codex itself lists as available (its local cache); empty when it has none. */
@@ -49,7 +50,11 @@ export const realDeps: InitDeps = {
       return undefined; // not logged in or no gh: the doctor reports it, here it only means no hint
     }
   },
-  listRepos: () => parseRepos(execFileSync('gh', ghReposArgs, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })).map((repo) => repo.name),
+  listRepos: (page) => {
+    // no config yet at init: the default bounds the call
+    const { repos, hasMore } = parseRepos(execFileSync('gh', ghReposArgs(page), { encoding: 'utf8', timeout: defaults.limits.githubCallTimeoutSeconds * 1000, stdio: ['ignore', 'pipe', 'pipe'] }));
+    return { names: repos.map((repo) => repo.name), hasMore };
+  },
   originRepo: () => {
     const url = spawnSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' }).stdout.trim();
     const repo = /github\.com[:/]([\w.-]+\/[\w.-]+?)(?:\.git)?$/.exec(url)?.[1];

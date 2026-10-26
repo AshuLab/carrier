@@ -216,12 +216,12 @@ test('each repo keeps its last check: when, whether it worked and why not, from 
 
   // b fails: a was read in that cycle, b was not.
   github.listReadyEpics = async (repo) => {
-    if (repo === 'AshuLab/b') throw new GitHubUnavailable('network', 'down');
+    if (repo === 'AshuLab/b') throw new GitHubUnavailable('server_error', 'HTTP 502');
     return [];
   };
   await clock.advance(5 * MIN);
   expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 10 * MIN, ok: true, error: null });
-  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 10 * MIN, ok: false, error: 'GitHub is unavailable' });
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 10 * MIN, ok: false, error: 'GitHub unavailable (server_error: HTTP 502)' });
 
   github.listReadyEpics = async () => [];
   await clock.advance(5 * MIN);

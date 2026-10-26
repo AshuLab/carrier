@@ -49,7 +49,7 @@ const gitUsesToken =
   'echo "password=${t:-$GH_TOKEN}"; }; f';
 ```
 
-**The cost per git call is not cached.** Each call signs a JWT and makes two requests to GitHub, about a second by the research's timings, on every authenticated fetch and push. It is small next to an agent run and a cache would bring back the problem it solves. The integration test prints the time it measures and asserts nothing about it.
+**The cost per git call is not cached.** Each call signs a JWT and makes two requests to GitHub, about a second by the research's timings, on every authenticated fetch and push. It is small next to an agent run and a cache would bring back the problem it solves. The integration test prints the time it measures and asserts nothing about it. The call to `agent-forge` is bounded at 10 seconds by a watchdog in the helper (`timeout` is not on a stock macOS): a Forge that hangs falls back to the starting token instead of hanging git.
 
 **Antigravity.** Nothing in its harness stops `agent-forge` from running: it is launched with permissions skipped and, as its own comment says, there is no sandbox to turn off; Claude and Codex are launched with permissions bypassed too (ADR 0004). The rule in the prompt is the same for the three, and the integration test runs the check with the fake binaries of Claude and Codex that already exist in the repo.
 

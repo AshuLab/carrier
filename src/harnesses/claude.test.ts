@@ -87,16 +87,16 @@ test('git pushes with the execution token, not with the helpers of the person ru
 });
 
 // A fake `agent-forge` first in the PATH: it logs each call's argv (one line per argument) and behaves as FAKE_FORGE says.
-function withFakeForge(run: (ask: (forgeAgent: string | undefined, operation: string, mode?: 'token' | 'fail' | 'silent') => string, calls: () => string[]) => void) {
+function withFakeForge(run: (ask: (forgeAgent: string | undefined, operation: string, mode?: 'token' | 'fail' | 'silent' | 'hang') => string, calls: () => string[]) => void) {
   const dir = mkdtempSync(join(tmpdir(), 'carrier-forge-'));
   try {
     const log = join(dir, 'calls.log');
-    writeFileSync(join(dir, 'agent-forge'), `#!/bin/sh\nprintf 'call\\n' >> "${log}"\nfor a in "$@"; do printf 'arg=%s\\n' "$a" >> "${log}"; done\ncase "$FAKE_FORGE" in token) echo ghs_fresh;; fail) echo boom >&2; exit 1;; esac\n`);
+    writeFileSync(join(dir, 'agent-forge'), `#!/bin/sh\nprintf 'call\\n' >> "${log}"\nfor a in "$@"; do printf 'arg=%s\\n' "$a" >> "${log}"; done\ncase "$FAKE_FORGE" in token) echo ghs_fresh;; fail) echo boom >&2; exit 1;; hang) sleep 30; echo ghs_late;; esac\n`);
     chmodSync(join(dir, 'agent-forge'), 0o755);
     const globalConfig = join(dir, 'gitconfig');
     writeFileSync(globalConfig, '');
     const ask = (forgeAgent: string | undefined, operation: string, mode = 'token') => {
-      const env = childEnv({ ...ctx, githubToken: 'ghs_start', forgeAgent, baseEnv: { PATH: `${dir}:${process.env.PATH}`, HOME: dir, GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: '1', FAKE_FORGE: mode } });
+      const env = childEnv({ ...ctx, githubToken: 'ghs_start', forgeAgent, baseEnv: { PATH: `${dir}:${process.env.PATH}`, HOME: dir, GIT_CONFIG_GLOBAL: globalConfig, GIT_CONFIG_NOSYSTEM: '1', FAKE_FORGE: mode, CARRIER_FORGE_TIMEOUT: '1' } });
       return execFileSync('git', ['credential', operation], { env, input: 'protocol=https\nhost=github.com\n\n', encoding: 'utf8' });
     };
     run(ask, () => { try { return readFileSync(log, 'utf8').split('\n').filter(Boolean); } catch { return []; } });
@@ -118,6 +118,14 @@ test('when Forge fails or prints nothing, git gets the token the run started wit
   withFakeForge((ask) => {
     expect(ask('artanis-agent', 'fill', 'fail')).toContain('password=ghs_start');
     expect(ask('artanis-agent', 'fill', 'silent')).toContain('password=ghs_start');
+  });
+});
+
+test('when Forge hangs, git gets the token the run started with once the time limit passes', () => {
+  withFakeForge((ask) => {
+    const started = Date.now();
+    expect(ask('artanis-agent', 'fill', 'hang')).toContain('password=ghs_start');
+    expect(Date.now() - started).toBeLessThan(10_000);
   });
 });
 

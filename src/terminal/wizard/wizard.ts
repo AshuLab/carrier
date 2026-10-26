@@ -85,13 +85,13 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   if (!shared) readForge();
 
   // One role at a time (who it acts as, which CLI, which model), each under its own box, so the two read as separate things.
-  if (!(flags.authorProfile && flags.author)) ui.note('Implements the epic: runs ship, then answers the reviewer.', 'Author');
+  if (!(flags.authorProfile && flags.author)) ui.note('Implements the epic: runs ship, then answers the reviewer.\nOptionally it gets a persona at the end: a name and how it behaves.', 'Author');
   const authorIdentity = shared ? ghIdentity : flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, readForge, login, [], deps, interactive, prior?.author.identity);
   const author: Role = { identity: authorIdentity, ...(await askAgent(ui, 'author', { flag: flags.author, provider: flags.authorProvider }, harnesses, locals, deps, 'claude', prior?.author)) };
   const authorPersona = await askPersona(ui, 'author', { name: flags.authorPersonaName, prompt: flags.authorPersonaPrompt }, interactive, prior?.author.persona);
   if (authorPersona) author.persona = authorPersona;
 
-  if (!(flags.reviewerProfile && flags.reviewer)) ui.note(`Reviews the final PR. ${shared ? 'Acts as the same gh login.' : 'Needs a different GitHub identity from the author.'}`, 'Reviewer');
+  if (!(flags.reviewerProfile && flags.reviewer)) ui.note(`Reviews the final PR. ${shared ? 'Acts as the same gh login.' : 'Needs a different GitHub identity from the author.'}\nOptionally it gets a persona at the end: a name and how it behaves.`, 'Reviewer');
   const reviewerIdentity = shared ? ghIdentity : flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, readForge, login, [authorIdentity], deps, interactive, prior?.reviewer.identity);
   const reviewer: Role = { identity: reviewerIdentity, ...(await askAgent(ui, 'reviewer', { flag: flags.reviewer, provider: flags.reviewerProvider }, harnesses, locals, deps, harnesses.includes('codex') ? 'codex' : 'claude', prior?.reviewer)) };
   const reviewerPersona = await askPersona(ui, 'reviewer', { name: flags.reviewerPersonaName, prompt: flags.reviewerPersonaPrompt }, interactive, prior?.reviewer.persona);

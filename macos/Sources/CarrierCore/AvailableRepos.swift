@@ -80,7 +80,9 @@ public struct AvailableReposList: Equatable {
 
     public mutating func apply(_ result: AvailableReposResult) {
         guard case .repos(let page, let more) = result else { problem = result; return }
-        repos += page
+        // a push between two page reads can shift a repo onto the next page: keep its first place
+        let known = Set(repos.map(\.name))
+        repos += page.filter { !known.contains($0.name) }
         hasMore = more
         nextPage += 1
         problem = nil

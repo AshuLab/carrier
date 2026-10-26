@@ -115,3 +115,15 @@ test('a later page that cannot be read is said and the wizard goes on with what 
   expect(labels(lists[1]!)).toEqual([`AshuLab:AshuLab/carrier,AshuLab/skills,Other…`]);
   expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/skills' }]);
 });
+
+test('a first page emptied by the filter still offers "Load more…" while GitHub has more', async () => {
+  const pages = [page([], true), page(['AshuLab/tools'], false)];
+  const { deps, written } = fakeDeps({ listRepos: (n) => pages[n - 1]!, originRepo: () => undefined });
+  const { ui, asked, lists } = rounds([['\0more'], ['AshuLab/tools']]);
+  const out = join(dir, 'q.json');
+  await runInit({ out }, ui, deps);
+  expect(asked.some((a) => a.startsWith('warn:'))).toBe(false);
+  expect(labels(lists[0]!)).toEqual([`Other:${loadMoreEntry},Other…`]);
+  expect(labels(lists[1]!)).toEqual(['AshuLab:AshuLab/tools,Other…']);
+  expect(JSON.parse(written[out]!).repos).toEqual([{ name: 'AshuLab/tools' }]);
+});

@@ -25,7 +25,8 @@ export async function askRepos(ui: Ui, deps: InitDeps, current: string[] | undef
     });
     return answer.split(',').map((s) => s.trim());
   };
-  if (listed.length === 0) return typed('Repos to watch (owner/name, comma separated)');
+  // a first page emptied by the filter still has later pages while hasMore holds
+  if (listed.length === 0 && !hasMore) return typed('Repos to watch (owner/name, comma separated)');
 
   // What the config already has, or else the folder you are in, goes first and marked, even when it is not among the recent ones; one section per owner.
   const first = current ?? (origin === undefined ? [] : [origin]);
@@ -40,8 +41,8 @@ export async function askRepos(ui: Ui, deps: InitDeps, current: string[] | undef
     const groups: Record<string, Option<string>[]> = Object.fromEntries(
       owners.map((owner) => [owner, names.filter((n) => n.startsWith(`${owner}/`)).map((value) => ({ value, label: owners.length > 1 ? value.slice(owner.length + 1) : value }))]),
     );
-    if (owners.length > 1) groups.Other = tail;
-    else groups[owners[0]!]!.push(...tail);
+    if (owners.length === 1) groups[owners[0]!]!.push(...tail);
+    else groups.Other = tail;
     picked = await ui.multiselect({ message: 'Repos to watch', options: groups, initialValues: ticked });
     if (!picked.includes(loadMore)) break;
     ticked = picked.filter((n) => n !== loadMore);

@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 import { epicSlicesQuery, epicSlicesResponse, pullRequestOf, pullRequestQuery, pullRequestResponse, sliceOf, threadsOf } from './github-graphql.ts';
+import { redact } from '../logging/redact.ts';
 import { AuthError, GitHubUnavailable, epicLabel, readyLabel, type GitHub, type LabelStyle, type RateLimit, type Slices } from '../orchestration/github.ts';
 
 const execFileAsync = promisify(execFile);
@@ -61,7 +62,8 @@ function retryAfterMs(headers: Record<string, string>) {
 function statusFailure(profile: string, status: number, headers: Record<string, string>, body: string) {
   const wait = retryAfterMs(headers);
   const rateLimited = status === 429 || (status === 403 && (wait !== undefined || /rate limit/i.test(body)));
-  if (rateLimited || status >= 500) return new GitHubUnavailable(wait, `HTTP ${status}`);
+  if (rateLimited) return new GitHubUnavailable('rate_limited', `HTTP ${status}`, wait);
+  if (status >= 500) return new GitHubUnavailable('server_error', `HTTP ${status}`, wait);
   if (status === 401) return new AuthError(profile);
   return new HttpError(status, body);
 }
@@ -126,7 +128,7 @@ export class GhGitHub implements GitHub {
       if (error instanceof GitHubUnavailable || error instanceof AuthError || error instanceof HttpError) throw error;
       const failed = error as { killed?: boolean; code?: unknown; stdout?: string; stderr?: string; message: string };
       // Exceeding maxBuffer also kills the child, but that is not a timeout.
-      if (failed.killed && failed.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') throw new GitHubUnavailable(undefined, `timed out after ${this.options.timeoutMs} ms`);
+      if (failed.killed && failed.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') throw new GitHubUnavailable('timeout', `timed out after ${this.options.timeoutMs} ms`);
       const response = parseResponse(failed.stdout ?? '');
       if (response) {
         this.track(response.headers);
@@ -134,7 +136,7 @@ export class GhGitHub implements GitHub {
       }
       const stderr = failed.stderr ?? '';
       if (authStderr.test(stderr)) throw new AuthError(profileName);
-      if (networkStderr.test(stderr)) throw new GitHubUnavailable(undefined, stderr.trim().slice(0, 300));
+      if (networkStderr.test(stderr)) throw new GitHubUnavailable('network', redact(stderr).replace(/\s+/g, ' ').trim().slice(0, 300));
       throw new Error(`gh failed: ${(stderr || failed.message).trim().slice(0, 300)}`);
     }
   }

@@ -120,3 +120,6 @@ _Avoid_: identity (it is ambiguous with the GitHub profile), system prompt, bot 
 
 **Signature** - The closing line a role puts on everything it publishes under a shared identity: `🤖 <Role> [NAME] via Carrier`, with the persona's name in the brackets. It is mandatory, the user cannot turn it off, and it is what tells the agent's words from the user's own when both come from one account.
 _Avoid_: watermark, marker, footer.
+
+**GitHub unavailable** - GitHub answered with a failure that clears by itself, so Carrier keeps its state and tries again on the next poll. It has a kind, which only diagnoses: `rate_limited` (HTTP 429, or 403 with a rate limit), `server_error` (5xx), `timeout` and `network`. The kind and its detail are in the error's message, so the log and the last check of a repo say why. An authentication error and any other HTTP failure are not GitHub unavailable.
+_Avoid_: GitHub down, GitHub refused (that is the panel's section for the repos whose last check failed), the control socket's `github unavailable` reply (a different, fixed string).

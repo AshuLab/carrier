@@ -20,11 +20,7 @@ struct LaneSectionView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(flowItems(lane.items)) { FlowItemView(flow: $0, outputs: $outputs, groups: $groups, slices: $slices) }
                 }
-                .padding(.leading, LogMetrics.sliceIndent)
-                .overlay(alignment: .leading) {
-                    Rectangle().fill(Color.secondary.opacity(0.3)).frame(width: LogMetrics.ruleWidth)
-                        .padding(.leading, LogMetrics.sliceRule - LogMetrics.iconColumn - LogMetrics.ruleWidth / 2)
-                }
+                .thread(indent: LogMetrics.sliceIndent, rule: LogMetrics.sliceRule, tint: lane.threadTint)
             }
         }
     }
@@ -63,7 +59,7 @@ struct LaneHeaderView: View {
         .overlay(alignment: .leading) { state.frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth) }
         .overlay(alignment: .trailing) { LogChevron(open: open) }
         .padding(.horizontal, LogMetrics.iconColumn)
-        .background(Color.primary.opacity(hovered ? 0.05 : 0))
+        .rowHover(hovered)
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
         .accessibilityElement(children: .ignore)
@@ -97,6 +93,17 @@ struct LaneHeaderView: View {
         case .running: SpinningRing(diameter: 14, lineWidth: 2, color: .secondaryLabelColor).accessibilityHidden(true)
         case .finished: Image(systemName: "checkmark.circle.fill").font(.system(size: 14)).foregroundStyle(.green)
         case .failed: Image(systemName: "xmark.circle.fill").font(.system(size: 14)).foregroundStyle(.red)
+        }
+    }
+}
+
+private extension LaneSection {
+    /// The colour of the thread's rule while hovered: the state glyph's.
+    var threadTint: Color {
+        switch state {
+        case .finished: .green
+        case .failed: .red
+        case .running: .secondary
         }
     }
 }

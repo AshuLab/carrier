@@ -31,6 +31,20 @@ private let slice = """
     #expect(report.note == "Changed engine.ts.")
 }
 
+// The `ship` skill's template has bare keys and agents copy it: the same report, as JSON5.
+@Test func aReportWithBareKeysAndANumberedSliceIsTheSameCard() {
+    guard case .slice(let report)? = jsonMessage("""
+    {slice:351, outcome:"ready-to-merge", branch:"feat/x/351-y", pr:"https://github.com/AshuLab/carrier/pull/356",
+    definitionOfDone:{loadConfigRules:true, typecheck:false}, note:"Small."}
+    """) else {
+        Issue.record("a report with bare keys is not a slice card")
+        return
+    }
+    #expect(report.title == "Slice #351")
+    #expect(report.checks.map(\.name) == ["typecheck", "loadConfigRules"])
+    #expect(report.note == "Small.")
+}
+
 @Test func theReportInACodeFenceIsTheSameReport() {
     #expect(jsonMessage("```json\n\(slice)\n```") == jsonMessage(slice))
 }

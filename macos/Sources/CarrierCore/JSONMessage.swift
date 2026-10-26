@@ -60,14 +60,16 @@ public func jsonMessage(_ text: String) -> JSONMessage? {
         guard lines.count > 2, lines.last == "```" else { return nil }
         body = lines.dropFirst().dropLast().joined(separator: "\n")
     }
-    guard body.hasPrefix("{"), let object = (try? JSONSerialization.jsonObject(with: Data(body.utf8))) as? [String: Any], object.isEmpty == false
+    guard body.hasPrefix("{"), let object = (try? JSONSerialization.jsonObject(with: Data(body.utf8), options: .json5Allowed)) as? [String: Any], object.isEmpty == false
     else { return nil }
-    // ponytail: JSONSerialization loses the key order, so keys go by where their name first shows in the text; a nested key
-    // with the same name earlier would swap two fields. A real ordered parser if that ever shows.
+    // ponytail: JSONSerialization loses the key order, so keys go by where their name first shows in the text (quoted, or bare as
+    // JSON5 allows: the `ship` skill's template has bare keys and agents copy it); a nested key with the same name earlier would
+    // swap two fields. A real ordered parser if that ever shows.
+    func position(_ key: String) -> String.Index {
+        (body.range(of: "\"\(key)\"") ?? body.range(of: "\(key):"))?.lowerBound ?? body.endIndex
+    }
     func ordered<V>(_ dict: [String: V]) -> [(key: String, value: V)] {
-        dict.map { (key: $0.key, value: $0.value) }.sorted {
-            (body.range(of: "\"\($0.key)\"")?.lowerBound ?? body.endIndex) < (body.range(of: "\"\($1.key)\"")?.lowerBound ?? body.endIndex)
-        }
+        dict.map { (key: $0.key, value: $0.value) }.sorted { position($0.key) < position($1.key) }
     }
     func checks(_ value: Any) -> [ReportCheck]? {
         guard let dict = value as? [String: Any], dict.isEmpty == false else { return nil }
@@ -77,7 +79,7 @@ public func jsonMessage(_ text: String) -> JSONMessage? {
     if object.keys.allSatisfy(sliceKeys.contains), let outcome = object["outcome"] as? String, let done = object["definitionOfDone"].flatMap(checks) {
         let pull = (object["pr"] as? String).flatMap(browserURL).map { ReportLink(label: pullLabel($0), url: $0) }
         return .slice(SliceReport(
-            title: (object["slice"] as? String).map { "Slice \($0)" }, outcome: sentence(outcome),
+            title: (object["slice"] as? String).map { "Slice \($0)" } ?? (object["slice"] as? NSNumber).map { "Slice #\($0)" }, outcome: sentence(outcome),
             tone: outcome.contains("ready") ? .good : outcome.contains("human") ? .stop : .warning,
             pull: pull, branch: object["branch"] as? String, checks: done, note: object["note"] as? String
         ))

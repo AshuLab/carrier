@@ -106,7 +106,7 @@ export const configSchema = z
       ctx.addIssue({
         code: 'custom',
         path,
-        message: `${where}agents.author.profile and agents.reviewer.profile must differ, both are "${profile}"`,
+        message: `${where}agents.author.profile and agents.reviewer.profile must differ, both are "${profile}" (or set identities to "shared" to use one account for both)`,
       });
     if (config.agents.author.profile === config.agents.reviewer.profile) {
       clash(['agents'], '', config.agents.author.profile);

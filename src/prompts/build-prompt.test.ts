@@ -262,7 +262,7 @@ test('signatureOf names the role and the persona, and leaves no brackets without
 test.each([['ship', 'Author'], ['review', 'Reviewer'], ['fix', 'Author']] as const)('under a shared identity the %s prompt asks for the %s signature on everything published', (stage, role) => {
   const rule = buildPrompt({ ...task(stage), sharedIdentity: true, persona: { name: 'Atlas' } }).split('\n')[2]!;
   expect(rule).toContain(`${role} [Atlas] via Carrier`);
-  for (const what of ['review comment', 'review body', 'pull request body', 'reply on a thread', 'commit message']) expect(rule).toContain(what);
+  for (const what of ['review comments', 'pull request body', 'replies on threads', 'any other comment, issue or issue body', 'commit message', 'before any trailers']) expect(rule).toContain(what);
   expect(buildPrompt({ ...task(stage), sharedIdentity: true })).toContain(`🤖 ${role} via Carrier`);
   expect(buildPrompt({ ...task(stage), sharedIdentity: true }).split('\n')[1]).toMatch(/: 🤖 \w+ via Carrier$/);
   expect(buildPrompt({ ...task(stage), sharedIdentity: false, persona: { name: 'Atlas' } })).not.toContain('via Carrier');

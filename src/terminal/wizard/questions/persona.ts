@@ -20,7 +20,7 @@ export async function askPersona(ui: Ui, role: 'author' | 'reviewer', given: { n
       message: `Persona of the ${role}: ${key === 'name' ? 'name' : 'prompt, how it behaves'} (${kept ? 'empty to keep it, - to clear it' : 'empty to skip'})`,
       placeholder: key === 'name' ? 'a name, one line' : 'who it is and how it behaves',
       defaultValue: kept ?? '',
-      validate: (value) => (value.trim() === '' || (kept && value.trim() === '-') ? undefined : refusal(value)),
+      validate: (value) => (value.trim() === '' ? undefined : value.trim() === '-' ? (kept ? undefined : 'empty to skip') : refusal(value)),
     });
     return answer.trim() === '-' && kept ? undefined : answer.trim() || undefined;
   };

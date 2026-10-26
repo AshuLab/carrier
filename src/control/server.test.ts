@@ -28,9 +28,9 @@ const path = () => join(dir, 'control.sock');
 // Fake controls: a pause flag the snapshot reads, a counter of checks, and one execution with output.
 const executionId = '3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c';
 function fakeControls() {
-  const state = { paused: false, polls: 0 };
+  const state = { paused: false, polls: 0, repoPages: [] as number[] };
   const logs = vi.fn((id: string, count: number) => (id === executionId ? ['one', 'two', 'three'].slice(-count) : []));
-  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null => ({ sections: [], total: null, truncated: false }), availableRepos: () => Promise.resolve([{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }]), resumeEpic: () => Promise.resolve() } };
+  return { state, logs, controls: { poll: () => void state.polls++, setPaused: (paused: boolean) => void (state.paused = paused), logs, sessions: () => ({ sessions: [] }), events: (_id: string, _after: number, _limit: number): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }), epic: (): EpicReply | null => ({ stages: [], rounds: [], slices: [], slicesTruncated: false, threads: [], threadsTruncated: false, worktrees: [], branch: null, pr: null }), files: (): FilesReply | null => ({ sections: [], total: null, truncated: false }), availableRepos: (page: number) => (state.repoPages.push(page), Promise.resolve({ repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }], hasMore: page < 3 })), resumeEpic: () => Promise.resolve() } };
 }
 
 const stop = async () => {};
@@ -75,7 +75,7 @@ async function client() {
 test('a client gets a hello, and the snapshot as JSON when it asks', async () => {
   await open();
   const c = await client();
-  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'availableRepos', 'resumeEpic'] });
+  expect(c.hello).toEqual({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, version: JSON.parse(readFileSync('package.json', 'utf8')).version, capabilities: ['sessions', 'events', 'epic', 'files', 'availableRepos', 'availableReposPaged', 'resumeEpic'] });
   expect(await c.ask('{"id":1,"cmd":"snapshot"}')).toEqual({ id: 1, ok: true, data: snapshotData });
   expect(await c.ask('{"id":7,"cmd":"snapshot"}')).toMatchObject({ id: 7, ok: true });
 });
@@ -194,18 +194,25 @@ test('files answers with the reply, and an unknown epic or a failure are errors'
   expect(await (await client()).ask('{"id":2,"cmd":"files","repo":"a/b","issue":1}')).toEqual({ id: 2, ok: false, error: 'internal error' });
 });
 
-test('availableRepos answers with the repos, in the contract the app reads', async () => {
-  await open();
-  expect(await (await client()).ask('{"id":4,"cmd":"availableRepos"}')).toEqual({
-    id: 4,
-    ok: true,
-    data: { repos: [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }] },
-  });
+test('availableRepos answers the page asked for with hasMore, and page 1 without one', async () => {
+  const { state, controls } = fakeControls();
+  await open(undefined, controls);
+  const c = await client();
+  const repos = [{ name: 'AshuLab/carrier', private: true, pushedAt: '2026-10-20T10:00:00Z' }];
+  expect(await c.ask('{"id":4,"cmd":"availableRepos"}')).toEqual({ id: 4, ok: true, data: { repos, hasMore: true } });
+  expect(await c.ask('{"id":5,"cmd":"availableRepos","page":3}')).toEqual({ id: 5, ok: true, data: { repos, hasMore: false } });
+  expect(state.repoPages).toEqual([1, 3]);
 });
 
-test('availableRepos with an extra field is a validation error', async () => {
-  await open();
-  expect(await (await client()).ask('{"id":3,"cmd":"availableRepos","affiliation":"all"}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
+test('availableRepos with a page outside 1 to 100, not an integer, or an extra field is a validation error', async () => {
+  const { state, controls } = fakeControls();
+  await open(undefined, controls);
+  const c = await client();
+  for (const [id, extra] of [[1, '"page":0'], [2, '"page":101'], [3, '"page":1.5'], [4, '"page":"2"'], [5, '"affiliation":"all"']] as const) {
+    expect(await c.ask(`{"id":${id},"cmd":"availableRepos",${extra}}`)).toEqual({ id, ok: false, error: 'invalid request' });
+  }
+  expect(await c.ask('{"id":6,"cmd":"availableRepos","page":100}')).toMatchObject({ id: 6, ok: true });
+  expect(state.repoPages).toEqual([100]);
 });
 
 test('availableRepos that fails is a "github unavailable" reply without the reason, and the server goes on', async () => {
@@ -219,14 +226,14 @@ test('availableRepos that fails is a "github unavailable" reply without the reas
 });
 
 test('a slow availableRepos does not hold other connections, and replies on its own connection keep their order', async () => {
-  let finish: (repos: []) => void = () => {};
+  let finish: (page: { repos: []; hasMore: boolean }) => void = () => {};
   await open(undefined, { ...fakeControls().controls, availableRepos: () => new Promise((resolve) => (finish = resolve)) });
   const slow = await client();
   const other = await client();
   const first = slow.ask('{"id":1,"cmd":"availableRepos"}');
   const second = slow.ask('{"id":2,"cmd":"snapshot"}');
   expect(await other.ask('{"id":9,"cmd":"snapshot"}')).toMatchObject({ id: 9, ok: true });
-  finish([]);
+  finish({ repos: [], hasMore: false });
   expect(await first).toMatchObject({ id: 1, ok: true });
   expect(await second).toMatchObject({ id: 2, ok: true });
 });

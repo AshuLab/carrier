@@ -127,7 +127,7 @@ test('every poll refreshes the slice progress by repo and issue; a failed read k
   await clock.advance(5 * MIN);
   expect(engine.slices('AshuLab/a', 1)).toEqual({ done: 2, total: 3 });
 
-  github.openEpicsUnavailable = new GitHubUnavailable();
+  github.openEpicsUnavailable = new GitHubUnavailable('network', 'down');
   github.openEpics['AshuLab/a'] = [{ issue: 1, slices: { done: 3, total: 3 } }];
   github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }, { issue: 5, title: '' }] };
   await clock.advance(5 * MIN);
@@ -171,7 +171,7 @@ test('GitHubUnavailable keeps queue and state, exposes the error and backs off t
   expect(ids(engine)).toEqual(['AshuLab/a#1']);
 
   github.ready = { 'AshuLab/a': [], 'AshuLab/b': [{ issue: 2, title: '' }] };
-  github.unavailable = new GitHubUnavailable(12 * MIN);
+  github.unavailable = new GitHubUnavailable('server_error', 'HTTP 503', 12 * MIN);
   const calls = github.calls;
   await clock.advance(5 * MIN);
   expect(engine.error).toBe(github.unavailable);
@@ -180,7 +180,7 @@ test('GitHubUnavailable keeps queue and state, exposes the error and backs off t
 
   await clock.advance(12 * MIN - 1);
   expect(github.calls).toBe(calls + 1);
-  github.unavailable = new GitHubUnavailable(); // no retryAfter: falls back to the interval
+  github.unavailable = new GitHubUnavailable('network', 'down'); // no retryAfter: falls back to the interval
   await clock.advance(1);
   expect(github.calls).toBe(calls + 2);
 
@@ -195,7 +195,7 @@ test('GitHubUnavailable keeps queue and state, exposes the error and backs off t
 
 test('a failure in one repo registers nothing from the other repos in that poll', async () => {
   github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }] };
-  const fail = new GitHubUnavailable();
+  const fail = new GitHubUnavailable('network', 'down');
   github.listReadyEpics = async (repo) => {
     if (repo === 'AshuLab/b') throw fail;
     return [{ issue: 1, title: '', labels: [] }];
@@ -216,12 +216,12 @@ test('each repo keeps its last check: when, whether it worked and why not, from 
 
   // b fails: a was read in that cycle, b was not.
   github.listReadyEpics = async (repo) => {
-    if (repo === 'AshuLab/b') throw new GitHubUnavailable();
+    if (repo === 'AshuLab/b') throw new GitHubUnavailable('server_error', 'HTTP 502');
     return [];
   };
   await clock.advance(5 * MIN);
   expect(engine.lastCheck('AshuLab/a')).toEqual({ at: 10 * MIN, ok: true, error: null });
-  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 10 * MIN, ok: false, error: 'GitHub is unavailable' });
+  expect(engine.lastCheck('AshuLab/b')).toEqual({ at: 10 * MIN, ok: false, error: 'GitHub unavailable (server_error: HTTP 502)' });
 
   github.listReadyEpics = async () => [];
   await clock.advance(5 * MIN);
@@ -298,7 +298,7 @@ test('reserving flips ready to running on the issue', async () => {
 
 test('GitHubUnavailable on the label change keeps the epic reserved and the next cycle reconciles it once', async () => {
   github.ready = { 'AshuLab/a': ready(4) };
-  github.setLabelsUnavailable = new GitHubUnavailable();
+  github.setLabelsUnavailable = new GitHubUnavailable('network', 'down');
   const engine = await start(1);
   await clock.advance(5 * MIN);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', labelPending: true });
@@ -335,7 +335,7 @@ test('an issue that cannot be checked goes back to the queue in its place', asyn
   github.ready = { 'AshuLab/a': ready(1, 2) };
   const engine = await start(1);
   github.getIssue = async () => {
-    throw new GitHubUnavailable();
+    throw new GitHubUnavailable('network', 'down');
   };
   await clock.advance(5 * MIN);
   expect(ids(engine)).toEqual(['AshuLab/a#1', 'AshuLab/a#2']);
@@ -528,7 +528,7 @@ test('GitHub down while validating keeps the result for the next poll, which imp
   runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });
   const engine = await start(1);
   github.getPullRequest = async () => {
-    throw new GitHubUnavailable();
+    throw new GitHubUnavailable('network', 'down');
   };
   await clock.advance(5 * MIN);
   await engine.idle();
@@ -667,7 +667,7 @@ test('maxExecutionRetries 0 means a single attempt', async () => {
 test('a GitHub query error before a relaunch is not an attempt: the poll relaunches it once GitHub answers', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   runner.behavior = () => ({ sessionId: 's', exit: 'failed' });
-  const down = new GitHubUnavailable();
+  const down = new GitHubUnavailable('network', 'down');
   const find = github.findPullRequest.bind(github);
   github.findPullRequest = async () => {
     throw down;
@@ -1250,7 +1250,7 @@ test('a ready label that did not reach GitHub is retried on the next poll', asyn
   const engine = await start(1);
   const setLabels = github.setLabels.bind(github);
   github.setLabels = async (repo, issue, change) => {
-    if (change.add.includes('solve:epic:ready-for-test')) throw new GitHubUnavailable();
+    if (change.add.includes('solve:epic:ready-for-test')) throw new GitHubUnavailable('network', 'down');
     return setLabels(repo, issue, change);
   };
   await clock.advance(5 * MIN);
@@ -1390,7 +1390,7 @@ test('a review result still waiting for GitHub is not imported once the epic was
   const getPullRequest = github.getPullRequest.bind(github);
   const engine = await reviewing((task) => {
     github.getPullRequest = async () => {
-      throw new GitHubUnavailable();
+      throw new GitHubUnavailable('network', 'down');
     };
     return { write: result(task, { outcome: 'completed', pr: { number: 50, headSha: SHA }, verification: { ci: 'passed', evidence: 'ok' } }) };
   });
@@ -1921,7 +1921,7 @@ test('a failing slices read keeps the previous rows and the poll goes on', async
   const before = cached(engine.db);
   expect(before).toHaveLength(2);
 
-  github.slicesUnavailable = new GitHubUnavailable();
+  github.slicesUnavailable = new GitHubUnavailable('network', 'down');
   github.slices['AshuLab/a#1'] = { slices: [slice(99)] };
   github.ready = { 'AshuLab/a': ready(1, 2, 3) };
   await clock.advance(5 * MIN);
@@ -2027,7 +2027,7 @@ test('with no events the live epics are read every minute, and a finished one is
 test('a failing read after a command keeps the last rows', async () => {
   const { run, states } = await working();
   const before = states();
-  github.slicesUnavailable = new GitHubUnavailable();
+  github.slicesUnavailable = new GitHubUnavailable('network', 'down');
   github.slices['AshuLab/a#1'] = { slices: [slice(99)] };
   run('c1', claim);
   await settle();
@@ -2068,7 +2068,7 @@ test('a failing pull request read keeps the last block and the poll goes on', as
   github.pullRequestBlocks['AshuLab/a#50'] = block();
   await clock.advance(5 * MIN);
 
-  github.pullRequestUnavailable = new GitHubUnavailable();
+  github.pullRequestUnavailable = new GitHubUnavailable('network', 'down');
   github.pullRequestBlocks['AshuLab/a#50'] = block({ draft: true });
   await clock.advance(5 * MIN);
   expect(cachedPr(engine.db, 1)).toEqual(block());
@@ -2130,7 +2130,7 @@ test('a failing read keeps the previous threads; a pull request GitHub does not 
   const before = storedThreads(engine.db, 1);
   expect(before).toHaveLength(1);
 
-  github.pullRequestUnavailable = new GitHubUnavailable();
+  github.pullRequestUnavailable = new GitHubUnavailable('network', 'down');
   github.reviewThreads['AshuLab/a#50'] = { threads: [thread('b')] };
   await clock.advance(5 * MIN);
   expect(storedThreads(engine.db, 1)).toEqual(before);
@@ -2207,7 +2207,7 @@ test.each(['queued', 'running', 'ready_for_test', 'merged', 'cancelled'] as cons
 
 test('resumeEpic with GitHub failing is refused as github unavailable and the epic stays stopped', async () => {
   const engine = await stoppedEpic();
-  github.setLabelsUnavailable = new GitHubUnavailable();
+  github.setLabelsUnavailable = new GitHubUnavailable('network', 'down');
   expect(await refusal(engine.resumeEpic('AshuLab/a', 1))).toBe('github unavailable');
   github.setLabelsUnavailable = null;
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanReason: 'the CI is red' });
@@ -2218,7 +2218,7 @@ test('resumeEpic with GitHub failing is refused as github unavailable and the ep
 
 test('resumeEpic on an epic that has not restarted thirty seconds after the label answers did not restart and leaves the label on', async () => {
   const engine = await stoppedEpic();
-  github.unavailable = new GitHubUnavailable(); // the label goes on, the check cannot read
+  github.unavailable = new GitHubUnavailable('network', 'down'); // the label goes on, the check cannot read
   const resumed = refusal(engine.resumeEpic('AshuLab/a', 1));
   await flush();
   await clock.advance(29_000);

@@ -32,7 +32,7 @@ public final class FixtureServer {
     {"name":"vemec/encaja","private":true,"pushedAt":"2026-10-22T06:00:00Z"},\
     {"name":"vemec/dotfiles","private":false,"pushedAt":null},\
     {"name":"acme/web","private":true,"pushedAt":"2026-08-01T09:00:00Z"},\
-    {"name":"acme/api","private":true,"pushedAt":"2026-10-15T09:00:00Z"}]}
+    {"name":"acme/api","private":true,"pushedAt":"2026-10-15T09:00:00Z"}],"hasMore":false}
     """
 
     /// Accepted and answered with nothing, as the real engine would; the fixture has no one to pause or stop.
@@ -54,7 +54,7 @@ public final class FixtureServer {
         }
         data["availableRepos"] = Data(Self.availableRepos.utf8)
         self.data = data
-        let names = ["sessions", "events", "epic", "files", "availableRepos", "resumeEpic"].map { "\"\($0)\"" }.joined(separator: ",")
+        let names = ["sessions", "events", "epic", "files", "availableRepos", "availableReposPaged", "resumeEpic"].map { "\"\($0)\"" }.joined(separator: ",")
         hello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":\(getpid()),\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\(names)]}\n".utf8)
 
         // /tmp, not the default temp folder: a socket path holds 103 bytes and that folder takes about 70

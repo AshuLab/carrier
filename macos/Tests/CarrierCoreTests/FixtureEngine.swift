@@ -6,7 +6,9 @@ final class FixtureEngine {
     let server: TestServer
 
     /// `fail` names the commands answered with an error reply; `garbage` the ones answered with `data` that is not a reply, `replies` the data to send instead of the golden one.
-    init(capabilities: [String], fail: Set<String> = [], garbage: Set<String> = [], replies: [String: String] = [:]) {
+    /// `pages` is what `availableRepos` answers for each `page` it is asked for and `failPages` the pages answered with an error.
+    init(capabilities: [String], fail: Set<String> = [], garbage: Set<String> = [], replies: [String: String] = [:],
+         pages: [Int: String] = [:], failPages: Set<Int> = []) {
         let hello = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\":1000,\"version\":\"0.2.0\",\"capabilities\":[\(capabilities.map { "\"\($0)\"" }.joined(separator: ","))]}\n"
         let box = Box()
         server = TestServer { connection in
@@ -15,12 +17,13 @@ final class FixtureEngine {
                 guard let request = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
                       let id = request["id"] as? Int, let cmd = request["cmd"] as? String else { continue }
                 box.append(line)
-                if fail.contains(cmd) {
+                let page = request["page"] as? Int
+                if fail.contains(cmd) || (page.map(failPages.contains) ?? false) {
                     connection.send("{\"id\":\(id),\"ok\":false,\"error\":\"internal error\"}\n")
                 } else if garbage.contains(cmd) {
                     connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"unexpected\":true}}\n")
                 } else {
-                    connection.send("{\"id\":\(id),\"ok\":true,\"data\":\(replies[cmd] ?? FixtureEngine.golden(cmd))}\n")
+                    connection.send("{\"id\":\(id),\"ok\":true,\"data\":\((page.flatMap { pages[$0] }) ?? replies[cmd] ?? FixtureEngine.golden(cmd))}\n")
                 }
             }
         }

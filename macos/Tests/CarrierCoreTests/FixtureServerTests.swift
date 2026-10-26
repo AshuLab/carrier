@@ -20,7 +20,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.socketPath))
     let hello = try client.hello()
-    #expect(hello.capabilities == [.sessions, .events, .epic, .files, .availableRepos, .resumeEpic])
+    #expect(hello.capabilities == [.sessions, .events, .epic, .files, .availableRepos, .availableReposPaged, .resumeEpic])
     let repo = ",\"repo\":\"AshuLab/web\",\"issue\":5"
     let id = ",\"executionId\":\"3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c\""
     #expect(try sameJSON(client.request("snapshot"), golden("snapshot.json")))

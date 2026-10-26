@@ -254,7 +254,8 @@ private struct AddReposSheet: View {
     let watched: [String]
     let add: ([String]) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var result: AvailableReposResult?
+    @State private var list: AvailableReposList?
+    @State private var loadingMore = false
     @State private var query = ""
     @State private var selected: Set<String> = []
 
@@ -264,8 +265,9 @@ private struct AddReposSheet: View {
                 Text("Add repos from GitHub").font(.headline)
                 Text("The repos your gh login can push to. Archived ones are left out.").font(.caption).foregroundStyle(.secondary)
             }
-            if case .repos? = result { TextField("Search", text: $query).textFieldStyle(.roundedBorder) }
+            if let list, list.blocked == false { TextField("Search", text: $query).textFieldStyle(.roundedBorder) }
             content
+            if let list, list.blocked == false, list.hasMore { loadMore(list) }
             HStack {
                 Text(selected.isEmpty ? "" : "\(selected.count) selected").font(.caption).foregroundStyle(.secondary)
                 Spacer()
@@ -278,27 +280,51 @@ private struct AddReposSheet: View {
         .onAppear {
             DispatchQueue.global().async {
                 let loaded = loadAvailableRepos(socketPath: controlSocketPath())
-                DispatchQueue.main.async { result = loaded }
+                DispatchQueue.main.async { var first = AvailableReposList(); first.apply(loaded); list = first }
             }
+        }
+    }
+
+    /// Asks for the next page; what is loaded stays, and a failure is said under the list.
+    private func loadNextPage() {
+        guard let current = list, loadingMore == false else { return }
+        loadingMore = true
+        DispatchQueue.global().async {
+            let loaded = loadAvailableRepos(socketPath: controlSocketPath(), page: current.nextPage)
+            DispatchQueue.main.async {
+                var next = list ?? current
+                next.apply(loaded)
+                list = next
+                loadingMore = false
+            }
+        }
+    }
+
+    private func loadMore(_ list: AvailableReposList) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Partial list: \(list.repos.count) repos so far, and there are more. Search only looks at these.").font(.caption).foregroundStyle(.secondary)
+            if let problem = list.problem, let text = availableReposMessage(problem) {
+                Text("\(text.title). \(text.detail)").font(.caption).foregroundStyle(.red)
+            }
+            Button(loadingMore ? "Loading…" : "Load more") { loadNextPage() }.buttonStyle(.glass).disabled(loadingMore)
         }
     }
 
     /// The ticked repos in the order of the engine's list.
     private var chosen: [String] {
-        guard case .repos(let repos)? = result else { return [] }
-        return repos.map(\.name).filter(selected.contains)
+        (list?.repos ?? []).map(\.name).filter(selected.contains)
     }
 
     @ViewBuilder private var content: some View {
-        switch result {
+        switch list {
         case nil:
             VStack(spacing: 8) {
                 ForEach(0..<5, id: \.self) { _ in RoundedRectangle(cornerRadius: 9).fill(Color.secondary.opacity(0.12)).frame(height: 34) }
                 Spacer(minLength: 0)
             }
             .frame(maxHeight: .infinity).accessibilityLabel("Loading your repos")
-        case .repos(let repos):
-            let groups = repoGroups(repos, watched: watched, selected: selected, query: query)
+        case let list? where list.blocked == false:
+            let groups = repoGroups(list.repos, watched: watched, selected: selected, query: query)
             if groups.isEmpty {
                 message("No repo matches “\(query)”", "Only repos your gh login can push to are listed.")
             } else {
@@ -313,8 +339,8 @@ private struct AddReposSheet: View {
                 }
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.07)))
             }
-        case let other?:
-            let text = availableReposMessage(other)
+        case let list?:
+            let text = list.problem.flatMap(availableReposMessage)
             message(text?.title ?? "", text?.detail ?? "")
         }
     }

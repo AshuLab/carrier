@@ -75,6 +75,9 @@ public struct AvailableReposList: Equatable {
 
     public init() {}
 
+    /// the last page the engine accepts
+    static let lastPage = 100
+
     /// The first page failed: nothing to show but the message.
     public var blocked: Bool { nextPage == 1 && problem != nil }
 
@@ -83,8 +86,9 @@ public struct AvailableReposList: Equatable {
         // a push between two page reads can shift a repo onto the next page: keep its first place
         let known = Set(repos.map(\.name))
         repos += page.filter { !known.contains($0.name) }
-        hasMore = more
         nextPage += 1
+        // the engine refuses a page past 100: the list ends there even if GitHub has more
+        hasMore = more && nextPage <= Self.lastPage
         problem = nil
     }
 }

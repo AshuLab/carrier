@@ -84,6 +84,12 @@ private func loadPages(_ engine: FixtureEngine, count: Int) -> AvailableReposLis
     #expect(list.repos.map(\.name) == ["a/one", "a/two", "b/three"])
 }
 
+@Test func theListStopsAskingAfterPage100() {
+    var list = AvailableReposList()
+    for n in 1...100 { list.apply(.repos([AvailableRepo(name: "a/r\(n)", isPrivate: false, pushedAt: nil)], hasMore: true)) }
+    #expect(list.repos.count == 100 && list.hasMore == false)
+}
+
 @Test func aPageThatFailsAfterTheFirstKeepsWhatIsLoadedAndTheNextAskRetriesIt() {
     let engine = FixtureEngine(capabilities: ["availableRepos", "availableReposPaged"], pages: [
         1: page(["a/one"], hasMore: true), 2: page(["b/two"], hasMore: false),

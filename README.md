@@ -17,6 +17,10 @@
   <img alt="Codex" src="https://img.shields.io/badge/Codex-CLI-000000?logo=openai&logoColor=white" />
 </p>
 
+<p align="center">
+  <img alt="The Carrier macOS app showing a finished epic: its stages, the agent output of each review round and the merged slices" src="docs/assets/app-overview.png" width="900" />
+</p>
+
 > **Status:** first version, macOS only, built for personal use. Agents run as the regular `claude`, `codex` and `agy` CLIs with **your permissions** and no isolation. Read [Security](#security) before pointing it at anything you care about.
 
 ## What it does

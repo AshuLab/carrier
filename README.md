@@ -74,7 +74,7 @@ carrier/
 │   │   ├── wizard/     #   `carrier init`: the flow, what it asks (questions/), what it needs from the machine (deps), the recap
 │   │   └── dashboard/  #   the panel: renderers (dashboard, plain), keys and their state, agent-output tail, each epic's stage history
 │   ├── status/         # what Carrier is doing right now, read from SQLite (the view any front-end draws)
-│   ├── control/        # the control socket: snapshot, pause/resume, check, stop, sessions, events, epic, files, availableRepos, resumeEpic
+│   ├── control/        # the control socket: snapshot, pause/resume, check, stop, sessions, events, epic, files, availableRepos (a page at a time), resumeEpic
 │   ├── doctor/         # the checks of `carrier doctor` and the remedy for each failure
 │   ├── config/         # config schema, defaults, loading/merging, per-repo resolution, JSON Schema, default path
 │   ├── orchestration/  # engine: polling, scheduler, stages, retries, restart, final-PR rules, ports + fakes

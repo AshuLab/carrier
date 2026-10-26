@@ -43,7 +43,7 @@ export interface CarrierDeps {
   botId?: CredentialsOptions['botId'];
   sessionDirs: SessionDirs;
   /** The repos the gh login can push to, for the app's "add a repo"; rejects when GitHub cannot be read. */
-  listRepos: (timeoutMs: number) => ReturnType<typeof listAvailableRepos>;
+  listRepos: (page: number, timeoutMs: number) => ReturnType<typeof listAvailableRepos>;
   panelOut: PanelOutput;
   panelIntervalMs?: number;
   onSigint: (...args: Parameters<typeof stopOnSigint>) => () => Promise<void>;
@@ -164,7 +164,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
     epic: (repo: string, issue: number) => epicOf(db, repo, issue),
     files: (repo: string, issue: number, executionId?: string) => filesOf(db, config.root, repo, issue, executionId),
-    availableRepos: () => deps.listRepos(limits.githubCallTimeoutSeconds * 1000),
+    availableRepos: (page: number) => deps.listRepos(page, limits.githubCallTimeoutSeconds * 1000),
     resumeEpic: (repo: string, issue: number) => engine.resumeEpic(repo, issue),
   };
   stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop: shutdown })).close;

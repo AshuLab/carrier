@@ -24,7 +24,7 @@ let close: () => void;
 beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'cs-')); // short: a socket path holds 103 bytes on macOS
   db = openDatabase(join(dir, 'carrier.db'));
-  const controls = { poll: () => {}, setPaused: () => {}, logs: () => [], sessions: () => null, events: () => null, epic: (repo: string, issue: number) => epicOf(db, repo, issue), files: () => null, availableRepos: () => Promise.resolve([]), resumeEpic: () => Promise.resolve() };
+  const controls = { poll: () => {}, setPaused: () => {}, logs: () => [], sessions: () => null, events: () => null, epic: (repo: string, issue: number) => epicOf(db, repo, issue), files: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve() };
   close = (await startControlServer({ orchestratorDir: dir, snapshot: () => ({}), startedAt: 1, controls, stop: async () => {} })).close;
 });
 afterEach(() => {

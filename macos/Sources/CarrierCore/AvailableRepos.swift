@@ -23,10 +23,13 @@ public struct AvailableRepo: Decodable, Equatable {
 
 struct AvailableReposReply: Decodable {
     var repos: [AvailableRepo]
+    /// absent from an engine that does not list `availableReposPaged`
+    var hasMore: Bool?
 }
 
 public enum AvailableReposResult: Equatable {
-    case repos([AvailableRepo])
+    /// one page, and whether the engine has another
+    case repos([AvailableRepo], hasMore: Bool)
     /// no socket to talk to, or the connection died
     case stopped
     /// an engine that does not advertise the request
@@ -35,15 +38,15 @@ public enum AvailableReposResult: Equatable {
     case githubError
 }
 
-/// Asks the engine at `socketPath`. Blocks (gh can take seconds): call it off the main thread. Names the engine sends that are not
-/// `owner/name` are dropped: they could not be written to the config.
-public func loadAvailableRepos(socketPath: String) -> AvailableReposResult {
+/// Asks the engine at `socketPath` for one page. Blocks (gh can take seconds): call it off the main thread. Names the engine sends
+/// that are not `owner/name` are dropped: they could not be written to the config.
+public func loadAvailableRepos(socketPath: String, page: Int = 1) -> AvailableReposResult {
     guard let client = ControlClient.connect(path: socketPath, timeout: 20) else { return .stopped }
     defer { client.close() }
     do {
         _ = try client.hello()
-        guard let repos = try client.availableRepos() else { return .unsupported }
-        return .repos(repos.filter { isRepoName($0.name) })
+        guard let reply = try client.availableRepos(page: page) else { return .unsupported }
+        return .repos(reply.repos.filter { isRepoName($0.name) }, hasMore: reply.hasMore)
     } catch ControlError.remote {
         return .githubError
     } catch {
@@ -58,6 +61,35 @@ public func availableReposMessage(_ result: AvailableReposResult) -> (title: Str
     case .stopped: ("Carrier is stopped", "Start Carrier to see your repos.")
     case .unsupported: ("This Carrier cannot list repos", "Update Carrier to see your repos.")
     case .githubError: ("GitHub did not answer", "Check your login with gh auth status.")
+    }
+}
+
+/// What the picker has loaded: the pages in order, the next one to ask for and whether there is one. A page that fails after the
+/// first keeps what is loaded and is `problem`; the next ask retries the same page.
+public struct AvailableReposList: Equatable {
+    public private(set) var repos: [AvailableRepo] = []
+    public private(set) var hasMore = false
+    public private(set) var nextPage = 1
+    /// why the latest read failed; nil when it worked
+    public private(set) var problem: AvailableReposResult?
+
+    public init() {}
+
+    /// the last page the engine accepts
+    static let lastPage = 100
+
+    /// The first page failed: nothing to show but the message.
+    public var blocked: Bool { nextPage == 1 && problem != nil }
+
+    public mutating func apply(_ result: AvailableReposResult) {
+        guard case .repos(let page, let more) = result else { problem = result; return }
+        // a push between two page reads can shift a repo onto the next page: keep its first place
+        let known = Set(repos.map(\.name))
+        repos += page.filter { !known.contains($0.name) }
+        nextPage += 1
+        // the engine refuses a page past 100: the list ends there even if GitHub has more
+        hasMore = more && nextPage <= Self.lastPage
+        problem = nil
     }
 }
 

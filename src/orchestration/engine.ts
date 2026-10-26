@@ -688,7 +688,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       log.error('poll failed', e);
       failed(e);
       // Only an expected failure gets here (`failed` rethrows the rest): the repos not read this cycle share it.
-      const reason = e instanceof AuthError ? `authentication error for profile ${e.profile}` : 'GitHub is unavailable';
+      const reason = e instanceof AuthError ? `authentication error for profile ${e.profile}` : (e as GitHubUnavailable).message;
       for (const { name } of repos) if (!read.has(name)) checks.set(name, { at: clock.now(), ok: false, error: reason });
       return Math.max(pollIntervalMs, (e instanceof GitHubUnavailable && e.retryAfterMs) || 0);
     }

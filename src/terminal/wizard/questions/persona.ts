@@ -17,8 +17,8 @@ export async function askPersona(ui: Ui, role: 'author' | 'reviewer', given: { n
     if (!interactive) return undefined;
     const kept = current?.[key];
     const answer = await ui.text({
-      message: `Persona of the ${role}: ${key === 'name' ? 'name' : 'prompt, how it behaves'} (${kept ? 'empty to keep it, - to clear it' : 'empty to skip'})`,
-      placeholder: key === 'name' ? 'a name, one line' : 'who it is and how it behaves',
+      message: `${role[0]!.toUpperCase()}${role.slice(1)} persona: ${key === 'name' ? 'give it a name' : 'describe how it behaves'}`,
+      placeholder: `${key === 'name' ? 'a short name, e.g. Rex' : 'who it is and how it works'}; ${kept ? 'Enter keeps it, - clears it' : 'Enter to skip'}`,
       defaultValue: kept ?? '',
       validate: (value) => (value.trim() === '' ? undefined : value.trim() === '-' ? (kept ? undefined : 'empty to skip') : refusal(value)),
     });

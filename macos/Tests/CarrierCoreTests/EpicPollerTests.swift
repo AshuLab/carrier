@@ -362,12 +362,38 @@ private let token = OpenFile(section: "slice-121", path: "src/token.ts")
     #expect(poller.data[web]?.fragments[token] == .failed)
     #expect(poller.data[web]?.files != nil && poller.data[web]?.epic != nil)
 
-    // a refused file says nothing about the others: the next row is still asked, the failed one is not again
+    // a refused file says nothing about the others: the next row is still asked
     poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, openFiles: [token, other]))
-    now = Date(timeIntervalSince1970: 10)
+    now = Date(timeIntervalSince1970: 1)
     try poller.poll(client)
-    #expect(engine.commands.suffix(3) == ["epic", "files", "fileDiff"])
+    #expect(engine.commands == ["epic", "files", "fileDiff", "fileDiff"])
     #expect(engine.requests.last?["path"] as? String == "src/other.ts")
+}
+
+@Test func aFragmentThatFailedIsAskedAgainEveryTenSecondsWhileItsRowStaysOpen() throws {
+    let failing = FixtureEngine(capabilities: ["fileDiff"], fail: ["fileDiff"])
+    let working = FixtureEngine(capabilities: ["fileDiff"], replies: ["fileDiff": diffReply])
+    defer { [failing, working].forEach { $0.stop() } }
+    let (broken, good) = (try diffClient(failing), try diffClient(working))
+    var now = Date(timeIntervalSince1970: 0)
+    let poller = EpicPoller(now: { now }, onUpdate: { _, _ in })
+    poller.show(EpicFocus(epic: web, epicRunning: false, filesTabVisible: true, openFiles: [token]))
+
+    for second in 0...15 {
+        now = Date(timeIntervalSince1970: TimeInterval(second))
+        try poller.poll(broken)
+    }
+    #expect(failing.commands == ["fileDiff", "fileDiff"])
+    #expect(poller.data[web]?.fragments[token] == .failed)
+
+    // the failure was transient: the next ask fills the row, and it is then kept
+    now = Date(timeIntervalSince1970: 20)
+    try poller.poll(good)
+    #expect(working.commands == ["fileDiff"])
+    #expect(poller.data[web]?.fragments[token] == .rows([DiffRow(sign: .hunk, text: "@@ -1 +1 @@"), DiffRow(sign: .added, text: "x")], truncated: false))
+    now = Date(timeIntervalSince1970: 40)
+    try poller.poll(good)
+    #expect(working.commands == ["fileDiff"])
 }
 
 @Test func noFragmentIsAskedOfAnEngineWithoutFileDiff() throws {

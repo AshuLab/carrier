@@ -201,7 +201,8 @@ public final class EpicPoller {
         }
     }
 
-    /// The open file rows that have no fragment yet. A merged slice and a fix round have fixed ends: one reply, or one failure, is kept.
+    /// The open file rows that have no fragment yet. A merged slice and a fix round have fixed ends: one reply is kept; a failure is
+    /// asked again every 10 s while the row stays open, since it may have been transient.
     /// A lane is alive: while the epic runs its row is asked again every 10 s, and the fragment on screen stays until the next one
     /// arrives; a refresh that fails keeps it.
     private func fragments(_ focus: EpicFocus, _ client: ControlClient, _ moment: Date) throws {
@@ -210,7 +211,7 @@ public final class EpicPoller {
             let known = data[key]?.fragments[file]
             if known != nil {
                 // the engine names a lane's card `lane-<N>`
-                guard file.section.hasPrefix("lane-"), focus.epicRunning,
+                guard known == .failed || (file.section.hasPrefix("lane-") && focus.epicRunning),
                       fragmentAsked[file].map({ moment.timeIntervalSince($0) >= Kind.files.interval }) ?? true else { continue }
             }
             fragmentAsked[file] = moment

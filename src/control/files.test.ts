@@ -239,7 +239,7 @@ test('fileDiff answers the hunks of a merged slice and of a fix round, with an @
   }
 });
 
-test('a binary file, a file too big to read, and a diff past the caps', () => {
+test('a binary file, a diff past the byte cap, and a diff past the row caps', () => {
   slice(101, 201, {
     'image.png': 'PNG\0\x01\x02',
     'big.txt': `${'y'.repeat(99)}\n`.repeat(50_000), // 5 MB
@@ -248,7 +248,12 @@ test('a binary file, a file too big to read, and a diff past the caps', () => {
   });
   epicRow();
   expect(diffOf('slice-101', 'image.png')).toEqual({ rows: [], truncated: false, note: 'binary' });
-  expect(diffOf('slice-101', 'big.txt')).toEqual({ rows: [], truncated: false, note: 'too-big' });
+  // a tracked diff past the byte cap opens at its first rows and says it was cut
+  const big = diffOf('slice-101', 'big.txt')!;
+  expect(big).toMatchObject({ truncated: true, note: null });
+  expect(big.rows).toHaveLength(MAX_DIFF_ROWS);
+  expect(big.rows[0]).toEqual({ sign: '@', text: '@@ -0,0 +1,50000 @@' });
+  expect(big.rows[1]).toEqual({ sign: '+', text: 'y'.repeat(99) });
   const long = diffOf('slice-101', 'long.txt')!;
   expect(long).toMatchObject({ truncated: true, note: null });
   expect(long.rows).toHaveLength(MAX_DIFF_ROWS);

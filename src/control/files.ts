@@ -204,12 +204,16 @@ export function filesOf(db: Db, root: string, repo: string, issue: number, execu
   return { sections, total, truncated };
 }
 
-/** The diff text of one file over a range; 'too-big' past the cap. Nothing the repository configures runs: no driver, no textconv. */
-function diffText({ cwd, range, guard }: Card, path: string): string | 'too-big' {
+/** The diff text of one file over a range; past the byte cap, the whole lines read so far and `cut`. Nothing the repository configures runs: no driver, no textconv. */
+function diffText({ cwd, range, guard }: Card, path: string): { text: string; cut: boolean } {
   try {
-    return execFileSync('git', [...guard, 'diff', ...SAFE_DIFF, '-U3', ...range, '--', `:(literal)${path}`], { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer: MAX_DIFF_BYTES, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const text = execFileSync('git', [...guard, 'diff', ...SAFE_DIFF, '-U3', ...range, '--', `:(literal)${path}`], { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer: MAX_DIFF_BYTES, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
+    return { text, cut: false };
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOBUFS') return 'too-big';
+    if ((error as NodeJS.ErrnoException).code === 'ENOBUFS') {
+      const partial = String((error as { stdout?: string }).stdout ?? '');
+      return { text: partial.slice(0, partial.lastIndexOf('\n') + 1), cut: true }; // the last line may be half read
+    }
     throw new Error('git diff failed in an epic worktree', { cause: error }); // the server logs it and answers `internal error`
   }
 }
@@ -225,10 +229,9 @@ export function fileDiff(db: Db, root: string, repo: string, issue: number, sect
   const card = found === null || found === 'none' ? undefined : found.cards.find((c) => c.id === section);
   if (card === undefined || path.length > MAX_PATH) return null;
   let out: string;
+  let cut = false;
   if (numstat(card)?.some((r) => r.path === path) === true) {
-    const text = diffText(card, path);
-    if (text === 'too-big') return { rows: [], truncated: false, note: 'too-big' };
-    out = text;
+    ({ text: out, cut } = diffText(card, path));
   } else if (card.kind === 'lane' && untrackedPaths(card).includes(path)) {
     const text = readUntracked(card.cwd, path);
     if (text === 'binary' || text === 'too-big') return { rows: [], truncated: false, note: text };
@@ -242,7 +245,7 @@ export function fileDiff(db: Db, root: string, repo: string, issue: number, sect
   const all = redact(out).split('\n');
   const first = all.findIndex((line) => line.startsWith('@@'));
   if (first < 0) return { rows: [], truncated: false, note: /^Binary files /m.test(out) ? 'binary' : 'no-changes' };
-  let truncated = false;
+  let truncated = cut;
   const rows = all.slice(first).flatMap((line): FileDiffReply['rows'] => {
     const hunk = /^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/.exec(line);
     if (hunk !== null) return [{ sign: '@', text: hunk[0] }];

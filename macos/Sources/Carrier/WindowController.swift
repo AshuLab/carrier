@@ -14,6 +14,17 @@ import SwiftUI
     var sessions = Sessions(rows: CommandLine.arguments.contains("--fixture") ? sampleSessions(now: Date()) : [])
 }
 
+private extension ShortcutModifiers {
+    init(_ flags: NSEvent.ModifierFlags) {
+        var modifiers: ShortcutModifiers = []
+        if flags.contains(.command) { modifiers.insert(.command) }
+        if flags.contains(.shift) { modifiers.insert(.shift) }
+        if flags.contains(.option) { modifiers.insert(.option) }
+        if flags.contains(.control) { modifiers.insert(.control) }
+        self = modifiers
+    }
+}
+
 /// Set from the main thread, read from the monitor's.
 private final class StopFlag {
     private let lock = NSLock()
@@ -129,6 +140,15 @@ final class WindowController: NSObject, NSWindowDelegate {
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.isReleasedWhenClosed = false
         window.delegate = self
+        // the shortcuts belong to the window, not to the menu bar item's menu: only a key pressed while it is the key window counts
+        // lives as long as the window, which is kept for the life of the app
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak window] event in
+            guard let self, let window, window.isKeyWindow, event.window === window,
+                let action = shortcutAction(key: event.charactersIgnoringModifiers ?? "", modifiers: .init(event.modifierFlags))
+            else { return event }
+            self.model.shell.perform(action)
+            return nil
+        }
         window.setContentSize(NSSize(width: 1100, height: 700))
         window.center()
         NotificationCenter.default.addObserver(self, selector: #selector(windowClosed), name: NSWindow.willCloseNotification, object: window)

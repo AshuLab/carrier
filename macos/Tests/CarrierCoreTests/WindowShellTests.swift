@@ -92,3 +92,47 @@ import Testing
     shell.reset()
     #expect(shell.aboutShown == false)
 }
+
+@Test func commandAndANumberOrFSelectOrSearch() {
+    #expect(shortcutAction(key: "1", modifiers: .command) == .select(.home))
+    #expect(shortcutAction(key: "2", modifiers: .command) == .select(.sessions))
+    #expect(shortcutAction(key: "3", modifiers: .command) == .select(.carrier))
+    #expect(shortcutAction(key: "f", modifiers: .command) == .search)
+    #expect(shortcutAction(key: "F", modifiers: .command) == .search)
+}
+
+@Test func anotherModifierOrAnotherKeyIsNothing() {
+    for modifiers in [ShortcutModifiers([]), .shift, .option, .control, [.command, .shift], [.command, .option], [.command, .control]] {
+        for key in ["1", "2", "3", "f"] { #expect(shortcutAction(key: key, modifiers: modifiers) == nil) }
+    }
+    for key in ["4", "0", "g", "", "12"] { #expect(shortcutAction(key: key, modifiers: .command) == nil) }
+}
+
+@Test func theSelectionShortcutsActAsAClickDoes() {
+    let shell = WindowShell()
+    shell.open = nil
+    shell.perform(.select(.sessions))
+    #expect(shell.selection == .sessions && shell.open == .sessions)
+    shell.perform(.select(.carrier))
+    #expect(shell.selection == .carrier && shell.open == .carrier)
+    shell.perform(.select(.home))
+    #expect(shell.selection == .home && shell.open == .carrier)
+}
+
+@Test func searchAsksTheOpenSectionAndNothingWhenBothAreFolded() {
+    let shell = WindowShell()
+    shell.open = nil
+    shell.perform(.search)
+    #expect(shell.searchRequest == nil)
+    shell.open = .sessions
+    shell.perform(.search)
+    #expect(shell.searchRequest?.section == .sessions)
+    let first = shell.searchRequest
+    shell.perform(.search)
+    #expect(shell.searchRequest != first && shell.searchRequest?.section == .sessions)
+    shell.open = .carrier
+    shell.perform(.search)
+    #expect(shell.searchRequest?.section == .carrier)
+    shell.reset()
+    #expect(shell.searchRequest == nil)
+}

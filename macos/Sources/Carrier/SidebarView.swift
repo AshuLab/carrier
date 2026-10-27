@@ -11,6 +11,8 @@ struct SidebarView: View {
     @Binding var open: OpenSection?
     @Binding var groupBy: GroupBy
     @Binding var collapse: SidebarCollapse
+    /// The last ⌘F, for the open section to show its search.
+    let searchRequest: SearchRequest?
     /// The card's search: not remembered between launches.
     @State private var searching = false
     @State private var query = ""
@@ -18,8 +20,8 @@ struct SidebarView: View {
     var body: some View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
         List(selection: list) {
-            Label("Home", systemImage: "house").tag(Selection.home)
-            SessionsRows(sessions: sessions, open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }))
+            Label("Home", systemImage: "house").tag(Selection.home).help("Home (⌘1)")
+            SessionsRows(sessions: sessions, open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }), searchRequest: searchRequest)
             // its own row, outside Sessions, so folding Sessions does not hide it
             let archived = archivedCount(sessions.rows)
             HStack {
@@ -30,7 +32,7 @@ struct SidebarView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Archive, \(archived)")
             .tag(Selection.archive)
-            CarrierCard(state: state, selected: selection == .carrier, unfolded: open == .carrier, groupBy: $groupBy, searching: $searching, query: $query)
+            CarrierCard(state: state, selected: selection == .carrier, unfolded: open == .carrier, searchRequest: searchRequest, groupBy: $groupBy, searching: $searching, query: $query)
                 .tag(Selection.carrier)
                 .listRowBackground(Color.clear)
             if let snapshot, open == .carrier {
@@ -73,6 +75,8 @@ private struct CarrierCard: View {
     let selected: Bool
     /// Folded, the card is its state, slots and counters; unfolded, it also has the search and the grouping menu, and the epics follow.
     let unfolded: Bool
+    /// The last ⌘F: when it asks for the card, the search field opens and takes the keyboard.
+    let searchRequest: SearchRequest?
     @Binding var groupBy: GroupBy
     @Binding var searching: Bool
     @Binding var query: String
@@ -91,7 +95,7 @@ private struct CarrierCard: View {
                 Spacer(minLength: 0)
                 // the epics exist only while Carrier answers, so there is nothing to search or group before
                 if snapshot != nil && unfolded {
-                    IconButton(icon: "magnifyingglass", name: searching ? "Close epic search" : "Search epics") {
+                    IconButton(icon: "magnifyingglass", name: searching ? "Close epic search" : "Search epics", shortcut: "⌘F") {
                         searching.toggle()
                         if searching { searchFocused = true } else { query = "" }
                     }
@@ -134,7 +138,13 @@ private struct CarrierCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         // the list draws its own pill under a chosen row, so the grey is only for the card at rest
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(selected ? 0 : 0.1)))
-        .help(snapshot.map(Self.hover) ?? "")
+        .help(([snapshot.map(Self.hover), "Carrier (⌘3)"].compactMap { $0 }).joined(separator: "\n"))
+        .onChange(of: searchRequest) {
+            if searchRequest?.section == .carrier && snapshot != nil && unfolded {
+                searching = true
+                searchFocused = true
+            }
+        }
     }
 
     private static func tint(_ kind: CarrierCardState.Kind) -> Color {
@@ -169,6 +179,7 @@ private struct CarrierCard: View {
 private struct IconButton: View {
     let icon: String
     let name: String
+    var shortcut: String?
     let action: () -> Void
 
     var body: some View {
@@ -176,7 +187,7 @@ private struct IconButton: View {
             Image(systemName: icon).frame(width: 22, height: 22).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(name)
+        .help(name + (shortcut.map { " (\($0))" } ?? ""))
         .accessibilityLabel(name)
     }
 }

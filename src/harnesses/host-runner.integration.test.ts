@@ -147,7 +147,7 @@ describe('host runner with a fake claude binary', () => {
   test('a token in the final output, or in the path of a binary, is in no part of the failure', async () => {
     const token = `ghp_${'a'.repeat(36)}`;
     const crashed = await runner.run(taskIn('token', { model: 'token' })).done;
-    const missing = new HostAgentRunner({ binaries: { claude: join(dir, 'p'.repeat(100), 'q'.repeat(100), token) }, credentials: async () => ({ githubToken: 't' }) });
+    const missing = new HostAgentRunner({ binaries: { claude: join(dir, 'p'.repeat(265 - dir.length), token) }, credentials: async () => ({ githubToken: 't' }) });
     const spawnFailed = await missing.run(taskIn('token-path')).done;
     expect(spawnFailed.failure!.kind).toBe('spawn_error');
     for (const { failure } of [crashed, spawnFailed]) expect(JSON.stringify(failure)).not.toMatch(/ghp_|aaaa/);

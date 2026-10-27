@@ -1,14 +1,13 @@
 import CarrierCore
 import SwiftUI
 
-/// The sidebar's list: Home and Carrier rows, the group-by switch, the epics in groups, Settings and About at the bottom.
+/// The sidebar's list: Home and Carrier rows, the group-by switch, the epics in groups, Settings at the bottom.
 struct SidebarView: View {
     let snapshot: PanelSnapshot?
     let state: ConnectionState?
     @Binding var selection: Selection
     @Binding var groupBy: GroupBy
     @Binding var collapse: SidebarCollapse
-    let onAbout: () -> Void
 
     var body: some View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
@@ -49,7 +48,6 @@ struct SidebarView: View {
             VStack(spacing: 2) {
                 SidebarStatus(state: state).padding(.bottom, 6)
                 SidebarFooterRow(title: "Settings", icon: "gearshape", selected: selection == .settings) { selection = .settings }
-                SidebarFooterRow(title: "About", icon: "info.circle", selected: false, action: onAbout)
             }
             .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 10)
             // opaque enough that the list scrolls under it without showing through

@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { AgentExit, AgentRun, AgentRunner, AgentTask } from './agent-runner.ts';
+import type { AgentDone, AgentExit, AgentFailure, AgentRun, AgentRunner, AgentTask } from './agent-runner.ts';
 import type { AgentEvent } from './events.ts';
 import type { Workspaces } from './workspaces.ts';
 
@@ -13,9 +13,13 @@ export type Behavior = {
   write?: unknown;
   /** Defaults to 'ok'. 'hang' never ends on its own, only `stop()` does. */
   exit?: AgentExit | 'hang';
+  /** What a 'failed' exit reports; defaults to a crash with exit code 1. */
+  failure?: AgentFailure;
   /** The run ends with `exit` only once this settles, to let other runs start first. */
   when?: Promise<unknown>;
 };
+
+const crash: AgentFailure = { kind: 'crashed', detail: 'exit code 1', exitCode: 1, signal: null, hostFreeMemMb: 8000, hostLoad: 1.5 };
 
 export class FakeAgentRunner implements AgentRunner {
   tasks: AgentTask[] = [];
@@ -34,17 +38,17 @@ export class FakeAgentRunner implements AgentRunner {
   run(task: AgentTask): AgentRun {
     this.tasks.push(task);
     this.alive.add(task.executionId);
-    const { sessionId, output = [], events = [], write, exit = 'ok', when } = this.behavior(task);
+    const { sessionId, output = [], events = [], write, exit = 'ok', when, failure = exit === 'failed' ? crash : undefined } = this.behavior(task);
     const sessions: ((id: string) => void)[] = [];
     const outputs: ((stream: 'stdout' | 'stderr', chunk: string) => void)[] = [];
     const eventSinks: ((events: AgentEvent[]) => void)[] = [];
     this.eventSinks.set(task.executionId, eventSinks);
-    let resolveDone!: (result: { exit: AgentExit; sessionId?: string }) => void;
-    const finish = (result: { exit: AgentExit; sessionId?: string }) => {
+    let resolveDone!: (result: AgentDone) => void;
+    const finish = (result: AgentDone) => {
       this.alive.delete(task.executionId);
       resolveDone(result);
     };
-    const done = new Promise<{ exit: AgentExit; sessionId?: string }>((resolve) => (resolveDone = resolve));
+    const done = new Promise<AgentDone>((resolve) => (resolveDone = resolve));
     // Runs after the caller registered its callbacks.
     queueMicrotask(() => {
       if (sessionId) for (const cb of sessions) cb(sessionId);
@@ -54,8 +58,8 @@ export class FakeAgentRunner implements AgentRunner {
         mkdirSync(dirname(task.resultPath), { recursive: true });
         writeFileSync(task.resultPath, typeof write === 'string' ? write : JSON.stringify(write));
       }
-      if (when && exit !== 'hang') void when.then(() => finish({ exit, sessionId }));
-      else if (exit !== 'hang') finish({ exit, sessionId });
+      if (when && exit !== 'hang') void when.then(() => finish({ exit, sessionId, failure }));
+      else if (exit !== 'hang') finish({ exit, sessionId, failure });
     });
     return {
       onSession: (cb) => void sessions.push(cb),

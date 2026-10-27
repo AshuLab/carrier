@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
-import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
+import type { AgentExit, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { parseCallerResult } from '../execution/caller-result.ts';
 import { importResult } from '../execution/import-result.ts';
 import type { Workspaces } from '../execution/workspaces.ts';
@@ -62,6 +62,9 @@ type Execution = typeof executions.$inferSelect;
 
 // Technical end of the process; whether the epic moves on depends on its result (retries and timeouts: later slices).
 const sessionLost = 'the agent session is not available';
+
+const failureColumns = (f: AgentFailure | undefined) =>
+  f && { failureKind: f.kind, failureDetail: f.detail, exitCode: f.exitCode, signal: f.signal, hostFreeMemMb: f.hostFreeMemMb, hostLoad: f.hostLoad };
 
 const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
   ok: 'finished',
@@ -231,13 +234,13 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     });
     run.onSession((sessionId) => db.update(executions).set({ sessionId }).where(eq(executions.executionId, executionId)).run());
     track(
-      run.done.then(async ({ exit, sessionId }) => {
+      run.done.then(async ({ exit, sessionId, failure: processFailure }) => {
         active.delete(executionId);
         output.flush();
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
-        const failure = { failed: 'the agent process ended with an error', auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
+        const failure = { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}: ${processFailure?.detail ?? ''})`, auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
         db.update(executions)
-          .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }), ...(failure && { error: failure }) })
+          .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }), ...(failure && { error: failure }), ...failureColumns(processFailure) })
           .where(eq(executions.executionId, executionId))
           .run();
         if (failure) db.update(epics).set({ lastError: failure }).where(eq(epics.id, epic.id)).run();

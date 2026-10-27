@@ -45,7 +45,7 @@ test('the executions migration applies to a database that already holds executio
 
   migrate(db, { migrationsFolder: full });
   expect(db.select().from(executions).all()).toEqual([
-    { executionId: 'e1', epicId: 1, stage: 'ship', status: 'finished', sessionId: 's1', error: null, harness: null, model: null, provider: null, workspace: null, round: null, resultPath: '/r.json', startedAt: 5, finishedAt: null },
+    { executionId: 'e1', epicId: 1, stage: 'ship', status: 'finished', sessionId: 's1', error: null, harness: null, model: null, provider: null, workspace: null, round: null, resultPath: '/r.json', startedAt: 5, finishedAt: null, failureKind: null, failureDetail: null, exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null },
   ]);
   sqlite.close();
 });

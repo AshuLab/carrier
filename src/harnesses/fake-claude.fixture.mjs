@@ -23,6 +23,13 @@ if (mode === 'auth') {
   const fixture = new URL('./claude-events.fixture.jsonl', import.meta.url);
   for (const line of readFileSync(fixture, 'utf8').trimEnd().split('\n')) console.log(line);
   process.exit(0);
+} else if (mode === 'kill') {
+  // Ends the way the real 137s did: a SIGKILL nobody in the run sent.
+  process.kill(process.pid, 'SIGKILL');
+} else if (mode === 'token') {
+  // A final output that holds a token at character 290, where a plain cut at 300 would split it.
+  out({ type: 'result', is_error: true, api_error_status: null, result: `${'x '.repeat(145)}ghp_${'a'.repeat(36)} done` });
+  process.exit(3);
 } else if (mode === 'hang') {
   setInterval(() => {}, 1000);
 } else {

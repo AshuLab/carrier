@@ -39,7 +39,22 @@ final class WindowController: NSObject, NSWindowDelegate {
         showIcon("macwindow", on: item)
     }
 
+    /// Adds the "About Carrier" item: it opens the window if it was closed, then shows the About sheet over it.
+    func addAboutItem(to menu: NSMenu) {
+        let item = menu.addItem(withTitle: "About Carrier", action: #selector(aboutFromMenu), keyEquivalent: "")
+        item.target = self
+        showIcon("info.circle", on: item)
+    }
+
     @objc private func openFromMenu() { open() }
+
+    /// For the self-test: Escape on the About sheet, so the next choice of the item starts from no sheet.
+    func dismissAbout() { model.shell.aboutInput(.escape) }
+
+    @objc private func aboutFromMenu() {
+        open()
+        model.shell.showAbout()
+    }
 
     func open(selecting epic: EpicMenuItem? = nil) { open(epic: epic.map { EpicRef(repo: $0.repo, issue: $0.issue) }) }
 
@@ -58,6 +73,9 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     /// For the self-test: whether the window is on screen and whether its monitor runs.
     var status: String { "visible \(window?.isVisible == true), monitor \(stop != nil)" }
+
+    /// For the self-test: `status` plus whether the About sheet is shown.
+    var aboutStatus: String { "\(status), about sheet \(model.shell.aboutShown ? "shown" : "hidden")" }
 
     /// For `--smoke-window`: selects the first epic Carrier reports (running, queued, then finished), so its view is on screen.
     func selectFirstEpic() {

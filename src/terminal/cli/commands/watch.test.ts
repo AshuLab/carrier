@@ -76,7 +76,7 @@ test('a socket that stops answering calls lost; a refused request does not', asy
 
 // The stage detail: a running card per epic, drawn from the provider the panel is given, with the engine's `sessions` answered by a fake client.
 const reply = (executionId: string) => ({
-  sessions: [{ executionId, stage: 'ship', role: 'author', round: null, agent: {}, status: 'finished', startedAt: 0, finishedAt: 14 * 60_000, resume: null, result: { outcome: 'completed', summary: 's', verification: null, reason: null } }],
+  sessions: [{ executionId, stage: 'ship', role: 'author', round: null, agent: {}, status: 'finished', startedAt: 0, finishedAt: 14 * 60_000, resume: null, result: { outcome: 'completed', summary: 's', verification: null, reason: null }, failure: null }],
 });
 function stagePanel(capabilities: string[], answer: (issue: number) => unknown) {
   const sessionsAsked: number[] = [];

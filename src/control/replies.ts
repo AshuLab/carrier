@@ -1,6 +1,7 @@
 import type { ReviewThread } from '../orchestration/github.ts';
 import type { PanelAgent } from '../status/types.ts';
 import type { executionStates } from '../storage/executions.ts';
+import type { AgentFailure } from '../execution/agent-runner.ts';
 
 // What the new control requests answer in `data`. The macOS app has matching types (macos/Sources/CarrierCore/Replies.swift)
 // and decodes the golden files macos/Tests/Fixtures/reply-*.json, written by replies.test.ts. Times are ms since epoch.
@@ -41,6 +42,16 @@ export type SessionResult = {
   reason: string | null;
 };
 
+/** Why an execution ended badly (glossary: Failure kind); the detail is redacted and at most 300 characters. */
+export type SessionFailure = {
+  kind: AgentFailure['kind'];
+  detail: string;
+  exitCode: number | null;
+  signal: string | null;
+  hostFreeMemMb: number | null;
+  hostLoad: number | null;
+};
+
 export type SessionsReply = {
   /** Newest first. */
   sessions: {
@@ -56,6 +67,8 @@ export type SessionsReply = {
     resume: ResumeDescriptor | null;
     /** null while no result was imported (a running execution included). */
     result: SessionResult | null;
+    /** null for an execution with no failure kind: one that ended ok, that Carrier stopped, or from before the kind existed. */
+    failure: SessionFailure | null;
   }[];
 };
 

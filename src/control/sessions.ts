@@ -6,11 +6,12 @@ import type { PanelAgent } from '../status/types.ts';
 import type { CallerResult } from '../execution/caller-result.ts';
 import { redact } from '../logging/redact.ts';
 import { callerResults } from '../storage/caller-results.ts';
-import type { SessionResult, SessionsReply } from './replies.ts';
+import type { SessionFailure, SessionResult, SessionsReply } from './replies.ts';
 
 const MAX_SUMMARY = 1500;
 const MAX_EVIDENCE = 600;
 const MAX_REASON = 600;
+const MAX_FAILURE_DETAIL = 300;
 
 /** Text an agent wrote: redacted first, so a token is never cut into something the patterns no longer match, then cut. */
 const safe = (text: string, max: number) => redact(text).slice(0, max);
@@ -24,6 +25,12 @@ function resultOf(raw: string | null): SessionResult | null {
     verification: parsed.outcome === 'completed' ? { ci: parsed.verification.ci, evidence: safe(parsed.verification.evidence, MAX_EVIDENCE) } : null,
     reason: parsed.outcome === 'needs_human' ? safe(parsed.reason, MAX_REASON) : null,
   };
+}
+
+function failureOf(row: typeof executions.$inferSelect): SessionFailure | null {
+  if (row.failureKind === null) return null;
+  const { failureKind: kind, failureDetail, exitCode, signal, hostFreeMemMb, hostLoad } = row;
+  return { kind, detail: safe(failureDetail ?? '', MAX_FAILURE_DETAIL), exitCode, signal, hostFreeMemMb, hostLoad };
 }
 
 /** The configuration folder each harness ran with, when the engine's environment set one (a path, never a secret). */
@@ -63,7 +70,7 @@ export function sessionsOf(db: Db, repo: string, issue: number, configDirs: Conf
         row.status === 'running' || row.sessionId === null || row.workspace === null
           ? null
           : { harness, sessionId: row.sessionId, cwd: row.workspace, ...(configDir !== undefined && { configDir }) };
-      return { executionId: row.executionId, stage: row.stage, role, round: row.round, agent, status: row.status, startedAt: row.startedAt, finishedAt: row.finishedAt, resume, result: resultOf(result) };
+      return { executionId: row.executionId, stage: row.stage, role, round: row.round, agent, status: row.status, startedAt: row.startedAt, finishedAt: row.finishedAt, resume, result: resultOf(result), failure: failureOf(row) };
     }),
   };
 }

@@ -28,7 +28,7 @@ const epic = (issue: number): PanelEpic => ({
 });
 const snapshot: PanelSnapshot = { now: 2_000_000, slots: { busy: 2, total: 3 }, queue: [], epics: [epic(1), epic(2)], startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false, done: [] };
 const stages = (took: number): SessionsReply => ({
-  sessions: [{ executionId: 'e', stage: 'ship', role: 'author', round: null, agent: {} as never, status: 'finished', startedAt: 0, finishedAt: took * 60_000, resume: null, result: { outcome: 'completed', summary: 's', verification: null, reason: null } }],
+  sessions: [{ executionId: 'e', stage: 'ship', role: 'author', round: null, agent: {} as never, status: 'finished', startedAt: 0, finishedAt: took * 60_000, resume: null, result: { outcome: 'completed', summary: 's', verification: null, reason: null }, failure: null }],
 });
 
 const config = () => ({ root }) as Config;
@@ -51,6 +51,20 @@ test('status prints the stage lines of a running epic taken over the socket', as
   expect(code).toBe(0);
   expect(text).toContain('ship ✓ 14m 00s');
   expect(asked).toEqual(['A/a#1', 'A/a#2']);
+});
+
+test('status draws the kind of a failed stage in the history, and a failed stage with no kind as before', async () => {
+  const failed = { ...stages(4).sessions[0]!, status: 'failed' as const, result: null };
+  const killed = { ...failed, failure: { kind: 'killed' as const, detail: 'SIGKILL', exitCode: null, signal: 'SIGKILL', hostFreeMemMb: null, hostLoad: null } };
+  const controls = {
+    poll: () => {}, setPaused: () => {}, logs: () => [],
+    sessions: (_repo: string, issue: number) => ({ sessions: [issue === 1 ? killed : failed] }),
+    events: () => null, epic: () => null, files: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(),
+  };
+  closers.push((await startControlServer({ orchestratorDir: join(root, 'orchestrator'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
+  const { text } = await printed();
+  expect(text).toContain('ship ✗ killed 4m 00s');
+  expect(text.match(/ship 4m 00s/g)).toHaveLength(1);
 });
 
 test('a sessions request that errors or answers unknown epic leaves that epic without detail and the others keep theirs; exit stays 0', async () => {

@@ -14,7 +14,8 @@
       "startedAt": 90000,
       "finishedAt": null,
       "resume": null,
-      "result": null
+      "result": null,
+      "failure": null
     },
     {
       "executionId": "9a7d1c52-0b3e-4f6a-8d2c-1e5f7a9b3c4d",
@@ -42,7 +43,8 @@
           "evidence": "CI run concluded success on the head commit."
         },
         "reason": null
-      }
+      },
+      "failure": null
     },
     {
       "executionId": "5c0e8a14-7d2b-4a93-b6f1-2d8c4e6a0b97",
@@ -68,6 +70,14 @@
         "summary": "Stopped before opening a pull request.",
         "verification": null,
         "reason": "The ticket asks for a migration the schema forbids; which of the two wins?"
+      },
+      "failure": {
+        "kind": "killed",
+        "detail": "SIGKILL",
+        "exitCode": null,
+        "signal": "SIGKILL",
+        "hostFreeMemMb": 812,
+        "hostLoad": 6.4
       }
     }
   ]

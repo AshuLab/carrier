@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, expect, test } from 'vitest';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { callerResults } from '../storage/caller-results.ts';
@@ -83,7 +84,7 @@ test('a running epic lists its session newest first, with no descriptor while it
   expect(sessions.map((s: { executionId: string }) => s.executionId.slice(-1))).toEqual(['2', '1']);
   expect(sessions[0]).toEqual({
     executionId: '00000000-0000-4000-8000-000000000002', stage: 'review', role: 'reviewer', round: 1,
-    agent: { harness: 'codex', model: 'gpt', provider: 'ollama' }, status: 'running', startedAt: 2000, finishedAt: null, resume: null, result: null,
+    agent: { harness: 'codex', model: 'gpt', provider: 'ollama' }, status: 'running', startedAt: 2000, finishedAt: null, resume: null, result: null, failure: null,
   });
   expect(sessions[1].resume).toEqual({ harness: 'claude', sessionId: 'sess-1', cwd: '/work/clone', configDir: '/cfg/claude' });
 });
@@ -154,4 +155,22 @@ test('a token in the summary, the evidence or the reason is redacted, and each f
   expect(completed.verification.evidence).toBe(`[redacted] ${'e'.repeat(600 - '[redacted] '.length)}`);
   expect(needsHuman.reason).toBe(`[redacted] ${'r'.repeat(600 - '[redacted] '.length)}`);
   expect(JSON.stringify([needsHuman, completed])).not.toContain('ghp_');
+});
+
+test('a failed execution serves its kind after the retry cleared the epic\'s last error; one with no kind, and one that ended ok, serve null', async () => {
+  const id = epic(8, 'ready_for_test');
+  execution(id, 1, { ...ran, status: 'failed', finishedAt: 1500, error: 'the agent process ended with an error (killed: SIGKILL)', failureKind: 'killed', failureDetail: 'SIGKILL', signal: 'SIGKILL', hostFreeMemMb: 812, hostLoad: 6.4 });
+  execution(id, 2, { ...ran, status: 'failed', finishedAt: 2500, error: 'boom' }); // written before the kind existed
+  execution(id, 3, { ...ran, status: 'finished', finishedAt: 3500 });
+  db.update(epics).set({ lastError: null }).where(eq(epics.id, id)).run();
+  const { sessions } = (await ask(8)).reply.data;
+  expect(sessions.map((s: { failure: unknown }) => s.failure)).toEqual([null, null, { kind: 'killed', detail: 'SIGKILL', exitCode: null, signal: 'SIGKILL', hostFreeMemMb: 812, hostLoad: 6.4 }]);
+});
+
+test('a failure detail that holds a token and runs past 300 characters is served redacted and cut', async () => {
+  const id = epic(9, 'needs_human');
+  const token = `ghp_${'x'.repeat(30)}`;
+  execution(id, 1, { ...ran, status: 'failed', finishedAt: 1500, failureKind: 'unknown', failureDetail: `${token} ${'d'.repeat(400)}` });
+  const [{ failure }] = (await ask(9)).reply.data.sessions;
+  expect(failure.detail).toBe(`[redacted] ${'d'.repeat(300 - '[redacted] '.length)}`);
 });

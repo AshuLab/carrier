@@ -31,7 +31,7 @@ beforeEach(async () => {
     sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, {}),
     events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
     epic: () => null,
-    files: () => null,
+    files: () => null, fileDiff: () => null,
     availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(),
   };
   close = (await startControlServer({ orchestratorDir: dir, snapshot: () => ({}), startedAt: 1, controls, stop: async () => {} })).close;

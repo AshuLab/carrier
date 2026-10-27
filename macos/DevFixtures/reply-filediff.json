@@ -1,0 +1,61 @@
+[
+  {
+    "rows": [
+      {
+        "sign": "@",
+        "text": "@@ -1,4 +1,5 @@"
+      },
+      {
+        "sign": " ",
+        "text": "import { sign } from './sign.ts';"
+      },
+      {
+        "sign": "-",
+        "text": "const alg = \"HS256\";"
+      },
+      {
+        "sign": "+",
+        "text": "const alg = \"ES256\";"
+      },
+      {
+        "sign": "+",
+        "text": "const ttl = 60;"
+      },
+      {
+        "sign": " ",
+        "text": ""
+      },
+      {
+        "sign": " ",
+        "text": "export function token() {"
+      },
+      {
+        "sign": "@",
+        "text": "@@ -40,3 +41,3 @@"
+      },
+      {
+        "sign": " ",
+        "text": "  const claims = read();"
+      },
+      {
+        "sign": "-",
+        "text": "  return sign(claims);"
+      },
+      {
+        "sign": "+",
+        "text": "  return sign(claims, alg);"
+      },
+      {
+        "sign": " ",
+        "text": "}"
+      }
+    ],
+    "truncated": true,
+    "note": null
+  },
+  {
+    "rows": [],
+    "truncated": false,
+    "note": "binary"
+  }
+]

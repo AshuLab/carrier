@@ -7,11 +7,19 @@ import SwiftUI
 struct SessionsRows: View {
     let sessions: Sessions
     @Binding var open: Bool
+    /// The last ⌘F: when it asks for Sessions, the search field opens and takes the keyboard.
+    let searchRequest: SearchRequest?
     @State private var sort = SidebarStore().sessionSort
     @State private var sortOpen = false
     /// The search field's text while it is open, nil while it is closed; not remembered between launches.
     @State private var query: String?
     @FocusState private var searching: Bool
+
+    private func openSearch() {
+        open = true
+        if query == nil { query = "" }
+        searching = true
+    }
 
     var body: some View {
         HStack(spacing: 4) {
@@ -35,20 +43,16 @@ struct SessionsRows: View {
             }
             .contentShape(Rectangle())
             .simultaneousGesture(TapGesture().onEnded { open = true })
-            SessionIconButton(icon: "magnifyingglass", name: "Search sessions", pressed: query != nil) {
-                if query == nil {
-                    open = true
-                    query = ""
-                    searching = true
-                } else {
-                    query = nil
-                }
+            .help("Sessions (⌘2)")
+            SessionIconButton(icon: "magnifyingglass", name: "Search sessions", shortcut: "⌘F", pressed: query != nil) {
+                if query == nil { openSearch() } else { query = nil }
             }
             SessionIconButton(icon: "ellipsis", name: "Sort sessions") { sortOpen.toggle() }
                 .popover(isPresented: $sortOpen, arrowEdge: .bottom) { SortMenu(sort: $sort) }
             SessionIconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: Sessions.cannotStartReason) {}
         }
         .tag(Selection.sessions)
+        .onChange(of: searchRequest) { if searchRequest?.section == .sessions { openSearch() } }
         if open {
             if let text = Binding($query) {
                 TextField("Search sessions", text: text)
@@ -128,6 +132,8 @@ private struct SessionIconButton: View {
     let name: String
     var enabled = true
     var why: String?
+    /// Shown after the name in the tooltip.
+    var shortcut: String?
     /// Drawn while what the button opened is open.
     var pressed = false
     let action: () -> Void
@@ -139,7 +145,7 @@ private struct SessionIconButton: View {
         }
         .buttonStyle(.plain)
         .disabled(enabled == false)
-        .help(enabled ? name : why ?? name)
+        .help(enabled ? name + (shortcut.map { " (\($0))" } ?? "") : why ?? name)
         .accessibilityLabel(name)
         .accessibilityAddTraits(pressed ? .isSelected : [])
     }

@@ -69,6 +69,10 @@ The app keeps running afterwards; quit it from the menu or with `osascript -e 't
 ./Carrier.app/Contents/MacOS/Carrier --fixture --selftest /tmp/carrier-selftest.log
 ```
 
+## Window shortcuts
+
+The window's sidebar has Home, Sessions (with Archive under it), the Carrier card with its epics, and Settings at the bottom; About is an item of the menu bar item's menu. While the window is the key window, ⌘1 selects Home, ⌘2 the Sessions home, ⌘3 the Carrier home and ⌘F opens the search of the section that is open (Sessions or the card; nothing when both are folded). The window handles them (`shortcutAction` in `CarrierCore/WindowShell.swift`, a key monitor in `WindowController`), not the menu bar item's menu, and each is in the tooltip of its row or magnifier.
+
 ## Window smoke check
 
 `--smoke-window` opens the window, selects the first epic Carrier reports, waits three seconds, prints what it sees and exits: the minimum content size (980 wide; the height is 600 plus the 52 point title band), the width of the sidebar (268) and of the inspector (316), one `scroll pocket` line per scroll pocket (the epic view's pipeline bar makes one in the centre column, at x 268, taller than the 52 point title band) the toolbar items (Sidebar, Open PR and Open issue when the epic has them, Inspector), a `transcript:` line saying how the Agent output tab is laid out (`lazy stack, pinned section headers`, read from the constants the view itself uses) and a `transcript merge:` line, the time to merge a made-up transcript of 5,004 events (a few milliseconds). It needs a screen and combines with `--fixture`.

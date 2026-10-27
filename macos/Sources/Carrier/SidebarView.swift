@@ -5,14 +5,17 @@ import SwiftUI
 struct SidebarView: View {
     let snapshot: PanelSnapshot?
     let state: ConnectionState?
+    let sessions: Sessions
     @Binding var selection: Selection
     @Binding var groupBy: GroupBy
     @Binding var collapse: SidebarCollapse
+    @State private var sessionsOpen = true
 
     var body: some View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
         List(selection: list) {
             Label("Home", systemImage: "house").tag(Selection.home)
+            SessionsRows(sessions: sessions, open: $sessionsOpen)
             Label("Carrier", systemImage: "square.grid.2x2").tag(Selection.carrier)
             if snapshot != nil {
                 // how the sections below are grouped: there is nothing to group while Carrier is not answering

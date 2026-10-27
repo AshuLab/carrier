@@ -9,7 +9,7 @@ import { createEventState, type AgentEvent } from '../execution/events.ts';
 import { claudeAdapter } from './claude.ts';
 import { agyAdapter } from './agy.ts';
 import { codexAdapter } from './codex.ts';
-import { resolveBinary, type AgentCommand, type HarnessAdapter } from './common.ts';
+import { resolveBinary, type AgentCommand, type HarnessAdapter, type LineSignal } from './common.ts';
 
 const exec = promisify(execFile);
 
@@ -55,8 +55,10 @@ const spawnError = (message: string): AgentDone => ({
   failure: { kind: 'spawn_error', detail: failureDetail(message), exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null },
 });
 
-// A failed process that none of the adapters explained: what the exit code and the signal say, and the host at that moment.
-function processFailure(code: number | null, signal: NodeJS.Signals | null): AgentFailure {
+// A failed process: what the exit code and the signal say, and the host at that moment. What the adapter read from the
+// agent's own result names the cause and wins over the symptom; the exit code and the signal are recorded either way.
+function processFailure(code: number | null, signal: NodeJS.Signals | null, adapterFailure: LineSignal['failure']): AgentFailure {
+  if (adapterFailure) return { kind: adapterFailure.kind, detail: failureDetail(adapterFailure.detail), exitCode: code, signal, hostFreeMemMb: null, hostLoad: null };
   const kind = signal ? 'killed' : code ? 'crashed' : 'unknown';
   const detail = signal ?? (code ? `exit code ${code}` : 'the process ended without an exit code');
   return { kind, detail, exitCode: code, signal, hostFreeMemMb: Math.round(freemem() / 1048576), hostLoad: loadavg()[0]! };
@@ -129,6 +131,7 @@ export class HostAgentRunner implements AgentRunner {
 
       let authFailed = false;
       let sessionLost = false;
+      let adapterFailure: LineSignal['failure'];
       const eventState = createEventState();
       // The events of the lines of one chunk, to be reported together; only stdout carries the stream.
       let batch: AgentEvent[] = [];
@@ -141,6 +144,7 @@ export class HostAgentRunner implements AgentRunner {
         }
         authFailed ||= signalOfLine?.authFailed === true;
         sessionLost ||= signalOfLine?.sessionUnavailable === true;
+        adapterFailure ??= signalOfLine?.failure;
       };
       const reportEvents = () => {
         if (batch.length > 0) eventSinks.forEach((cb) => cb(batch));
@@ -193,7 +197,7 @@ export class HostAgentRunner implements AgentRunner {
       if (sessionLost) return { exit: 'session_unavailable', sessionId };
       if (startError !== undefined) return { ...spawnError(`cannot start ${command.bin}: ${startError}`), sessionId };
       if (code === 0) return { exit: 'ok', sessionId };
-      return { exit: 'failed', sessionId, failure: processFailure(code, killedBy) };
+      return { exit: 'failed', sessionId, failure: processFailure(code, killedBy, adapterFailure) };
     };
 
     const done = start().finally(() => this.runs.delete(task.executionId));

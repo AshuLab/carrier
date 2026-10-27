@@ -133,6 +133,14 @@ describe('host runner with a fake claude binary', () => {
     expect(failure!.hostFreeMemMb).toBeGreaterThan(0);
   });
 
+  test('a usage limit printed by claude is usage_limit and not crashed, with the exit code', async () => {
+    expect(await runner.run(taskIn('usage-limit', { model: 'usage_limit' })).done).toEqual({
+      exit: 'failed',
+      sessionId: expect.any(String),
+      failure: { kind: 'usage_limit', detail: "You've hit your session limit · resets 12:40pm (America/Montevideo)", exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null },
+    });
+  });
+
   test('a binary that does not exist is spawn_error, without host clues', async () => {
     const missing = new HostAgentRunner({ binaries: { claude: join(dir, 'no-such-binary') }, credentials: async () => ({ githubToken: 't' }) });
     const run = missing.run(taskIn('missing'));

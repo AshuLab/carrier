@@ -302,14 +302,69 @@ test('the diff is redacted as a whole before it is split into rows: no secret su
   expect(reply.rows.some((r) => r.text === '[redacted]')).toBe(true);
 });
 
-test('an unknown epic, card, a lane card, or a path not in the card\'s own list is null, a pathspec or a .. or a NUL byte included', () => {
+test('a lane answers its own range, uncommitted work and untracked files included: the rows add up to what files counts, and a file two lanes edit answers each lane\'s own lines', () => {
+  const first = lane(1, 'feat/x/104-d');
+  const second = lane(2, 'feat/x/105-e');
+  epicRow();
+  // lane 1: a commit (d.ts), an uncommitted edit of shared.ts, an untracked file; lane 2: another edit of shared.ts, uncommitted
+  writeFileSync(join(first, 'd.ts'), lines(2, 'd'));
+  git(first, 'add', '.');
+  git(first, 'commit', '-q', '-m', 'feat: d');
+  writeFileSync(join(first, 'shared.ts'), lines(10, 'shared').replace('shared1\n', 'one\n'));
+  writeFileSync(join(first, 'new.ts'), 'n0\nn1\nn2'); // no newline at the end
+  writeFileSync(join(second, 'shared.ts'), lines(10, 'shared').replace('shared8\n', ''));
+  // untracked, and counted 0: a symlink (never followed), a file over 1 MB, a NUL byte
+  symlinkSync(join(root, 'carrier.db'), join(first, 'link.ts'));
+  writeFileSync(join(first, 'huge.txt'), `${'h'.repeat(99)}\n`.repeat(11_000));
+  writeFileSync(join(first, 'nul.bin'), 'a\0b\n');
+
+  const ctx = (...names: string[]) => names.map((text) => ({ sign: ' ', text }));
+  expect(diffOf('lane-1', 'shared.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -1,5 +1,5 @@' }, ...ctx('shared0'), { sign: '-', text: 'shared1' }, { sign: '+', text: 'one' }, ...ctx('shared2', 'shared3', 'shared4')], truncated: false, note: null });
+  expect(diffOf('lane-2', 'shared.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -6,5 +6,4 @@' }, ...ctx('shared5', 'shared6', 'shared7'), { sign: '-', text: 'shared8' }, ...ctx('shared9')], truncated: false, note: null });
+  expect(diffOf('lane-1', 'd.ts')!.rows).toEqual([{ sign: '@', text: '@@ -0,0 +1,2 @@' }, { sign: '+', text: 'd0' }, { sign: '+', text: 'd1' }]);
+  expect(diffOf('lane-1', 'new.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -0,0 +1,3 @@' }, { sign: '+', text: 'n0' }, { sign: '+', text: 'n1' }, { sign: '+', text: 'n2' }], truncated: false, note: null });
+  expect(diffOf('lane-1', 'link.ts')).toEqual({ rows: [], truncated: false, note: 'binary' });
+  expect(diffOf('lane-1', 'huge.txt')).toEqual({ rows: [], truncated: false, note: 'too-big' });
+  expect(diffOf('lane-1', 'nul.bin')).toEqual({ rows: [], truncated: false, note: 'binary' });
+  expect(diffOf('lane-2', 'new.ts')).toBeNull(); // another lane's file
+
+  const sections = filesOf(db, root, 'AshuLab/a', 1)!.sections;
+  expect(sections.map((s) => [s.id, s.files.map((f) => f.path).sort()])).toEqual([['lane-1', ['d.ts', 'huge.txt', 'link.ts', 'new.ts', 'nul.bin', 'shared.ts']], ['lane-2', ['shared.ts']]]);
+  for (const section of sections) {
+    for (const file of section.files) {
+      const rows = diffOf(section.id, file.path)!.rows;
+      expect([rows.filter((r) => r.sign === '+').length, rows.filter((r) => r.sign === '-').length]).toEqual([file.added, file.removed]);
+    }
+  }
+});
+
+test('a lane\'s worktree is read without the clean filter or the fsmonitor hook the repository configures', () => {
+  const marker = join(root, 'marker');
+  const tool = join(root, 'tool.sh');
+  writeFileSync(tool, `#!/bin/sh\ntouch '${marker}'\ncat\n`);
+  chmodSync(tool, 0o755);
+  const work = lane(1, 'feat/x/104-d');
+  git(work, 'config', 'filter.evil.clean', tool);
+  git(work, 'config', 'filter.evil.required', 'true');
+  git(work, 'config', 'filter.odd.name.process', tool);
+  git(work, 'config', 'core.fsmonitor', tool);
+  writeFileSync(join(git(work, 'rev-parse', '--git-common-dir'), 'info', 'attributes'), '* filter=evil\n*.ts filter=odd.name\n');
+  epicRow();
+  writeFileSync(join(work, 'base.ts'), lines(11, 'base'));
+  expect(filesOf(db, root, 'AshuLab/a', 1)!.sections[0]!.files.map((f) => f.path)).toEqual(['base.ts']);
+  expect(diffOf('lane-1', 'base.ts')!.rows.filter((r) => r.sign === '+')).toEqual([{ sign: '+', text: 'base10' }]);
+  expect(existsSync(marker)).toBe(false);
+});
+
+test('an unknown epic, card, or a path not in the card\'s own list is null, a pathspec or a .. or a NUL byte included', () => {
   slice(101, 201, { 'a.ts': lines(2, 'a'), ':(glob)x': 'odd\n' });
   expect(diffOf('slice-101', 'a.ts')).toBeNull(); // no epic row yet
   epicRow();
   const work = lane(1, 'feat/x/104-d');
   writeFileSync(join(work, 'a.ts'), lines(3, 'a'));
   expect(filesOf(db, root, 'AshuLab/a', 1)!.sections.map((s) => s.id)).toEqual(['lane-1', 'slice-101']);
-  expect(diffOf('lane-1', 'a.ts')).toBeNull(); // a later slice
+  expect(diffOf('lane-1', 'a.ts')!.rows.filter((r) => r.sign === '+')).toEqual([{ sign: '+', text: 'a2' }]);
+  for (const path of ['base.ts', ':(glob)*', '*', 'b/../a.ts', '../a.ts', 'a.ts\0', ':(top)a.ts']) expect(diffOf('lane-1', path)).toBeNull();
   expect(diffOf('slice-999', 'a.ts')).toBeNull();
   for (const path of ['base.ts', ':(glob)*', '*', 'b/../a.ts', '../a.ts', 'a.ts\0', '\0', ':(top)a.ts', 'A.TS']) expect(diffOf('slice-101', path)).toBeNull();
   // a file whose name looks like a pathspec is itself in the list, and is read literally

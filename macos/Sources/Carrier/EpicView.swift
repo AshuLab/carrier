@@ -30,6 +30,7 @@ struct EpicView: View {
                 .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.containerSize.height >= $0.contentSize.height - 60 } action: { _, now in
                     atEnd = now
                 }
+                .onChange(of: tab, initial: true) { fileDiffs?.shown.wrappedValue = tab == .filesChanged }
                 .onChange(of: sessions.sections.last?.id) {
                     if atEnd, tab == .agentOutput { withAnimation { page.scrollTo(SessionSectionsView.endID, anchor: .bottom) } }
                 }

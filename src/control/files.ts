@@ -34,26 +34,43 @@ function parseNumstat(out: string): Row[] {
 
 // a driver or a textconv the repository configures never runs: it is the repository's code, and it would skew the numbers
 const SAFE_DIFF = ['--no-color', '--no-ext-diff', '--no-textconv', '--no-renames'];
-const numstat = (cwd: string, ...range: string[]) => {
-  const out = git(cwd, ['diff', '--numstat', ...SAFE_DIFF, '-z', ...range, '--']);
+const numstat = (card: Pick<Card, 'cwd' | 'range' | 'guard'>) => {
+  const out = git(card.cwd, [...card.guard, 'diff', '--numstat', ...SAFE_DIFF, '-z', ...card.range, '--']);
   return out === null ? null : parseNumstat(out);
 };
 
+/**
+ * `-c` options that keep a worktree's own code from running while it is read: diffing a worktree hashes its edited files through
+ * the clean filter (or the long-running `process`) its attributes name, and refreshes through the fsmonitor hook. Every filter the
+ * config defines is emptied and not required, so git reads the bytes as they are.
+ */
+function guardOf(cwd: string): string[] {
+  const keys = (git(cwd, ['config', '--list', '--name-only']) ?? '').split('\n');
+  const filters = new Set(keys.flatMap((key) => (/^filter\.(.+)\.(?:clean|smudge|process|required)$/i.exec(key)?.[1] ?? [])));
+  return ['-c', 'core.fsmonitor=false', ...[...filters].flatMap((name) => ['clean=', 'smudge=', 'process=', 'required=false'].flatMap((set) => ['-c', `filter.${name}.${set}`]))];
+}
+
+/** An untracked file as `files` counts it: its text, or why it has none. A symlink is not followed: it could point anywhere. */
+function readUntracked(cwd: string, path: string): string | 'binary' | 'too-big' | 'gone' {
+  try {
+    const file = join(cwd, path);
+    const stat = lstatSync(file);
+    if (stat.isFile() === false) return 'binary';
+    if (stat.size > MAX_UNTRACKED_BYTES) return 'too-big';
+    const bytes = readFileSync(file);
+    return bytes.includes(0) ? 'binary' : bytes.toString('utf8');
+  } catch {
+    return 'gone'; // between the listing and the read: the agent is working
+  }
+}
+const lineCount = (text: string) => text.split('\n').length - 1 + (text.length > 0 && text.endsWith('\n') === false ? 1 : 0);
+const untrackedPaths = (card: Card) => (git(card.cwd, [...card.guard, 'ls-files', '--others', '--exclude-standard', '-z']) ?? '').split('\0').filter(Boolean).slice(0, MAX_FILES);
+
 /** New files a lane has not added yet: no diff exists for them, so lines are counted; a binary or big file counts 0. */
-function untracked(cwd: string): Row[] {
-  const out = git(cwd, ['ls-files', '--others', '--exclude-standard', '-z']);
-  return (out ?? '').split('\0').filter(Boolean).slice(0, MAX_FILES).map((path) => {
-    try {
-      const file = join(cwd, path);
-      const stat = lstatSync(file); // a symlink is not followed: it could point anywhere
-      if (stat.isFile() === false || stat.size > MAX_UNTRACKED_BYTES) return { path, added: 0, removed: 0 };
-      const text = readFileSync(file);
-      if (text.includes(0)) return { path, added: 0, removed: 0 };
-      const lines = text.toString('utf8').split('\n').length - 1 + (text.length > 0 && text.at(-1) !== 0x0a ? 1 : 0);
-      return { path, added: lines, removed: 0 };
-    } catch {
-      return { path, added: 0, removed: 0 }; // gone between the listing and the read: the agent is working
-    }
+function untracked(card: Card): Row[] {
+  return untrackedPaths(card).map((path) => {
+    const text = readUntracked(card.cwd, path);
+    return { path, added: text === 'binary' || text === 'too-big' || text === 'gone' ? 0 : lineCount(text), removed: 0 };
   });
 }
 
@@ -91,7 +108,8 @@ function lanes(workspace: string): { lane: number; path: string }[] {
   }).sort((a, b) => a.lane - b.lane);
 }
 
-type Card = { id: string; kind: FilesReply['sections'][number]['kind']; title: string; cwd: string; range: string[] };
+/** `guard` goes before every git command run in `cwd` (`guardOf`); empty where git only reads commits. */
+type Card = { id: string; kind: FilesReply['sections'][number]['kind']; title: string; cwd: string; range: string[]; guard: string[] };
 
 /**
  * Every card of an epic and where git is asked over which range: a lane's worktree against its fork point, the epic worktree
@@ -125,14 +143,14 @@ function cardsOf(db: Db, root: string, repo: string, issue: number, executionId?
     const parsed = JSON.parse(result) as CallerResult;
     if (run.stage === 'review') reviewed = parsed.outcome === 'needs_human' ? null : parsed.pr.headSha;
     else if (parsed.outcome === 'completed' && reviewed !== null && (executionId === undefined || executionId === run.executionId)) {
-      rounds.unshift({ id: run.executionId, kind: 'session', title: `Fix, round ${run.round ?? '?'}`, cwd: workspace, range: [reviewed, parsed.pr.headSha] });
+      rounds.unshift({ id: run.executionId, kind: 'session', title: `Fix, round ${run.round ?? '?'}`, cwd: workspace, range: [reviewed, parsed.pr.headSha], guard: [] });
     }
   }
 
   if (executionId === undefined) {
     for (const { lane, path } of lanes(workspace)) {
       const fork = git(path, ['merge-base', head, 'HEAD'])?.trim();
-      if (fork) cards.push({ id: `lane-${lane}`, kind: 'lane', title: `Lane ${lane}`, cwd: path, range: [fork] });
+      if (fork) cards.push({ id: `lane-${lane}`, kind: 'lane', title: `Lane ${lane}`, cwd: path, range: [fork], guard: guardOf(path) });
     }
     if (base !== null) {
       const merges = git(workspace, ['log', '--first-parent', '--merges', `--max-count=${MAX_SLICES}`, '--format=%H%x00%s', `${base}..${head}`]) ?? '';
@@ -140,7 +158,7 @@ function cardsOf(db: Db, root: string, repo: string, issue: number, executionId?
         const [sha = '', subject = ''] = line.split('\0');
         // GitHub's own merge subject: `Merge pull request #<pr> from <owner>/<namespace>/<slice number>-<slug>`
         const [, pr, slice] = /^Merge pull request #(\d+) from [^/]+\/.+\/(\d+)-[^/]+$/.exec(subject) ?? [];
-        if (slice !== undefined) cards.push({ id: `slice-${slice}`, kind: 'merged', title: `Slice #${slice} (PR #${pr})`, cwd: workspace, range: [`${sha}^1`, sha] });
+        if (slice !== undefined) cards.push({ id: `slice-${slice}`, kind: 'merged', title: `Slice #${slice} (PR #${pr})`, cwd: workspace, range: [`${sha}^1`, sha], guard: [] });
       }
     }
   }
@@ -161,8 +179,8 @@ export function filesOf(db: Db, root: string, repo: string, issue: number, execu
   if (found === 'none') return { sections: [], total: null, truncated: false };
   const { workspace, head, base } = found;
   const drafts = found.cards.flatMap((card) => {
-    const rows = numstat(card.cwd, ...card.range);
-    return rows === null ? [] : [{ ...card, rows: card.kind === 'lane' ? [...rows, ...untracked(card.cwd)] : rows }];
+    const rows = numstat(card);
+    return rows === null ? [] : [{ ...card, rows: card.kind === 'lane' ? [...rows, ...untracked(card)] : rows }];
   });
 
   // a file two lanes touch says so in both
@@ -181,15 +199,15 @@ export function filesOf(db: Db, root: string, repo: string, issue: number, execu
     };
   });
 
-  const all = base === null ? null : numstat(workspace, `${base}...${head}`);
+  const all = base === null ? null : numstat({ cwd: workspace, range: [`${base}...${head}`], guard: [] });
   const total = all === null ? null : { files: all.length, added: all.reduce((sum, r) => sum + r.added, 0), removed: all.reduce((sum, r) => sum + r.removed, 0) };
   return { sections, total, truncated };
 }
 
 /** The diff text of one file over a range; 'too-big' past the cap. Nothing the repository configures runs: no driver, no textconv. */
-function diffText(cwd: string, range: string[], path: string): string | 'too-big' {
+function diffText({ cwd, range, guard }: Card, path: string): string | 'too-big' {
   try {
-    return execFileSync('git', ['diff', ...SAFE_DIFF, '-U3', ...range, '--', `:(literal)${path}`], { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer: MAX_DIFF_BYTES, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
+    return execFileSync('git', [...guard, 'diff', ...SAFE_DIFF, '-U3', ...range, '--', `:(literal)${path}`], { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer: MAX_DIFF_BYTES, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOBUFS') return 'too-big';
     throw new Error('git diff failed in an epic worktree', { cause: error }); // the server logs it and answers `internal error`
@@ -198,16 +216,29 @@ function diffText(cwd: string, range: string[], path: string): string | 'too-big
 
 /**
  * The edited fragments of one file of a card: the hunks with three lines of context, an '@' row with git's header before each.
- * null for an unknown epic or card, a lane (a later slice), or a path that is not in the card's own file list: that list is the
- * allowlist, so a pathspec, a `..` or a NUL byte never reaches git. Redacted as a whole, then cut at MAX_DIFF_ROWS and MAX_LINE.
+ * null for an unknown epic or card, or a path that is not in the card's own file list: that list is the allowlist, so a pathspec,
+ * a `..` or a NUL byte never reaches git. A lane's untracked file is read as `files` counts it, every line a '+'.
+ * Redacted as a whole, then cut at MAX_DIFF_ROWS and MAX_LINE.
  */
 export function fileDiff(db: Db, root: string, repo: string, issue: number, section: string, path: string): FileDiffReply | null {
   const found = cardsOf(db, root, repo, issue);
   const card = found === null || found === 'none' ? undefined : found.cards.find((c) => c.id === section);
-  if (card === undefined || card.kind === 'lane') return null;
-  if (path.length > MAX_PATH || numstat(card.cwd, ...card.range)?.some((r) => r.path === path) !== true) return null;
-  const out = diffText(card.cwd, card.range, path);
-  if (out === 'too-big') return { rows: [], truncated: false, note: 'too-big' };
+  if (card === undefined || path.length > MAX_PATH) return null;
+  let out: string;
+  if (numstat(card)?.some((r) => r.path === path) === true) {
+    const text = diffText(card, path);
+    if (text === 'too-big') return { rows: [], truncated: false, note: 'too-big' };
+    out = text;
+  } else if (card.kind === 'lane' && untrackedPaths(card).includes(path)) {
+    const text = readUntracked(card.cwd, path);
+    if (text === 'binary' || text === 'too-big') return { rows: [], truncated: false, note: text };
+    const count = text === 'gone' ? 0 : lineCount(text);
+    if (text === 'gone' || count === 0) return { rows: [], truncated: false, note: 'no-changes' };
+    // the diff git would show once the file is added
+    out = `@@ -0,0 +1${count === 1 ? '' : `,${count}`} @@\n` + text.split('\n').slice(0, count).map((line) => `+${line}`).join('\n') + '\n';
+  } else {
+    return null;
+  }
   const all = redact(out).split('\n');
   const first = all.findIndex((line) => line.startsWith('@@'));
   if (first < 0) return { rows: [], truncated: false, note: /^Binary files /m.test(out) ? 'binary' : 'no-changes' };

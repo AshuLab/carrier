@@ -59,7 +59,7 @@ export type Controls = {
   epic(repo: string, issue: number): EpicReply | null;
   /** null for an epic the engine does not know. */
   files(repo: string, issue: number, executionId?: string): FilesReply | null;
-  /** null for an unknown epic or card, a lane card, or a path that is not in the card's own file list. */
+  /** null for an unknown epic or card, or a path that is not in the card's own file list. */
   fileDiff(repo: string, issue: number, section: string, path: string): FileDiffReply | null;
   /** One page of the repos the gh login can push to, and whether there is a next one; rejects when GitHub cannot be read. */
   availableRepos(page: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }>;

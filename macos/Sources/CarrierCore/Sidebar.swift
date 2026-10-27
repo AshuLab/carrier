@@ -7,7 +7,7 @@ public enum GroupBy: String, CaseIterable {
     case status, repo
 }
 
-/// The grouping choice, kept in user defaults so it survives a relaunch.
+/// The grouping and Sessions sort choices, kept in user defaults so it survives a relaunch.
 public struct SidebarStore {
     private let defaults: UserDefaults
     private let key = "sidebar.groupBy"
@@ -17,6 +17,11 @@ public struct SidebarStore {
     public var groupBy: GroupBy {
         get { defaults.string(forKey: key).flatMap(GroupBy.init(rawValue:)) ?? .status }
         nonmutating set { defaults.set(newValue.rawValue, forKey: key) }
+    }
+
+    public var sessionSort: SessionSort {
+        get { defaults.string(forKey: "sidebar.sessionSort").flatMap(SessionSort.init(rawValue:)) ?? .workspace }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: "sidebar.sessionSort") }
     }
 }
 

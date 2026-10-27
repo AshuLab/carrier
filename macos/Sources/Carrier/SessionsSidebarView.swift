@@ -1,12 +1,14 @@
 import CarrierCore
 import SwiftUI
 
-/// The Sessions row and, while `open`, the sessions under it grouped by workspace (or "No sessions yet"). Rows of the sidebar's
-/// list: the row and each session are tagged with a `Selection`; the buttons in them do not select. The search and sort buttons
-/// do nothing yet (#415, #416).
+/// The Sessions row and, while `open`, the sessions under it in the chosen order (or "No sessions yet"). Rows of the sidebar's
+/// list: the row and each session are tagged with a `Selection`; the buttons in them do not select. The search button
+/// does nothing yet (#416).
 struct SessionsRows: View {
     let sessions: Sessions
     @Binding var open: Bool
+    @State private var sort = SidebarStore().sessionSort
+    @State private var sortOpen = false
 
     var body: some View {
         HStack(spacing: 4) {
@@ -24,19 +26,62 @@ struct SessionsRows: View {
             .contentShape(Rectangle())
             .simultaneousGesture(TapGesture().onEnded { open = true })
             SessionIconButton(icon: "magnifyingglass", name: "Search sessions") {}
-            SessionIconButton(icon: "ellipsis", name: "Sort sessions") {}
+            SessionIconButton(icon: "ellipsis", name: "Sort sessions") { sortOpen.toggle() }
+                .popover(isPresented: $sortOpen, arrowEdge: .bottom) { SortMenu(sort: $sort) }
             SessionIconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: Sessions.cannotStartReason) {}
         }
         .tag(Selection.sessions)
         if open {
-            let groups = sessionGroups(sessions.rows)
+            let groups = sessionGroups(sessions.rows, by: sort, now: Date(), calendar: .current)
             if groups.isEmpty {
                 Text("No sessions yet").foregroundStyle(.secondary).selectionDisabled()
             }
             ForEach(groups, id: \.title) { group in
-                WorkspaceHeader(title: group.title, canStart: sessions.canStart)
-                ForEach(group.rows, id: \.id) { SessionRowView(row: $0).tag(Selection.session(id: $0.id)) }
+                if sort == .workspace {
+                    WorkspaceHeader(title: group.title, canStart: sessions.canStart)
+                } else {
+                    Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).selectionDisabled()
+                }
+                ForEach(group.rows, id: \.id) { SessionRowView(row: $0, showsWorkspace: sort != .workspace).tag(Selection.session(id: $0.id)) }
             }
+        }
+    }
+}
+
+/// The popover of the three-dots button: the orders of the list, the current one ticked. The choice is remembered.
+private struct SortMenu: View {
+    @Binding var sort: SessionSort
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Sort sessions").font(.headline).padding(.bottom, 4)
+            ForEach(SessionSort.allCases, id: \.self) { option in
+                Button {
+                    sort = option
+                    SidebarStore().sessionSort = option
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark").opacity(sort == option ? 1 : 0)
+                        Text(option.title)
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(sort == option ? .isSelected : [])
+            }
+        }
+        .padding(12)
+        .frame(minWidth: 180, alignment: .leading)
+    }
+}
+
+private extension SessionSort {
+    var title: String {
+        switch self {
+        case .workspace: "By workspace"
+        case .age: "By age"
+        case .status: "By status"
         }
     }
 }
@@ -80,13 +125,15 @@ private struct WorkspaceHeader: View {
 
 private struct SessionRowView: View {
     let row: SessionRow
+    /// Outside the workspace order the group is not the workspace, so the second line says it.
+    let showsWorkspace: Bool
 
     var body: some View {
         HStack(spacing: 10) {
             SessionGlyph(state: row.state)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.title).font(.system(size: 12)).lineLimit(1).truncationMode(.tail)
-                Text(row.agent).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(showsWorkspace ? "\(row.workspace) · \(row.agent)" : row.agent).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
             Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)

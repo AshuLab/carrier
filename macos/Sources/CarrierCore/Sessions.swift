@@ -45,13 +45,37 @@ public struct Sessions: Equatable {
     public static let cannotStartReason = "Starting sessions is not available yet"
 }
 
-/// The sessions grouped by workspace: one group per workspace ordered by name ignoring case, each with its rows newest first,
-/// and no archived row.
-public func sessionGroups(_ rows: [SessionRow]) -> [SessionGroup] {
-    let byWorkspace = Dictionary(grouping: rows.filter { $0.archived == false }, by: \.workspace)
-    return byWorkspace
-        .map { SessionGroup(title: $0.key, rows: $0.value.sorted { $0.updatedAt > $1.updatedAt }) }
-        .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+/// How the Sessions list is ordered.
+public enum SessionSort: String, CaseIterable { case workspace, age, status }
+
+/// The sessions in the given order, without the archived ones. By workspace: one group per workspace ordered by name ignoring
+/// case. By age: Today, Yesterday, Last 7 days and Older, counted from the start of today in `calendar`. By status: Waiting for
+/// you, Working, Idle and Done. Empty groups are left out and the rows of a group are newest first. `query` is not applied yet (#416).
+public func sessionGroups(_ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", now: Date = Date(), calendar: Calendar = .current) -> [SessionGroup] {
+    let listed = rows.filter { $0.archived == false }
+    func group(_ title: String, _ rows: [SessionRow]) -> SessionGroup? {
+        rows.isEmpty ? nil : SessionGroup(title: title, rows: rows.sorted { $0.updatedAt > $1.updatedAt })
+    }
+    switch sort {
+    case .workspace:
+        return Dictionary(grouping: listed, by: \.workspace)
+            .compactMap { group($0.key, $0.value) }
+            .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    case .age:
+        let today = calendar.startOfDay(for: now)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+        let week = calendar.date(byAdding: .day, value: -7, to: today) ?? yesterday
+        let buckets: [(String, (Date) -> Bool)] = [
+            ("Today", { $0 >= today }),
+            ("Yesterday", { $0 >= yesterday && $0 < today }),
+            ("Last 7 days", { $0 >= week && $0 < yesterday }),
+            ("Older", { $0 < week }),
+        ]
+        return buckets.compactMap { title, contains in group(title, listed.filter { contains($0.updatedAt) }) }
+    case .status:
+        let states: [(String, SessionState)] = [("Waiting for you", .waiting), ("Working", .working), ("Idle", .idle), ("Done", .done)]
+        return states.compactMap { title, state in group(title, listed.filter { $0.state == state }) }
+    }
 }
 
 /// The age on the right of a row: "now", "5m", "3h", "2d".

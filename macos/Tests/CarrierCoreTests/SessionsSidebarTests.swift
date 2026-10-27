@@ -30,6 +30,49 @@ private func row(_ id: String, _ workspace: String, minutesAgo: Int = 0, archive
     #expect(groups[0].rows.map(\.id) == ["1"])
 }
 
+// A fixed calendar and clock: midnight is `midnight`, "noon" is 15:00 that day.
+private let utc: Calendar = { var c = Calendar(identifier: .gregorian); c.timeZone = TimeZone(identifier: "UTC")!; return c }()
+private let midnight = Date(timeIntervalSince1970: 20_000 * 86400)
+private let noon = midnight.addingTimeInterval(15 * 3600)
+
+private func at(_ id: String, _ date: Date, state: SessionState = .idle, archived: Bool = false) -> SessionRow {
+    SessionRow(id: id, title: "t\(id)", workspace: "w", agent: "Claude", state: state, updatedAt: date, archived: archived)
+}
+
+private func byAge(_ rows: [SessionRow]) -> [SessionGroup] { sessionGroups(rows, by: .age, now: noon, calendar: utc) }
+
+@Test func ageBucketsBreakAtMidnight() {
+    let groups = byAge([at("after", midnight.addingTimeInterval(1)), at("before", midnight.addingTimeInterval(-1))])
+    #expect(groups.map(\.title) == ["Today", "Yesterday"])
+    #expect(groups.map { $0.rows.map(\.id) } == [["after"], ["before"]])
+}
+
+@Test func ageSevenDaysBackIsTheEdgeOfLast7Days() {
+    let edge = midnight.addingTimeInterval(-7 * 86400)
+    let groups = byAge([at("edge", edge), at("older", edge.addingTimeInterval(-1)), at("yesterdayStart", midnight.addingTimeInterval(-86400))])
+    #expect(groups.map(\.title) == ["Yesterday", "Last 7 days", "Older"])
+    #expect(groups[1].rows.map(\.id) == ["edge"])
+    #expect(groups[2].rows.map(\.id) == ["older"])
+}
+
+@Test func ageGroupsAreNewestFirstWithoutEmptyOnesOrArchivedRows() {
+    let groups = byAge([at("a", noon.addingTimeInterval(-60)), at("b", noon.addingTimeInterval(-10)), at("x", noon, archived: true)])
+    #expect(groups.map(\.title) == ["Today"])
+    #expect(groups[0].rows.map(\.id) == ["b", "a"])
+}
+
+@Test func statusGroupsAreInOrderNewestFirstWithoutEmptyOnesOrArchivedRows() {
+    let rows = [
+        at("done", noon, state: .done), at("idleOld", noon.addingTimeInterval(-90), state: .idle), at("idleNew", noon.addingTimeInterval(-5), state: .idle),
+        at("waiting", noon, state: .waiting), at("gone", noon, state: .working, archived: true),
+    ]
+    let groups = sessionGroups(rows, by: .status, now: noon, calendar: utc)
+    #expect(groups.map(\.title) == ["Waiting for you", "Idle", "Done"])
+    #expect(groups[1].rows.map(\.id) == ["idleNew", "idleOld"])
+    #expect(sessionGroups([], by: .status, now: noon, calendar: utc).isEmpty)
+    #expect(sessionGroups([], by: .age, now: noon, calendar: utc).isEmpty)
+}
+
 @Test func theAgeIsShort() {
     #expect(sessionAge(now.addingTimeInterval(-5), now: now) == "now")
     #expect(sessionAge(now.addingTimeInterval(-300), now: now) == "5m")

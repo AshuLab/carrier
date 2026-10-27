@@ -22,16 +22,6 @@ Two things the probe cannot see: how it looks (the machine gives no screen-recor
 
 Not a limit of the native list but the reason this was a question: the `.inspector` loop the app hit is about the right panel, which the app already replaced with its own. The prototype has no inspector. As a check that the list adds no layout loop of its own, the probe resizes the window between 1100 and 1400 wide and folds and unfolds Sessions at the same time, 40 rounds: it survived, with no AppKit message.
 
-## Decision
-
-The sidebar is built on the native `List(.sidebar)`, not on a list of our own. Nothing in the five things needed to leave it; the two rough edges (the card's double fill, the footer's hand-drawn highlight) are small and known, and a list of our own would mean redoing the sidebar's material, selection, keyboard navigation, scrolling under the title bar and the collapse with the toggle, which the native one gives for free. What the following tickets build on:
-
-- Card: one tagged row (`SpikeCard`) with `listRowBackground(.clear)` and its own grey fill, drawn only while it is not selected so it does not stack on the system's pill; the epics are rows after it while it is open.
-- Fold: rows that exist while the section is open, driven by `WindowShell.open`, with the chevron a plain button of ours; not `Section(isExpanded:)`, whose header cannot be selected.
-- Icon-button row: a tagged `HStack` of a label and plain 22-point buttons that have `.help`, an accessibility label and a `contentShape`; the spec's row selects, the buttons do not.
-- Popover: `.popover(isPresented:)` on the button that opens it, arrow on the trailing edge.
-- Selection: one `List(selection:)` over the plain `Selection` of the spec, a single setter that also sets the open section, and Settings as a footer button with its own highlight, as `SidebarFooterRow` does today.
-
 ## The prototype
 
 `spike-sidebar/` is a SwiftPM package of its own, outside `macos/Package.swift`, so no shipping target builds it.
@@ -52,3 +42,13 @@ The probe needs the window in front; when it is not key (another app took the fo
 ```
 
 Run that way it exited 0 and printed `column: x 0 width 268` and `column: x 0 width 1100`, so no column wider than 1100, with the rest of the structure as without it (min content size 1100 x 600, the epic's scroll pocket, the toolbar, `transcript: lazy stack, pinned section headers`). The temporary edit was taken out again; the shipping app is untouched.
+
+## Decision
+
+The sidebar is built on the native `List(.sidebar)`, not on a list of our own. Nothing in the five things needed to leave it; the two rough edges (the card's double fill, the footer's hand-drawn highlight) are small and known, and a list of our own would mean redoing the sidebar's material, selection, keyboard navigation, scrolling under the title bar and the collapse with the toggle, which the native one gives for free. What the following tickets build on:
+
+- Card: one tagged row (`SpikeCard`) with `listRowBackground(.clear)` and its own grey fill, drawn only while it is not selected so it does not stack on the system's pill; the epics are rows after it while it is open.
+- Fold: rows that exist while the section is open, driven by `WindowShell.open`, with the chevron a plain button of ours; not `Section(isExpanded:)`, whose header cannot be selected.
+- Icon-button row: a tagged `HStack` of a label and plain 22-point buttons that have `.help`, an accessibility label and a `contentShape`; the spec's row selects, the buttons do not.
+- Popover: `.popover(isPresented:)` on the button that opens it, arrow on the trailing edge.
+- Selection: one `List(selection:)` over the plain `Selection` of the spec, a single setter that also sets the open section, and Settings as a footer button with its own highlight, as `SidebarFooterRow` does today.

@@ -23,6 +23,15 @@ public struct SidebarStore {
         get { defaults.string(forKey: "sidebar.sessionSort").flatMap(SessionSort.init(rawValue:)) ?? .workspace }
         nonmutating set { defaults.set(newValue.rawValue, forKey: "sidebar.sessionSort") }
     }
+
+    /// The unfolded section. Both folded is stored as "none"; a value that is not a section brings back Sessions.
+    public var open: OpenSection? {
+        get {
+            let stored = defaults.string(forKey: "sidebar.open")
+            return stored == "none" ? nil : stored.flatMap(OpenSection.init(rawValue:)) ?? .sessions
+        }
+        nonmutating set { defaults.set(newValue?.rawValue ?? "none", forKey: "sidebar.open") }
+    }
 }
 
 public struct SidebarRow: Equatable {

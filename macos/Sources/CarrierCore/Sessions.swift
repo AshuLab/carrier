@@ -41,6 +41,18 @@ public struct Sessions: Equatable {
         self.canStart = canStart
     }
 
+    /// How many listed sessions wait for the person: archived ones are not counted.
+    public var waiting: Int { rows.filter { $0.state == .waiting && $0.archived == false }.count }
+
+    /// The accessible name of the orange count on the folded Sessions row, nil when nothing waits.
+    public var waitingLabel: String? {
+        switch waiting {
+        case 0: nil
+        case 1: "1 session waiting"
+        default: "\(waiting) sessions waiting"
+        }
+    }
+
     /// Why the + is disabled, for its tooltip.
     public static let cannotStartReason = "Starting sessions is not available yet"
 }

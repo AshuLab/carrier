@@ -36,6 +36,46 @@ import Testing
     #expect(shell.selection == .home && shell.sidebarShown && shell.inspectorShown)
 }
 
+@Test func aNewWindowStartsWithSessionsOpen() { #expect(WindowShell().open == .sessions) }
+
+@Test func eachSelectionSetsOrKeepsTheOpenSection() {
+    let shell = WindowShell()
+    for (next, opens) in [
+        (Selection.carrier, OpenSection.carrier), (.sessions, .sessions), (.epic(repo: "acme/web", issue: 7), .carrier), (.session(id: "s1"), .sessions),
+    ] {
+        shell.open = nil
+        shell.selection = next
+        #expect(shell.open == opens)
+    }
+    for (kept, next) in [(OpenSection.carrier as OpenSection?, Selection.home), (.sessions, .archive), (nil, .settings), (.carrier, .settings)] {
+        shell.open = kept
+        shell.selection = next
+        #expect(shell.open == kept)
+    }
+}
+
+@Test func foldingTheOpenSectionLeavesBothFoldedAndOpeningOneFoldsTheOther() {
+    let shell = WindowShell()
+    shell.open = nil
+    #expect(shell.open == nil)
+    shell.selection = .carrier
+    #expect(shell.open == .carrier)
+    shell.selection = .sessions
+    #expect(shell.open == .sessions)
+}
+
+@Test func resetOpensTheGivenSectionOrSessions() {
+    let shell = WindowShell(open: .carrier)
+    #expect(shell.open == .carrier)
+    shell.selection = .sessions
+    shell.reset()
+    #expect(shell.open == .sessions)
+    shell.reset(open: nil)
+    #expect(shell.open == nil)
+    shell.reset(open: .carrier)
+    #expect(shell.open == .carrier && shell.selection == .home)
+}
+
 @Test func escapeAndAClickOutsideCloseTheAboutSheetButAClickOnItDoesNot() {
     let shell = WindowShell()
     shell.selection = .epic(repo: "acme/web", issue: 7)

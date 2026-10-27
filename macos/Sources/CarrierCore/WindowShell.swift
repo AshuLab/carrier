@@ -14,14 +14,28 @@ public enum Selection: Hashable {
     case settings
 }
 
+/// Which of the Sessions section and the Carrier card is unfolded; the other shows its summary.
+public enum OpenSection: String { case sessions, carrier }
+
 @Observable public final class WindowShell {
-    public var selection: Selection = .home
+    /// Choosing a session or the Sessions home opens Sessions, an epic or the Carrier home opens the card; the rest leave it.
+    public var selection: Selection = .home {
+        didSet {
+            switch selection {
+            case .sessions, .session: open = .sessions
+            case .carrier, .epic: open = .carrier
+            case .home, .archive, .settings: break
+            }
+        }
+    }
+    /// The unfolded section; nil when both are folded.
+    public var open: OpenSection?
     public var sidebarShown = true
     public var inspectorShown = true
     /// The About sheet is over the window; the selection underneath stays.
     public var aboutShown = false
 
-    public init() {}
+    public init(open: OpenSection? = .sessions) { self.open = open }
 
     public func toggleSidebar() { sidebarShown.toggle() }
     public func toggleInspector() { inspectorShown.toggle() }
@@ -33,8 +47,9 @@ public enum Selection: Hashable {
     }
 
     /// Back to how a freshly opened window starts.
-    public func reset() {
+    public func reset(open: OpenSection? = .sessions) {
         selection = .home
+        self.open = open
         sidebarShown = true
         inspectorShown = true
         aboutShown = false

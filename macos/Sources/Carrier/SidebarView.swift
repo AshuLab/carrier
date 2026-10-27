@@ -7,9 +7,10 @@ struct SidebarView: View {
     let state: ConnectionState?
     let sessions: Sessions
     @Binding var selection: Selection
+    /// Which of Sessions and the Carrier card is unfolded, nil when both are folded.
+    @Binding var open: OpenSection?
     @Binding var groupBy: GroupBy
     @Binding var collapse: SidebarCollapse
-    @State private var sessionsOpen = true
     /// The card's search: not remembered between launches.
     @State private var searching = false
     @State private var query = ""
@@ -18,7 +19,7 @@ struct SidebarView: View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
         List(selection: list) {
             Label("Home", systemImage: "house").tag(Selection.home)
-            SessionsRows(sessions: sessions, open: $sessionsOpen)
+            SessionsRows(sessions: sessions, open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }))
             // its own row, outside Sessions, so folding Sessions does not hide it
             let archived = archivedCount(sessions.rows)
             HStack {
@@ -29,10 +30,10 @@ struct SidebarView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Archive, \(archived)")
             .tag(Selection.archive)
-            CarrierCard(state: state, selected: selection == .carrier, groupBy: $groupBy, searching: $searching, query: $query)
+            CarrierCard(state: state, selected: selection == .carrier, unfolded: open == .carrier, groupBy: $groupBy, searching: $searching, query: $query)
                 .tag(Selection.carrier)
                 .listRowBackground(Color.clear)
-            if let snapshot {
+            if let snapshot, open == .carrier {
                 let groups = sidebarGroups(snapshot, by: groupBy, query: query)
                 if groups.isEmpty && query.isEmpty == false {
                     Text("No epics match").foregroundStyle(.secondary).selectionDisabled()
@@ -70,6 +71,8 @@ struct SidebarView: View {
 private struct CarrierCard: View {
     let state: ConnectionState?
     let selected: Bool
+    /// Folded, the card is its state, slots and counters; unfolded, it also has the search and the grouping menu, and the epics follow.
+    let unfolded: Bool
     @Binding var groupBy: GroupBy
     @Binding var searching: Bool
     @Binding var query: String
@@ -87,7 +90,7 @@ private struct CarrierCard: View {
                     .background(Capsule().fill(Self.tint(card.kind).opacity(0.18)))
                 Spacer(minLength: 0)
                 // the epics exist only while Carrier answers, so there is nothing to search or group before
-                if snapshot != nil {
+                if snapshot != nil && unfolded {
                     IconButton(icon: "magnifyingglass", name: searching ? "Close epic search" : "Search epics") {
                         searching.toggle()
                         if searching { searchFocused = true } else { query = "" }
@@ -96,7 +99,7 @@ private struct CarrierCard: View {
                         .popover(isPresented: $groupMenu, arrowEdge: .trailing) { GroupByMenu(groupBy: $groupBy, close: { groupMenu = false }) }
                 }
             }
-            if searching {
+            if searching && unfolded {
                 TextField("Search epics", text: $query)
                     .textFieldStyle(.roundedBorder)
                     .focused($searchFocused)

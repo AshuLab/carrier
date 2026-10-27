@@ -18,6 +18,8 @@ public struct SessionsReply: Codable, Equatable {
         public var resume: ResumeDescriptor?
         /// What the agent reported when it ended; nil while no result was imported, and for an engine that does not send it.
         public var result: SessionResult?
+        /// Why the execution ended badly; nil when it has no failure kind, and for an engine that does not send it.
+        public var failure: SessionFailure?
     }
 
     /// Newest first.
@@ -37,6 +39,17 @@ public struct SessionResult: Codable, Equatable {
     public var verification: Verification?
     /// needs_human only.
     public var reason: String?
+}
+
+/// The engine has already redacted the detail and cut it to 300 characters. The host numbers are only for killed, crashed and unknown.
+public struct SessionFailure: Codable, Equatable {
+    /// `usage_limit`, `killed`, ...; a kind added later still shows.
+    public var kind: String
+    public var detail: String
+    public var exitCode: Int?
+    public var signal: String?
+    public var hostFreeMemMb: Int?
+    public var hostLoad: Double?
 }
 
 /// Not yet validated: the app checks it before it builds a command (ADR 0007).

@@ -185,6 +185,11 @@ struct SessionHeaderView: View {
                 CountPills(counts: section.counts ?? SessionCounts()).opacity(section.counts != nil ? 1 : 0)
             }
             Spacer(minLength: 8)
+            if let failure = section.failure {
+                // the detail can run to 300 characters: one line, cut at the end, whole in the tooltip
+                Text(failure).font(.caption).foregroundStyle(.red).lineLimit(1).truncationMode(.tail)
+                    .frame(maxWidth: 220, alignment: .trailing).help(failure)
+            }
             if section.state == .stopped {
                 Text("stopped").font(.caption.weight(.medium)).foregroundStyle(.orange)
                     .padding(.horizontal, 8).padding(.vertical, 2).background(Capsule().fill(Color.orange.opacity(0.18)))

@@ -133,3 +133,13 @@ private func found(_ rows: [SessionRow], _ query: String) -> [String] {
     let rows = [row("1", "dotfiles", title: "a"), row("2", "dotfiles", title: "b", minutesAgo: 3), row("3", "web", title: "c")]
     #expect(found(rows, "dotf") == ["1", "2"])
 }
+
+@Test func theWaitingCountIsTheListedSessionsThatWaitAndItsNameSaysSo() {
+    func sessions(_ rows: [SessionRow]) -> Sessions { Sessions(rows: rows) }
+    #expect(sessions([]).waiting == 0 && sessions([]).waitingLabel == nil)
+    #expect(sessions([at("a", noon, state: .working), at("b", noon, state: .idle)]).waitingLabel == nil)
+    let one = sessions([at("a", noon, state: .waiting), at("b", noon, state: .done)])
+    #expect(one.waiting == 1 && one.waitingLabel == "1 session waiting")
+    let two = sessions([at("a", noon, state: .waiting), at("b", noon, state: .waiting), at("c", noon, state: .waiting, archived: true)])
+    #expect(two.waiting == 2 && two.waitingLabel == "2 sessions waiting")
+}

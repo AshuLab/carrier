@@ -25,6 +25,13 @@ struct SessionsRows: View {
             HStack(spacing: 4) {
                 Label("Sessions", systemImage: "bubble.left.and.bubble.right")
                 Spacer(minLength: 0)
+                // folded, the row says how many sessions wait for the person
+                if open == false, let label = sessions.waitingLabel {
+                    Text("\(sessions.waiting)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 1)
+                        .background(Capsule().fill(Color.orange))
+                        .accessibilityLabel(label)
+                }
             }
             .contentShape(Rectangle())
             .simultaneousGesture(TapGesture().onEnded { open = true })

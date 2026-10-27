@@ -161,6 +161,21 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(SidebarStore(defaults: defaults).sessionSort == .workspace)
 }
 
+@Test func theOpenSectionSurvivesARelaunchAndANonsenseValueGivesSessions() {
+    let name = "carrier-sidebar-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+    #expect(SidebarStore(defaults: defaults).open == .sessions)
+    SidebarStore(defaults: defaults).open = .carrier
+    #expect(SidebarStore(defaults: defaults).open == .carrier)
+    SidebarStore(defaults: defaults).open = nil
+    #expect(SidebarStore(defaults: defaults).open == nil)
+    SidebarStore(defaults: defaults).open = .sessions
+    #expect(defaults.string(forKey: "sidebar.open") == "sessions")
+    defaults.set("nonsense", forKey: "sidebar.open")
+    #expect(SidebarStore(defaults: defaults).open == .sessions)
+}
+
 @Test func selectingARowCarrierOrSettingsUpdatesTheSelection() throws {
     let shell = WindowShell()
     let row = try #require(sidebarGroups(snapshot([epic("acme/web", 4)]), by: .status)[1].rows.first)

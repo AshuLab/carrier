@@ -6,7 +6,7 @@ import SwiftUI
 /// What the window shows: nil until the first answer from Carrier.
 @Observable final class PanelModel {
     var state: ConnectionState?
-    let shell = WindowShell()
+    let shell = WindowShell(open: SidebarStore().open)
     let epics = EpicStore()
     var groupBy = SidebarStore().groupBy
     var collapse = SidebarCollapse()
@@ -145,7 +145,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         stop?.set()
         stop = nil
         model.state = nil
-        model.shell.reset()
+        model.shell.reset(open: SidebarStore().open)
     }
 
     private func startMonitor() {

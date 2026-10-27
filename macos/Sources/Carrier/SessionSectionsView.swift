@@ -183,6 +183,10 @@ struct SessionHeaderView: View {
                 .lineLimit(1)
                 // with no counts yet the row is still there, unseen, so the header does not grow when they arrive
                 CountPills(counts: section.counts ?? SessionCounts()).opacity(section.counts != nil ? 1 : 0)
+                // a failed session gets its own line, so the detail (up to 300 characters) is not squeezed by the badge and the chevron: two lines, cut at the end, whole in the tooltip
+                if let failure = section.failure {
+                    Text(failure).font(.caption).foregroundStyle(.red).lineLimit(2).truncationMode(.tail).help(failure)
+                }
             }
             Spacer(minLength: 8)
             if section.state == .stopped {

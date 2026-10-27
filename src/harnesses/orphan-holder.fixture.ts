@@ -3,9 +3,9 @@
 import type { AgentTask } from '../execution/agent-runner.ts';
 import { HostAgentRunner } from './host-runner.ts';
 
-const [binary, workspace, harness = 'claude'] = process.argv.slice(2) as [string, string, AgentTask['harness']?];
+const [binary, workspace, harness = 'claude', executionId = `orphan-${harness}`] = process.argv.slice(2) as [string, string, AgentTask['harness']?, string?];
 const task: AgentTask = {
-  executionId: `orphan-${harness}`,
+  executionId,
   repo: 'AshuLab/carrier',
   epic: 3,
   stage: 'ship',

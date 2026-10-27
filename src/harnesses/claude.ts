@@ -33,7 +33,8 @@ export function buildClaudeCommand(task: AgentTask, ctx: CommandContext): AgentC
 
 // Shapes observed with claude 2.1.301: init carries the session; a login or key error is an assistant
 // message with error "authentication_failed" and a result with api_error_status 401; a lost session is
-// a result "error_during_execution" saying "No conversation found".
+// a result "error_during_execution" saying "No conversation found"; an API error is a result with a numeric
+// api_error_status (429 with api_error "usage_limit_reached" is the session limit) and the message in result.
 export function parseClaudeLine(line: string): LineSignal | undefined {
   let event: Record<string, unknown>;
   try {
@@ -46,6 +47,11 @@ export function parseClaudeLine(line: string): LineSignal | undefined {
   if (event.type === 'result') {
     if (event.api_error_status === 401) return { authFailed: true };
     if (event.is_error === true && JSON.stringify(event.errors ?? '').includes('No conversation found')) return { sessionUnavailable: true };
+    if (event.is_error === true && typeof event.api_error_status === 'number') {
+      const text = typeof event.result === 'string' ? event.result : '';
+      if (event.api_error_status === 429 && event.api_error === 'usage_limit_reached') return { failure: { kind: 'usage_limit', detail: text } };
+      return { failure: { kind: 'api_error', detail: `HTTP ${event.api_error_status}${text ? `: ${text}` : ''}` } };
+    }
   }
   return undefined;
 }

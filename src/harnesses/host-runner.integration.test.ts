@@ -19,6 +19,8 @@ const fakeBinary = join(import.meta.dirname, 'fake-claude.fixture.mjs');
 const fakeCodex = join(import.meta.dirname, 'fake-codex.fixture.mjs');
 const holder = join(import.meta.dirname, 'orphan-holder.fixture.ts');
 let dir: string;
+// Ids carry this process's pid, so a second run of this file (another worktree, another agent) never shares them.
+const idOf = (name: string) => `it-${process.pid}-${name}`;
 const tokens: Record<string, string> = { 'author-bot': 'ghs_AUTHOR_TOKEN', 'reviewer-bot': 'ghs_REVIEWER_TOKEN' };
 const runner = new HostAgentRunner({
   binaries: { claude: fakeBinary, codex: fakeCodex },
@@ -33,7 +35,7 @@ const taskIn = (name: string, over: Partial<AgentTask> = {}): AgentTask => {
   const workspace = join(dir, name);
   mkdirSync(workspace, { recursive: true });
   return {
-    executionId: `it-${name}`,
+    executionId: idOf(name),
     repo: 'AshuLab/carrier',
     epic: 3,
     stage: 'ship',
@@ -62,7 +64,8 @@ beforeAll(() => {
   chmodSync(fakeCodex, 0o755);
 });
 afterAll(async () => {
-  for (const id of await runner.listActive()) await runner.stop(id);
+  // Only the agents this run started: `listActive` reads every `carrier-exec-` process of the machine, the one running this test included.
+  for (const id of await runner.listActive()) if (id.startsWith(idOf(''))) await runner.stop(id);
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -117,8 +120,48 @@ describe('host runner with a fake claude binary', () => {
     expect(rows.find((row) => row.callId === 'toolu_edit' && row.kind === 'tool_end')?.payload?.diff).toHaveLength(3);
   });
 
-  test('a nonzero exit is failed', async () => {
-    expect((await runner.run(taskIn('fail', { model: 'fail' })).done).exit).toBe('failed');
+  const hostClues = { hostFreeMemMb: expect.any(Number), hostLoad: expect.any(Number) };
+
+  test('a nonzero exit is crashed, with the code and the host', async () => {
+    expect(await runner.run(taskIn('fail', { model: 'fail' })).done).toMatchObject({
+      exit: 'failed',
+      failure: { kind: 'crashed', detail: 'exit code 3', exitCode: 3, signal: null, ...hostClues },
+    });
+  });
+
+  test('a process that kills itself with SIGKILL is killed, with the signal and the host', async () => {
+    const { exit, failure } = await runner.run(taskIn('kill', { model: 'kill' })).done;
+    expect(exit).toBe('failed');
+    expect(failure).toEqual({ kind: 'killed', detail: 'SIGKILL', exitCode: null, signal: 'SIGKILL', hostFreeMemMb: expect.any(Number), hostLoad: expect.any(Number) });
+    expect(failure!.hostFreeMemMb).toBeGreaterThan(0);
+  });
+
+  test('a usage limit printed by claude is usage_limit and not crashed, with the exit code', async () => {
+    expect(await runner.run(taskIn('usage-limit', { model: 'usage_limit' })).done).toEqual({
+      exit: 'failed',
+      sessionId: expect.any(String),
+      failure: { kind: 'usage_limit', detail: "You've hit your session limit · resets 12:40pm (America/Montevideo)", exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null },
+    });
+  });
+
+  test('a binary that does not exist is spawn_error, without host clues', async () => {
+    const missing = new HostAgentRunner({ binaries: { claude: join(dir, 'no-such-binary') }, credentials: async () => ({ githubToken: 't' }) });
+    const run = missing.run(taskIn('missing'));
+    const seen = observe(run);
+    expect(await run.done).toMatchObject({
+      exit: 'failed',
+      failure: { kind: 'spawn_error', exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null },
+    });
+    expect(seen.output).toContain('cannot start');
+  });
+
+  test('a token in the final output, or in the path of a binary, is in no part of the failure', async () => {
+    const token = `ghp_${'a'.repeat(36)}`;
+    const crashed = await runner.run(taskIn('token', { model: 'token' })).done;
+    const missing = new HostAgentRunner({ binaries: { claude: join(dir, 'p'.repeat(265 - dir.length), token) }, credentials: async () => ({ githubToken: 't' }) });
+    const spawnFailed = await missing.run(taskIn('token-path')).done;
+    expect(spawnFailed.failure!.kind).toBe('spawn_error');
+    for (const { failure } of [crashed, spawnFailed]) expect(JSON.stringify(failure)).not.toMatch(/ghp_|aaaa/);
   });
 
   test('two parallel runs with different profiles do not share the GitHub token, and it is not in the output', async () => {
@@ -142,7 +185,7 @@ describe('host runner with a fake claude binary', () => {
     await run.stop();
     expect(await run.done).toMatchObject({ exit: 'stopped' });
     expect(() => process.kill(pid, 0)).toThrow();
-    expect(await runner.listActive()).not.toContain('it-stop');
+    expect(await runner.listActive()).not.toContain(idOf('stop'));
   });
 
   test('timeoutMs gives timed_out', async () => {
@@ -168,10 +211,10 @@ describe('host runner with a fake claude binary', () => {
     ['claude', fakeBinary],
     ['codex', fakeCodex],
   ] as const)('listActive sees a %s execution orphaned by kill -9 of its carrier, and stop(id) ends it', async (harness, binary) => {
-    const id = `orphan-${harness}`;
+    const id = idOf(`orphan-${harness}`);
     const workspace = join(dir, id);
     mkdirSync(workspace);
-    const carrier = spawn(process.execPath, [holder, binary, workspace, harness], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const carrier = spawn(process.execPath, [holder, binary, workspace, harness, id], { stdio: ['ignore', 'pipe', 'inherit'] });
     await new Promise<void>((resolve, reject) => {
       carrier.stdout.on('data', (d: Buffer) => d.toString().includes('ready') && resolve());
       carrier.on('exit', () => reject(new Error('holder exited before ready')));
@@ -236,11 +279,11 @@ describe('host runner with a fake codex binary', () => {
     const seen = observe(run);
     await expect.poll(() => seen.sessions.length).toBe(1);
     const pid = Number(seen.sessions[0]!.replace('session-', ''));
-    expect(await runner.listActive()).toContain('it-codex-stop');
+    expect(await runner.listActive()).toContain(idOf('codex-stop'));
     await run.stop();
     expect(await run.done).toMatchObject({ exit: 'stopped' });
     expect(() => process.kill(pid, 0)).toThrow();
-    expect(await runner.listActive()).not.toContain('it-codex-stop');
+    expect(await runner.listActive()).not.toContain(idOf('codex-stop'));
   });
 
   test('timeoutMs gives timed_out', async () => {

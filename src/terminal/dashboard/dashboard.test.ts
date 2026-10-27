@@ -227,6 +227,7 @@ const session = (stage: 'ship' | 'review' | 'fix', minutesAgo: number, tookMin: 
   finishedAt: tookMin === null ? null : now - (minutesAgo - tookMin) * 60_000,
   resume: null,
   result: outcome === null ? null : { outcome, summary: 's', verification: null, reason: null },
+  failure: null,
   ...over,
 });
 const history = [session('fix', 2, null, null, { round: 1 }), session('review', 18, 4, 'changes_requested', { round: 1 }), session('ship', 32, 14, 'completed')];
@@ -244,6 +245,13 @@ test('a stage with no result shows no outcome, and a needs_human one says so', (
   const failed = [session('ship', 10, null, null), session('ship', 20, 5, null, { status: 'failed' }), session('ship', 30, 5, 'needs_human')];
   const out = renderDashboard(snap({ epics: [epic()] }), { color: false, detail: () => failed }).join('\n');
   expect(out).toContain('┃ ship ▲ needs you 5m 00s · ship 5m 00s · [ship] 10m 00s\n');
+});
+
+test('a failed stage shows its kind where a completed one shows its outcome, and one with no kind is drawn as before', () => {
+  const failure = { kind: 'killed' as const, detail: 'SIGKILL', exitCode: null, signal: 'SIGKILL', hostFreeMemMb: null, hostLoad: null };
+  const failed = [session('ship', 10, null, null), session('ship', 20, 5, null, { status: 'failed' }), session('ship', 30, 4, null, { status: 'failed', failure })];
+  const out = renderDashboard(snap({ epics: [epic()] }), { color: false, detail: () => failed }).join('\n');
+  expect(out).toContain('┃ ship ✗ killed 4m 00s · ship 5m 00s · [ship] 10m 00s\n');
 });
 
 test('the provider is asked once per epic while its snapshot is unchanged, and again only for the epic that changed', () => {

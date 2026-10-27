@@ -13,6 +13,12 @@ private func session(
     )
 }
 
+private func failed(_ failure: SessionFailure?) -> SessionsReply.Session {
+    var session = session("f", "ship", status: "failed")
+    session.failure = failure
+    return session
+}
+
 private func reply(_ sessions: SessionsReply.Session...) -> SessionsReply { SessionsReply(sessions: sessions) }
 
 private func call(_ id: Int, _ callId: String, _ tool: String, arg: String? = nil, status: String = "ok", diff: [(String, String)] = []) -> [ExecEvent] {
@@ -97,6 +103,19 @@ func otherCommandsAreNot(command: String) {
 @Test func whenEverySessionIsFinishedTheNewestIsOpen() {
     let list = sessionList(reply(session("c", "review", round: 1, status: "finished"), session("b", "ship", status: "finished")))
     #expect(list.sections.map(\.openByDefault) == [false, true])
+}
+
+@Test func aFailedSessionSaysItsKindAndDetailAndOneWithNoFailureSaysNothing() {
+    let killed = SessionFailure(kind: "killed", detail: "SIGKILL", exitCode: nil, signal: "SIGKILL", hostFreeMemMb: 812, hostLoad: 6.4)
+    #expect(sessionList(reply(failed(killed))).sections[0].failure == "killed: SIGKILL")
+    #expect(sessionList(reply(failed(SessionFailure(kind: "unknown", detail: "", exitCode: 1)))).sections[0].failure == "unknown")
+    // the same session with no failure, as an engine from before sends it, is the section it always was
+    let plain = sessionList(reply(failed(nil))).sections[0]
+    #expect(plain.failure == nil)
+    var withFailure = sessionList(reply(failed(killed))).sections[0]
+    withFailure.failure = nil
+    #expect(withFailure == plain)
+    #expect(sessionList(reply(session("ok", "ship", status: "finished"))).sections[0].failure == nil)
 }
 
 @Test func aShipSessionIsTheBuilderAndHasNoRound() {

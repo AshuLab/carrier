@@ -10,11 +10,12 @@ import { createEngine } from './engine.ts';
 import type { ResumeRefused } from './resume-refused.ts';
 import { reserve } from './reserve.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
-import type { AgentTask } from '../execution/agent-runner.ts';
+import type { AgentFailure, AgentTask } from '../execution/agent-runner.ts';
 import { lastEventOf } from '../control/events.ts';
 import { buildSnapshot } from '../status/snapshot.ts';
 import { epicEvents, executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
+import { failureStreak } from './retry.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { FakeClock, FakeGitHub } from './fake.ts';
 import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread } from './github.ts';
@@ -646,12 +647,85 @@ test('with maxExecutionRetries 3 there are four attempts, then the epic needs a 
   expect(executionsOf(engine.db).filter((e) => e.epicId === 1).map((e) => e.status)).toEqual(['failed', 'failed', 'failed', 'failed']);
   expect(eventsOf(engine.db).map((e) => e.data.attempt)).toEqual([2, 3, 4]);
   expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'retries_exhausted', round: null, finishedAt: 5 * MIN });
-  expect(rows(engine.db)[0]?.needsHumanReason).toBe('ran out of ship retries (4 attempts): the agent process ended with an error');
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe('ran out of ship retries (4 attempts): the agent process ended with an error (crashed: exit code 1)');
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 
   await clock.advance(5 * MIN);
   expect(runner.tasks.filter((t) => t.epic === 1)).toHaveLength(4);
+});
+
+const killedBy: AgentFailure = { kind: 'killed', detail: 'SIGKILL', exitCode: null, signal: 'SIGKILL', hostFreeMemMb: 1234, hostLoad: 2.5 };
+
+test('a killed execution stores its failure, names the kind in the epic error, and the exhausted reason quotes it', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed', failure: killedBy });
+  const engine = await start(1, repos, 4, 0);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  const text = 'the agent process ended with an error (killed: SIGKILL)';
+  expect(executionsOf(engine.db)[0]).toMatchObject({
+    status: 'failed', error: text, failureKind: 'killed', failureDetail: 'SIGKILL', exitCode: null, signal: 'SIGKILL', hostFreeMemMb: 1234, hostLoad: 2.5,
+  });
+  expect(rows(engine.db)[0]).toMatchObject({ lastError: text, status: 'needs_human', needsHumanKind: 'retries_exhausted' });
+  expect(rows(engine.db)[0]?.needsHumanReason).toContain(text);
+});
+
+test('a failed end the runner gave no failure for is stored as unknown, with no dangling colon', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed', failure: undefined });
+  const engine = await start(1, repos, 4, 0);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'failed', error: 'the agent process ended with an error (unknown)', failureKind: 'unknown', failureDetail: '' });
+});
+
+test('an execution that ends ok, and one that Carrier stops, leave every failure column null', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(statuses(engine.db)).toContain('finished');
+  expect(statuses(engine.db)).toContain('interrupted');
+  for (const row of executionsOf(engine.db)) expect(row).toMatchObject({ failureKind: null, failureDetail: null, exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null });
+});
+
+const noProcess = { exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null };
+
+const endKinds = [
+  ['auth_failed', 'failed', 'auth', 'profile a', 'authentication error for profile a'],
+  ['session_unavailable', 'failed', 'session_lost', 'the agent session is not available', 'the agent session is not available'],
+  ['timed_out', 'timed_out', 'timeout', 'exceeded 4 h', null],
+] as const;
+
+test.each(endKinds)('%s records its kind and a detail on the execution, with the error it already had', async (exit, status, kind, detail, error) => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => (task.resumeSession ? { exit: 'hang' } : { sessionId: 's', exit });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status, failureKind: kind, failureDetail: detail, error, ...noProcess });
+});
+
+test('a timed-out execution does not count in the retry streak', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'timed_out', failureKind: 'timeout', failureDetail: 'exceeded 4 h' });
+  expect(failureStreak(db, 1)).toEqual([]);
+});
+
+test('a lost session is rebuilt because of its kind, whatever the error text says', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'failed', error: 'some other words', failureKind: 'session_lost', failureDetail: 'gone' });
+  pull(50);
+  await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(1));
+  expect(runner.tasks[0]!.resumeSession).toBeUndefined();
+  expect(eventTypes(db)).toEqual(['session_rebuilt']);
 });
 
 test('maxExecutionRetries 0 means a single attempt', async () => {
@@ -1001,7 +1075,7 @@ test('last activity is written from the first output and then at most once every
       onSession() {},
       onOutput: (cb) => void (emit = cb),
       onEvent() {},
-      done: new Promise((resolve) => (finish = (exit) => resolve({ exit }))),
+      done: new Promise((resolve) => (finish = (exit) => resolve(exit === 'failed' ? { exit, failure: { ...killedBy, kind: 'crashed', detail: 'exit code 1', exitCode: 1, signal: null } } : { exit }))),
       stop: async () => {},
     };
   };
@@ -1022,7 +1096,7 @@ test('last activity is written from the first output and then at most once every
 
   finish('failed');
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(2)); // the retry
-  expect(row()).toMatchObject({ lastError: 'the agent process ended with an error', stage: 'ship', stageStartedAt: 5 * MIN });
+  expect(row()).toMatchObject({ lastError: 'the agent process ended with an error (crashed: exit code 1)', stage: 'ship', stageStartedAt: 5 * MIN });
 });
 
 test('an invalid result is a retried failure; importing the next result clears the last error and starts the review stage', async () => {
@@ -1036,7 +1110,8 @@ test('an invalid result is a retried failure; importing the next result clears t
   await engine.idle();
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'ship', 'review']);
   expect(rows(engine.db)[0]).toMatchObject({ stage: 'review', stageStartedAt: 5 * MIN, lastError: null });
-  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'invalid_result' });
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'invalid_result', failureKind: 'invalid_result', ...noProcess });
+  expect(executionsOf(engine.db)[0]!.failureDetail).toBe(executionsOf(engine.db)[0]!.error);
 });
 
 // ship -> review (changes_requested up to round `asking`, then it stops) -> fix -> review ...

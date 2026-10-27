@@ -1,13 +1,15 @@
 import { execFile, spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { freemem, loadavg } from 'node:os';
 import { promisify } from 'node:util';
-import type { AgentExit, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
+import type { AgentDone, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
+import { failureDetail } from '../execution/failure.ts';
 import { createEventState, type AgentEvent } from '../execution/events.ts';
 import { claudeAdapter } from './claude.ts';
 import { agyAdapter } from './agy.ts';
 import { codexAdapter } from './codex.ts';
-import { resolveBinary, type AgentCommand, type HarnessAdapter } from './common.ts';
+import { resolveBinary, type AgentCommand, type HarnessAdapter, type LineSignal } from './common.ts';
 
 const exec = promisify(execFile);
 
@@ -46,6 +48,20 @@ function signal(pid: number, sig: NodeJS.Signals) {
       // already gone
     }
   }
+}
+
+const spawnError = (message: string): AgentDone => ({
+  exit: 'failed',
+  failure: { kind: 'spawn_error', detail: failureDetail(message), exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null },
+});
+
+// A failed process: what the exit code and the signal say, and the host at that moment. What the adapter read from the
+// agent's own result names the cause and wins over the symptom; the exit code and the signal are recorded either way.
+function processFailure(code: number | null, signal: NodeJS.Signals | null, adapterFailure: LineSignal['failure']): AgentFailure {
+  if (adapterFailure) return { kind: adapterFailure.kind, detail: failureDetail(adapterFailure.detail), exitCode: code, signal, hostFreeMemMb: null, hostLoad: null };
+  const kind = signal ? 'killed' : code ? 'crashed' : 'unknown';
+  const detail = signal ?? (code ? `exit code ${code}` : 'the process ended without an exit code');
+  return { kind, detail, exitCode: code, signal, hostFreeMemMb: Math.round(freemem() / 1048576), hostLoad: loadavg()[0]! };
 }
 
 const alive = (pid: number) => {
@@ -89,7 +105,7 @@ export class HostAgentRunner implements AgentRunner {
       if (pid !== undefined && !finished) await terminate(pid, graceMs);
     };
 
-    const start = async (): Promise<{ exit: AgentExit; sessionId?: string }> => {
+    const start = async (): Promise<AgentDone> => {
       const adapter = this.options.adapters?.[task.harness] ?? { claude: claudeAdapter, codex: codexAdapter, agy: agyAdapter }[task.harness];
       let credentials;
       try {
@@ -106,14 +122,16 @@ export class HostAgentRunner implements AgentRunner {
         command = adapter.command(task, { binary, baseEnv: process.env, ...credentials });
         mkdirSync(dirname(task.resultPath), { recursive: true });
       } catch (e) {
-        emit('stderr', `carrier: cannot build the ${task.harness} command: ${e instanceof Error ? e.message : String(e)}\n`);
-        return { exit: 'failed' };
+        const message = e instanceof Error ? e.message : String(e);
+        emit('stderr', `carrier: cannot build the ${task.harness} command: ${message}\n`);
+        return spawnError(`cannot build the ${task.harness} command: ${message}`);
       }
       const child = spawn(command.bin, command.args, { cwd: command.cwd, env: command.env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
       pid = child.pid;
 
       let authFailed = false;
       let sessionLost = false;
+      let adapterFailure: LineSignal['failure'];
       const eventState = createEventState();
       // The events of the lines of one chunk, to be reported together; only stdout carries the stream.
       let batch: AgentEvent[] = [];
@@ -126,6 +144,7 @@ export class HostAgentRunner implements AgentRunner {
         }
         authFailed ||= signalOfLine?.authFailed === true;
         sessionLost ||= signalOfLine?.sessionUnavailable === true;
+        adapterFailure ??= signalOfLine?.failure;
       };
       const reportEvents = () => {
         if (batch.length > 0) eventSinks.forEach((cb) => cb(batch));
@@ -159,20 +178,26 @@ export class HostAgentRunner implements AgentRunner {
             reason ??= 'timed_out';
             void kill();
           }, task.timeoutMs);
-      const code = await new Promise<number | null>((resolve) => {
+      let startError: string | undefined;
+      const [code, killedBy] = await new Promise<[number | null, NodeJS.Signals | null]>((resolve) => {
         child.on('error', (e) => {
           emit('stderr', `carrier: cannot start ${command.bin}: ${e.message}\n`);
-          resolve(-1);
+          startError = e.message;
+          resolve([null, null]);
         });
-        child.on('close', resolve);
+        child.on('close', (c, sig) => resolve([c, sig]));
       });
       finished = true;
       clearTimeout(timer);
       out.flush();
       err.flush();
 
-      const exit: AgentExit = reason ?? (authFailed ? 'auth_failed' : sessionLost ? 'session_unavailable' : code === 0 ? 'ok' : 'failed');
-      return { exit, sessionId };
+      if (reason) return { exit: reason, sessionId };
+      if (authFailed) return { exit: 'auth_failed', sessionId };
+      if (sessionLost) return { exit: 'session_unavailable', sessionId };
+      if (startError !== undefined) return { ...spawnError(`cannot start ${command.bin}: ${startError}`), sessionId };
+      if (code === 0) return { exit: 'ok', sessionId };
+      return { exit: 'failed', sessionId, failure: processFailure(code, killedBy, adapterFailure) };
     };
 
     const done = start().finally(() => this.runs.delete(task.executionId));

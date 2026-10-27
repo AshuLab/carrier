@@ -4,9 +4,11 @@ import Testing
 
 private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
-private func row(_ id: String, _ workspace: String, minutesAgo: Int = 0, archived: Bool = false) -> SessionRow {
+private func row(
+    _ id: String, _ workspace: String, title: String? = nil, agent: String = "Claude", minutesAgo: Int = 0, archived: Bool = false
+) -> SessionRow {
     SessionRow(
-        id: id, title: "t\(id)", workspace: workspace, agent: "Claude", state: .idle,
+        id: id, title: title ?? "t\(id)", workspace: workspace, agent: agent, state: .idle,
         updatedAt: now.addingTimeInterval(Double(-60 * minutesAgo)), archived: archived
     )
 }
@@ -45,4 +47,46 @@ private func row(_ id: String, _ workspace: String, minutesAgo: Int = 0, archive
     #expect(Set(listed.map(\.workspace)).count > 1)
     #expect(sample.contains { $0.archived })
     #expect(sessionGroups(sample).flatMap(\.rows).contains { $0.archived } == false)
+}
+
+private func found(_ rows: [SessionRow], _ query: String) -> [String] {
+    sessionGroups(rows, query: query).flatMap(\.rows).map(\.id)
+}
+
+@Test func aQueryMatchesTheTitleTheWorkspaceAndTheAgent() {
+    let rows = [
+        row("title", "a", title: "Fix the login"), row("space", "login-app"), row("agent", "b", agent: "Codex"), row("none", "c"),
+    ]
+    #expect(found(rows, "login") == ["title", "space"])
+    #expect(found(rows, "codex") == ["agent"])
+}
+
+@Test func aQueryIgnoresCase() {
+    let rows = [row("1", "Carrier", title: "Retry the SYNC")]
+    #expect(found(rows, "sync") == ["1"])
+    #expect(found(rows, "CARRIER") == ["1"])
+}
+
+@Test func aQueryGivesOneFlatGroupWithTheActiveFirstAndTheArchivedAfterNewestFirst() {
+    let rows = [
+        row("arch-new", "web", minutesAgo: 1, archived: true), row("old", "web", minutesAgo: 50), row("new", "carrier", minutesAgo: 5),
+        row("arch-old", "web", minutesAgo: 900, archived: true),
+    ]
+    let groups = sessionGroups(rows, query: "t")
+    #expect(groups.count == 1)
+    #expect(groups[0].rows.map(\.id) == ["new", "old", "arch-new", "arch-old"])
+}
+
+@Test func aQueryWithNoMatchGivesNoGroups() { #expect(sessionGroups([row("1", "web")], query: "zzz").isEmpty) }
+
+@Test func anEmptyQueryGivesTheChosenOrder() {
+    let rows = [row("1", "web"), row("2", "web", archived: true), row("3", "carrier")]
+    #expect(sessionGroups(rows, query: "") == sessionGroups(rows))
+    #expect(sessionGroups(rows, query: "  ") == sessionGroups(rows))
+    #expect(sessionGroups(rows, query: "").map(\.title) == ["carrier", "web"])
+}
+
+@Test func aQueryThatMatchesAWorkspaceNameListsItsSessions() {
+    let rows = [row("1", "dotfiles", title: "a"), row("2", "dotfiles", title: "b", minutesAgo: 3), row("3", "web", title: "c")]
+    #expect(found(rows, "dotf") == ["1", "2"])
 }

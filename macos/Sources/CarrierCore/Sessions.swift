@@ -45,9 +45,25 @@ public struct Sessions: Equatable {
     public static let cannotStartReason = "Starting sessions is not available yet"
 }
 
-/// The sessions grouped by workspace: one group per workspace ordered by name ignoring case, each with its rows newest first,
-/// and no archived row.
-public func sessionGroups(_ rows: [SessionRow]) -> [SessionGroup] {
+public enum SessionSort: String, CaseIterable { case workspace, age, status }
+
+/// The sessions in the order `by` gives, or, with a non-empty `query`, one group of the matches. The workspace order: one group per
+/// workspace ordered by name ignoring case, each with its rows newest first, and no archived row. A query matches the title, the
+/// workspace and the agent ignoring case; the active matches come newest first and then the archived ones newest first.
+/// `now` and `calendar` are for the age buckets.
+public func sessionGroups(
+    _ rows: [SessionRow], by: SessionSort = .workspace, query: String = "", now: Date = Date(), calendar: Calendar = .current
+) -> [SessionGroup] {
+    let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    if query.isEmpty == false {
+        let hits = rows.filter {
+            [$0.title, $0.workspace, $0.agent].contains { $0.localizedCaseInsensitiveContains(query) }
+        }
+        let newest: (SessionRow, SessionRow) -> Bool = { $0.updatedAt > $1.updatedAt }
+        let found = hits.filter { $0.archived == false }.sorted(by: newest) + hits.filter(\.archived).sorted(by: newest)
+        return found.isEmpty ? [] : [SessionGroup(title: "Results", rows: found)]
+    }
+    // ponytail: only the workspace order exists; the age and status orders arrive with #415
     let byWorkspace = Dictionary(grouping: rows.filter { $0.archived == false }, by: \.workspace)
     return byWorkspace
         .map { SessionGroup(title: $0.key, rows: $0.value.sorted { $0.updatedAt > $1.updatedAt }) }

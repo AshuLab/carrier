@@ -2,11 +2,14 @@ import CarrierCore
 import SwiftUI
 
 /// The Sessions row and, while `open`, the sessions under it grouped by workspace (or "No sessions yet"). Rows of the sidebar's
-/// list: the row and each session are tagged with a `Selection`; the buttons in them do not select. The search and sort buttons
-/// do nothing yet (#415, #416).
+/// list: the row and each session are tagged with a `Selection`; the buttons in them do not select. The magnifier opens a search field
+/// under the row; the sort button does nothing yet (#415).
 struct SessionsRows: View {
     let sessions: Sessions
     @Binding var open: Bool
+    /// The search field's text while it is open, nil while it is closed; not remembered between launches.
+    @State private var query: String?
+    @FocusState private var searching: Bool
 
     var body: some View {
         HStack(spacing: 4) {
@@ -23,19 +26,45 @@ struct SessionsRows: View {
             }
             .contentShape(Rectangle())
             .simultaneousGesture(TapGesture().onEnded { open = true })
-            SessionIconButton(icon: "magnifyingglass", name: "Search sessions") {}
+            SessionIconButton(icon: "magnifyingglass", name: "Search sessions", pressed: query != nil) {
+                if query == nil {
+                    open = true
+                    query = ""
+                    searching = true
+                } else {
+                    query = nil
+                }
+            }
             SessionIconButton(icon: "ellipsis", name: "Sort sessions") {}
             SessionIconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: Sessions.cannotStartReason) {}
         }
         .tag(Selection.sessions)
         if open {
-            let groups = sessionGroups(sessions.rows)
-            if groups.isEmpty {
-                Text("No sessions yet").foregroundStyle(.secondary).selectionDisabled()
+            if let text = Binding($query) {
+                TextField("Search sessions", text: text)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($searching)
+                    .onKeyPress(.escape) {
+                        query = nil
+                        return .handled
+                    }
+                    .selectionDisabled()
             }
-            ForEach(groups, id: \.title) { group in
-                WorkspaceHeader(title: group.title, canStart: sessions.canStart)
-                ForEach(group.rows, id: \.id) { SessionRowView(row: $0).tag(Selection.session(id: $0.id)) }
+            let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+            let groups = sessionGroups(sessions.rows, query: query ?? "")
+            if searched {
+                let found = groups.flatMap(\.rows)
+                Text(found.isEmpty ? "No sessions match" : found.count == 1 ? "1 result" : "\(found.count) results")
+                    .font(.caption).foregroundStyle(.secondary).selectionDisabled()
+                ForEach(found, id: \.id) { SessionRowView(row: $0).tag(Selection.session(id: $0.id)) }
+            } else {
+                if groups.isEmpty {
+                    Text("No sessions yet").foregroundStyle(.secondary).selectionDisabled()
+                }
+                ForEach(groups, id: \.title) { group in
+                    WorkspaceHeader(title: group.title, canStart: sessions.canStart)
+                    ForEach(group.rows, id: \.id) { SessionRowView(row: $0).tag(Selection.session(id: $0.id)) }
+                }
             }
         }
     }
@@ -47,16 +76,20 @@ private struct SessionIconButton: View {
     let name: String
     var enabled = true
     var why: String?
+    /// Drawn while what the button opened is open.
+    var pressed = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: icon).frame(width: 22, height: 22).contentShape(Rectangle())
+                .background(RoundedRectangle(cornerRadius: 5).fill(pressed ? Color.primary.opacity(0.15) : .clear))
         }
         .buttonStyle(.plain)
         .disabled(enabled == false)
         .help(enabled ? name : why ?? name)
         .accessibilityLabel(name)
+        .accessibilityAddTraits(pressed ? .isSelected : [])
     }
 }
 
@@ -89,8 +122,14 @@ private struct SessionRowView: View {
                 Text(row.agent).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
+            if row.archived {
+                Text("Archived").font(.caption2).foregroundStyle(.secondary)
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(Capsule().strokeBorder(Color.secondary.opacity(0.5)))
+            }
             Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
         }
+        .opacity(row.archived ? 0.55 : 1)
         .padding(.vertical, 2)
         .help(row.title)
     }

@@ -15,6 +15,7 @@ import { lastEventOf } from '../control/events.ts';
 import { buildSnapshot } from '../status/snapshot.ts';
 import { epicEvents, executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
+import { failureStreak } from './retry.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { FakeClock, FakeGitHub } from './fake.ts';
 import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread } from './github.ts';
@@ -682,6 +683,42 @@ test('an execution that ends ok, and one that Carrier stops, leave every failure
   for (const row of executionsOf(engine.db)) expect(row).toMatchObject({ failureKind: null, failureDetail: null, exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null });
 });
 
+const noProcess = { exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null };
+
+const endKinds = [
+  ['auth_failed', 'failed', 'auth', 'profile a', 'authentication error for profile a'],
+  ['session_unavailable', 'failed', 'session_lost', 'the agent session is not available', 'the agent session is not available'],
+  ['timed_out', 'timed_out', 'timeout', 'exceeded 4 h', null],
+] as const;
+
+test.each(endKinds)('%s records its kind and a detail on the execution, with the error it already had', async (exit, status, kind, detail, error) => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => (task.resumeSession ? { exit: 'hang' } : { sessionId: 's', exit });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status, failureKind: kind, failureDetail: detail, error, ...noProcess });
+});
+
+test('a timed-out execution does not count in the retry streak', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'timed_out', failureKind: 'timeout', failureDetail: 'exceeded 4 h' });
+  expect(failureStreak(db, 1)).toEqual([]);
+});
+
+test('a lost session is rebuilt because of its kind, whatever the error text says', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'failed', error: 'some other words', failureKind: 'session_lost', failureDetail: 'gone' });
+  pull(50);
+  await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(1));
+  expect(runner.tasks[0]!.resumeSession).toBeUndefined();
+  expect(eventTypes(db)).toEqual(['session_rebuilt']);
+});
+
 test('maxExecutionRetries 0 means a single attempt', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   runner.behavior = () => ({ exit: 'failed' });
@@ -1064,7 +1101,8 @@ test('an invalid result is a retried failure; importing the next result clears t
   await engine.idle();
   expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'ship', 'review']);
   expect(rows(engine.db)[0]).toMatchObject({ stage: 'review', stageStartedAt: 5 * MIN, lastError: null });
-  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'invalid_result' });
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'invalid_result', failureKind: 'invalid_result', ...noProcess });
+  expect(executionsOf(engine.db)[0]!.failureDetail).toBe(executionsOf(engine.db)[0]!.error);
 });
 
 // ship -> review (changes_requested up to round `asking`, then it stops) -> fix -> review ...

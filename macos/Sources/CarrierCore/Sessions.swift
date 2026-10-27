@@ -48,10 +48,23 @@ public struct Sessions: Equatable {
 /// How the Sessions list is ordered.
 public enum SessionSort: String, CaseIterable { case workspace, age, status }
 
-/// The sessions in the given order, without the archived ones. By workspace: one group per workspace ordered by name ignoring
-/// case. By age: Today, Yesterday, Last 7 days and Older, counted from the start of today in `calendar`. By status: Waiting for
-/// you, Working, Idle and Done. Empty groups are left out and the rows of a group are newest first. `query` is not applied yet (#416).
-public func sessionGroups(_ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", now: Date = Date(), calendar: Calendar = .current) -> [SessionGroup] {
+/// The sessions in the order `by` gives, or, with a non-empty `query`, one group of the matches. By workspace: one group per
+/// workspace ordered by name ignoring case. By age: Today, Yesterday, Last 7 days and Older, counted from the start of today in
+/// `calendar`. By status: Waiting for you, Working, Idle and Done. Empty groups are left out, the rows of a group are newest first
+/// and no archived row is listed. A query matches the title, the workspace and the agent ignoring case; the active matches come
+/// newest first and then the archived ones newest first.
+public func sessionGroups(
+    _ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", now: Date = Date(), calendar: Calendar = .current
+) -> [SessionGroup] {
+    let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    if query.isEmpty == false {
+        let hits = rows.filter {
+            [$0.title, $0.workspace, $0.agent].contains { $0.localizedCaseInsensitiveContains(query) }
+        }
+        let newest: (SessionRow, SessionRow) -> Bool = { $0.updatedAt > $1.updatedAt }
+        let found = hits.filter { $0.archived == false }.sorted(by: newest) + hits.filter(\.archived).sorted(by: newest)
+        return found.isEmpty ? [] : [SessionGroup(title: "Results", rows: found)]
+    }
     let listed = rows.filter { $0.archived == false }
     func group(_ title: String, _ rows: [SessionRow]) -> SessionGroup? {
         rows.isEmpty ? nil : SessionGroup(title: title, rows: rows.sorted { $0.updatedAt > $1.updatedAt })

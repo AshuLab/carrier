@@ -5,13 +5,17 @@ import Observation
 
 /// What the sidebar can select.
 public enum Selection: Hashable {
-    case overview
+    case home
+    case sessions
+    case session(id: String)
+    case archive
+    case carrier
     case epic(repo: String, issue: Int)
     case settings
 }
 
 @Observable public final class WindowShell {
-    public var selection: Selection = .overview
+    public var selection: Selection = .home
     public var sidebarShown = true
     public var inspectorShown = true
     /// The About sheet is over the window; the selection underneath stays.
@@ -30,7 +34,7 @@ public enum Selection: Hashable {
 
     /// Back to how a freshly opened window starts.
     public func reset() {
-        selection = .overview
+        selection = .home
         sidebarShown = true
         inspectorShown = true
         aboutShown = false

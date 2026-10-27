@@ -127,10 +127,10 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(SidebarStore(defaults: defaults).groupBy == .status)
 }
 
-@Test func selectingARowOverviewOrSettingsUpdatesTheSelection() throws {
+@Test func selectingARowCarrierOrSettingsUpdatesTheSelection() throws {
     let shell = WindowShell()
     let row = try #require(sidebarGroups(snapshot([epic("acme/web", 4)]), by: .status)[1].rows.first)
-    for next in [row.selection, .settings, .overview] {
+    for next in [row.selection, .settings, .carrier] {
         shell.selection = next
         #expect(shell.selection == next)
     }

@@ -106,9 +106,7 @@ public struct TranscriptCard: Equatable {
 
     /// The diff rows as the card first shows them: `collapsedDiffRows` rows, and how many are left out. All of them once expanded.
     public func visibleDiffRows(expanded: Bool) -> (rows: [DiffRow], hidden: Int) {
-        guard let rows = shownDiff?.rows else { return ([], 0) }
-        guard expanded == false, rows.count > collapsedDiffRows else { return (rows, 0) }
-        return (Array(rows.prefix(collapsedDiffRows)), rows.count - collapsedDiffRows)
+        CarrierCore.visibleDiffRows(shownDiff?.rows ?? [], expanded: expanded)
     }
 
     /// Whether the diff has more rows than the card first shows; the footer then has "Show N more lines" (and "Show less" once opened).
@@ -145,7 +143,14 @@ public struct TranscriptCard: Equatable {
     public var outputOpenByDefault: Bool { status == .error }
 }
 
-public enum DiffSign: Equatable { case added, removed, context }
+/// `hunk` is the quiet separator between fragments that are not adjacent; its text is git's `@@ -a,b +c,d @@`.
+public enum DiffSign: Equatable { case added, removed, context, hunk }
+
+/// Diff rows as a card first shows them: `collapsedDiffRows` rows, and how many are left out. All of them once expanded.
+public func visibleDiffRows(_ rows: [DiffRow], expanded: Bool) -> (rows: [DiffRow], hidden: Int) {
+    guard expanded == false, rows.count > collapsedDiffRows else { return (rows, 0) }
+    return (Array(rows.prefix(collapsedDiffRows)), rows.count - collapsedDiffRows)
+}
 
 public struct DiffRow: Equatable {
     public var sign: DiffSign
@@ -161,14 +166,20 @@ public struct CardDiff: Equatable {
 /// A diff line longer than this is cut and ends in an ellipsis: one huge line would make its row too slow to lay out.
 public let maxDiffLineLength = 2_000
 
-/// The `diff` of an event as rows: "+" added, "-" removed, anything else (" " and a sign this app does not know) context.
+/// The `diff` of an event (or of a `fileDiff` reply) as rows: "+" added, "-" removed, "@" a hunk separator, anything else (" " and a
+/// sign this app does not know) context.
 /// nil for no diff or an empty one.
 public func cardDiff(_ diff: [ExecEvent.DiffLine]?) -> CardDiff? {
     guard let diff, diff.isEmpty == false else { return nil }
     var result = CardDiff(rows: [], added: 0, removed: 0)
     result.rows.reserveCapacity(diff.count)
     for line in diff {
-        let sign: DiffSign = line.sign == "+" ? .added : line.sign == "-" ? .removed : .context
+        let sign: DiffSign = switch line.sign {
+        case "+": .added
+        case "-": .removed
+        case "@": .hunk
+        default: .context
+        }
         if sign == .added { result.added += 1 } else if sign == .removed { result.removed += 1 }
         let text = line.text.count > maxDiffLineLength ? String(line.text.prefix(maxDiffLineLength)) + "…" : line.text
         result.rows.append(DiffRow(sign: sign, text: text))

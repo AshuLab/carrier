@@ -20,7 +20,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.socketPath))
     let hello = try client.hello()
-    #expect(hello.capabilities == [.sessions, .events, .epic, .files, .availableRepos, .availableReposPaged, .resumeEpic])
+    #expect(hello.capabilities == [.sessions, .events, .epic, .files, .fileDiff, .availableRepos, .availableReposPaged, .resumeEpic])
     let repo = ",\"repo\":\"AshuLab/web\",\"issue\":5"
     let id = ",\"executionId\":\"3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c\""
     #expect(try sameJSON(client.request("snapshot"), golden("snapshot.json")))
@@ -28,6 +28,9 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     #expect(try sameJSON(client.request("events", fields: id + ",\"limit\":50"), golden("reply-events.json")))
     #expect(try sameJSON(client.request("epic", fields: repo), golden("reply-epic.json")))
     #expect(try sameJSON(client.request("files", fields: repo), golden("reply-files.json")))
+    let diff = try JSONSerialization.jsonObject(with: golden("reply-filediff.json")) as? [Any]
+    let first = try JSONSerialization.data(withJSONObject: try #require(diff?.first))
+    #expect(try sameJSON(client.request("fileDiff", fields: repo + ",\"section\":\"slice-121\",\"path\":\"src/a.ts\""), first))
 }
 
 @Test func answersAnUnknownRequestWithAnError() throws {

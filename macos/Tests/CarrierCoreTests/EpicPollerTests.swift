@@ -311,3 +311,69 @@ private final class UpdateBox {
     }
     #expect(told == [[.epic], [.epic, .resumeEpic]])
 }
+
+// MARK: fragments
+
+private let diffReply = #"{"rows":[{"sign":"@","text":"@@ -1 +1 @@"},{"sign":"+","text":"x"}],"truncated":false,"note":null}"#
+private let token = OpenFile(section: "slice-121", path: "src/token.ts")
+
+@Test func aFragmentIsAskedOnceWhenItsRowFirstOpensAndKeptWhenItClosesAndOpensAgain() throws {
+    let engine = FixtureEngine(capabilities: ["epic", "fileDiff"], replies: ["fileDiff": diffReply])
+    defer { engine.stop() }
+    let client = try #require(ControlClient.connect(path: engine.path))
+    _ = try client.hello()
+    var now = Date(timeIntervalSince1970: 0)
+    let poller = EpicPoller(now: { now }, onUpdate: { _, _ in })
+
+    poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true))
+    try poller.poll(client)
+    #expect(engine.commands == ["epic"])
+
+    poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, openFiles: [token]))
+    now = Date(timeIntervalSince1970: 1)
+    try poller.poll(client)
+    #expect(engine.commands == ["epic", "fileDiff"])
+    #expect(engine.requests.last?["section"] as? String == "slice-121" && engine.requests.last?["path"] as? String == "src/token.ts")
+    let kept = poller.data[web]?.fragments[token]
+    #expect(kept == .rows([DiffRow(sign: .hunk, text: "@@ -1 +1 @@"), DiffRow(sign: .added, text: "x")], truncated: false))
+
+    // a merged slice does not change while it is read: closed, opened again, ten polls later, still the first reply
+    for second in 2...30 {
+        now = Date(timeIntervalSince1970: TimeInterval(second))
+        poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, openFiles: second % 2 == 0 ? [] : [token]))
+        try poller.poll(client)
+    }
+    #expect(engine.commands.filter { $0 == "fileDiff" }.count == 1)
+    #expect(poller.data[web]?.fragments[token] == kept)
+}
+
+@Test func aFragmentThatFailsSaysSoAndTheRestGoesOn() throws {
+    let engine = FixtureEngine(capabilities: ["epic", "files", "fileDiff"], fail: ["fileDiff"])
+    defer { engine.stop() }
+    let client = try #require(ControlClient.connect(path: engine.path))
+    _ = try client.hello()
+    var now = Date(timeIntervalSince1970: 0)
+    let poller = EpicPoller(now: { now }, onUpdate: { _, _ in })
+    let other = OpenFile(section: "slice-121", path: "src/other.ts")
+
+    poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, openFiles: [token]))
+    try poller.poll(client)
+    #expect(engine.commands == ["epic", "files", "fileDiff"])
+    #expect(poller.data[web]?.fragments[token] == .failed)
+    #expect(poller.data[web]?.files != nil && poller.data[web]?.epic != nil)
+
+    // a refused file says nothing about the others: the next row is still asked, the failed one is not again
+    poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, openFiles: [token, other]))
+    now = Date(timeIntervalSince1970: 10)
+    try poller.poll(client)
+    #expect(engine.commands.suffix(3) == ["epic", "files", "fileDiff"])
+    #expect(engine.requests.last?["path"] as? String == "src/other.ts")
+}
+
+@Test func noFragmentIsAskedOfAnEngineWithoutFileDiff() throws {
+    let rig = try Rig(capabilities: ["epic"])
+    rig.poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, openFiles: [token]))
+    #expect(try rig.tick(at: 0) == ["epic"])
+    #expect(try rig.tick(at: 1).isEmpty)
+    #expect(rig.poller.data[web]?.fragments.isEmpty != false)
+}

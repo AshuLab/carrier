@@ -442,7 +442,7 @@ struct ToolCardView: View {
                 Text(reason).font(.system(size: 12)).foregroundStyle(.red).lineLimit(2)
                     .padding(.horizontal, 10).padding(.bottom, 8)
             }
-            if card.shownDiff != nil { DiffView(card: card, showAll: $showAll) }
+            if let diff = card.shownDiff { DiffView(rows: diff.rows, showAll: $showAll) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.secondary.opacity(0.12))
@@ -509,13 +509,15 @@ struct Console<Content: View>: View {
 }
 
 /// An edit's lines on the console block, added in green and removed in red, the sign in a column of its own so a selection copies
-/// only the text. A long diff is cut at `collapsedDiffRows`; the footer opens the rest. Text and footer are inset 14, like the opened call.
+/// only the text; a hunk row is a quiet separator carrying git's range. A long diff is cut at `collapsedDiffRows`; the footer opens
+/// the rest. `cut` is a last line saying the engine cut the diff. Text and footer are inset 14, like the opened call.
 struct DiffView: View {
-    let card: TranscriptCard
+    let rows: [DiffRow]
     @Binding var showAll: Bool
+    var cut: String? = nil
 
     var body: some View {
-        let shown = card.visibleDiffRows(expanded: showAll)
+        let shown = visibleDiffRows(rows, expanded: showAll)
         Console {
             ForEach(Array(shown.rows.enumerated()), id: \.offset) { _, row in
                 HStack(alignment: .top, spacing: 6) {
@@ -524,11 +526,16 @@ struct DiffView: View {
                 }
                 .foregroundStyle(color(row.sign))
                 .padding(.horizontal, 14)
-                .background(color(row.sign).opacity(row.sign == .context ? 0 : 0.14))
+                .padding(.vertical, row.sign == .hunk ? 2 : 0)
+                .background(row.sign == .hunk ? Color.white.opacity(0.05) : color(row.sign).opacity(row.sign == .context ? 0 : 0.14))
             }
-            if card.diffIsCut {
+            if rows.count > collapsedDiffRows {
                 Button(showAll ? "Show less" : "Show \(shown.hidden) more \(shown.hidden == 1 ? "line" : "lines")") { showAll.toggle() }
                     .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 14).padding(.top, 7).padding(.bottom, 1)
+            }
+            if let cut {
+                Text(cut).font(.system(size: 11)).foregroundStyle(ConsoleColor.text.opacity(0.6))
                     .padding(.horizontal, 14).padding(.top, 7).padding(.bottom, 1)
             }
         }
@@ -538,7 +545,7 @@ struct DiffView: View {
         switch sign {
         case .added: "+"
         case .removed: "−"
-        case .context: " "
+        case .context, .hunk: " "
         }
     }
 
@@ -547,6 +554,7 @@ struct DiffView: View {
         case .added: ConsoleColor.added
         case .removed: ConsoleColor.removed
         case .context: ConsoleColor.text
+        case .hunk: ConsoleColor.text.opacity(0.55)
         }
     }
 }

@@ -117,3 +117,13 @@ func aRepoThatIsNotOwnerSlashNameIsRefusedBeforeItIsSent(repo: String) throws {
     #expect(try connect(older).fileDiff(repo: "acme/web", issue: 12, section: "slice-121", path: "a.ts") == nil)
     #expect(older.commands.isEmpty)
 }
+
+@Test func aRefusedFileDiffIsAboutThatFileAndKeepsTheCapability() throws {
+    let engine = FixtureEngine(capabilities: ["fileDiff"], fail: ["fileDiff"])
+    defer { engine.stop() }
+    let client = try connect(engine)
+    #expect(throws: ControlError.self) { try client.fileDiff(repo: "acme/web", issue: 12, section: "slice-121", path: "a.ts") }
+    #expect(throws: ControlError.self) { try client.fileDiff(repo: "acme/web", issue: 12, section: "slice-121", path: "b.ts") }
+    #expect(engine.commands == ["fileDiff", "fileDiff"])
+    #expect(client.capabilities.contains(.fileDiff))
+}

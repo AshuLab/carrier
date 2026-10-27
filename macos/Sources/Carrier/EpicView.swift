@@ -16,6 +16,8 @@ struct EpicView: View {
     var plan: QueuedPlan?
     /// The reason and the Resume button of a stopped epic, with the store that remembers a Resume in flight; nil for any other.
     var resume: (card: ResumeCard, store: EpicStore)?
+    /// The file rows that are open and their fragments; nil when the engine cannot be asked (the rows do not open).
+    var fileDiffs: FileDiffs?
     @State private var tab = EpicTab.agentOutput
     /// Whether the page is at its end: a session that starts scrolls it into view only then, so reading further up is not interrupted.
     @State private var atEnd = true
@@ -76,7 +78,7 @@ struct EpicView: View {
                 SessionSectionsView(epic: EpicRef(repo: subject.repo, issue: subject.issue), list: sessions, folds: $folds)
             }
         case .filesChanged:
-            FilesChangedView(files: files)
+            FilesChangedView(files: files, fileDiffs: fileDiffs)
         }
     }
 }

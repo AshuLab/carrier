@@ -170,6 +170,23 @@ test('parseClaudeLine reads session, auth and lost-session errors', () => {
   expect(parseClaudeLine('not json')).toBeUndefined();
 });
 
+test('parseClaudeLine reads the real 429 result as usage_limit', () => {
+  const line = readFileSync(join(import.meta.dirname, 'claude-usage-limit.fixture.jsonl'), 'utf8').trim();
+  expect(parseClaudeLine(line)).toEqual({ failure: { kind: 'usage_limit', detail: "You've hit your session limit · resets 12:40pm (America/Montevideo)" } });
+});
+
+test('parseClaudeLine reads any other numeric API status as api_error, and ignores what is not an error with a number', () => {
+  const result = (fields: string) => `{"type":"result",${fields},"result":"Overloaded"}`;
+  expect(parseClaudeLine(result('"is_error":true,"api_error_status":503'))).toEqual({ failure: { kind: 'api_error', detail: 'HTTP 503: Overloaded' } });
+  expect(parseClaudeLine(result('"is_error":true,"api_error_status":429,"api_error":"rate_limit"'))).toEqual({ failure: { kind: 'api_error', detail: 'HTTP 429: Overloaded' } });
+  expect(parseClaudeLine('{"type":"result","is_error":true,"api_error_status":500}')).toEqual({ failure: { kind: 'api_error', detail: 'HTTP 500' } });
+  expect(parseClaudeLine(result('"is_error":true,"api_error_status":401'))).toEqual({ authFailed: true });
+  expect(parseClaudeLine(result('"is_error":true,"api_error_status":null'))).toBeUndefined();
+  expect(parseClaudeLine(result('"is_error":true'))).toBeUndefined();
+  expect(parseClaudeLine(result('"is_error":true,"api_error_status":"429","api_error":"usage_limit_reached"'))).toBeUndefined();
+  expect(parseClaudeLine(result('"is_error":false,"api_error_status":503'))).toBeUndefined();
+});
+
 test('a local model points the CLI at that server and keeps a real API key away from it', () => {
   const { env } = buildClaudeCommand({ ...task, provider: 'ollama' }, { ...ctx, baseEnv: { ...ctx.baseEnv, ANTHROPIC_API_KEY: 'sk-real' } });
   expect(env).toMatchObject({ ANTHROPIC_BASE_URL: 'http://localhost:11434', ANTHROPIC_AUTH_TOKEN: 'ollama', ANTHROPIC_API_KEY: '' });

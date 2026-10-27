@@ -30,6 +30,10 @@ if (mode === 'auth') {
   // A final output that holds a token at character 290, where a plain cut at 300 would split it.
   out({ type: 'result', is_error: true, api_error_status: null, result: `${'x '.repeat(145)}ghp_${'a'.repeat(36)} done` });
   process.exit(3);
+} else if (mode === 'usage_limit') {
+  // The real 429 result of epic #302's failed executions, then the exit the claude CLI makes on an error result.
+  console.log(readFileSync(new URL('./claude-usage-limit.fixture.jsonl', import.meta.url), 'utf8').trimEnd());
+  process.exit(1);
 } else if (mode === 'hang') {
   setInterval(() => {}, 1000);
 } else {

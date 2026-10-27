@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-/// The sidebar's list: Overview with the pill and the group-by menu, the epics in groups, Settings and About at the bottom.
+/// The sidebar's list: Home and Carrier rows, the group-by switch, the epics in groups, Settings and About at the bottom.
 struct SidebarView: View {
     let snapshot: PanelSnapshot?
     let state: ConnectionState?
@@ -13,7 +13,8 @@ struct SidebarView: View {
     var body: some View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
         List(selection: list) {
-            Label("Overview", systemImage: "square.grid.2x2").tag(Selection.overview)
+            Label("Home", systemImage: "house").tag(Selection.home)
+            Label("Carrier", systemImage: "square.grid.2x2").tag(Selection.carrier)
             if snapshot != nil {
                 // how the sections below are grouped: there is nothing to group while Carrier is not answering
                 UnderlineTabs(

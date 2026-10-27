@@ -83,14 +83,29 @@ _Avoid_: issue, comment, error.
 **Observation** - A finding of a review that does not stop its approval: a nitpick or a suggestion. The reviewer lists observations in a `completed` result, with a title and a stable id like a blocker; when there are any, the author answers them in one resolve pass before the epic is ready for test ([0009](adr/0009-observations-trigger-one-resolve-pass-before-ready-for-test.md)).
 _Avoid_: nitpick (one kind of observation), comment, blocker (the one that stops approval).
 
-**Your turn** - The Overview's list of what needs the person: epics in human intervention, finished epics waiting to be tested, and engine problems, each with its action. It is not a status list; the sidebar already says which epics exist.
+**Your turn** - The Carrier home's list of what needs the person: epics in human intervention, finished epics waiting to be tested, and engine problems, each with its action. It is not a status list; the sidebar already says which epics exist.
 _Avoid_: inbox, notifications, to-do.
 
-**Running epic card** - The Overview's card for an epic that is running: its progress and one row for each agent working on it. A dashed card after the running ones stands for free room and names the next queued epic.
+**Running epic card** - The Carrier home's card for an epic that is running: its progress and one row for each agent working on it. A dashed card after the running ones stands for free room and names the next queued epic.
 _Avoid_: slot tile, agent list.
 
-**Sidebar group** - A section of the app's sidebar that collects epics by state (Needs you, Running, Up next, Ready for test, Done, Cancelled) or, when asked, by repository. Every group collapses; Done and Cancelled start collapsed.
+**Sidebar group** - A section of the Carrier card's list in the app's sidebar that collects epics by state (Needs you, Running, Up next, Ready for test, Done, Cancelled) or, when asked, by repository. Every group collapses; Done and Cancelled start collapsed.
 _Avoid_: category, folder.
+
+**Home** - The app's first page: a welcome with no status. The app opens on it and the sidebar's Home row selects it. Status lives elsewhere: the engine's on the Carrier card, a user session's on its own row.
+_Avoid_: overview, dashboard, start page.
+
+**Carrier home** - The page of the Carrier world, opened by selecting the Carrier card: what the Overview was (Your turn, the running epic cards, up next, the watched repositories) and the engine's controls (Check now, Pause, Stop). The Sessions world has its own, the Sessions home.
+_Avoid_: Overview (its old name), dashboard.
+
+**Carrier card** - The sidebar's card for the automation: grey, with the engine's state (Running, Paused, Stopped or Problem), its slots and counters for what needs the person, is running, is next and is ready. Selected, it opens into the sidebar groups with a search and the choice of grouping, and the Carrier home shows in the centre. Only one of the Sessions section and the Carrier card is open at a time.
+_Avoid_: status bar, footer, pill (the pill is the engine's state inside the card).
+
+**User session** - A conversation the person starts inside the app with the agent of their choice, in a workspace. It belongs to no epic ([0012](adr/0012-sessions-and-epics-are-two-separate-worlds.md)), is disposable once its job is done, and can be archived. It is a Session in the sense above, when that conversation is not an epic's execution.
+_Avoid_: chat, thread.
+
+**Workspace** - The folder a user session works in: a plain folder, a GitHub clone, or a repository already in Carrier's list. The sidebar groups sessions by workspace. It is never the shared clone an epic runs in nor an epic's worktree.
+_Avoid_: project, epic checkout.
 
 **Done** - The group of epics whose final PR was merged, shown for the finished window after the merge. Not Ready for test: nothing is waiting for a person any more. In the terminal panel it is a section of the same name.
 _Avoid_: finished (the window and the snapshot field use it, the group does not), closed, completed.

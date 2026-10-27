@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Chat apart from epics: overview, end of a chat, human intervention</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.c-stack{display:flex;flex-direction:column;gap:34px;margin-top:10px}
+.c-opt>h3{margin:0 0 2px;font-size:14px}
+.c-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:880px}
+.c-seg{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.c-seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:4px 12px;border-radius:99px;cursor:default;white-space:nowrap}
+.c-seg button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .c-seg button.on{background:rgba(255,255,255,.16)}
+.c-win{width:min(1060px,100%);height:580px;border-radius:22px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);display:flex;overflow:hidden;position:relative}
+.c-win .side{width:250px}
+.c-win.narrow .side{width:230px}
+.c-badge{display:inline-grid;place-items:center;min-width:22px;height:18px;padding:0 5px;border-radius:6px;background:var(--card2);color:var(--dim);font:600 10px var(--mono);flex:none}
+.c-it{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px;position:relative}
+.c-it.sel{background:var(--sel)}
+.c-it .t{flex:1;min-width:0}.c-it .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-it .t span{display:block;color:var(--dim);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-it .r{font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+.c-gl{width:16px;height:16px;flex:none;display:grid;place-items:center}
+.c-spin{width:14px;height:14px;border-radius:50%;border:2.5px solid color-mix(in srgb,var(--green) 25%,transparent);border-top-color:var(--green);animation:s 1s linear infinite}
+.c-ask{width:16px;height:16px;border-radius:50%;background:var(--orange);color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center}
+.c-idle{width:12px;height:12px;border-radius:50%;border:2px solid var(--faint)}
+.c-ph{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;font-weight:600;color:var(--dim)}
+.c-ph .sp1{flex:1}
+.c-ph:hover{background:var(--card)}
+.c-plus{width:20px;height:20px;border-radius:50%;background:var(--card2);display:grid;place-items:center;color:var(--dim);font-weight:600}
+.c-top{display:flex;gap:1px;background:var(--card2);border-radius:10px;padding:2px;margin:0 2px 8px}
+.c-top button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-weight:600;padding:5px 0;border-radius:8px;display:flex;justify-content:center;gap:6px;align-items:center}
+.c-top button.on{background:var(--win);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+body:not(.light) .c-top button.on{background:rgba(255,255,255,.16)}
+.c-top i{font-style:normal;font-size:10.5px;padding:0 6px;border-radius:99px;background:var(--orange);color:#fff}
+.c-card{border-radius:14px;background:var(--card);padding:9px 11px;margin:0 2px 8px;box-shadow:0 0 0 .5px var(--line) inset}
+.c-card b{font-weight:650}.c-card span{color:var(--dim);font-size:12px;display:block}
+.c-foot{margin-top:auto;padding:8px 8px 2px;border-top:.5px solid var(--line);color:var(--dim);font-size:12px;display:flex;gap:8px;align-items:center}
+/* conversation */
+.c-conv{flex:1;overflow:hidden;padding:6px 0 0;display:flex;flex-direction:column}
+.c-feed{flex:1;overflow:hidden;padding:4px 40px 10px;display:flex;flex-direction:column;gap:12px;max-width:760px;width:100%;margin:0 auto}
+.c-u{align-self:flex-end;max-width:78%;background:var(--card2);border-radius:16px;padding:8px 13px}
+.c-a{display:flex;flex-direction:column;gap:7px}
+.c-a p{margin:0;line-height:1.5}
+.c-tool{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:12.5px;padding:3px 0}
+.c-tool b{font-weight:600;color:var(--text)}
+.c-tool .mono{font-size:11.5px;color:var(--dim)}
+.c-tool .sp1{flex:1}
+.c-tool em{font-style:normal;color:var(--faint);font-size:11.5px}
+.c-tool .ad{color:var(--green);font-weight:600}.c-tool .de{color:var(--red);font-weight:600}
+.c-work{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:12px}
+.c-work .c-spin{width:11px;height:11px;border-width:2px}
+.c-caret{display:inline-block;width:7px;height:14px;background:var(--text);vertical-align:-2px;margin-left:2px;animation:p 1s steps(2) infinite}
+.c-appr{border-radius:14px;background:color-mix(in srgb,var(--orange) 12%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--orange) 55%,transparent);padding:11px 13px;display:flex;flex-direction:column;gap:8px}
+.c-appr .q{font-weight:650}
+.c-appr .cmd{font:12px var(--mono);background:rgba(0,0,0,.28);border-radius:8px;padding:6px 9px;color:#d6d6dc}
+body.light .c-appr .cmd{background:rgba(0,0,0,.08);color:var(--text)}
+.c-appr .btns{display:flex;gap:8px;align-items:center}
+/* composer */
+.c-comp{margin:0 auto 14px;width:calc(100% - 56px);max-width:704px;border-radius:18px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset,0 6px 20px rgba(0,0,0,.18);padding:11px 13px 9px;display:flex;flex-direction:column;gap:9px}
+.c-comp .in{color:var(--faint);min-height:22px}
+.c-comp .bar3{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.c-comp .bar3 .sp1{flex:1}
+.c-pick{display:inline-flex;gap:5px;align-items:center;padding:3px 9px;border-radius:99px;background:var(--card2);color:var(--dim);font-size:12px;font-weight:550;white-space:nowrap}
+.c-pick b{color:var(--text);font-weight:600}
+.c-pick.ask{color:var(--orange)}
+.c-pick::after{content:"⌄";font-size:10px;opacity:.6;margin-left:1px}
+.c-pick.nc::after{content:""}
+.c-send{width:28px;height:28px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:700}
+.c-send.stop{background:var(--card2);color:var(--text)}
+.c-send.stop::before{content:"";width:10px;height:10px;border-radius:2px;background:currentColor}
+.c-send.stop span{display:none}
+/* right panel */
+.c-rp{width:250px;flex:none;margin:8px 8px 8px 0;border-radius:18px;background:var(--side);backdrop-filter:blur(30px);padding:14px 12px;box-shadow:0 0 0 .5px var(--line) inset;display:flex;flex-direction:column;gap:6px}
+.c-rp h4{margin:0;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.c-fl{display:flex;gap:8px;align-items:center;padding:5px 0;font-size:12.5px}
+.c-fl .mono{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px}
+.c-fl .ad{color:var(--green);font-weight:600;font-size:11.5px}.c-fl .de{color:var(--red);font-weight:600;font-size:11.5px}
+/* new chat */
+.c-empty{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;padding-bottom:40px}
+.c-empty h2{margin:0;font-size:22px;font-weight:650;letter-spacing:-.01em}
+.c-empty .dim{margin-bottom:14px}
+.c-menu{border-radius:14px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:6px;width:300px}
+.c-menu .mi{display:flex;gap:9px;align-items:center;padding:6px 9px;border-radius:8px}
+.c-menu .mi.sel{background:var(--blue);color:#fff}
+.c-menu .mi.sel .dim,.c-menu .mi.sel .faint{color:rgba(255,255,255,.75)}
+.c-menu .mi .t{flex:1;min-width:0}
+.c-menu hr{border:0;border-top:.5px solid var(--line);margin:5px 4px}
+.c-menu .hd{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:4px 9px}
+.c-sheet{margin:auto;width:480px;border-radius:20px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:18px 18px 14px;display:flex;flex-direction:column;gap:10px}
+.c-sheet h3{margin:0;font-size:16px}
+.c-sheet .fld{display:flex;flex-direction:column;gap:4px}
+.c-sheet .fld>span{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.c-sheet .box{border-radius:10px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:3px}
+.c-scrim{position:absolute;inset:0;background:rgba(0,0,0,.28);display:flex}
+.c-spec{margin:8px 2px 0;color:var(--faint);font-size:11px;line-height:1.5;font-family:var(--mono)}
+.c-tag{display:inline-block;padding:1px 8px;border-radius:99px;background:var(--card2);color:var(--dim);font-size:11px;font-weight:600;margin-left:6px}
+
+.c-rail{width:62px;flex:none;padding:48px 0 10px;display:flex;flex-direction:column;align-items:center;gap:6px;border-right:.5px solid var(--line)}
+.c-ri{width:46px;padding:6px 0 5px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--dim);font-size:10px;font-weight:600;position:relative}
+.c-ri b{font-size:16px;font-weight:500;line-height:1}
+.c-ri.on{background:var(--sel);color:var(--text)}
+.c-ri i{position:absolute;top:2px;right:4px;font-style:normal;font-size:9.5px;padding:0 5px;border-radius:99px;background:var(--orange);color:#fff}
+.c-lst{width:230px;flex:none;padding:46px 8px 10px;display:flex;flex-direction:column}
+.c-pips{display:flex;gap:3px;margin-top:5px}.c-pips i{flex:1;height:4px;border-radius:2px;background:var(--card2)}
+.c-pips i.d{background:var(--green)}.c-pips i.run{background:var(--green);animation:p 1.6s ease-in-out infinite}.c-pips i.need{background:var(--orange)}
+.c-it .t span .c-kind{display:inline}
+.c-kind{font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);margin-right:5px}
+.c-tabs{display:flex;gap:22px;padding:0 22px;border-bottom:.5px solid var(--line)}
+.c-tabs span{padding:7px 0 8px;color:var(--dim);font-weight:550;border-bottom:2px solid transparent;margin-bottom:-.5px}
+.c-tabs span.on{color:var(--text);border-color:var(--blue)}
+.c-drawer{margin:0 2px 8px;border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:6px}
+.c-drawer .c-it{padding:5px 6px}
+.c-ctx{margin:2px auto 6px;max-width:704px;width:calc(100% - 56px);border-radius:12px;background:var(--card);padding:7px 11px;display:flex;gap:10px;align-items:center;font-size:12px;color:var(--dim)}
+.c-ctx b{color:var(--text);font-weight:600}
+
+.ovs{display:flex;align-items:baseline;gap:8px;margin:16px 2px 7px}.ovs:first-child{margin-top:2px}.ovs b{font-size:15px;font-weight:650;letter-spacing:-.01em}.ovs span{color:var(--dim);font-size:12px}
+.ovc{border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:2px 14px}
+.ovr{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:.5px solid var(--line)}.ovr:first-child{border:0}
+.ovt{flex:1;min-width:0}.ovt b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ovt>span{display:block;color:var(--dim);font-size:12px;line-height:1.35;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ova{display:flex;gap:6px;flex:none}
+.ovm{color:var(--dim);font:11.5px var(--mono);white-space:nowrap}
+.ovslots{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ovslot{border-radius:14px;background:var(--card);padding:9px 12px;box-shadow:0 0 0 .5px var(--line) inset;min-width:0}
+.ovslot small{display:block;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.ovslot b{display:block;margin-top:3px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ovslot.free{background:none;box-shadow:0 0 0 1px var(--line) inset}.ovslot.free b{color:var(--faint);font-weight:500}
+.ovpb{height:4px;border-radius:2px;background:var(--card2);overflow:hidden;margin-top:7px}.ovpb i{display:block;height:100%;background:var(--green);border-radius:2px}
+.c-flow{display:flex;align-items:stretch;gap:6px;margin:2px 0 4px}
+.c-flow .ar{align-self:center;color:var(--faint);font-size:16px}
+.c-flow .ar.ho{font-size:11px;font-weight:600;color:var(--dim);text-align:center;line-height:1.15;padding:0 2px}
+.c-stn{flex:1;min-width:0;border-radius:14px;background:var(--card);padding:9px 11px;box-shadow:0 0 0 .5px var(--line) inset;position:relative}
+.c-stn b{display:block;font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.c-stn span{display:block;font-weight:600;font-size:12px}
+.c-stn em{display:block;font-style:normal;color:var(--dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-stn::after{content:"";position:absolute;right:10px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.c-stn.run::after{background:var(--green)}.c-stn.need::after,.c-stn.ask::after{background:var(--orange)}.c-stn.ready::after{background:var(--blue)}
+.c-two{display:flex;gap:0;flex:1;min-height:0;padding:0 16px 14px}
+.c-half{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.c-hh{display:flex;align-items:baseline;gap:8px;margin:4px 4px 2px}.c-hh b{font-size:17px;font-weight:700;letter-spacing:-.02em}.c-hh span{color:var(--dim);font-size:12px}
+.c-seam{width:46px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--faint);font-size:10.5px;font-weight:600;text-align:center;border-left:.5px dashed var(--line);border-right:.5px dashed var(--line);margin:0 10px;writing-mode:vertical-rl}
+.c-tl{position:relative;margin:4px 2px 0 6px;padding-left:20px;border-left:1.5px solid var(--line)}
+.c-ev{position:relative;padding:0 0 13px}
+.c-ev::before{content:"";position:absolute;left:-26.5px;top:3px;width:10px;height:10px;border-radius:50%;background:var(--faint);box-shadow:0 0 0 3px var(--win)}
+.c-ev.need::before{background:var(--orange)}.c-ev.run::before{background:var(--green)}.c-ev.ready::before{background:var(--blue)}.c-ev.next::before{background:var(--win);box-shadow:0 0 0 1.5px var(--faint)}
+.c-ev .tm{font:11px var(--mono);color:var(--faint)}
+.c-ev b{font-weight:600}.c-ev .d{color:var(--dim);font-size:12px}
+.c-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px auto 0;width:calc(100% - 56px);max-width:704px}
+.c-hand{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.c-hand .q{font-weight:650}
+.c-hand .btns{display:flex;gap:8px;flex-wrap:wrap}
+.c-banner{margin:0 16px 4px;border-radius:12px;background:var(--card);padding:8px 12px;display:flex;gap:10px;align-items:center;font-size:12.5px}
+.c-banner .sp1{flex:1}.c-banner.warn{background:color-mix(in srgb,var(--orange) 13%,transparent);box-shadow:0 0 0 .5px color-mix(in srgb,var(--orange) 50%,transparent)}
+.c-mark{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:12px}.c-mark::before,.c-mark::after{content:"";flex:1;border-top:.5px solid var(--line)}
+.c-rescard{margin:0 16px 8px;border-radius:14px;background:color-mix(in srgb,var(--orange) 12%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--orange) 40%,transparent);padding:12px 14px;display:flex;gap:12px;align-items:flex-start}
+.c-rescard .t{flex:1;min-width:0}.c-rescard .t b{font-weight:650;font-size:14px;display:block}.c-rescard .t span{color:var(--dim);font-size:12.5px;display:block;margin-top:2px}
+.c-opt2{display:flex;gap:9px;align-items:center;padding:6px 8px;border-radius:9px}.c-opt2.sel{background:var(--card2)}
+.c-rad{width:15px;height:15px;border-radius:50%;border:1.5px solid var(--faint);flex:none;display:grid;place-items:center}.c-opt2.sel .c-rad{border-color:var(--blue)}.c-opt2.sel .c-rad::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--blue)}
+.c-field{border-radius:9px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:7px 10px;color:var(--faint)}
+.c-blk{border-radius:12px;background:var(--card);padding:9px 11px;box-shadow:0 0 0 .5px var(--line) inset;margin-bottom:7px}
+.c-blk b{display:block;font-weight:600}.c-blk span{color:var(--dim);font-size:12px}
+.c-pane{display:flex;flex-direction:column;min-width:0;padding:46px 12px 10px}
+.c-pane h4{margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+</style></head><body>
+<h1>Chats apart from epics</h1>
+<div class="sub">Rules taken from the review of rounds one and two: a chat is never tied to an epic (the epic runs on its own; a chat is disposable once it has done its job); the Overview stays as the snapshot of everything, now counting chats and agents; and when Carrier needs a person, the person takes over <b>inside Carrier</b>, not in a terminal. Three tabs, one question each. All data is invented.</div>
+<div class="bar">
+  <div class="c-seg" id="qs"></div>
+  <span class="sp"></span>
+  <button class="tog" id="theme">Light / dark</button>
+</div>
+<div class="c-stack" id="out"></div>
+
+<script>
+const ST={idle:'Idle',stream:'Streaming',ask:'Needs approval'};
+let q='struct',st='idle';const u=new URLSearchParams(location.search);
+
+/* ---------- pieces ---------- */
+const lights=`<div class="lights"><i></i><i></i><i></i></div>`;
+const gl=s=>s==='stream'?'<div class="c-gl"><div class="c-spin"></div></div>':s==='ask'?'<div class="c-gl"><div class="c-ask">!</div></div>':'<div class="c-gl"><div class="c-idle"></div></div>';
+const prov={C:'Claude',X:'Codex'};
+const chats=[
+ {t:'Rate-limit the webhook endpoint',p:'optyra/api',a:'C',m:'Sonnet',s:()=>st,age:'now'},
+ {t:'Explore the billing schema',p:'optyra/api',a:'X',m:'GPT-5',s:()=>'ask2',age:'4m'},
+ {t:'Pricing page copy',p:'optyra/web',a:'C',m:'Opus',s:()=>'idle',age:'2h'},
+ {t:'Why is the CI cache cold?',p:'AshuLab/carrier',a:'C',m:'Sonnet',s:()=>'idle',age:'1d'},
+];
+const stOf=c=>{const s=c.s();return s==='ask2'?'ask':s};
+const chatRow=(c,sel,showProj)=>`<div class="c-it ${sel?'sel':''}">${gl(stOf(c))}<div class="t"><b>${c.t}</b><span>${showProj?c.p+' · ':''}${prov[c.a]} ${c.m}</span></div><span class="r">${c.age}</span></div>`;
+const epics=[['run','Add retry to the uploader','#412 · slice 2 of 4'],['need','Fix flaky auth test','#408 · needs you'],['queue','Docs: self-hosting','#415 · up next'],['ready','Cache the repo list','#401 · ready for test']];
+const epGl={run:'<div class="c-gl"><div class="c-spin"></div></div>',need:'<div class="c-gl"><div class="c-ask">!</div></div>',queue:'<div class="c-gl"><div class="c-idle"></div></div>',ready:'<div class="c-gl"><div class="c-ask" style="background:var(--blue)">✓</div></div>'};
+const epRow=e=>`<div class="c-it">${epGl[e[0]]}<div class="t"><b>${e[1]}</b><span>${e[2]}</span></div></div>`;
+const carrierCard=`<div class="c-card"><div class="h"><span class="dot g pulse"></span><b>Carrier is running</b></div><span>2 of 3 slots busy · 5 repos</span></div>`;
+
+const toolRows=`
+ <div class="c-tool"><span>▸</span><b>Read</b><span class="mono">src/api/export.ts</span><span class="sp1"></span><em>212 lines</em></div>
+ <div class="c-tool"><span>▸</span><b>Grep</b><span class="mono">"rateLimit"</span><span class="sp1"></span><em>4 matches</em></div>`;
+function convo(){
+ const tail={
+  idle:`<div class="c-tool"><span>▸</span><b>Edited</b><span class="mono">src/api/webhook.ts</span><span class="sp1"></span><span class="ad">+18</span><span class="de">−2</span></div>
+        <div class="c-tool"><span>▸</span><b>Ran</b><span class="mono">pnpm test webhook</span><span class="sp1"></span><em>passed · 6.1s</em></div>
+        <p>Done. The webhook route now allows 60 requests a minute per key and answers 429 with a <span class="mono">Retry-After</span> header. I added a test for the limit and the reset.</p>`,
+  stream:`<div class="c-tool"><span>▸</span><b>Edited</b><span class="mono">src/api/webhook.ts</span><span class="sp1"></span><span class="ad">+18</span><span class="de">−2</span></div>
+        <p>Next I'll add a test that sends 61 requests in a minute and checks the last one is rejected<span class="c-caret"></span></p>
+        <div class="c-work"><div class="c-spin"></div>Working · 0:42</div>`,
+  ask:`<div class="c-tool"><span>▸</span><b>Edited</b><span class="mono">src/api/webhook.ts</span><span class="sp1"></span><span class="ad">+18</span><span class="de">−2</span></div>
+        <p>Now I'll run the webhook tests to check the limit.</p>
+        <div class="c-appr"><div class="q">Run a command?</div><div class="cmd">pnpm test webhook</div>
+        <div class="btns"><span class="glass pri sm">Allow</span><span class="glass sm">Allow for this chat</span><span class="glass sm red">Decline</span></div></div>`}[st];
+ return `<div class="c-feed">
+  <div class="c-u">Add a rate limit to the webhook endpoint, 60 a minute per key. Look at how /api/export does it first.</div>
+  <div class="c-a">${toolRows}<p>The export route uses a small in-memory counter in <span class="mono">src/lib/rate-limit.ts</span>. I'll reuse it for the webhook so both behave the same.</p>${tail}</div>
+ </div>`;
+}
+const chip=(k,v,cls='')=>`<span class="c-pick ${cls}">${k?`<span class="faint">${k}</span> `:''}<b>${v}</b></span>`;
+const sendBtn=()=>st==='stream'?'<div class="c-send stop"><span>■</span></div>':'<div class="c-send">↑</div>';
+const inputText=()=>st==='stream'?'Message Claude · it is working, you can queue a follow-up':'Message Claude…';
+const compD=()=>`<div class="c-comp"><div class="in">${inputText()}</div>
+ <div class="bar3">${chip('','+','nc')}${chip('','optyra/api · main')}${chip('','Claude · Sonnet')}${chip('','High')}${chip('','Ask first','ask')}<span class="sp1"></span>${sendBtn()}</div></div>`;
+const compE=()=>`<div class="c-comp"><div class="in">${inputText()}</div>
+ <div class="bar3">${chip('','+','nc')}${chip('','Ask first','ask')}<span class="sp1"></span>${sendBtn()}</div></div>`;
+const files=`<h4>Changes in this chat</h4>
+ <div class="c-fl"><span class="mono">src/api/webhook.ts</span><span class="ad">+18</span><span class="de">−2</span></div>
+ <div class="c-fl"><span class="mono">src/lib/rate-limit.ts</span><span class="ad">+41</span></div>
+ <div class="c-fl"><span class="mono">test/webhook.test.ts</span><span class="ad">+27</span></div>
+ <h4 style="margin-top:12px">Checkout</h4>
+ <div class="dim" style="font-size:12px">~/Carrier/chats/api-7f2<br>branch chat/rate-limit</div>
+ <div style="margin-top:auto" class="h"><span class="glass sm">Continue in terminal</span></div>`;
+const tb=(title,sub,extra='')=>`<div class="tb"><h2>${title}<small>${sub}</small></h2>${extra}</div>`;
+
+const win=(inner,cls='')=>`<div class="c-win ${cls}">${lights}${inner}</div>`;
+const spec=t=>`<div class="c-spec">${t}</div>`;
+
+/* ---------- shared bits for this page ---------- */
+const btn=(t,c='')=>`<span class="glass sm ${c}">${t}</span>`;
+const ovs=(t,d='')=>`<div class="ovs"><b>${t}</b><span>${d}</span></div>`;
+const ovr=(g,t,sub,acts='')=>`<div class="ovr">${g}<div class="ovt"><b>${t}</b><span>${sub}</span></div><div class="ova">${acts}</div></div>`;
+const ovc=x=>`<div class="ovc">${x}</div>`;
+const askG='<div class="c-gl"><div class="c-ask">!</div></div>';
+const ctlBtns='<span class="glass">⏸ Pause</span><span class="glass">↻ Check now</span><span class="glass red">■ Stop</span>';
+const ovRow=`<div class="c-it sel"><span class="c-gl">▦</span><div class="t"><b>Overview</b></div><span class="chip g"><span class="dot g pulse"></span>2/3</span></div>`;
+const archived=`<div class="c-it"><span class="c-gl faint">▸</span><div class="t"><b class="dim" style="font-weight:550">Archived</b></div><span class="r">4</span></div>`;
+const chatLbl=(t,extra='<span class="c-plus">+</span>')=>`<div class="lbl"><span>${t}</span>${extra}</div>`;
+const epSide=sel=>`<div class="lbl"><span>Needs you</span></div>${epRow(epics[1]).replace('c-it',sel?'c-it sel':'c-it')}<div class="lbl"><span>Running</span></div>${epRow(epics[0])}<div class="lbl"><span>Ready</span></div>${epRow(epics[3])}`;
+const sideS=()=>`<div class="side">${ovRow}${chatLbl('Chats')}${chats.slice(0,3).map(c=>chatRow(c,false,true)).join('')}${archived}<div style="height:6px"></div>${epSide(false)}<div class="c-foot">Settings</div></div>`;
+const yourTurn=ovc(
+  ovr(epGl.need,'Fix flaky auth test <span class="dim" style="font-weight:500">#408</span>','Review limit reached (5/5) · 2 blockers open',btn('Take over','pri')+btn('Open'))+
+  ovr(askG,'Explore the billing schema <span class="dim" style="font-weight:500">chat</span>','Codex asks to run a command · 4 min ago',btn('Review'))+
+  ovr(epGl.ready,'Cache the repo list <span class="dim" style="font-weight:500">#401</span>','Ready for test · PR #412',btn('Open PR')));
+const yourTurnBuild=ovc(
+  ovr(epGl.need,'Fix flaky auth test <span class="dim" style="font-weight:500">#408</span>','Review limit reached · 2 blockers',btn('Take over','pri'))+
+  ovr(epGl.ready,'Cache the repo list <span class="dim" style="font-weight:500">#401</span>','Ready for test · PR #412',btn('Open PR')));
+const chatList=ovc(chats.slice(0,3).map(c=>{const s=stOf(c);return ovr(gl(s),c.t,`${prov[c.a]} ${c.m} · ${c.p} · ${s==='ask'?'waiting for you':s==='stream'?'working':'idle'}`)}).join(''));
+const agentsRows=ovc(
+  ovr('<span class="c-badge">Cl</span>','Claude · Builder <span class="dim" style="font-weight:500">· #412 · Lane 1</span>','pnpm typecheck','<span class="ovm">16:09</span>')+
+  ovr('<span class="c-badge">Cl</span>','Claude · chat <span class="dim" style="font-weight:500">· Rate-limit the webhook</span>','editing src/api/webhook.ts','<span class="ovm">16:18</span>')+
+  ovr('<span class="c-badge">Cx</span>','Codex · chat <span class="dim" style="font-weight:500">· Explore the billing schema</span>','waiting for your approval','<span class="ovm">16:02</span>'));
+const slots=`<div class="ovslots"><div class="ovslot"><small>Slot 1</small><b>agent-forge #231</b><div class="ovpb"><i style="width:40%"></i></div></div><div class="ovslot"><small>Slot 2</small><b>uploader #412</b><div class="ovpb"><i style="width:50%"></i></div></div><div class="ovslot free"><small>Slot 3</small><b>Free</b></div></div>`;
+const flow=`<div class="c-flow">
+  <div class="c-stn ask"><b>3</b><span>Talking</span><em>1 waits for you</em></div>
+  <span class="ar ho">hands<br>off ›</span>
+  <div class="c-stn"><b>1</b><span>Up next</span><em>needs a slot</em></div><span class="ar">›</span>
+  <div class="c-stn run"><b>2</b><span>Building</span><em>2 of 3 slots</em></div><span class="ar">›</span>
+  <div class="c-stn need"><b>1</b><span>Needs you</span><em>review limit</em></div><span class="ar">›</span>
+  <div class="c-stn ready"><b>2</b><span>Ready</span><em>for test</em></div></div>`;
+const ovTb=tb('Overview','5 repos · up 22m · next check in 3m',ctlBtns);
+const scroll=x=>`<div class="scroll" style="overflow:hidden">${x}</div>`;
+
+/* ---------- tab 1: overview and structure ---------- */
+const Qa=()=>[
+ ['O1 · The Overview keeps its shape and gains a flow strip','Chats and epics stay in separate sections of the sidebar, linked by nothing. The Overview is the snapshot you have today, with a strip on top that is the guiding thread: Talking → hands off → Up next → Building → Needs you → Ready, with a count at each station. It reads left to right as where the work is going, without saying which chat became which epic. Your turn now includes a chat that waits for an approval; Agents working includes the agents behind chats.',
+  win(sideS()+`<div class="main">${ovTb}${scroll(flow+ovs('Your turn','3 items')+yourTurn+ovs('Chats','3 · 1 waiting')+chatList+ovs('Agents working','3')+agentsRows)}</div>`),'strip 5 stations · each is a filter/jump · the first station is the only one that is chats'],
+ ['O2 · Two halves: Talk and Build','The Overview is split down the middle. Left, Talk: your chats and which agents are on. Right, Build: Carrier, with the things that need you, slots and what is running. A dashed seam in between is the hand-off, nothing more. The sidebar is split the same way, so the two worlds never mix. Makes it obvious that chats and epics are different things; costs width, and two narrow columns carry less text.',
+  win(`<div class="side">${ovRow}<div class="lbl" style="font-size:12px"><span>Talk</span><span class="c-plus">+</span></div>${chats.slice(0,3).map(c=>chatRow(c,false,true)).join('')}${archived}<div class="lbl" style="font-size:12px;margin-top:12px"><span>Build</span></div>${epSide(false).replace(/<div class="lbl"><span>(Needs you|Running|Ready)<\/span><\/div>/g,'')}<div class="c-foot">Settings</div></div>`+
+   `<div class="main">${tb('Overview','5 repos · up 22m')}<div class="c-two"><div class="c-half"><div class="c-hh"><b>Talk</b><span>3 chats · 2 agents on</span></div>${chatList}
+   <div class="c-hh" style="margin-top:10px"><b style="font-size:13px">Agents</b><span>Claude 1 working · Codex 1 waiting</span></div>
+   <div class="h" style="gap:8px;margin:0 4px">${btn('New chat','pri')}${btn('Archived (4)')}</div></div>
+   <div class="c-seam">hand-off</div>
+   <div class="c-half"><div class="c-hh"><b>Build</b><span>2 of 3 slots</span></div>${yourTurnBuild}<div style="margin-top:4px">${slots.replace('grid-template-columns','grid-template-columns')}</div></div></div></div>`),'halves 50/50 · seam 46 · sidebar headers "Talk" and "Build" instead of groups mixed together'],
+ ['O3 · The Overview as a timeline: what happened and what comes next','The Overview adds a single feed in time order across both worlds, with the next thing on top: "next: Carrier takes #415 when a slot frees". Events are plain sentences ("a chat published 4 tickets · epic #416 queued"); nothing links the chat to the epic, it is just that these two things happened. The guiding thread is time. Good for coming back after a break, poor as a list you act from, so Your turn stays above it.',
+  win(sideS()+`<div class="main">${ovTb}${scroll(ovs('Your turn','3 items')+yourTurn+ovs('Timeline','today')+`<div class="c-tl">
+    <div class="c-ev next"><div class="tm">next</div><div><b>Carrier takes #415 Docs: self-hosting</b> <span class="d">when a slot frees</span></div></div>
+    <div class="c-ev need"><div class="tm">11:08</div><div><b>#408 needs you</b> <span class="d">review limit reached (5/5)</span></div></div>
+    <div class="c-ev run"><div class="tm">11:02</div><div><b>#412 slice 1 merged</b> <span class="d">3 slices to go</span></div></div>
+    <div class="c-ev"><div class="tm">10:41</div><div><b>Epic #416 queued</b> <span class="d">published from a chat · 4 slices</span></div></div>
+    <div class="c-ev"><div class="tm">09:58</div><div><b>Chat "Explore the billing schema"</b> <span class="d">asks to run a command</span></div></div></div>`)}</div>`),'next item has a hollow dot · events are sentences, no links between chat and epic'],
+ ['O4 · Home is a composer','The first thing you see is the message box: "What do you want to build?", with project, agent and model chips. Under it, one row of four numbers (chats, building, needs you, ready) and Your turn. It is the front door the owner described: start a conversation, and Carrier is what happens afterwards. The detail pages of Slots and Agents working move to Carrier\'s own section in the sidebar.',
+  win(`<div class="side">${ovRow.replace('Overview','Home').replace('▦','⌂')}${chatLbl('Chats')}${chats.slice(0,3).map(c=>chatRow(c,false,true)).join('')}${archived}<div style="height:6px"></div><div class="lbl"><span>Carrier</span></div><div class="c-it"><span class="c-gl">▤</span><div class="t"><b>Slots and agents</b><span>2 of 3 busy · 3 agents</span></div></div>${epSide(false)}</div>`+
+   `<div class="main">${tb('Home','')}<div class="c-empty" style="justify-content:flex-start;padding-top:26px"><h2>What do you want to build?</h2><div class="dim" style="margin-bottom:12px">Start a chat; Carrier picks up the work when you hand it off.</div>${emptyComp2()}
+   <div class="c-stats">${[['3','Chats','1 waiting',''],['2','Building','2 of 3 slots','run'],['1','Needs you','review limit','need'],['2','Ready','for test','ready']].map(([n,l,sub,c])=>`<div class="c-stn ${c}"><b>${n}</b><span>${l}</span><em>${sub}</em></div>`).join('')}</div>
+   <div style="width:calc(100% - 56px);max-width:704px">${ovs('Your turn','3 items')}${yourTurn}</div></div></div>`),'home = composer + 4 counters + Your turn · Slots and Agents get their own page']
+];
+const emptyComp2=()=>`<div class="c-comp" style="width:calc(100% - 56px)"><div class="in">What do you want to work on?</div><div class="bar3">${chip('','+','nc')}${chip('','optyra/api · main')}${chip('','Claude · Sonnet')}${chip('','High')}${chip('','Ask first','ask')}<span class="sp1"></span><div class="c-send">↑</div></div></div>`;
+
+/* ---------- tab 2: the end of a chat ---------- */
+const feedEnd=(tail)=>`<div class="c-feed">
+ <div class="c-u">Looks right. Publish the tickets.</div>
+ <div class="c-a"><div class="c-tool"><span>▸</span><b>Ran</b><span class="mono">gh issue create ×4 · label solve:epic:ready</span><span class="sp1"></span><em>ok</em></div>
+ <p>Done. I published epic <b>#416</b> with 4 slices and marked it ready, so Carrier will pick it up on its next check.</p>${tail}</div></div>`;
+const sideEnd=(extra='')=>`<div class="side"><div class="c-top"><button>Epics <i>1</i></button><button class="on">Chats</button></div>${extra||`<div class="c-ph"><span>▾ optyra/api</span><span class="sp1"></span><span class="c-plus">+</span></div>${chatRow({t:'Rate-limit the webhook endpoint',p:'',a:'C',m:'Sonnet',s:()=>'idle',age:'now'},true,false)}${chatRow(chats[1],false,false)}`}</div>`;
+const compK=()=>`<div class="c-comp"><div class="in">Message Claude…</div><div class="bar3">${chip('','+','nc')}${chip('','optyra/api · main')}${chip('','Claude · Sonnet')}${chip('','Ask first','ask')}<span class="sp1"></span><div class="c-send">↑</div></div></div>`;
+const Qb=()=>[
+ ['E1 · A hand-off card in the conversation','When the tickets are published, the chat shows a card: what Carrier took, and three choices. The epic never refers back to the chat; the card is a courtesy. Nothing happens until you choose, and doing nothing leaves the chat as it was.',
+  win(sideEnd()+`<div class="main">${tb('Rate-limit the webhook endpoint','optyra/api · Claude Sonnet')}<div class="c-conv">${feedEnd(`<div class="c-hand"><div class="q">Handed to Carrier</div><div class="dim">Epic #416 · 4 slices · queued. Carrier works on it on its own; this chat has done its job.</div><div class="btns">${btn('Open epic #416')}${btn('Keep chatting')}${btn('Archive chat','pri')}</div></div>`)}${compK()}</div></div>`),'card 14 radius · three actions · Archive is the default button'],
+ ['E2 · A banner and a countdown','The chat gets a banner at the top: "Handed to Carrier · epic #416 queued · archives itself in 7 days unless you reply". Replying keeps it alive; Archive now closes it. Nothing to decide, so a chat you forgot about cleans itself. The risk is deleting something you wanted to come back to, so archived chats stay searchable.',
+  win(sideEnd()+`<div class="main">${tb('Rate-limit the webhook endpoint','optyra/api · Claude Sonnet')}<div class="c-banner"><span class="dot b"></span><span><b>Handed to Carrier</b> · epic #416 queued · archives itself in 7 days unless you reply</span><span class="sp1"></span>${btn('Open epic')}${btn('Archive now')}</div><div class="c-conv">${feedEnd('')}${compK()}</div></div>`),'banner 36 · 7 days is a setting · archived chats keep their transcript'],
+ ['E3 · The list says it is done; the chat stays quiet','No card and no banner. In the transcript, a thin line marks the moment ("Published epic #416 · Carrier took it") and the conversation goes on as usual. The sidebar moves the chat to a Done group with a check and an "Archive all" button. You clean up from the list, in one go, when you feel like it.',
+  win(sideEnd(`<div class="c-ph"><span>▾ Talking</span><span class="sp1"></span><span class="c-plus">+</span></div>${chatRow(chats[1],false,true)}${chatRow(chats[2],false,true)}<div class="c-ph"><span>▾ Done</span><span class="sp1"></span><span class="chip">Archive all</span></div><div class="c-it sel"><div class="c-gl"><div class="c-ask" style="background:var(--green)">✓</div></div><div class="t"><b>Rate-limit the webhook endpoint</b><span>optyra/api · published #416</span></div><span class="r">now</span></div>`)+`<div class="main">${tb('Rate-limit the webhook endpoint','optyra/api · Claude Sonnet')}<div class="c-conv">${feedEnd('<div class="c-mark">Published epic #416 · Carrier took it</div>')}${compK()}</div></div>`),'Done group between Talking and Archived · the check is green because a finished step is green']
+];
+
+/* ---------- tab 3: when Carrier needs a person ---------- */
+const sideEp=()=>`<div class="side">${ovRow}${epSide(true)}<div class="c-foot">Settings</div></div>`;
+const rescard=(text,buttons)=>`<div class="c-rescard"><div class="c-gl" style="margin-top:2px">${askG.replace('c-gl','')}</div><div class="t"><b>Fix flaky auth test <span class="dim" style="font-weight:500">#408</span> needs you</b><span>${text}</span></div><div class="h" style="gap:8px;flex:none">${buttons}</div></div>`;
+const epTabs=`<div class="c-tabs" style="margin:0 16px"><span>Overview</span><span>Slices</span><span>Files</span><span class="on">Review</span></div>`;
+const blockers=`<div style="padding:10px 16px 0"><div class="c-blk"><b>Remove the retry in auth.test.ts</b><span>Reviewer · round 5 · open</span></div><div class="c-blk"><b>refreshToken() has no timeout</b><span>Reviewer · round 5 · open</span></div></div>`;
+const miniChat=`<div style="display:flex;flex-direction:column;gap:8px;font-size:12.5px;flex:1;overflow:hidden">
+  <div class="c-a"><p>I stopped after round 5: the reviewer wants the retry gone, but the flake only goes away with it. Two blockers are still open.</p></div>
+  <div class="c-u" style="max-width:92%">Keep the retry but cap it at 2 and log each one. Then add the timeout.</div>
+  <div class="c-a"><div class="c-tool"><span>▸</span><b>Edited</b><span class="mono">test/auth.test.ts</span><span class="sp1"></span><span class="ad">+6</span><span class="de">−1</span></div><div class="c-work"><div class="c-spin"></div>Working · 0:18</div></div></div>`;
+const Qc=()=>[
+ ['I1 · Take over in a side panel','"Take over" replaces "Continue in Terminal". A panel opens on the right of the epic (our own view, not .inspector) with the stopped agent\'s session resumed. The epic stays on screen, so you read the blockers while you talk. A banner says the epic is paused and who you are driving; "Hand back to Carrier" resumes the engine\'s loop. Only offered when the session is not running, as ADR 0007 already requires.',
+  win(sideEp()+`<div class="main">${tb('Fix flaky auth test','#408 · paused while you drive','<span class="chip o">Paused for you</span>')}${epTabs}${blockers}<div style="padding:6px 16px" class="dim">Review round 5 of 5 · the Fixer stopped here</div></div>
+   <div class="c-rp" style="width:330px"><div class="c-banner warn" style="margin:0 0 4px;flex-direction:column;align-items:flex-start;gap:6px"><span><b>You are driving the Fixer</b><br><span class="dim">Carrier is paused on this epic until you hand it back.</span></span><span class="h" style="gap:6px">${btn('Hand back to Carrier','pri')}${btn('Cancel')}</span></div>${miniChat}<div class="c-comp" style="width:100%;margin:0"><div class="in">Message the Fixer…</div><div class="bar3">${chip('','Claude · Sonnet')}${chip('','Ask first','ask')}<span class="sp1"></span><div class="c-send stop"><span>■</span></div></div></div></div>`),'panel 330 · epic paused while open · Hand back = resume · Cancel keeps the epic stopped'],
+ ['I2 · Take over opens a regular chat','"Take over" creates a normal chat in the Chats list, already resumed from the epic\'s session, tagged "Resumed". The epic does not know about it. A sticky bar says what it is and offers "Hand back to Carrier", which resumes the epic and archives the chat. The cheapest to build, because it is the chat screen with one bar on top; the price is that the epic and the conversation about it live in two places.',
+  win(`<div class="side"><div class="c-top"><button>Epics <i>1</i></button><button class="on">Chats</button></div><div class="c-ph"><span>▾ optyra/api</span><span class="sp1"></span><span class="c-plus">+</span></div>
+   <div class="c-it sel"><div class="c-gl"><div class="c-spin"></div></div><div class="t"><b>Fix flaky auth test</b><span><span class="c-kind" style="color:var(--orange)">Resumed</span>Claude Sonnet</span></div></div>${chatRow(chats[1],false,false)}</div>`+
+   `<div class="main">${tb('Fix flaky auth test','optyra/api · Claude Sonnet')}<div class="c-banner warn"><span><b>Resumed from epic #408</b> · Carrier is paused on it until you hand it back</span><span class="sp1"></span>${btn('Hand back to Carrier','pri')}</div><div class="c-conv"><div class="c-feed">
+   <div class="c-a"><p>I stopped after round 5: the reviewer wants the retry gone, but the flake only goes away with it. Two blockers are still open.</p></div>
+   <div class="c-u">Keep the retry but cap it at 2 and log each one. Then add the timeout.</div>
+   <div class="c-a"><div class="c-tool"><span>▸</span><b>Edited</b><span class="mono">test/auth.test.ts</span><span class="sp1"></span><span class="ad">+6</span><span class="de">−1</span></div><div class="c-work"><div class="c-spin"></div>Working · 0:18</div></div></div>${compK()}</div></div>`),'sticky bar 36 · "Resumed" tag in orange · Hand back resumes the epic and archives the chat'],
+ ['I3 · Answer, do not talk: a decision card','Most stops are a decision, not a conversation. The card in the epic shows what the agent needs and offers the usual answers plus a free-text one: give it 3 more rounds, accept as is, or tell it what to do. "Resume with this" sends the answer and restarts the epic. "Talk it through…" is a link that escalates to I1. Lightest for the common case; it needs the engine to say what the choices are for each kind of stop.',
+  win(sideEp()+`<div class="main">${tb('Fix flaky auth test','#408 · stopped','<span class="chip o">Needs you</span>')}<div class="c-rescard" style="flex-direction:column;gap:6px"><div class="t"><b>Review limit reached (5/5) · 2 blockers open</b><span>The Fixer cannot satisfy the reviewer: removing the retry brings the flake back. What should it do?</span></div>
+    <div style="width:100%"><div class="c-opt2"><span class="c-rad"></span>Give it 3 more rounds</div><div class="c-opt2"><span class="c-rad"></span>Accept as is and mark ready for test</div><div class="c-opt2 sel"><span class="c-rad"></span>Tell it what to do</div><div class="c-field" style="margin:4px 0 0 24px">Keep the retry but cap it at 2, log each one, then add the timeout.</div></div>
+    <div class="h" style="gap:8px;width:100%;margin-top:4px">${btn('Resume with this','pri')}${btn('Cancel')}<span class="sp1"></span><a class="dim" style="font-size:12.5px">Talk it through…</a></div></div>${epTabs}${blockers}</div>`),'card in the place of the current Resume card · choices come from the engine per kind of stop'],
+ ['I4 · An intervention room','A focused window for the hard cases: open blockers on the left, the conversation with the stopped agent in the middle, what it changed on the right, and one bar with Hand back. Everything you need to decide without hunting through tabs. It is the most to build; best kept for a second step.',
+  win(`<div class="c-pane" style="width:250px;flex:none;border-right:.5px solid var(--line)"><h4>Open blockers</h4>${blockers.replace('padding:10px 16px 0','padding:0')}<h4 style="margin-top:8px">Review rounds</h4><div class="dim" style="font-size:12px">1 · 3 blockers → fixed<br>2 · 2 blockers → fixed<br>3, 4, 5 · 2 blockers → open</div></div>`+
+   `<div class="main" style="padding-top:0"><div class="tb" style="padding-left:20px;margin-top:34px"><h2>Fix flaky auth test<small>#408 · you are driving the Fixer</small></h2>${btn('Hand back to Carrier','pri')}${btn('Cancel')}</div><div class="c-conv"><div class="c-feed" style="padding:0 24px 10px">${miniChat}</div><div class="c-comp" style="width:calc(100% - 40px)"><div class="in">Message the Fixer…</div><div class="bar3">${chip('','Claude · Sonnet')}${chip('','Ask first','ask')}<span class="sp1"></span><div class="c-send stop"><span>■</span></div></div></div></div></div>`+
+   `<div class="c-pane" style="width:230px;flex:none;border-left:.5px solid var(--line)"><h4>Changes this session</h4><div class="c-fl"><span class="mono">test/auth.test.ts</span><span class="ad">+6</span><span class="de">−1</span></div><div class="c-fl"><span class="mono">src/auth/refresh.ts</span><span class="ad">+9</span></div><h4 style="margin-top:12px">Checkout</h4><div class="dim" style="font-size:12px">shared clone · branch epic/408</div></div>`),'three panes 250 / flex / 230 · own window · one Hand back bar']
+];
+
+const Qs={struct:['Overview and structure',Qa],end:['End of a chat',Qb],intervene:['Human intervention',Qc]};
+function render(){
+ document.getElementById('qs').innerHTML=Object.entries(Qs).map(([k,v])=>`<button class="${q===k?'on':''}" data-q="${k}">${v[0]}</button>`).join('');
+ document.getElementById('out').innerHTML=Qs[q][1]().filter((_,i)=>!u.get('o')||+u.get('o')===i).map(([t,p,h,s])=>`<div class="c-opt"><h3>${t}</h3><p>${p}</p>${h}${spec(s)}</div>`).join('');
+ document.querySelectorAll('[data-q]').forEach(e=>e.onclick=()=>{q=e.dataset.q;render()});
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+if(u.get('q'))q=u.get('q');if(u.get('light'))document.body.classList.add('light');
+render();
+</script></body></html>

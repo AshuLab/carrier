@@ -60,6 +60,15 @@ _Avoid_: ticket progress, issue status.
 _Avoid_: comment (a thread holds several), blocker (what the reviewer agent reports in its result).
 
 **Session** - The conversation an agent holds in its harness, identified by an id the harness can resume (`claude --resume`, `codex resume`, `agy --conversation`). Each execution has one; the app shows an execution's work as one session block and Continue in Terminal resumes it ([0007](adr/0007-continue-in-terminal-through-a-validated-descriptor.md)).
+
+**Chat host** - The process that holds user sessions: it starts when a person opens the first chat and ends when no session is running and no client is attached. It has its own lock and control socket, shares code with the engine but not its state, and the engine's stop does not touch it ([0013](adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md)).
+_Avoid_: chat server, session manager, engine (the engine runs epics).
+
+**Chat runner** - The port through which the chat host drives one provider's agent: open or resume a conversation in a folder, send a message, answer an approval, interrupt, set an option, close. One adapter per provider implements it (Claude, Codex) and a fake stands in for tests. It is not the `AgentRunner`, which runs one unattended execution to a result.
+_Avoid_: provider client, driver.
+
+**Chat event** - What a chat runner reports about a conversation in Carrier's own shape, whatever the provider speaks: a message from the person or the agent, a tool call and its outcome, an approval asked, an option changed, the usage of a turn, the end of a turn. The host stores them as the transcript of a user session, bounded and redacted.
+_Avoid_: agent event (the epic executions' events), message, log line.
 _Avoid_: execution (the invocation with its time limit and result), thread, chat.
 
 **Lane** - One of the up to three parallel worktrees inside a `ship` execution (`<epic worktree>--lane-N`). A lane is a place, not a worker: it is reused, so lane 1 builds one slice and then another, and the subagent that builds a slice runs in a lane. Solve decides the lanes; the engine does not know them, and a lane has no session of its own, so it cannot be resumed apart from the ship session.
@@ -98,11 +107,15 @@ _Avoid_: overview, dashboard, start page.
 **Carrier home** - The page of the Carrier world, opened by selecting the Carrier card: what the Overview was (Your turn, the running epic cards, up next, the watched repositories) and the engine's controls (Check now, Pause, Stop). The Sessions world has its own, the Sessions home.
 _Avoid_: Overview (its old name), dashboard.
 
+<<<<<<< Updated upstream
 **Sessions home** - The page of the Sessions world, opened by selecting the Sessions row. An empty state ("No sessions yet") until user sessions exist. The Carrier world has its own, the Carrier home.
 
 **Archive page** - The page opened by the sidebar's Archive row, which stands on its own outside Sessions and shows the count of archived user sessions. An empty state until user sessions can be archived.
 
 **Carrier card** - The sidebar's card for the automation: grey, with the engine's state (Running, Paused, Stopped or Problem, or Connecting in grey while it has not answered yet), its slots and counters for what needs the person, is running, is next and is ready. Selected, it opens into the sidebar groups with a search and the choice of grouping, and the Carrier home shows in the centre. Only one of the Sessions section and the Carrier card is open at a time.
+=======
+**Carrier card** - The sidebar's card for the automation: grey, with the engine's state (Running, Paused, Stopped or Problem), its slots and counters for what needs the person, is running, is next and is ready. Selected, it opens into the sidebar groups with a search and the choice of grouping, and the Carrier home shows in the centre. Only one of the Sessions section and the Carrier card is open at a time.
+>>>>>>> Stashed changes
 _Avoid_: status bar, footer, pill (the pill is the engine's state inside the card).
 
 **User session** - A conversation the person starts inside the app with the agent of their choice, in a workspace. It belongs to no epic ([0012](adr/0012-sessions-and-epics-are-two-separate-worlds.md)), is disposable once its job is done, and can be archived. It is a Session in the sense above, when that conversation is not an epic's execution.

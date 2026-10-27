@@ -19,6 +19,8 @@ const fakeBinary = join(import.meta.dirname, 'fake-claude.fixture.mjs');
 const fakeCodex = join(import.meta.dirname, 'fake-codex.fixture.mjs');
 const holder = join(import.meta.dirname, 'orphan-holder.fixture.ts');
 let dir: string;
+// Ids carry this process's pid, so a second run of this file (another worktree, another agent) never shares them.
+const idOf = (name: string) => `it-${process.pid}-${name}`;
 const tokens: Record<string, string> = { 'author-bot': 'ghs_AUTHOR_TOKEN', 'reviewer-bot': 'ghs_REVIEWER_TOKEN' };
 const runner = new HostAgentRunner({
   binaries: { claude: fakeBinary, codex: fakeCodex },
@@ -33,7 +35,7 @@ const taskIn = (name: string, over: Partial<AgentTask> = {}): AgentTask => {
   const workspace = join(dir, name);
   mkdirSync(workspace, { recursive: true });
   return {
-    executionId: `it-${name}`,
+    executionId: idOf(name),
     repo: 'AshuLab/carrier',
     epic: 3,
     stage: 'ship',
@@ -62,8 +64,8 @@ beforeAll(() => {
   chmodSync(fakeCodex, 0o755);
 });
 afterAll(async () => {
-  // Only the agents this file started: `listActive` reads every `carrier-exec-` process of the machine, the one running this test included.
-  for (const id of await runner.listActive()) if (id.startsWith('it-')) await runner.stop(id);
+  // Only the agents this run started: `listActive` reads every `carrier-exec-` process of the machine, the one running this test included.
+  for (const id of await runner.listActive()) if (id.startsWith(idOf(''))) await runner.stop(id);
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -183,7 +185,7 @@ describe('host runner with a fake claude binary', () => {
     await run.stop();
     expect(await run.done).toMatchObject({ exit: 'stopped' });
     expect(() => process.kill(pid, 0)).toThrow();
-    expect(await runner.listActive()).not.toContain('it-stop');
+    expect(await runner.listActive()).not.toContain(idOf('stop'));
   });
 
   test('timeoutMs gives timed_out', async () => {
@@ -209,10 +211,10 @@ describe('host runner with a fake claude binary', () => {
     ['claude', fakeBinary],
     ['codex', fakeCodex],
   ] as const)('listActive sees a %s execution orphaned by kill -9 of its carrier, and stop(id) ends it', async (harness, binary) => {
-    const id = `orphan-${harness}`;
+    const id = idOf(`orphan-${harness}`);
     const workspace = join(dir, id);
     mkdirSync(workspace);
-    const carrier = spawn(process.execPath, [holder, binary, workspace, harness], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const carrier = spawn(process.execPath, [holder, binary, workspace, harness, id], { stdio: ['ignore', 'pipe', 'inherit'] });
     await new Promise<void>((resolve, reject) => {
       carrier.stdout.on('data', (d: Buffer) => d.toString().includes('ready') && resolve());
       carrier.on('exit', () => reject(new Error('holder exited before ready')));
@@ -277,11 +279,11 @@ describe('host runner with a fake codex binary', () => {
     const seen = observe(run);
     await expect.poll(() => seen.sessions.length).toBe(1);
     const pid = Number(seen.sessions[0]!.replace('session-', ''));
-    expect(await runner.listActive()).toContain('it-codex-stop');
+    expect(await runner.listActive()).toContain(idOf('codex-stop'));
     await run.stop();
     expect(await run.done).toMatchObject({ exit: 'stopped' });
     expect(() => process.kill(pid, 0)).toThrow();
-    expect(await runner.listActive()).not.toContain('it-codex-stop');
+    expect(await runner.listActive()).not.toContain(idOf('codex-stop'));
   });
 
   test('timeoutMs gives timed_out', async () => {

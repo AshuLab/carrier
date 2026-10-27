@@ -1,12 +1,14 @@
 import CarrierCore
 import SwiftUI
 
-/// The Sessions row and, while `open`, the sessions under it grouped by workspace (or "No sessions yet"). Rows of the sidebar's
-/// list: the row and each session are tagged with a `Selection`; the buttons in them do not select. The magnifier opens a search field
-/// under the row; the sort button does nothing yet (#415).
+/// The Sessions row and, while `open`, the sessions under it in the chosen order (or "No sessions yet"). Rows of the sidebar's
+/// list: the row and each session are tagged with a `Selection`; the buttons in them do not select. The magnifier opens a search
+/// field under the row.
 struct SessionsRows: View {
     let sessions: Sessions
     @Binding var open: Bool
+    @State private var sort = SidebarStore().sessionSort
+    @State private var sortOpen = false
     /// The search field's text while it is open, nil while it is closed; not remembered between launches.
     @State private var query: String?
     @FocusState private var searching: Bool
@@ -35,7 +37,8 @@ struct SessionsRows: View {
                     query = nil
                 }
             }
-            SessionIconButton(icon: "ellipsis", name: "Sort sessions") {}
+            SessionIconButton(icon: "ellipsis", name: "Sort sessions") { sortOpen.toggle() }
+                .popover(isPresented: $sortOpen, arrowEdge: .bottom) { SortMenu(sort: $sort) }
             SessionIconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: Sessions.cannotStartReason) {}
         }
         .tag(Selection.sessions)
@@ -51,21 +54,63 @@ struct SessionsRows: View {
                     .selectionDisabled()
             }
             let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-            let groups = sessionGroups(sessions.rows, query: query ?? "")
+            let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", now: Date(), calendar: .current)
             if searched {
                 let found = groups.flatMap(\.rows)
                 Text(found.isEmpty ? "No sessions match" : found.count == 1 ? "1 result" : "\(found.count) results")
                     .font(.caption).foregroundStyle(.secondary).selectionDisabled()
-                ForEach(found, id: \.id) { SessionRowView(row: $0).tag(Selection.session(id: $0.id)) }
+                ForEach(found, id: \.id) { SessionRowView(row: $0, showsWorkspace: true).tag(Selection.session(id: $0.id)) }
             } else {
                 if groups.isEmpty {
                     Text("No sessions yet").foregroundStyle(.secondary).selectionDisabled()
                 }
                 ForEach(groups, id: \.title) { group in
-                    WorkspaceHeader(title: group.title, canStart: sessions.canStart)
-                    ForEach(group.rows, id: \.id) { SessionRowView(row: $0).tag(Selection.session(id: $0.id)) }
+                    if sort == .workspace {
+                        WorkspaceHeader(title: group.title, canStart: sessions.canStart)
+                    } else {
+                        Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).selectionDisabled()
+                    }
+                    ForEach(group.rows, id: \.id) { SessionRowView(row: $0, showsWorkspace: sort != .workspace).tag(Selection.session(id: $0.id)) }
                 }
             }
+        }
+    }
+}
+
+/// The popover of the three-dots button: the orders of the list, the current one ticked. The choice is remembered.
+private struct SortMenu: View {
+    @Binding var sort: SessionSort
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Sort sessions").font(.headline).padding(.bottom, 4)
+            ForEach(SessionSort.allCases, id: \.self) { option in
+                Button {
+                    sort = option
+                    SidebarStore().sessionSort = option
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark").opacity(sort == option ? 1 : 0)
+                        Text(option.title)
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(sort == option ? .isSelected : [])
+            }
+        }
+        .padding(12)
+        .frame(minWidth: 180, alignment: .leading)
+    }
+}
+
+private extension SessionSort {
+    var title: String {
+        switch self {
+        case .workspace: "By workspace"
+        case .age: "By age"
+        case .status: "By status"
         }
     }
 }
@@ -113,13 +158,15 @@ private struct WorkspaceHeader: View {
 
 private struct SessionRowView: View {
     let row: SessionRow
+    /// Outside the workspace order the group is not the workspace, so the second line says it.
+    let showsWorkspace: Bool
 
     var body: some View {
         HStack(spacing: 10) {
             SessionGlyph(state: row.state)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.title).font(.system(size: 12)).lineLimit(1).truncationMode(.tail)
-                Text(row.agent).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(showsWorkspace ? "\(row.workspace) · \(row.agent)" : row.agent).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
             if row.archived {

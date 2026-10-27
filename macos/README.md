@@ -71,7 +71,7 @@ The app keeps running afterwards; quit it from the menu or with `osascript -e 't
 
 ## Window shortcuts
 
-The window's sidebar has Home, Sessions (with Archive under it), the Carrier card with its epics, and Settings at the bottom; About is an item of the menu bar item's menu. While the window is the key window, ⌘1 selects Home, ⌘2 the Sessions home, ⌘3 the Carrier home and ⌘F opens the search of the section that is open (Sessions or the card; nothing when both are folded). The window handles them (`shortcutAction` in `CarrierCore/WindowShell.swift`, a key monitor in `WindowController`), not the menu bar item's menu, and each is in the tooltip of its row or magnifier.
+The window's sidebar has Home, Sessions, an Archive row of its own, the Carrier card with its epics, and Settings at the bottom; About is an item of the menu bar item's menu. While the window is the key window, ⌘1 selects Home, ⌘2 the Sessions home, ⌘3 the Carrier home and ⌘F opens the search of the section that is open (Sessions or the card; nothing when both are folded). The window handles them (`shortcutAction` in `CarrierCore/WindowShell.swift`, a key monitor in `WindowController`), not the menu bar item's menu, and each is in the tooltip of its row or magnifier.
 
 ## Window smoke check
 

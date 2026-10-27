@@ -35,7 +35,7 @@ struct SessionsRows: View {
                 Spacer(minLength: 0)
                 // folded, the row says how many sessions wait for the person
                 if open == false, let label = sessions.waitingLabel {
-                    Text("\(sessions.waiting)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.white)
+                    Text("\(sessions.waiting)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.black)
                         .padding(.horizontal, 6).padding(.vertical, 1)
                         .background(Capsule().fill(Color.orange))
                         .accessibilityLabel(label)
@@ -44,14 +44,21 @@ struct SessionsRows: View {
             .contentShape(Rectangle())
             .simultaneousGesture(TapGesture().onEnded { open = true })
             .help("Sessions (⌘2)")
-            SessionIconButton(icon: "magnifyingglass", name: "Search sessions", shortcut: "⌘F", pressed: query != nil) {
+            IconButton(icon: "magnifyingglass", name: "Search sessions", shortcut: "⌘F", pressed: query != nil) {
                 if query == nil { openSearch() } else { query = nil }
             }
-            SessionIconButton(icon: "ellipsis", name: "Sort sessions") { sortOpen.toggle() }
-                .popover(isPresented: $sortOpen, arrowEdge: .bottom) { SortMenu(sort: $sort) }
-            SessionIconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: Sessions.cannotStartReason) {}
+            IconButton(icon: "ellipsis", name: "Sort sessions") { sortOpen.toggle() }
+                .popover(isPresented: $sortOpen, arrowEdge: .bottom) {
+                    ChoiceMenu(
+                        title: "Sort sessions", options: SessionSort.allCases.map { ($0.title, $0) },
+                        selection: Binding(get: { sort }, set: { sort = $0; SidebarStore().sessionSort = $0 }), close: { sortOpen = false }
+                    )
+                }
+            IconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: Sessions.cannotStartReason) {}
         }
         .tag(Selection.sessions)
+        // the field is only drawn while unfolded, so a query must not outlive it: the magnifier would look pressed with no field
+        .onChange(of: open) { if open == false { query = nil } }
         .onChange(of: searchRequest) { if searchRequest?.section == .sessions { openSearch() } }
         if open {
             if let text = Binding($query) {
@@ -88,34 +95,6 @@ struct SessionsRows: View {
     }
 }
 
-/// The popover of the three-dots button: the orders of the list, the current one ticked. The choice is remembered.
-private struct SortMenu: View {
-    @Binding var sort: SessionSort
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Sort sessions").font(.headline).padding(.bottom, 4)
-            ForEach(SessionSort.allCases, id: \.self) { option in
-                Button {
-                    sort = option
-                    SidebarStore().sessionSort = option
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark").opacity(sort == option ? 1 : 0)
-                        Text(option.title)
-                        Spacer(minLength: 0)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(sort == option ? .isSelected : [])
-            }
-        }
-        .padding(12)
-        .frame(minWidth: 180, alignment: .leading)
-    }
-}
-
 private extension SessionSort {
     var title: String {
         switch self {
@@ -123,31 +102,6 @@ private extension SessionSort {
         case .age: "By age"
         case .status: "By status"
         }
-    }
-}
-
-/// A 22-point plain button with an accessible name and a tooltip; `why` is the tooltip while it is disabled.
-private struct SessionIconButton: View {
-    let icon: String
-    let name: String
-    var enabled = true
-    var why: String?
-    /// Shown after the name in the tooltip.
-    var shortcut: String?
-    /// Drawn while what the button opened is open.
-    var pressed = false
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: icon).frame(width: 22, height: 22).contentShape(Rectangle())
-                .background(RoundedRectangle(cornerRadius: 5).fill(pressed ? Color.primary.opacity(0.15) : .clear))
-        }
-        .buttonStyle(.plain)
-        .disabled(enabled == false)
-        .help(enabled ? name + (shortcut.map { " (\($0))" } ?? "") : why ?? name)
-        .accessibilityLabel(name)
-        .accessibilityAddTraits(pressed ? .isSelected : [])
     }
 }
 
@@ -161,7 +115,7 @@ private struct WorkspaceHeader: View {
         HStack {
             Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 0)
-            SessionIconButton(icon: "plus", name: "New session in \(title)", enabled: canStart, why: Sessions.cannotStartReason) {}
+            IconButton(icon: "plus", name: "New session in \(title)", enabled: canStart, why: Sessions.cannotStartReason) {}
                 .opacity(hovered ? 1 : 0)
         }
         .onHover { hovered = $0 }
@@ -173,6 +127,11 @@ private struct SessionRowView: View {
     let row: SessionRow
     /// Outside the workspace order the group is not the workspace, so the second line says it.
     let showsWorkspace: Bool
+    private static let spokenAge: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter
+    }()
 
     var body: some View {
         HStack(spacing: 10) {
@@ -187,7 +146,9 @@ private struct SessionRowView: View {
                     .padding(.horizontal, 6).padding(.vertical, 1)
                     .background(Capsule().strokeBorder(Color.secondary.opacity(0.5)))
             }
+            // "5m" reads aloud as "5 m": say it in words
             Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
+                .accessibilityLabel(Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date()))
         }
         .opacity(row.archived ? 0.55 : 1)
         .padding(.vertical, 2)

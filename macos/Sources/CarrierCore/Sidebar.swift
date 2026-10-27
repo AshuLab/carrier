@@ -7,10 +7,12 @@ public enum GroupBy: String, CaseIterable {
     case status, repo
 }
 
-/// The grouping and Sessions sort choices, kept in user defaults so it survives a relaunch.
+/// The grouping, the Sessions sort and the unfolded section, kept in user defaults so they survive a relaunch.
 public struct SidebarStore {
     private let defaults: UserDefaults
     private let key = "sidebar.groupBy"
+    private let sortKey = "sidebar.sessionSort"
+    private let openKey = "sidebar.open"
 
     public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
@@ -20,17 +22,17 @@ public struct SidebarStore {
     }
 
     public var sessionSort: SessionSort {
-        get { defaults.string(forKey: "sidebar.sessionSort").flatMap(SessionSort.init(rawValue:)) ?? .workspace }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: "sidebar.sessionSort") }
+        get { defaults.string(forKey: sortKey).flatMap(SessionSort.init(rawValue:)) ?? .workspace }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: sortKey) }
     }
 
     /// The unfolded section. Both folded is stored as "none"; a value that is not a section brings back Sessions.
     public var open: OpenSection? {
         get {
-            let stored = defaults.string(forKey: "sidebar.open")
+            let stored = defaults.string(forKey: openKey)
             return stored == "none" ? nil : stored.flatMap(OpenSection.init(rawValue:)) ?? .sessions
         }
-        nonmutating set { defaults.set(newValue?.rawValue ?? "none", forKey: "sidebar.open") }
+        nonmutating set { defaults.set(newValue?.rawValue ?? "none", forKey: openKey) }
     }
 }
 

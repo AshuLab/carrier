@@ -2,7 +2,7 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The Overview's watched repositories; a thin mapping of `carrierBox(_:)`. What Carrier itself is doing is in the sidebar.
+/// The Carrier home's watched repositories; a thin mapping of `carrierBox(_:)`. What Carrier itself is doing is in the sidebar.
 struct WatchedReposView: View {
     let snapshot: PanelSnapshot
 

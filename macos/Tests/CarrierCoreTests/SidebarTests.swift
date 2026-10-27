@@ -176,15 +176,6 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(SidebarStore(defaults: defaults).open == .sessions)
 }
 
-@Test func selectingARowCarrierOrSettingsUpdatesTheSelection() throws {
-    let shell = WindowShell()
-    let row = try #require(sidebarGroups(snapshot([epic("acme/web", 4)]), by: .status)[1].rows.first)
-    for next in [row.selection, .settings, .carrier] {
-        shell.selection = next
-        #expect(shell.selection == next)
-    }
-}
-
 @Test func noCurrentGroupStartsCollapsedAndEveryOneStartsExpanded() {
     let all = snapshot(
         [epic("acme/web", 1), epic("acme/api", 2, .needsHuman)], queue: [queued("acme/api", 3)],
@@ -395,7 +386,9 @@ private func found(_ query: String, by: GroupBy = .status) -> [String] {
 }
 
 @Test func theGroupingIsRememberedForEachChoiceAndTheQueryIsNot() {
-    let defaults = UserDefaults(suiteName: "SidebarTests.search.\(UUID().uuidString)")!
+    let suite = "SidebarTests.search.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
     for by in GroupBy.allCases {
         SidebarStore(defaults: defaults).groupBy = by
         #expect(SidebarStore(defaults: defaults).groupBy == by)

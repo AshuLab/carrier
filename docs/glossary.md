@@ -98,7 +98,11 @@ _Avoid_: overview, dashboard, start page.
 **Carrier home** - The page of the Carrier world, opened by selecting the Carrier card: what the Overview was (Your turn, the running epic cards, up next, the watched repositories) and the engine's controls (Check now, Pause, Stop). The Sessions world has its own, the Sessions home.
 _Avoid_: Overview (its old name), dashboard.
 
-**Carrier card** - The sidebar's card for the automation: grey, with the engine's state (Running, Paused, Stopped or Problem), its slots and counters for what needs the person, is running, is next and is ready. Selected, it opens into the sidebar groups with a search and the choice of grouping, and the Carrier home shows in the centre. Only one of the Sessions section and the Carrier card is open at a time.
+**Sessions home** - The page of the Sessions world, opened by selecting the Sessions row. An empty state ("No sessions yet") until user sessions exist. The Carrier world has its own, the Carrier home.
+
+**Archive page** - The page opened by the sidebar's Archive row, which stands on its own outside Sessions and shows the count of archived user sessions. An empty state until user sessions can be archived.
+
+**Carrier card** - The sidebar's card for the automation: grey, with the engine's state (Running, Paused, Stopped or Problem, or Connecting in grey while it has not answered yet), its slots and counters for what needs the person, is running, is next and is ready. Selected, it opens into the sidebar groups with a search and the choice of grouping, and the Carrier home shows in the centre. Only one of the Sessions section and the Carrier card is open at a time.
 _Avoid_: status bar, footer, pill (the pill is the engine's state inside the card).
 
 **User session** - A conversation the person starts inside the app with the agent of their choice, in a workspace. It belongs to no epic ([0012](adr/0012-sessions-and-epics-are-two-separate-worlds.md)), is disposable once its job is done, and can be archived. It is a Session in the sense above, when that conversation is not an epic's execution.

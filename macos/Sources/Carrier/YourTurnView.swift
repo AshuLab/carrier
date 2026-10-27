@@ -2,7 +2,7 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The Overview's Your turn section; a thin mapping of `yourTurn(_:)`. Clicking a row selects the epic.
+/// The Carrier home's Your turn section; a thin mapping of `yourTurn(_:)`. Clicking a row selects the epic.
 struct YourTurnView: View {
     let snapshot: PanelSnapshot
     @Binding var selection: Selection

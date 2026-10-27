@@ -1,6 +1,6 @@
 import Foundation
 
-// The Overview's Running section as plain values (docs/specs/macos-app-redesign.md, story 15): a card per running epic with
+// The Carrier home's Running section as plain values (docs/specs/macos-app-redesign.md, story 15): a card per running epic with
 // its progress and one row per agent working on it, then a card for the free room. A slot has no identity in the engine, so
 // the room is a count and never "slot 2". The views map these one to one.
 

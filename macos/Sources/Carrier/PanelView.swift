@@ -64,7 +64,7 @@ struct PanelView: View {
     private var emptyPage: EmptyState? {
         switch model.shell.selection {
         case .home: .welcome
-        case .sessions, .session: .noSessions
+        case .sessions: .noSessions
         case .archive: .nothingArchived
         default: nil
         }
@@ -102,6 +102,9 @@ struct PanelView: View {
                         SettingsScreen(state: model.state)
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
+                    } else if case .session(let id) = shell.selection {
+                        // no session page until the sessions epic: the name, not "No sessions yet" beside a list that has some
+                        Text(model.sessions.rows.first { $0.id == id }?.title ?? id).foregroundStyle(.secondary)
                     } else if case .running(let snapshot)? = model.state {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 26) {

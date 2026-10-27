@@ -1,6 +1,6 @@
 import Foundation
 
-// The Overview's Up next section as plain values: the epics waiting for a slot, in line, each opening its epic view.
+// The Carrier home's Up next section as plain values: the epics waiting for a slot, in line, each opening its epic view.
 
 public struct UpNextRow: Equatable {
     public var selection: Selection

@@ -1,4 +1,5 @@
 import type { HarnessName } from '../harnesses/names.ts';
+import type { failureKinds } from '../storage/executions.ts';
 import type { AgentEvent } from './events.ts';
 
 export interface AgentTask {
@@ -30,13 +31,24 @@ export interface AgentTask {
 
 export type AgentExit = 'ok' | 'failed' | 'timed_out' | 'stopped' | 'auth_failed' | 'session_unavailable';
 
+export type AgentFailure = {
+  kind: (typeof failureKinds)[number];
+  detail: string; // redacted, one line, at most 300 characters
+  exitCode: number | null;
+  signal: string | null;
+  hostFreeMemMb: number | null; // only for killed, crashed and unknown
+  hostLoad: number | null; // one-minute load average, same cases
+};
+
+export type AgentDone = { exit: AgentExit; sessionId?: string; failure?: AgentFailure };
+
 export interface AgentRun {
   /** Called as soon as the session exists. */
   onSession(cb: (sessionId: string) => void): void;
   onOutput(cb: (stream: 'stdout' | 'stderr', chunk: string) => void): void;
   /** The events of each stdout chunk, as one batch, for harnesses that have a parser (ADR 0006). */
   onEvent(cb: (events: AgentEvent[]) => void): void;
-  done: Promise<{ exit: AgentExit; sessionId?: string }>;
+  done: Promise<AgentDone>;
   stop(): Promise<void>;
 }
 

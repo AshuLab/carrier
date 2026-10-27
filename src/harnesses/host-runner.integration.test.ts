@@ -117,8 +117,40 @@ describe('host runner with a fake claude binary', () => {
     expect(rows.find((row) => row.callId === 'toolu_edit' && row.kind === 'tool_end')?.payload?.diff).toHaveLength(3);
   });
 
-  test('a nonzero exit is failed', async () => {
-    expect((await runner.run(taskIn('fail', { model: 'fail' })).done).exit).toBe('failed');
+  const hostClues = { hostFreeMemMb: expect.any(Number), hostLoad: expect.any(Number) };
+
+  test('a nonzero exit is crashed, with the code and the host', async () => {
+    expect(await runner.run(taskIn('fail', { model: 'fail' })).done).toMatchObject({
+      exit: 'failed',
+      failure: { kind: 'crashed', detail: 'exit code 3', exitCode: 3, signal: null, ...hostClues },
+    });
+  });
+
+  test('a process that kills itself with SIGKILL is killed, with the signal and the host', async () => {
+    const { exit, failure } = await runner.run(taskIn('kill', { model: 'kill' })).done;
+    expect(exit).toBe('failed');
+    expect(failure).toEqual({ kind: 'killed', detail: 'SIGKILL', exitCode: null, signal: 'SIGKILL', hostFreeMemMb: expect.any(Number), hostLoad: expect.any(Number) });
+    expect(failure!.hostFreeMemMb).toBeGreaterThan(0);
+  });
+
+  test('a binary that does not exist is spawn_error, without host clues', async () => {
+    const missing = new HostAgentRunner({ binaries: { claude: join(dir, 'no-such-binary') }, credentials: async () => ({ githubToken: 't' }) });
+    const run = missing.run(taskIn('missing'));
+    const seen = observe(run);
+    expect(await run.done).toMatchObject({
+      exit: 'failed',
+      failure: { kind: 'spawn_error', exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null },
+    });
+    expect(seen.output).toContain('cannot start');
+  });
+
+  test('a token in the final output, or in the path of a binary, is in no part of the failure', async () => {
+    const token = `ghp_${'a'.repeat(36)}`;
+    const crashed = await runner.run(taskIn('token', { model: 'token' })).done;
+    const missing = new HostAgentRunner({ binaries: { claude: join(dir, 'p'.repeat(265 - dir.length), token) }, credentials: async () => ({ githubToken: 't' }) });
+    const spawnFailed = await missing.run(taskIn('token-path')).done;
+    expect(spawnFailed.failure!.kind).toBe('spawn_error');
+    for (const { failure } of [crashed, spawnFailed]) expect(JSON.stringify(failure)).not.toMatch(/ghp_|aaaa/);
   });
 
   test('two parallel runs with different profiles do not share the GitHub token, and it is not in the output', async () => {

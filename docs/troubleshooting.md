@@ -12,6 +12,10 @@ The reason is in the panel and the logs. Carrier stops the epic and leaves every
 |--------|---------------|------------|
 | `inconclusive review: ...` or any reason written by an agent | The agent decided it needs a person. | Read the reason, decide, finish the work on the PR yourself. |
 | `ran out of ship retries (N attempts): ...` | The agent process failed technically N times. | Look at the execution logs. Usually auth, network or CLI trouble. |
+| `... the agent process ended with an error (killed: SIGKILL)` | `killed`: a signal from outside Carrier ended the agent's process (Carrier's own stops and timeouts are not this); the detail is the signal. Often the system killing it for memory (`Exit code 137` in the agent's own commands). | Look at the host memory and load the execution row records (`hostFreeMemMb`, `hostLoad`; on macOS free memory understates what is available), and at what else ran at that time. |
+| `... (crashed: exit code N)` | `crashed`: the agent's process exited with a nonzero code and no signal. | Read the end of the execution's `stdout.log` for what it printed before exiting. |
+| `... (spawn_error: ...)` | `spawn_error`: the agent's binary could not start, or its command could not be built. | Check that the harness binary (`claude`, `codex` or `agy`) is installed and on the `PATH` of the machine that runs Carrier; `carrier doctor` checks the setup. |
+| `... (unknown: ...)` | `unknown`: the process failed and nothing else explains it (for example it ended without an exit code). | Read the execution's logs; the row has the exit code, signal, host memory and load. |
 | `the ship execution exceeded the time limit` | One execution went past `maxExecutionHours`. Not retried. | Look at what it was doing; raise the limit or use `"unlimited"` for the next epic. |
 | review rounds exhausted | The reviewer still asked for changes after `maxReviews` rounds. | Read the open findings on the PR and decide. |
 | `PR #N is not open`, `the head changed during the review`, a PR that references another epic | The PR does not match what Carrier expected. Repeating would not fix it. | Check the PR and its commits. |

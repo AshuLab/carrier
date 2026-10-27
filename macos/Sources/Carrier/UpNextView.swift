@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-/// The Overview's Up next section; a thin mapping of `upNext(_:)`. The epics are the Running ones that have not started, so the
+/// The Carrier home's Up next section; a thin mapping of `upNext(_:)`. The epics are the Running ones that have not started, so the
 /// rows look alike: the icon is the waiting circle, still. Clicking a row opens the epic.
 struct UpNextView: View {
     let snapshot: PanelSnapshot

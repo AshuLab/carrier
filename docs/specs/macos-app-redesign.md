@@ -52,7 +52,7 @@ Contract and foundation:
 The window:
 
 10. The window is a sidebar, a detail and a right-hand inspector, with a minimum size, the sidebar and the inspector toggled from the toolbar, glass sidebar and inspector from the system, in light and dark.
-11. The sidebar has an Overview row with a pill that shows epics in use of the maximum and a menu that groups the epics by status or by repository, remembered between launches, and Settings and About at the bottom.
+11. The sidebar has an Overview row with a pill that shows epics in use of the maximum and a menu that groups the epics by status or by repository, remembered between launches, and Settings and About at the bottom. The epic of [the sidebar spec](sidebar-home-sessions-carrier.md) supersedes the part about the sidebar (Home, Sessions, Archive and the Carrier card; About leaves it).
 12. Each sidebar row shows a state glyph, the repository name and the issue number, which is never cut, and a line of detail; the name and the detail end in an ellipsis when they do not fit, in a sidebar from 220 to 320 points wide, with a fourteen-epic list and very long names.
 13. The state glyph of a running epic is a ring that turns, drawn with Core Animation at a capped 20 fps, that is not built while the window is hidden and is static with Reduce Motion on; needs-you is an orange mark, up-next a hollow circle and ready-for-test a blue check.
 14. The Overview's Your turn lists the epics that need Diego, with the reason and its kind, the finished epics waiting to be tested with their PR, and an engine problem, each with its action, and shows an empty state when there is nothing.
@@ -72,7 +72,7 @@ The window:
 28. The Review tab shows the current round as a card with three numbered steps, review, fix and verdict, with its blockers marked new, carried over or fixed and its fix commits, and the earlier rounds folded under it, newest first.
 29. The Details tab shows grouped rows for timing, progress, pull request and run, including the PR's checks and branch, and which agent runs it.
 30. Settings is a screen of the window with a readiness banner and four tabs: Engine, with each path marked found or not found, middle-truncated, with Choose, Reveal and Detect again; Behavior, with the seven values of the config; Repos, with the watched repos and a picker for adding one; and Notifications, with the system permission, a test and the switches. (The first design had Menu bar and General tabs instead; they were dropped, so open at login, the icon style and resetting the saved paths have no screen.)
-31. The About sheet shows the icon with the connection state, the name, the version, one line, and the links, and closes by clicking outside or with Escape.
+31. The About sheet shows the icon with the connection state, the name, the version, one line, and the links, and closes by clicking outside or with Escape. The epic of [the sidebar spec](sidebar-home-sessions-carrier.md) supersedes the entry point of the sheet: it opens from About Carrier in the menu bar item's menu, not from the sidebar.
 32. The menu lists the epics under its status line, each with its state glyph and a badge, rebuilt every time it opens and only when the setting asks for it.
 33. The menu bar icon shows the count and bar, the count only, or the bar only, as chosen in Settings, with or without its animation.
 

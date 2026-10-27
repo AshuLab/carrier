@@ -107,13 +107,36 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(sidebarGroups(snapshot(), by: .status).allSatisfy { $0.rows.isEmpty })
 }
 
-@Test func thePillIsGreyAtZeroGreenInBetweenAndOrangeWhenFullWithAQueue() {
-    #expect(sidebarPill(snapshot(busy: 0)) == SidebarPill(text: "0/3", tone: .gray))
-    #expect(sidebarPill(snapshot(queue: [queued("a/b", 1)], busy: 0)).tone == .gray)
-    #expect(sidebarPill(snapshot(busy: 2)) == SidebarPill(text: "2/3", tone: .green))
-    #expect(sidebarPill(snapshot(busy: 3)) == SidebarPill(text: "3/3", tone: .green))
-    #expect(sidebarPill(snapshot(queue: [queued("a/b", 1)], busy: 2)).tone == .green)
-    #expect(sidebarPill(snapshot(queue: [queued("a/b", 1)], busy: 3)) == SidebarPill(text: "3/3", tone: .orange))
+@Test func theCardStateFollowsTheConnection() {
+    func card(_ snapshot: PanelSnapshot) -> CarrierCardState { carrierCardState(.running(snapshot)) }
+    var paused = snapshot(busy: 1)
+    paused.paused = true
+    var problem = snapshot(busy: 3)
+    problem.problem = "GitHub is not answering"
+    var both = problem
+    both.paused = true
+
+    #expect(card(snapshot(busy: 2)) == CarrierCardState(kind: .running, slots: (2, 3)))
+    #expect(card(paused) == CarrierCardState(kind: .paused, slots: (1, 3)))
+    #expect(card(problem) == CarrierCardState(kind: .problem, slots: (3, 3)))
+    #expect(card(both).kind == .problem)
+    #expect(carrierCardState(.stopped) == CarrierCardState(kind: .stopped, slots: nil))
+    #expect(carrierCardState(.incompatible) == CarrierCardState(kind: .problem, slots: nil))
+    #expect(carrierCardState(nil) == CarrierCardState(kind: .connecting, slots: nil))
+    #expect([card(snapshot()), card(paused), card(problem), carrierCardState(.stopped), carrierCardState(nil)].map(\.title)
+        == ["Running", "Paused", "Problem", "Stopped", "Connecting"])
+}
+
+@Test func theCountersLeaveOutTheFinishedEpics() {
+    let all = snapshot(
+        [epic("a/b", 1), epic("a/b", 2), epic("a/b", 3, .needsHuman)], queue: [queued("a/b", 4), queued("a/b", 5), queued("a/b", 6)],
+        done: [.init(repo: "a/b", issue: 7, prNumber: 9, finishedAt: 5_000, executionId: nil)]
+    )
+    #expect(carrierCounters(all) == CarrierCounters(needsYou: 1, running: 2, next: 3, ready: 1))
+    #expect(carrierCounters(snapshot()) == CarrierCounters(needsYou: 0, running: 0, next: 0, ready: 0))
+    var withFinished = all
+    withFinished.finished = [.init(repo: "a/b", issue: 8, title: nil, labels: [], prNumber: nil, finishedAt: 1, status: .merged, cancelReason: nil, executionId: nil), .init(repo: "a/b", issue: 9, title: nil, labels: [], prNumber: nil, finishedAt: 1, status: .cancelled, cancelReason: nil, executionId: nil)]
+    #expect(carrierCounters(withFinished) == carrierCounters(all))
 }
 
 @Test func theGroupByChoiceSurvivesARelaunch() {
@@ -127,13 +150,30 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(SidebarStore(defaults: defaults).groupBy == .status)
 }
 
-@Test func selectingARowOverviewOrSettingsUpdatesTheSelection() throws {
-    let shell = WindowShell()
-    let row = try #require(sidebarGroups(snapshot([epic("acme/web", 4)]), by: .status)[1].rows.first)
-    for next in [row.selection, .settings, .overview] {
-        shell.selection = next
-        #expect(shell.selection == next)
-    }
+@Test func theSessionSortSurvivesARelaunch() {
+    let name = "carrier-sidebar-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+    #expect(SidebarStore(defaults: defaults).sessionSort == .workspace)
+    SidebarStore(defaults: defaults).sessionSort = .status
+    #expect(SidebarStore(defaults: defaults).sessionSort == .status)
+    defaults.set("nonsense", forKey: "sidebar.sessionSort")
+    #expect(SidebarStore(defaults: defaults).sessionSort == .workspace)
+}
+
+@Test func theOpenSectionSurvivesARelaunchAndANonsenseValueGivesSessions() {
+    let name = "carrier-sidebar-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+    #expect(SidebarStore(defaults: defaults).open == .sessions)
+    SidebarStore(defaults: defaults).open = .carrier
+    #expect(SidebarStore(defaults: defaults).open == .carrier)
+    SidebarStore(defaults: defaults).open = nil
+    #expect(SidebarStore(defaults: defaults).open == nil)
+    SidebarStore(defaults: defaults).open = .sessions
+    #expect(defaults.string(forKey: "sidebar.open") == "sessions")
+    defaults.set("nonsense", forKey: "sidebar.open")
+    #expect(SidebarStore(defaults: defaults).open == .sessions)
 }
 
 @Test func noCurrentGroupStartsCollapsedAndEveryOneStartsExpanded() {
@@ -261,4 +301,97 @@ private func withFinished(_ finished: [PanelSnapshot.FinishedEpic], done: [Panel
     #expect(attention("from_the_future") == .input && attention(nil) == .input)
     let others = snapshot([epic("a/b", 1)], queue: [queued("a/b", 2)])
     #expect(sidebarGroups(others, by: .status).flatMap(\.rows).allSatisfy { $0.attention == nil })
+}
+
+// MARK: search
+
+private func searchable() -> PanelSnapshot {
+    var all = snapshot(
+        [epic("acme/web", 12, title: "Add Login page"), epic("acme/api", 7, .needsHuman, title: "Fix timeout")],
+        queue: [queued("acme/web", 120)],
+        done: [.init(repo: "acme/api", issue: 31, prNumber: 9, finishedAt: 5_000, executionId: nil)]
+    )
+    all.finished = [
+        ended(40, .merged, at: 100_000, title: "Ship the dashboard"), ended(41, .cancelled, at: 90_000, repo: "acme/docs", title: "Rewrite the guide"),
+    ]
+    return all
+}
+
+private func found(_ query: String, by: GroupBy = .status) -> [String] {
+    sidebarGroups(searchable(), by: by, query: query).flatMap { group in group.rows.map { "\(group.title):\($0.issue)" } }
+}
+
+@Test func aQueryMatchesTheTitleIgnoringCase() {
+    #expect(found("login") == ["Running:12"])
+    #expect(found("LOGIN") == ["Running:12"])
+    #expect(found("  login ") == ["Running:12"])
+}
+
+@Test func aQueryMatchesTheIssueNumberWithOrWithoutTheHash() {
+    #expect(found("7") == ["Needs you:7"])
+    #expect(found("#7") == ["Needs you:7"])
+    #expect(found("#31") == ["Ready for test:31"])
+    #expect(found("#12") == ["Running:12", "Up next:120"])
+    #expect(found("#") == [])
+}
+
+@Test func aQueryMatchesTheRepositoryOwnerAndName() {
+    #expect(found("acme/api") == ["Needs you:7", "Ready for test:31"])
+    #expect(found("ACME/WEB") == ["Running:12", "Up next:120", "Done:40"])
+    #expect(found("docs") == ["Cancelled:41"])
+}
+
+@Test func aQueryReachesDoneAndCancelled() {
+    #expect(found("dashboard") == ["Done:40"])
+    #expect(found("guide") == ["Cancelled:41"])
+    #expect(found("#41") == ["Cancelled:41"])
+}
+
+@Test func aQueryKeepsTheGroupsAndHidesTheEmptyOnes() {
+    let groups = sidebarGroups(searchable(), by: .status, query: "acme")
+    #expect(groups.map(\.title) == ["Needs you", "Running", "Up next", "Ready for test", "Done", "Cancelled"])
+    #expect(groups.map(\.startsCollapsed) == [false, false, false, false, true, true])
+    #expect(sidebarGroups(searchable(), by: .status, query: "dashboard").map(\.title) == ["Done"])
+    #expect(sidebarGroups(searchable(), by: .status, query: "nothing like this").isEmpty)
+}
+
+@Test func theRepositoryGroupingFiltersItsOwnSections() {
+    let groups = sidebarGroups(searchable(), by: .repo, query: "#12")
+    #expect(groups.map(\.title) == ["web"])
+    #expect(groups[0].rows.map(\.issue) == [12, 120])
+    #expect(found("acme/api", by: .repo) == ["api:7", "api:31"])
+    // finished epics are only in the repository sections while a query is typed
+    #expect(found("guide", by: .repo) == ["docs:41"])
+    #expect(found("dashboard", by: .repo) == ["web:40"])
+    #expect(sidebarGroups(searchable(), by: .repo).flatMap(\.rows).map(\.issue).contains(41) == false)
+}
+
+@Test func anEmptyQueryChangesNothing() {
+    for by in GroupBy.allCases {
+        #expect(sidebarGroups(searchable(), by: by, query: "") == sidebarGroups(searchable(), by: by))
+        #expect(sidebarGroups(searchable(), by: by, query: "  ") == sidebarGroups(searchable(), by: by))
+    }
+}
+
+@Test func aCollapsedGroupShowsOpenWhileThereIsAQueryAndGoesBackWhenItIsCleared() throws {
+    let done = try #require(sidebarGroups(searchable(), by: .status, query: "dashboard").first)
+    var collapse = SidebarCollapse()
+    #expect(collapse.isCollapsed(done, by: .status, query: ""))
+    #expect(collapse.isCollapsed(done, by: .status, query: "dashboard") == false)
+    // a group the user opened and closed again stays closed once the query goes
+    collapse.toggle(done, by: .status)
+    collapse.toggle(done, by: .status)
+    #expect(collapse.isCollapsed(done, by: .status, query: "dashboard") == false)
+    #expect(collapse.isCollapsed(done, by: .status, query: ""))
+}
+
+@Test func theGroupingIsRememberedForEachChoiceAndTheQueryIsNot() {
+    let suite = "SidebarTests.search.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    for by in GroupBy.allCases {
+        SidebarStore(defaults: defaults).groupBy = by
+        #expect(SidebarStore(defaults: defaults).groupBy == by)
+    }
+    #expect(defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("sidebar.") } == ["sidebar.groupBy"])
 }

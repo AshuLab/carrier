@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Chat — where it lives, round two</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.c-stack{display:flex;flex-direction:column;gap:34px;margin-top:10px}
+.c-opt>h3{margin:0 0 2px;font-size:14px}
+.c-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:880px}
+.c-seg{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.c-seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:4px 12px;border-radius:99px;cursor:default;white-space:nowrap}
+.c-seg button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .c-seg button.on{background:rgba(255,255,255,.16)}
+.c-win{width:min(1060px,100%);height:580px;border-radius:22px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);display:flex;overflow:hidden;position:relative}
+.c-win .side{width:250px}
+.c-win.narrow .side{width:230px}
+.c-badge{display:inline-grid;place-items:center;min-width:22px;height:18px;padding:0 5px;border-radius:6px;background:var(--card2);color:var(--dim);font:600 10px var(--mono);flex:none}
+.c-it{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px;position:relative}
+.c-it.sel{background:var(--sel)}
+.c-it .t{flex:1;min-width:0}.c-it .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-it .t span{display:block;color:var(--dim);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-it .r{font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+.c-gl{width:16px;height:16px;flex:none;display:grid;place-items:center}
+.c-spin{width:14px;height:14px;border-radius:50%;border:2.5px solid color-mix(in srgb,var(--green) 25%,transparent);border-top-color:var(--green);animation:s 1s linear infinite}
+.c-ask{width:16px;height:16px;border-radius:50%;background:var(--orange);color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center}
+.c-idle{width:12px;height:12px;border-radius:50%;border:2px solid var(--faint)}
+.c-ph{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;font-weight:600;color:var(--dim)}
+.c-ph .sp1{flex:1}
+.c-ph:hover{background:var(--card)}
+.c-plus{width:20px;height:20px;border-radius:50%;background:var(--card2);display:grid;place-items:center;color:var(--dim);font-weight:600}
+.c-top{display:flex;gap:1px;background:var(--card2);border-radius:10px;padding:2px;margin:0 2px 8px}
+.c-top button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-weight:600;padding:5px 0;border-radius:8px;display:flex;justify-content:center;gap:6px;align-items:center}
+.c-top button.on{background:var(--win);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+body:not(.light) .c-top button.on{background:rgba(255,255,255,.16)}
+.c-top i{font-style:normal;font-size:10.5px;padding:0 6px;border-radius:99px;background:var(--orange);color:#fff}
+.c-card{border-radius:14px;background:var(--card);padding:9px 11px;margin:0 2px 8px;box-shadow:0 0 0 .5px var(--line) inset}
+.c-card b{font-weight:650}.c-card span{color:var(--dim);font-size:12px;display:block}
+.c-foot{margin-top:auto;padding:8px 8px 2px;border-top:.5px solid var(--line);color:var(--dim);font-size:12px;display:flex;gap:8px;align-items:center}
+/* conversation */
+.c-conv{flex:1;overflow:hidden;padding:6px 0 0;display:flex;flex-direction:column}
+.c-feed{flex:1;overflow:hidden;padding:4px 40px 10px;display:flex;flex-direction:column;gap:12px;max-width:760px;width:100%;margin:0 auto}
+.c-u{align-self:flex-end;max-width:78%;background:var(--card2);border-radius:16px;padding:8px 13px}
+.c-a{display:flex;flex-direction:column;gap:7px}
+.c-a p{margin:0;line-height:1.5}
+.c-tool{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:12.5px;padding:3px 0}
+.c-tool b{font-weight:600;color:var(--text)}
+.c-tool .mono{font-size:11.5px;color:var(--dim)}
+.c-tool .sp1{flex:1}
+.c-tool em{font-style:normal;color:var(--faint);font-size:11.5px}
+.c-tool .ad{color:var(--green);font-weight:600}.c-tool .de{color:var(--red);font-weight:600}
+.c-work{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:12px}
+.c-work .c-spin{width:11px;height:11px;border-width:2px}
+.c-caret{display:inline-block;width:7px;height:14px;background:var(--text);vertical-align:-2px;margin-left:2px;animation:p 1s steps(2) infinite}
+.c-appr{border-radius:14px;background:color-mix(in srgb,var(--orange) 12%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--orange) 55%,transparent);padding:11px 13px;display:flex;flex-direction:column;gap:8px}
+.c-appr .q{font-weight:650}
+.c-appr .cmd{font:12px var(--mono);background:rgba(0,0,0,.28);border-radius:8px;padding:6px 9px;color:#d6d6dc}
+body.light .c-appr .cmd{background:rgba(0,0,0,.08);color:var(--text)}
+.c-appr .btns{display:flex;gap:8px;align-items:center}
+/* composer */
+.c-comp{margin:0 auto 14px;width:calc(100% - 56px);max-width:704px;border-radius:18px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset,0 6px 20px rgba(0,0,0,.18);padding:11px 13px 9px;display:flex;flex-direction:column;gap:9px}
+.c-comp .in{color:var(--faint);min-height:22px}
+.c-comp .bar3{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.c-comp .bar3 .sp1{flex:1}
+.c-pick{display:inline-flex;gap:5px;align-items:center;padding:3px 9px;border-radius:99px;background:var(--card2);color:var(--dim);font-size:12px;font-weight:550;white-space:nowrap}
+.c-pick b{color:var(--text);font-weight:600}
+.c-pick.ask{color:var(--orange)}
+.c-pick::after{content:"⌄";font-size:10px;opacity:.6;margin-left:1px}
+.c-pick.nc::after{content:""}
+.c-send{width:28px;height:28px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:700}
+.c-send.stop{background:var(--card2);color:var(--text)}
+.c-send.stop::before{content:"";width:10px;height:10px;border-radius:2px;background:currentColor}
+.c-send.stop span{display:none}
+/* right panel */
+.c-rp{width:250px;flex:none;margin:8px 8px 8px 0;border-radius:18px;background:var(--side);backdrop-filter:blur(30px);padding:14px 12px;box-shadow:0 0 0 .5px var(--line) inset;display:flex;flex-direction:column;gap:6px}
+.c-rp h4{margin:0;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.c-fl{display:flex;gap:8px;align-items:center;padding:5px 0;font-size:12.5px}
+.c-fl .mono{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px}
+.c-fl .ad{color:var(--green);font-weight:600;font-size:11.5px}.c-fl .de{color:var(--red);font-weight:600;font-size:11.5px}
+/* new chat */
+.c-empty{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;padding-bottom:40px}
+.c-empty h2{margin:0;font-size:22px;font-weight:650;letter-spacing:-.01em}
+.c-empty .dim{margin-bottom:14px}
+.c-menu{border-radius:14px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:6px;width:300px}
+.c-menu .mi{display:flex;gap:9px;align-items:center;padding:6px 9px;border-radius:8px}
+.c-menu .mi.sel{background:var(--blue);color:#fff}
+.c-menu .mi.sel .dim,.c-menu .mi.sel .faint{color:rgba(255,255,255,.75)}
+.c-menu .mi .t{flex:1;min-width:0}
+.c-menu hr{border:0;border-top:.5px solid var(--line);margin:5px 4px}
+.c-menu .hd{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:4px 9px}
+.c-sheet{margin:auto;width:480px;border-radius:20px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:18px 18px 14px;display:flex;flex-direction:column;gap:10px}
+.c-sheet h3{margin:0;font-size:16px}
+.c-sheet .fld{display:flex;flex-direction:column;gap:4px}
+.c-sheet .fld>span{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.c-sheet .box{border-radius:10px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:3px}
+.c-scrim{position:absolute;inset:0;background:rgba(0,0,0,.28);display:flex}
+.c-spec{margin:8px 2px 0;color:var(--faint);font-size:11px;line-height:1.5;font-family:var(--mono)}
+.c-tag{display:inline-block;padding:1px 8px;border-radius:99px;background:var(--card2);color:var(--dim);font-size:11px;font-weight:600;margin-left:6px}
+
+.c-rail{width:62px;flex:none;padding:48px 0 10px;display:flex;flex-direction:column;align-items:center;gap:6px;border-right:.5px solid var(--line)}
+.c-ri{width:46px;padding:6px 0 5px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--dim);font-size:10px;font-weight:600;position:relative}
+.c-ri b{font-size:16px;font-weight:500;line-height:1}
+.c-ri.on{background:var(--sel);color:var(--text)}
+.c-ri i{position:absolute;top:2px;right:4px;font-style:normal;font-size:9.5px;padding:0 5px;border-radius:99px;background:var(--orange);color:#fff}
+.c-lst{width:230px;flex:none;padding:46px 8px 10px;display:flex;flex-direction:column}
+.c-pips{display:flex;gap:3px;margin-top:5px}.c-pips i{flex:1;height:4px;border-radius:2px;background:var(--card2)}
+.c-pips i.d{background:var(--green)}.c-pips i.run{background:var(--green);animation:p 1.6s ease-in-out infinite}.c-pips i.need{background:var(--orange)}
+.c-it .t span .c-kind{display:inline}
+.c-kind{font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);margin-right:5px}
+.c-tabs{display:flex;gap:22px;padding:0 22px;border-bottom:.5px solid var(--line)}
+.c-tabs span{padding:7px 0 8px;color:var(--dim);font-weight:550;border-bottom:2px solid transparent;margin-bottom:-.5px}
+.c-tabs span.on{color:var(--text);border-color:var(--blue)}
+.c-drawer{margin:0 2px 8px;border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:6px}
+.c-drawer .c-it{padding:5px 6px}
+.c-ctx{margin:2px auto 6px;max-width:704px;width:calc(100% - 56px);border-radius:12px;background:var(--card);padding:7px 11px;display:flex;gap:10px;align-items:center;font-size:12px;color:var(--dim)}
+.c-ctx b{color:var(--text);font-weight:600}
+</style></head><body>
+<h1>Where the chat lives — round two</h1>
+<div class="sub">Five different answers to "where does the chat live in the window". Round one (A switch at the top, B sections, C own window) is in <b>chat-options.html</b>; these are the ideas that came after it. All data is invented. Use the state switcher to see a chat that is idle, streaming, or waiting for an approval.</div>
+<div class="bar">
+  <div class="c-seg" id="states"></div>
+  <span class="sp"></span>
+  <button class="tog" id="theme">Light / dark</button>
+</div>
+<div class="c-stack" id="out"></div>
+
+<script>
+const ST={idle:'Idle',stream:'Streaming',ask:'Needs approval'};
+let q='where',st='stream';const u=new URLSearchParams(location.search);
+
+/* ---------- pieces ---------- */
+const lights=`<div class="lights"><i></i><i></i><i></i></div>`;
+const gl=s=>s==='stream'?'<div class="c-gl"><div class="c-spin"></div></div>':s==='ask'?'<div class="c-gl"><div class="c-ask">!</div></div>':'<div class="c-gl"><div class="c-idle"></div></div>';
+const prov={C:'Claude',X:'Codex'};
+const chats=[
+ {t:'Rate-limit the webhook endpoint',p:'optyra/api',a:'C',m:'Sonnet',s:()=>st,age:'now'},
+ {t:'Explore the billing schema',p:'optyra/api',a:'X',m:'GPT-5',s:()=>'ask2',age:'4m'},
+ {t:'Pricing page copy',p:'optyra/web',a:'C',m:'Opus',s:()=>'idle',age:'2h'},
+ {t:'Why is the CI cache cold?',p:'AshuLab/carrier',a:'C',m:'Sonnet',s:()=>'idle',age:'1d'},
+];
+const stOf=c=>{const s=c.s();return s==='ask2'?'ask':s};
+const chatRow=(c,sel,showProj)=>`<div class="c-it ${sel?'sel':''}">${gl(stOf(c))}<div class="t"><b>${c.t}</b><span>${showProj?c.p+' · ':''}${prov[c.a]} ${c.m}</span></div><span class="r">${c.age}</span></div>`;
+const epics=[['run','Add retry to the uploader','#412 · slice 2 of 4'],['need','Fix flaky auth test','#408 · needs you'],['queue','Docs: self-hosting','#415 · up next'],['ready','Cache the repo list','#401 · ready for test']];
+const epGl={run:'<div class="c-gl"><div class="c-spin"></div></div>',need:'<div class="c-gl"><div class="c-ask">!</div></div>',queue:'<div class="c-gl"><div class="c-idle"></div></div>',ready:'<div class="c-gl"><div class="c-ask" style="background:var(--blue)">✓</div></div>'};
+const epRow=e=>`<div class="c-it">${epGl[e[0]]}<div class="t"><b>${e[1]}</b><span>${e[2]}</span></div></div>`;
+const carrierCard=`<div class="c-card"><div class="h"><span class="dot g pulse"></span><b>Carrier is running</b></div><span>2 of 3 slots busy · 5 repos</span></div>`;
+
+const toolRows=`
+ <div class="c-tool"><span>▸</span><b>Read</b><span class="mono">src/api/export.ts</span><span class="sp1"></span><em>212 lines</em></div>
+ <div class="c-tool"><span>▸</span><b>Grep</b><span class="mono">"rateLimit"</span><span class="sp1"></span><em>4 matches</em></div>`;
+function convo(){
+ const tail={
+  idle:`<div class="c-tool"><span>▸</span><b>Edited</b><span class="mono">src/api/webhook.ts</span><span class="sp1"></span><span class="ad">+18</span><span class="de">−2</span></div>
+        <div class="c-tool"><span>▸</span><b>Ran</b><span class="mono">pnpm test webhook</span><span class="sp1"></span><em>passed · 6.1s</em></div>
+        <p>Done. The webhook route now allows 60 requests a minute per key and answers 429 with a <span class="mono">Retry-After</span> header. I added a test for the limit and the reset.</p>`,
+  stream:`<div class="c-tool"><span>▸</span><b>Edited</b><span class="mono">src/api/webhook.ts</span><span class="sp1"></span><span class="ad">+18</span><span class="de">−2</span></div>
+        <p>Next I'll add a test that sends 61 requests in a minute and checks the last one is rejected<span class="c-caret"></span></p>
+        <div class="c-work"><div class="c-spin"></div>Working · 0:42</div>`,
+  ask:`<div class="c-tool"><span>▸</span><b>Edited</b><span class="mono">src/api/webhook.ts</span><span class="sp1"></span><span class="ad">+18</span><span class="de">−2</span></div>
+        <p>Now I'll run the webhook tests to check the limit.</p>
+        <div class="c-appr"><div class="q">Run a command?</div><div class="cmd">pnpm test webhook</div>
+        <div class="btns"><span class="glass pri sm">Allow</span><span class="glass sm">Allow for this chat</span><span class="glass sm red">Decline</span></div></div>`}[st];
+ return `<div class="c-feed">
+  <div class="c-u">Add a rate limit to the webhook endpoint, 60 a minute per key. Look at how /api/export does it first.</div>
+  <div class="c-a">${toolRows}<p>The export route uses a small in-memory counter in <span class="mono">src/lib/rate-limit.ts</span>. I'll reuse it for the webhook so both behave the same.</p>${tail}</div>
+ </div>`;
+}
+const chip=(k,v,cls='')=>`<span class="c-pick ${cls}">${k?`<span class="faint">${k}</span> `:''}<b>${v}</b></span>`;
+const sendBtn=()=>st==='stream'?'<div class="c-send stop"><span>■</span></div>':'<div class="c-send">↑</div>';
+const inputText=()=>st==='stream'?'Message Claude · it is working, you can queue a follow-up':'Message Claude…';
+const compD=()=>`<div class="c-comp"><div class="in">${inputText()}</div>
+ <div class="bar3">${chip('','+','nc')}${chip('','optyra/api · main')}${chip('','Claude · Sonnet')}${chip('','High')}${chip('','Ask first','ask')}<span class="sp1"></span>${sendBtn()}</div></div>`;
+const compE=()=>`<div class="c-comp"><div class="in">${inputText()}</div>
+ <div class="bar3">${chip('','+','nc')}${chip('','Ask first','ask')}<span class="sp1"></span>${sendBtn()}</div></div>`;
+const files=`<h4>Changes in this chat</h4>
+ <div class="c-fl"><span class="mono">src/api/webhook.ts</span><span class="ad">+18</span><span class="de">−2</span></div>
+ <div class="c-fl"><span class="mono">src/lib/rate-limit.ts</span><span class="ad">+41</span></div>
+ <div class="c-fl"><span class="mono">test/webhook.test.ts</span><span class="ad">+27</span></div>
+ <h4 style="margin-top:12px">Checkout</h4>
+ <div class="dim" style="font-size:12px">~/Carrier/chats/api-7f2<br>branch chat/rate-limit</div>
+ <div style="margin-top:auto" class="h"><span class="glass sm">Continue in terminal</span></div>`;
+const tb=(title,sub,extra='')=>`<div class="tb"><h2>${title}<small>${sub}</small></h2>${extra}</div>`;
+
+const win=(inner,cls='')=>`<div class="c-win ${cls}">${lights}${inner}</div>`;
+const spec=t=>`<div class="c-spec">${t}</div>`;
+
+/* ---------- where it lives, round two ---------- */
+const kindRow=(kind,glyph,title,sub,sel)=>`<div class="c-it ${sel?'sel':''}">${glyph}<div class="t"><b>${title}</b><span><span class="c-kind">${kind}</span>${sub}</span></div></div>`;
+const conv=(extra='')=>`<div class="main">${tb('Rate-limit the webhook endpoint','optyra/api · Claude Sonnet',extra)}<div class="c-conv">${convo()}${compD()}</div></div>`;
+const c0=chats[0],c1=chats[1];
+const g0=gl(stOf(c0)),g1=gl(stOf(c1));
+const sideJ=()=>`<div class="side">
+  <div class="c-ph"><span>▾ optyra/api</span><span class="sp1"></span><span class="c-plus">+</span></div>
+  ${kindRow('Chat',g0,c0.t,'Claude Sonnet',true)}${kindRow('Chat',g1,c1.t,'Codex GPT-5')}${kindRow('Epic',epGl.run,'Add retry to the uploader','#412 · slice 2 of 4')}${kindRow('Epic',epGl.need,'Fix flaky auth test','#408 · needs you')}
+  <div class="c-ph"><span>▾ optyra/web</span><span class="sp1"></span><span class="c-plus">+</span></div>
+  ${kindRow('Chat',gl('idle'),'Pricing page copy','Claude Opus')}${kindRow('Epic',epGl.ready,'Cache the repo list','#401 · ready for test')}
+  <div class="c-ph"><span>▸ AshuLab/carrier</span><span class="sp1"></span><span class="c-plus">+</span></div>
+  <div class="c-foot"><span class="dot g pulse"></span>Carrier running · 2 slots busy</div></div>`;
+const sideK=()=>`<div class="side"><div class="c-ph" style="margin-top:2px"><span>New chat</span><span class="sp1"></span><span class="c-plus">+</span></div>
+  <div class="lbl"><span>Recent</span></div>${chats.map((c,i)=>chatRow(c,i===0,true)).join('')}
+  <div style="margin-top:auto"></div>
+  <div class="c-drawer"><div class="h" style="padding:4px 6px 6px"><span class="dot g pulse"></span><b>Carrier</b><span class="sp1"></span><span class="dim" style="font-size:11.5px;white-space:nowrap">1 needs you ⌄</span></div>
+   ${epRow(epics[1])}${epRow(epics[0])}${epRow(epics[3])}</div></div>`;
+const stagePips=(n,cur)=>`<div class="c-pips">${[0,1,2,3,4].map(i=>`<i class="${i<n?'d':i===n?cur:''}"></i>`).join('')}</div>`;
+const workRow=(g,title,sub,pips,sel)=>`<div class="c-it ${sel?'sel':''}">${g}<div class="t"><b>${title}</b><span>${sub}</span>${pips}</div></div>`;
+const sideL=()=>`<div class="side"><div class="c-ph" style="margin-top:2px"><span>New</span><span class="sp1"></span><span class="c-plus">+</span></div>
+  <div class="lbl"><span>Needs you</span></div>${workRow(epGl.need,'Fix flaky auth test','#408 · Build · review round 2',stagePips(3,'need'))}
+  <div class="lbl"><span>Working</span></div>${workRow(g0,c0.t,'Talk · optyra/api · Claude',stagePips(0,'run'),true)}${workRow(epGl.run,'Add retry to the uploader','#412 · Build · slice 2 of 4',stagePips(3,'run'))}
+  <div class="lbl"><span>Idle</span></div>${workRow(gl('idle'),'Pricing page copy','Talk · optyra/web',stagePips(0,''))}${workRow(epGl.ready,'Cache the repo list','#401 · Ready for test',stagePips(5,''))}</div>`;
+const stepper=`<div class="steps" style="padding:2px 20px 8px">${[['Talk','cur'],['Spec',''],['Tickets',''],['Build',''],['Review','']].map(([t,c],i)=>(i?'<div class="ln"></div>':'')+`<div class="st ${c}"><i>${i+1}</i>${t}</div>`).join('')}</div>`;
+const rail=on=>`<div class="c-rail">${[['Epics','▦',1],['Chats','◍',0],['Repos','⌘',0],['Settings','⚙',0]].map(([t,ic,b])=>`<div class="c-ri ${t===on?'on':''}"><b>${ic}</b>${t}${b?'<i>1</i>':''}</div>`).join('')}</div>`;
+const listM=()=>`<div class="c-lst"><div class="c-ph"><span>Chats</span><span class="sp1"></span><span class="c-plus">+</span></div>${chats.map((c,i)=>chatRow(c,i===0,true)).join('')}<div class="c-foot"><span class="dot g pulse"></span>2 running</div></div>`;
+const sideN=()=>`<div class="side">${carrierCard}
+  <div class="c-ph" style="margin-top:2px"><span>Drafts</span><span class="sp1"></span><span class="c-plus">+</span></div>${kindRow('Draft',g0,c0.t,'optyra/api · Claude',false)}
+  <div class="lbl"><span>Needs you</span></div>${epRow(epics[1]).replace('c-it','c-it sel')}
+  <div class="lbl"><span>Running</span></div>${epRow(epics[0])}
+</div>`;
+const epicTabs=`<div class="c-tabs"><span>Overview</span><span>Slices</span><span>Files</span><span>Review</span><span class="on">Chat</span></div>`;
+const convN=()=>`<div class="main">${tb('Fix flaky auth test','#408 · stopped, needs you','<span class="chip o">Needs you</span>')}${epicTabs}<div class="c-conv"><div class="c-ctx"><b>Talking to the author agent</b> · in the epic's checkout · it knows the diff and the open review threads</div>${convoN()}${compD2()}</div></div>`;
+const convoN=()=>`<div class="c-feed">
+  <div class="c-a"><p>I stopped after round 2: the reviewer asked to remove the retry in <span class="mono">auth.test.ts</span>, but the flake only goes away with it. I need a decision.</p></div>
+  <div class="c-u">Keep the retry but cap it at 2 and log each one. Then push.</div>
+  <div class="c-a"><div class="c-tool"><span>▸</span><b>Edited</b><span class="mono">test/auth.test.ts</span><span class="sp1"></span><span class="ad">+6</span><span class="de">−1</span></div><p>Done. I capped it at 2 and added the log line<span class="c-caret"></span></p><div class="c-work"><div class="c-spin"></div>Working · 0:18</div></div></div>`;
+const compD2=()=>`<div class="c-comp"><div class="in">Message the author agent…</div><div class="bar3">${chip('','+','nc')}${chip('','Claude · Sonnet')}${chip('','Ask first','ask')}<span class="sp1"></span><div class="c-send stop"><span>■</span></div></div></div>`;
+
+const Q1=()=>[
+ ['J · Project first: epics and chats side by side','The sidebar is organised by project, like the repositories Carrier already watches. Under each project, its chats and its epics share the list, told apart by a small "Chat" / "Epic" tag, and the + on the project header starts a chat there. You see everything about a repo in one place; the cost is that urgency (needs you) is no longer a group of its own.',
+  win(sideJ()+conv()),'project header 28 · + 20 · row 40 with kind tag · urgency shown by the glyph only'],
+ ['K · Chat first, Carrier in a drawer','The window opens on a chat, like the Claude and Codex apps. The sidebar is your chats; Carrier is a card pinned at the bottom that says "2 running · 1 needs you" and opens into a short list of epics. Click an epic and the centre becomes the epic view. Makes the chat the front door and Carrier the engine behind it.',
+  win(sideK()+conv()),'drawer collapsed = one line · open = up to 4 epics · needs-you epics float to the top and turn the line orange'],
+ ['L · One list: a chat turns into an epic','A single list of work. Each row has five pips: Talk, Spec, Tickets, Build, Review. A new item starts as a chat; when the agent publishes the tickets the same row carries on into Build and Review, and the centre switches from the conversation to the epic view. It is the whole flow of the idea in one object. Needs a link between a chat and the epic it produced, so it is not for the first slice, but nothing in B above blocks growing into it.',
+  win(sideL()+`<div class="main">${tb('Rate-limit the webhook endpoint','optyra/api · Claude Sonnet')}${stepper}<div class="c-conv">${convo()}${compD()}</div></div>`),'pips 5 · done green, current moves or turns orange · groups by urgency, not by kind'],
+ ['M · An icon rail, like Mail or Slack','A narrow rail with Epics, Chats, Repos and Settings; the column next to it lists whatever the rail selects. Room to grow: a future section (Skills, Usage) is one more icon, not a new mode. Costs 62 px of width and one more level of navigation than the switch in round one.',
+  win(rail('Chats')+listM()+conv()),'rail 62 · list 230 · badge on Epics when something needs you'],
+ ['N · The chat is a tab inside the epic','The epic view gets a Chat tab next to Overview, Slices, Files and Review. You talk to that epic\'s author agent, in its checkout, with its diff and review threads at hand: the way to unstick an epic that needs you without a terminal. New work starts as a Draft at the top of the sidebar, which becomes a normal epic once the tickets exist. Strong for steering existing epics, weaker as a general-purpose chat.',
+  win(sideN()+convN()),'tab "Chat" after Review · context strip names the checkout · Drafts group above Needs you']
+];
+const Qs={where:['Where it lives',Q1]};
+function render(){
+  document.getElementById('states').innerHTML=Object.entries(ST).map(([k,v])=>`<button class="${st===k?'on':''}" data-s="${k}">${v}</button>`).join('');
+ document.getElementById('out').innerHTML=Qs[q][1]().filter((_,i)=>!u.get('o')||+u.get('o')===i).map(([t,p,h,s])=>`<div class="c-opt"><h3>${t}</h3><p>${p}</p>${h}${spec(s)}</div>`).join('');
+  document.querySelectorAll('[data-s]').forEach(e=>e.onclick=()=>{st=e.dataset.s;render()});
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+if(u.get('q'))q=u.get('q');if(u.get('s'))st=u.get('s');if(u.get('light'))document.body.classList.add('light');
+render();
+</script></body></html>

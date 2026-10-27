@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// An Overview section's title, above the card it heads: the name and, small, what it counts.
+/// A Carrier home section's title, above the card it heads: the name and, small, what it counts.
 struct OverviewTitle: View {
     let title: String
     var detail: String?
@@ -15,7 +15,7 @@ struct OverviewTitle: View {
     }
 }
 
-/// An Overview card: a rounded fill with its rows divided by hairlines.
+/// A Carrier home card: a rounded fill with its rows divided by hairlines.
 struct OverviewCard<Content: View>: View {
     /// Dividers run the card's whole width instead of stopping at its padding: the rows are one unit.
     var fullWidthDividers = false

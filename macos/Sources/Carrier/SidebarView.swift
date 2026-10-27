@@ -1,38 +1,68 @@
 import CarrierCore
 import SwiftUI
 
-/// The sidebar's list: Overview with the pill and the group-by menu, the epics in groups, Settings and About at the bottom.
+/// The sidebar's list: the Home row, Sessions, then the Carrier card with the epics in groups under it; Settings at the bottom.
 struct SidebarView: View {
     let snapshot: PanelSnapshot?
     let state: ConnectionState?
+    let sessions: Sessions
     @Binding var selection: Selection
+    /// Which of Sessions and the Carrier card is unfolded, nil when both are folded.
+    @Binding var open: OpenSection?
     @Binding var groupBy: GroupBy
     @Binding var collapse: SidebarCollapse
-    let onAbout: () -> Void
+    /// The last ⌘F, for the open section to show its search.
+    let searchRequest: SearchRequest?
+    /// The card's search: not remembered between launches.
+    @State private var searching = false
+    @State private var query = ""
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
         List(selection: list) {
-            Label("Overview", systemImage: "square.grid.2x2").tag(Selection.overview)
-            if snapshot != nil {
-                // how the sections below are grouped: there is nothing to group while Carrier is not answering
-                UnderlineTabs(
-                    items: [
-                        .init(id: GroupBy.status, title: "Status", icon: "rectangle.3.group"),
-                        .init(id: GroupBy.repo, title: "Repository", icon: "shippingbox"),
-                    ],
-                    selection: $groupBy, fill: true
-                )
-                .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 10, trailing: 0))
-                .listRowSeparator(.hidden)
-                .selectionDisabled()
+            Label("Home", systemImage: "house").tag(Selection.home).help("Home (⌘1)")
+            SessionsRows(sessions: sessions, open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }), searchRequest: searchRequest)
+            // its own row, outside Sessions, so folding Sessions does not hide it
+            let archived = archivedCount(sessions.rows)
+            HStack {
+                Label("Archive", systemImage: "archivebox")
+                Spacer(minLength: 0)
+                Text("\(archived)").font(.callout.monospacedDigit()).foregroundStyle(.secondary)
             }
-            if let snapshot {
-                let groups = sidebarGroups(snapshot, by: groupBy)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Archive, \(archived)")
+            .tag(Selection.archive)
+            CarrierCard(state: state, selected: selection == .carrier, unfolded: open == .carrier, groupBy: $groupBy, searching: $searching)
+                .tag(Selection.carrier)
+                // the list does not call its setter when the selected row is clicked again, so a folded card opens from here, beside the list's own click
+                // selected, the card's fill is clear, which the tap would not hit: give it a shape
+                .contentShape(Rectangle())
+                .simultaneousGesture(TapGesture().onEnded { open = .carrier })
+                .listRowBackground(Color.clear)
+            if let snapshot, open == .carrier {
+                // a row of its own, not selectable, so a click in the field does not select the card
+                if searching {
+                    TextField("Search epics", text: $query)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($searchFocused)
+                        .onKeyPress(.escape) {
+                            searching = false
+                            return .handled
+                        }
+                        .selectionDisabled()
+                }
+                let queried = query.trimmingCharacters(in: .whitespaces).isEmpty == false
+                let groups = sidebarGroups(snapshot, by: groupBy, query: query)
+                if groups.isEmpty && queried {
+                    Text("No epics match").foregroundStyle(.secondary).selectionDisabled()
+                }
                 ForEach(groups.indices, id: \.self) { index in
                     let group = groups[index]
                     let expanded = Binding(
-                        get: { !collapse.isCollapsed(group, by: groupBy) }, set: { _ in collapse.toggle(group, by: groupBy) }
+                        get: { !collapse.isCollapsed(group, by: groupBy, query: query) },
+                        // while a query is typed every group is open, so there is nothing to toggle
+                        set: { _ in if queried == false { collapse.toggle(group, by: groupBy) } }
                     )
                     Section(isExpanded: expanded) {
                         ForEach(group.rows, id: \.selection) { SidebarRowView(row: $0).tag($0.selection) }
@@ -43,69 +73,175 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .onChange(of: searching) { if searching { searchFocused = true } else { query = "" } }
+        .onChange(of: searchRequest) {
+            if searchRequest?.section == .carrier && snapshot != nil && open == .carrier {
+                searching = true
+                searchFocused = true
+            }
+        }
         .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 320)
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 2) {
-                SidebarStatus(state: state).padding(.bottom, 6)
-                SidebarFooterRow(title: "Settings", icon: "gearshape", selected: selection == .settings) { selection = .settings }
-                SidebarFooterRow(title: "About", icon: "info.circle", selected: false, action: onAbout)
-            }
-            .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 10)
-            // opaque enough that the list scrolls under it without showing through
-            .background(.regularMaterial)
-            .overlay(alignment: .top) { Divider() }
+            SidebarFooterRow(title: "Settings", icon: "gearshape", selected: selection == .settings) { selection = .settings }
+                .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 10)
+                // opaque enough that the list scrolls under it without showing through
+                .background(.regularMaterial)
+                .overlay(alignment: .top) { Divider() }
         }
     }
 }
 
-/// Whether Carrier runs, when it checks GitHub next and how many of its slots are busy: a card at the foot of the sidebar, so it
-/// is in view on every screen. Hovering it shows how long it has been up and the rate limit.
-private struct SidebarStatus: View {
+/// The Carrier card, a row of the list: the engine's state as a pill with the search and the grouping menu, its slots as bars and
+/// what is waiting as counters, on a plain grey fill; the epics follow it. Choosing it shows the Carrier home. Hovering it shows when
+/// the next check is, the uptime and the rate limit.
+private struct CarrierCard: View {
     let state: ConnectionState?
+    let selected: Bool
+    /// Folded, the card is its state, slots and counters; unfolded, it also has the search and the grouping menu, and the epics follow.
+    let unfolded: Bool
+    @Binding var groupBy: GroupBy
+    /// Whether the search field is open under the card; the list owns the field.
+    @Binding var searching: Bool
+    @State private var groupMenu = false
 
     var body: some View {
-        let status = sidebarStatus(state)
-        HStack(spacing: 10) {
-            Circle().fill(status.color).frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(status.title).fontWeight(.medium)
-                if let detail = status.detail { Text(detail).font(.caption.monospacedDigit()).foregroundStyle(.secondary) }
-            }
-            Spacer(minLength: 0)
-            if let slots = status.slots {
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text(slots.text).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    SegmentedProgress(done: slots.busy, total: slots.total, tint: slots.color).frame(width: 40)
+        let card = carrierCardState(state)
+        let snapshot: PanelSnapshot? = if case .running(let snapshot)? = state { snapshot } else { nil }
+        // the hover: running says when the next check is, uptime and rate limit; an incompatible engine says why
+        let detail: String? = if let snapshot { Self.hover(snapshot) } else if case .incompatible? = state { state?.menuLine } else { nil }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                Text(card.title)
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 8).padding(.vertical, 2)
+                    .background(Capsule().fill(Self.tint(card.kind).opacity(0.18)))
+                Spacer(minLength: 0)
+                // the epics exist only while Carrier answers, so there is nothing to search or group before
+                if snapshot != nil && unfolded {
+                    IconButton(icon: "magnifyingglass", name: searching ? "Close epic search" : "Search epics", shortcut: "⌘F", pressed: searching) {
+                        searching.toggle()
+                    }
+                    IconButton(icon: "ellipsis", name: "Group epics by") { groupMenu = true }
+                        .popover(isPresented: $groupMenu, arrowEdge: .trailing) {
+                            ChoiceMenu(
+                                title: "Group by", options: [("Status", GroupBy.status), ("Repository", .repo)], selection: $groupBy,
+                                close: { groupMenu = false }
+                            )
+                        }
                 }
-                .help("\(slots.busy) of \(slots.total) slots in use")
+            }
+            if let slots = card.slots {
+                VStack(alignment: .leading, spacing: 4) {
+                    SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
+                    Text("\(slots.busy) of \(slots.total) slots busy").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(slots.busy) of \(slots.total) slots busy")
+            }
+            if card.kind == .stopped {
+                Text("Start Carrier to run epics").font(.caption).foregroundStyle(.secondary)
+            } else if let snapshot {
+                let counters = carrierCounters(snapshot)
+                FlowLayout(spacing: 10) {
+                    if counters.needsYou > 0 { Counter(count: counters.needsYou, word: "needs you", color: .orange) }
+                    Counter(count: counters.running, word: "running", color: .green)
+                    Counter(count: counters.next, word: "next", color: .gray)
+                    Counter(count: counters.ready, word: "ready", color: .blue)
+                }
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 9)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.1)))
-        .help(status.help)
-        .accessibilityElement(children: .combine)
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // the list draws its own pill under a chosen row, so the grey is only for the card at rest
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(selected ? 0 : 0.1)))
+        .help(([detail, "Carrier (⌘3)"].compactMap { $0 }).joined(separator: "\n"))
     }
 
-    private typealias Slots = (text: String, busy: Int, total: Int, color: Color)
-
-    private func sidebarStatus(_ state: ConnectionState?) -> (title: String, detail: String?, color: Color, help: String, slots: Slots?) {
-        switch state {
-        case .running(let snapshot)?:
-            let box = carrierBox(snapshot)
-            let help = ([box.uptime] + box.rows.dropFirst().map { "\($0.label): \($0.value)" }).joined(separator: " · ")
-            let pill = sidebarPill(snapshot)
-            let tone: Color = switch pill.tone {
-            case .green: .green
-            case .orange: .orange
-            case .gray: .gray
-            }
-            let slots: Slots = (pill.text, snapshot.slots.busy, snapshot.slots.total, tone)
-            if snapshot.paused { return ("Intake paused", nil, .orange, help, slots) }
-            return ("Carrier running", nextCheckLine(snapshot), snapshot.problem == nil ? .green : .orange, help, slots)
-        case .stopped?: return ("Carrier stopped", nil, .gray, "", nil)
-        case .incompatible?: return (state?.menuLine ?? "", nil, .orange, "", nil)
-        case nil: return ("Connecting…", nil, .gray, "", nil)
+    private static func tint(_ kind: CarrierCardState.Kind) -> Color {
+        switch kind {
+        case .running: .green
+        case .paused, .problem: .orange
+        case .stopped, .connecting: .gray
         }
+    }
+
+    private static func hover(_ snapshot: PanelSnapshot) -> String {
+        let box = carrierBox(snapshot)
+        return ([box.uptime] + box.rows.map { "\($0.label): \($0.value)" }).joined(separator: " · ")
+    }
+
+    /// A dot and a word; the number is part of the word, so it reads aloud as "2 running".
+    private struct Counter: View {
+        let count: Int
+        let word: String
+        let color: Color
+
+        var body: some View {
+            HStack(spacing: 4) {
+                Circle().fill(color).frame(width: 6, height: 6).accessibilityHidden(true)
+                Text("\(count) \(word)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// A 22-point plain button with an accessible name and a tooltip; `why` is the tooltip and the hint while it is disabled. In a list
+/// row it runs its action and does not select the row.
+struct IconButton: View {
+    let icon: String
+    let name: String
+    var enabled = true
+    var why: String?
+    /// Shown after the name in the tooltip.
+    var shortcut: String?
+    /// Drawn while what the button opened is open.
+    var pressed = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon).frame(width: 22, height: 22).contentShape(Rectangle())
+                .background(RoundedRectangle(cornerRadius: 5).fill(pressed ? Color.primary.opacity(0.15) : .clear))
+        }
+        .buttonStyle(.plain)
+        .disabled(enabled == false)
+        .help(enabled ? name + (shortcut.map { " (\($0))" } ?? "") : why ?? name)
+        .accessibilityLabel(name)
+        .accessibilityHint(enabled ? "" : why ?? "")
+        .accessibilityAddTraits(pressed ? .isSelected : [])
+    }
+}
+
+/// A popover of choices, one ticked; choosing one closes it.
+struct ChoiceMenu<Value: Hashable>: View {
+    let title: String
+    let options: [(title: String, value: Value)]
+    @Binding var selection: Value
+    let close: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.bottom, 2)
+            ForEach(options.indices, id: \.self) { index in
+                let option = options[index]
+                Button {
+                    selection = option.value
+                    close()
+                } label: {
+                    HStack {
+                        Text(option.title)
+                        Spacer(minLength: 0)
+                        if selection == option.value { Image(systemName: "checkmark") }
+                    }
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selection == option.value ? .isSelected : [])
+            }
+        }
+        .padding(8)
+        .frame(width: 160)
     }
 }
 

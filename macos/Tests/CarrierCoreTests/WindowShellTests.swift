@@ -1,9 +1,9 @@
 import Testing
 @testable import CarrierCore
 
-@Test func aNewWindowShowsBothColumnsOnTheOverview() {
+@Test func aNewWindowShowsBothColumnsOnHome() {
     let shell = WindowShell()
-    #expect(shell.selection == .overview)
+    #expect(shell.selection == .home)
     #expect(shell.sidebarShown && shell.inspectorShown)
 }
 
@@ -18,9 +18,9 @@ import Testing
     #expect(shell.sidebarShown && shell.inspectorShown)
 }
 
-@Test func theSelectionHoldsOverviewAnEpicAndSettings() {
+@Test func theSelectionHoldsEveryPage() {
     let shell = WindowShell()
-    for next in [Selection.epic(repo: "acme/web", issue: 7), .settings, .overview] {
+    for next in [Selection.epic(repo: "acme/web", issue: 7), .settings, .home, .sessions, .session(id: "s1"), .archive, .carrier] {
         shell.selection = next
         #expect(shell.selection == next)
     }
@@ -33,7 +33,47 @@ import Testing
     shell.sidebarShown = false
     shell.inspectorShown = false
     shell.reset()
-    #expect(shell.selection == .overview && shell.sidebarShown && shell.inspectorShown)
+    #expect(shell.selection == .home && shell.sidebarShown && shell.inspectorShown)
+}
+
+@Test func aNewWindowStartsWithSessionsOpen() { #expect(WindowShell().open == .sessions) }
+
+@Test func eachSelectionSetsOrKeepsTheOpenSection() {
+    let shell = WindowShell()
+    for (next, opens) in [
+        (Selection.carrier, OpenSection.carrier), (.sessions, .sessions), (.epic(repo: "acme/web", issue: 7), .carrier), (.session(id: "s1"), .sessions),
+    ] {
+        shell.open = nil
+        shell.selection = next
+        #expect(shell.open == opens)
+    }
+    for (kept, next) in [(OpenSection.carrier as OpenSection?, Selection.home), (.sessions, .archive), (nil, .settings), (.carrier, .settings)] {
+        shell.open = kept
+        shell.selection = next
+        #expect(shell.open == kept)
+    }
+}
+
+@Test func foldingTheOpenSectionLeavesBothFoldedAndOpeningOneFoldsTheOther() {
+    let shell = WindowShell()
+    shell.open = nil
+    #expect(shell.open == nil)
+    shell.selection = .carrier
+    #expect(shell.open == .carrier)
+    shell.selection = .sessions
+    #expect(shell.open == .sessions)
+}
+
+@Test func resetOpensTheGivenSectionOrSessions() {
+    let shell = WindowShell(open: .carrier)
+    #expect(shell.open == .carrier)
+    shell.selection = .sessions
+    shell.reset()
+    #expect(shell.open == .sessions)
+    shell.reset(open: nil)
+    #expect(shell.open == nil)
+    shell.reset(open: .carrier)
+    #expect(shell.open == .carrier && shell.selection == .home)
 }
 
 @Test func escapeAndAClickOutsideCloseTheAboutSheetButAClickOnItDoesNot() {
@@ -51,4 +91,48 @@ import Testing
     shell.showAbout()
     shell.reset()
     #expect(shell.aboutShown == false)
+}
+
+@Test func commandAndANumberOrFSelectOrSearch() {
+    #expect(shortcutAction(key: "1", modifiers: .command) == .select(.home))
+    #expect(shortcutAction(key: "2", modifiers: .command) == .select(.sessions))
+    #expect(shortcutAction(key: "3", modifiers: .command) == .select(.carrier))
+    #expect(shortcutAction(key: "f", modifiers: .command) == .search)
+    #expect(shortcutAction(key: "F", modifiers: .command) == .search)
+}
+
+@Test func anotherModifierOrAnotherKeyIsNothing() {
+    for modifiers in [ShortcutModifiers([]), .shift, .option, .control, [.command, .shift], [.command, .option], [.command, .control]] {
+        for key in ["1", "2", "3", "f"] { #expect(shortcutAction(key: key, modifiers: modifiers) == nil) }
+    }
+    for key in ["4", "0", "g", "", "12"] { #expect(shortcutAction(key: key, modifiers: .command) == nil) }
+}
+
+@Test func theSelectionShortcutsActAsAClickDoes() {
+    let shell = WindowShell()
+    shell.open = nil
+    shell.perform(.select(.sessions))
+    #expect(shell.selection == .sessions && shell.open == .sessions)
+    shell.perform(.select(.carrier))
+    #expect(shell.selection == .carrier && shell.open == .carrier)
+    shell.perform(.select(.home))
+    #expect(shell.selection == .home && shell.open == .carrier)
+}
+
+@Test func searchAsksTheOpenSectionAndNothingWhenBothAreFolded() {
+    let shell = WindowShell()
+    shell.open = nil
+    shell.perform(.search)
+    #expect(shell.searchRequest == nil)
+    shell.open = .sessions
+    shell.perform(.search)
+    #expect(shell.searchRequest?.section == .sessions)
+    let first = shell.searchRequest
+    shell.perform(.search)
+    #expect(shell.searchRequest != first && shell.searchRequest?.section == .sessions)
+    shell.open = .carrier
+    shell.perform(.search)
+    #expect(shell.searchRequest?.section == .carrier)
+    shell.reset()
+    #expect(shell.searchRequest == nil)
 }

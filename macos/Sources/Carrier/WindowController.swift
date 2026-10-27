@@ -6,10 +6,23 @@ import SwiftUI
 /// What the window shows: nil until the first answer from Carrier.
 @Observable final class PanelModel {
     var state: ConnectionState?
-    let shell = WindowShell()
+    let shell = WindowShell(open: SidebarStore().open)
     let epics = EpicStore()
     var groupBy = SidebarStore().groupBy
     var collapse = SidebarCollapse()
+    /// Empty until the sessions epic feeds it; the dev fixture's sample with `--fixture`.
+    var sessions = Sessions(rows: CommandLine.arguments.contains("--fixture") ? sampleSessions(now: Date()) : [])
+}
+
+private extension ShortcutModifiers {
+    init(_ flags: NSEvent.ModifierFlags) {
+        var modifiers: ShortcutModifiers = []
+        if flags.contains(.command) { modifiers.insert(.command) }
+        if flags.contains(.shift) { modifiers.insert(.shift) }
+        if flags.contains(.option) { modifiers.insert(.option) }
+        if flags.contains(.control) { modifiers.insert(.control) }
+        self = modifiers
+    }
 }
 
 /// Set from the main thread, read from the monitor's.
@@ -39,7 +52,22 @@ final class WindowController: NSObject, NSWindowDelegate {
         showIcon("macwindow", on: item)
     }
 
+    /// Adds the "About Carrier" item: it opens the window if it was closed, then shows the About sheet over it.
+    func addAboutItem(to menu: NSMenu) {
+        let item = menu.addItem(withTitle: "About Carrier", action: #selector(aboutFromMenu), keyEquivalent: "")
+        item.target = self
+        showIcon("info.circle", on: item)
+    }
+
     @objc private func openFromMenu() { open() }
+
+    /// For the self-test: Escape on the About sheet, so the next choice of the item starts from no sheet.
+    func dismissAbout() { model.shell.aboutInput(.escape) }
+
+    @objc private func aboutFromMenu() {
+        open()
+        model.shell.showAbout()
+    }
 
     func open(selecting epic: EpicMenuItem? = nil) { open(epic: epic.map { EpicRef(repo: $0.repo, issue: $0.issue) }) }
 
@@ -58,6 +86,9 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     /// For the self-test: whether the window is on screen and whether its monitor runs.
     var status: String { "visible \(window?.isVisible == true), monitor \(stop != nil)" }
+
+    /// For the self-test: `status` plus whether the About sheet is shown.
+    var aboutStatus: String { "\(status), about sheet \(model.shell.aboutShown ? "shown" : "hidden")" }
 
     /// For `--smoke-window`: selects the first epic Carrier reports (running, queued, then finished), so its view is on screen.
     func selectFirstEpic() {
@@ -109,6 +140,15 @@ final class WindowController: NSObject, NSWindowDelegate {
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.isReleasedWhenClosed = false
         window.delegate = self
+        // the shortcuts belong to the window, not to the menu bar item's menu: only a key pressed while it is the key window counts
+        // lives as long as the window, which is kept for the life of the app
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak window] event in
+            guard let self, let window, window.isKeyWindow, event.window === window,
+                let action = shortcutAction(key: event.charactersIgnoringModifiers ?? "", modifiers: .init(event.modifierFlags))
+            else { return event }
+            self.model.shell.perform(action)
+            return nil
+        }
         window.setContentSize(NSSize(width: 1100, height: 700))
         window.center()
         NotificationCenter.default.addObserver(self, selector: #selector(windowClosed), name: NSWindow.willCloseNotification, object: window)
@@ -125,7 +165,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         stop?.set()
         stop = nil
         model.state = nil
-        model.shell.reset()
+        model.shell.reset(open: SidebarStore().open)
     }
 
     private func startMonitor() {

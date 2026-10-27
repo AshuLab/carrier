@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-/// The Overview while Carrier is not running (or not answered yet): what happened and the button that starts it. When the setup
+/// The Carrier home while Carrier is not running (or not answered yet): what happened and the button that starts it. When the setup
 /// lacks something the button is off and one line says what, with the way to Settings.
 struct StoppedView: View {
     let state: ConnectionState?

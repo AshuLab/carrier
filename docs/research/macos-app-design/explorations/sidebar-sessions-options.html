@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Sidebar — Home, Sessions by workspace, Carrier, Archive</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.c-stack{display:flex;flex-direction:column;gap:34px;margin-top:10px}
+.c-opt>h3{margin:0 0 2px;font-size:14px}
+.c-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:880px}
+.c-seg{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.c-seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:4px 12px;border-radius:99px;cursor:default;white-space:nowrap}
+.c-seg button.on{background:var(--win);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body:not(.light) .c-seg button.on{background:rgba(255,255,255,.16)}
+.c-win{width:min(1060px,100%);height:580px;border-radius:22px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);display:flex;overflow:hidden;position:relative}
+.c-win .side{width:250px}
+.c-win.narrow .side{width:230px}
+.c-badge{display:inline-grid;place-items:center;min-width:22px;height:18px;padding:0 5px;border-radius:6px;background:var(--card2);color:var(--dim);font:600 10px var(--mono);flex:none}
+.c-it{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:10px;position:relative}
+.c-it.sel{background:var(--sel)}
+.c-it .t{flex:1;min-width:0}.c-it .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-it .t span{display:block;color:var(--dim);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-it .r{font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums}
+.c-gl{width:16px;height:16px;flex:none;display:grid;place-items:center}
+.c-spin{width:14px;height:14px;border-radius:50%;border:2.5px solid color-mix(in srgb,var(--green) 25%,transparent);border-top-color:var(--green);animation:s 1s linear infinite}
+.c-ask{width:16px;height:16px;border-radius:50%;background:var(--orange);color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center}
+.c-idle{width:12px;height:12px;border-radius:50%;border:2px solid var(--faint)}
+.c-ph{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;font-weight:600;color:var(--dim)}
+.c-ph .sp1{flex:1}
+.c-ph:hover{background:var(--card)}
+.c-plus{width:20px;height:20px;border-radius:50%;background:var(--card2);display:grid;place-items:center;color:var(--dim);font-weight:600}
+.c-top{display:flex;gap:1px;background:var(--card2);border-radius:10px;padding:2px;margin:0 2px 8px}
+.c-top button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-weight:600;padding:5px 0;border-radius:8px;display:flex;justify-content:center;gap:6px;align-items:center}
+.c-top button.on{background:var(--win);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+body:not(.light) .c-top button.on{background:rgba(255,255,255,.16)}
+.c-top i{font-style:normal;font-size:10.5px;padding:0 6px;border-radius:99px;background:var(--orange);color:#fff}
+.c-card{border-radius:14px;background:var(--card);padding:9px 11px;margin:0 2px 8px;box-shadow:0 0 0 .5px var(--line) inset}
+.c-card b{font-weight:650}.c-card span{color:var(--dim);font-size:12px;display:block}
+.c-foot{margin-top:auto;padding:8px 8px 2px;border-top:.5px solid var(--line);color:var(--dim);font-size:12px;display:flex;gap:8px;align-items:center}
+/* conversation */
+.c-conv{flex:1;overflow:hidden;padding:6px 0 0;display:flex;flex-direction:column}
+.c-feed{flex:1;overflow:hidden;padding:4px 40px 10px;display:flex;flex-direction:column;gap:12px;max-width:760px;width:100%;margin:0 auto}
+.c-u{align-self:flex-end;max-width:78%;background:var(--card2);border-radius:16px;padding:8px 13px}
+.c-a{display:flex;flex-direction:column;gap:7px}
+.c-a p{margin:0;line-height:1.5}
+.c-tool{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:12.5px;padding:3px 0}
+.c-tool b{font-weight:600;color:var(--text)}
+.c-tool .mono{font-size:11.5px;color:var(--dim)}
+.c-tool .sp1{flex:1}
+.c-tool em{font-style:normal;color:var(--faint);font-size:11.5px}
+.c-tool .ad{color:var(--green);font-weight:600}.c-tool .de{color:var(--red);font-weight:600}
+.c-work{display:flex;gap:8px;align-items:center;color:var(--dim);font-size:12px}
+.c-work .c-spin{width:11px;height:11px;border-width:2px}
+.c-caret{display:inline-block;width:7px;height:14px;background:var(--text);vertical-align:-2px;margin-left:2px;animation:p 1s steps(2) infinite}
+.c-appr{border-radius:14px;background:color-mix(in srgb,var(--orange) 12%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--orange) 55%,transparent);padding:11px 13px;display:flex;flex-direction:column;gap:8px}
+.c-appr .q{font-weight:650}
+.c-appr .cmd{font:12px var(--mono);background:rgba(0,0,0,.28);border-radius:8px;padding:6px 9px;color:#d6d6dc}
+body.light .c-appr .cmd{background:rgba(0,0,0,.08);color:var(--text)}
+.c-appr .btns{display:flex;gap:8px;align-items:center}
+/* composer */
+.c-comp{margin:0 auto 14px;width:calc(100% - 56px);max-width:704px;border-radius:18px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset,0 6px 20px rgba(0,0,0,.18);padding:11px 13px 9px;display:flex;flex-direction:column;gap:9px}
+.c-comp .in{color:var(--faint);min-height:22px}
+.c-comp .bar3{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.c-comp .bar3 .sp1{flex:1}
+.c-pick{display:inline-flex;gap:5px;align-items:center;padding:3px 9px;border-radius:99px;background:var(--card2);color:var(--dim);font-size:12px;font-weight:550;white-space:nowrap}
+.c-pick b{color:var(--text);font-weight:600}
+.c-pick.ask{color:var(--orange)}
+.c-pick::after{content:"⌄";font-size:10px;opacity:.6;margin-left:1px}
+.c-pick.nc::after{content:""}
+.c-send{width:28px;height:28px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:700}
+.c-send.stop{background:var(--card2);color:var(--text)}
+.c-send.stop::before{content:"";width:10px;height:10px;border-radius:2px;background:currentColor}
+.c-send.stop span{display:none}
+/* right panel */
+.c-rp{width:250px;flex:none;margin:8px 8px 8px 0;border-radius:18px;background:var(--side);backdrop-filter:blur(30px);padding:14px 12px;box-shadow:0 0 0 .5px var(--line) inset;display:flex;flex-direction:column;gap:6px}
+.c-rp h4{margin:0;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.c-fl{display:flex;gap:8px;align-items:center;padding:5px 0;font-size:12.5px}
+.c-fl .mono{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px}
+.c-fl .ad{color:var(--green);font-weight:600;font-size:11.5px}.c-fl .de{color:var(--red);font-weight:600;font-size:11.5px}
+/* new chat */
+.c-empty{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:6px;padding-bottom:40px}
+.c-empty h2{margin:0;font-size:22px;font-weight:650;letter-spacing:-.01em}
+.c-empty .dim{margin-bottom:14px}
+.c-menu{border-radius:14px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:6px;width:300px}
+.c-menu .mi{display:flex;gap:9px;align-items:center;padding:6px 9px;border-radius:8px}
+.c-menu .mi.sel{background:var(--blue);color:#fff}
+.c-menu .mi.sel .dim,.c-menu .mi.sel .faint{color:rgba(255,255,255,.75)}
+.c-menu .mi .t{flex:1;min-width:0}
+.c-menu hr{border:0;border-top:.5px solid var(--line);margin:5px 4px}
+.c-menu .hd{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:4px 9px}
+.c-sheet{margin:auto;width:480px;border-radius:20px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:18px 18px 14px;display:flex;flex-direction:column;gap:10px}
+.c-sheet h3{margin:0;font-size:16px}
+.c-sheet .fld{display:flex;flex-direction:column;gap:4px}
+.c-sheet .fld>span{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+.c-sheet .box{border-radius:10px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:3px}
+.c-scrim{position:absolute;inset:0;background:rgba(0,0,0,.28);display:flex}
+.c-spec{margin:8px 2px 0;color:var(--faint);font-size:11px;line-height:1.5;font-family:var(--mono)}
+.c-tag{display:inline-block;padding:1px 8px;border-radius:99px;background:var(--card2);color:var(--dim);font-size:11px;font-weight:600;margin-left:6px}
+
+.c-rail{width:62px;flex:none;padding:48px 0 10px;display:flex;flex-direction:column;align-items:center;gap:6px;border-right:.5px solid var(--line)}
+.c-ri{width:46px;padding:6px 0 5px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--dim);font-size:10px;font-weight:600;position:relative}
+.c-ri b{font-size:16px;font-weight:500;line-height:1}
+.c-ri.on{background:var(--sel);color:var(--text)}
+.c-ri i{position:absolute;top:2px;right:4px;font-style:normal;font-size:9.5px;padding:0 5px;border-radius:99px;background:var(--orange);color:#fff}
+.c-lst{width:230px;flex:none;padding:46px 8px 10px;display:flex;flex-direction:column}
+.c-pips{display:flex;gap:3px;margin-top:5px}.c-pips i{flex:1;height:4px;border-radius:2px;background:var(--card2)}
+.c-pips i.d{background:var(--green)}.c-pips i.run{background:var(--green);animation:p 1.6s ease-in-out infinite}.c-pips i.need{background:var(--orange)}
+.c-it .t span .c-kind{display:inline}
+.c-kind{font-size:10px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--faint);margin-right:5px}
+.c-tabs{display:flex;gap:22px;padding:0 22px;border-bottom:.5px solid var(--line)}
+.c-tabs span{padding:7px 0 8px;color:var(--dim);font-weight:550;border-bottom:2px solid transparent;margin-bottom:-.5px}
+.c-tabs span.on{color:var(--text);border-color:var(--blue)}
+.c-drawer{margin:0 2px 8px;border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:6px}
+.c-drawer .c-it{padding:5px 6px}
+.c-ctx{margin:2px auto 6px;max-width:704px;width:calc(100% - 56px);border-radius:12px;background:var(--card);padding:7px 11px;display:flex;gap:10px;align-items:center;font-size:12px;color:var(--dim)}
+.c-ctx b{color:var(--text);font-weight:600}
+
+.ovs{display:flex;align-items:baseline;gap:8px;margin:16px 2px 7px}.ovs:first-child{margin-top:2px}.ovs b{font-size:15px;font-weight:650;letter-spacing:-.01em}.ovs span{color:var(--dim);font-size:12px}
+.ovc{border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:2px 14px}
+.ovr{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:.5px solid var(--line)}.ovr:first-child{border:0}
+.ovt{flex:1;min-width:0}.ovt b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ovt>span{display:block;color:var(--dim);font-size:12px;line-height:1.35;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ova{display:flex;gap:6px;flex:none}
+.ovm{color:var(--dim);font:11.5px var(--mono);white-space:nowrap}
+.ovslots{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ovslot{border-radius:14px;background:var(--card);padding:9px 12px;box-shadow:0 0 0 .5px var(--line) inset;min-width:0}
+.ovslot small{display:block;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.ovslot b{display:block;margin-top:3px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ovslot.free{background:none;box-shadow:0 0 0 1px var(--line) inset}.ovslot.free b{color:var(--faint);font-weight:500}
+.ovpb{height:4px;border-radius:2px;background:var(--card2);overflow:hidden;margin-top:7px}.ovpb i{display:block;height:100%;background:var(--green);border-radius:2px}
+.c-flow{display:flex;align-items:stretch;gap:6px;margin:2px 0 4px}
+.c-flow .ar{align-self:center;color:var(--faint);font-size:16px}
+.c-flow .ar.ho{font-size:11px;font-weight:600;color:var(--dim);text-align:center;line-height:1.15;padding:0 2px}
+.c-stn{flex:1;min-width:0;border-radius:14px;background:var(--card);padding:9px 11px;box-shadow:0 0 0 .5px var(--line) inset;position:relative}
+.c-stn b{display:block;font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.c-stn span{display:block;font-weight:600;font-size:12px}
+.c-stn em{display:block;font-style:normal;color:var(--dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-stn::after{content:"";position:absolute;right:10px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.c-stn.run::after{background:var(--green)}.c-stn.need::after,.c-stn.ask::after{background:var(--orange)}.c-stn.ready::after{background:var(--blue)}
+.c-two{display:flex;gap:0;flex:1;min-height:0;padding:0 16px 14px}
+.c-half{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+.c-hh{display:flex;align-items:baseline;gap:8px;margin:4px 4px 2px}.c-hh b{font-size:17px;font-weight:700;letter-spacing:-.02em}.c-hh span{color:var(--dim);font-size:12px}
+.c-seam{width:46px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--faint);font-size:10.5px;font-weight:600;text-align:center;border-left:.5px dashed var(--line);border-right:.5px dashed var(--line);margin:0 10px;writing-mode:vertical-rl}
+.c-tl{position:relative;margin:4px 2px 0 6px;padding-left:20px;border-left:1.5px solid var(--line)}
+.c-ev{position:relative;padding:0 0 13px}
+.c-ev::before{content:"";position:absolute;left:-26.5px;top:3px;width:10px;height:10px;border-radius:50%;background:var(--faint);box-shadow:0 0 0 3px var(--win)}
+.c-ev.need::before{background:var(--orange)}.c-ev.run::before{background:var(--green)}.c-ev.ready::before{background:var(--blue)}.c-ev.next::before{background:var(--win);box-shadow:0 0 0 1.5px var(--faint)}
+.c-ev .tm{font:11px var(--mono);color:var(--faint)}
+.c-ev b{font-weight:600}.c-ev .d{color:var(--dim);font-size:12px}
+.c-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px auto 0;width:calc(100% - 56px);max-width:704px}
+.c-hand{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.c-hand .q{font-weight:650}
+.c-hand .btns{display:flex;gap:8px;flex-wrap:wrap}
+.c-banner{margin:0 16px 4px;border-radius:12px;background:var(--card);padding:8px 12px;display:flex;gap:10px;align-items:center;font-size:12.5px}
+.c-banner .sp1{flex:1}.c-banner.warn{background:color-mix(in srgb,var(--orange) 13%,transparent);box-shadow:0 0 0 .5px color-mix(in srgb,var(--orange) 50%,transparent)}
+.c-mark{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:12px}.c-mark::before,.c-mark::after{content:"";flex:1;border-top:.5px solid var(--line)}
+.c-rescard{margin:0 16px 8px;border-radius:14px;background:color-mix(in srgb,var(--orange) 12%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--orange) 40%,transparent);padding:12px 14px;display:flex;gap:12px;align-items:flex-start}
+.c-rescard .t{flex:1;min-width:0}.c-rescard .t b{font-weight:650;font-size:14px;display:block}.c-rescard .t span{color:var(--dim);font-size:12.5px;display:block;margin-top:2px}
+.c-opt2{display:flex;gap:9px;align-items:center;padding:6px 8px;border-radius:9px}.c-opt2.sel{background:var(--card2)}
+.c-rad{width:15px;height:15px;border-radius:50%;border:1.5px solid var(--faint);flex:none;display:grid;place-items:center}.c-opt2.sel .c-rad{border-color:var(--blue)}.c-opt2.sel .c-rad::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--blue)}
+.c-field{border-radius:9px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:7px 10px;color:var(--faint)}
+.c-blk{border-radius:12px;background:var(--card);padding:9px 11px;box-shadow:0 0 0 .5px var(--line) inset;margin-bottom:7px}
+.c-blk b{display:block;font-weight:600}.c-blk span{color:var(--dim);font-size:12px}
+.c-pane{display:flex;flex-direction:column;min-width:0;padding:46px 12px 10px}
+.c-pane h4{margin:0 0 8px;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--faint)}
+
+.c-dock{height:262px;flex:none;border-top:.5px solid var(--line);background:color-mix(in srgb,var(--bg) 30%,transparent);display:flex;flex-direction:column}
+.c-dtabs{display:flex;gap:2px;padding:6px 10px 0;align-items:center}
+.c-dt{display:flex;gap:6px;align-items:center;padding:5px 11px;border-radius:9px 9px 0 0;color:var(--dim);font-weight:550;font-size:12px;white-space:nowrap}
+.c-dt.on{background:var(--card2);color:var(--text)}
+.c-stage{position:relative;width:min(1060px,100%);height:600px;border-radius:22px;background:linear-gradient(135deg,#2a2150,#143a5e 60%,#0e2a44);overflow:hidden;box-shadow:var(--shadow)}
+body.light .c-stage{background:linear-gradient(135deg,#d8cdfa,#bfe0ff)}
+.c-w{position:absolute;border-radius:16px;background:color-mix(in srgb,var(--bg) 94%,#000);box-shadow:0 18px 50px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.2) inset;display:flex;overflow:hidden}
+.c-board{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr 1fr;gap:8px;padding:2px 14px 14px;flex:1;min-height:0}
+.c-col{background:var(--card);border-radius:14px;padding:8px;display:flex;flex-direction:column;gap:7px;min-width:0}
+.c-col.first{margin-right:8px;box-shadow:8px 0 0 -7px var(--faint)}
+.c-col .ch{display:flex;justify-content:space-between;font-weight:600;font-size:12px;color:var(--dim);padding:2px 4px}
+.c-cd{background:var(--card2);border-radius:11px;padding:8px 9px;box-shadow:0 0 0 .5px var(--line) inset}
+.c-cd b{font-weight:600;font-size:12.5px}.c-cd>span{color:var(--dim);font-size:11px;display:block;margin-top:2px}
+.c-cd.hot{box-shadow:0 0 0 1.5px var(--orange)}
+.c-tabbar{height:46px;flex:none;display:flex;align-items:flex-end;gap:4px;padding:0 12px 0 84px}
+.c-tab{display:flex;align-items:center;gap:7px;padding:0 10px;height:32px;border-radius:9px 9px 0 0;color:var(--dim);font-size:12.5px;font-weight:550;max-width:200px;min-width:0}
+.c-tab .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.c-tab.on{background:var(--card2);color:var(--text)}
+.c-tab .x{opacity:.4;font-size:10px}
+.c-tab .bd{font-style:normal;font-size:10px;padding:0 6px;border-radius:99px;background:var(--orange);color:#fff}
+.c-tab .ep{font:600 10.5px var(--mono);color:var(--faint)}
+
+.c-sbs{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;margin-top:8px}
+.c-sbopt{width:300px}.c-sbopt>h3{margin:0 0 2px;font-size:14px}.c-sbopt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;min-height:112px}
+.c-sb{position:relative;width:300px;height:660px;border-radius:22px;background:var(--side);backdrop-filter:blur(30px);box-shadow:var(--shadow);padding:46px 10px 10px;display:flex;flex-direction:column;overflow:hidden}
+.c-sb .lights{left:18px;top:16px}
+.c-sb .fill{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.c-sec{display:flex;align-items:center;gap:7px;padding:6px 8px 3px;font-weight:700;font-size:13px;letter-spacing:-.01em}
+.c-sec .chev{color:var(--faint);font-size:10px;width:10px}
+.c-sec .sp1{flex:1}
+.c-pill{white-space:nowrap;font-size:10.5px;font-weight:650;padding:1px 7px;border-radius:99px;background:var(--card2);color:var(--dim)}
+.c-pill.o{background:color-mix(in srgb,var(--orange) 24%,transparent);color:var(--orange)}
+.c-pill.g{background:color-mix(in srgb,var(--green) 22%,transparent);color:var(--green)}
+.c-div{height:0;border-top:1px solid var(--line);margin:10px 4px 6px}
+.c-box{border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:4px 4px 6px;margin-bottom:8px;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.c-box.t2{background:color-mix(in srgb,var(--blue) 7%,var(--card))}
+.c-split{height:14px;flex:none;display:grid;place-items:center;cursor:row-resize}.c-split i{width:34px;height:4px;border-radius:2px;background:var(--faint);opacity:.6}
+.c-pane2{min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.c-sw{display:flex;gap:1px;background:var(--card2);border-radius:10px;padding:2px;margin:6px 2px 4px}
+.c-sw button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-weight:600;padding:5px 0;border-radius:8px;display:flex;justify-content:center;gap:6px;align-items:center}
+.c-sw button.on{background:var(--win);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.25)}
+body:not(.light) .c-sw button.on{background:rgba(255,255,255,.16)}
+.c-sbr{display:flex;flex:1;min-height:0;margin:-46px -10px -10px;padding:46px 0 0}
+.c-r2{width:54px;flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;padding:4px 0 10px;border-right:.5px solid var(--line)}
+.c-ri2{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:17px;color:var(--dim);position:relative}
+.c-ri2.on{background:var(--sel);color:var(--text)}
+.c-ri2 i{position:absolute;top:1px;right:1px;font-style:normal;font-size:9px;font-weight:700;padding:0 5px;border-radius:99px;background:var(--orange);color:#fff}
+.c-l2{flex:1;min-width:0;padding:0 8px 10px;display:flex;flex-direction:column;overflow:hidden}
+.dense .c-it{padding:3px 8px}.dense .c-it .t span{display:none}.dense .c-it .t b{font-size:12.5px;font-weight:550}.dense .lbl{margin:8px 8px 2px}
+.c-drw{margin-top:auto;border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:4px 4px 6px;display:flex;flex-direction:column}
+
+.c-ri2.lb{width:58px;height:auto;padding:6px 0 4px;flex-direction:column;gap:1px;font-size:16px}
+.c-ri2 small{font-size:10px;font-weight:600;letter-spacing:.01em}
+.c-r2.w72{width:70px}
+.c-ri2 .pips{position:absolute;bottom:2px;display:flex;gap:2px}.c-ri2 .pips u{width:8px;height:3px;border-radius:2px;background:var(--green);display:block}.c-ri2 .pips u.off{background:var(--card2)}
+.c-ri2.lb .pips{bottom:auto;top:4px;left:4px}
+.c-ri2 .ring{position:absolute;inset:3px;border-radius:50%;border:2px solid transparent;border-top-color:var(--green);animation:s 1.2s linear infinite}
+.c-srch{margin:2px 2px 6px;border-radius:9px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:6px 10px;color:var(--faint);font-size:12.5px}
+.c-fchips{display:flex;gap:5px;margin:0 2px 4px}.c-fchips span{padding:2px 9px;border-radius:99px;background:var(--card2);color:var(--dim);font-size:11.5px;font-weight:600}.c-fchips span.on{background:var(--blue);color:#fff}
+.c-big{display:flex;gap:22px;flex-wrap:wrap;margin-top:34px}
+
+.c-it.arch{opacity:.55}
+.c-tint{background:color-mix(in srgb,var(--blue) 8%,transparent);border-radius:14px;padding:2px 2px 6px;margin-top:6px;box-shadow:0 0 0 .5px color-mix(in srgb,var(--blue) 25%,transparent) inset}
+.c-wsh{display:flex;align-items:center;gap:7px;padding:6px 8px 2px;font-weight:650;font-size:12.5px}
+.c-wsh .f{color:var(--faint);font-size:11px}.c-wsh .sp1{flex:1}
+.c-more{padding:2px 8px 4px 26px;color:var(--faint);font-size:11.5px;display:flex;gap:6px}
+.c-acc{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:9px;color:var(--dim);font-weight:550}
+.c-acc.sel{background:var(--sel);color:var(--text)}.c-acc .sp1{flex:1}
+.c-sub{display:flex;gap:1px;background:var(--card2);border-radius:8px;padding:2px;margin:2px 4px 4px}
+.c-sub span{flex:1;text-align:center;padding:3px 0;border-radius:6px;color:var(--dim);font-size:11.5px;font-weight:600}.c-sub span.on{background:var(--win);color:var(--text)}
+body:not(.light) .c-sub span.on{background:rgba(255,255,255,.16)}
+.c-eye{padding:1px 8px;border-radius:99px;background:var(--card2);color:var(--dim);font-size:11px;font-weight:600}.c-eye.on{background:var(--blue);color:#fff}
+</style></head><body>
+<h1>The sidebar: Home, Sessions by workspace, Carrier apart, Archive</h1>
+<div class="sub">What the sidebar has to do, from the review: <b>Home</b> is the Overview and also where a session starts (a message box, plus the state of everything running); <b>Sessions</b> are the conversations you start and are grouped by <b>workspace</b> (the folder you work in); <b>Carrier</b> is the automation (epics) and must read as a different thing; and <b>archived</b> sessions must be reachable. Five ways to do it, no rail. Switch what is selected, how much there is, and whether archived sessions are shown. All data is invented.</div>
+<div class="bar"><div class="c-seg" id="sel"></div><div class="c-seg" id="amt"></div><div class="c-seg" id="arc"></div><span class="sp"></span><button class="tog" id="theme">Light / dark</button></div>
+<div class="c-sbs" id="out"></div>
+
+<script>
+const ST={idle:'Idle',stream:'Streaming',ask:'Needs approval'};
+let sel='chat',amt='few',arc='off',st='idle';const u=new URLSearchParams(location.search);
+
+/* ---------- pieces ---------- */
+const lights=`<div class="lights"><i></i><i></i><i></i></div>`;
+const gl=s=>s==='stream'?'<div class="c-gl"><div class="c-spin"></div></div>':s==='ask'?'<div class="c-gl"><div class="c-ask">!</div></div>':'<div class="c-gl"><div class="c-idle"></div></div>';
+const prov={C:'Claude',X:'Codex'};
+const chats=[
+ {t:'Rate-limit the webhook endpoint',p:'optyra/api',a:'C',m:'Sonnet',s:()=>st,age:'now'},
+ {t:'Explore the billing schema',p:'optyra/api',a:'X',m:'GPT-5',s:()=>'ask2',age:'4m'},
+ {t:'Pricing page copy',p:'optyra/web',a:'C',m:'Opus',s:()=>'idle',age:'2h'},
+ {t:'Why is the CI cache cold?',p:'AshuLab/carrier',a:'C',m:'Sonnet',s:()=>'idle',age:'1d'},
+];
+const stOf=c=>{const s=c.s();return s==='ask2'?'ask':s};
+const chatRow=(c,sel,showProj)=>`<div class="c-it ${sel?'sel':''}">${gl(stOf(c))}<div class="t"><b>${c.t}</b><span>${showProj?c.p+' · ':''}${prov[c.a]} ${c.m}</span></div><span class="r">${c.age}</span></div>`;
+const epics=[['run','Add retry to the uploader','#412 · slice 2 of 4'],['need','Fix flaky auth test','#408 · needs you'],['queue','Docs: self-hosting','#415 · up next'],['ready','Cache the repo list','#401 · ready for test']];
+const epGl={run:'<div class="c-gl"><div class="c-spin"></div></div>',need:'<div class="c-gl"><div class="c-ask">!</div></div>',queue:'<div class="c-gl"><div class="c-idle"></div></div>',ready:'<div class="c-gl"><div class="c-ask" style="background:var(--blue)">✓</div></div>'};
+const epRow=e=>`<div class="c-it">${epGl[e[0]]}<div class="t"><b>${e[1]}</b><span>${e[2]}</span></div></div>`;
+const carrierCard=`<div class="c-card"><div class="h"><span class="dot g pulse"></span><b>Carrier is running</b></div><span>2 of 3 slots busy · 5 repos</span></div>`;
+
+const toolRows=`
+ <div class="c-tool"><span>▸</span><b>Read</b><span class="mono">src/api/export.ts</span><span class="sp1"></span><em>212 lines</em></div>
+ <div class="c-tool"><span>▸</span><b>Grep</b><span class="mono">"rateLimit"</span><span class="sp1"></span><em>4 matches</em></div>`;
+function convo(){
+ const tail={
+  idle:`<div class="c-tool"><span>▸</span><b>Edited</b><span class="mono">src/api/webhook.ts</span><span class="sp1"></span><span class="ad">+18</span><span class="de">−2</span></div>
+        <div class="c-tool"><span>▸</span><b>Ran</b><span class="mono">pnpm test webhook</span><span class="sp1"></span><em>passed · 6.1s</em></div>
+        <p>Done. The webhook route now allows 60 requests a minute per key and answers 429 with a <span class="mono">Retry-After</span> header. I added a test for the limit and the reset.</p>`,
+  stream:`<div class="c-tool"><span>▸</span><b>Edited</b><span class="mono">src/api/webhook.ts</span><span class="sp1"></span><span class="ad">+18</span><span class="de">−2</span></div>
+        <p>Next I'll add a test that sends 61 requests in a minute and checks the last one is rejected<span class="c-caret"></span></p>
+        <div class="c-work"><div class="c-spin"></div>Working · 0:42</div>`,
+  ask:`<div class="c-tool"><span>▸</span><b>Edited</b><span class="mono">src/api/webhook.ts</span><span class="sp1"></span><span class="ad">+18</span><span class="de">−2</span></div>
+        <p>Now I'll run the webhook tests to check the limit.</p>
+        <div class="c-appr"><div class="q">Run a command?</div><div class="cmd">pnpm test webhook</div>
+        <div class="btns"><span class="glass pri sm">Allow</span><span class="glass sm">Allow for this chat</span><span class="glass sm red">Decline</span></div></div>`}[st];
+ return `<div class="c-feed">
+  <div class="c-u">Add a rate limit to the webhook endpoint, 60 a minute per key. Look at how /api/export does it first.</div>
+  <div class="c-a">${toolRows}<p>The export route uses a small in-memory counter in <span class="mono">src/lib/rate-limit.ts</span>. I'll reuse it for the webhook so both behave the same.</p>${tail}</div>
+ </div>`;
+}
+const chip=(k,v,cls='')=>`<span class="c-pick ${cls}">${k?`<span class="faint">${k}</span> `:''}<b>${v}</b></span>`;
+const sendBtn=()=>st==='stream'?'<div class="c-send stop"><span>■</span></div>':'<div class="c-send">↑</div>';
+const inputText=()=>st==='stream'?'Message Claude · it is working, you can queue a follow-up':'Message Claude…';
+const compD=()=>`<div class="c-comp"><div class="in">${inputText()}</div>
+ <div class="bar3">${chip('','+','nc')}${chip('','optyra/api · main')}${chip('','Claude · Sonnet')}${chip('','High')}${chip('','Ask first','ask')}<span class="sp1"></span>${sendBtn()}</div></div>`;
+const compE=()=>`<div class="c-comp"><div class="in">${inputText()}</div>
+ <div class="bar3">${chip('','+','nc')}${chip('','Ask first','ask')}<span class="sp1"></span>${sendBtn()}</div></div>`;
+const files=`<h4>Changes in this chat</h4>
+ <div class="c-fl"><span class="mono">src/api/webhook.ts</span><span class="ad">+18</span><span class="de">−2</span></div>
+ <div class="c-fl"><span class="mono">src/lib/rate-limit.ts</span><span class="ad">+41</span></div>
+ <div class="c-fl"><span class="mono">test/webhook.test.ts</span><span class="ad">+27</span></div>
+ <h4 style="margin-top:12px">Checkout</h4>
+ <div class="dim" style="font-size:12px">~/Carrier/chats/api-7f2<br>branch chat/rate-limit</div>
+ <div style="margin-top:auto" class="h"><span class="glass sm">Continue in terminal</span></div>`;
+const tb=(title,sub,extra='')=>`<div class="tb"><h2>${title}<small>${sub}</small></h2>${extra}</div>`;
+
+const win=(inner,cls='')=>`<div class="c-win ${cls}">${lights}${inner}</div>`;
+const spec=t=>`<div class="c-spec">${t}</div>`;
+
+/* ---------- shared bits for this page ---------- */
+const btn=(t,c='')=>`<span class="glass sm ${c}">${t}</span>`;
+const ovs=(t,d='')=>`<div class="ovs"><b>${t}</b><span>${d}</span></div>`;
+const ovr=(g,t,sub,acts='')=>`<div class="ovr">${g}<div class="ovt"><b>${t}</b><span>${sub}</span></div><div class="ova">${acts}</div></div>`;
+const ovc=x=>`<div class="ovc">${x}</div>`;
+const askG='<div class="c-gl"><div class="c-ask">!</div></div>';
+const ctlBtns='<span class="glass">⏸ Pause</span><span class="glass">↻ Check now</span><span class="glass red">■ Stop</span>';
+const ovRow=`<div class="c-it sel"><span class="c-gl">▦</span><div class="t"><b>Overview</b></div><span class="chip g"><span class="dot g pulse"></span>2/3</span></div>`;
+const archived=`<div class="c-it"><span class="c-gl faint">▸</span><div class="t"><b class="dim" style="font-weight:550">Archived</b></div><span class="r">4</span></div>`;
+const chatLbl=(t,extra='<span class="c-plus">+</span>')=>`<div class="lbl"><span>${t}</span>${extra}</div>`;
+const epSide=sel=>`<div class="lbl"><span>Needs you</span></div>${epRow(epics[1]).replace('c-it',sel?'c-it sel':'c-it')}<div class="lbl"><span>Running</span></div>${epRow(epics[0])}<div class="lbl"><span>Ready</span></div>${epRow(epics[3])}`;
+const sideS=()=>`<div class="side">${ovRow}${chatLbl('Chats')}${chats.slice(0,3).map(c=>chatRow(c,false,true)).join('')}${archived}<div style="height:6px"></div>${epSide(false)}<div class="c-foot">Settings</div></div>`;
+const yourTurn=ovc(
+  ovr(epGl.need,'Fix flaky auth test <span class="dim" style="font-weight:500">#408</span>','Review limit reached (5/5) · 2 blockers open',btn('Take over','pri')+btn('Open'))+
+  ovr(askG,'Explore the billing schema <span class="dim" style="font-weight:500">chat</span>','Codex asks to run a command · 4 min ago',btn('Review'))+
+  ovr(epGl.ready,'Cache the repo list <span class="dim" style="font-weight:500">#401</span>','Ready for test · PR #412',btn('Open PR')));
+const yourTurnBuild=ovc(
+  ovr(epGl.need,'Fix flaky auth test <span class="dim" style="font-weight:500">#408</span>','Review limit reached · 2 blockers',btn('Take over','pri'))+
+  ovr(epGl.ready,'Cache the repo list <span class="dim" style="font-weight:500">#401</span>','Ready for test · PR #412',btn('Open PR')));
+const chatList=ovc(chats.slice(0,3).map(c=>{const s=stOf(c);return ovr(gl(s),c.t,`${prov[c.a]} ${c.m} · ${c.p} · ${s==='ask'?'waiting for you':s==='stream'?'working':'idle'}`)}).join(''));
+const agentsRows=ovc(
+  ovr('<span class="c-badge">Cl</span>','Claude · Builder <span class="dim" style="font-weight:500">· #412 · Lane 1</span>','pnpm typecheck','<span class="ovm">16:09</span>')+
+  ovr('<span class="c-badge">Cl</span>','Claude · chat <span class="dim" style="font-weight:500">· Rate-limit the webhook</span>','editing src/api/webhook.ts','<span class="ovm">16:18</span>')+
+  ovr('<span class="c-badge">Cx</span>','Codex · chat <span class="dim" style="font-weight:500">· Explore the billing schema</span>','waiting for your approval','<span class="ovm">16:02</span>'));
+const slots=`<div class="ovslots"><div class="ovslot"><small>Slot 1</small><b>agent-forge #231</b><div class="ovpb"><i style="width:40%"></i></div></div><div class="ovslot"><small>Slot 2</small><b>uploader #412</b><div class="ovpb"><i style="width:50%"></i></div></div><div class="ovslot free"><small>Slot 3</small><b>Free</b></div></div>`;
+const flow=`<div class="c-flow">
+  <div class="c-stn ask"><b>3</b><span>Talking</span><em>1 waits for you</em></div>
+  <span class="ar ho">hands<br>off ›</span>
+  <div class="c-stn"><b>1</b><span>Up next</span><em>needs a slot</em></div><span class="ar">›</span>
+  <div class="c-stn run"><b>2</b><span>Building</span><em>2 of 3 slots</em></div><span class="ar">›</span>
+  <div class="c-stn need"><b>1</b><span>Needs you</span><em>review limit</em></div><span class="ar">›</span>
+  <div class="c-stn ready"><b>2</b><span>Ready</span><em>for test</em></div></div>`;
+const ovTb=tb('Overview','5 repos · up 22m · next check in 3m',ctlBtns);
+const scroll=x=>`<div class="scroll" style="overflow:hidden">${x}</div>`;
+
+
+
+/* ---------- data ---------- */
+const CH={
+ few:[['stream','Rate-limit the webhook endpoint','optyra/api · Claude','now'],['ask','Explore the billing schema','optyra/api · Codex','4m'],['idle','Pricing page copy','optyra/web · Claude','2h']],
+ many:[['ask','Explore the billing schema','optyra/api · Codex','4m'],['ask','Why is the CI cache cold?','AshuLab/carrier · Claude','9m'],['stream','Rate-limit the webhook endpoint','optyra/api · Claude','now'],['stream','Migrate to Drizzle 1.0','optyra/api · Codex','1m'],['idle','Pricing page copy','optyra/web · Claude','2h'],['idle','Landing hero copy','optyra/web · Claude','3h'],['idle','Onboarding emails','optyra/web · Claude','5h'],['idle','Flaky test triage','AshuLab/carrier · Codex','1d'],['done','Dark mode tokens','optyra/web · published #398','2d'],['done','Cache the repo list','AshuLab/carrier · published #401','2d']]};
+const EP={
+ few:{need:[['Fix flaky auth test','#408 · needs you']],run:[['Add retry to the uploader','#412 · slice 2 of 4'],['Rate-limit exports','#231 · review 2/5']],next:[['Docs: self-hosting','#415 · up next']],ready:[['Cache the repo list','#401 · ready for test']]},
+ many:{need:[['Fix flaky auth test','#408 · needs you'],['Webhook signature check','#421 · review limit']],run:[['Add retry to the uploader','#412 · slice 2 of 4'],['Rate-limit exports','#231 · review 2/5'],['Search index rebuild','#430 · slice 1 of 3']],next:[['Docs: self-hosting','#415'],['Billing webhooks','#433'],['CSV export','#434'],['Audit log','#436']],ready:[['Cache the repo list','#401'],['Dark mode tokens','#398'],['Retry policy docs','#395'],['Upgrade Node 26','#390'],['Fix date parsing','#388']]}};
+const glc=k=>k==='stream'?gl('stream'):k==='ask'?gl('ask'):k==='done'?'<div class="c-gl"><div class="c-ask" style="background:var(--green)">✓</div></div>':gl('idle');
+const gle=k=>({need:epGl.need,run:epGl.run,next:epGl.queue,ready:epGl.ready})[k];
+const row=(g,t,sub,on,r)=>`<div class="c-it ${on?'sel':''}">${g}<div class="t"><b>${t}</b><span>${sub}</span></div>${r?`<span class="r">${r}</span>`:''}</div>`;
+const chatRows=(on,max=99)=>CH[amt].slice(0,max).map((c,i)=>row(glc(c[0]),c[1],c[2],on&&i===(amt==='many'?2:0),c[3])).join('');
+const epGroups=on=>[['need','Needs you'],['run','Running'],['next','Up next'],['ready','Ready for test']].map(([k,l])=>`<div class="lbl"><span>${l}</span><span>${EP[amt][k].length}</span></div>`+EP[amt][k].map((e,i)=>row(gle(k),e[0],e[1],on&&k==='need'&&i===0)).join('')).join('');
+const ovR=on=>`<div class="c-it ${on?'sel':''}"><span class="c-gl">▦</span><div class="t"><b>Overview</b></div><span class="chip g"><span class="dot g pulse"></span>2/3</span></div>`;
+const arch=`<div class="c-it"><span class="c-gl faint">▸</span><div class="t"><b class="dim" style="font-weight:550">Archived</b></div><span class="r">${'12'}</span></div>`;
+const foot='<div class="c-foot" style="margin-top:6px"><span>⚙ Settings</span><span class="sp1" style="flex:1"></span><span>ⓘ About</span></div>';
+const sec=(t,pill,plus=true,chev='▾')=>`<div class="c-sec"><span class="chev">${chev}</span><span>${t}</span>${pill}<span class="sp1"></span>${plus?'<span class="c-plus">+</span>':''}</div>`;
+const waits=()=>`<span class="c-pill o">${amt==='many'?'2':'1'} waits</span>`;
+const carr=()=>`<span class="c-pill g">2/3</span>`;
+const sbw=(inner,extra='')=>`<div class="c-sb ${amt==='many'?'dense':''}" ${extra}>${lights}${inner}</div>`;
+
+
+
+/* ---------- data: workspaces (folders) ---------- */
+const WS={
+ few:[{n:'optyra-api',s:[['stream','Rate-limit the webhook endpoint','Claude · Sonnet','now'],['ask','Explore the billing schema','Codex · GPT-5','4m']],a:[['Webhook retries','Claude','6d'],['Stripe events','Codex','8d']]},
+      {n:'optyra-web',s:[['idle','Pricing page copy','Claude · Opus','2h']],a:[['Landing hero copy','Claude','5d']]},
+      {n:'carrier',s:[['idle','Why is the CI cache cold?','Claude · Sonnet','1d']],a:[['Flaky test triage','Codex','9d']]}],
+ many:[{n:'optyra-api',s:[['ask','Explore the billing schema','Codex · GPT-5','4m'],['stream','Rate-limit the webhook endpoint','Claude · Sonnet','now'],['stream','Migrate to Drizzle 1.0','Codex · GPT-5','1m'],['idle','Audit log design','Claude · Opus','3h']],a:[['Webhook retries','Claude','6d'],['Stripe events','Codex','8d'],['Idempotency keys','Claude','9d'],['Rate limit v1','Claude','12d']]},
+       {n:'optyra-web',s:[['idle','Pricing page copy','Claude · Opus','2h'],['idle','Landing hero copy','Claude · Sonnet','3h'],['idle','Onboarding emails','Claude · Sonnet','5h']],a:[['Dark mode tokens','Claude','5d'],['Footer links','Claude','7d'],['SEO audit','Codex','11d']]},
+       {n:'carrier',s:[['ask','Why is the CI cache cold?','Claude · Sonnet','9m'],['idle','Flaky test triage','Codex · GPT-5','1d']],a:[['Retry policy docs','Claude','4d'],['Review prompts','Claude','10d']]},
+       {n:'infra',s:[['idle','Terraform drift','Claude · Sonnet','2d']],a:[['DNS cutover','Claude','13d']]},
+       {n:'scratch',s:[['idle','Regex for invoice ids','Claude · Haiku','4d']],a:[]}]};
+const aN=()=>WS[amt].reduce((n,w)=>n+w.a.length,0);
+const sN=()=>WS[amt].reduce((n,w)=>n+w.s.length,0);
+const waitN=()=>WS[amt].reduce((n,w)=>n+w.s.filter(c=>c[0]==='ask').length,0);
+const wPill=()=>waitN()?`<span class="c-pill o">${waitN()} waits</span>`:'';
+const homeR=on=>`<div class="c-it ${on?'sel':''}"><span class="c-gl">⌂</span><div class="t"><b>Home</b></div><span class="chip g"><span class="dot g pulse"></span>2/3</span><span class="c-plus" title="New session">✎</span></div>`;
+const foot2='<div class="c-foot" style="margin-top:6px"><span>⚙ Settings</span></div>';
+const firstOn=()=>{let done=false;return (c)=>{if(!done&&c[0]==='stream'){done=true;return true}return false}};
+const sessRow=(c,on)=>row(glc(c[0]),c[1],c[2],on,c[3]);
+const archRow=(a,ws)=>`<div class="c-it arch"><div class="c-gl faint">▫</div><div class="t"><b>${a[0]}</b><span>${ws?ws+' · ':''}${a[1]}</span></div><span class="r">${a[2]}</span></div>`;
+const wsH=(w,plus=true,chev='▾')=>`<div class="c-wsh"><span class="chev faint" style="font-size:10px">${chev}</span><span class="f">▢</span><span>${w.n}</span><span class="sp1"></span>${plus?'<span class="c-plus">+</span>':''}</div>`;
+const sessionsByWs=(o={})=>{const f=firstOn();const on=sel==='chat';
+ return WS[amt].map(w=>wsH(w)+w.s.map(c=>sessRow(c,on&&f(c))).join('')+(o.inlineArch&&arc==='on'?w.a.map(a=>archRow(a)).join(''):'')+(o.perWsArch&&w.a.length?(arc==='on'?w.a.map(a=>archRow(a)).join(''):`<div class="c-more">▸ Archived ${w.a.length}</div>`):'')).join('')};
+const carrHead=(extra='')=>`<div class="c-sec"><span class="chev">▾</span><span style="color:var(--blue)">▤</span><span>Carrier</span><span class="c-pill g">2/3</span><span class="faint" style="font-weight:500;font-size:11px">automation</span><span class="sp1"></span>${extra}</div>`;
+const carrierFull=()=>carrHead()+epGroups(sel==='epic');
+const carrCard=(open)=>`<div class="c-drw c-tint" style="margin-top:6px;padding:4px 4px 6px"><div class="c-sec" style="padding-bottom:4px"><span class="chev">${open?'▾':'▸'}</span><span style="color:var(--blue)">▤</span><span>Carrier</span><span class="faint" style="font-weight:500;font-size:11px">automation</span><span class="sp1"></span><span class="c-pill o">${amt==='many'?'2':'1'} needs you</span></div>${open?epGroups(true):`<div class="c-more" style="padding-left:28px">${amt==='many'?'3 running · 4 next · 5 ready':'2 running · 1 next · 1 ready'}</div>`}</div>`;
+const sbw2=(inner)=>`<div class="c-sb ${amt==='many'?'dense':''}">${lights}${inner}</div>`;
+
+/* ---------- the five options ---------- */
+const O=()=>{const hs=sel==='ov',ep=sel==='epic';return [
+ ['W1 · Home, Sessions by workspace, then Carrier','Home on top (the starter and the state of everything). Then Sessions, each workspace a folder-like group with its own +. Then a tinted band for Carrier, labelled "automation", with its groups. Archived is one row at the end of Sessions; shown, it lists the archived sessions dimmed. Simple and legible; with many workspaces and many epics the two worlds compete for height.',
+  sbw2(`${homeR(hs)}<div class="fill">${sec('Sessions',wPill(),true)}${sessionsByWs()}<div class="c-acc ${arc==='on'?'sel':''}"><span>${arc==='on'?'▾':'▸'}</span><span>Archived</span><span class="sp1"></span><span class="r faint" style="font-size:11px">${aN()}</span></div>${arc==='on'?WS[amt].flatMap(w=>w.a.slice(0,2).map(a=>archRow(a,w.n))).join(''):''}<div class="c-tint">${carrierFull()}</div></div>${foot2}`),'workspace header 26 · + per workspace · Carrier band tinted 8% blue · Archived row global'],
+ ['W2 · Workspaces as the tree, Carrier as the odd one out','The top level of the tree is the list of workspaces. Under each, its sessions, and its own "Archived 2" line that opens in place. Carrier is one more node at the bottom, but with the machine glyph, the tint and "automation" so it cannot be mistaken for a folder. The most natural place to look for an old session (in its folder); archived are spread across workspaces instead of one place.',
+  sbw2(`${homeR(hs)}<div class="fill">${sessionsByWs({perWsArch:true})}<div class="c-tint">${carrierFull()}</div></div>${foot2}`),'archived is per workspace · opens inline, dimmed · Carrier node tinted and tagged'],
+ ['W3 · Two panes, an eye to show archived','Sessions above (by workspace), Carrier below, a handle between them and a scroll each. Archived sessions are hidden until you press the eye in the Sessions header, and then appear inline, dimmed, in their own workspace. Both worlds always on screen; each gets about half the height.',
+  sbw2(`${homeR(hs)}<div class="c-pane2" style="flex:1.15">${sec('Sessions','<span class="c-eye '+(arc==='on'?'on':'')+'">archived</span>',true)}<div style="overflow:hidden;flex:1">${sessionsByWs({inlineArch:true})}</div></div><div class="c-split"><i></i></div><div class="c-pane2 c-tint" style="flex:1;margin:0 0 6px">${carrHead()}<div style="overflow:hidden;flex:1">${epGroups(ep)}</div></div>${foot2}`),'eye toggles archived inline · split ratio remembered · Carrier pane tinted'],
+ ['W4 · A switch between Sessions and Carrier; Archive is a tab','Under Home, a two-way switch: Sessions | Carrier, each with a badge. Inside Sessions another small switch, Active | Archived: the archived tab lists them grouped by workspace, each with a restore action. Carrier shows its groups. Full separation and full height for each list, at the cost of two levels of switching.',
+  sbw2(`${homeR(hs)}<div class="c-sw"><button class="${ep?'':'on'}">Sessions ${waitN()?`<span class="c-pill o">${waitN()}</span>`:''}</button><button class="${ep?'on':''}">Carrier <span class="c-pill o">${amt==='many'?'2':'1'}</span></button></div><div class="fill">${ep?epGroups(true):`<div class="c-sub"><span class="${arc==='on'?'':'on'}">Active ${sN()}</span><span class="${arc==='on'?'on':''}">Archived ${aN()}</span></div>${arc==='on'?WS[amt].map(w=>w.a.length?wsH(w,false)+w.a.map(a=>archRow(a)).join(''):'').join(''):sessionsByWs()}`}</div>${foot2}`),'switch 30 · sub-switch 24 · archived tab groups by workspace'],
+ ['W5 · Sessions are the sidebar; Carrier is a card; Archive is a destination','The daily thing, sessions by workspace, gets the whole sidebar. Carrier is a compact tinted card at the bottom: one line with its state ("1 needs you · 2 running"), opening to its groups when you click it. Archive is a row that opens a full searchable list in the centre, like the Archive mailbox in Mail. Builds on the idea that you live in sessions and glance at the automation; Home is where you watch it properly.',
+  sbw2(`${homeR(hs)}<div class="fill">${sec('Sessions',wPill(),true)}${sessionsByWs()}</div><div class="c-acc ${arc==='on'?'sel':''}"><span>▤</span><span>Archive</span><span class="sp1"></span><span class="r faint" style="font-size:11px">${aN()}</span></div>${carrCard(ep)}${foot2}`),'card 1 line closed · Archive opens a list in the centre · Home carries the detail of Carrier']
+]};
+
+/* ---------- windows ---------- */
+const homeComp=`<div class="c-comp" style="width:calc(100% - 56px)"><div class="in">What do you want to work on?</div><div class="bar3">${chip('','+','nc')}${chip('','▢ optyra-api')}${chip('','Claude · Sonnet')}${chip('','High')}${chip('','Ask first','ask')}<span class="sp1"></span><div class="c-send">↑</div></div></div>`;
+const carrMini=ovc(ovr(epGl.need,'Fix flaky auth test <span class="dim" style="font-weight:500">#408</span>','Review limit reached · 2 blockers',btn('Take over','pri'))+ovr(epGl.run,'Add retry to the uploader <span class="dim" style="font-weight:500">#412</span>','slice 2 of 4 · Builder working')+ovr(epGl.ready,'Cache the repo list <span class="dim" style="font-weight:500">#401</span>','Ready for test · PR #412',btn('Open PR')));
+const sessMini=ovc(chats.slice(0,3).map(c=>{const x=stOf(c);return ovr(gl(x),c.t,`▢ ${c.p.split('/')[1]} · ${prov[c.a]} ${c.m} · ${x==='ask'?'waiting for you':x==='stream'?'working':'idle'}`)}).join(''));
+const winSide=(h=true)=>`<div class="side">${h?homeR(false).replace('c-it ','c-it sel '):homeR(false)}<div class="fill">${sec('Sessions',wPill(),true)}${sessionsByWs()}</div><div class="c-acc"><span>▤</span><span>Archive</span><span class="sp1"></span><span class="r faint" style="font-size:11px">${aN()}</span></div>${carrCard(false)}${foot2}</div>`;
+const winHome=()=>win(winSide()+`<div class="main">${tb('Home','5 repos · up 22m')}<div class="c-empty" style="justify-content:flex-start;padding-top:18px;overflow:hidden"><h2>What do you want to build?</h2><div class="dim" style="margin-bottom:10px">Start a session in a workspace. When you hand work off, Carrier takes it from there.</div>${homeComp}<div style="width:calc(100% - 56px);max-width:860px;display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px"><div>${ovs('Sessions','3 · 1 waits')}${sessMini}</div><div>${ovs('Carrier','2 running · 1 needs you')}${carrMini}</div></div></div></div>`);
+const winArch=()=>win(winSide(false).replace('c-acc"','c-acc sel"')+`<div class="main">${tb('Archive',aN()+' sessions','<span class="glass sm">Restore</span>')}<div class="scroll" style="overflow:hidden"><div class="c-srch">⌕ Search archived sessions</div>${WS.few.map(w=>w.a.length?`<div class="lbl"><span>▢ ${w.n}</span><span>${w.a.length}</span></div>`+ovc(w.a.map(a=>ovr('<div class="c-gl faint">▫</div>',a[0],`${a[1]} · archived ${a[2]} ago`,btn('Open')+btn('Restore'))).join('')):'').join('')}</div></div>`);
+function render(){
+ document.getElementById('sel').innerHTML=[['ov','Home selected'],['chat','A session selected'],['epic','An epic selected']].map(([k,v])=>`<button class="${sel===k?'on':''}" data-s="${k}">${v}</button>`).join('');
+ document.getElementById('amt').innerHTML=[['few','A few'],['many','Many (11 sessions · 6 workspaces · 14 epics)']].map(([k,v])=>`<button class="${amt===k?'on':''}" data-a="${k}">${v}</button>`).join('');
+ document.getElementById('arc').innerHTML=[['off','Archived hidden'],['on','Archived shown']].map(([k,v])=>`<button class="${arc===k?'on':''}" data-c="${k}">${v}</button>`).join('');
+ const only=u.get('o'),v=u.get('v');if(v==='win')sel='ov';
+ let html=(v==='win'?[]:O()).filter((_,i)=>!only||+only===i).map(([t,p,h,sp])=>`<div class="c-sbopt"><h3>${t}</h3><p>${p}</p>${h}${spec(sp)}</div>`).join('');
+ if(v==='win'){html+=`</div><div class="c-big" style="flex-direction:column;gap:30px;width:100%"><div><h3 style="margin:0 0 4px">In the window: Home with W5</h3>${winHome()}</div><div><h3 style="margin:0 0 4px">In the window: the Archive destination of W5</h3>${winArch()}</div>`}
+ document.getElementById('out').innerHTML=html;
+ document.querySelectorAll('[data-s]').forEach(e=>e.onclick=()=>{sel=e.dataset.s;render()});
+ document.querySelectorAll('[data-a]').forEach(e=>e.onclick=()=>{amt=e.dataset.a;render()});
+ document.querySelectorAll('[data-c]').forEach(e=>e.onclick=()=>{arc=e.dataset.c;render()});
+}
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+if(u.get('light'))document.body.classList.add('light');if(u.get('sel'))sel=u.get('sel');if(u.get('amt'))amt=u.get('amt');if(u.get('arc'))arc=u.get('arc');
+render();
+</script></body></html>

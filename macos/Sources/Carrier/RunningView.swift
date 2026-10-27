@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-/// The Overview's Running section; a thin mapping of `runningSection(_:)`. Clicking a card selects the epic.
+/// The Carrier home's Running section; a thin mapping of `runningSection(_:)`. Clicking a card selects the epic.
 struct RunningView: View {
     let snapshot: PanelSnapshot
     @Binding var selection: Selection

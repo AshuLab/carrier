@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         WindowController.shared.addMenuItem(to: menu)
         if fixtureServer != nil { EmptyStatesWindowController.shared.addMenuItem(to: menu) }
         SettingsWindowController.shared.addMenuItem(to: menu)
+        WindowController.shared.addAboutItem(to: menu)
         let quit = menu.addItem(withTitle: "Quit Carrier", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         showIcon("power", on: quit)
         item.menu = menu
@@ -113,6 +114,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return args[flag + 1]
     }
 
+    /// Chooses "About Carrier" in the menu as a click would, and reports the window and the sheet.
+    private func chooseAbout(closingFirst: Bool) -> String {
+        guard let menu = statusItem?.menu, let index = menu.items.firstIndex(where: { $0.title == "About Carrier" }) else { return "no About item" }
+        if closingFirst { WindowController.shared.close() } else { WindowController.shared.open(); WindowController.shared.dismissAbout() }
+        menu.performActionForItem(at: index)
+        return WindowController.shared.aboutStatus
+    }
+
     /// Runs the menu's actions from code, one a second, and logs each step. Quit is only checked, never fired: it would end
     /// the process, and the last line has to say the process was still alive.
     private func selfTest(logPath: String) {
@@ -164,6 +173,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("reopen window", { WindowController.shared.open(); return WindowController.shared.status }),
             ("rings, window open", { MainActor.assumeIsolated { RingHostView.summary } }),
             ("rings, window closed", { WindowController.shared.close(); return MainActor.assumeIsolated { RingHostView.summary } }),
+            ("choose About Carrier, window closed", { self.chooseAbout(closingFirst: true) }),
+            ("choose About Carrier, window open", { self.chooseAbout(closingFirst: false) }),
             ("notifications", { SystemNotificationCentre.selfTestSummary }),
         ]
         write("start")

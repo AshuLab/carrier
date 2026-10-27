@@ -1,6 +1,6 @@
 import Foundation
 
-// The Overview's Carrier box and its watched repositories (docs/specs/macos-app-redesign.md, story 16), as plain values.
+// The Carrier home's Carrier box and its watched repositories (docs/specs/macos-app-redesign.md, story 16), as plain values.
 // The wording comes from PanelFormat so the window and the terminal panel say the same things.
 
 public struct CarrierBox: Equatable {

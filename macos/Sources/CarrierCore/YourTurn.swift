@@ -1,6 +1,6 @@
 import Foundation
 
-// The Overview's Your turn section as plain values (docs/specs/macos-app-redesign.md, story 14): what needs the person,
+// The Carrier home's Your turn section as plain values (docs/specs/macos-app-redesign.md, story 14): what needs the person,
 // in order, each with the link its action opens. The view maps them one to one.
 
 public struct YourTurnItem: Equatable {

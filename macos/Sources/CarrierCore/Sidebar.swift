@@ -7,16 +7,32 @@ public enum GroupBy: String, CaseIterable {
     case status, repo
 }
 
-/// The grouping choice, kept in user defaults so it survives a relaunch.
+/// The grouping, the Sessions sort and the unfolded section, kept in user defaults so they survive a relaunch.
 public struct SidebarStore {
     private let defaults: UserDefaults
     private let key = "sidebar.groupBy"
+    private let sortKey = "sidebar.sessionSort"
+    private let openKey = "sidebar.open"
 
     public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
     public var groupBy: GroupBy {
         get { defaults.string(forKey: key).flatMap(GroupBy.init(rawValue:)) ?? .status }
         nonmutating set { defaults.set(newValue.rawValue, forKey: key) }
+    }
+
+    public var sessionSort: SessionSort {
+        get { defaults.string(forKey: sortKey).flatMap(SessionSort.init(rawValue:)) ?? .workspace }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: sortKey) }
+    }
+
+    /// The unfolded section. Both folded is stored as "none"; a value that is not a section brings back Sessions.
+    public var open: OpenSection? {
+        get {
+            let stored = defaults.string(forKey: openKey)
+            return stored == "none" ? nil : stored.flatMap(OpenSection.init(rawValue:)) ?? .sessions
+        }
+        nonmutating set { defaults.set(newValue?.rawValue ?? "none", forKey: openKey) }
     }
 }
 
@@ -58,6 +74,12 @@ public struct SidebarCollapse: Equatable {
         chosen[Self.key(group, groupBy)] ?? group.startsCollapsed
     }
 
+    /// Whether the list shows `group` folded while `query` is typed: never, because every group left by a query has a match. The
+    /// choice itself is kept, so clearing the query brings back what the user had.
+    public func isCollapsed(_ group: SidebarGroup, by groupBy: GroupBy, query: String) -> Bool {
+        query.trimmingCharacters(in: .whitespaces).isEmpty && isCollapsed(group, by: groupBy)
+    }
+
     public mutating func toggle(_ group: SidebarGroup, by groupBy: GroupBy) {
         chosen[Self.key(group, groupBy)] = !isCollapsed(group, by: groupBy)
     }
@@ -68,7 +90,27 @@ public struct SidebarCollapse: Equatable {
 /// The groups for `snapshot`. By status: needs you, running, up next, then ready for test, done and cancelled (each hidden when
 /// empty; done and cancelled start collapsed), rows in the snapshot's order, finished ones newest first as the engine sends them.
 /// By repository: sections ordered by name, rows by issue number, with no finished epics.
-public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy) -> [SidebarGroup] {
+/// A non-empty `query` keeps the rows whose title, issue number (with or without `#`) or `owner/name` contain it, ignoring case, and
+/// hides the groups left empty; an empty one changes nothing. Grouped by repository, a query also looks through the finished epics,
+/// so Done and Cancelled are reachable in both groupings.
+public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, query: String = "") -> [SidebarGroup] {
+    let needle = query.trimmingCharacters(in: .whitespaces)
+    let groups = allSidebarGroups(snapshot, by: groupBy, withFinished: needle.isEmpty == false)
+    guard needle.isEmpty == false else { return groups }
+    let number = needle.hasPrefix("#") ? String(needle.dropFirst()) : needle
+    func matches(_ row: SidebarRow) -> Bool {
+        (row.title?.localizedCaseInsensitiveContains(needle) ?? false) || row.repo.localizedCaseInsensitiveContains(needle)
+            || (number.isEmpty == false && String(row.issue).contains(number))
+    }
+    return groups.compactMap { group in
+        var kept = group
+        kept.rows = group.rows.filter(matches)
+        return kept.rows.isEmpty ? nil : kept
+    }
+}
+
+/// `withFinished` adds the finished epics to the repository sections; the status grouping always has them as Done and Cancelled.
+private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, withFinished: Bool) -> [SidebarGroup] {
     let titles = Dictionary(
         uniqueKeysWithValues: (snapshot.epics.map { (key($0.repo, $0.issue), $0.title) } + snapshot.queue.map { (key($0.repo, $0.issue), $0.title) })
     )
@@ -106,27 +148,62 @@ public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy) -> [Si
             SidebarGroup(title: "Up next", rows: waiting),
         ] + hiddenWhenEmpty
     case .repo:
-        let byRepo = Dictionary(grouping: needsYou + running + waiting + ready, by: \.repo)
+        let byRepo = Dictionary(grouping: needsYou + running + waiting + ready + (withFinished ? finished(.merged) + finished(.cancelled) : []), by: \.repo)
         return byRepo.keys.sorted { (shortName($0).lowercased(), $0) < (shortName($1).lowercased(), $1) }.map { repo in
             SidebarGroup(title: shortName(repo), rows: byRepo[repo]!.sorted { $0.issue < $1.issue })
         }
     }
 }
 
-public enum PillTone: Equatable {
-    case green, orange, gray
+/// The Carrier card's state, from what the app knows of the engine (docs/specs/sidebar-home-sessions-carrier.md).
+public struct CarrierCardState: Equatable {
+    public enum Kind: Equatable { case running, paused, stopped, problem, connecting }
+
+    public var kind: Kind
+    /// Busy and total: present for running, paused and problem (when the engine answered), absent otherwise.
+    public var slots: (busy: Int, total: Int)?
+
+    /// The word of the pill.
+    public var title: String {
+        switch kind {
+        case .running: "Running"
+        case .paused: "Paused"
+        case .stopped: "Stopped"
+        case .problem: "Problem"
+        case .connecting: "Connecting"
+        }
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.kind == rhs.kind && lhs.slots?.busy == rhs.slots?.busy && lhs.slots?.total == rhs.slots?.total
+    }
 }
 
-public struct SidebarPill: Equatable {
-    public var text: String
-    public var tone: PillTone
+/// A problem reported by the snapshot wins over a pause: it is what the person has to look at.
+public func carrierCardState(_ state: ConnectionState?) -> CarrierCardState {
+    switch state {
+    case .running(let snapshot)?:
+        let kind: CarrierCardState.Kind = snapshot.problem != nil ? .problem : snapshot.paused ? .paused : .running
+        return CarrierCardState(kind: kind, slots: (snapshot.slots.busy, snapshot.slots.total))
+    case .incompatible?: return CarrierCardState(kind: .problem, slots: nil)
+    case .stopped?: return CarrierCardState(kind: .stopped, slots: nil)
+    case nil: return CarrierCardState(kind: .connecting, slots: nil)
+    }
 }
 
-/// Epics in use of the maximum: grey at zero, orange when every slot is busy and an epic waits, green otherwise.
-public func sidebarPill(_ snapshot: PanelSnapshot) -> SidebarPill {
-    let (busy, total) = (snapshot.slots.busy, snapshot.slots.total)
-    let tone: PillTone = busy == 0 ? .gray : busy >= total && snapshot.queue.isEmpty == false ? .orange : .green
-    return SidebarPill(text: "\(busy)/\(total)", tone: tone)
+/// What is waiting, for the Carrier card. Done and Cancelled are not counted.
+public struct CarrierCounters: Equatable {
+    public var needsYou: Int
+    public var running: Int
+    public var next: Int
+    public var ready: Int
+}
+
+public func carrierCounters(_ snapshot: PanelSnapshot) -> CarrierCounters {
+    CarrierCounters(
+        needsYou: snapshot.epics.filter { $0.status == .needsHuman }.count, running: snapshot.epics.filter { $0.status == .running }.count,
+        next: snapshot.queue.count, ready: snapshot.done.count
+    )
 }
 
 private func key(_ repo: String, _ issue: Int) -> String { "\(repo)#\(issue)" }

@@ -47,7 +47,6 @@ struct PanelView: View {
     private var title: String {
         if let epic { return "\(epic.subject.repo.split(separator: "/").last ?? "") #\(epic.subject.issue)" }
         switch model.shell.selection {
-        case .overview where snapshot != nil: return "Overview"
         case .settings: return "Settings"
         default: return "Carrier"
         }
@@ -55,9 +54,19 @@ struct PanelView: View {
 
     private var subtitle: String {
         switch model.shell.selection {
-        case .overview: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
+        case .carrier: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
         case .settings: "what the app starts Carrier with"
-        case .epic: ""
+        default: ""
+        }
+    }
+
+    /// The pages that are an empty state for now; Home does not depend on the engine.
+    private var emptyPage: EmptyState? {
+        switch model.shell.selection {
+        case .home: .welcome
+        case .sessions: .noSessions
+        case .archive: .nothingArchived
+        default: nil
         }
     }
 
@@ -70,7 +79,8 @@ struct PanelView: View {
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, state: model.state, selection: $shell.selection, groupBy: groupBy, collapse: collapse, onAbout: shell.showAbout)
+            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, collapse: collapse, searchRequest: shell.searchRequest)
+                .onChange(of: shell.open) { SidebarStore().open = shell.open }
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
             // resizes and the app dies with "more Update Constraints passes than there are views"
@@ -90,6 +100,11 @@ struct PanelView: View {
                     } else if shell.selection == .settings {
                         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
                         SettingsScreen(state: model.state)
+                    } else if let emptyPage {
+                        EmptyStateView(state: emptyPage)
+                    } else if case .session(let id) = shell.selection {
+                        // no session page until the sessions epic: the name, not "No sessions yet" beside a list that has some
+                        Text(model.sessions.rows.first { $0.id == id }?.title ?? id).foregroundStyle(.secondary)
                     } else if case .running(let snapshot)? = model.state {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 26) {
@@ -103,7 +118,7 @@ struct PanelView: View {
                         StoppedView(state: model.state, selection: $shell.selection)
                     }
                 }
-                // only an epic has something to inspect; Overview and Settings are a single column. The panel runs up behind the
+                // only an epic has something to inspect; the other pages are a single column. The panel runs up behind the
                 // title bar, like the sidebar on the other side. It stays in the tree and the width of its slot goes between 0 and its own,
                 // the panel anchored to the slot's left edge so it leaves through the window's right one; a view that came and went with
                 // a transition would not move like the sidebar does
@@ -141,7 +156,7 @@ struct PanelView: View {
                         .sharedBackgroundVisibility(.hidden)
                 }
             }
-            if let snapshot, shell.selection == .overview {
+            if let snapshot, shell.selection == .carrier {
                 // two pills: the check against GitHub, then what governs Carrier itself (intake and stopping)
                 ToolbarItem(placement: .primaryAction) {
                     // the engine polls on its own after the answer: the button says so until the next check is scheduled again
@@ -187,13 +202,13 @@ private struct Running: View {
 
     var body: some View {
         switch selection {
-        case .overview:
+        case .carrier:
             Overview(snapshot: snapshot, selection: $selection)
         case .epic(let repo, let issue):
             // not in the snapshot (any more)
             Text("\(repo) #\(issue)")
-        case .settings:
-            EmptyView()  // PanelView shows SettingsScreen
+        case .home, .sessions, .session, .archive, .settings:
+            EmptyView()  // PanelView shows these pages
         }
     }
 }

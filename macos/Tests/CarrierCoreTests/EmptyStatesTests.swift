@@ -1,8 +1,8 @@
 import Testing
 @testable import CarrierCore
 
-@Test func thereAreNineEmptyStatesEachWithAnIconATitleAndOneLine() {
-    #expect(EmptyState.allCases.count == 9)
+@Test func thereAreTwelveEmptyStatesEachWithAnIconATitleAndOneLine() {
+    #expect(EmptyState.allCases.count == 12)
     for state in EmptyState.allCases {
         #expect(state.icon.isEmpty == false)
         #expect(state.title.isEmpty == false)
@@ -12,8 +12,8 @@ import Testing
 }
 
 @Test func noTwoEmptyStatesShareAnIconOrATitle() {
-    #expect(Set(EmptyState.allCases.map(\.icon)).count == 9)
-    #expect(Set(EmptyState.allCases.map(\.title)).count == 9)
+    #expect(Set(EmptyState.allCases.map(\.icon)).count == 12)
+    #expect(Set(EmptyState.allCases.map(\.title)).count == 12)
 }
 
 @Test func slicesUnavailableHasItsOwnIconTitleAndLine() {

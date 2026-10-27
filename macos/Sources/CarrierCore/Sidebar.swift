@@ -113,20 +113,55 @@ public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy) -> [Si
     }
 }
 
-public enum PillTone: Equatable {
-    case green, orange, gray
+/// The Carrier card's state, from what the app knows of the engine (docs/specs/sidebar-home-sessions-carrier.md).
+public struct CarrierCardState: Equatable {
+    public enum Kind: Equatable { case running, paused, stopped, problem, connecting }
+
+    public var kind: Kind
+    /// Busy and total: present for running, paused and problem (when the engine answered), absent otherwise.
+    public var slots: (busy: Int, total: Int)?
+
+    /// The word of the pill.
+    public var title: String {
+        switch kind {
+        case .running: "Running"
+        case .paused: "Paused"
+        case .stopped: "Stopped"
+        case .problem: "Problem"
+        case .connecting: "Connecting"
+        }
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.kind == rhs.kind && lhs.slots?.busy == rhs.slots?.busy && lhs.slots?.total == rhs.slots?.total
+    }
 }
 
-public struct SidebarPill: Equatable {
-    public var text: String
-    public var tone: PillTone
+/// A problem reported by the snapshot wins over a pause: it is what the person has to look at.
+public func carrierCardState(_ state: ConnectionState?) -> CarrierCardState {
+    switch state {
+    case .running(let snapshot)?:
+        let kind: CarrierCardState.Kind = snapshot.problem != nil ? .problem : snapshot.paused ? .paused : .running
+        return CarrierCardState(kind: kind, slots: (snapshot.slots.busy, snapshot.slots.total))
+    case .incompatible?: return CarrierCardState(kind: .problem, slots: nil)
+    case .stopped?: return CarrierCardState(kind: .stopped, slots: nil)
+    case nil: return CarrierCardState(kind: .connecting, slots: nil)
+    }
 }
 
-/// Epics in use of the maximum: grey at zero, orange when every slot is busy and an epic waits, green otherwise.
-public func sidebarPill(_ snapshot: PanelSnapshot) -> SidebarPill {
-    let (busy, total) = (snapshot.slots.busy, snapshot.slots.total)
-    let tone: PillTone = busy == 0 ? .gray : busy >= total && snapshot.queue.isEmpty == false ? .orange : .green
-    return SidebarPill(text: "\(busy)/\(total)", tone: tone)
+/// What is waiting, for the Carrier card. Done and Cancelled are not counted.
+public struct CarrierCounters: Equatable {
+    public var needsYou: Int
+    public var running: Int
+    public var next: Int
+    public var ready: Int
+}
+
+public func carrierCounters(_ snapshot: PanelSnapshot) -> CarrierCounters {
+    CarrierCounters(
+        needsYou: snapshot.epics.filter { $0.status == .needsHuman }.count, running: snapshot.epics.filter { $0.status == .running }.count,
+        next: snapshot.queue.count, ready: snapshot.done.count
+    )
 }
 
 private func key(_ repo: String, _ issue: Int) -> String { "\(repo)#\(issue)" }

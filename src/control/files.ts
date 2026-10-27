@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, dirname, join, sep } from 'node:path';
 import { and, eq, sql } from 'drizzle-orm';
@@ -6,8 +7,9 @@ import type { Db } from '../storage/db.ts';
 import { callerResults } from '../storage/caller-results.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
+import { redact } from '../logging/redact.ts';
 import { git } from './epic.ts';
-import type { FilesReply } from './replies.ts';
+import type { FileDiffReply, FilesReply } from './replies.ts';
 
 // The reply is bounded: with these it weighs at most about 400 KB, far under the client's 8 MiB line, and says so when it cut.
 export const MAX_FILES_PER_SECTION = 500;
@@ -15,6 +17,10 @@ export const MAX_FILES = 2_000;
 const MAX_SLICES = 100;
 const MAX_PATH = 500;
 const MAX_UNTRACKED_BYTES = 1024 * 1024;
+// a file's diff: past these bytes it is not read, and the rows are cut at the same caps the app draws with
+const MAX_DIFF_BYTES = 4 * 1024 * 1024;
+export const MAX_DIFF_ROWS = 1_000;
+export const MAX_LINE = 2_000;
 
 type Row = { path: string; added: number; removed: number };
 
@@ -26,8 +32,10 @@ function parseNumstat(out: string): Row[] {
   });
 }
 
+// a driver or a textconv the repository configures never runs: it is the repository's code, and it would skew the numbers
+const SAFE_DIFF = ['--no-color', '--no-ext-diff', '--no-textconv', '--no-renames'];
 const numstat = (cwd: string, ...range: string[]) => {
-  const out = git(cwd, ['diff', '--numstat', '--no-renames', '-z', ...range, '--']);
+  const out = git(cwd, ['diff', '--numstat', ...SAFE_DIFF, '-z', ...range, '--']);
   return out === null ? null : parseNumstat(out);
 };
 
@@ -83,28 +91,25 @@ function lanes(workspace: string): { lane: number; path: string }[] {
   }).sort((a, b) => a.lane - b.lane);
 }
 
+type Card = { id: string; kind: FilesReply['sections'][number]['kind']; title: string; cwd: string; range: string[] };
+
 /**
- * The files an epic changed, from git and never from GitHub: the lanes' work so far (against the fork point, uncommitted work included),
- * each merged slice (the first-parent merge commits on the epic branch), each fix round (between the heads of its review and its fix),
- * and the epic branch against the default branch as `total`. An epic without a worktree here has nothing to show: empty, not an error.
- * With `executionId`, only that fix round.
- * ponytail: nothing is cached, git is asked on every request (tens of ms); cache a few seconds if the app ever polls faster.
+ * Every card of an epic and where git is asked over which range: a lane's worktree against its fork point, the epic worktree
+ * over `<sha>^1..<sha>` of a merged slice, and over the two heads of a fix round. `filesOf` counts over it and `fileDiff` diffs over it,
+ * so the two cannot drift apart. null for an unknown epic, 'none' for one without a worktree under the shared root.
  */
-export function filesOf(db: Db, root: string, repo: string, issue: number, executionId?: string): FilesReply | null {
+function cardsOf(db: Db, root: string, repo: string, issue: number, executionId?: string): { workspace: string; head: string; base: string | null; cards: Card[] } | 'none' | null {
   const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
   if (epic === undefined) return null;
-  const empty: FilesReply = { sections: [], total: null, truncated: false };
   const workspace = epic.workspace === null ? null : real(epic.workspace);
   const shared = real(root);
   // the folder comes from the database, but it is only read when it really sits under the shared root
-  if (workspace === null || shared === null || workspace.startsWith(shared + sep) === false) return empty;
+  if (workspace === null || shared === null || workspace.startsWith(shared + sep) === false) return 'none';
   const branch = git(workspace, ['symbolic-ref', '--short', 'HEAD'])?.trim();
-  if (branch === undefined || branch === '') return empty;
+  if (branch === undefined || branch === '') return 'none';
   const head = `refs/heads/${branch}`;
   const base = defaultBase(workspace);
-
-  type Draft = { id: string; kind: FilesReply['sections'][number]['kind']; title: string; rows: Row[] };
-  const drafts: Draft[] = [];
+  const cards: Card[] = [];
 
   const runs = db
     .select({ run: executions, result: callerResults.result })
@@ -113,23 +118,21 @@ export function filesOf(db: Db, root: string, repo: string, issue: number, execu
     .where(eq(executions.epicId, epic.id))
     .orderBy(sql`executions.rowid`)
     .all();
-  const rounds: Draft[] = [];
+  const rounds: Card[] = [];
   let reviewed: string | null = null;
   for (const { run, result } of runs) {
     if (result === null || run.stage === 'ship') continue;
     const parsed = JSON.parse(result) as CallerResult;
     if (run.stage === 'review') reviewed = parsed.outcome === 'needs_human' ? null : parsed.pr.headSha;
     else if (parsed.outcome === 'completed' && reviewed !== null && (executionId === undefined || executionId === run.executionId)) {
-      const rows = numstat(workspace, reviewed, parsed.pr.headSha);
-      if (rows !== null) rounds.unshift({ id: run.executionId, kind: 'session', title: `Fix, round ${run.round ?? '?'}`, rows });
+      rounds.unshift({ id: run.executionId, kind: 'session', title: `Fix, round ${run.round ?? '?'}`, cwd: workspace, range: [reviewed, parsed.pr.headSha] });
     }
   }
 
   if (executionId === undefined) {
     for (const { lane, path } of lanes(workspace)) {
       const fork = git(path, ['merge-base', head, 'HEAD'])?.trim();
-      const tracked = fork ? numstat(path, fork) : null;
-      if (tracked !== null) drafts.push({ id: `lane-${lane}`, kind: 'lane', title: `Lane ${lane}`, rows: [...tracked, ...untracked(path)] });
+      if (fork) cards.push({ id: `lane-${lane}`, kind: 'lane', title: `Lane ${lane}`, cwd: path, range: [fork] });
     }
     if (base !== null) {
       const merges = git(workspace, ['log', '--first-parent', '--merges', `--max-count=${MAX_SLICES}`, '--format=%H%x00%s', `${base}..${head}`]) ?? '';
@@ -137,12 +140,30 @@ export function filesOf(db: Db, root: string, repo: string, issue: number, execu
         const [sha = '', subject = ''] = line.split('\0');
         // GitHub's own merge subject: `Merge pull request #<pr> from <owner>/<namespace>/<slice number>-<slug>`
         const [, pr, slice] = /^Merge pull request #(\d+) from [^/]+\/.+\/(\d+)-[^/]+$/.exec(subject) ?? [];
-        const rows = slice === undefined ? null : numstat(workspace, `${sha}^1`, sha);
-        if (rows !== null) drafts.push({ id: `slice-${slice}`, kind: 'merged', title: `Slice #${slice} (PR #${pr})`, rows });
+        if (slice !== undefined) cards.push({ id: `slice-${slice}`, kind: 'merged', title: `Slice #${slice} (PR #${pr})`, cwd: workspace, range: [`${sha}^1`, sha] });
       }
     }
   }
-  drafts.push(...rounds);
+  cards.push(...rounds);
+  return { workspace, head, base, cards };
+}
+
+/**
+ * The files an epic changed, from git and never from GitHub: the lanes' work so far (against the fork point, uncommitted work included),
+ * each merged slice (the first-parent merge commits on the epic branch), each fix round (between the heads of its review and its fix),
+ * and the epic branch against the default branch as `total`. An epic without a worktree here has nothing to show: empty, not an error.
+ * With `executionId`, only that fix round.
+ * ponytail: nothing is cached, git is asked on every request (tens of ms); cache a few seconds if the app ever polls faster.
+ */
+export function filesOf(db: Db, root: string, repo: string, issue: number, executionId?: string): FilesReply | null {
+  const found = cardsOf(db, root, repo, issue, executionId);
+  if (found === null) return null;
+  if (found === 'none') return { sections: [], total: null, truncated: false };
+  const { workspace, head, base } = found;
+  const drafts = found.cards.flatMap((card) => {
+    const rows = numstat(card.cwd, ...card.range);
+    return rows === null ? [] : [{ ...card, rows: card.kind === 'lane' ? [...rows, ...untracked(card.cwd)] : rows }];
+  });
 
   // a file two lanes touch says so in both
   const laneFiles = new Map(drafts.filter((d) => d.kind === 'lane').map((d) => [d.id, new Set(d.rows.map((r) => r.path))]));
@@ -163,4 +184,42 @@ export function filesOf(db: Db, root: string, repo: string, issue: number, execu
   const all = base === null ? null : numstat(workspace, `${base}...${head}`);
   const total = all === null ? null : { files: all.length, added: all.reduce((sum, r) => sum + r.added, 0), removed: all.reduce((sum, r) => sum + r.removed, 0) };
   return { sections, total, truncated };
+}
+
+/** The diff text of one file over a range; 'too-big' past the cap. Nothing the repository configures runs: no driver, no textconv. */
+function diffText(cwd: string, range: string[], path: string): string | 'too-big' {
+  try {
+    return execFileSync('git', ['diff', ...SAFE_DIFF, '-U3', ...range, '--', `:(literal)${path}`], { cwd, encoding: 'utf8', timeout: 5_000, maxBuffer: MAX_DIFF_BYTES, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOBUFS') return 'too-big';
+    throw new Error('git diff failed in an epic worktree', { cause: error }); // the server logs it and answers `internal error`
+  }
+}
+
+/**
+ * The edited fragments of one file of a card: the hunks with three lines of context, an '@' row with git's header before each.
+ * null for an unknown epic or card, a lane (a later slice), or a path that is not in the card's own file list: that list is the
+ * allowlist, so a pathspec, a `..` or a NUL byte never reaches git. Redacted as a whole, then cut at MAX_DIFF_ROWS and MAX_LINE.
+ */
+export function fileDiff(db: Db, root: string, repo: string, issue: number, section: string, path: string): FileDiffReply | null {
+  const found = cardsOf(db, root, repo, issue);
+  const card = found === null || found === 'none' ? undefined : found.cards.find((c) => c.id === section);
+  if (card === undefined || card.kind === 'lane') return null;
+  if (path.length > MAX_PATH || numstat(card.cwd, ...card.range)?.some((r) => r.path === path) !== true) return null;
+  const out = diffText(card.cwd, card.range, path);
+  if (out === 'too-big') return { rows: [], truncated: false, note: 'too-big' };
+  const all = redact(out).split('\n');
+  const first = all.findIndex((line) => line.startsWith('@@'));
+  if (first < 0) return { rows: [], truncated: false, note: /^Binary files /m.test(out) ? 'binary' : 'no-changes' };
+  let truncated = false;
+  const rows = all.slice(first).flatMap((line): FileDiffReply['rows'] => {
+    const hunk = /^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/.exec(line);
+    if (hunk !== null) return [{ sign: '@', text: hunk[0] }];
+    const sign = line[0];
+    if (sign !== '+' && sign !== '-' && sign !== ' ') return []; // `\ No newline at end of file`, and the last empty line
+    truncated ||= line.length - 1 > MAX_LINE;
+    return [{ sign, text: line.slice(1, MAX_LINE + 1) }];
+  });
+  truncated ||= rows.length > MAX_DIFF_ROWS;
+  return { rows: rows.slice(0, MAX_DIFF_ROWS), truncated, note: null };
 }

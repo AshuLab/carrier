@@ -157,3 +157,13 @@ export type FilesReply = {
   /** Files were left out to keep the reply small; the numbers of a section still count every file. */
   truncated: boolean;
 };
+
+/** The edited fragments of one file of a card, over the same range the card's numbers are counted over. */
+export type FileDiffReply = {
+  /** '@' is a hunk separator whose text is git's `@@ -a,b +c,d @@` header; the rest are as `ExecEvent.diff`. */
+  rows: { sign: '+' | '-' | ' ' | '@'; text: string }[];
+  /** The rows were cut at the cap (1,000 rows, 2,000 characters a line). */
+  truncated: boolean;
+  /** Set, with no rows, when there is nothing to draw. */
+  note: 'binary' | 'too-big' | 'no-changes' | null;
+};

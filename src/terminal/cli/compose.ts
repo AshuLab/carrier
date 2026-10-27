@@ -7,7 +7,7 @@ import { GitWorkspaces, profileToken, type GitWorkspacesOptions } from '../../ex
 import type { Workspaces } from '../../execution/workspaces.ts';
 import { epicOf } from '../../control/epic.ts';
 import { eventsOf, lastEventOf } from '../../control/events.ts';
-import { filesOf } from '../../control/files.ts';
+import { fileDiff, filesOf } from '../../control/files.ts';
 import { sessionsOf } from '../../control/sessions.ts';
 import { startControlServer, version } from '../../control/server.ts';
 import { listAvailableRepos } from '../../integrations/available-repos.ts';
@@ -164,6 +164,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
     epic: (repo: string, issue: number) => epicOf(db, repo, issue),
     files: (repo: string, issue: number, executionId?: string) => filesOf(db, config.root, repo, issue, executionId),
+    fileDiff: (repo: string, issue: number, section: string, path: string) => fileDiff(db, config.root, repo, issue, section, path),
     availableRepos: (page: number) => deps.listRepos(page, limits.githubCallTimeoutSeconds * 1000),
     resumeEpic: (repo: string, issue: number) => engine.resumeEpic(repo, issue),
   };

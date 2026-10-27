@@ -93,3 +93,27 @@ func aRepoThatIsNotOwnerSlashNameIsRefusedBeforeItIsSent(repo: String) throws {
     #expect(throws: ControlError.self) { try client.files(repo: "acme/web", issue: 1, executionId: "x\"y") }
     #expect(engine.commands.isEmpty)
 }
+
+@Test func fileDiffSendsTheCardAndThePathOnlyToAnEngineThatAnnouncesIt() throws {
+    let reply = #"{"rows":[{"sign":"@","text":"@@ -1 +1 @@"},{"sign":"+","text":"x"}],"truncated":false,"note":null}"#
+    let engine = FixtureEngine(capabilities: ["files", "fileDiff"], replies: ["fileDiff": reply])
+    defer { engine.stop() }
+    let client = try connect(engine)
+
+    let diff = try client.fileDiff(repo: "acme/web", issue: 12, section: "slice-121", path: "src/a \"b\".ts")
+    #expect(diff == FileDiffReply(rows: [.init(sign: "@", text: "@@ -1 +1 @@"), .init(sign: "+", text: "x")], truncated: false, note: nil))
+    let sent = try #require(engine.requests.first)
+    #expect(sent["cmd"] as? String == "fileDiff" && sent["repo"] as? String == "acme/web" && sent["issue"] as? Int == 12)
+    #expect(sent["section"] as? String == "slice-121" && sent["path"] as? String == "src/a \"b\".ts")
+    #expect(Set(sent.keys) == ["id", "cmd", "repo", "issue", "section", "path"])
+
+    // an empty or oversize section or path never leaves
+    #expect(throws: ControlError.self) { try client.fileDiff(repo: "acme/web", issue: 12, section: "", path: "a") }
+    #expect(throws: ControlError.self) { try client.fileDiff(repo: "acme/web", issue: 12, section: "slice-1", path: String(repeating: "p", count: 501)) }
+    #expect(engine.commands == ["fileDiff"])
+
+    let older = FixtureEngine(capabilities: ["files"])
+    defer { older.stop() }
+    #expect(try connect(older).fileDiff(repo: "acme/web", issue: 12, section: "slice-121", path: "a.ts") == nil)
+    #expect(older.commands.isEmpty)
+}

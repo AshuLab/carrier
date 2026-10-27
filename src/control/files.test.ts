@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
@@ -8,7 +8,7 @@ import { callerResults } from '../storage/caller-results.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
-import { filesOf, MAX_FILES_PER_SECTION } from './files.ts';
+import { fileDiff, filesOf, MAX_DIFF_ROWS, MAX_FILES_PER_SECTION, MAX_LINE } from './files.ts';
 
 // A real temporary repository, as the `epic` request's commit-list test does: the expectations are literals and git's own numbers.
 const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).trim();
@@ -200,4 +200,133 @@ test('a diff of thousands of files is cut and says so, while the numbers still c
   expect(reply.sections[0]).toMatchObject({ added: 3_000, removed: 0 });
   expect(reply.total).toEqual({ files: 3_000, added: 3_000, removed: 0 });
   expect(JSON.stringify(reply).length).toBeLessThan(1024 * 1024);
+});
+
+/** A fix round on the epic branch: the review saw the head before, the fix left the head after `files` was committed. */
+function fixRound(epicId: number, files: Record<string, string>) {
+  const reviewed = git(epic, 'rev-parse', 'HEAD');
+  for (const [path, text] of Object.entries(files)) writeFileSync(join(epic, path), text);
+  git(epic, 'add', '.');
+  git(epic, 'commit', '-q', '-m', 'fix: answer the review');
+  run(epicId, 'review', reviewed, 1);
+  return run(epicId, 'fix', git(epic, 'rev-parse', 'HEAD'), 1);
+}
+const diffOf = (section: string, path: string) => fileDiff(db, root, 'AshuLab/a', 1, section, path);
+
+test('fileDiff answers the hunks of a merged slice and of a fix round, with an @ row before each and three lines of context', () => {
+  slice(101, 201, { 'shared.ts': lines(10, 'shared').replace('shared1\n', 'one\n').replace('shared9\n', 'nine\nten\n'), 'a.ts': lines(2, 'a') });
+  const id = epicRow();
+  const fixId = fixRound(id, { 'base.ts': lines(10, 'base').replace('base5\n', '') });
+
+  const ctx = (...names: string[]) => names.map((text) => ({ sign: ' ', text }));
+  expect(diffOf('slice-101', 'shared.ts')).toEqual({
+    rows: [
+      { sign: '@', text: '@@ -1,5 +1,5 @@' }, ...ctx('shared0'), { sign: '-', text: 'shared1' }, { sign: '+', text: 'one' }, ...ctx('shared2', 'shared3', 'shared4'),
+      { sign: '@', text: '@@ -7,4 +7,5 @@' }, ...ctx('shared6', 'shared7', 'shared8'), { sign: '-', text: 'shared9' }, { sign: '+', text: 'nine' }, { sign: '+', text: 'ten' },
+    ],
+    truncated: false,
+    note: null,
+  });
+  expect(diffOf('slice-101', 'a.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -0,0 +1,2 @@' }, { sign: '+', text: 'a0' }, { sign: '+', text: 'a1' }], truncated: false, note: null });
+  expect(diffOf(fixId, 'base.ts')).toEqual({ rows: [{ sign: '@', text: '@@ -3,7 +3,6 @@' }, ...ctx('base2', 'base3', 'base4'), { sign: '-', text: 'base5' }, ...ctx('base6', 'base7', 'base8')], truncated: false, note: null });
+
+  // the rows add up to the numbers `files` reports for the same card and file
+  for (const section of filesOf(db, root, 'AshuLab/a', 1)!.sections) {
+    for (const file of section.files) {
+      const rows = diffOf(section.id, file.path)!.rows;
+      expect([rows.filter((r) => r.sign === '+').length, rows.filter((r) => r.sign === '-').length]).toEqual([file.added, file.removed]);
+    }
+  }
+});
+
+test('a binary file, a file too big to read, and a diff past the caps', () => {
+  slice(101, 201, {
+    'image.png': 'PNG\0\x01\x02',
+    'big.txt': `${'y'.repeat(99)}\n`.repeat(50_000), // 5 MB
+    'long.txt': lines(1_200, 'l'),
+    'wide.txt': `${'w'.repeat(MAX_LINE + 50)}\n`,
+  });
+  epicRow();
+  expect(diffOf('slice-101', 'image.png')).toEqual({ rows: [], truncated: false, note: 'binary' });
+  expect(diffOf('slice-101', 'big.txt')).toEqual({ rows: [], truncated: false, note: 'too-big' });
+  const long = diffOf('slice-101', 'long.txt')!;
+  expect(long).toMatchObject({ truncated: true, note: null });
+  expect(long.rows).toHaveLength(MAX_DIFF_ROWS);
+  const wide = diffOf('slice-101', 'wide.txt')!;
+  expect(wide).toMatchObject({ truncated: true, note: null });
+  expect(wide.rows[1]!.text).toHaveLength(MAX_LINE);
+});
+
+test('a file whose diff over the range is empty says it has no changes', () => {
+  const id = epicRow();
+  const reviewed = git(epic, 'rev-parse', 'HEAD');
+  chmodSync(join(epic, 'base.ts'), 0o755);
+  git(epic, 'commit', '-q', '-am', 'fix: executable');
+  run(id, 'review', reviewed, 1);
+  const fixId = run(id, 'fix', git(epic, 'rev-parse', 'HEAD'), 1);
+  expect(filesOf(db, root, 'AshuLab/a', 1)!.sections[0]!.files).toEqual([{ path: 'base.ts', added: 0, removed: 0, alsoIn: [] }]);
+  expect(diffOf(fixId, 'base.ts')).toEqual({ rows: [], truncated: false, note: 'no-changes' });
+});
+
+test('the diff is redacted as a whole before it is split into rows: no secret survives, a key block across lines included', () => {
+  const secrets = [
+    'ghp_abcdefghijklmnopqrstuvwxyz0123456789',
+    'github_pat_11ABCDEFG0123456789_abcdefghijklmnop',
+    'sk-ant-api03-abcdefghijklmnopqrstuv',
+    'sk_live_abcdefghijklmnop1234',
+    'AKIAABCDEFGHIJKLMNOP',
+    'AIzaSyA-abcdefghijklmnopqrstuvwxyz012345',
+    'xoxb-1234567890-abcdefghij',
+    'glpat-abcdefghijklmnopqrstu',
+    'npm_abcdefghijklmnopqrstuvwxyz0123456789',
+    'hf_abcdefghijklmnopqrstuvwxyz01234567',
+    'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnop',
+    'hunter2-database-password',
+    'bearer-value-0123456789',
+    'MIIEowIBAAKCAQEAsecretkeybody',
+    'secondlineofthekeybody',
+  ];
+  const text = [
+    ...secrets.slice(0, 11).map((s, i) => `const t${i} = '${s}';`),
+    `DATABASE_PASSWORD=${secrets[11]}`,
+    `Authorization: Bearer ${secrets[12]}`,
+    '-----BEGIN RSA PRIVATE KEY-----', secrets[13], secrets[14], '-----END RSA PRIVATE KEY-----',
+    'after',
+  ].join('\n') + '\n';
+  slice(101, 201, { 'secrets.txt': text });
+  epicRow();
+  const reply = diffOf('slice-101', 'secrets.txt')!;
+  const all = JSON.stringify(reply);
+  for (const secret of secrets) expect(all).not.toContain(secret);
+  expect(reply.rows.at(-1)).toEqual({ sign: '+', text: 'after' });
+  expect(reply.rows.some((r) => r.text === '[redacted]')).toBe(true);
+});
+
+test('an unknown epic, card, a lane card, or a path not in the card\'s own list is null, a pathspec or a .. or a NUL byte included', () => {
+  slice(101, 201, { 'a.ts': lines(2, 'a'), ':(glob)x': 'odd\n' });
+  expect(diffOf('slice-101', 'a.ts')).toBeNull(); // no epic row yet
+  epicRow();
+  const work = lane(1, 'feat/x/104-d');
+  writeFileSync(join(work, 'a.ts'), lines(3, 'a'));
+  expect(filesOf(db, root, 'AshuLab/a', 1)!.sections.map((s) => s.id)).toEqual(['lane-1', 'slice-101']);
+  expect(diffOf('lane-1', 'a.ts')).toBeNull(); // a later slice
+  expect(diffOf('slice-999', 'a.ts')).toBeNull();
+  for (const path of ['base.ts', ':(glob)*', '*', 'b/../a.ts', '../a.ts', 'a.ts\0', '\0', ':(top)a.ts', 'A.TS']) expect(diffOf('slice-101', path)).toBeNull();
+  // a file whose name looks like a pathspec is itself in the list, and is read literally
+  expect(diffOf('slice-101', ':(glob)x')!.rows).toEqual([{ sign: '@', text: '@@ -0,0 +1 @@' }, { sign: '+', text: 'odd' }]);
+});
+
+test('a diff driver or textconv the repository configures never runs', () => {
+  const marker = join(root, 'marker');
+  const tool = join(root, 'tool.sh');
+  writeFileSync(tool, `#!/bin/sh\ntouch '${marker}'\ncat "$1" 2>/dev/null\n`);
+  chmodSync(tool, 0o755);
+  git(epic, 'config', 'diff.evil.textconv', tool);
+  git(epic, 'config', 'diff.evil.command', tool);
+  git(epic, 'config', 'diff.external', tool);
+  slice(101, 201, { '.gitattributes': '* diff=evil\n', 'a.ts': lines(2, 'a') });
+  epicRow();
+  expect(filesOf(db, root, 'AshuLab/a', 1)!.sections[0]!.files.map((f) => f.path)).toEqual(['.gitattributes', 'a.ts']);
+  expect(diffOf('slice-101', 'a.ts')!.rows).toHaveLength(3);
+  expect(existsSync(marker)).toBe(false);
 });

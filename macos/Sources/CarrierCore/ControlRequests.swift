@@ -22,6 +22,13 @@ extension ControlClient {
         return try ask(.files, "files", try epicFields(repo, issue) + session)
     }
 
+    /// The edited fragments of one file of a card (`section` is the card's id in the `files` reply). nil when this engine cannot be asked.
+    public func fileDiff(repo: String, issue: Int, section: String, path: String) throws -> FileDiffReply? {
+        guard (1...100).contains(section.utf16.count), (1...500).contains(path.utf16.count) else { throw ControlError.remote("not a valid file") }
+        let quoted = { (value: String) in String(decoding: try JSONEncoder().encode(value), as: UTF8.self) }
+        return try ask(.fileDiff, "fileDiff", try epicFields(repo, issue) + ",\"section\":\(try quoted(section)),\"path\":\(try quoted(path))")
+    }
+
     /// One page of the repos the engine's gh login can push to, for the Repos tab's picker. nil when this engine cannot list them.
     /// An engine without `availableReposPaged` refuses `page`: it is asked for none, answers its one list, and has no more.
     public func availableRepos(page: Int = 1) throws -> (repos: [AvailableRepo], hasMore: Bool)? {

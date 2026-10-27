@@ -30,6 +30,7 @@ const controls = {
   events: (): EventsReply | null => ({ events: [], next: 0, running: false, structured: true }),
   epic: (): EpicReply | null => null,
   files: (): FilesReply | null => null,
+  fileDiff: () => null,
   availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(),
 };
 
@@ -60,7 +61,7 @@ test('connect returns the hello and a request resolves with the data of its repl
   await realServer();
   const client = await connectControl(path());
   closers.push(client.close);
-  expect(client.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, capabilities: ['sessions', 'events', 'epic', 'files', 'availableRepos', 'availableReposPaged', 'resumeEpic'] });
+  expect(client.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic'] });
   expect(typeof client.hello.version).toBe('string');
   expect(await client.request('snapshot')).toEqual(snapshotData);
   expect(await client.request('pause')).toBeUndefined();

@@ -35,7 +35,7 @@ export function historyLine(sessions: Sessions, now: number, paint: Paint, width
     const took = formatDuration((x.finishedAt ?? now) - x.startedAt);
     const round = x.round === null ? '' : ` round ${x.round}`;
     if (x.status === 'running') return { shown: `[${x.stage}]${round} ${took}`, styled: paint(`[${x.stage}]`, 'bold', 'cyan') + `${round} ${took}` };
-    const [mark, color] = x.result ? marks[x.result.outcome] : ['', 'dim'] as const;
+    const [mark, color] = x.failure ? ([`✗ ${x.failure.kind}`, 'yellow'] as const) : x.result ? marks[x.result.outcome] : (['', 'dim'] as const);
     return { shown: `${x.stage}${mark ? ` ${mark}` : ''}${round} ${took}`, styled: `${x.stage}${mark ? ` ${paint(mark, color)}` : ''}${round} ${took}` };
   });
   const separator = ' · ';

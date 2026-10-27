@@ -377,3 +377,74 @@ private let token = OpenFile(section: "slice-121", path: "src/token.ts")
     #expect(try rig.tick(at: 1).isEmpty)
     #expect(rig.poller.data[web]?.fragments.isEmpty != false)
 }
+
+private let laneToken = OpenFile(section: "lane-1", path: "src/auth/token.ts")
+private let otherReply = #"{"rows":[{"sign":"@","text":"@@ -1 +1,2 @@"},{"sign":"+","text":"x"},{"sign":"+","text":"y"}],"truncated":false,"note":null}"#
+
+/// Two engines that answer `fileDiff` differently, or fail it: the poller is handed whichever client a test wants for a poll.
+private func diffClient(_ engine: FixtureEngine) throws -> ControlClient {
+    let client = try #require(ControlClient.connect(path: engine.path))
+    _ = try client.hello()
+    return client
+}
+
+@Test func anOpenLaneRowIsAskedEveryTenSecondsWhileTheEpicRunsAndTheOldFragmentStaysUntilTheNewOne() throws {
+    let first = FixtureEngine(capabilities: ["fileDiff"], replies: ["fileDiff": diffReply])
+    let second = FixtureEngine(capabilities: ["fileDiff"], replies: ["fileDiff": otherReply])
+    let failing = FixtureEngine(capabilities: ["fileDiff"], fail: ["fileDiff"])
+    defer { [first, second, failing].forEach { $0.stop() } }
+    let (one, two, broken) = (try diffClient(first), try diffClient(second), try diffClient(failing))
+    var now = Date(timeIntervalSince1970: 0)
+    let box = UpdateBox()
+    let poller = EpicPoller(now: { now }, onUpdate: { key, _ in box.append(key) })
+    poller.show(EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, openFiles: [laneToken]))
+
+    // asked at once, then every ten seconds; an unchanged reply redraws nothing
+    for second in 0...25 {
+        now = Date(timeIntervalSince1970: TimeInterval(second))
+        try poller.poll(one)
+        #expect(poller.data[web]?.fragments[laneToken] != nil)
+    }
+    #expect(first.commands == ["fileDiff", "fileDiff", "fileDiff"])
+    #expect(box.all.count == 1)
+    let old = poller.data[web]?.fragments[laneToken]
+
+    // a failed refresh keeps the last fragment
+    now = Date(timeIntervalSince1970: 30)
+    try poller.poll(broken)
+    #expect(failing.commands == ["fileDiff"])
+    #expect(poller.data[web]?.fragments[laneToken] == old)
+
+    // the new fragment replaces the old one when it arrives, and not before
+    now = Date(timeIntervalSince1970: 35)
+    try poller.poll(two)
+    #expect(second.commands.isEmpty && poller.data[web]?.fragments[laneToken] == old)
+    now = Date(timeIntervalSince1970: 40)
+    try poller.poll(two)
+    #expect(poller.data[web]?.fragments[laneToken] == .rows([DiffRow(sign: .hunk, text: "@@ -1 +1,2 @@"), DiffRow(sign: .added, text: "x"), DiffRow(sign: .added, text: "y")], truncated: false))
+}
+
+@Test func anOpenLaneRowIsAskedOnceWhenTheEpicIsNotRunningAndNotAtAllOnceItIsClosed() throws {
+    let engine = FixtureEngine(capabilities: ["fileDiff"], replies: ["fileDiff": diffReply])
+    defer { engine.stop() }
+    let client = try diffClient(engine)
+    var now = Date(timeIntervalSince1970: 0)
+    let poller = EpicPoller(now: { now }, onUpdate: { _, _ in })
+    let tick = { (second: Int, focus: EpicFocus) in
+        now = Date(timeIntervalSince1970: TimeInterval(second))
+        poller.show(focus)
+        try poller.poll(client)
+    }
+
+    for second in stride(from: 0, through: 40, by: 5) { try tick(second, EpicFocus(epic: web, epicRunning: false, filesTabVisible: true, openFiles: [laneToken])) }
+    #expect(engine.commands == ["fileDiff"])
+
+    // running again, then the row closed (the tab closed too: the view hands no open rows then): no more asking
+    try tick(50, EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, openFiles: [laneToken]))
+    #expect(engine.commands.count == 2)
+    for second in stride(from: 55, through: 90, by: 5) { try tick(second, EpicFocus(epic: web, epicRunning: true, filesTabVisible: true)) }
+    #expect(engine.commands.count == 2)
+    // opened again while the epic runs: asked at once, the kept fragment on screen meanwhile
+    try tick(91, EpicFocus(epic: web, epicRunning: true, filesTabVisible: true, openFiles: [laneToken]))
+    #expect(engine.commands.count == 3)
+}

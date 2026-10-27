@@ -39,7 +39,7 @@ struct PanelView: View {
         var running = false
         if case .active(let active) = epic.subject { running = active.status == .running }
         var focus = epicFocus(ref, running: running, data: model.epics.data[ref], folds: model.epics.folds)
-        focus.openFiles = model.epics.openFiles[ref] ?? []
+        focus.openFiles = model.epics.filesTabShown ? model.epics.openFiles[ref] ?? [] : []
         return focus
     }
 
@@ -84,7 +84,7 @@ struct PanelView: View {
                             subject: epic.subject, reply: data?.epic, filesChanged: filesChangedCount(data?.files),
                             sessions: sessionList(data?.sessions, transcripts: data?.transcripts ?? [:], slices: data?.epic?.slices ?? [], now: epic.now, resumable: over == false, folds: epics.folds), folds: $epics.folds, files: data?.files,
                             plan: queuedPlan(epic.subject), resume: resumeCard(epic.subject).map { ($0, model.epics) },
-                            fileDiffs: epics.canOpenFiles ? FileDiffs(open: Binding(get: { epics.openFiles[ref] ?? [] }, set: { epics.openFiles[ref] = $0 }), fragments: data?.fragments ?? [:]) : nil
+                            fileDiffs: epics.canOpenFiles ? FileDiffs(open: Binding(get: { epics.openFiles[ref] ?? [] }, set: { epics.openFiles[ref] = $0 }), shown: $epics.filesTabShown, fragments: data?.fragments ?? [:]) : nil
                         )
                             .id("\(epic.subject.repo)#\(epic.subject.issue)")
                     } else if shell.selection == .settings {

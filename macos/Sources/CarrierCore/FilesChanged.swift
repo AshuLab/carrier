@@ -83,8 +83,6 @@ public struct FileSection: Equatable {
     public var removed: Int
     /// Not merged into the epic yet.
     public var working: Bool
-    /// Its file rows open to their fragment: a merged slice's and a fix round's do, a lane's not yet.
-    public var opens: Bool
     /// Working sections open, merged ones folded.
     public var openByDefault: Bool { working }
 }
@@ -132,8 +130,7 @@ public func filesChangedModel(_ reply: FilesReply?) -> FilesChangedModel {
         }
         return FileSection(
             id: section.id, title: section.title, files: files,
-            added: files.reduce(0) { $0 + $1.added }, removed: files.reduce(0) { $0 + $1.removed }, working: isWorking,
-            opens: section.kind != "lane"
+            added: files.reduce(0) { $0 + $1.added }, removed: files.reduce(0) { $0 + $1.removed }, working: isWorking
         )
     }
     return FilesChangedModel(

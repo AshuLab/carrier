@@ -128,15 +128,6 @@ private func section(_ id: String, _ kind: String, _ files: [FilesReply.File]) -
 
 // MARK: fragments
 
-@Test func onlyTheRowsOfAMergedSliceOrAFixRoundOpen() {
-    let model = filesChangedModel(FilesReply(sections: [
-        section("lane-1", "lane", [file("a.ts", 1, 0)]),
-        section("sess", "session", [file("b.ts", 1, 0)]),
-        section("merged", "merged", [file("c.ts", 1, 0)]),
-    ]))
-    #expect(model.sections.map(\.opens) == [false, true, true])
-}
-
 @Test func aReplyBecomesTheRowsTheTranscriptDrawsWithAHunkRowBetweenFragments() throws {
     let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures/reply-filediff.json")
     let replies = try JSONDecoder().decode([FileDiffReply].self, from: Data(contentsOf: url))

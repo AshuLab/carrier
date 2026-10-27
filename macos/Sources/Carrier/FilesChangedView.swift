@@ -4,11 +4,13 @@ import SwiftUI
 /// The file rows that are open, and the fragment of each once it arrives.
 struct FileDiffs {
     @Binding var open: Set<OpenFile>
+    /// Set while the Files changed tab is on screen: closing the tab stops the asking.
+    let shown: Binding<Bool>
     let fragments: [OpenFile: FileFragment]
 }
 
 /// The Files changed tab: the total as pills, then one card per agent session. Working sessions open, merged ones folded.
-/// With `fileDiffs`, a row of a merged slice or a fix round opens to its fragment.
+/// With `fileDiffs`, a file row opens to its fragment.
 struct FilesChangedView: View {
     let files: FilesReply?
     var fileDiffs: FileDiffs?
@@ -24,7 +26,7 @@ struct FilesChangedView: View {
                 FilesSummary(model: model)
                 ForEach(model.sections, id: \.id) { section in
                     let open = section.openByDefault != flipped.contains(section.id)
-                    FileSectionView(section: section, open: open && section.files.isEmpty == false, fileDiffs: section.opens ? fileDiffs : nil) {
+                    FileSectionView(section: section, open: open && section.files.isEmpty == false, fileDiffs: fileDiffs) {
                         if flipped.insert(section.id).inserted == false { flipped.remove(section.id) }
                     }
                 }

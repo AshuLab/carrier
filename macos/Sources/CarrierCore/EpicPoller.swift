@@ -68,7 +68,7 @@ public struct EpicData: Equatable {
     public var files: FilesReply?
     /// By execution id.
     public var transcripts: [String: Transcript] = [:]
-    /// The fragment of each file row that was opened, asked once and kept.
+    /// The fragment of each file row that was opened: a merged slice's and a fix round's asked once and kept, a lane's followed.
     public var fragments: [OpenFile: FileFragment] = [:]
 }
 
@@ -81,7 +81,8 @@ public struct EpicFocus: Equatable {
     public var transcript: String?
     /// Sessions that are not running whose events are wanted once, for their counts.
     public var counting: [String]
-    /// The file rows open in the Files changed tab: each is asked for its fragment once.
+    /// The file rows open in the Files changed tab, and only while it is on screen: each is asked for its fragment once, a lane's
+    /// again every 10 s while the epic runs.
     public var openFiles: Set<OpenFile>
 
     public init(
@@ -99,7 +100,7 @@ public struct EpicFocus: Equatable {
 
 /// Asks the engine for the data behind what is on screen, at the cadence of the PRD: `epic` every 3 s, `sessions` every 5 s
 /// (both at once when the epic opens), `events` every 1 s while a running session's transcript is visible, `files` when the
-/// tab opens and every 10 s while the epic runs, and the fragment of a file row once, when it is first opened. The events of the sessions to count are read once each, newest session first,
+/// tab opens and every 10 s while the epic runs, and the fragment of a file row when it is first opened (a lane's again every 10 s while the epic runs). The events of the sessions to count are read once each, newest session first,
 /// a page per request and up to `pagesPerPoll` requests per poll, after the rest. Nothing with no focus (window closed) and nothing the engine did not advertise.
 /// Call `poll` from the connection's thread; `show` may be called from any other, it takes effect at the next `poll`; `now` is the clock.
 public final class EpicPoller {
@@ -127,6 +128,8 @@ public final class EpicPoller {
     /// The sessions whose events were read to the end.
     private var counted: Set<String> = []
     private var lastAsked: [Kind: Date] = [:]
+    /// When each open row was last asked for its fragment; a row closed is forgotten, so opening it again asks a lane at once.
+    private var fragmentAsked: [OpenFile: Date] = [:]
     private let now: () -> Date
     private let onUpdate: (EpicRef, EpicData) -> Void
     private let onCapabilities: (Set<ControlClient.Capability>) -> Void
@@ -152,7 +155,8 @@ public final class EpicPoller {
 
     private func apply(_ next: EpicFocus?) {
         guard next != focus else { return }
-        if next?.epic != focus?.epic { lastAsked = [:] }
+        if next?.epic != focus?.epic { lastAsked = [:]; fragmentAsked = [:] }
+        fragmentAsked = fragmentAsked.filter { next?.openFiles.contains($0.key) == true }
         if next?.filesTabVisible != true { lastAsked[.files] = nil }
         if next?.transcript != focus?.transcript { lastAsked[.events] = nil }
         focus = next
@@ -191,21 +195,30 @@ public final class EpicPoller {
                 continue
             }
         }
-        try fragments(focus, client)
+        try fragments(focus, client, moment)
         for _ in 0..<Self.pagesPerPoll {
             guard try count(focus, client) else { break }
         }
     }
 
     /// The open file rows that have no fragment yet. A merged slice and a fix round have fixed ends: one reply, or one failure, is kept.
-    private func fragments(_ focus: EpicFocus, _ client: ControlClient) throws {
+    /// A lane is alive: while the epic runs its row is asked again every 10 s, and the fragment on screen stays until the next one
+    /// arrives; a refresh that fails keeps it.
+    private func fragments(_ focus: EpicFocus, _ client: ControlClient, _ moment: Date) throws {
         let key = focus.epic
-        for file in focus.openFiles where data[key]?.fragments[file] == nil {
+        for file in focus.openFiles {
+            let known = data[key]?.fragments[file]
+            if known != nil {
+                // the engine names a lane's card `lane-<N>`
+                guard file.section.hasPrefix("lane-"), focus.epicRunning,
+                      fragmentAsked[file].map({ moment.timeIntervalSince($0) >= Kind.files.interval }) ?? true else { continue }
+            }
+            fragmentAsked[file] = moment
             do {
                 guard let reply = try client.fileDiff(repo: key.repo, issue: key.issue, section: file.section, path: file.path) else { return }
                 update(key) { $0.fragments[file] = fileFragment(reply) }
             } catch ControlError.remote, ControlError.badLine, ControlError.timeout {
-                update(key) { $0.fragments[file] = .failed }
+                if known == nil || known == .failed { update(key) { $0.fragments[file] = .failed } }
             }
         }
     }

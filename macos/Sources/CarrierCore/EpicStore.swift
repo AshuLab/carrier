@@ -12,6 +12,8 @@ import Observation
     public internal(set) var canOpenFiles = false
     /// The file rows opened in each epic's Files changed tab.
     public var openFiles: [EpicRef: Set<OpenFile>] = [:]
+    /// Whether the Files changed tab is the one on screen: the open rows are asked for their fragments only then.
+    public var filesTabShown = false
     /// The epics whose Resume was confirmed and has not ended: kept here and not in the card's view, which is rebuilt when another
     /// epic is selected. An answered request ends it at once when it was refused; when it succeeded, the snapshot ending the stuck
     /// state does (`settleResuming`).

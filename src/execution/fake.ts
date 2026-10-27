@@ -13,7 +13,7 @@ export type Behavior = {
   write?: unknown;
   /** Defaults to 'ok'. 'hang' never ends on its own, only `stop()` does. */
   exit?: AgentExit | 'hang';
-  /** What a 'failed' exit reports; defaults to a crash with exit code 1. */
+  /** What a 'failed' exit reports; defaults to a crash with exit code 1, and `failure: undefined` set on purpose reports none. */
   failure?: AgentFailure;
   /** The run ends with `exit` only once this settles, to let other runs start first. */
   when?: Promise<unknown>;
@@ -38,7 +38,9 @@ export class FakeAgentRunner implements AgentRunner {
   run(task: AgentTask): AgentRun {
     this.tasks.push(task);
     this.alive.add(task.executionId);
-    const { sessionId, output = [], events = [], write, exit = 'ok', when, failure = exit === 'failed' ? crash : undefined } = this.behavior(task);
+    const behavior = this.behavior(task);
+    const { sessionId, output = [], events = [], write, exit = 'ok', when } = behavior;
+    const failure = 'failure' in behavior ? behavior.failure : exit === 'failed' ? crash : undefined;
     const sessions: ((id: string) => void)[] = [];
     const outputs: ((stream: 'stdout' | 'stderr', chunk: string) => void)[] = [];
     const eventSinks: ((events: AgentEvent[]) => void)[] = [];

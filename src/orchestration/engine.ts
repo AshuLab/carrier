@@ -241,9 +241,10 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         active.delete(executionId);
         output.flush();
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
-        const failure = { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}: ${processFailure?.detail ?? ''})`, auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
+        const failure = { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}${processFailure?.detail ? `: ${processFailure.detail}` : ''})`, auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
         // The ends with their own handling carry no failure from the runner: their kind follows from the exit.
         const endFailure: Partial<Record<AgentExit, Pick<AgentFailure, 'kind' | 'detail'>>> = {
+          failed: { kind: 'unknown', detail: '' },
           auth_failed: { kind: 'auth', detail: `profile ${task.profile}` },
           session_unavailable: { kind: 'session_lost', detail: sessionLost },
           timed_out: { kind: 'timeout', detail: `exceeded ${maxExecutionHours} h` },

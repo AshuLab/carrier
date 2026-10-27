@@ -671,6 +671,15 @@ test('a killed execution stores its failure, names the kind in the epic error, a
   expect(rows(engine.db)[0]?.needsHumanReason).toContain(text);
 });
 
+test('a failed end the runner gave no failure for is stored as unknown, with no dangling colon', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed', failure: undefined });
+  const engine = await start(1, repos, 4, 0);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'failed', error: 'the agent process ended with an error (unknown)', failureKind: 'unknown', failureDetail: '' });
+});
+
 test('an execution that ends ok, and one that Carrier stops, leave every failure column null', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);

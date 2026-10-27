@@ -63,6 +63,12 @@ public struct SidebarCollapse: Equatable {
         chosen[Self.key(group, groupBy)] ?? group.startsCollapsed
     }
 
+    /// Whether the list shows `group` folded while `query` is typed: never, because every group left by a query has a match. The
+    /// choice itself is kept, so clearing the query brings back what the user had.
+    public func isCollapsed(_ group: SidebarGroup, by groupBy: GroupBy, query: String) -> Bool {
+        query.trimmingCharacters(in: .whitespaces).isEmpty && isCollapsed(group, by: groupBy)
+    }
+
     public mutating func toggle(_ group: SidebarGroup, by groupBy: GroupBy) {
         chosen[Self.key(group, groupBy)] = !isCollapsed(group, by: groupBy)
     }
@@ -73,7 +79,25 @@ public struct SidebarCollapse: Equatable {
 /// The groups for `snapshot`. By status: needs you, running, up next, then ready for test, done and cancelled (each hidden when
 /// empty; done and cancelled start collapsed), rows in the snapshot's order, finished ones newest first as the engine sends them.
 /// By repository: sections ordered by name, rows by issue number, with no finished epics.
-public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy) -> [SidebarGroup] {
+/// A non-empty `query` keeps the rows whose title, issue number (with or without `#`) or `owner/name` contain it, ignoring case, in
+/// whichever groups the grouping has, and hides the groups left empty; an empty one changes nothing.
+public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, query: String = "") -> [SidebarGroup] {
+    let groups = allSidebarGroups(snapshot, by: groupBy)
+    let needle = query.trimmingCharacters(in: .whitespaces)
+    guard needle.isEmpty == false else { return groups }
+    let number = needle.hasPrefix("#") ? String(needle.dropFirst()) : needle
+    func matches(_ row: SidebarRow) -> Bool {
+        (row.title?.localizedCaseInsensitiveContains(needle) ?? false) || row.repo.localizedCaseInsensitiveContains(needle)
+            || (number.isEmpty == false && String(row.issue).contains(number))
+    }
+    return groups.compactMap { group in
+        var kept = group
+        kept.rows = group.rows.filter(matches)
+        return kept.rows.isEmpty ? nil : kept
+    }
+}
+
+private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy) -> [SidebarGroup] {
     let titles = Dictionary(
         uniqueKeysWithValues: (snapshot.epics.map { (key($0.repo, $0.issue), $0.title) } + snapshot.queue.map { (key($0.repo, $0.issue), $0.title) })
     )

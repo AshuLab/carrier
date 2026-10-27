@@ -296,3 +296,91 @@ private func withFinished(_ finished: [PanelSnapshot.FinishedEpic], done: [Panel
     let others = snapshot([epic("a/b", 1)], queue: [queued("a/b", 2)])
     #expect(sidebarGroups(others, by: .status).flatMap(\.rows).allSatisfy { $0.attention == nil })
 }
+
+// MARK: search
+
+private func searchable() -> PanelSnapshot {
+    var all = snapshot(
+        [epic("acme/web", 12, title: "Add Login page"), epic("acme/api", 7, .needsHuman, title: "Fix timeout")],
+        queue: [queued("acme/web", 120)],
+        done: [.init(repo: "acme/api", issue: 31, prNumber: 9, finishedAt: 5_000, executionId: nil)]
+    )
+    all.finished = [
+        ended(40, .merged, at: 100_000, title: "Ship the dashboard"), ended(41, .cancelled, at: 90_000, repo: "acme/docs", title: "Rewrite the guide"),
+    ]
+    return all
+}
+
+private func found(_ query: String, by: GroupBy = .status) -> [String] {
+    sidebarGroups(searchable(), by: by, query: query).flatMap { group in group.rows.map { "\(group.title):\($0.issue)" } }
+}
+
+@Test func aQueryMatchesTheTitleIgnoringCase() {
+    #expect(found("login") == ["Running:12"])
+    #expect(found("LOGIN") == ["Running:12"])
+    #expect(found("  login ") == ["Running:12"])
+}
+
+@Test func aQueryMatchesTheIssueNumberWithOrWithoutTheHash() {
+    #expect(found("7") == ["Needs you:7"])
+    #expect(found("#7") == ["Needs you:7"])
+    #expect(found("#31") == ["Ready for test:31"])
+    #expect(found("#12") == ["Running:12", "Up next:120"])
+    #expect(found("#") == [])
+}
+
+@Test func aQueryMatchesTheRepositoryOwnerAndName() {
+    #expect(found("acme/api") == ["Needs you:7", "Ready for test:31"])
+    #expect(found("ACME/WEB") == ["Running:12", "Up next:120", "Done:40"])
+    #expect(found("docs") == ["Cancelled:41"])
+}
+
+@Test func aQueryReachesDoneAndCancelled() {
+    #expect(found("dashboard") == ["Done:40"])
+    #expect(found("guide") == ["Cancelled:41"])
+    #expect(found("#41") == ["Cancelled:41"])
+}
+
+@Test func aQueryKeepsTheGroupsAndHidesTheEmptyOnes() {
+    let groups = sidebarGroups(searchable(), by: .status, query: "acme")
+    #expect(groups.map(\.title) == ["Needs you", "Running", "Up next", "Ready for test", "Done", "Cancelled"])
+    #expect(groups.map(\.startsCollapsed) == [false, false, false, false, true, true])
+    #expect(sidebarGroups(searchable(), by: .status, query: "dashboard").map(\.title) == ["Done"])
+    #expect(sidebarGroups(searchable(), by: .status, query: "nothing like this").isEmpty)
+}
+
+@Test func theRepositoryGroupingFiltersItsOwnSections() {
+    let groups = sidebarGroups(searchable(), by: .repo, query: "#12")
+    #expect(groups.map(\.title) == ["web"])
+    #expect(groups[0].rows.map(\.issue) == [12, 120])
+    #expect(found("acme/api", by: .repo) == ["api:7", "api:31"])
+    #expect(found("guide", by: .repo) == [])
+}
+
+@Test func anEmptyQueryChangesNothing() {
+    for by in GroupBy.allCases {
+        #expect(sidebarGroups(searchable(), by: by, query: "") == sidebarGroups(searchable(), by: by))
+        #expect(sidebarGroups(searchable(), by: by, query: "  ") == sidebarGroups(searchable(), by: by))
+    }
+}
+
+@Test func aCollapsedGroupShowsOpenWhileThereIsAQueryAndGoesBackWhenItIsCleared() throws {
+    let done = try #require(sidebarGroups(searchable(), by: .status, query: "dashboard").first)
+    var collapse = SidebarCollapse()
+    #expect(collapse.isCollapsed(done, by: .status, query: ""))
+    #expect(collapse.isCollapsed(done, by: .status, query: "dashboard") == false)
+    // a group the user opened and closed again stays closed once the query goes
+    collapse.toggle(done, by: .status)
+    collapse.toggle(done, by: .status)
+    #expect(collapse.isCollapsed(done, by: .status, query: "dashboard") == false)
+    #expect(collapse.isCollapsed(done, by: .status, query: ""))
+}
+
+@Test func theGroupingIsRememberedForEachChoiceAndTheQueryIsNot() {
+    let defaults = UserDefaults(suiteName: "SidebarTests.search.\(UUID().uuidString)")!
+    for by in GroupBy.allCases {
+        SidebarStore(defaults: defaults).groupBy = by
+        #expect(SidebarStore(defaults: defaults).groupBy == by)
+    }
+    #expect(defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("sidebar.") } == ["sidebar.groupBy"])
+}

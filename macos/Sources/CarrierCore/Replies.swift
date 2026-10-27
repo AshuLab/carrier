@@ -1,6 +1,6 @@
 import Foundation
 
-// What the engine's `sessions`, `events`, `epic` and `files` requests answer in `data` (src/control/replies.ts), field for field.
+// What the engine's `sessions`, `events`, `epic`, `files` and `fileDiff` requests answer in `data` (src/control/replies.ts), field for field.
 // Times are ms since epoch. Kinds, states and marks are strings so a value added later does not stop a reply from decoding;
 // a field the engine may send as null or leave out is optional. The engine's test writes macos/Tests/Fixtures/reply-*.json.
 
@@ -242,4 +242,13 @@ public struct FilesReply: Codable, Equatable {
     public var total: Total? = nil
     /// Files were left out to keep the reply small; absent from an older engine.
     public var truncated: Bool? = nil
+}
+
+/// The edited fragments of one file of a card. A row's sign is `+`, `-`, ` ` or `@`: a hunk separator whose text is git's `@@ -a,b +c,d @@`.
+public struct FileDiffReply: Codable, Equatable {
+    public var rows: [ExecEvent.DiffLine]
+    /// The rows were cut at the engine's cap.
+    public var truncated: Bool
+    /// `binary`, `too-big` or `no-changes`, with no rows, when there is nothing to draw.
+    public var note: String?
 }

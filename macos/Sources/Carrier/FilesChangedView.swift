@@ -1,9 +1,19 @@
 import CarrierCore
 import SwiftUI
 
+/// The file rows that are open, and the fragment of each once it arrives.
+struct FileDiffs {
+    @Binding var open: Set<OpenFile>
+    /// Set while the Files changed tab is on screen: closing the tab stops the asking.
+    let shown: Binding<Bool>
+    let fragments: [OpenFile: FileFragment]
+}
+
 /// The Files changed tab: the total as pills, then one card per agent session. Working sessions open, merged ones folded.
+/// With `fileDiffs`, a file row opens to its fragment.
 struct FilesChangedView: View {
     let files: FilesReply?
+    var fileDiffs: FileDiffs?
     /// Sections the person flipped from their default.
     @State private var flipped: Set<String> = []
 
@@ -16,7 +26,7 @@ struct FilesChangedView: View {
                 FilesSummary(model: model)
                 ForEach(model.sections, id: \.id) { section in
                     let open = section.openByDefault != flipped.contains(section.id)
-                    FileSectionView(section: section, open: open && section.files.isEmpty == false) {
+                    FileSectionView(section: section, open: open && section.files.isEmpty == false, fileDiffs: fileDiffs) {
                         if flipped.insert(section.id).inserted == false { flipped.remove(section.id) }
                     }
                 }
@@ -58,6 +68,7 @@ private struct Pill<Content: View>: View {
 private struct FileSectionView: View {
     let section: FileSection
     let open: Bool
+    let fileDiffs: FileDiffs?
     let toggle: () -> Void
 
     var body: some View {
@@ -98,13 +109,60 @@ private struct FileSectionView: View {
             if open {
                 ForEach(section.files, id: \.path) { row in
                     Divider()
-                    FileRowView(row: row)
+                    if let fileDiffs {
+                        OpeningFileRow(row: row, key: OpenFile(section: section.id, path: row.path), fileDiffs: fileDiffs)
+                    } else {
+                        FileRowView(row: row)
+                    }
                 }
             }
         }
         .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.07)))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.secondary.opacity(0.12), lineWidth: 0.5))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+/// A file row that is a button: it opens, under it, the fragment of the file that was edited in its card, and closes again.
+private struct OpeningFileRow: View {
+    let row: FileRow
+    let key: OpenFile
+    let fileDiffs: FileDiffs
+    @State private var showAll = false
+
+    var body: some View {
+        let open = fileDiffs.open.contains(key)
+        Button {
+            if fileDiffs.open.insert(key).inserted == false { fileDiffs.open.remove(key) }
+        } label: {
+            HStack(spacing: 0) {
+                FileRowView(row: row)
+                Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(open ? 90 : 0))
+                    .padding(.trailing, 12)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(row.directory)\(row.name), \(row.added) lines added, \(row.removed) removed")
+        .accessibilityValue(open ? "expanded" : "collapsed")
+        .accessibilityHint(open ? "Hides the changes" : "Shows the changes")
+        if open {
+            Group {
+                switch fileDiffs.fragments[key] {
+                case .rows(let rows, let truncated)?:
+                    DiffView(rows: rows, showAll: $showAll, cut: truncated ? "The diff was cut: it is longer than Carrier shows" : nil)
+                case .note(let text)?: line(text)
+                case .failed?: line("The changes cannot be loaded")
+                case nil: line("Loading the changes…")
+                }
+            }
+            .padding(.horizontal, 12).padding(.bottom, 10)
+        }
+    }
+
+    private func line(_ text: String) -> some View {
+        Text(text).font(.callout).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

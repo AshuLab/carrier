@@ -22,6 +22,14 @@ extension ControlClient {
         return try ask(.files, "files", try epicFields(repo, issue) + session)
     }
 
+    /// The edited fragments of one file of a card (`section` is the card's id in the `files` reply). nil when this engine cannot be asked.
+    /// A refusal (`unknown file`, a git that did not answer) is about that one file and leaves the capability alone.
+    public func fileDiff(repo: String, issue: Int, section: String, path: String) throws -> FileDiffReply? {
+        guard (1...100).contains(section.utf16.count), (1...500).contains(path.utf16.count) else { throw ControlError.remote("not a valid file") }
+        let quoted = { (value: String) in String(decoding: try JSONEncoder().encode(value), as: UTF8.self) }
+        return try ask(.fileDiff, "fileDiff", keepOnRefusal: true, try epicFields(repo, issue) + ",\"section\":\(try quoted(section)),\"path\":\(try quoted(path))")
+    }
+
     /// One page of the repos the engine's gh login can push to, for the Repos tab's picker. nil when this engine cannot list them.
     /// An engine without `availableReposPaged` refuses `page`: it is asked for none, answers its one list, and has no more.
     public func availableRepos(page: Int = 1) throws -> (repos: [AvailableRepo], hasMore: Bool)? {
@@ -37,12 +45,12 @@ extension ControlClient {
         try request("resumeEpic", requires: .resumeEpic, fields: try epicFields(repo, issue)) != nil
     }
 
-    private func ask<T: Decodable>(_ capability: Capability, _ command: String, _ fields: String) throws -> T? {
+    private func ask<T: Decodable>(_ capability: Capability, _ command: String, keepOnRefusal: Bool = false, _ fields: String) throws -> T? {
         guard capabilities.contains(capability) else { return nil }
         do {
             return try JSONDecoder().decode(T.self, from: request(command, fields: fields))
         } catch let error as ControlError {
-            if case .remote = error { capabilities.remove(capability) }
+            if case .remote = error, keepOnRefusal == false { capabilities.remove(capability) }
             throw error
         } catch {
             capabilities.remove(capability)

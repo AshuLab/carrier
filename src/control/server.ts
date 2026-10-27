@@ -5,7 +5,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
-import type { EpicReply, EventsReply, FilesReply, SessionsReply } from './replies.ts';
+import type { EpicReply, EventsReply, FileDiffReply, FilesReply, SessionsReply } from './replies.ts';
 
 const log = createScopedLogger('control');
 
@@ -33,6 +33,7 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('events'), executionId: z.uuid(), after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200) }),
   z.strictObject({ id, cmd: z.literal('epic'), repo, issue }),
   z.strictObject({ id, cmd: z.literal('files'), repo, issue, executionId: z.uuid().optional() }),
+  z.strictObject({ id, cmd: z.literal('fileDiff'), repo, issue, section: z.string().min(1).max(100), path: z.string().min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('availableRepos'), page: z.int().min(1).max(100).optional() }),
   z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue }),
 ]);
@@ -41,7 +42,7 @@ export const request = z.union([
 export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
-export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic';
+export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic';
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: Capability[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
 
@@ -58,6 +59,8 @@ export type Controls = {
   epic(repo: string, issue: number): EpicReply | null;
   /** null for an epic the engine does not know. */
   files(repo: string, issue: number, executionId?: string): FilesReply | null;
+  /** null for an unknown epic or card, or a path that is not in the card's own file list. */
+  fileDiff(repo: string, issue: number, section: string, path: string): FileDiffReply | null;
   /** One page of the repos the gh login can push to, and whether there is a next one; rejects when GitHub cannot be read. */
   availableRepos(page: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }>;
   /** Puts a stopped epic back in motion and resolves once it started; rejects with ResumeRefused when it could not. */
@@ -119,6 +122,17 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       return { id: replyId, ok: false, error: 'internal error' };
     }
   }
+  if (parsed.data.cmd === 'fileDiff') {
+    const { id: replyId, repo, issue, section, path } = parsed.data;
+    try {
+      const reply = controls.fileDiff(repo, issue, section, path);
+      // never git's own message: it can name more of the machine than the client should see
+      return reply === null ? { id: replyId, ok: false, error: 'unknown file' } : { id: replyId, ok: true, data: reply };
+    } catch (error) {
+      log.error('fileDiff failed', error);
+      return { id: replyId, ok: false, error: 'internal error' };
+    }
+  }
   if (parsed.data.cmd === 'availableRepos') {
     const { id: replyId, page } = parsed.data;
     // never the reason in the reply: gh's own message can carry more than the client should see
@@ -173,7 +187,7 @@ export async function startControlServer({ orchestratorDir, snapshot, startedAt,
     return { close: () => {} };
   }
   const sockets = new Set<Socket>();
-  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files', 'availableRepos', 'availableReposPaged', 'resumeEpic'] };
+  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic'] };
   const send = (socket: Socket, message: Hello | Reply, written?: () => void) => void socket.write(`${JSON.stringify(message)}\n`, written);
 
   const server = createServer((socket) => {

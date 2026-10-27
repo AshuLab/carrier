@@ -90,6 +90,15 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(reply.truncated == false)
 }
 
+@Test func decodesTheFileDiffReplies() throws {
+    let replies: [FileDiffReply] = try golden("filediff")
+    #expect(replies.count == 2)
+    #expect(replies[0].rows.filter { $0.sign == "@" }.map(\.text) == ["@@ -1,4 +1,5 @@", "@@ -40,3 +41,3 @@"])
+    #expect(replies[0].rows[2] == ExecEvent.DiffLine(sign: "-", text: "const alg = \"HS256\";"))
+    #expect(replies[0].truncated == true && replies[0].note == nil)
+    #expect(replies[1] == FileDiffReply(rows: [], truncated: false, note: "binary"))
+}
+
 @Test func decodesRepliesWithoutTheirOptionalFields() throws {
     let sessions: SessionsReply = try decode(#"{"sessions":[{"executionId":"e","stage":"ship","role":"author","agent":{"harness":"claude","model":"m"},"status":"running","startedAt":1}]}"#)
     #expect(sessions.sessions[0].round == nil)

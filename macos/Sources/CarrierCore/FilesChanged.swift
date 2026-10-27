@@ -140,3 +140,35 @@ public func filesChangedModel(_ reply: FilesReply?) -> FilesChangedModel {
         removed: sections.reduce(0) { $0 + $1.removed }
     )
 }
+
+// MARK: fragments
+
+/// A file row opened to its fragment: the card's id in the `files` reply and the file's path.
+public struct OpenFile: Hashable {
+    public var section: String
+    public var path: String
+
+    public init(section: String, path: String) {
+        self.section = section
+        self.path = path
+    }
+}
+
+/// What an opened file row draws under it: the rows `DiffView` draws (and whether the engine cut them), one line instead of rows,
+/// or that the changes could not be loaded.
+public enum FileFragment: Equatable {
+    case rows([DiffRow], truncated: Bool)
+    case note(String)
+    case failed
+}
+
+public func fileFragment(_ reply: FileDiffReply) -> FileFragment {
+    switch reply.note {
+    case "binary": return .note("Binary file: no preview")
+    case "too-big": return .note("Too big: no preview")
+    case "no-changes", nil:
+        guard let diff = cardDiff(reply.rows) else { return .note("No changes: the file is as it was") }
+        return .rows(diff.rows, truncated: reply.truncated)
+    default: return .note("No preview")
+    }
+}

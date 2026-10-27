@@ -1,15 +1,18 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
-import type { EpicReply, EventsReply, FilesReply, SessionsReply } from './replies.ts';
+import type { EpicReply, EventsReply, FileDiffReply, FilesReply, SessionsReply } from './replies.ts';
 
 // The contract with the macOS app: its tests decode these files (macos/Tests/CarrierCoreTests/RepliesTests.swift).
 // UPDATE_FIXTURES=1 rewrites them. Each sample has a value for every field, in every variant the app must draw.
-function golden(name: string, reply: object) {
-  const file = fileURLToPath(new URL(`../../macos/Tests/Fixtures/reply-${name}.json`, import.meta.url));
-  const json = `${JSON.stringify(reply, null, 2)}\n`;
-  if (process.env.UPDATE_FIXTURES === '1') writeFileSync(file, json);
-  expect(json).toBe(readFileSync(file, 'utf8'));
+// `dev`: the copy in macos/DevFixtures, which the app run on fixtures reads, is written and checked too.
+function golden(name: string, reply: object, dev = false) {
+  for (const folder of dev ? ['Tests/Fixtures', 'DevFixtures'] : ['Tests/Fixtures']) {
+    const file = fileURLToPath(new URL(`../../macos/${folder}/reply-${name}.json`, import.meta.url));
+    const json = `${JSON.stringify(reply, null, 2)}\n`;
+    if (process.env.UPDATE_FIXTURES === '1') writeFileSync(file, json);
+    expect(json).toBe(readFileSync(file, 'utf8'));
+  }
 }
 
 const claude = { harness: 'claude', model: 'claude-sonnet-5-5', provider: null } as const;
@@ -152,4 +155,27 @@ test('the files reply equals reply-files.json', () => {
     truncated: false,
   };
   golden('files', files);
+});
+
+test('the fileDiff replies equal reply-filediff.json: one with hunks, one with a note', () => {
+  const hunks: FileDiffReply = {
+    rows: [
+      { sign: '@', text: '@@ -1,4 +1,5 @@' },
+      { sign: ' ', text: "import { sign } from './sign.ts';" },
+      { sign: '-', text: 'const alg = "HS256";' },
+      { sign: '+', text: 'const alg = "ES256";' },
+      { sign: '+', text: 'const ttl = 60;' },
+      { sign: ' ', text: '' },
+      { sign: ' ', text: 'export function token() {' },
+      { sign: '@', text: '@@ -40,3 +41,3 @@' },
+      { sign: ' ', text: '  const claims = read();' },
+      { sign: '-', text: '  return sign(claims);' },
+      { sign: '+', text: '  return sign(claims, alg);' },
+      { sign: ' ', text: '}' },
+    ],
+    truncated: true,
+    note: null,
+  };
+  const binary: FileDiffReply = { rows: [], truncated: false, note: 'binary' };
+  golden('filediff', [hunks, binary], true);
 });

@@ -62,7 +62,8 @@ beforeAll(() => {
   chmodSync(fakeCodex, 0o755);
 });
 afterAll(async () => {
-  for (const id of await runner.listActive()) await runner.stop(id);
+  // Only the agents this file started: `listActive` reads every `carrier-exec-` process of the machine, the one running this test included.
+  for (const id of await runner.listActive()) if (id.startsWith('it-')) await runner.stop(id);
   rmSync(dir, { recursive: true, force: true });
 });
 

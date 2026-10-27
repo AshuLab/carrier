@@ -181,16 +181,14 @@ struct SessionHeaderView: View {
                     Text(" · \(section.role) · \(section.place)").foregroundStyle(.secondary)
                 }
                 .lineLimit(1)
-                .layoutPriority(1)
                 // with no counts yet the row is still there, unseen, so the header does not grow when they arrive
                 CountPills(counts: section.counts ?? SessionCounts()).opacity(section.counts != nil ? 1 : 0)
+                // a failed session gets its own line, so the detail (up to 300 characters) is not squeezed by the badge and the chevron: two lines, cut at the end, whole in the tooltip
+                if let failure = section.failure {
+                    Text(failure).font(.caption).foregroundStyle(.red).lineLimit(2).truncationMode(.tail).help(failure)
+                }
             }
             Spacer(minLength: 8)
-            if let failure = section.failure {
-                // the detail can run to 300 characters: one line, cut at the end, whole in the tooltip
-                Text(failure).font(.caption).foregroundStyle(.red).lineLimit(1).truncationMode(.tail)
-                    .frame(maxWidth: 220, alignment: .trailing).layoutPriority(-1).help(failure)
-            }
             if section.state == .stopped {
                 Text("stopped").font(.caption.weight(.medium)).foregroundStyle(.orange)
                     .padding(.horizontal, 8).padding(.vertical, 2).background(Capsule().fill(Color.orange.opacity(0.18)))

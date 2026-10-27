@@ -5,6 +5,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { AgentExit, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
+import { failureDetail } from '../execution/failure.ts';
 import { parseCallerResult } from '../execution/caller-result.ts';
 import { importResult } from '../execution/import-result.ts';
 import type { Workspaces } from '../execution/workspaces.ts';
@@ -62,6 +63,8 @@ type Execution = typeof executions.$inferSelect;
 
 // Technical end of the process; whether the epic moves on depends on its result (retries and timeouts: later slices).
 const sessionLost = 'the agent session is not available';
+
+const noExit = { exitCode: null, signal: null, hostFreeMemMb: null, hostLoad: null };
 
 const failureColumns = (f: AgentFailure | undefined) =>
   f && { failureKind: f.kind, failureDetail: f.detail, exitCode: f.exitCode, signal: f.signal, hostFreeMemMb: f.hostFreeMemMb, hostLoad: f.hostLoad };
@@ -239,8 +242,14 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         output.flush();
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
         const failure = { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}: ${processFailure?.detail ?? ''})`, auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
+        // The ends with their own handling carry no failure from the runner: their kind follows from the exit.
+        const endFailure: Partial<Record<AgentExit, Pick<AgentFailure, 'kind' | 'detail'>>> = {
+          auth_failed: { kind: 'auth', detail: `profile ${task.profile}` },
+          session_unavailable: { kind: 'session_lost', detail: sessionLost },
+          timed_out: { kind: 'timeout', detail: `exceeded ${maxExecutionHours} h` },
+        };
         db.update(executions)
-          .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }), ...(failure && { error: failure }), ...failureColumns(processFailure) })
+          .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }), ...(failure && { error: failure }), ...failureColumns(processFailure ?? (endFailure[exit] && { ...noExit, ...endFailure[exit] })) })
           .where(eq(executions.executionId, executionId))
           .run();
         if (failure) db.update(epics).set({ lastError: failure }).where(eq(epics.id, epic.id)).run();
@@ -285,7 +294,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       // Read only: what the failed execution may have left on GitHub. A failed query is not an attempt, the poll tries again.
       const pr = await github.findPullRequest(epic.repo, epic.issue);
       // A lost session is rebuilt, not resumed: new session, same profile, context from SQLite and GitHub.
-      const lost = last.error === sessionLost;
+      const lost = last.failureKind === 'session_lost';
       db.insert(epicEvents)
         .values({ epicId, at: clock.now(), type: lost ? 'session_rebuilt' : 'execution_retried', data: { stage: last.stage, failed: last.executionId, attempt: earlier.length + 2, error: last.error, pr } })
         .run();
@@ -365,7 +374,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId: execution.executionId, stage: execution.stage, round: epic.round });
     if (!parsed.ok) {
       log.warn('invalid caller result', { ...context, reason: parsed.message });
-      db.update(executions).set({ status: 'invalid_result', error: parsed.message }).where(eq(executions.executionId, execution.executionId)).run();
+      db.update(executions).set({ status: 'invalid_result', error: parsed.message, ...failureColumns({ ...noExit, kind: 'invalid_result', detail: failureDetail(parsed.message) }) }).where(eq(executions.executionId, execution.executionId)).run();
       db.update(epics).set({ lastError: parsed.message }).where(eq(epics.id, epic.id)).run();
       return retry(epic.id);
     }

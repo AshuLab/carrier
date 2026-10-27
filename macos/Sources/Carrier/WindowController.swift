@@ -10,6 +10,8 @@ import SwiftUI
     let epics = EpicStore()
     var groupBy = SidebarStore().groupBy
     var collapse = SidebarCollapse()
+    /// Empty until the sessions epic feeds it; the dev fixture's sample with `--fixture`.
+    var sessions = Sessions(rows: CommandLine.arguments.contains("--fixture") ? sampleSessions(now: Date()) : [])
 }
 
 /// Set from the main thread, read from the monitor's.

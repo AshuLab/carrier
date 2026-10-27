@@ -19,6 +19,16 @@ struct SidebarView: View {
         List(selection: list) {
             Label("Home", systemImage: "house").tag(Selection.home)
             SessionsRows(sessions: sessions, open: $sessionsOpen)
+            // its own row, outside Sessions, so folding Sessions does not hide it
+            let archived = archivedCount(sessions.rows)
+            HStack {
+                Label("Archive", systemImage: "archivebox")
+                Spacer(minLength: 0)
+                Text("\(archived)").font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Archive, \(archived)")
+            .tag(Selection.archive)
             CarrierCard(state: state, selected: selection == .carrier, groupBy: $groupBy, searching: $searching, query: $query)
                 .tag(Selection.carrier)
                 .listRowBackground(Color.clear)

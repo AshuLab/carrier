@@ -133,3 +133,17 @@ private func found(_ rows: [SessionRow], _ query: String) -> [String] {
     let rows = [row("1", "dotfiles", title: "a"), row("2", "dotfiles", title: "b", minutesAgo: 3), row("3", "web", title: "c")]
     #expect(found(rows, "dotf") == ["1", "2"])
 }
+
+@Test func theArchivedCountIsZeroWithNoRowsOrNoneArchived() {
+    #expect(archivedCount([]) == 0)
+    #expect(archivedCount([row("1", "web"), row("2", "web")]) == 0)
+}
+
+@Test func theArchivedCountIsHowManyRowsAreArchived() {
+    #expect(archivedCount([row("1", "web"), row("2", "web", archived: true), row("3", "gone", archived: true)]) == 2)
+}
+
+@Test func theArchivedCountIsEveryRowWhenAllAreArchived() {
+    #expect(archivedCount([row("1", "web", archived: true), row("2", "web", archived: true)]) == 2)
+    #expect(archivedCount(sampleSessions(now: now)) == 2)
+}

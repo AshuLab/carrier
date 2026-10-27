@@ -1,9 +1,9 @@
 import Testing
 @testable import CarrierCore
 
-@Test func aNewWindowShowsBothColumnsOnTheOverview() {
+@Test func aNewWindowShowsBothColumnsOnHome() {
     let shell = WindowShell()
-    #expect(shell.selection == .overview)
+    #expect(shell.selection == .home)
     #expect(shell.sidebarShown && shell.inspectorShown)
 }
 
@@ -18,9 +18,9 @@ import Testing
     #expect(shell.sidebarShown && shell.inspectorShown)
 }
 
-@Test func theSelectionHoldsOverviewAnEpicAndSettings() {
+@Test func theSelectionHoldsEveryPage() {
     let shell = WindowShell()
-    for next in [Selection.epic(repo: "acme/web", issue: 7), .settings, .overview] {
+    for next in [Selection.epic(repo: "acme/web", issue: 7), .settings, .home, .sessions, .session(id: "s1"), .archive, .carrier] {
         shell.selection = next
         #expect(shell.selection == next)
     }
@@ -33,7 +33,7 @@ import Testing
     shell.sidebarShown = false
     shell.inspectorShown = false
     shell.reset()
-    #expect(shell.selection == .overview && shell.sidebarShown && shell.inspectorShown)
+    #expect(shell.selection == .home && shell.sidebarShown && shell.inspectorShown)
 }
 
 @Test func escapeAndAClickOutsideCloseTheAboutSheetButAClickOnItDoesNot() {

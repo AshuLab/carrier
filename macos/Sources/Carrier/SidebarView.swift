@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-/// The sidebar's list: the Home row, the group-by switch, the epics in groups; the Carrier card and Settings at the bottom.
+/// The sidebar's list: the Home row, Sessions, then the Carrier card with the epics in groups under it; Settings at the bottom.
 struct SidebarView: View {
     let snapshot: PanelSnapshot?
     let state: ConnectionState?
@@ -10,31 +10,29 @@ struct SidebarView: View {
     @Binding var groupBy: GroupBy
     @Binding var collapse: SidebarCollapse
     @State private var sessionsOpen = true
+    /// The card's search: not remembered between launches.
+    @State private var searching = false
+    @State private var query = ""
 
     var body: some View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
         List(selection: list) {
             Label("Home", systemImage: "house").tag(Selection.home)
             SessionsRows(sessions: sessions, open: $sessionsOpen)
-            if snapshot != nil {
-                // how the sections below are grouped: there is nothing to group while Carrier is not answering
-                UnderlineTabs(
-                    items: [
-                        .init(id: GroupBy.status, title: "Status", icon: "rectangle.3.group"),
-                        .init(id: GroupBy.repo, title: "Repository", icon: "shippingbox"),
-                    ],
-                    selection: $groupBy, fill: true
-                )
-                .listRowInsets(EdgeInsets(top: 12, leading: 0, bottom: 10, trailing: 0))
-                .listRowSeparator(.hidden)
-                .selectionDisabled()
-            }
+            CarrierCard(state: state, selected: selection == .carrier, groupBy: $groupBy, searching: $searching, query: $query)
+                .tag(Selection.carrier)
+                .listRowBackground(Color.clear)
             if let snapshot {
-                let groups = sidebarGroups(snapshot, by: groupBy)
+                let groups = sidebarGroups(snapshot, by: groupBy, query: query)
+                if groups.isEmpty && query.isEmpty == false {
+                    Text("No epics match").foregroundStyle(.secondary).selectionDisabled()
+                }
                 ForEach(groups.indices, id: \.self) { index in
                     let group = groups[index]
                     let expanded = Binding(
-                        get: { !collapse.isCollapsed(group, by: groupBy) }, set: { _ in collapse.toggle(group, by: groupBy) }
+                        get: { !collapse.isCollapsed(group, by: groupBy, query: query) },
+                        // while a query is typed every group is open, so there is nothing to toggle
+                        set: { _ in if query.isEmpty { collapse.toggle(group, by: groupBy) } }
                     )
                     Section(isExpanded: expanded) {
                         ForEach(group.rows, id: \.selection) { SidebarRowView(row: $0).tag($0.selection) }
@@ -47,33 +45,58 @@ struct SidebarView: View {
         .listStyle(.sidebar)
         .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 320)
         .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 2) {
-                CarrierCard(state: state, selected: selection == .carrier) { selection = .carrier }.padding(.bottom, 6)
-                SidebarFooterRow(title: "Settings", icon: "gearshape", selected: selection == .settings) { selection = .settings }
-            }
-            .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 10)
-            // opaque enough that the list scrolls under it without showing through
-            .background(.regularMaterial)
-            .overlay(alignment: .top) { Divider() }
+            SidebarFooterRow(title: "Settings", icon: "gearshape", selected: selection == .settings) { selection = .settings }
+                .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 10)
+                // opaque enough that the list scrolls under it without showing through
+                .background(.regularMaterial)
+                .overlay(alignment: .top) { Divider() }
         }
     }
 }
 
-/// The Carrier card at the sidebar's foot: the engine's state as a pill, its slots as bars and what is waiting as counters, on a
-/// plain grey fill. Choosing it shows the Carrier home. Hovering it shows when the next check is, the uptime and the rate limit.
+/// The Carrier card, a row of the list: the engine's state as a pill with the search and the grouping menu, its slots as bars and
+/// what is waiting as counters, on a plain grey fill; the epics follow it. Choosing it shows the Carrier home. Hovering it shows when
+/// the next check is, the uptime and the rate limit.
 private struct CarrierCard: View {
     let state: ConnectionState?
     let selected: Bool
-    let action: () -> Void
+    @Binding var groupBy: GroupBy
+    @Binding var searching: Bool
+    @Binding var query: String
+    @State private var groupMenu = false
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         let card = carrierCardState(state)
         let snapshot: PanelSnapshot? = if case .running(let snapshot)? = state { snapshot } else { nil }
         VStack(alignment: .leading, spacing: 8) {
-            Text(card.title)
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 8).padding(.vertical, 2)
-                .background(Capsule().fill(Self.tint(card.kind).opacity(0.18)))
+            HStack(spacing: 4) {
+                Text(card.title)
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 8).padding(.vertical, 2)
+                    .background(Capsule().fill(Self.tint(card.kind).opacity(0.18)))
+                Spacer(minLength: 0)
+                // the epics exist only while Carrier answers, so there is nothing to search or group before
+                if snapshot != nil {
+                    IconButton(icon: "magnifyingglass", name: searching ? "Close epic search" : "Search epics") {
+                        searching.toggle()
+                        if searching { searchFocused = true } else { query = "" }
+                    }
+                    IconButton(icon: "ellipsis", name: "Group epics by") { groupMenu = true }
+                        .popover(isPresented: $groupMenu, arrowEdge: .trailing) { GroupByMenu(groupBy: $groupBy, close: { groupMenu = false }) }
+                }
+            }
+            if searching {
+                TextField("Search epics", text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($searchFocused)
+                    .onKeyPress(.escape) {
+                        searching = false
+                        query = ""
+                        return .handled
+                    }
+                    .accessibilityLabel("Search epics")
+            }
             if let slots = card.slots {
                 VStack(alignment: .leading, spacing: 4) {
                     SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
@@ -96,13 +119,9 @@ private struct CarrierCard: View {
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(selected ? 0.2 : 0.1)))
-        .contentShape(RoundedRectangle(cornerRadius: 12))
-        .onTapGesture(perform: action)
+        // the list draws its own pill under a chosen row, so the grey is only for the card at rest
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(selected ? 0 : 0.1)))
         .help(snapshot.map(Self.hover) ?? "")
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-        .accessibilityAction(.default, action)
     }
 
     private static func tint(_ kind: CarrierCardState.Kind) -> Color {
@@ -130,6 +149,55 @@ private struct CarrierCard: View {
                 Text("\(count) \(word)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+/// A 22-point plain button with an accessible name and a tooltip. In a list row it runs its action and does not select the row.
+private struct IconButton: View {
+    let icon: String
+    let name: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon).frame(width: 22, height: 22).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(name)
+        .accessibilityLabel(name)
+    }
+}
+
+/// The popover of the three dots: how the epics are grouped, one ticked.
+private struct GroupByMenu: View {
+    @Binding var groupBy: GroupBy
+    let close: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Group by").font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.bottom, 2)
+            choice("Status", .status)
+            choice("Repository", .repo)
+        }
+        .padding(8)
+        .frame(width: 160)
+    }
+
+    private func choice(_ title: String, _ value: GroupBy) -> some View {
+        Button {
+            groupBy = value
+            close()
+        } label: {
+            HStack {
+                Text(title)
+                Spacer(minLength: 0)
+                if groupBy == value { Image(systemName: "checkmark") }
+            }
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(groupBy == value ? .isSelected : [])
     }
 }
 

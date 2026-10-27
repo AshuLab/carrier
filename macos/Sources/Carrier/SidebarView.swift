@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-/// The sidebar's list: Home and Carrier rows, the group-by switch, the epics in groups, Settings at the bottom.
+/// The sidebar's list: the Home row, the group-by switch, the epics in groups; the Carrier card and Settings at the bottom.
 struct SidebarView: View {
     let snapshot: PanelSnapshot?
     let state: ConnectionState?
@@ -13,7 +13,6 @@ struct SidebarView: View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
         List(selection: list) {
             Label("Home", systemImage: "house").tag(Selection.home)
-            Label("Carrier", systemImage: "square.grid.2x2").tag(Selection.carrier)
             if snapshot != nil {
                 // how the sections below are grouped: there is nothing to group while Carrier is not answering
                 UnderlineTabs(
@@ -46,7 +45,7 @@ struct SidebarView: View {
         .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 320)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 2) {
-                SidebarStatus(state: state).padding(.bottom, 6)
+                CarrierCard(state: state, selected: selection == .carrier) { selection = .carrier }.padding(.bottom, 6)
                 SidebarFooterRow(title: "Settings", icon: "gearshape", selected: selection == .settings) { selection = .settings }
             }
             .padding(.horizontal, 10).padding(.top, 12).padding(.bottom, 10)
@@ -57,53 +56,76 @@ struct SidebarView: View {
     }
 }
 
-/// Whether Carrier runs, when it checks GitHub next and how many of its slots are busy: a card at the foot of the sidebar, so it
-/// is in view on every screen. Hovering it shows how long it has been up and the rate limit.
-private struct SidebarStatus: View {
+/// The Carrier card at the sidebar's foot: the engine's state as a pill, its slots as bars and what is waiting as counters, on a
+/// plain grey fill. Choosing it shows the Carrier home. Hovering it shows when the next check is, the uptime and the rate limit.
+private struct CarrierCard: View {
     let state: ConnectionState?
+    let selected: Bool
+    let action: () -> Void
 
     var body: some View {
-        let status = sidebarStatus(state)
-        HStack(spacing: 10) {
-            Circle().fill(status.color).frame(width: 8, height: 8)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(status.title).fontWeight(.medium)
-                if let detail = status.detail { Text(detail).font(.caption.monospacedDigit()).foregroundStyle(.secondary) }
-            }
-            Spacer(minLength: 0)
-            if let slots = status.slots {
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text(slots.text).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    SegmentedProgress(done: slots.busy, total: slots.total, tint: slots.color).frame(width: 40)
+        let card = carrierCardState(state)
+        let snapshot: PanelSnapshot? = if case .running(let snapshot)? = state { snapshot } else { nil }
+        VStack(alignment: .leading, spacing: 8) {
+            Text(card.title)
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 8).padding(.vertical, 2)
+                .background(Capsule().fill(Self.tint(card.kind).opacity(0.18)))
+            if let slots = card.slots {
+                VStack(alignment: .leading, spacing: 4) {
+                    SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
+                    Text("\(slots.busy) of \(slots.total) slots busy").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 }
-                .help("\(slots.busy) of \(slots.total) slots in use")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(slots.busy) of \(slots.total) slots busy")
+            }
+            if card.kind == .stopped {
+                Text("Start Carrier to run epics").font(.caption).foregroundStyle(.secondary)
+            } else if let snapshot {
+                let counters = carrierCounters(snapshot)
+                FlowLayout(spacing: 10) {
+                    if counters.needsYou > 0 { Counter(count: counters.needsYou, word: "needs you", color: .orange) }
+                    Counter(count: counters.running, word: "running", color: .green)
+                    Counter(count: counters.next, word: "next", color: .gray)
+                    Counter(count: counters.ready, word: "ready", color: .blue)
+                }
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 9)
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.1)))
-        .help(status.help)
-        .accessibilityElement(children: .combine)
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(selected ? 0.2 : 0.1)))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .onTapGesture(perform: action)
+        .help(snapshot.map(Self.hover) ?? "")
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction(.default, action)
     }
 
-    private typealias Slots = (text: String, busy: Int, total: Int, color: Color)
+    private static func tint(_ kind: CarrierCardState.Kind) -> Color {
+        switch kind {
+        case .running: .green
+        case .paused, .problem: .orange
+        case .stopped, .connecting: .gray
+        }
+    }
 
-    private func sidebarStatus(_ state: ConnectionState?) -> (title: String, detail: String?, color: Color, help: String, slots: Slots?) {
-        switch state {
-        case .running(let snapshot)?:
-            let box = carrierBox(snapshot)
-            let help = ([box.uptime] + box.rows.dropFirst().map { "\($0.label): \($0.value)" }).joined(separator: " · ")
-            let pill = sidebarPill(snapshot)
-            let tone: Color = switch pill.tone {
-            case .green: .green
-            case .orange: .orange
-            case .gray: .gray
+    private static func hover(_ snapshot: PanelSnapshot) -> String {
+        let box = carrierBox(snapshot)
+        return ([box.uptime] + box.rows.map { "\($0.label): \($0.value)" }).joined(separator: " · ")
+    }
+
+    /// A dot and a word; the number is part of the word, so it reads aloud as "2 running".
+    private struct Counter: View {
+        let count: Int
+        let word: String
+        let color: Color
+
+        var body: some View {
+            HStack(spacing: 4) {
+                Circle().fill(color).frame(width: 6, height: 6).accessibilityHidden(true)
+                Text("\(count) \(word)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             }
-            let slots: Slots = (pill.text, snapshot.slots.busy, snapshot.slots.total, tone)
-            if snapshot.paused { return ("Intake paused", nil, .orange, help, slots) }
-            return ("Carrier running", nextCheckLine(snapshot), snapshot.problem == nil ? .green : .orange, help, slots)
-        case .stopped?: return ("Carrier stopped", nil, .gray, "", nil)
-        case .incompatible?: return (state?.menuLine ?? "", nil, .orange, "", nil)
-        case nil: return ("Connecting…", nil, .gray, "", nil)
         }
     }
 }

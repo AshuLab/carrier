@@ -115,6 +115,8 @@ public struct SessionSection: Equatable, Identifiable {
     public var resume: ResumeDescriptor?
     /// What the agent reported when it ended; nil when no result was imported.
     public var result: ResultCard?
+    /// `killed: SIGKILL`, the failure kind and its detail as the header says them; nil when the session has no failure.
+    public var failure: String?
     /// What shows under the header when it is open: the main rows and the subagents (read-only, the resume above covers the whole
     /// session) in the order the events happened.
     public var body: TranscriptBody = .items([])
@@ -266,6 +268,7 @@ public func sessionList(
             openByDefault: index == 0,
             resume: state == .running || resumable == false ? nil : session.resume,
             result: resultCard(session.result),
+            failure: session.failure.map { $0.detail.isEmpty ? $0.kind : "\($0.kind): \($0.detail)" },
             body: .items([])
         )
         if folds?.isOpen(section) ?? true {

@@ -21,6 +21,11 @@ private func section(_ state: SessionSection.State, counts: SessionCounts? = Ses
 @MainActor @Test(arguments: [CGFloat(340), 560, 900])
 func aHeaderKeepsItsHeightInEveryStateAndFolded(width: CGFloat) throws {
     let height = try size(section(.done), width: width).height
+    // a failure, with the longest detail the engine sends (300 characters), stays on the one row too
+    var failed = section(.stopped)
+    failed.failure = "usage_limit: " + String(repeating: "resets 12:40pm ", count: 20).prefix(287)
+    #expect(try size(failed, width: width).height == height)
+    #expect(try size(failed, open: false, width: width).height == height)
     for state in [SessionSection.State.running, .stopped, .done] {
         #expect(try size(section(state), width: width).height == height)
         #expect(try size(section(state), open: false, width: width).height == height)

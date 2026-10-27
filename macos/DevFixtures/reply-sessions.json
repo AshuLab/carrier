@@ -52,6 +52,14 @@
         "sessionId": "91d4be02-6a35-4c1e-9b7f-3e5a7c9d1f20",
         "cwd": "/work/acme/web-epic",
         "configDir": "/Users/dev/.claude-work"
+      },
+      "failure": {
+        "kind": "usage_limit",
+        "detail": "You've hit your session limit · resets 12:40pm",
+        "exitCode": 1,
+        "signal": null,
+        "hostFreeMemMb": null,
+        "hostLoad": null
       }
     }
   ]

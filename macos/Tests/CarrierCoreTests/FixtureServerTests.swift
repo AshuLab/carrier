@@ -25,6 +25,8 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     let id = ",\"executionId\":\"3f2b8c1e-5a4d-4e8b-9c1a-0d2e4f6a8b1c\""
     #expect(try sameJSON(client.request("snapshot"), golden("snapshot.json")))
     #expect(try sameJSON(client.request("sessions", fields: repo), golden("reply-sessions.json")))
+    let sessions = try JSONDecoder().decode(SessionsReply.self, from: client.request("sessions", fields: repo))
+    #expect(sessions.sessions.compactMap(\.failure?.kind) == ["killed"])
     #expect(try sameJSON(client.request("events", fields: id + ",\"limit\":50"), golden("reply-events.json")))
     #expect(try sameJSON(client.request("epic", fields: repo), golden("reply-epic.json")))
     #expect(try sameJSON(client.request("files", fields: repo), golden("reply-files.json")))

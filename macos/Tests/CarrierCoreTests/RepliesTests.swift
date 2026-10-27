@@ -30,6 +30,8 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(reply.sessions[2].result?.outcome == "needs_human")
     #expect(reply.sessions[2].result?.verification == nil)
     #expect(reply.sessions[2].result?.reason == "The ticket asks for a migration the schema forbids; which of the two wins?")
+    #expect(reply.sessions[0].failure == nil)
+    #expect(reply.sessions[2].failure == SessionFailure(kind: "killed", detail: "SIGKILL", exitCode: nil, signal: "SIGKILL", hostFreeMemMb: 812, hostLoad: 6.4))
 }
 
 @Test func decodesTheEventsReply() throws {
@@ -97,6 +99,7 @@ private func decode<T: Decodable>(_ json: String, as type: T.Type = T.self) thro
     #expect(sessions.sessions[0].finishedAt == nil)
     #expect(sessions.sessions[0].resume == nil)
     #expect(sessions.sessions[0].result == nil) // an engine that does not send `result`
+    #expect(sessions.sessions[0].failure == nil) // an engine that does not send `failure`
 
     let events: EventsReply = try decode(#"{"events":[{"id":1,"at":2,"kind":"future_kind"}],"next":1,"running":false,"structured":false}"#)
     #expect(events.events[0] == ExecEvent(id: 1, at: 2, kind: "future_kind"))

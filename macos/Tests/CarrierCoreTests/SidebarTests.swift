@@ -369,7 +369,10 @@ private func found(_ query: String, by: GroupBy = .status) -> [String] {
     #expect(groups.map(\.title) == ["web"])
     #expect(groups[0].rows.map(\.issue) == [12, 120])
     #expect(found("acme/api", by: .repo) == ["api:7", "api:31"])
-    #expect(found("guide", by: .repo) == [])
+    // finished epics are only in the repository sections while a query is typed
+    #expect(found("guide", by: .repo) == ["docs:41"])
+    #expect(found("dashboard", by: .repo) == ["web:40"])
+    #expect(sidebarGroups(searchable(), by: .repo).flatMap(\.rows).map(\.issue).contains(41) == false)
 }
 
 @Test func anEmptyQueryChangesNothing() {

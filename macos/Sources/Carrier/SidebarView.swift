@@ -34,6 +34,8 @@ struct SidebarView: View {
             .tag(Selection.archive)
             CarrierCard(state: state, selected: selection == .carrier, unfolded: open == .carrier, searchRequest: searchRequest, groupBy: $groupBy, searching: $searching, query: $query)
                 .tag(Selection.carrier)
+                // the list does not call its setter when the selected row is clicked again, so a folded card opens from here, beside the list's own click
+                .simultaneousGesture(TapGesture().onEnded { open = .carrier })
                 .listRowBackground(Color.clear)
             if let snapshot, open == .carrier {
                 let groups = sidebarGroups(snapshot, by: groupBy, query: query)

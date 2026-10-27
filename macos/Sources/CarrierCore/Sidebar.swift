@@ -88,11 +88,12 @@ public struct SidebarCollapse: Equatable {
 /// The groups for `snapshot`. By status: needs you, running, up next, then ready for test, done and cancelled (each hidden when
 /// empty; done and cancelled start collapsed), rows in the snapshot's order, finished ones newest first as the engine sends them.
 /// By repository: sections ordered by name, rows by issue number, with no finished epics.
-/// A non-empty `query` keeps the rows whose title, issue number (with or without `#`) or `owner/name` contain it, ignoring case, in
-/// whichever groups the grouping has, and hides the groups left empty; an empty one changes nothing.
+/// A non-empty `query` keeps the rows whose title, issue number (with or without `#`) or `owner/name` contain it, ignoring case, and
+/// hides the groups left empty; an empty one changes nothing. Grouped by repository, a query also looks through the finished epics,
+/// so Done and Cancelled are reachable in both groupings.
 public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, query: String = "") -> [SidebarGroup] {
-    let groups = allSidebarGroups(snapshot, by: groupBy)
     let needle = query.trimmingCharacters(in: .whitespaces)
+    let groups = allSidebarGroups(snapshot, by: groupBy, withFinished: needle.isEmpty == false)
     guard needle.isEmpty == false else { return groups }
     let number = needle.hasPrefix("#") ? String(needle.dropFirst()) : needle
     func matches(_ row: SidebarRow) -> Bool {
@@ -106,7 +107,8 @@ public func sidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, query:
     }
 }
 
-private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy) -> [SidebarGroup] {
+/// `withFinished` adds the finished epics to the repository sections; the status grouping always has them as Done and Cancelled.
+private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, withFinished: Bool) -> [SidebarGroup] {
     let titles = Dictionary(
         uniqueKeysWithValues: (snapshot.epics.map { (key($0.repo, $0.issue), $0.title) } + snapshot.queue.map { (key($0.repo, $0.issue), $0.title) })
     )
@@ -144,7 +146,7 @@ private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy) ->
             SidebarGroup(title: "Up next", rows: waiting),
         ] + hiddenWhenEmpty
     case .repo:
-        let byRepo = Dictionary(grouping: needsYou + running + waiting + ready, by: \.repo)
+        let byRepo = Dictionary(grouping: needsYou + running + waiting + ready + (withFinished ? finished(.merged) + finished(.cancelled) : []), by: \.repo)
         return byRepo.keys.sorted { (shortName($0).lowercased(), $0) < (shortName($1).lowercased(), $1) }.map { repo in
             SidebarGroup(title: shortName(repo), rows: byRepo[repo]!.sorted { $0.issue < $1.issue })
         }

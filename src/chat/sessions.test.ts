@@ -43,6 +43,15 @@ const rows = (table: string) => {
   return found;
 };
 
+test('a live session records its agent process and the record is cleared when it closes', async () => {
+  const s = setup();
+  s.claude.setup = (conversation) => void (conversation.process = { pid: 4242, pgid: 4242, command: '/bin/claude' });
+  const { id } = await openOne(s);
+  expect(rows('sessions')[0]).toMatchObject({ pid: 4242, pgid: 4242, command: '/bin/claude' });
+  await s.sessions.close({ sessionId: id });
+  expect(rows('sessions')[0]).toMatchObject({ pid: null, pgid: null, command: null });
+});
+
 test('agents lists the configured agents with whether the binary is found', () => {
   expect(setup().sessions.agents()).toEqual([
     { name: 'claude', harness: 'claude', found: true },

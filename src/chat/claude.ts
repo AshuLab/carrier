@@ -90,6 +90,7 @@ class ClaudeConversation implements ChatConversation {
   private lastModel: string | undefined;
   private closing = false;
   private pid: number | undefined;
+  private command: string | undefined;
   private chosen: Record<string, string>;
 
   constructor(chosen: Record<string, string>, resume: string | undefined) {
@@ -104,6 +105,7 @@ class ClaudeConversation implements ChatConversation {
     const spawnOwn = deps.spawn && ((o: Parameters<NonNullable<ClaudeChatDeps['spawn']>>[0]) => {
       const child = deps.spawn!(o);
       this.pid = (child as { pid?: number }).pid;
+      this.command = o.command;
       return child;
     });
     this.query = deps.query({
@@ -123,6 +125,10 @@ class ClaudeConversation implements ChatConversation {
     });
     this.models = (await this.query.initializationResult()).models;
     void this.pump();
+  }
+
+  get process() {
+    return this.pid === undefined || this.command === undefined ? undefined : { pid: this.pid, pgid: this.pid, command: this.command }; // it leads its own group (`ownGroup`)
   }
 
   get options(): ChatOption[] {

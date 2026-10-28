@@ -22,6 +22,8 @@ export interface ChatConversation {
   readonly options: ChatOption[];
   /** The provider's id for this conversation, once it has one. */
   readonly nativeId: string | undefined;
+  /** The agent's process, when it leads a group of its own: what the next host needs to sweep it if this one dies. `command` is what it was started with. */
+  readonly process?: { pid: number; pgid: number; command: string };
   send(text: string): void;
   answer(approvalId: string, choiceId: string): void;
   interrupt(): Promise<void>;

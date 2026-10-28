@@ -7,6 +7,7 @@ import { ChatRefused, type ChatConversation, type ChatEvent, type ChatOption, ty
 export class FakeConversation implements ChatConversation {
   options: ChatOption[] = [];
   nativeId: string | undefined;
+  process: ChatConversation['process'];
   sent: string[] = [];
   answers: { approvalId: string; choiceId: string }[] = [];
   closed = false;

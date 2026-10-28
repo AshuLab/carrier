@@ -9,6 +9,7 @@ import { openChatDatabase } from './db.ts';
 import { idleExit } from './idle.ts';
 import { chatDirOf, startChatServer } from './server.ts';
 import { binaryFound, createSessions, type ChatSessionsDeps } from './sessions.ts';
+import { realProcesses, sweepDeadHost, type Processes } from './sweep.ts';
 
 export class HostBusy extends Error {}
 
@@ -25,9 +26,11 @@ export interface ChatHostDeps {
   runners: ChatSessionsDeps['runners'];
   env: NodeJS.ProcessEnv;
   binaryFound: ChatSessionsDeps['binaryFound'];
+  /** The process table and the kill the start-up sweep uses. */
+  processes: Processes;
 }
 
-const realDeps = (): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner() }, env: process.env, binaryFound });
+const realDeps = (): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner() }, env: process.env, binaryFound, processes: realProcesses });
 
 /**
  * Runs the chat host: its own lock, log, database and socket under `<root>/chat/`, sharing nothing with the engine's
@@ -42,6 +45,7 @@ export async function startChatHost(config: Config, overrides: Partial<ChatHostD
   deps.installLogging(join(chatDir, 'logs', 'chat-host.log'), config.logLevel);
   const log = createScopedLogger('chat');
   const db = openChatDatabase(join(chatDir, 'chat.db'));
+  await sweepDeadHost(db, deps.processes); // the lock is ours, so any recorded process belongs to a host that died
   let closeServer = () => {};
   let idle: ReturnType<typeof idleExit> | undefined;
   const sessions = createSessions({ db, config, clock: deps.clock, runners: deps.runners, env: deps.env, binaryFound: deps.binaryFound, onLiveChange: () => idle?.recheck() });

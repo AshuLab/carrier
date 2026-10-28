@@ -181,13 +181,13 @@ public enum WorkspaceStep: Equatable {
     /// The sources the popover lists under the folders.
     public var sources: [WorkspaceSource] { [.localFolder] + (hostClones ? [.githubURL] : []) + (hostLists && hostClones ? [.githubRepos] : []) + (hostCreates ? [.newProject] : []) }
 
-    /// The popover opens on the menu with the projects folder read again; one that is cloning stays on the step that shows it.
+    /// The popover opens on the menu with the projects folder read again; one that is cloning, or whose clone failed while it was closed,
+    /// stays on the step that shows it until the next action starts.
     public func openPicker() {
         refreshFolders()
         projectsFolderProblem = nil
-        guard cloning == nil else { return }
+        guard cloning == nil, cloneProblem == nil else { return }
         step = .menu
-        cloneProblem = nil
         createProblem = nil
     }
 
@@ -396,6 +396,7 @@ public enum WorkspaceStep: Equatable {
         folder = path
         workspace = nil
         workspaceProblem = nil
+        cloneProblem = nil
         worktree = false
         picked = nil
         fetchProblem = nil

@@ -97,6 +97,7 @@ struct NewSessionView: View {
                 Text(reason).font(.callout).foregroundStyle(.red).padding(.leading, 4).textSelection(.enabled)
             }
             if let problem = model.workspaceProblem { Text(problem).font(.callout).foregroundStyle(.red).padding(.leading, 4).textSelection(.enabled) }
+            if let problem = model.cloneProblem { Text(problem).font(.callout).foregroundStyle(.red).padding(.leading, 4).textSelection(.enabled) }
         }
     }
 

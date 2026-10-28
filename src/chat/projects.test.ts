@@ -214,6 +214,15 @@ test.each(['repos', 'worktrees', 'orchestrator'])('a projects folder inside the 
   client.close();
 });
 
+test("a projects folder that is the shared root cannot reach the engine's own clones", async () => {
+  const client = await connect();
+  writeConfig({ projectsFolder: root });
+  await expect(client.request('cloneRepo', { repo: 'repos/x' })).rejects.toThrow("inside Carrier's own repos folder");
+  expect(git.calls).toHaveLength(0);
+  expect(existsSync(join(root, 'repos'))).toBe(false);
+  client.close();
+});
+
 test('a config file that cannot be read or is not valid is a refusal in words', async () => {
   const client = await connect();
   writeFileSync(configPath, '{ nope');

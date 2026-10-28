@@ -96,9 +96,11 @@ export function createProjects({ git, token, github, config, configPath }: { git
     return loaded.config;
   };
 
-  const projectsFolder = (): string => {
+  // `inside` is a path below the folder that is checked again: a projects folder that is the shared root would put `repos/x` in the engine's own clones.
+  const projectsFolder = (inside?: string): string => {
     const fresh = current();
-    return checkProjectsFolder(fresh.chat?.projectsFolder ?? join(fresh.root, 'chat', 'projects'), fresh.root);
+    const folder = checkProjectsFolder(fresh.chat?.projectsFolder ?? join(fresh.root, 'chat', 'projects'), fresh.root);
+    return inside === undefined ? folder : checkProjectsFolder(join(folder, inside), fresh.root);
   };
 
   // Not in argv, in a file or in a log: git reads the header from its environment, as `git-workspaces.ts` does.
@@ -164,7 +166,7 @@ export function createProjects({ git, token, github, config, configPath }: { git
     /** Clones `repo` to `<projects folder>/<owner>/<name>`, or fetches it when it is already there. `signal` is the client's connection: when it closes, git is aborted and a destination this request made is removed. */
     async cloneRepo({ repo }: { repo: string }, signal: AbortSignal): Promise<CloneReply> {
       if (repoNamePattern.test(repo) === false) throw new ChatRefused(`"${repo}" is not a repository; write it as owner/name`);
-      const dest = join(projectsFolder(), repo);
+      const dest = projectsFolder(repo);
       const key = dest.toLowerCase();
       // a clone being aborted finishes first, so a new one never meets its leftovers
       for (let old = running.get(key); old?.abort.signal.aborted === true; old = running.get(key)) await old.done.catch(() => {});

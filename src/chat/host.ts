@@ -1,6 +1,5 @@
 import { join } from 'node:path';
 import { createScopedLogger, type LogLevel } from '@ashulab/universal-logger';
-import { defaults } from '../config/load.ts';
 import type { Config } from '../config/schema.ts';
 import { installFileLogging } from '../logging/logger.ts';
 import { realClock, type Clock } from '../orchestration/clock.ts';
@@ -41,10 +40,13 @@ export interface ChatHostDeps {
   processes: Processes;
 }
 
-const githubTimeoutMs = defaults.limits.githubCallTimeoutSeconds * 1000;
-const realGithub: GithubRepos = { repos: (page) => ghRepos(page, githubTimeoutMs), login: () => ghLogin(githubTimeoutMs) };
+// The running config's limit, read at each call: the user's `limits.githubCallTimeoutSeconds`, not the default.
+const realGithub = (config: Config): GithubRepos => {
+  const timeoutMs = () => config.limits.githubCallTimeoutSeconds * 1000;
+  return { repos: (page) => ghRepos(page, timeoutMs()), login: () => ghLogin(timeoutMs()) };
+};
 
-const realDeps = (): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub, binaryFound, processes: realProcesses });
+const realDeps = (config: Config): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub(config), binaryFound, processes: realProcesses });
 
 /**
  * Runs the chat host: its own lock, log, database and socket under `<root>/chat/`, sharing nothing with the engine's
@@ -52,7 +54,7 @@ const realDeps = (): ChatHostDeps => ({ installLogging: installFileLogging, cloc
  * the returned `stop()` is the one shutdown (`stop` request, idle exit, signals).
  */
 export async function startChatHost(config: Config, overrides: Partial<ChatHostDeps> = {}) {
-  const deps = { ...realDeps(), ...overrides };
+  const deps = { ...realDeps(config), ...overrides };
   const chatDir = chatDirOf(config.root);
   const lock = acquireLock(chatDir);
   if (!lock.ok) throw new HostBusy(`Another chat host is already running on ${chatDir}`);

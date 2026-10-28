@@ -592,6 +592,24 @@ private func projectsRoot(_ names: [String]) throws -> String {
     #expect(model.cloneProblem == nil && model.folder == "/projects/AshuLab/nope")
 }
 
+@MainActor @Test func aCloneThatFailsWhileThePopoverIsClosedKeepsItsReasonWhenItReopens() async {
+    let host = FakeChat()
+    host.refuse["cloneRepo"] = ControlError.remote("The clone took more than ten minutes and was stopped")
+    let model = await popover(host)
+    model.openPicker()
+    model.show(.url)
+    model.urlText = "AshuLab/slow"
+    #expect(await model.cloneAndUse() == false)
+    // the popover was closed while it ran; reopening it must not wipe why the chip is orange
+    model.openPicker()
+    #expect(model.step == .url && model.cloneProblem == "The clone took more than ten minutes and was stopped" && model.urlText == "AshuLab/slow" && model.cloneButton == "Try again")
+    // the next action starts over
+    host.refuse["cloneRepo"] = nil
+    #expect(await model.cloneAndUse())
+    model.openPicker()
+    #expect(model.cloneProblem == nil && model.step == .menu)
+}
+
 @MainActor @Test func cancelWhileCloningStopsTheRequestAndLeavesTheDraftWithNoWorkspace() async {
     let host = FakeChat()
     host.holdClone = true

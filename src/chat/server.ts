@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { socketPathFits, version, type Hello, type Reply } from '../control/server.ts';
+import { ChatRefused } from './runner.ts';
 
 const log = createScopedLogger('chat');
 
@@ -11,19 +12,52 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'list' | 'stop';
-const capabilities: ChatCapability[] = ['list', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'send' | 'events' | 'close' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'send', 'events', 'close', 'stop'];
 
 const id = z.number().int().positive();
+const sessionId = z.uuid();
 // An allowlist, strict like the engine's: any other command, field or type is rejected before anything acts on it.
-export const chatRequest = z.union([z.strictObject({ id, cmd: z.literal('list') }), z.strictObject({ id, cmd: z.literal('stop') })]);
+export const chatRequest = z.union([
+  z.strictObject({ id, cmd: z.literal('agents') }),
+  z.strictObject({ id, cmd: z.literal('list'), archived: z.boolean().optional() }),
+  z.strictObject({ id, cmd: z.literal('open'), agent: z.string().min(1), folder: z.string().min(1), options: z.record(z.string(), z.string()).optional() }),
+  z.strictObject({ id, cmd: z.literal('send'), sessionId, text: z.string().min(1) }),
+  z.strictObject({ id, cmd: z.literal('events'), sessionId, after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200) }),
+  z.strictObject({ id, cmd: z.literal('close'), sessionId }),
+  z.strictObject({ id, cmd: z.literal('stop') }),
+]);
+type Request = z.infer<typeof chatRequest>;
+type Args<C extends Request['cmd']> = Omit<Extract<Request, { cmd: C }>, 'id' | 'cmd'>;
 
-/** What the socket does for the client. */
+/** What the socket does for the client. A `ChatRefused` thrown here reaches the client with its message; any other error is "internal error". */
 export type ChatControls = {
-  list(): unknown;
+  agents(): unknown;
+  list(args: Args<'list'>): unknown;
+  open(args: Args<'open'>): Promise<unknown>;
+  send(args: Args<'send'>): unknown;
+  events(args: Args<'events'>): unknown;
+  close(args: Args<'close'>): Promise<unknown>;
 };
 
-function answer(line: string, controls: ChatControls, stopAfterReply: () => void): Reply {
+async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls): Promise<unknown> {
+  switch (request.cmd) {
+    case 'agents':
+      return controls.agents();
+    case 'list':
+      return controls.list({ archived: request.archived });
+    case 'open':
+      return controls.open({ agent: request.agent, folder: request.folder, options: request.options });
+    case 'send':
+      return controls.send({ sessionId: request.sessionId, text: request.text });
+    case 'events':
+      return controls.events({ sessionId: request.sessionId, after: request.after, limit: request.limit });
+    case 'close':
+      return controls.close({ sessionId: request.sessionId });
+  }
+}
+
+async function answer(line: string, controls: ChatControls, stopAfterReply: () => void): Promise<Reply> {
   let value: unknown;
   try {
     value = JSON.parse(line);
@@ -41,9 +75,10 @@ function answer(line: string, controls: ChatControls, stopAfterReply: () => void
     return { id: parsed.data.id, ok: true };
   }
   try {
-    return { id: parsed.data.id, ok: true, data: controls.list() };
+    return { id: parsed.data.id, ok: true, data: await run(parsed.data, controls) };
   } catch (error) {
-    log.error('list failed', error);
+    if (error instanceof ChatRefused) return { id: parsed.data.id, ok: false, error: error.message };
+    log.error(`${parsed.data.cmd} failed`, error);
     return { id: parsed.data.id, ok: false, error: 'internal error' };
   }
 }
@@ -74,6 +109,7 @@ export async function startChatServer({ chatDir, startedAt, controls, stop, clie
     });
     send(socket, hello);
     let pending = '';
+    let replies = Promise.resolve(); // one reply per request, in the order asked: a slow `open` does not let a later reply overtake it
     socket.on('data', (chunk: string) => {
       pending += chunk;
       for (let end = pending.indexOf('\n'); end >= 0; end = pending.indexOf('\n')) {
@@ -81,9 +117,11 @@ export async function startChatServer({ chatDir, startedAt, controls, stop, clie
         pending = pending.slice(end + 1);
         if (Buffer.byteLength(line) > MAX_LINE_BYTES) return tooLong(socket);
         // `stop`: the reply is flushed first, then the shutdown runs
-        let afterReply: (() => void) | undefined;
-        const reply = answer(line, controls, () => void (afterReply = () => void stop().catch((error) => log.error('stop failed', error))));
-        send(socket, reply, afterReply);
+        replies = replies.then(async () => {
+          let afterReply: (() => void) | undefined;
+          const reply = await answer(line, controls, () => void (afterReply = () => void stop().catch((error) => log.error('stop failed', error))));
+          send(socket, reply, afterReply);
+        });
       }
       if (Buffer.byteLength(pending) > MAX_LINE_BYTES) tooLong(socket);
     });

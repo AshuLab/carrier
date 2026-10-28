@@ -3,7 +3,8 @@ import { connect, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { startChatServer } from './server.ts';
+import { ChatRefused } from './runner.ts';
+import { startChatServer, type ChatControls } from './server.ts';
 
 let dir: string;
 let sockets: Socket[];
@@ -20,8 +21,20 @@ afterEach(() => {
 });
 
 const noClients = { joined: () => {}, left: () => {} };
+const controls = (): ChatControls => ({
+  agents: () => [],
+  list: () => ({ sessions: [] }),
+  open: async () => {
+    throw new ChatRefused('That folder does not exist');
+  },
+  send: () => {
+    throw new Error('the disk says secret things');
+  },
+  events: ({ after = 0 }) => ({ after }),
+  close: async () => ({}),
+});
 async function open({ stop = async () => {}, clients = noClients } = {}) {
-  const server = await startChatServer({ chatDir: dir, startedAt: 1234, controls: { list: () => ({ sessions: [] }) }, stop, clients });
+  const server = await startChatServer({ chatDir: dir, startedAt: 1234, controls: controls(), stop, clients });
   closers.push(server.close);
 }
 
@@ -48,18 +61,24 @@ async function client() {
   return { hello, socket, next, ask: async (line: string) => (socket.write(`${line}\n`), next()), isClosed: () => closed };
 }
 
+const uuid = '3f2b6a52-8f5e-4a63-9d5b-0a1d2c3e4f50';
+
 test('the socket is 0600, and a client gets a hello and the empty list', async () => {
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['list', 'stop'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'send', 'events', 'close', 'stop'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
 
 test.each([
   ['an unknown command', '{"id":2,"cmd":"snapshot"}', 2],
-  ['an extra field', '{"id":3,"cmd":"list","archived":true}', 3],
+  ['an extra field', '{"id":3,"cmd":"list","pad":true}', 3],
+  ['a session id that is not one', '{"id":4,"cmd":"close","sessionId":"../x"}', 4],
+  ['a limit over 200', `{"id":5,"cmd":"events","sessionId":"${uuid}","limit":201}`, 5],
+  ['an empty message', `{"id":6,"cmd":"send","sessionId":"${uuid}","text":""}`, 6],
+  ['a command the host does not have yet', `{"id":7,"cmd":"answer","sessionId":"${uuid}","approvalId":"a","choiceId":"b"}`, 7],
   ['a missing id', '{"cmd":"list"}', null],
   ['a bad id', '{"id":-1,"cmd":"list"}', null],
 ])('%s is "invalid request", with the id only when it is valid', async (_name, line, id) => {
@@ -84,6 +103,15 @@ test('a line over 1 MiB closes the connection with "line too long", and one unde
   c.socket.write(`${'x'.repeat(1024 * 1024 + 1)}\n`);
   expect(await c.next()).toEqual({ id: null, ok: false, error: 'line too long' });
   await vi.waitFor(() => expect(c.isClosed()).toBe(true));
+});
+
+test('a refusal reaches the client in words, any other failure is only "internal error", and replies keep the order of the requests', async () => {
+  await open();
+  const c = await client();
+  c.socket.write(`${JSON.stringify({ id: 1, cmd: 'open', agent: 'claude', folder: '/nope' })}\n${JSON.stringify({ id: 2, cmd: 'send', sessionId: uuid, text: 'hi' })}\n${JSON.stringify({ id: 3, cmd: 'events', sessionId: uuid, after: 5, limit: 10 })}\n`);
+  expect(await c.next()).toEqual({ id: 1, ok: false, error: 'That folder does not exist' });
+  expect(await c.next()).toEqual({ id: 2, ok: false, error: 'internal error' });
+  expect(await c.next()).toEqual({ id: 3, ok: true, data: { after: 5 } });
 });
 
 test('stop replies ok and then runs the stop', async () => {

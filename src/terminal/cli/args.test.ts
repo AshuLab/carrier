@@ -51,5 +51,6 @@ test('watch takes the config flag and no other word', () => {
 test('chat takes --list or --stop, and chat-host the config', () => {
   expect(parseCli(['chat', '--list'])).toMatchObject({ ok: true, command: 'chat', flags: { list: true } });
   expect(parseCli(['chat', '--stop', '--config', 'x.json'])).toMatchObject({ ok: true, command: 'chat', flags: { stop: true, config: 'x.json' } });
+  expect(parseCli(['chat', '--workspace', '/w', '--agent', 'codex'])).toMatchObject({ ok: true, command: 'chat', flags: { workspace: '/w', agent: 'codex' } });
   expect(parseCli(['chat-host', '--config', 'x.json'])).toMatchObject({ ok: true, command: 'chat-host', flags: { config: 'x.json' } });
 });

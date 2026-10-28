@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1793147024821,
+      "tag": "0000_lame_quasar",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793147813563,
+      "tag": "0001_quiet_penance",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793148987442,
+      "tag": "0002_slim_ezekiel_stane",
+      "breakpoints": true
+    }
+  ]
+}

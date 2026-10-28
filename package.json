@@ -25,16 +25,17 @@
     "access": "public"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -r src/storage/migrations dist/storage/migrations && chmod +x dist/terminal/cli/main.js",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -r src/storage/migrations dist/storage/migrations && cp -r src/chat/migrations dist/chat/migrations && chmod +x dist/terminal/cli/main.js",
     "prepublishOnly": "pnpm typecheck && pnpm test",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
-    "db:generate": "drizzle-kit generate",
+    "db:generate": "drizzle-kit generate && drizzle-kit generate --config drizzle.chat.config.ts",
     "replay:events": "node src/harnesses/replay-events.ts",
     "prepack": "pnpm build"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.311",
     "@ashulab/universal-logger": "^0.1.1",
     "@clack/prompts": "^1.8.1",
     "better-sqlite3": "^13.0.3",

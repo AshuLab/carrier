@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { defaultConfigPath } from '../../config/default-path.ts';
 
-export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'restart'] as const;
+export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'restart', 'chat', 'chat-host'] as const;
 export type CommandName = (typeof commandNames)[number];
 
 export const usage = () => `Usage: carrier --config <path>          run the orchestrator
@@ -13,6 +13,12 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier watch                     the live panel of the running Carrier; q leaves it running (exit 1: not running)
        carrier stop|pause|resume|check --config <path>   stop Carrier, pause or resume intake, look at GitHub now
        carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>]   resume a stopped epic on the options you choose
+       carrier chat --workspace <folder> [--agent <name>]   talk to an agent in a folder (starts the chat host if needed)
+       carrier chat --resume <id>        go on with a closed chat session, after the end of its transcript
+       carrier chat --list [--archived]  list chat sessions (the archived ones with --archived)
+       carrier chat --archive|--unarchive|--delete <id>   archive, unarchive or delete a chat session
+       carrier chat --stop               stop the chat host
+       carrier chat-host --config <path> run the chat host in the foreground
 
 --config defaults to ${defaultConfigPath()} (where init writes it) when that file exists.
 
@@ -46,6 +52,15 @@ const options = {
   'reviewer-persona-prompt': { type: 'string' },
   out: { type: 'string' },
   yes: { type: 'boolean' },
+  list: { type: 'boolean' },
+  stop: { type: 'boolean' },
+  workspace: { type: 'string' },
+  agent: { type: 'string' },
+  resume: { type: 'string' },
+  archived: { type: 'boolean' },
+  archive: { type: 'string' },
+  unarchive: { type: 'string' },
+  delete: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
 } as const;
 

@@ -27,7 +27,7 @@ test('status is a command that takes no arguments', () => {
 });
 
 test('the usage names every command and every init flag', () => {
-  for (const word of ['carrier init', 'carrier doctor', 'carrier schema', 'carrier start', 'carrier status', 'stop', 'pause', 'resume', 'check', '--repo', '--author-profile', '--reviewer-provider', '--out', '--yes', '--config']) expect(usage()).toContain(word);
+  for (const word of ['carrier init', 'carrier doctor', 'carrier schema', 'carrier start', 'carrier status', 'stop', 'pause', 'resume', 'check', 'carrier chat ', 'carrier chat-host', '--repo', '--author-profile', '--reviewer-provider', '--out', '--yes', '--config']) expect(usage()).toContain(word);
 });
 
 test('stop, pause, resume and check are commands that take no argument', () => {
@@ -73,4 +73,16 @@ test('restart without its argument or with a second one is a usage error, and th
 test('the usage names restart and its flags', () => {
   expect(usage()).toContain('carrier restart <owner/name>#<issue>');
   expect(usage()).toContain('--author <option>');
+});
+
+test('chat takes --list or --stop, and chat-host the config', () => {
+  expect(parseCli(['chat', '--list'])).toMatchObject({ ok: true, command: 'chat', flags: { list: true } });
+  expect(parseCli(['chat', '--stop', '--config', 'x.json'])).toMatchObject({ ok: true, command: 'chat', flags: { stop: true, config: 'x.json' } });
+  expect(parseCli(['chat', '--workspace', '/w', '--agent', 'codex'])).toMatchObject({ ok: true, command: 'chat', flags: { workspace: '/w', agent: 'codex' } });
+  expect(parseCli(['chat', '--resume', 'abc'])).toMatchObject({ ok: true, command: 'chat', flags: { resume: 'abc' } });
+  expect(parseCli(['chat', '--list', '--archived'])).toMatchObject({ ok: true, flags: { list: true, archived: true } });
+  expect(parseCli(['chat', '--archive', 'a'])).toMatchObject({ ok: true, flags: { archive: 'a' } });
+  expect(parseCli(['chat', '--unarchive', 'a'])).toMatchObject({ ok: true, flags: { unarchive: 'a' } });
+  expect(parseCli(['chat', '--delete', 'a'])).toMatchObject({ ok: true, flags: { delete: 'a' } });
+  expect(parseCli(['chat-host', '--config', 'x.json'])).toMatchObject({ ok: true, command: 'chat-host', flags: { config: 'x.json' } });
 });

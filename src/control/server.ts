@@ -3,6 +3,7 @@ import { createServer, type Socket } from 'node:net';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
+import type { ChatCapability } from '../chat/server.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
 import { optionNamePattern } from '../config/schema.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
@@ -46,7 +47,7 @@ export const version = (JSON.parse(readFileSync(new URL('../../package.json', im
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
 export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'agentOptions';
-export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: Capability[] };
+export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: (Capability | ChatCapability)[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
 
 /** What the socket does for the client: the same controls the interactive panel's keys use. */

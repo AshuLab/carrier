@@ -12,7 +12,7 @@ const STOP_WAIT_MS = 15_000; // the same limit as the app
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Polls until nothing answers on the socket any more; false when it still does after `STOP_WAIT_MS`. */
-async function socketGone(path: string): Promise<boolean> {
+export async function socketGone(path: string): Promise<boolean> {
   for (const deadline = Date.now() + STOP_WAIT_MS; Date.now() < deadline; await sleep(100)) {
     try {
       (await connectControl(path, { timeoutMs: 500 })).close();

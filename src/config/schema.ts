@@ -43,6 +43,18 @@ const profile = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('gh') }),
 ]);
 
+/** An agent a chat can start with. Narrower than the engine's harnesses: Antigravity is not offered. */
+const chatAgent = z.strictObject({
+  harness: z.enum(['claude', 'codex']),
+  /** The binary, when it is not the one on the path. */
+  command: z.string().min(1).optional(),
+  model: z.string().min(1).optional(),
+  /** Default options of the provider, by the provider's own option id. */
+  options: z.record(z.string(), z.string()).optional(),
+});
+
+const chatAgentName = /^[a-z][a-z0-9-]*$/;
+
 export const configSchema = z
   .strictObject({
     root: z.string().min(1).transform(expandHome),
@@ -60,6 +72,12 @@ export const configSchema = z
       )
       .min(1),
     profiles: z.record(z.string(), profile),
+    /** The agents a chat can start with; without the block, `claude` and `codex` (see `chatAgents`). */
+    chat: z
+      .strictObject({
+        agents: z.record(z.string().regex(chatAgentName, 'a chat agent name is lowercase letters, digits and hyphens, starting with a letter'), chatAgent),
+      })
+      .optional(),
     orchestratorProfile: z.string().min(1),
     agentOptions: z.record(z.string(), agentOption),
     agents: z.strictObject({ author: agent, reviewer: agent }),

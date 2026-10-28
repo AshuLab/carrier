@@ -30,6 +30,7 @@ const controls = (): ChatControls => ({
   send: () => {
     throw new Error('the disk says secret things');
   },
+  interrupt: async () => ({}),
   events: ({ after = 0 }) => ({ after }),
   close: async () => ({}),
 });
@@ -67,7 +68,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'send', 'events', 'close', 'stop'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'send', 'interrupt', 'events', 'close', 'stop'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });

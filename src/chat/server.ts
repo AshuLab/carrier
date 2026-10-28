@@ -12,8 +12,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'send' | 'events' | 'close' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'send', 'events', 'close', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'send' | 'interrupt' | 'events' | 'close' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'send', 'interrupt', 'events', 'close', 'stop'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -23,6 +23,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('list'), archived: z.boolean().optional() }),
   z.strictObject({ id, cmd: z.literal('open'), agent: z.string().min(1), folder: z.string().min(1), options: z.record(z.string(), z.string()).optional() }),
   z.strictObject({ id, cmd: z.literal('send'), sessionId, text: z.string().min(1) }),
+  z.strictObject({ id, cmd: z.literal('interrupt'), sessionId }),
   z.strictObject({ id, cmd: z.literal('events'), sessionId, after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200) }),
   z.strictObject({ id, cmd: z.literal('close'), sessionId }),
   z.strictObject({ id, cmd: z.literal('stop') }),
@@ -36,6 +37,7 @@ export type ChatControls = {
   list(args: Args<'list'>): unknown;
   open(args: Args<'open'>): Promise<unknown>;
   send(args: Args<'send'>): unknown;
+  interrupt(args: Args<'interrupt'>): Promise<unknown>;
   events(args: Args<'events'>): unknown;
   close(args: Args<'close'>): Promise<unknown>;
 };
@@ -50,6 +52,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.open({ agent: request.agent, folder: request.folder, options: request.options });
     case 'send':
       return controls.send({ sessionId: request.sessionId, text: request.text });
+    case 'interrupt':
+      return controls.interrupt({ sessionId: request.sessionId });
     case 'events':
       return controls.events({ sessionId: request.sessionId, after: request.after, limit: request.limit });
     case 'close':

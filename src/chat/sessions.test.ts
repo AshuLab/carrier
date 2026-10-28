@@ -235,3 +235,43 @@ test('close keeps the row, ends the conversation once, and closeAll closes every
   expect(s.sessions.liveCount()).toBe(0);
   await expect(s.sessions.close({ sessionId: 'nope' })).rejects.toThrow('no such session');
 });
+
+test('an interrupt ends the running turn as interrupted and the session takes the next message; with no turn it changes nothing', async () => {
+  const { sessions, conversation, id, clock } = await openOne();
+  expect(await sessions.interrupt({ sessionId: id })).toEqual({});
+  expect(conversation.interrupts).toBe(0);
+  expect(rows('chat_turns')).toEqual([]);
+
+  clock.time = 100;
+  sessions.send({ sessionId: id, text: 'count to 400' });
+  clock.time = 700;
+  expect(await sessions.interrupt({ sessionId: id })).toEqual({}); // this adapter never says the turn ended: the host records it
+  expect(conversation.interrupts).toBe(1);
+  expect(sessions.events({ sessionId: id, limit: 10 }).session.state).toBe('idle');
+  expect(sessions.events({ sessionId: id, limit: 10 }).events.map((e) => [e.kind, (e as any).outcome])).toEqual([['user', undefined], ['turn_end', 'interrupted']]);
+  expect(rows('chat_turns')).toMatchObject([{ outcome: 'interrupted', durationMs: 600 }]);
+
+  sessions.send({ sessionId: id, text: 'next' });
+  conversation.emit({ kind: 'turn_end', outcome: 'ok' });
+  expect(rows('chat_turns').map((t) => t.outcome)).toEqual(['interrupted', 'ok']);
+});
+
+test('an adapter that ends the turn on interrupt is recorded once, and a waiting approval is interrupted too', async () => {
+  const { sessions, conversation, id } = await openOne();
+  conversation.onInterrupt = (c) => c.emit({ kind: 'turn_end', outcome: 'interrupted', model: 'sonnet' });
+  sessions.send({ sessionId: id, text: 'touch it' });
+  conversation.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', choices: [] });
+  expect(sessions.events({ sessionId: id, limit: 10 }).session.state).toBe('waiting_approval');
+  await sessions.interrupt({ sessionId: id });
+  conversation.emit({ kind: 'turn_end', outcome: 'interrupted' }); // a late duplicate
+  expect(rows('chat_turns')).toMatchObject([{ outcome: 'interrupted', model: 'sonnet' }]);
+  expect(sessions.events({ sessionId: id, limit: 10 }).session.state).toBe('idle');
+});
+
+test('an interrupt on a closed session is ok and changes nothing; on an unknown one it is refused', async () => {
+  const { sessions, conversation, id } = await openOne();
+  await sessions.close({ sessionId: id });
+  expect(await sessions.interrupt({ sessionId: id })).toEqual({});
+  expect(conversation.interrupts).toBe(0);
+  await expect(sessions.interrupt({ sessionId: '3b241101-e2bb-4255-8caf-4136c566a962' })).rejects.toThrow('no such session');
+});

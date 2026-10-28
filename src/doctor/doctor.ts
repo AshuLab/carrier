@@ -185,34 +185,34 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
     }
   }
 
-  // Every Claude and Codex option or provider, whether a role uses it or not: a login that has run out shows here before an epic needs it.
-  // A role's option that is not logged in fails; any other only warns. Antigravity has no folder and a behaviour test instead.
-  const roleOptions = new Set(repos.flatMap((repo) => rolesOf(repo).flatMap((agent) => [agent.option, agent.provider].filter((v): v is string => v !== undefined))));
-  for (const [option, { harness, configDir }] of Object.entries(config.providers ?? config.agentOptions)) {
+  // Every Claude and Codex provider, whether a role uses it or not: a login that has run out shows here before an epic needs it.
+  // A role's provider that is not logged in fails; any other only warns. Antigravity has no folder and a behaviour test instead.
+  const roleProviders = new Set(repos.flatMap((repo) => rolesOf(repo).flatMap((agent) => [agent.option, agent.providerName].filter((v): v is string => v !== undefined))));
+  for (const [provider, { harness, configDir }] of Object.entries(config.providers)) {
     if (missing.has(harness)) continue;
     if (harness === 'agy') {
-      const name = `agy option ${option} is logged in`;
+      const name = `agy provider ${provider} is logged in`;
       onStart(name);
       try {
         const login = await agyLogin(deps);
         if (login === 'in') report({ name, status: 'ok' });
-        else if (login === 'out') report({ name, status: roleOptions.has(option) ? 'fail' : 'warn', detail: 'not logged in', fix: fixes.login('agy', undefined) });
+        else if (login === 'out') report({ name, status: roleProviders.has(provider) ? 'fail' : 'warn', detail: 'not logged in', fix: fixes.login('agy', undefined) });
         else report({ name, status: 'warn', detail: 'could not tell whether agy is logged in (it neither answered nor asked for a login in time)' });
       } catch (error) {
-        log.error('could not run agy to check the login', error, { option });
+        log.error('could not run agy to check the login', error, { provider });
         report({ name, status: 'warn', detail: 'could not run agy to check the login', fix: installFix.agy });
       }
       continue;
     }
     if (harness !== 'claude' && harness !== 'codex') continue;
-    const name = `${harness} option ${option} is logged in`;
-    const status = roleOptions.has(option) ? 'fail' : 'warn';
+    const name = `${harness} provider ${provider} is logged in`;
+    const status = roleProviders.has(provider) ? 'fail' : 'warn';
     const where = configDir ? `at ${configDir}` : 'in the environment Carrier runs in';
     onStart(name);
     try {
       report((await deps.loggedIn(harness, configDir)) ? { name, status: 'ok' } : { name, status, detail: `not logged in ${where}`, fix: fixes.login(harness, configDir) });
     } catch (error) {
-      log.error(`could not run ${harness} to check the login`, error, { option });
+      log.error(`could not run ${harness} to check the login`, error, { provider });
       report({ name, status, detail: `could not run ${harness} to check the login ${where}`, fix: installFix[harness] });
     }
   }

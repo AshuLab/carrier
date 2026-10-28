@@ -13,10 +13,10 @@ const base = {
   repos: [{ name: 'AshuLab/carrier' }],
   profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'forge', agent: 'tassadar-agent' } },
   orchestratorProfile: 'a',
-  agentOptions: { claude: { harness: 'claude', model: 'm' }, codex: { harness: 'codex', model: 'm' } },
+  providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } },
   agents: {
-    author: { profile: 'a', option: 'claude' },
-    reviewer: { profile: 'b', option: 'codex' },
+    author: { profile: 'a', provider: 'claude', model: 'm' },
+    reviewer: { profile: 'b', provider: 'codex', model: 'm' },
   },
 };
 
@@ -58,8 +58,8 @@ test('everything in place: all checks pass and no token reaches the report', asy
     'claude installed',
     'codex installed',
     'agent-forge installed',
-    'claude option claude is logged in',
-    'codex option codex is logged in',
+    'claude provider claude is logged in',
+    'codex provider codex is logged in',
     'author and reviewer are different identities',
     'forge agent artanis-agent can mint a token for AshuLab/carrier',
     'forge agent tassadar-agent can mint a token for AshuLab/carrier',
@@ -90,7 +90,7 @@ test('a missing harness CLI fails once, by name', async () => {
 
 test('only the harnesses in use are required', async () => {
   const which = vi.fn(() => true);
-  await runDoctor(config({ agents: { author: { profile: 'a', option: 'claude' }, reviewer: { profile: 'b', option: 'claude' } } }), deps({ which }));
+  await runDoctor(config({ agents: { author: { profile: 'a', provider: 'claude', model: 'm' }, reviewer: { profile: 'b', provider: 'claude', model: 'm' } } }), deps({ which }));
   expect(which).not.toHaveBeenCalledWith('codex');
 });
 
@@ -185,7 +185,7 @@ test('onCheck sees every check as it finishes, in the order of the result', asyn
   expect(seen).toEqual(checks);
 });
 
-const local = (over: Record<string, unknown> = {}) => config({ agentOptions: { ...base.agentOptions, local: { harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio', ...over } }, agents: { ...base.agents, reviewer: { ...base.agents.reviewer, option: 'local' } } });
+const local = (over: Record<string, unknown> = {}) => config({ providers: { ...base.providers, local: { harness: 'codex', provider: 'lmstudio', ...over } }, agents: { ...base.agents, reviewer: { ...base.agents.reviewer, provider: 'local', model: 'google/gemma-4-12b' } } });
 
 test('a local model passes when its server has it', async () => {
   const checks = await runDoctor(local(), deps({ localModels: async () => ['google/gemma-4-12b'] }));
@@ -211,7 +211,7 @@ test.each([
   ['no installation', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: has no installations')) }), 'install the GitHub App of that agent on AshuLab'],
   ['an unreadable key', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: Private key for x not found or unreadable')) }), 'check privateKeyPath of that agent in your Forge registry'],
   ['any other mint error', () => fixOf(config(), { mint: async () => Promise.reject(new Error('boom')) }), 'run: agent-forge token --agent artanis-agent from a clone of the repo to see the full error'],
-  ['a gh login that cannot mint', () => fixOf(config({ profiles: gh, orchestratorProfile: 'b', agents: { author: { profile: 'a', option: 'claude' }, reviewer: { profile: 'b', option: 'codex' } } }), { mint: async (p) => (p.kind === 'gh' ? Promise.reject(new Error('x')) : 't') }), 'run: gh auth login'],
+  ['a gh login that cannot mint', () => fixOf(config({ profiles: gh, orchestratorProfile: 'b', agents: { author: { profile: 'a', provider: 'claude', model: 'm' }, reviewer: { profile: 'b', provider: 'codex', model: 'm' } } }), { mint: async (p) => (p.kind === 'gh' ? Promise.reject(new Error('x')) : 't') }), 'run: gh auth login'],
   ['a 404 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 404: Not Found')) }), 'the repo does not exist or this identity cannot see it: install the App on AshuLab and give it access to AshuLab/carrier'],
   ['a 401 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 401: Bad credentials')) }), "the identity's credentials were rejected: for gh run gh auth login, for a bot check its App in Forge"],
   ['the same identity twice', () => fixOf(config({ profiles: { a: { kind: 'forge', agent: 'bot' }, b: { kind: 'forge', agent: 'bot' } } }), {}), 'use two different bots (agent-forge add) or one bot and your gh login, or set identities to "shared" to use one account for both'],
@@ -240,49 +240,49 @@ test('checks skipped because a prerequisite failed announce nothing', async () =
   expect(started).toEqual(checks.map((c) => c.name)); // no start for the mints and reads that were skipped
 });
 
-// The login of each Claude and Codex option; the answer is faked, no test starts a real CLI.
-const withDirs = { agentOptions: { claude: { harness: 'claude', model: 'm', configDir: '/home/me/.claude-work' }, codex: { harness: 'codex', model: 'm', configDir: '/home/me/.codex-alt' }, spare: { harness: 'claude', model: 'm', configDir: '/home/me/.claude-spare' }, agy: { harness: 'agy', model: 'm' } } };
+// The login of each Claude and Codex provider; the answer is faked, no test starts a real CLI.
+const withDirs = { providers: { claude: { harness: 'claude', configDir: '/home/me/.claude-work' }, codex: { harness: 'codex', configDir: '/home/me/.codex-alt' }, spare: { harness: 'claude', configDir: '/home/me/.claude-spare' }, agy: { harness: 'agy' } } };
 
-test('every Claude and Codex option is asked with its folder, role or not, and agy is left out', async () => {
+test('every Claude and Codex provider is asked with its folder, role or not, and agy is left out', async () => {
   const loggedIn = vi.fn(async (_harness: string, _dir: string | undefined) => true);
   const checks = await runDoctor(config(withDirs), deps({ loggedIn }));
   expect(loggedIn.mock.calls).toEqual([['claude', '/home/me/.claude-work'], ['codex', '/home/me/.codex-alt'], ['claude', '/home/me/.claude-spare']]);
   expect(failed(checks)).toEqual([]);
 });
 
-test('an option without a folder is checked in the process environment', async () => {
+test('a provider without a folder is checked in the process environment', async () => {
   const loggedIn = vi.fn(async (_harness: string, _dir: string | undefined) => true);
   await runDoctor(config(), deps({ loggedIn }));
   expect(loggedIn.mock.calls).toEqual([['claude', undefined], ['codex', undefined]]);
 });
 
-test('a role option that is not logged in fails, a spare one only warns, both name the option and folder and carry the login remedy', async () => {
+test('a role provider that is not logged in fails, a spare one only warns, both name the provider and folder and carry the login remedy', async () => {
   const checks = await runDoctor(config(withDirs), deps({ loggedIn: async (_harness, dir) => dir !== '/home/me/.claude-work' && dir !== '/home/me/.claude-spare' }));
   const logins = checks.filter((c) => c.name.endsWith('is logged in'));
   expect(logins.filter((c) => c.status !== 'ok')).toMatchObject([
-    { name: 'claude option claude is logged in', status: 'fail', detail: 'not logged in at /home/me/.claude-work', fix: 'log in with: CLAUDE_CONFIG_DIR=/home/me/.claude-work claude /login' },
-    { name: 'claude option spare is logged in', status: 'warn', detail: 'not logged in at /home/me/.claude-spare', fix: 'log in with: CLAUDE_CONFIG_DIR=/home/me/.claude-spare claude /login' },
+    { name: 'claude provider claude is logged in', status: 'fail', detail: 'not logged in at /home/me/.claude-work', fix: 'log in with: CLAUDE_CONFIG_DIR=/home/me/.claude-work claude /login' },
+    { name: 'claude provider spare is logged in', status: 'warn', detail: 'not logged in at /home/me/.claude-spare', fix: 'log in with: CLAUDE_CONFIG_DIR=/home/me/.claude-spare claude /login' },
   ]);
 });
 
-test('a Codex option that is not logged in has the Codex remedy, and one without a folder says so', async () => {
+test('a Codex provider that is not logged in has the Codex remedy, and one without a folder says so', async () => {
   const checks = await runDoctor(config(withDirs), deps({ loggedIn: async (harness) => harness !== 'codex' }));
-  expect(failed(checks)).toMatchObject([{ name: 'codex option codex is logged in', detail: 'not logged in at /home/me/.codex-alt', fix: 'log in with: CODEX_HOME=/home/me/.codex-alt codex login' }]);
+  expect(failed(checks)).toMatchObject([{ name: 'codex provider codex is logged in', detail: 'not logged in at /home/me/.codex-alt', fix: 'log in with: CODEX_HOME=/home/me/.codex-alt codex login' }]);
   const inherited = failed(await runDoctor(config(), deps({ loggedIn: async () => false })));
   expect(inherited.map((c) => c.detail)).toEqual(['not logged in in the environment Carrier runs in', 'not logged in in the environment Carrier runs in']);
   expect(inherited.map((c) => c.fix)).toEqual(['log in with: claude /login', 'log in with: codex login']);
 });
 
-test('a login check that cannot run is reported by option, and an email never reaches the report', async () => {
+test('a login check that cannot run is reported by provider, and an email never reaches the report', async () => {
   const loggedIn = async () => {
     throw new Error('spawnSync claude ENOENT me@example.com');
   };
   const checks = await runDoctor(config(), deps({ loggedIn }));
-  expect(failed(checks)).toMatchObject([{ name: 'claude option claude is logged in' }, { name: 'codex option codex is logged in' }]);
+  expect(failed(checks)).toMatchObject([{ name: 'claude provider claude is logged in' }, { name: 'codex provider codex is logged in' }]);
   expect(JSON.stringify(checks)).not.toContain('me@example.com');
 });
 
-test('an option whose CLI is not installed is not asked for its login', async () => {
+test('a provider whose CLI is not installed is not asked for its login', async () => {
   const loggedIn = vi.fn(async () => true);
   await runDoctor(config(), deps({ which: (command) => command !== 'claude', loggedIn }));
   expect(loggedIn).toHaveBeenCalledTimes(1);
@@ -290,26 +290,26 @@ test('an option whose CLI is not installed is not asked for its login', async ()
 
 // The Antigravity login: agy has no status command, so the check reads the first stderr line of `agy -p /usage`.
 afterEach(() => vi.useRealTimers());
-const agyChecks = (checks: Check[]) => checks.filter((c) => c.name.startsWith('agy option'));
-const onlyAgy = { agentOptions: { agy: { harness: 'agy', model: 'm' } }, agents: { author: { profile: 'a', option: 'agy' }, reviewer: { profile: 'b', option: 'agy' } } };
+const agyChecks = (checks: Check[]) => checks.filter((c) => c.name.startsWith('agy provider'));
+const onlyAgy = { providers: { agy: { harness: 'agy' } }, agents: { author: { profile: 'a', provider: 'agy', model: 'm' }, reviewer: { profile: 'b', provider: 'agy', model: 'm' } } };
 
-test('an Antigravity option whose /usage answers SUCCESS is logged in', async () => {
+test('an Antigravity provider whose /usage answers SUCCESS is logged in', async () => {
   const startAgy = vi.fn(() => fakeAgy({ stdout: '{"status":"SUCCESS"}', end: true }));
   const checks = await runDoctor(config(onlyAgy), deps({ startAgy }));
   expect(startAgy).toHaveBeenCalledTimes(1);
-  expect(agyChecks(checks)).toEqual([{ name: 'agy option agy is logged in', status: 'ok' }]);
+  expect(agyChecks(checks)).toEqual([{ name: 'agy provider agy is logged in', status: 'ok' }]);
 });
 
 test('Authentication required on the first stderr line is logged out at once: the process is killed, not waited for, and the login URL stays out', async () => {
   const process = fakeAgy({ stderr: 'Authentication required. Open https://accounts.example/login?code=SECRET\n' }); // never ends by itself
   const checks = await runDoctor(config(onlyAgy), deps({ startAgy: () => process }));
   expect(process.kill).toHaveBeenCalledTimes(1);
-  expect(agyChecks(checks)).toEqual([{ name: 'agy option agy is logged in', status: 'fail', detail: 'not logged in', fix: 'log in with: agy' }]);
+  expect(agyChecks(checks)).toEqual([{ name: 'agy provider agy is logged in', status: 'fail', detail: 'not logged in', fix: 'log in with: agy' }]);
   expect(JSON.stringify(checks)).not.toContain('SECRET');
 });
 
-test('an Antigravity option that is not a role option only warns when logged out', async () => {
-  const spare = { agentOptions: { ...base.agentOptions, agy: { harness: 'agy', model: 'm' } } };
+test('an Antigravity provider that is not a role provider only warns when logged out', async () => {
+  const spare = { providers: { ...base.providers, agy: { harness: 'agy' } } };
   const checks = await runDoctor(config(spare), deps({ startAgy: () => fakeAgy({ stderr: 'Authentication required\n' }) }));
   expect(failed(checks)).toEqual([]);
   expect(agyChecks(checks)).toMatchObject([{ status: 'warn', detail: 'not logged in', fix: 'log in with: agy' }]);

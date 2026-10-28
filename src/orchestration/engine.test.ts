@@ -727,11 +727,11 @@ test('a usage limit does not count in the retry streak', async () => {
 });
 
 // Failover: three options, the author on `claude` and the reviewer on `codex`; `spare` is the one only the list can name.
-const failoverRepos = (failover?: { enabled: boolean; order: string[] }): EffectiveRepoConfig[] =>
-  choosing({ claude: claudeOption, codex: codexOption, spare: { harness: 'agy', model: 'flash' } }).map((repo) => ({ ...repo, ...(failover && { failover }) }));
+const failoverRepos = (failover?: { enabled: boolean; default?: string[]; order?: string[] }): EffectiveRepoConfig[] =>
+  choosing({ claude: claudeOption, codex: codexOption, spare: { harness: 'agy', model: 'flash' } }).map((repo) => ({ ...repo, ...(failover && { failover: { enabled: failover.enabled, default: failover.default ?? failover.order } }) }));
 // Reserves the epic and starts it on the defaults, past its wait for a choice.
 async function startFailover(order: string[], enabled = true, slots = 1) {
-  return startWith(failoverRepos({ enabled, order }), slots);
+  return startWith(failoverRepos({ enabled, default: order }), slots);
 }
 async function startWith(config: EffectiveRepoConfig[], slots = 1) {
   const engine = await start(slots, config);
@@ -789,7 +789,7 @@ test('when no option in the list is left the epic stops with usage_limit and nam
 
   expect(runner.tasks.filter((t) => t.epic === 1).map((t) => t.option)).toEqual(['claude', 'spare']); // codex is the reviewer's default, not in the list
   expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'usage_limit', finishedAt: 5 * MIN });
-  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option spare · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}; no option left in failover.order, ran out: claude, spare`);
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option spare · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}; no provider left in failover, ran out: claude, spare`);
   expect(eventsOf(engine.db)).toMatchObject([{ type: 'option_switched', data: { from: 'claude', to: 'spare' } }]);
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });

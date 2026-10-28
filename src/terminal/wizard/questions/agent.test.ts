@@ -38,7 +38,7 @@ test('each question has one meaning: harness, then provider (only when there is 
   expect(selects['Where does this provider run?']).toEqual(['\0native', 'lmstudio', 'ollama (disabled)']); // Ollama is there, not running
   expect(selects['Model for the reviewer']).toEqual(['google/gemma-4-12b', 'qwen/qwen3.8-27b', '\0other']); // only LM Studio's models, no cloud ones (the last one asked)
   expect(selects['Config folder of this Codex provider']).toEqual(['/home/d/.codex', '\0inherit', '\0path']);
-  expect(roleOf(written[out]!, 'reviewer')).toEqual({ profile: 'tassadar-agent', option: 'codex', harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio' });
+  expect(roleOf(written[out]!, 'reviewer')).toEqual({ profile: 'tassadar-agent', harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio' });
   expect(roleOf(written[out]!, 'author')).not.toHaveProperty('provider');
 });
 
@@ -61,7 +61,7 @@ test('--author-provider goes with the flag form and an unknown server is refused
   const { deps, written } = fakeDeps();
   const out = join(dir, 'q.json');
   await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'codex:qwen3:8b', authorProvider: 'ollama', reviewer: 'claude:sonnet', out }, quietUi().ui, deps);
-  expect(roleOf(written[out]!, 'author')).toEqual({ profile: 'artanis-agent', option: 'codex', harness: 'codex', model: 'qwen3:8b', provider: 'ollama' });
+  expect(roleOf(written[out]!, 'author')).toEqual({ profile: 'artanis-agent', harness: 'codex', model: 'qwen3:8b', provider: 'ollama' });
   await expect(runInit({ repo: ['A/b'], author: 'codex:m', authorProvider: 'vllm', authorProfile: 'gh', reviewerProfile: 'forge:x', reviewer: 'claude:s', out }, quietUi().ui, deps)).rejects.toThrow('invalid provider');
 });
 
@@ -72,7 +72,7 @@ test('Antigravity: its own models, no provider question even with a local server
   await runInit({ repo: ['A/b'], out }, ui, deps);
   expect(asked).not.toContain('Which provider serves the model of this option?');
   expect(asked.some((q) => q.startsWith('Config folder'))).toBe(false);
-  expect(roleOf(written[out]!, 'author')).toEqual({ profile: 'artanis-agent', option: 'agy', harness: 'agy', model: 'gemini-3.8-flash-low' });
+  expect(roleOf(written[out]!, 'author')).toEqual({ profile: 'artanis-agent', harness: 'agy', model: 'gemini-3.8-flash-low' });
 });
 
 test('--author agy:<model> is a valid flag form, and a provider on it is refused by the config', async () => {

@@ -17,10 +17,10 @@ const valid = {
   repos: [{ name: 'AshuLab/carrier' }],
   profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } },
   orchestratorProfile: 'a',
-  agentOptions: { claude: { harness: 'claude', model: 'm' }, codex: { harness: 'codex', model: 'm' } },
+  providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } },
   agents: {
-    author: { profile: 'a', option: 'claude' },
-    reviewer: { profile: 'b', option: 'codex' },
+    author: { profile: 'a', provider: 'claude', model: 'm' },
+    reviewer: { profile: 'b', provider: 'codex', model: 'm' },
   },
 };
 

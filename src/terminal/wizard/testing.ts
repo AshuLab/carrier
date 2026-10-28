@@ -15,12 +15,19 @@ export function useTempDir() {
   return dir;
 }
 
-/** A role of a written config with the option it points at spread in, to assert on harness, model and provider. */
-export function roleOf(written: string, role: 'author' | 'reviewer') {
+/** A role of a written config with the provider it points at spread in, to assert on harness, model and provider. */
+export function roleOf(written: string, role: 'author' | 'reviewer' | 'leadReviewer') {
   const config = JSON.parse(written);
   const agent = config.agents[role];
-  const { provider: _account, ...restAgent } = agent;
-  return { ...restAgent, ...config.agentOptions[agent.option] };
+  const provider = config.providers?.[agent.provider];
+  return {
+    profile: agent.profile,
+    harness: provider?.harness,
+    model: agent.model,
+    ...(provider?.provider && { provider: provider.provider }),
+    ...(provider?.configDir && { configDir: provider.configDir }),
+    ...(agent.persona && { persona: agent.persona }),
+  };
 }
 
 /** An answer by question; a list answers the same question again and again, in order, and what is left unanswered takes the default. */

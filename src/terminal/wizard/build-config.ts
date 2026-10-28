@@ -4,12 +4,12 @@ import { harnessNames, type HarnessName } from '../../harnesses/names.ts';
 
 export type Identity = { kind: 'forge'; agent: string } | { kind: 'gh' };
 export type Persona = NonNullable<Config['agents']['author']['persona']>;
-export type AgentOption = Config['agentOptions'][string];
-export type AIProvider = NonNullable<Config['providers']>[string];
+export type AgentOption = { harness: HarnessName; model: string; provider?: LocalProvider; configDir?: string };
+export type AIProvider = Config['providers'][string];
 export type Failover = NonNullable<Config['failover']>;
-export type Role = { identity: Identity; option: string; provider?: string; model?: string; persona?: Persona };
+export type Role = { identity: Identity; provider: string; model: string; persona?: Persona };
 export type Identities = 'separate' | 'shared';
-export type Answers = { repos: string[]; author: Role; reviewer: Role; leadReviewer?: Role; providers?: Record<string, AIProvider>; options: Record<string, AgentOption>; failover?: Failover; identities?: Identities };
+export type Answers = { repos: string[]; author: Role; reviewer: Role; leadReviewer?: Role; providers: Record<string, AIProvider>; failover?: Failover; identities?: Identities };
 
 /** `forge:<agent>` or `gh`, the form used by flags and by the prompts' values. */
 export function parseIdentity(text: string): Identity {
@@ -22,7 +22,7 @@ export function parseIdentity(text: string): Identity {
 export const identityText = (identity: Identity) => (identity.kind === 'gh' ? 'gh' : `forge:${identity.agent}`);
 
 /** `<harness>:<model>`, the harness being one of `harnessNames`. */
-export function parseHarnessModel(text: string): Pick<AgentOption, 'harness' | 'model'> {
+export function parseHarnessModel(text: string): { harness: HarnessName; model: string } {
   const match = new RegExp(`^(${harnessNames.join('|')}):(.+)$`).exec(text);
   if (match === null) throw new Error(`invalid agent "${text}", expected "<harness>:<model>" with harness one of ${harnessNames.join(", ")}`);
   return { harness: match[1] as HarnessName, model: match[2]! };
@@ -38,7 +38,7 @@ export function parseProvider(text: string): LocalProvider {
 const profileName = (identity: Identity) => (identity.kind === 'gh' ? 'gh' : identity.agent);
 
 /** The user config (what goes in the file): only what has no default. The author's profile also acts as orchestrator. */
-export function buildConfig({ repos, author, reviewer, leadReviewer, providers, options, failover, identities }: Answers) {
+export function buildConfig({ repos, author, reviewer, leadReviewer, providers, failover, identities }: Answers) {
   const [a, r] = [profileName(author.identity), profileName(reviewer.identity)];
   const l = leadReviewer ? profileName(leadReviewer.identity) : undefined;
   return {
@@ -50,24 +50,26 @@ export function buildConfig({ repos, author, reviewer, leadReviewer, providers, 
       ...(l && leadReviewer ? { [l]: leadReviewer.identity } : {}),
     },
     orchestratorProfile: a,
-    ...(providers && { providers }),
-    agentOptions: options,
+    providers,
     ...(failover && { failover }),
     agents: {
       author: {
         profile: a,
-        option: author.option,
+        provider: author.provider,
+        model: author.model,
         ...(author.persona && { persona: author.persona }),
       },
       reviewer: {
         profile: r,
-        option: reviewer.option,
+        provider: reviewer.provider,
+        model: reviewer.model,
         ...(reviewer.persona && { persona: reviewer.persona }),
       },
       ...(leadReviewer && l ? {
         leadReviewer: {
           profile: l,
-          option: leadReviewer.option,
+          provider: leadReviewer.provider,
+          model: leadReviewer.model,
           ...(leadReviewer.persona && { persona: leadReviewer.persona }),
         },
       } : {}),

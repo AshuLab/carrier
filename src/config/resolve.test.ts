@@ -6,14 +6,18 @@ const base = {
   repos: [{ name: 'AshuLab/carrier' }],
   profiles: { a: { kind: 'gh' }, b: { kind: 'gh' }, c: { kind: 'gh' } },
   orchestratorProfile: 'a',
-  agentOptions: { claude: { harness: 'claude', model: 'm1' }, codex: { harness: 'codex', model: 'm2' }, local: { harness: 'codex', model: 'm3', provider: 'ollama', configDir: '/srv/codex' } },
+  providers: {
+    claude: { harness: 'claude' },
+    codex: { harness: 'codex' },
+    local: { harness: 'codex', provider: 'ollama', configDir: '/srv/codex' },
+  },
   agents: {
-    author: { profile: 'a', option: 'claude' },
-    reviewer: { profile: 'b', option: 'codex' },
+    author: { profile: 'a', provider: 'claude', model: 'm1' },
+    reviewer: { profile: 'b', provider: 'codex', model: 'm2' },
   },
 };
-const resolvedAuthor = { profile: 'a', option: 'claude', harness: 'claude', model: 'm1' };
-const resolvedReviewer = { profile: 'b', option: 'codex', harness: 'codex', model: 'm2' };
+const resolvedAuthor = { profile: 'a', option: 'claude', providerName: 'claude', harness: 'claude', model: 'm1' };
+const resolvedReviewer = { profile: 'b', option: 'codex', providerName: 'codex', harness: 'codex', model: 'm2' };
 
 const load = (user: object) => loadConfig(defaults, { ...base, ...user });
 const errorsOf = (user: object) => {
@@ -33,24 +37,24 @@ describe('resolveRepoConfig', () => {
   });
 
   test('an option override is the one used for that repo, with its provider and configDir', () => {
-    const { agents } = resolveFirst({ repos: [{ name: 'x/y', agents: { reviewer: { option: 'local' } } }] });
-    expect(agents.reviewer).toEqual({ profile: 'b', option: 'local', harness: 'codex', model: 'm3', provider: 'ollama', configDir: '/srv/codex' });
+    const { agents } = resolveFirst({ repos: [{ name: 'x/y', agents: { reviewer: { provider: 'local', model: 'm3' } } }] });
+    expect(agents.reviewer).toEqual({ profile: 'b', option: 'local', providerName: 'local', harness: 'codex', model: 'm3', provider: 'ollama', configDir: '/srv/codex' });
     expect(agents.author).toEqual(resolvedAuthor);
   });
 
   test('overrides replace every field they set', () => {
-    const { agents } = resolveFirst({ repos: [{ name: 'x/y', agents: { author: { profile: 'c', option: 'codex' } } }] });
-    expect(agents.author).toEqual({ profile: 'c', option: 'codex', harness: 'codex', model: 'm2' });
+    const { agents } = resolveFirst({ repos: [{ name: 'x/y', agents: { author: { profile: 'c', provider: 'codex' } } }] });
+    expect(agents.author).toEqual({ profile: 'c', option: 'codex', providerName: 'codex', harness: 'codex', model: 'm1' });
   });
 
   test('effective config round-trips through JSON and carries no extra data', () => {
     const effective = resolveFirst({
       profiles: { ...base.profiles, a: { kind: 'forge', agent: 'secret' } },
-      repos: [{ name: 'x/y', agents: { reviewer: { option: 'local' } } }],
+      repos: [{ name: 'x/y', agents: { reviewer: { provider: 'local', model: 'm3' } } }],
     });
     expect(JSON.parse(JSON.stringify(effective))).toEqual(effective);
     expect(JSON.stringify(effective)).not.toContain('secret');
-    expect(Object.keys(effective)).toEqual(['name', 'sharedIdentity', 'options', 'agents']);
+    expect(Object.keys(effective)).toEqual(['name', 'sharedIdentity', 'providers', 'agents']);
   });
 });
 

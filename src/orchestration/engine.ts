@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
-import { failoverOrderFor, type EffectiveRepoConfig } from '../config/resolve.ts';
+import { failoverOrderFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
 import type { AgentExit, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { failureDetail } from '../execution/failure.ts';
 import { parseCallerResult } from '../execution/caller-result.ts';
@@ -223,10 +223,22 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     for (const epic of db.select().from(epics).where(and(eq(epics.status, 'running'), isNull(epics.stage), isNotNull(epics.choiceDeadline))).orderBy(asc(epics.id)).all()) await awaitChoice(epic);
   }
 
-  // The role of the epic's saved config pointed at another of its saved options: same profile and persona.
-  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string) => {
-    const { profile, persona } = config.agents[role];
-    return { profile, ...(persona && { persona }), ...config.options![name]!, option: name };
+  // The role of the epic's saved config pointed at another of its saved options or providers: same profile and persona.
+  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string): Agent => {
+    const { profile, persona, model } = config.agents[role];
+    const provider = (config.providers ?? config.options)?.[name];
+    if (!provider) throw new Error(`unknown provider or option "${name}"`);
+    const modelStr: string = 'model' in provider && typeof provider.model === 'string' ? provider.model : model;
+    return {
+      profile,
+      model: modelStr,
+      harness: provider.harness,
+      ...(provider.provider && { provider: provider.provider }),
+      ...(provider.configDir && { configDir: provider.configDir }),
+      ...(persona && { persona }),
+      option: name,
+      providerName: name,
+    };
   };
 
   // With failover on, the role that ran out moves to the first option of `order` that has not run out in this epic and its stage runs
@@ -237,9 +249,9 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     if (!config?.failover?.enabled) return { relaunched: false, why: '' };
     const ranOut = [...new Set(db.select({ option: executions.option }).from(executions).where(and(eq(executions.epicId, epicId), eq(executions.failureKind, 'usage_limit'))).orderBy(asc(sql`rowid`)).all().flatMap(({ option }) => option ?? []))];
     const role = stage === 'review' ? 'reviewer' : 'author';
-    const order = failoverOrderFor(config.failover, role) ?? config.failover.default ?? config.failover.order ?? [];
+    const order = failoverOrderFor(config.failover, role) ?? config.failover.default ?? [];
     const next = order.find((name) => !ranOut.includes(name));
-    if (next === undefined) return { relaunched: false, why: `; no option left in failover.order, ran out: ${ranOut.join(', ')}` };
+    if (next === undefined) return { relaunched: false, why: `; no provider left in failover, ran out: ${ranOut.join(', ')}` };
     if (stopping || epic.status !== 'running') return { relaunched: true };
     // Read only; GitHub being down is not a reason to stop: the agent verifies the state first anyway.
     const found = await github.findPullRequest(epic.repo, epic.issue).catch((e) => (failed(e), null));

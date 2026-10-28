@@ -80,7 +80,17 @@ function suggestName(options: Options, option: AgentOption) {
 
 const sameOption = (a: AgentOption, b: AgentOption) => a.harness === b.harness && a.model === b.model && a.provider === b.provider && a.configDir === b.configDir;
 
-/** The option a `--author` or `--reviewer` flag declares: one that is already there, or a new one named after its harness (`<harness>-<role>` when that name is taken). */
+/** The provider and model a `--author` or `--reviewer` flag declares: reuses an existing matching provider, or adds a new one. */
+export function declareFlaggedProvider(providers: Providers, role: string, flag: string, providerFlag?: string): { providers: Providers; providerName: string; model: string } {
+  const { harness, model } = parseHarnessModel(flag);
+  const localProvider = providerFlag ? parseProvider(providerFlag) : undefined;
+  const existing = Object.keys(providers).find((name) => providers[name]!.harness === harness && providers[name]!.provider === localProvider);
+  if (existing !== undefined) return { providers, providerName: existing, model };
+  const name = uniqueName(providers, harness in providers ? `${harness}-${role}` : harness);
+  return { providers: { ...providers, [name]: { harness, ...(localProvider && { provider: localProvider }) } }, providerName: name, model };
+}
+
+/** Legacy flagged declaration helper kept for test backwards-compatibility. */
 export function declareFlagged(options: Options, role: string, flag: string, providerFlag?: string): { options: Options; name: string } {
   const option: AgentOption = { ...parseHarnessModel(flag), ...(providerFlag && { provider: parseProvider(providerFlag) }) };
   const existing = Object.keys(options).find((name) => sameOption(options[name]!, option));
@@ -125,18 +135,22 @@ export async function askRoleOption(ui: Ui, role: RoleName, options: Options, cu
 
 const done = '\0done';
 
-/** With two or more options: whether to move a role to another option when its credits run out, and in which order. */
-export async function askFailover(ui: Ui, options: Options): Promise<Failover | undefined> {
-  const names = Object.keys(options);
+/** With two or more providers: whether to move a role to another provider when its credits run out or errors occur, and in which order. */
+export async function askFailover(ui: Ui, providers: Providers | Options): Promise<Failover | undefined> {
+  const names = Object.keys(providers);
   if (names.length < 2 || !(await ui.confirm('Turn failover on? A role that runs out of credits then moves to the next option you list, so its code can reach another provider.'))) return undefined;
   const order: string[] = [];
   while (order.length < names.length) {
     const pick = await ui.select({
       message: `Failover order: which option goes ${order.length === 0 ? 'first' : 'next'}?`,
-      options: [...names.filter((name) => !order.includes(name)).map((name) => ({ value: name, label: name, hint: optionLine(options[name]!) })), ...(order.length > 0 ? [{ value: done, label: 'That is all' }] : [])],
+      options: [...names.filter((name) => !order.includes(name)).map((name) => {
+        const item = providers[name]!;
+        const hint = 'model' in item ? optionLine(item as AgentOption) : providerLine(item as AIProvider);
+        return { value: name, label: name, hint };
+      }), ...(order.length > 0 ? [{ value: done, label: 'That is all' }] : [])],
     });
     if (pick === done) break;
     order.push(pick);
   }
-  return { enabled: true, triggers: ['usage_limit', 'rate_limit', 'service_down'], default: order, order };
+  return { enabled: true, triggers: ['usage_limit', 'rate_limit', 'service_down'], default: order };
 }

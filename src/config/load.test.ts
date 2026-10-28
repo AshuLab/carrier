@@ -8,10 +8,10 @@ const valid = {
   repos: [{ name: 'AshuLab/carrier' }],
   profiles: { 'author-bot': { kind: 'forge', agent: 'artanis-agent' }, 'reviewer-bot': { kind: 'gh' } },
   orchestratorProfile: 'author-bot',
-  agentOptions: { claude: { harness: 'claude', model: 'm' }, codex: { harness: 'codex', model: 'm' } },
+  providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } },
   agents: {
-    author: { profile: 'author-bot', option: 'claude' },
-    reviewer: { profile: 'reviewer-bot', option: 'codex' },
+    author: { profile: 'author-bot', provider: 'claude', model: 'm' },
+    reviewer: { profile: 'reviewer-bot', provider: 'codex', model: 'm' },
   },
 };
 
@@ -69,7 +69,7 @@ describe('merge', () => {
 describe('invalid config', () => {
   test('missing required fields are all listed at once', () => {
     const paths = loadConfig(defaults, {}) as { errors: { path: string }[] };
-    expect(paths.errors.map((e) => e.path).sort()).toEqual(['agentOptions', 'agents', 'orchestratorProfile', 'profiles', 'repos']);
+    expect(paths.errors.map((e) => e.path).sort()).toEqual(['agents', 'orchestratorProfile', 'profiles', 'providers', 'repos']);
   });
 
   test('empty repos', () => {
@@ -126,7 +126,7 @@ describe('maxExecutionHours', () => {
 });
 
 describe('identities', () => {
-  const same = { profiles: { me: { kind: 'gh' }, bot: { kind: 'gh' } }, orchestratorProfile: 'me', agents: { author: { profile: 'me', option: 'claude' }, reviewer: { profile: 'me', option: 'codex' } } };
+  const same = { profiles: { me: { kind: 'gh' }, bot: { kind: 'gh' } }, orchestratorProfile: 'me', providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } }, agents: { author: { profile: 'me', provider: 'claude', model: 'm' }, reviewer: { profile: 'me', provider: 'codex', model: 'm' } } };
   const perRepo = { ...valid, repos: [{ name: 'a/one' }, { name: 'a/two', agents: { reviewer: { profile: 'author-bot' } } }, { name: 'a/three', agents: { reviewer: { profile: 'author-bot' } } }] };
 
   test('defaults to separate', () => {
@@ -153,21 +153,21 @@ describe('identities', () => {
     expect(errorsOf({ ...same, identities: 'shared', orchestratorProfile: 'ghost' }).map((e) => e.path)).toEqual(['orchestratorProfile']);
   });
 
-  test('lead reviewer profile and option validation', () => {
-    expect(load({ agents: { ...valid.agents, leadReviewer: { profile: 'reviewer-bot', option: 'claude' } } })).toMatchObject({
+  test('lead reviewer profile and provider validation', () => {
+    expect(load({ agents: { ...valid.agents, leadReviewer: { profile: 'reviewer-bot', provider: 'claude', model: 'm' } } })).toMatchObject({
       ok: true,
-      config: { agents: { leadReviewer: { profile: 'reviewer-bot', option: 'claude' } } },
+      config: { agents: { leadReviewer: { profile: 'reviewer-bot', provider: 'claude', model: 'm' } } },
     });
     // Under separate identities, lead reviewer cannot share profile with author
-    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'author-bot', option: 'claude' } } })).toEqual([
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'author-bot', provider: 'claude', model: 'm' } } })).toEqual([
       { path: 'agents', message: expect.stringContaining('agents.author.profile and agents.leadReviewer.profile must differ') },
     ]);
-    // Unknown profile or option
-    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'phantom', option: 'claude' } } })).toEqual([
+    // Unknown profile or provider
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'phantom', provider: 'claude', model: 'm' } } })).toEqual([
       { path: 'agents.leadReviewer.profile', message: expect.stringContaining('phantom') },
     ]);
-    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'reviewer-bot', option: 'phantom' } } })).toEqual([
-      { path: 'agents.leadReviewer.option', message: expect.stringContaining('phantom') },
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'reviewer-bot', provider: 'phantom', model: 'm' } } })).toEqual([
+      { path: 'agents.leadReviewer.provider', message: expect.stringContaining('phantom') },
     ]);
   });
 
@@ -218,83 +218,80 @@ describe('repos', () => {
   });
 });
 
-describe('agent options', () => {
-  const withOptions = (agentOptions: object, agents: object = valid.agents) => ({ agentOptions, agents });
-  const optionPaths = (agentOptions: object, agents?: object) => errorsOf(withOptions(agentOptions, agents)).map((e) => e.path);
+describe('providers', () => {
+  const withProviders = (providers: object, agents: object = valid.agents) => ({ providers, agents });
+  const providerPaths = (providers: object, agents?: object) => errorsOf(withProviders(providers, agents)).map((e) => e.path);
 
-  test('roles point at declared options, and a repo override of `option` is the one resolved for that repo', () => {
-    expect(load({})).toMatchObject({ ok: true, config: { agentOptions: valid.agentOptions, agents: { author: { option: 'claude' }, reviewer: { option: 'codex' } } } });
-    const result = load({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { option: 'claude' } } }] });
-    expect(result).toMatchObject({ ok: true, config: { repos: [{ agents: { reviewer: { option: 'claude' } } }] } });
+  test('roles point at declared providers', () => {
+    expect(load({})).toMatchObject({ ok: true, config: { providers: valid.providers, agents: { author: { provider: 'claude' }, reviewer: { provider: 'codex' } } } });
+    const result = load({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { provider: 'claude' } } }] });
+    expect(result).toMatchObject({ ok: true, config: { repos: [{ agents: { reviewer: { provider: 'claude' } } }] } });
   });
 
   test('`provider` is optional and only lmstudio or ollama', () => {
-    expect(load(withOptions({ ...valid.agentOptions, codex: { harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio' } }))).toMatchObject({ ok: true, config: { agentOptions: { codex: { provider: 'lmstudio' } } } });
-    expect(optionPaths({ ...valid.agentOptions, codex: { harness: 'codex', model: 'm', provider: 'vllm' } })).toEqual(['agentOptions.codex.provider']);
+    expect(load(withProviders({ ...valid.providers, codex: { harness: 'codex', provider: 'lmstudio' } }))).toMatchObject({ ok: true, config: { providers: { codex: { provider: 'lmstudio' } } } });
+    expect(providerPaths({ ...valid.providers, codex: { harness: 'codex', provider: 'vllm' } })).toEqual(['providers.codex.provider']);
   });
 
   test('agy is a harness, but it cannot use a provider', () => {
-    expect(load(withOptions({ ...valid.agentOptions, agy: { harness: 'agy', model: 'gemini-3.8-flash-low' } }, { ...valid.agents, author: { profile: 'author-bot', option: 'agy' } }))).toMatchObject({ ok: true });
-    expect(errorsOf(withOptions({ ...valid.agentOptions, claude: { harness: 'agy', model: 'm', provider: 'ollama' } }))).toEqual([{ path: 'agentOptions.claude.provider', message: 'agentOptions.claude: agy cannot use the provider "ollama"' }]);
+    expect(load(withProviders({ ...valid.providers, agy: { harness: 'agy' } }, { ...valid.agents, author: { profile: 'author-bot', provider: 'agy', model: 'gemini-3.8-flash-low' } }))).toMatchObject({ ok: true });
+    expect(errorsOf(withProviders({ ...valid.providers, claude: { harness: 'agy', provider: 'ollama' } }))).toEqual([{ path: 'providers.claude.provider', message: 'providers.claude: agy cannot use the provider "ollama"' }]);
   });
 
-  test('an option name is a lowercase word of up to 40 characters', () => {
-    const option = { harness: 'codex', model: 'm' };
-    for (const name of ['a', 'claude-ashu', 'x1-2', 'a'.repeat(40)]) expect(load(withOptions({ ...valid.agentOptions, [name]: option })).ok).toBe(true);
+  test('a provider name is a lowercase word of up to 40 characters', () => {
+    const provider = { harness: 'codex' };
+    for (const name of ['a', 'claude-ashu', 'x1-2', 'a'.repeat(40)]) expect(load(withProviders({ ...valid.providers, [name]: provider })).ok).toBe(true);
     for (const name of ['Claude', '1claude', '-claude', 'claude_work', 'claude work', '', 'a'.repeat(41)]) {
-      const errors = errorsOf(withOptions({ ...valid.agentOptions, [name]: option }));
-      expect(errors.map((e) => e.path)).toEqual([`agentOptions.${name}`]);
+      const errors = errorsOf(withProviders({ ...valid.providers, [name]: provider }));
+      expect(errors.map((e) => e.path)).toEqual([`providers.${name}`]);
       expect(errors[0]!.message).toContain('lowercase word');
     }
   });
 
-  test('a role or a repo override pointing at an option that is not declared names the field', () => {
-    expect(errorsOf({ agents: { ...valid.agents, reviewer: { ...valid.agents.reviewer, option: 'ghost' } } })).toEqual([{ path: 'agents.reviewer.option', message: expect.stringContaining('ghost') }]);
-    expect(errorsOf({ repos: [{ name: 'x/y', agents: { author: { option: 'phantom' } } }] })).toEqual([{ path: 'repos.0.agents.author.option', message: expect.stringContaining('phantom') }]);
+  test('a role or a repo override pointing at a provider that is not declared names the field', () => {
+    expect(errorsOf({ agents: { ...valid.agents, reviewer: { ...valid.agents.reviewer, provider: 'ghost' } } })).toEqual([{ path: 'agents.reviewer.provider', message: expect.stringContaining('ghost') }]);
+    expect(errorsOf({ repos: [{ name: 'x/y', agents: { author: { provider: 'phantom' } } }] })).toEqual([{ path: 'repos.0.agents.author.provider', message: expect.stringContaining('phantom') }]);
   });
 
   test('`configDir` is expanded from ~ and must then be absolute; an empty one is refused', () => {
-    expect(load(withOptions({ ...valid.agentOptions, claude: { harness: 'claude', model: 'm', configDir: '~/.claude-ashu' } }))).toMatchObject({ ok: true, config: { agentOptions: { claude: { configDir: join(homedir(), '.claude-ashu') } } } });
-    expect(load(withOptions({ ...valid.agentOptions, codex: { harness: 'codex', model: 'm', configDir: '/srv/codex' } }))).toMatchObject({ ok: true, config: { agentOptions: { codex: { configDir: '/srv/codex' } } } });
-    for (const configDir of ['', 'relative/dir', '.claude', '~other/dir']) expect(optionPaths({ ...valid.agentOptions, claude: { harness: 'claude', model: 'm', configDir } })).toEqual(['agentOptions.claude.configDir']);
+    expect(load(withProviders({ ...valid.providers, claude: { harness: 'claude', configDir: '~/.claude-ashu' } }))).toMatchObject({ ok: true, config: { providers: { claude: { configDir: join(homedir(), '.claude-ashu') } } } });
+    expect(load(withProviders({ ...valid.providers, codex: { harness: 'codex', configDir: '/srv/codex' } }))).toMatchObject({ ok: true, config: { providers: { codex: { configDir: '/srv/codex' } } } });
+    for (const configDir of ['', 'relative/dir', '.claude', '~other/dir']) expect(providerPaths({ ...valid.providers, claude: { harness: 'claude', configDir } })).toEqual(['providers.claude.configDir']);
   });
 
-  test('an agy option cannot have a `configDir`', () => {
-    const errors = errorsOf(withOptions({ ...valid.agentOptions, claude: { harness: 'agy', model: 'm', configDir: '/srv/agy' } }));
-    expect(errors).toEqual([{ path: 'agentOptions.claude.configDir', message: expect.stringContaining('agy') }]);
+  test('an agy provider cannot have a `configDir`', () => {
+    const errors = errorsOf(withProviders({ ...valid.providers, claude: { harness: 'agy', configDir: '/srv/agy' } }));
+    expect(errors).toEqual([{ path: 'providers.claude.configDir', message: expect.stringContaining('agy') }]);
   });
 
-  test('an unknown field inside an option is refused', () => {
-    const errors = errorsOf(withOptions({ ...valid.agentOptions, claude: { harness: 'claude', model: 'm', token: 'x' } }));
-    expect(errors).toEqual([{ path: 'agentOptions.claude', message: expect.stringContaining('token') }]);
+  test('an unknown field inside a provider is refused', () => {
+    const errors = errorsOf(withProviders({ ...valid.providers, claude: { harness: 'claude', token: 'x' } }));
+    expect(errors).toEqual([{ path: 'providers.claude', message: expect.stringContaining('token') }]);
   });
 
-  test.each(['harness', 'model', 'provider'])('the old shape, `%s` inside agents.<role> or a repo override, is refused with where it went', (key) => {
-    const paths = (user: object) => errorsOf(user).map((e) => e.path);
-    const old = { ...valid.agents, author: { ...valid.agents.author, [key]: key === 'model' ? 'm' : key === 'harness' ? 'claude' : 'ollama' } };
-    const errors = errorsOf({ agents: old });
-    expect(errors).toEqual([{ path: `agents.author.${key}`, message: expect.stringMatching(new RegExp(`"${key}" moved to agentOptions.*docs/configuration\\.md`)) }]);
-    expect(paths({ repos: [{ name: 'x/y', agents: { reviewer: { [key]: 'x' } } }] })).toEqual([`repos.0.agents.reviewer.${key}`]);
+  test('`option` inside agents.<role> or a repo override is refused with where it went', () => {
+    const errors = errorsOf({ agents: { ...valid.agents, author: { ...valid.agents.author, option: 'legacy' } } });
+    expect(errors).toEqual([{ path: 'agents.author.option', message: expect.stringMatching(/was replaced by "provider" and "model"/) }]);
   });
 });
 
 describe('failover', () => {
-  const failover = (order: string[], enabled = true) => ({ failover: { enabled, order } });
+  const failover = (defaultOrder: string[], enabled = true) => ({ failover: { enabled, default: defaultOrder } });
 
-  test('absent means off, and a declared order loads as written', () => {
+  test('absent means off, and a declared default loads as written', () => {
     const absent = load({});
     expect(absent.ok && absent.config.failover).toBeUndefined();
-    expect(load(failover(['codex', 'claude']))).toMatchObject({ ok: true, config: { failover: { enabled: true, order: ['codex', 'claude'] } } });
+    expect(load(failover(['codex', 'claude']))).toMatchObject({ ok: true, config: { failover: { enabled: true, default: ['codex', 'claude'] } } });
     expect(load(failover([], false)).ok).toBe(true);
   });
 
-  test('a name that is not declared in agentOptions is refused, naming the field', () => {
-    expect(errorsOf(failover(['codex', 'ghost']))).toEqual([{ path: 'failover.order.1', message: 'failover.order: option "ghost" is not declared in agentOptions' }]);
-    expect(errorsOf(failover(['codex', 'constructor']))).toEqual([{ path: 'failover.order.1', message: 'failover.order: option "constructor" is not declared in agentOptions' }]); // an inherited property is not an option
+  test('a name that is not declared in providers is refused, naming the field', () => {
+    expect(errorsOf(failover(['codex', 'ghost']))).toEqual([{ path: 'failover.default.1', message: 'failover.default: provider "ghost" is not declared in providers' }]);
+    expect(errorsOf(failover(['codex', 'constructor']))).toEqual([{ path: 'failover.default.1', message: 'failover.default: provider "constructor" is not declared in providers' }]);
   });
 
   test('a duplicate name is refused, naming the field', () => {
-    expect(errorsOf(failover(['codex', 'claude', 'codex']))).toEqual([{ path: 'failover.order.2', message: 'failover.order: option "codex" appears twice' }]);
+    expect(errorsOf(failover(['codex', 'claude', 'codex']))).toEqual([{ path: 'failover.default.2', message: 'failover.default: provider "codex" appears twice' }]);
   });
 
   test('default and role-specific failover chains with triggers load as written', () => {
@@ -321,12 +318,12 @@ describe('failover', () => {
     });
   });
 
-  test('a name in default or roles not declared in agentOptions is refused', () => {
+  test('a name in default or roles not declared in providers is refused', () => {
     expect(errorsOf({ failover: { enabled: true, default: ['codex', 'ghost'] } })).toEqual([
-      { path: 'failover.default.1', message: 'failover.default: option "ghost" is not declared in agentOptions' },
+      { path: 'failover.default.1', message: 'failover.default: provider "ghost" is not declared in providers' },
     ]);
     expect(errorsOf({ failover: { enabled: true, roles: { author: ['ghost'] } } })).toEqual([
-      { path: 'failover.roles.author.0', message: 'failover.roles.author: option "ghost" is not declared in agentOptions' },
+      { path: 'failover.roles.author.0', message: 'failover.roles.author: provider "ghost" is not declared in providers' },
     ]);
   });
 
@@ -337,8 +334,8 @@ describe('failover', () => {
   });
 
   test('`enabled` is required, and an unknown field is refused', () => {
-    expect(errorsOf({ failover: { order: ['codex'] } }).map((e) => e.path)).toEqual(['failover.enabled']);
-    expect(errorsOf({ failover: { enabled: true, order: ['codex'], retries: 2 } }).map((e) => e.path)).toEqual(['failover']);
+    expect(errorsOf({ failover: { default: ['codex'] } }).map((e) => e.path)).toEqual(['failover.enabled']);
+    expect(errorsOf({ failover: { enabled: true, default: ['codex'], retries: 2 } }).map((e) => e.path)).toEqual(['failover']);
   });
 });
 

@@ -14,13 +14,13 @@ The file is a JSON object merged over the defaults: objects merge field by field
     "reviewer-bot": { "kind": "forge", "agent": "<forge-agent-2>" }
   },
   "orchestratorProfile": "author-bot",
-  "agentOptions": {
-    "claude": { "harness": "claude", "model": "<model>" },
-    "codex": { "harness": "codex", "model": "<model>" }
+  "providers": {
+    "claude": { "harness": "claude" },
+    "codex": { "harness": "codex" }
   },
   "agents": {
-    "author": { "profile": "author-bot", "option": "claude" },
-    "reviewer": { "profile": "reviewer-bot", "option": "codex" }
+    "author": { "profile": "author-bot", "provider": "claude", "model": "<model>" },
+    "reviewer": { "profile": "reviewer-bot", "provider": "codex", "model": "<model>" }
   }
 }
 ```
@@ -32,12 +32,11 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `repos` | yes, at least one | | Repos to watch. Each is `{ "name": "owner/name", "agents"?: ... }`. |
 | `profiles` | yes | | The GitHub identities you can use, by name (below). |
 | `orchestratorProfile` | yes | | Profile used to read issues and PRs and to change labels. It may be the author's. |
-| `providers` | no | | Configured AI accounts/logins (`harness`, `configDir?`, `provider?`). See [AI providers](#ai-providers). |
-| `agentOptions` | yes | | The ways to run an agent, by name. See [Agent options](#agent-options). |
-| `agents.author` / `agents.reviewer` | yes | | `{ profile, option, persona? }` for each role: the GitHub identity it acts as and the name of the agent option it runs on. |
-| `agents.leadReviewer` | no | none | Optional technical lead role `{ profile, option, persona? }` that evaluates overall architecture and production readiness after the author and reviewer agree. |
+| `providers` | yes | | Configured AI accounts/logins (`harness`, `configDir?`, `provider?`). See [AI providers](#ai-providers). |
+| `agents.author` / `agents.reviewer` | yes | | `{ profile, provider, model, persona? }` for each role: the GitHub identity it acts as, the AI provider it connects through, and the model it uses. |
+| `agents.leadReviewer` | no | none | Optional technical lead role `{ profile, provider, model, persona? }` that evaluates overall architecture and production readiness after the author and reviewer agree. |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
-| `failover` | no | off | `{ enabled, order }`: moves a role to the next agent option when its credits run out. See [Failover](#failover). |
+| `failover` | no | off | `{ enabled, triggers?, default?, roles? }`: moves a role to the next AI provider when its credits run out or service fails. See [Failover](#failover). |
 | `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `finishedWindowDays` | no | `15` | Days a merged or cancelled epic stays in the snapshot after it ends, a whole number from 1 to 30 (30 is the retention purge). |
@@ -49,59 +48,55 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
-| `limits.optionChoiceSeconds` | no | `60` | With two or more `agentOptions`, how long a reserved epic holds its slot waiting for the option of each role to be chosen. When it passes, or nobody answers, the epic starts on the options of `agents`. With one option nothing waits. |
+| `limits.optionChoiceSeconds` | no | `60` | With two or more `providers`, how long a reserved epic holds its slot waiting for the provider of each role to be chosen. When it passes, or nobody answers, the epic starts on the defaults of `agents`. With one provider nothing waits. |
 
 ## AI providers
 
-An AI provider is an account/login setup for an AI harness (e.g. Claude Code with a specific `configDir`, Antigravity, or Codex). Unlike `agentOptions`, a provider defines the account or installation independently of the model.
+An AI provider represents an account/login setup for an AI harness (e.g. Claude Code with a specific `configDir`, Antigravity, or Codex). A provider defines the account and installation independently of the model.
 
 ```json
 "providers": {
   "claude-work": { "harness": "claude", "configDir": "~/.claude-work" },
   "claude-personal": { "harness": "claude", "configDir": "~/.claude" },
+  "codex": { "harness": "codex" },
   "agy": { "harness": "agy" }
 }
 ```
 
-`carrier init` configures your AI providers upfront in Stage 2, before role assignment. When assigning roles in Stage 4, you pick which provider runs the author and reviewer and specify the model.
+| Field of a provider | Required | Meaning |
+|----------------------|----------|---------|
+| (the key) | | The provider's name: a lowercase word, with letters, digits and hyphens, starting with a letter, up to 40 characters. |
+| `harness` | yes | The agent CLI that runs it: `claude` (Claude Code), `codex` or `agy` (Antigravity). |
+| `provider` | no | Who serves the model: `lmstudio` or `ollama` for a local server; without it, the harness's own cloud. See [Local models](#local-models). Not for `agy`. |
+| `configDir` | no | The harness's config folder, which holds its login: `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. It must be an absolute path once a leading `~` is expanded. Without it the agent inherits the environment of the process that started Carrier. Not for `agy`. |
 
-## Agent options
+`carrier init` configures your AI providers upfront in Stage 2, before role assignment. When assigning roles in Stage 4, each role points at a declared provider and specifies its model.
 
-An agent option is a named way to run an agent. The config declares them once in `agentOptions`, and each role points at one by name in `agents.<role>.option`, the way it points at a profile.
+## Agents and roles
+
+Each role in `agents` (`author`, `reviewer`, and optional `leadReviewer`) specifies its GitHub identity (`profile`), its AI connection (`provider`), the `model` it runs on, and an optional `persona`.
 
 ```json
-"agentOptions": {
-  "claude-ashu": { "harness": "claude", "model": "opus", "configDir": "~/.claude-ashu-lab" },
-  "claude-personal": { "harness": "claude", "model": "opus", "configDir": "~/.claude" },
-  "codex": { "harness": "codex", "model": "<model>" }
-},
 "agents": {
-  "author": { "profile": "author-bot", "option": "claude-ashu" },
-  "reviewer": { "profile": "reviewer-bot", "option": "codex" }
+  "author": { "profile": "author-bot", "provider": "claude-work", "model": "sonnet" },
+  "reviewer": { "profile": "reviewer-bot", "provider": "codex", "model": "gpt-5.3-codex" },
+  "leadReviewer": { "profile": "reviewer-bot", "provider": "claude-personal", "model": "opus" }
 }
 ```
 
-| Field of an option | Required | Meaning |
-|--------------------|----------|---------|
-| (the key) | | The option's name: a lowercase word, with letters, digits and hyphens, starting with a letter, up to 40 characters. |
-| `harness` | yes | The agent CLI that runs it: `claude` (Claude Code), `codex` or `agy` (Antigravity). |
-| `model` | yes | For Claude prefer an alias (`sonnet`, `opus`, ...): the CLI resolves it to the latest model, so it does not go stale. Codex has no aliases: use an id from `codex`'s own list; for Antigravity, one from `agy models` (`carrier init` offers all of them). |
-| `provider` | no | Who serves the model: `lmstudio` or `ollama` for a local server; without it, the harness's own cloud. See [Local models](#local-models). Not for `agy`. |
-| `configDir` | no | The harness's config folder, which holds its login: `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. It must be an absolute path once a leading `~` is expanded. Without it the agent inherits the environment of the process that started Carrier. Not for `agy`, which has no setting for it. |
+- For Claude models, prefer an alias (`sonnet`, `opus`, ...): the CLI resolves it to the latest model, so it does not go stale.
+- Codex has no aliases: use an id from `codex`'s own list.
+- For Antigravity, use an id from `agy models` (`carrier init` offers all of them).
 
-`carrier init` writes this shape: a section of its own adds the options, each role then picks one, and `--author` / `--reviewer` (`<harness>:<model>`) declare one option named after its harness for unattended runs. Run again on an existing config it keeps `agentOptions` and `failover` and lets you add options; editing or removing one is done in the file.
+### Choosing the provider of an epic
 
-A repo's `agents.<role>` can override `profile`, `option` and `persona`; the option is looked up in the same `agentOptions`. `harness`, `model` and `provider` used to be written inside `agents.<role>`: a config that still does so is refused, with a message that says they moved here. There is no migration; move the three fields into an option and point the role at it.
-
-### Choosing the option of an epic
-
-With one option nothing is asked. With two or more, a reserved epic does not start its author at once: it holds its slot for `limits.optionChoiceSeconds` (default 60) while the option of each role can be chosen over the control socket (`chooseOptions`, listed in the hello's `capabilities` as `agentOptions`). `carrier status` shows the epic as waiting for its choice, with the seconds left. A role that is not chosen runs on the option `agents.<role>.option` names, and so does every role when the time passes, when nobody answers, or when Carrier starts again after the deadline. The definitions of the options are saved with the epic when it is reserved: editing the config later changes no epic that is waiting or running.
+With one provider nothing is asked. With two or more, a reserved epic does not start its author at once: it holds its slot for `limits.optionChoiceSeconds` (default 60) while the provider of each role can be chosen over the control socket (`chooseOptions`, listed in the hello's `capabilities` as `agentOptions`). `carrier status` shows the epic as waiting for its choice, with the seconds left. A role that is not chosen runs on the provider `agents.<role>.provider` names, and so does every role when the time passes, when nobody answers, or when Carrier starts again after the deadline.
 
 ### Failover
 
 Off unless the config has a `failover` block with `enabled: true`.
 
-Failover automatically moves an agent to the next option in its fallback chain when an execution fails due to account/provider issues, without wasting technical retries on a broken provider.
+Failover automatically moves an agent to the next provider in its fallback chain when an execution fails due to account/provider issues, without wasting technical retries on a broken provider.
 
 ```jsonc
 "failover": {
@@ -115,8 +110,8 @@ Failover automatically moves an agent to the next option in its fallback chain w
   // Optional role-specific fallback chains:
   "roles": {
     "author": ["claude-teams", "claude-personal", "codex"],
-    "reviewer": ["codex-reviewer", "claude-reviewer"],
-    "leadReviewer": ["opus-work", "opus-personal", "gemini-pro"]
+    "reviewer": ["codex", "claude-personal"],
+    "leadReviewer": ["claude-personal", "codex"]
   }
 }
 ```
@@ -129,11 +124,11 @@ Failover automatically moves an agent to the next option in its fallback chain w
 #### Fallback resolution
 When a role experiences a failure matching `triggers`:
 1. Carrier checks `failover.roles.<role>`. If defined, it uses that role's fallback chain.
-2. Otherwise, it falls back to `failover.default` (or `failover.order`).
-3. The role moves to the next option in the chain that has not already failed in this epic. The stage restarts as a fresh session in the epic's worktree with its context rebuilt from SQLite and GitHub (spending no retry and emitting an `option_switched` event).
-4. If no options in the chain are left, the epic stops in `needs-human` detailing which options failed.
+2. Otherwise, it falls back to `failover.default`.
+3. The role moves to the next provider in the chain that has not already failed in this epic. The stage restarts as a fresh session in the epic's worktree with its context rebuilt from SQLite and GitHub (spending no retry and emitting an `option_switched` event).
+4. If no providers in the chain are left, the epic stops in `needs-human` detailing which providers failed.
 
-Every option name in `default`, `order`, or `roles.<role>` must be declared in `agentOptions`, and none may appear twice within the same list.
+Every provider name in `default` or `roles.<role>` must be declared in `providers`, and none may appear twice within the same list.
 
 ## Personas
 
@@ -141,7 +136,12 @@ A role, author or reviewer, can have a persona: a name and a prompt that say who
 
 ```json
 "agents": {
-  "reviewer": { "profile": "reviewer-bot", "option": "codex", "persona": { "name": "Rex", "prompt": "Be strict about migrations." } }
+  "reviewer": {
+    "profile": "reviewer-bot",
+    "provider": "codex",
+    "model": "gpt-5.3-codex",
+    "persona": { "name": "Rex", "prompt": "Be strict about migrations." }
+  }
 }
 ```
 
@@ -163,10 +163,16 @@ With `identities: "shared"` the author and the reviewer may use the same profile
 A repo inherits every value from the global `agents` and replaces only what it names:
 
 ```json
-{ "name": "AshuLab/big-repo", "agents": { "reviewer": { "option": "claude-personal" }, "author": { "profile": "other-bot" } } }
+{
+  "name": "AshuLab/big-repo",
+  "agents": {
+    "reviewer": { "provider": "claude-personal", "model": "opus" },
+    "author": { "profile": "other-bot" }
+  }
+}
 ```
 
-Profile names used in an override must exist in `profiles`, and option names in `agentOptions`. Under `identities: "separate"` the author and the reviewer must still differ after the override.
+Profile names used in an override must exist in `profiles`, and provider names in `providers`. Under `identities: "separate"` the author and the reviewer must still differ after the override.
 
 ## Chat agents
 
@@ -192,25 +198,29 @@ A chat (`carrier chat`) starts with one of the agents listed in `chat.agents`. W
 
 ## Things that are checked
 
-- Every profile named anywhere is declared in `profiles`, and every option named anywhere in `agentOptions`.
-- Every name in `failover.order` is declared in `agentOptions` and appears once.
-- Option names are lowercase words, a `configDir` is absolute after `~` is expanded, and an option has no field this page does not list.
+- Every profile named anywhere is declared in `profiles`, and every provider named anywhere in `providers`.
+- Every name in `failover.default` or `failover.roles` is declared in `providers` and appears once per list.
+- Provider names are lowercase words, a `configDir` is absolute after `~` is expanded, and a provider has no field this page does not list.
 - Repo names are `owner/name`, and no two repos share the same folder name (Solve's worktree paths have no owner).
-- A `provider` is only accepted for a harness that can use it (Claude Code and Codex; not Antigravity), and so is a `configDir`.
+- A `provider` (local model server) is only accepted for a harness that can use it (Claude Code and Codex; not Antigravity), and so is a `configDir`.
 - Each chat agent has a lowercase name, a harness of `claude` or `codex`, and a `command` and `model` that are not empty when present.
 - The effective configuration of an epic is saved, without credentials, when it starts and kept when it resumes, even if you change the file in between.
 
 ## Local models
 
-An agent option is three separate things: the **harness** (the CLI that runs the loop and the tools), the **provider** that serves the model, and the **model**. By default the provider is the harness's own cloud; it can also be a local server. An agent can use a model served by [LM Studio](https://lmstudio.ai) or [Ollama](https://ollama.com) on this machine instead of a cloud model. The harness is still Claude Code or Codex, which talk to the local server:
+A provider defines the **harness** (the CLI that runs the loop and the tools) and where it connects. By default the connection is the harness's own cloud; it can also be a local model server. An agent can use a model served by [LM Studio](https://lmstudio.ai) or [Ollama](https://ollama.com) on this machine instead of a cloud model. The harness is still Claude Code or Codex, which talk to the local server:
 
 ```json
-"agentOptions": { "local": { "harness": "codex", "model": "google/gemma-4-12b", "provider": "lmstudio" } },
-"agents": { "reviewer": { "profile": "reviewer-bot", "option": "local" } }
+"providers": {
+  "local": { "harness": "codex", "provider": "lmstudio" }
+},
+"agents": {
+  "reviewer": { "profile": "reviewer-bot", "provider": "local", "model": "google/gemma-4-12b" }
+}
 ```
 
 - **Codex** gets `-c model_provider="lmstudio"` (or `ollama`); **Claude Code** gets `ANTHROPIC_BASE_URL` pointing at the server (and a placeholder token, never your real API key).
 - The servers are expected on their default ports (LM Studio `1234`, Ollama `11434`). Start the server and download the model first; `carrier doctor` checks both, and `carrier init` lists the models the running server has.
-- Antigravity (`agy`) cannot be pointed at a local server: `provider` on an option with `harness: "agy"` is rejected. Its models come from `agy models`, which `carrier init` lists.
-- A per-repo override points a role at another option, so to go back to a cloud model in one repo, override `option` with one that has no `provider`.
+- Antigravity (`agy`) cannot be pointed at a local server: `provider` on an entry with `harness: "agy"` is rejected. Its models come from `agy models`, which `carrier init` lists.
+- A per-repo override points a role at another provider, so to go back to a cloud model in one repo, override `provider` with one that has no local `provider`.
 - Expect it to be **slow** (a trivial prompt took 15 to 140 s on a laptop, mostly loading the model and the CLI's long system prompt) and **weaker** on long agentic work. `ship` and a full review make hundreds of tool calls; small local models often lose the thread. A local reviewer is the realistic use; test it on a throwaway epic before trusting it.

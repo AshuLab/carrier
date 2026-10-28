@@ -25,7 +25,7 @@ export function reserve(db: Db, { maxConcurrent, now, repos, choiceMs }: { maxCo
         .set({
           status: 'running', startedAt: now, config, labelPending: true,
           authorOption: config.agents.author.option ?? null, reviewerOption: config.agents.reviewer.option ?? null,
-          choiceDeadline: Object.keys(config.options ?? {}).length >= 2 ? now + choiceMs : null,
+          choiceDeadline: Object.keys((config.providers ?? config.options) ?? {}).length >= 2 ? now + choiceMs : null,
         })
         .where(eq(epics.id, next.id))
         .returning()

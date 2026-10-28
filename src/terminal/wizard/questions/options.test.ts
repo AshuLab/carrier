@@ -31,7 +31,7 @@ test('the folder is chosen among the ones found, each with its login state, plus
     { value: '\0path', hint: undefined },
   ]);
   const config = load(written[out]!);
-  expect(config.agentOptions).toEqual({ 'claude-ashu-lab': { harness: 'claude', model: 'sonnet', configDir: '/h/.claude-ashu-lab' }, 'claude-ashu-lab-2': { harness: 'claude', model: 'sonnet', configDir: '/h/.claude-ashu-lab' } });
+  expect(config.providers).toEqual({ 'claude-ashu-lab': { harness: 'claude', configDir: '/h/.claude-ashu-lab' }, 'claude-ashu-lab-2': { harness: 'claude', configDir: '/h/.claude-ashu-lab' } });
 });
 
 test('a typed path is validated, and a login that cannot be checked is said so', async () => {
@@ -49,7 +49,7 @@ test('a typed path is validated, and a login that cannot be checked is said so',
   expect(hint).toBe('the login Carrier runs in: could not check the login');
   expect(refused[0]).toBeDefined();
   expect([refused[1], refused[2]]).toEqual([undefined, undefined]);
-  expect(load(written[out]!).agentOptions).toEqual({ 'claude-x': { harness: 'claude', model: 'sonnet', configDir: '~/.claude-x' } });
+  expect(load(written[out]!).providers).toEqual({ 'claude-x': { harness: 'claude', configDir: '~/.claude-x' } });
 });
 
 test('the name is suggested from harness and folder, is normalized to a lowercase slug, and must be unique', async () => {
@@ -62,7 +62,7 @@ test('the name is suggested from harness and folder, is normalized to a lowercas
   expect(names.map(([suggested]) => suggested)).toEqual(['claude', 'codex', 'codex-2']); // `~/.claude` -> claude, `~/.codex` -> codex, and the third codex is not the first
   expect(names[1]!.slice(1).map((v) => v !== undefined)).toEqual([false, true, true, true, false]); // uppercase normalizes to codex (fine); digit first, taken claude and uppercase Claude are refused; ok-1 is fine
   expect(asked.filter((q) => q === 'Add another AI provider?')).toHaveLength(3);
-  expect(Object.keys(load(written[out]!).agentOptions)).toEqual(['claude', 'codex', 'teams-2']);
+  expect(Object.keys(load(written[out]!).providers)).toEqual(['claude', 'codex', 'teams-2']);
 });
 
 test('normalizeOptionName turns human names into kebab-case slugs', () => {
@@ -84,7 +84,7 @@ test('each role asks one question, which option runs it, and the choices are the
   await runInit({ repo: ['A/b'], out }, spy, deps);
   expect(choices['Which AI provider runs the author?']).toEqual(['claude', 'codex']);
   expect(asked.some((q) => q.startsWith('Which agent CLI runs the'))).toBe(false);
-  expect(load(written[out]!).agents).toMatchObject({ author: { option: 'codex' }, reviewer: { option: 'claude' } });
+  expect(load(written[out]!).agents).toMatchObject({ author: { provider: 'codex' }, reviewer: { provider: 'claude' } });
 });
 
 test('with one option the roles are not asked, and neither is failover', async () => {
@@ -94,7 +94,7 @@ test('with one option the roles are not asked, and neither is failover', async (
   await runInit({ repo: ['A/b'], out }, ui, deps);
   expect(asked.some((q) => q.startsWith('Which AI provider runs') || q.startsWith('Turn failover'))).toBe(false);
   const config = load(written[out]!);
-  expect(config.agents).toMatchObject({ author: { option: 'claude' }, reviewer: { option: 'claude' } });
+  expect(config.agents).toMatchObject({ author: { provider: 'claude' }, reviewer: { provider: 'claude' } });
   expect(config).not.toHaveProperty('failover');
 });
 
@@ -110,7 +110,6 @@ test('with two or more options failover is asked, and "yes" asks the order until
   expect(picks['Failover order: which option goes next?']).toEqual(['claude-ashu-lab', '\0done']); // codex and claude are already in; the person ends it here
   expect(load(written[out]!).failover).toEqual({
     enabled: true,
-    order: ['codex', 'claude'],
     default: ['codex', 'claude'],
     triggers: ['usage_limit', 'rate_limit', 'service_down'],
   });
@@ -128,9 +127,9 @@ test('running again on an existing config keeps its options and failover, adds m
     repos: [{ name: 'X/y' }],
     profiles: { 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' }, gh: { kind: 'gh' } },
     orchestratorProfile: 'tassadar-agent',
-    agentOptions: { work: { harness: 'claude', model: 'opus', configDir: '~/.claude-work' }, codex: { harness: 'codex', model: 'gpt-test' } },
-    failover: { enabled: true, order: ['codex'] },
-    agents: { author: { profile: 'tassadar-agent', option: 'codex' }, reviewer: { profile: 'gh', option: 'work' } },
+    providers: { work: { harness: 'claude', configDir: '~/.claude-work' }, codex: { harness: 'codex' } },
+    failover: { enabled: true, default: ['codex'] },
+    agents: { author: { profile: 'tassadar-agent', provider: 'codex', model: 'gpt-test' }, reviewer: { profile: 'gh', provider: 'work', model: 'opus' } },
   };
   const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => existing });
   const { ui, asked } = quietUi({ 'Add another AI provider?': [true, false], 'Which agent CLI runs this provider?': 'agy' });
@@ -147,7 +146,7 @@ test('running again on an existing config keeps its options and failover, adds m
   expect(asked).not.toContain('Where should the config be saved?');
   expect(asked.some((q) => q.startsWith('Turn failover'))).toBe(false);
   const config = load(written[join(home, 'config.json')]!);
-  expect(config.agentOptions).toEqual({ ...existing.agentOptions, agy: { harness: 'agy', model: 'gemini-3.8-flash-high' } });
+  expect(config.providers).toEqual({ ...existing.providers, agy: { harness: 'agy' } });
   expect(config.failover).toEqual(existing.failover);
   expect(config.agents).toMatchObject(existing.agents);
 });
@@ -159,7 +158,11 @@ test('the flags declare the options and skip the section, the failover question 
   await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'claude:m1', reviewer: 'claude:m2', out, yes: true }, ui, deps);
   expect(asked.filter((q) => !q.startsWith('outro') && !q.startsWith('checks:'))).toEqual([]);
   const config = load(written[out]!);
-  expect(config.agentOptions).toEqual({ claude: { harness: 'claude', model: 'm1' }, 'claude-reviewer': { harness: 'claude', model: 'm2' } });
+  expect(config.providers).toEqual({ claude: { harness: 'claude' } });
+  expect(config.agents).toMatchObject({
+    author: { provider: 'claude', model: 'm1' },
+    reviewer: { provider: 'claude', model: 'm2' },
+  });
   expect(config).not.toHaveProperty('failover');
 });
 
@@ -170,7 +173,7 @@ test('one flag declares one option; the section then offers more and the other r
   await runInit({ repo: ['A/b'], author: 'claude:m1', out }, ui, deps);
   expect(asked).not.toContain('Which AI provider runs the author?');
   expect(asked).toContain('Which AI provider runs the reviewer?');
-  expect(load(written[out]!).agents).toMatchObject({ author: { option: 'claude' }, reviewer: { option: 'codex' } });
+  expect(load(written[out]!).agents).toMatchObject({ author: { provider: 'claude', model: 'm1' }, reviewer: { provider: 'codex', model: 'gpt-test' } });
 });
 
 test('the real search finds ~/.claude, ~/.claude-* and ~/.codex as folders, and nothing else', () => {

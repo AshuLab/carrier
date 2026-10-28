@@ -23,10 +23,9 @@ const existing = {
   profiles: { 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' }, gh: { kind: 'gh' } },
   orchestratorProfile: 'tassadar-agent',
   providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } },
-  agentOptions: { claude: { harness: 'claude', model: 'opus' }, codex: { harness: 'codex', model: 'gpt-test' } },
   agents: {
-    author: { profile: 'tassadar-agent', option: 'claude' },
-    reviewer: { profile: 'gh', option: 'codex' },
+    author: { profile: 'tassadar-agent', provider: 'claude', model: 'opus' },
+    reviewer: { profile: 'gh', provider: 'codex', model: 'gpt-test' },
   },
 };
 
@@ -42,10 +41,9 @@ test('the questions fill a config that has only what defaults lack, and the doct
     profiles: { 'artanis-agent': { kind: 'forge', agent: 'artanis-agent' }, 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' } },
     orchestratorProfile: 'artanis-agent',
     providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } },
-    agentOptions: { claude: { harness: 'claude', model: 'sonnet' }, codex: { harness: 'codex', model: 'gpt-test' } },
     agents: {
-      author: { profile: 'artanis-agent', option: 'claude' },
-      reviewer: { profile: 'tassadar-agent', option: 'codex' }, // author's bot is not offered again; codex default from ~/.codex
+      author: { profile: 'artanis-agent', provider: 'claude', model: 'sonnet' },
+      reviewer: { profile: 'tassadar-agent', provider: 'codex', model: 'gpt-test' }, // author's bot is not offered again; codex default from ~/.codex
     },
   });
   expect(doctored).toMatchObject({ pollIntervalMinutes: 5 }); // the doctor gets the merged config
@@ -60,8 +58,8 @@ test('every flag skips its question', async () => {
   await runInit({ repo: ['AshuLab/x'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'codex:m1', reviewer: 'claude:m2', out, yes: true }, ui, deps);
   expect(asked.filter((a) => !a.startsWith('outro') && !a.startsWith('checks:'))).toEqual([]);
   const config = JSON.parse(written[out]!);
-  expect(config.agentOptions).toEqual({ codex: { harness: 'codex', model: 'm1' }, claude: { harness: 'claude', model: 'm2' } });
-  expect(config.agents).toEqual({ author: { profile: 'artanis-agent', option: 'codex' }, reviewer: { profile: 'gh', option: 'claude' } });
+  expect(config.providers).toEqual({ codex: { harness: 'codex' }, claude: { harness: 'claude' } });
+  expect(config.agents).toEqual({ author: { profile: 'artanis-agent', provider: 'codex', model: 'm1' }, reviewer: { profile: 'gh', provider: 'claude', model: 'm2' } });
   expect(loadConfig(defaults, config).ok).toBe(true);
 });
 
@@ -104,7 +102,7 @@ test('the recap lists what will be saved, and declining it writes nothing', asyn
   const spy: Ui = { ...ui, note: (m, title) => void (notes[title] = m) };
   await expect(runInit({ repo: ['A/b'], out: join(dir, 'u.json') }, spy, deps)).rejects.toBeInstanceOf(Cancelled);
   expect(written).toEqual({});
-  expect(notes['This is what will be saved']).toMatch(/Repos {7}A\/b\nProviders {3}claude, codex\nAuthor {6}artanis-agent · claude · Claude Code · sonnet\nReviewer {4}tassadar-agent · codex · Codex · gpt-test\nSaved to {4}/);
+  expect(notes['This is what will be saved']).toMatch(/Repos {7}A\/b\nProviders {3}claude, codex\nAuthor {6}artanis-agent · claude \(Claude Code\) · sonnet\nReviewer {4}tassadar-agent · codex \(Codex\) · gpt-test\nSaved to {4}/);
 });
 
 test('--yes skips the recap and the start question', async () => {
@@ -199,10 +197,9 @@ test('choosing shared by answer asks no identity, never touches Forge, and write
     profiles: { gh: { kind: 'gh' } },
     orchestratorProfile: 'gh',
     providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } },
-    agentOptions: { claude: { harness: 'claude', model: 'sonnet' }, codex: { harness: 'codex', model: 'gpt-test' } },
     agents: {
-      author: { profile: 'gh', option: 'claude' },
-      reviewer: { profile: 'gh', option: 'codex' },
+      author: { profile: 'gh', provider: 'claude', model: 'sonnet' },
+      reviewer: { profile: 'gh', provider: 'codex', model: 'gpt-test' },
     },
   });
   expect(loadConfig(defaults, written1).ok).toBe(true);
@@ -262,10 +259,9 @@ test('editing a shared config starts with shared selected, and the recap shows t
     profiles: { gh: { kind: 'gh' } },
     orchestratorProfile: 'gh',
     providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } },
-    agentOptions: { claude: { harness: 'claude', model: 'opus' }, codex: { harness: 'codex', model: 'gpt-test' } },
     agents: {
-      author: { profile: 'gh', option: 'claude' },
-      reviewer: { profile: 'gh', option: 'codex' },
+      author: { profile: 'gh', provider: 'claude', model: 'opus' },
+      reviewer: { profile: 'gh', provider: 'codex', model: 'gpt-test' },
     },
   };
   const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => shared, forgeAgents: touchesForge });
@@ -399,10 +395,10 @@ test('adding a lead reviewer asks its identity, provider, model and persona, and
   const config = JSON.parse(written[out]!);
   expect(config.agents.leadReviewer).toEqual({
     profile: 'tassadar-agent',
-    option: 'claude-lead',
+    provider: 'claude',
+    model: 'opus',
     persona: { name: 'Architect' },
   });
-  expect(config.agentOptions['claude-lead']).toEqual({ harness: 'claude', model: 'opus' });
   expect(loadConfig(defaults, config).ok).toBe(true);
 });
 
@@ -424,8 +420,8 @@ test('lead reviewer flag configures lead reviewer in unattended runs', async () 
   const config = JSON.parse(written[out]!);
   expect(config.agents.leadReviewer).toEqual({
     profile: 'gh',
-    option: 'claude-lead-reviewer',
+    provider: 'claude',
+    model: 'opus',
   });
-  expect(config.agentOptions['claude-lead-reviewer']).toEqual({ harness: 'claude', model: 'opus' });
   expect(loadConfig(defaults, config).ok).toBe(true);
 });

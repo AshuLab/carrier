@@ -26,24 +26,15 @@ export const aiProvider = z.strictObject({
   configDir: z.string().min(1).transform(expandHome).optional(),
 });
 
-/** A way to run an agent. The harness's config folder holds its login, so `configDir` is what picks the account; without one the agent inherits the environment. */
-const agentOption = z.strictObject({
-  harness: z.enum(harnessNames),
-  model: z.string().min(1),
-  /** Run `model` on a local server through the harness's CLI instead of the cloud. */
-  provider: z.enum(['lmstudio', 'ollama']).optional(),
-  /** `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. Absolute once `~` is expanded. */
-  configDir: z.string().min(1).transform(expandHome).optional(),
-});
-
-/** The key of an option: stored and shown as is. */
+/** The key of a provider or option: stored and shown as is. */
 export const optionNamePattern = /^[a-z][a-z0-9-]{0,39}$/;
 
-// A role keeps its GitHub identity and persona, and points at an option by name, the way it points at a profile.
+// A role keeps its GitHub identity and persona, and points at an AI provider and model.
 const agent = z.strictObject({
   persona: persona.optional(),
   profile: z.string().min(1),
-  option: z.string().min(1),
+  provider: z.string().min(1),
+  model: z.string().min(1),
 });
 
 // The two shapes the spike fixed (docs/research/agent-forge.md): a bot through Agent Forge, or the user's own `gh` login. No secrets here.
@@ -71,7 +62,6 @@ const failoverSchema = z.strictObject({
   enabled: z.boolean(),
   triggers: z.array(z.enum(failoverTriggers)).min(1).optional(),
   default: z.array(z.string()).optional(),
-  order: z.array(z.string()).optional(),
   roles: z
     .strictObject({
       author: z.array(z.string()).optional(),
@@ -106,10 +96,9 @@ export const configSchema = z
       })
       .optional(),
     orchestratorProfile: z.string().min(1),
-    providers: z.record(z.string(), aiProvider).optional(),
-    agentOptions: z.record(z.string(), agentOption),
+    providers: z.record(z.string(), aiProvider),
     agents: z.strictObject({ author: agent, reviewer: agent, leadReviewer: agent.optional() }),
-    /** Off unless present and enabled. Moves a role to the next agent option upon usage_limit, rate_limit, or service_down. */
+    /** Off unless present and enabled. Moves a role to the next AI provider upon usage_limit, rate_limit, or service_down. */
     failover: failoverSchema.optional(),
     limits: z.strictObject({
       maxConcurrentEpics: z.int().positive(),
@@ -140,25 +129,25 @@ export const configSchema = z
       }
     }
 
-    const optionRefs: [(string | number)[], string][] = [
-      [['agents', 'author', 'option'], config.agents.author.option],
-      [['agents', 'reviewer', 'option'], config.agents.reviewer.option],
+    const providerRefs: [(string | number)[], string][] = [
+      [['agents', 'author', 'provider'], config.agents.author.provider],
+      [['agents', 'reviewer', 'provider'], config.agents.reviewer.provider],
     ];
-    if (config.agents.leadReviewer) optionRefs.push([['agents', 'leadReviewer', 'option'], config.agents.leadReviewer.option]);
+    if (config.agents.leadReviewer) providerRefs.push([['agents', 'leadReviewer', 'provider'], config.agents.leadReviewer.provider]);
     config.repos.forEach((repo, i) => {
       for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
-        const option = repo.agents?.[role]?.option;
-        if (option !== undefined) optionRefs.push([['repos', i, 'agents', role, 'option'], option]);
+        const provider = repo.agents?.[role]?.provider;
+        if (provider !== undefined) providerRefs.push([['repos', i, 'agents', role, 'provider'], provider]);
       }
     });
-    for (const [path, name] of optionRefs) {
-      if (!Object.hasOwn(config.agentOptions, name)) {
-        ctx.addIssue({ code: 'custom', path, message: `option "${name}" is not declared in agentOptions` });
+    for (const [path, name] of providerRefs) {
+      if (!Object.hasOwn(config.providers, name)) {
+        ctx.addIssue({ code: 'custom', path, message: `provider "${name}" is not declared in providers` });
       }
     }
 
     if (config.failover?.enabled) {
-      const hasDefault = (config.failover.default && config.failover.default.length > 0) || (config.failover.order && config.failover.order.length > 0);
+      const hasDefault = config.failover.default && config.failover.default.length > 0;
       const hasRoles = config.failover.roles && Object.values(config.failover.roles).some((r) => r && r.length > 0);
       if (!hasDefault && !hasRoles) {
         ctx.addIssue({ code: 'custom', path: ['failover'], message: 'failover is enabled but has neither a default nor role-specific fallback order' });
@@ -171,17 +160,16 @@ export const configSchema = z
       list.forEach((name, i) => {
         const p = [...basePath, i];
         const label = basePath.join('.');
-        if (!Object.hasOwn(config.agentOptions, name)) {
-          ctx.addIssue({ code: 'custom', path: p, message: `${label}: option "${name}" is not declared in agentOptions` });
+        if (!Object.hasOwn(config.providers, name)) {
+          ctx.addIssue({ code: 'custom', path: p, message: `${label}: provider "${name}" is not declared in providers` });
         } else if (named.has(name)) {
-          ctx.addIssue({ code: 'custom', path: p, message: `${label}: option "${name}" appears twice` });
+          ctx.addIssue({ code: 'custom', path: p, message: `${label}: provider "${name}" appears twice` });
         }
         named.add(name);
       });
     };
 
     if (config.failover) {
-      checkFailoverList(config.failover.order, ['failover', 'order']);
       checkFailoverList(config.failover.default, ['failover', 'default']);
       if (config.failover.roles) {
         for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
@@ -190,36 +178,18 @@ export const configSchema = z
       }
     }
 
-    // What an option can have depends on its harness: a local provider and a config folder only where the CLI has a setting for them.
-    for (const [name, option] of Object.entries(config.agentOptions)) {
-      const where = `agentOptions.${name}`;
+    for (const [name, p] of Object.entries(config.providers)) {
+      const where = `providers.${name}`;
       if (!optionNamePattern.test(name)) {
-        ctx.addIssue({ code: 'custom', path: ['agentOptions', name], message: `${where}: an option name is a lowercase word: letters, digits and hyphens, starting with a letter, up to 40 characters` });
+        ctx.addIssue({ code: 'custom', path: ['providers', name], message: `${where}: a provider name is a lowercase word: letters, digits and hyphens, starting with a letter, up to 40 characters` });
       }
-      if (option.provider !== undefined && !(localProvidersOf[option.harness] as readonly string[]).includes(option.provider)) {
-        ctx.addIssue({ code: 'custom', path: ['agentOptions', name, 'provider'], message: `${where}: ${option.harness} cannot use the provider "${option.provider}"` });
+      if (p.provider !== undefined && !(localProvidersOf[p.harness] as readonly string[]).includes(p.provider)) {
+        ctx.addIssue({ code: 'custom', path: ['providers', name, 'provider'], message: `${where}: ${p.harness} cannot use the provider "${p.provider}"` });
       }
-      if (option.configDir !== undefined && option.harness === 'agy') {
-        ctx.addIssue({ code: 'custom', path: ['agentOptions', name, 'configDir'], message: `${where}: agy has no config folder setting, so it cannot have a configDir` });
-      } else if (option.configDir !== undefined && option.configDir !== '' && !isAbsolute(option.configDir)) {
-        ctx.addIssue({ code: 'custom', path: ['agentOptions', name, 'configDir'], message: `${where}: configDir must be an absolute path, or start with ~/ (got "${option.configDir}")` });
-      }
-    }
-
-    if (config.providers !== undefined) {
-      for (const [name, p] of Object.entries(config.providers)) {
-        const where = `providers.${name}`;
-        if (!optionNamePattern.test(name)) {
-          ctx.addIssue({ code: 'custom', path: ['providers', name], message: `${where}: a provider name is a lowercase word: letters, digits and hyphens, starting with a letter, up to 40 characters` });
-        }
-        if (p.provider !== undefined && !(localProvidersOf[p.harness] as readonly string[]).includes(p.provider)) {
-          ctx.addIssue({ code: 'custom', path: ['providers', name, 'provider'], message: `${where}: ${p.harness} cannot use the provider "${p.provider}"` });
-        }
-        if (p.configDir !== undefined && p.harness === 'agy') {
-          ctx.addIssue({ code: 'custom', path: ['providers', name, 'configDir'], message: `${where}: agy has no config folder setting, so it cannot have a configDir` });
-        } else if (p.configDir !== undefined && p.configDir !== '' && !isAbsolute(p.configDir)) {
-          ctx.addIssue({ code: 'custom', path: ['providers', name, 'configDir'], message: `${where}: configDir must be an absolute path, or start with ~/ (got "${p.configDir}")` });
-        }
+      if (p.configDir !== undefined && p.harness === 'agy') {
+        ctx.addIssue({ code: 'custom', path: ['providers', name, 'configDir'], message: `${where}: agy has no config folder setting, so it cannot have a configDir` });
+      } else if (p.configDir !== undefined && p.configDir !== '' && !isAbsolute(p.configDir)) {
+        ctx.addIssue({ code: 'custom', path: ['providers', name, 'configDir'], message: `${where}: configDir must be an absolute path, or start with ~/ (got "${p.configDir}")` });
       }
     }
 
@@ -251,6 +221,7 @@ export const configSchema = z
     }
     config.repos.forEach((repo, i) => {
       const resolved = resolveRepoConfig(config, repo).agents;
+      if (!resolved.author || !resolved.reviewer) return;
       if (resolved.author.profile === resolved.reviewer.profile) clash(['repos', i, 'agents'], `repo "${repo.name}": `, resolved.author.profile);
       else if (resolved.leadReviewer && resolved.author.profile === resolved.leadReviewer.profile) {
         clash(['repos', i, 'agents'], `repo "${repo.name}": `, resolved.author.profile, 'agents.author.profile', 'agents.leadReviewer.profile');

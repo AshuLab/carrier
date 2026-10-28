@@ -10,8 +10,10 @@ const agentOf = ({ harness, model, provider }: EffectiveRepoConfig['agents']['au
 const agentsOf = (config: EffectiveRepoConfig): PanelAgents => ({ author: agentOf(config.agents.author), reviewer: agentOf(config.agents.reviewer) });
 
 /** The options of an epic as the panel and the epic's reply list them; undefined for one saved before options existed. */
-export const optionsOf = ({ config, authorOption, reviewerOption, choiceDeadline }: { config: EffectiveRepoConfig | null; authorOption: string | null; reviewerOption: string | null; choiceDeadline: number | null }): EpicOptions | undefined =>
-  config?.options && { names: Object.keys(config.options), author: authorOption, reviewer: reviewerOption, choiceDeadline };
+export const optionsOf = ({ config, authorOption, reviewerOption, choiceDeadline }: { config: EffectiveRepoConfig | null; authorOption: string | null; reviewerOption: string | null; choiceDeadline: number | null }): EpicOptions | undefined => {
+  const directory = config?.providers ?? config?.options;
+  return directory && { names: Object.keys(directory), author: authorOption, reviewer: reviewerOption, choiceDeadline };
+};
 
 /** One row per watched repo: the agents it resolves to and its last poll (not checked yet: null and ok). */
 export function watchedOf(repos: EffectiveRepoConfig[], lastCheck: (repo: string) => { at: number; ok: boolean; error: string | null } | undefined): ControlSnapshot['watched'] {

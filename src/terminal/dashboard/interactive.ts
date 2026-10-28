@@ -15,12 +15,14 @@ export interface Controls {
   logs(executionId: string, count: number): string[];
   /** The stages of an epic and how each went; the panel asks it again only when the epic changed. */
   detail?: DetailProvider;
+  /** Starts a waiting epic on the options chosen; a role left out takes its default. Absent against an engine without the `agentOptions` capability: the panel then offers no choice. */
+  chooseOptions?(repo: string, issue: number, chosen: { author?: string; reviewer?: string }): unknown;
 }
 
 const logRows = 18;
 
 /**
- * The dashboard with keys: select an epic, open it, read its agent's output, check GitHub now, pause intake, quit.
+ * The dashboard with keys: select an epic, open it, read its agent's output, check GitHub now, pause intake, choose the options of a waiting epic, quit.
  * Every key redraws at once instead of waiting for the next second. Returns the stop function.
  */
 export function startInteractivePanel({ snapshot, out, stdin, controls, now = Date.now, intervalMs, quit }: {
@@ -34,6 +36,7 @@ export function startInteractivePanel({ snapshot, out, stdin, controls, now = Da
   quit?: 'stop' | 'leave';
 }) {
   let ui = initialUi;
+  const canChoose = controls.chooseOptions !== undefined;
   const panel = startPanel(
     snapshot,
     out,
@@ -41,17 +44,18 @@ export function startInteractivePanel({ snapshot, out, stdin, controls, now = Da
     (s, columns) => {
       ui = settle(ui, s, now());
       const executionId = ui.mode === 'logs' ? itemsOf(s).find((i) => i.key === ui.selected)?.executionId : undefined;
-      return renderDashboard(s, { columns, ui, logLines: executionId ? controls.logs(executionId, logRows) : [], activity: controls.logs, detail: controls.detail, quit });
+      return renderDashboard(s, { columns, ui, logLines: executionId ? controls.logs(executionId, logRows) : [], activity: controls.logs, detail: controls.detail, quit, canChoose });
     },
   );
   const perform = (action: Action | undefined) => {
     if (action?.type === 'open') controls.open(action.url);
     else if (action?.type === 'poll') void controls.poll();
     else if (action?.type === 'pause') void controls.setPaused(action.paused);
+    else if (action?.type === 'choose') void controls.chooseOptions?.(action.repo, action.issue, { author: action.author, reviewer: action.reviewer });
     else if (action?.type === 'quit') controls.quit();
   };
   const stopKeys = startKeys(stdin, (key) => {
-    const next = onKey(ui, key, snapshot(), now());
+    const next = onKey(ui, key, snapshot(), now(), canChoose);
     ui = next.ui;
     perform(next.action);
     panel.redraw();

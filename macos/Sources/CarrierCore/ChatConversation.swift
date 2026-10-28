@@ -423,6 +423,12 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
         if let text = refusedText ?? lastUserText { await deliver(text, refill: false) }
     }
 
+    /// A first message whose send failed after the draft opened the session: the banner says why and Try again sends it.
+    public func showRefusal(of text: String, _ reason: String) {
+        refusal = reason
+        refusedText = text
+    }
+
     /// Drops the queued message.
     public func cancelQueued() { queued = nil }
 
@@ -470,7 +476,7 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
         return message
     }
 
-    private static func words(_ error: Error) -> String {
+    static func words(_ error: Error) -> String {
         switch error {
         case ControlError.closed: "The chat host is not answering"
         case ControlError.remote(let reason): reason

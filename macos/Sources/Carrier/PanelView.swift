@@ -49,6 +49,7 @@ struct PanelView: View {
         switch model.shell.selection {
         case .settings: return "Settings"
         case .session: return openSession.map(conversationTitle) ?? "Session"
+        case .newSession: return "New session"
         default: return "Carrier"
         }
     }
@@ -109,11 +110,13 @@ struct PanelView: View {
                         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
                         SettingsScreen(state: model.state)
                     } else if shell.selection == .sessions {
-                        SessionsHomeView(sessions: model.sessions, sort: sessionSort) { shell.selection = .session(id: $0) }
+                        SessionsHomeView(sessions: model.sessions, sort: sessionSort, newSession: { shell.selection = .newSession }) { shell.selection = .session(id: $0) }
+                    } else if shell.selection == .newSession {
+                        NewSessionView(model: model.newSession) { shell.selection = .session(id: $0) }
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
                     } else if case .session(let id) = shell.selection {
-                        ConversationView(sessionId: id).id(id)
+                        ConversationView(sessionId: id, draft: model.newSession).id(id)
                     } else if case .running(let snapshot)? = model.state {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 26) {
@@ -219,7 +222,7 @@ private struct Running: View {
         case .epic(let repo, let issue):
             // not in the snapshot (any more)
             Text("\(repo) #\(issue)")
-        case .home, .sessions, .session, .archive, .settings:
+        case .home, .sessions, .session, .newSession, .archive, .settings:
             EmptyView()  // PanelView shows these pages
         }
     }

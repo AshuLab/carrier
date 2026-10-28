@@ -363,6 +363,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var resumed = 0
 
     func agents() async throws -> [ChatAgent] { [] }
+    func open(agent: String, folder: String) async throws -> String { "" }
     func list(archived: Bool) async throws -> [ChatSession] {
         let json = #"{"id":"s","agent":"claude","harness":"claude","folder":"/x","state":"idle","createdAt":1,"lastActiveAt":1,"archived":false,"live":\#(live)}"#
         return [try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))]

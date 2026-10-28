@@ -22,6 +22,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var pending: Set<String> = []
 
     func agents() async throws -> [ChatAgent] { [] }
+    func open(agent: String, folder: String) async throws -> String { "" }
     func list(archived: Bool) async throws -> [ChatSession] { [listed(live: live)] }
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         let page = events.filter { $0.id > after }

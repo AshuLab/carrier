@@ -46,6 +46,9 @@ public struct ChatSession: Decodable, Equatable {
 public protocol ChatHost {
     func agents() async throws -> [ChatAgent]
     func list(archived: Bool) async throws -> [ChatSession]
+    /// Creates a session with the agent in the folder (the agent's configured `options` apply on the host's side) and returns its id.
+    /// The host refuses a folder inside Carrier's own folders and a provider that is not logged in.
+    func open(agent: String, folder: String) async throws -> String
     /// The events of a session after the cursor, at most `limit` (the host takes 1 to 200).
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents
     /// Opens a closed session's agent again; the host refuses a `send` to one that is not live.
@@ -79,6 +82,13 @@ public struct SocketChatHost: ChatHost {
         return reply.sessions
     }
 
+    public func open(agent: String, folder: String) async throws -> String {
+        let fields = ",\"agent\":\(jsonString(agent)),\"folder\":\(jsonString(folder))"
+        let path = socketPath()
+        let reply: OpenedReply = try await Task.detached { try chatRequest(path, "open", requires: .open, fields: fields) }.value
+        return reply.session.id
+    }
+
     public func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         let fields = ",\"sessionId\":\"\(try wireId(id))\",\"after\":\(after),\"limit\":\(limit)"
         let path = socketPath()
@@ -93,7 +103,7 @@ public struct SocketChatHost: ChatHost {
 
     /// The text goes on the wire JSON-encoded, so quotes, newlines and anything else in it stay inside the string.
     public func send(_ id: String, _ text: String) async throws {
-        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"text\":" + String(decoding: try JSONEncoder().encode(text), as: UTF8.self)
+        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"text\":" + jsonString(text)
         let path = socketPath()
         let _: AnyReply = try await Task.detached { try chatRequest(path, "send", requires: .send, fields: fields) }.value
     }
@@ -126,6 +136,15 @@ public struct SocketChatHost: ChatHost {
 private func wireId(_ id: String) throws -> String {
     guard let id = UUID(uuidString: id)?.uuidString.lowercased() else { throw ControlError.remote("not a valid session id") }
     return id
+}
+
+/// A string as a JSON literal, so quotes, newlines and anything else in it stay inside the string on the wire.
+private func jsonString(_ text: String) -> String { String(decoding: (try? JSONEncoder().encode(text)) ?? Data("\"\"".utf8), as: UTF8.self) }
+
+/// The reply of `open`: only the new session's id is read.
+private struct OpenedReply: Decodable {
+    struct Session: Decodable { let id: String }
+    let session: Session
 }
 
 /// A reply whose content the app does not read: any JSON will do.

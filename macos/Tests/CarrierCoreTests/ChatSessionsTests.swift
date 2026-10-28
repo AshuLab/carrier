@@ -78,6 +78,7 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     var calls: [Bool] = []
 
     func agents() async throws -> [ChatAgent] { [] }
+    func open(agent: String, folder: String) async throws -> String { "" }
     func list(archived wanted: Bool) async throws -> [ChatSession] {
         calls.append(wanted)
         guard let answer = wanted ? archived : active else { throw ControlError.closed }

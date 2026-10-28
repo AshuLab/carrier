@@ -23,7 +23,7 @@ struct SidebarView: View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
         List(selection: list) {
             Label("Home", systemImage: "house").tag(Selection.home).help("Home (⌘1)")
-            SessionsRows(sessions: sessions, sort: $sessionSort, open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }), searchRequest: searchRequest)
+            SessionsRows(sessions: sessions, sort: $sessionSort, open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }), searchRequest: searchRequest, newSession: { selection = .newSession })
             // its own row, outside Sessions, so folding Sessions does not hide it
             let archived = archivedCount(sessions.rows)
             HStack {

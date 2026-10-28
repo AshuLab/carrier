@@ -70,6 +70,8 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        // the sidebar style keeps 16 points on each side that no row inset reaches; the foot sits at 8, so the list grows 8 over each edge
+        .padding(.horizontal, -8)
         .onChange(of: searching) { if searching { searchFocused = true } else { query = "" } }
         .onChange(of: searchRequest) {
             if searchRequest?.section == .carrier && epicCount > 0 && open == .carrier {
@@ -224,10 +226,10 @@ struct ChoiceMenu<Value: Hashable>: View {
 }
 
 extension View {
-    /// A row of the sidebar's list with the same small margin on both sides, so the fills of the section rows and of the rows under
-    /// them line up and the list under a section has no margin of its own.
+    /// A row of the sidebar's list with no margin of its own on either side (the sidebar style already adds one), so the fills of the
+    /// section rows and of the rows under them line up and match the width of Archive and Settings in the foot.
     func flatSidebarRow() -> some View {
-        listRowInsets(EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8))
+        listRowInsets(EdgeInsets(top: 1, leading: 0, bottom: 1, trailing: 0))
     }
 }
 

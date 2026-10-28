@@ -122,6 +122,31 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
     return {};
   }
 
+  async function openConversation(chosen: ReturnType<typeof chatAgents>[number], runner: ChatRunner, args: { folder: string; options: Record<string, string>; resume?: string }) {
+    try {
+      return await runner.open({ ...args, command: chosen.command, env });
+    } catch (error) {
+      if (error instanceof ChatRefused) throw error;
+      log.error('a chat runner failed to open', error);
+      throw new ChatRefused(`${chosen.name} could not be started`);
+    }
+  }
+
+  /** Makes a conversation the live one of a session. */
+  const attach = (sessionId: string, conversation: ChatConversation) => {
+    const live: Live = { conversation, state: 'idle', streaming: '' };
+    lives.set(sessionId, live);
+    conversation.onEvent((event) => {
+      try {
+        onEvent(sessionId, live, event);
+      } catch (error) {
+        log.error('a chat event could not be handled', error);
+      }
+    });
+    armIdle(sessionId, live);
+    onLiveChange();
+  };
+
   return {
     liveCount: () => lives.size,
     clientJoined() {
@@ -136,7 +161,7 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
     agents: () => chatAgents(config).map(({ name, harness, model, command }) => ({ name, harness, model, found: binaryFound(command ?? harness) })),
 
     list: ({ archived = false }: { archived?: boolean }) => ({
-      sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map(summary),
+      sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => ({ ...summary(found), live: lives.has(found.id) })),
     }),
 
     async open({ agent, folder, options }: { agent: string; folder: string; options?: Record<string, string> }) {
@@ -146,14 +171,7 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
       const runner = runners[chosen.harness];
       if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
       const chosenOptions = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...options };
-      let conversation: ChatConversation;
-      try {
-        conversation = await runner.open({ folder: real, options: chosenOptions, command: chosen.command, env });
-      } catch (error) {
-        if (error instanceof ChatRefused) throw error;
-        log.error('a chat runner failed to open', error);
-        throw new ChatRefused(`${chosen.name} could not be started`);
-      }
+      const conversation = await openConversation(chosen, runner, { folder: real, options: chosenOptions });
       try {
         for (const [id, value] of Object.entries(chosenOptions)) checkOption(conversation.options, id, value);
       } catch (error) {
@@ -166,18 +184,29 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
         .values({ id: randomUUID(), agent: chosen.name, harness: chosen.harness, folder: real, options: chosenOptions, nativeId: conversation.nativeId ?? null, createdAt: now, lastActiveAt: now })
         .returning()
         .get();
-      const live: Live = { conversation, state: 'idle', streaming: '' };
-      lives.set(created.id, live);
-      conversation.onEvent((event) => {
-        try {
-          onEvent(created.id, live, event);
-        } catch (error) {
-          log.error('a chat event could not be handled', error);
-        }
-      });
-      armIdle(created.id, live);
-      onLiveChange();
+      attach(created.id, conversation);
       return { session: summary(created), options: conversation.options };
+    },
+
+    /** Opens a closed session again from its stored native id, folder and options; a live one is just attached to. */
+    async resume({ sessionId }: { sessionId: string }) {
+      const current = row(sessionId);
+      const present = lives.get(sessionId);
+      if (present !== undefined) return { session: summary(current), options: present.conversation.options };
+      const chosen = chatAgents(config).find((candidate) => candidate.name === current.agent);
+      if (chosen === undefined) throw new ChatRefused(`The agent "${current.agent}" of this session is not configured any more`);
+      const runner = runners[chosen.harness];
+      if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
+      const folder = checkFolder(current.folder, config.root);
+      // a session that never got a native id (nothing was said) has nothing to resume: it starts again, as it was opened
+      const conversation = await openConversation(chosen, runner, { folder, options: current.options ?? {}, ...(current.nativeId !== null && { resume: current.nativeId }) });
+      if (lives.has(sessionId)) {
+        // another client resumed it while this one waited for the provider
+        await conversation.close();
+        return { session: summary(row(sessionId)), options: lives.get(sessionId)!.conversation.options };
+      }
+      attach(sessionId, conversation);
+      return { session: summary(current), options: conversation.options };
     },
 
     send({ sessionId, text }: { sessionId: string; text: string }) {

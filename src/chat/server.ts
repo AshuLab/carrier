@@ -12,8 +12,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'send' | 'interrupt' | 'setOption' | 'events' | 'close' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'send', 'interrupt', 'setOption', 'events', 'close', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'interrupt' | 'setOption' | 'events' | 'close' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'interrupt', 'setOption', 'events', 'close', 'stop'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -22,6 +22,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('agents') }),
   z.strictObject({ id, cmd: z.literal('list'), archived: z.boolean().optional() }),
   z.strictObject({ id, cmd: z.literal('open'), agent: z.string().min(1), folder: z.string().min(1), options: z.record(z.string(), z.string()).optional() }),
+  z.strictObject({ id, cmd: z.literal('resume'), sessionId }),
   z.strictObject({ id, cmd: z.literal('send'), sessionId, text: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('interrupt'), sessionId }),
   z.strictObject({ id, cmd: z.literal('setOption'), sessionId, option: z.string().min(1), value: z.string().min(1) }),
@@ -37,6 +38,7 @@ export type ChatControls = {
   agents(): unknown;
   list(args: Args<'list'>): unknown;
   open(args: Args<'open'>): Promise<unknown>;
+  resume(args: Args<'resume'>): Promise<unknown>;
   send(args: Args<'send'>): unknown;
   interrupt(args: Args<'interrupt'>): Promise<unknown>;
   setOption(args: Args<'setOption'>): Promise<unknown>;
@@ -52,6 +54,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.list({ archived: request.archived });
     case 'open':
       return controls.open({ agent: request.agent, folder: request.folder, options: request.options });
+    case 'resume':
+      return controls.resume({ sessionId: request.sessionId });
     case 'send':
       return controls.send({ sessionId: request.sessionId, text: request.text });
     case 'interrupt':

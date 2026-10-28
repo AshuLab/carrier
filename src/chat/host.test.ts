@@ -116,3 +116,34 @@ test('a client opens a conversation, sends, reads the events by cursor and close
   await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(0));
   expect(claude.conversations.map((c) => c.closed)).toEqual([true, true]);
 });
+
+test('a new host over the same chat.db resumes a session of the one that ended, with the native id, and lists it as closed', async () => {
+  const work = join(root, 'w');
+  mkdirSync(work);
+  const first = new FakeChatRunner();
+  first.setup = (c) => {
+    c.reply = (text) => {
+      c.nativeId = 'native-7';
+      c.emit({ kind: 'assistant', text: `re: ${text}` }, { kind: 'turn_end', outcome: 'ok' });
+    };
+  };
+  const one = await host(new FakeClock(), first);
+  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  const { session } = (await client.request('open', { agent: 'claude', folder: work })) as { session: { id: string } };
+  await client.request('send', { sessionId: session.id, text: 'the word is pineapple' });
+  await client.request('stop');
+  await vi.waitFor(() => expect(one.exit).toHaveBeenCalledWith(0));
+  client.close();
+
+  const second = new FakeChatRunner();
+  await host(new FakeClock(), second);
+  const again = await connectControl(join(root, 'chat', 'chat.sock'));
+  expect(again.hello.capabilities).toContain('resume');
+  expect(((await again.request('list')) as any).sessions).toMatchObject([{ id: session.id, live: false }]);
+  await expect(again.request('resume', { sessionId: '00000000-0000-4000-8000-000000000000' })).rejects.toThrow('no such session');
+  await again.request('resume', { sessionId: session.id });
+  expect(second.opened[0]).toMatchObject({ resume: 'native-7', folder: expect.stringContaining('w') });
+  const reply = (await again.request('events', { sessionId: session.id, limit: 50 })) as any;
+  expect(reply.events.map((e: any) => e.kind)).toEqual(['user', 'assistant', 'turn_end']);
+  again.close();
+});

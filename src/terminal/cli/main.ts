@@ -51,7 +51,7 @@ else if (cli.flags.help) {
         exit = await (await import('./commands/control.ts')).controlCommand(cli.command, loadConfigFile(configPath));
         break;
       case 'chat':
-        if (configPath === undefined) throw noConfig('Usage: carrier chat --workspace <folder> [--agent <name>] | --list | --stop [--config <path>]');
+        if (configPath === undefined) throw noConfig('Usage: carrier chat --workspace <folder> [--agent <name>] | --resume <id> | --list | --stop [--config <path>]');
         exit = await (await import('./commands/chat.ts')).chatCommand(cli.flags, loadConfigFile(configPath), resolve(configPath));
         break;
       case 'chat-host':

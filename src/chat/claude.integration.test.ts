@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
@@ -10,7 +10,8 @@ import type { ChatConversation, ChatEvent } from './runner.ts';
 // changed in a running session and reported back. It sends two tiny prompts to the cheapest model, so it uses a little
 // of the user's own plan. It only runs when this is set explicitly:
 //   CARRIER_IT_CLAUDE_CHAT=1   (optional: CARRIER_IT_CLAUDE_COMMAND=<path to the claude binary>, else the one on the path)
-// A second test interrupts a long turn and then asks a second message in the same session.
+// A second test interrupts a long turn and then asks a second message in the same session. A fourth has it ask to create
+// a file: declining leaves no file, allowing creates it.
 // No token is read or printed: the agent runs with the environment of this process, as the chat host runs it.
 const enabled = process.env.CARRIER_IT_CLAUDE_CHAT === '1';
 
@@ -79,6 +80,29 @@ describe.skipIf(!enabled)('the Claude chat adapter against the real Claude', () 
       await expect(running.setOption('model', 'not-a-model')).rejects.toThrow();
     } finally {
       await running.close();
+    }
+  });
+
+  test.each([
+    { choice: 'deny', created: false },
+    { choice: 'allow', created: true },
+  ])('asked to create a file, the agent waits for the person: $choice leaves the file created: $created', { timeout: 180_000 }, async ({ choice, created }) => {
+    const work = realpathSync(mkdtempSync(join(tmpdir(), 'carrier-claude-approval-')));
+    const own = await claudeChatRunner().open({ folder: work, command: process.env.CARRIER_IT_CLAUDE_COMMAND, options: { model: 'haiku', permissionMode: 'default' }, env: process.env });
+    const events: ChatEvent[] = [];
+    own.onEvent((event) => {
+      events.push(event);
+      if (event.kind === 'approval') queueMicrotask(() => own.answer(event.approvalId, choice));
+    });
+    try {
+      own.send('Create an empty file named made.txt in the current folder with the Bash command `touch made.txt`. Do nothing else.');
+      await expect.poll(() => events.some((e) => e.kind === 'turn_end'), { timeout: 150_000, interval: 200 }).toBe(true);
+      expect(events.find((e) => e.kind === 'approval')?.kind).toBe('approval');
+      expect(events.filter((e) => e.kind === 'approval_answered')).toMatchObject([{ choiceId: choice }]);
+      expect(existsSync(join(work, 'made.txt'))).toBe(created);
+    } finally {
+      await own.close();
+      rmSync(work, { recursive: true, force: true });
     }
   });
 });

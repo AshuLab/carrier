@@ -258,3 +258,76 @@ test('/options prints each option with its current value and what it offers, /op
   expect(out.lastIndexOf('Permission mode (mode): plan')).toBeGreaterThan(out.indexOf('Usage:')); // the second /options sees the change
   expect(claude.conversations[0]!.sent).toEqual([]); // none of this went to the agent
 });
+
+// The fake agent asks before it "touches" a file; it runs the tool only when the person allowed it.
+const asking = (conversation: FakeConversation) => {
+  let asked = 0;
+  conversation.reply = (_text, c) => {
+    c.emit({ kind: 'approval', approvalId: `a${++asked}`, tool: 'Bash', arg: 'touch x.txt', choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }] });
+  };
+  const answer = conversation.answer.bind(conversation);
+  conversation.answer = (approvalId, choiceId) => {
+    answer(approvalId, choiceId);
+    if (choiceId === 'allow') conversation.emit({ kind: 'tool_start', callId: '1', tool: 'Bash', arg: 'touch x.txt' });
+    conversation.emit({ kind: 'assistant', text: choiceId === 'allow' ? 'Created' : 'Not created' }, { kind: 'turn_end', outcome: 'ok' });
+  };
+};
+
+test('an approval is shown with the tool, its argument and the choices; the number typed is sent and a decline does not run the tool', async () => {
+  await host();
+  claude.conversations.length = 0;
+  claude.setup = asking;
+  expect(await chatCommand({ workspace: root }, config(), '/abs/config.json', { input: typed('touch it', '2', 'again', '1', '/quit'), pollMs: 5 })).toBe(0);
+  const out = written.join('');
+  expect(out).toContain('Bash touch x.txt needs your approval:\n  1) Allow\n  2) Deny\nchoose> ');
+  expect(claude.conversations[0]!.answers).toEqual([{ approvalId: 'a1', choiceId: 'deny' }, { approvalId: 'a2', choiceId: 'allow' }]);
+  expect(out).toContain('Not created\n> ');
+  expect(out.split('Not created')[0]).not.toContain('[Bash touch x.txt]'); // declined: no tool call
+  expect(out).toContain('  [Bash touch x.txt]\nCreated\n');
+});
+
+test('a choice that is not listed is asked again', async () => {
+  await host();
+  claude.conversations.length = 0;
+  claude.setup = asking;
+  await chatCommand({ workspace: root }, config(), '/abs/config.json', { input: typed('touch it', 'maybe', '9', 'deny', '/quit'), pollMs: 5 });
+  expect(written.join('')).toContain('Type a number from 1 to 2\nchoose> Type a number from 1 to 2\nchoose> ');
+  expect(claude.conversations[0]!.answers).toEqual([{ approvalId: 'a1', choiceId: 'deny' }]);
+});
+
+test('leaving while an approval waits keeps it pending, and --resume asks it again and honours the answer', async () => {
+  await host();
+  claude.conversations.length = 0;
+  claude.setup = asking;
+  const first = chatCommand({ workspace: root }, config(), '/abs/config.json', { input: typed('touch it'), pollMs: 5 }); // the input ends at the approval
+  expect(await first).toBe(0);
+  const conversation = claude.conversations[0]!;
+  expect(conversation.answers).toEqual([]);
+  expect(conversation.closed).toBe(false);
+  const id = /Chat (\S+) with/.exec(written.join(''))![1]!;
+  written.length = 0;
+  expect(await chatCommand({ resume: id }, config(), '/abs/config.json', { input: typed('1', '/quit'), pollMs: 5 })).toBe(0);
+  expect(written.join('')).toContain('Bash touch x.txt needs your approval:\n  1) Allow\n  2) Deny\nchoose> ');
+  expect(conversation.answers).toEqual([{ approvalId: 'a1', choiceId: 'allow' }]);
+  expect(written.join('')).toContain('Created\n');
+});
+
+test('an interrupt while an approval waits drops the question and returns to the prompt', async () => {
+  await host();
+  claude.conversations.length = 0;
+  claude.setup = (conversation) => {
+    asking(conversation);
+    conversation.onInterrupt = (c) => c.emit({ kind: 'turn_end', outcome: 'interrupted' });
+  };
+  const input = new PassThrough();
+  const sigint = new EventEmitter();
+  const running = chatCommand({ workspace: root }, config(), '/abs/config.json', { input, sigint, pollMs: 5 });
+  input.write('touch it\n');
+  await vi.waitFor(() => expect(written.join('')).toContain('choose> '));
+  sigint.emit('SIGINT');
+  await vi.waitFor(() => expect(written.join('')).toContain('[interrupted]'));
+  await vi.waitFor(() => expect(written.join('').endsWith('> ')).toBe(true));
+  input.write('/quit\n');
+  expect(await running).toBe(0);
+  expect(claude.conversations[0]!.answers).toEqual([]);
+});

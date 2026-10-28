@@ -12,8 +12,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'stop'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -24,6 +24,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('open'), agent: z.string().min(1), folder: z.string().min(1), options: z.record(z.string(), z.string()).optional() }),
   z.strictObject({ id, cmd: z.literal('resume'), sessionId }),
   z.strictObject({ id, cmd: z.literal('send'), sessionId, text: z.string().min(1) }),
+  z.strictObject({ id, cmd: z.literal('answer'), sessionId, approvalId: z.string().min(1), choiceId: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('interrupt'), sessionId }),
   z.strictObject({ id, cmd: z.literal('setOption'), sessionId, option: z.string().min(1), value: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('events'), sessionId, after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200) }),
@@ -42,6 +43,7 @@ export type ChatControls = {
   open(args: Args<'open'>): Promise<unknown>;
   resume(args: Args<'resume'>): Promise<unknown>;
   send(args: Args<'send'>): unknown;
+  answer(args: Args<'answer'>): unknown;
   interrupt(args: Args<'interrupt'>): Promise<unknown>;
   setOption(args: Args<'setOption'>): Promise<unknown>;
   events(args: Args<'events'>): unknown;
@@ -62,6 +64,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.resume({ sessionId: request.sessionId });
     case 'send':
       return controls.send({ sessionId: request.sessionId, text: request.text });
+    case 'answer':
+      return controls.answer({ sessionId: request.sessionId, approvalId: request.approvalId, choiceId: request.choiceId });
     case 'interrupt':
       return controls.interrupt({ sessionId: request.sessionId });
     case 'setOption':

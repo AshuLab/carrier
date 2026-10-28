@@ -36,7 +36,8 @@ async function hostClient(socketPath: string, config: Config, configPath: string
 }
 
 type Option = { id: string; label: string; values: { id: string; label: string }[]; current: string };
-type Reply = { events: Record<string, any>[]; cursor: number; streaming: string; options: Option[] };
+type Approval = { approvalId: string; tool: string; arg?: string; choices: { id: string; label: string; allow: boolean }[] };
+type Reply = { events: Record<string, any>[]; cursor: number; streaming: string; options: Option[]; approvals: Approval[] };
 
 const HISTORY_EVENTS = 20;
 
@@ -68,30 +69,31 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
 
   let cursor = 0;
   let printed = 0; // characters of the message being written that are already on screen
+  let finished = false; // a turn_end has been shown
   const show = (reply: Reply) => {
-    let ended = false;
     for (const event of reply.events) {
       if (event.kind === 'assistant') write(`${String(event.text).slice(printed)}\n`), (printed = 0);
       else if (event.kind === 'tool_start') write(`  [${event.tool}${event.arg ? ` ${event.arg}` : ''}]\n`);
       else if (event.kind === 'error') write(`error: ${event.text}\n`);
       else if (event.kind === 'turn_end') {
-        ended = true;
+        finished = true;
         printed = 0;
         if (event.outcome === 'interrupted') write('\n[interrupted]\n');
       }
     }
     if (reply.streaming.length > printed) write(reply.streaming.slice(printed)), (printed = reply.streaming.length);
     cursor = reply.cursor;
-    return ended;
   };
   const poll = async () => (await client.request('events', { sessionId, after: cursor, limit: 200 })) as Reply;
 
+  let waitingOn = false; // a resumed session that was waiting for an approval when the person left
   if (start.cmd === 'resume') {
     // the socket pages forward by cursor only, so the end of the transcript is found by reading to its end
     let tail: Reply['events'] = [];
     for (let page = await poll(); ; page = await poll()) {
       tail = [...tail, ...page.events].slice(-HISTORY_EVENTS);
       cursor = page.cursor;
+      waitingOn = page.approvals.length > 0;
       if (page.events.length < 200) break;
     }
     for (const event of tail) {
@@ -104,16 +106,88 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
 
   const reader = createInterface({ input });
   const lines = reader[Symbol.asyncIterator]();
+  // A line asked for and not used (the approval it was for was answered elsewhere) stays asked for, so the next read gets it.
+  let waiting: Promise<IteratorResult<string>> | undefined;
+  const nextLine = () => (waiting ??= lines.next());
+  const used = () => void (waiting = undefined);
   let turning = false;
+  let left = false;
   const onSigint = () => {
     if (turning === false) return reader.close(); // at the prompt: leave, as /quit does
     client.request('interrupt', { sessionId }).catch((error) => write(`${error instanceof Error ? error.message : String(error)}\n`));
   };
   sigint.on('SIGINT', onSigint);
+
+  /** Shows an approval with the provider's choices and sends the one the person picks; gives up when it is no longer pending (an interrupt, another client). */
+  const decide = async (approval: Approval) => {
+    write(`${approval.tool}${approval.arg ? ` ${approval.arg}` : ''} needs your approval:\n${approval.choices.map((choice, i) => `  ${i + 1}) ${choice.label}\n`).join('')}`);
+    const watch = { on: true, still: () => watch.on };
+    const gone = (async () => {
+      while (watch.on) {
+        await sleep(pollMs);
+        const reply = await poll();
+        if (watch.still() === false) return;
+        show(reply);
+        if (reply.approvals.some((a) => a.approvalId === approval.approvalId) === false) return;
+      }
+    })();
+    try {
+      for (;;) {
+        write('choose> ');
+        const got = await Promise.race([nextLine(), gone]);
+        if (got === undefined) return write('\n');
+        used();
+        if (got.done) return void (left = true); // the person left: the approval stays pending
+        const text = String(got.value).trim();
+        const choice = approval.choices[Number(text) - 1] ?? approval.choices.find((c) => c.id === text);
+        if (choice === undefined) {
+          write(`Type a number from 1 to ${approval.choices.length}\n`);
+          continue;
+        }
+        watch.on = false;
+        try {
+          await client.request('answer', { sessionId, approvalId: approval.approvalId, choiceId: choice.id });
+        } catch (error) {
+          write(`${error instanceof Error ? error.message : String(error)}\n`);
+        }
+        return;
+      }
+    } finally {
+      watch.on = false;
+    }
+  };
+  const asked = new Set<string>();
+  /** Follows the turn that runs until it ends, asking each approval it raises. */
+  const follow = async () => {
+    finished = false;
+    while (finished === false && left === false) {
+      const reply = await poll();
+      show(reply);
+      for (const approval of reply.approvals) {
+        if (finished || left) break;
+        if (asked.has(approval.approvalId)) continue;
+        asked.add(approval.approvalId);
+        await decide(approval);
+      }
+      if (finished === false && left === false) await sleep(pollMs);
+    }
+  };
+
   try {
-    for (;;) {
+    if (waitingOn) {
+      turning = true;
+      try {
+        await follow();
+      } catch (error) {
+        write(`${error instanceof Error ? error.message : String(error)}\n`);
+      } finally {
+        turning = false;
+      }
+    }
+    while (left === false) {
       write('> ');
-      const { value, done } = await lines.next();
+      const { value, done } = await nextLine();
+      used();
       const text = done ? '/quit' : String(value).trim();
       if (text === '/quit') break;
       if (text === '') continue;
@@ -140,7 +214,7 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
       turning = true;
       try {
         await client.request('send', { sessionId, text });
-        while (show(await poll()) === false) await sleep(pollMs);
+        await follow();
       } catch (error) {
         write(`${error instanceof Error ? error.message : String(error)}\n`);
       } finally {

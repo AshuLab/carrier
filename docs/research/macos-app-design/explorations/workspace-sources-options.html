@@ -1,0 +1,274 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Workspace sources</title>
+<link rel="stylesheet" href="shared.css"><style>
+.w-sec{margin:44px 0 6px;font-size:16px;font-weight:700;letter-spacing:-.01em}
+.w-cap{color:var(--dim);font-size:12.5px;max-width:900px;margin:0 0 12px}
+.w-row{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start}
+.w-fr{display:flex;flex-direction:column;gap:6px}
+.w-fr>h4{margin:0;font-size:12.5px;color:var(--dim);font-weight:600}
+.w-win{width:620px;height:var(--h,470px);border-radius:22px;background:var(--win);backdrop-filter:blur(50px) saturate(1.6);box-shadow:var(--shadow);position:relative;overflow:hidden;display:flex;flex-direction:column}
+.w-tb{height:48px;flex:none;display:flex;align-items:center;padding:0 16px;gap:8px;position:relative}
+.w-lights{display:flex;gap:7px;margin-right:12px}.w-lights i{width:11px;height:11px;border-radius:50%;display:block}
+.w-lights i:nth-child(1){background:#ff5f57}.w-lights i:nth-child(2){background:#febc2e}.w-lights i:nth-child(3){background:#28c840}
+.w-tb b{font-size:14px;font-weight:650}
+.w-body{flex:1;display:flex;flex-direction:column;align-items:center;padding-top:var(--top,28px);position:relative}
+.w-mark{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--blue),color-mix(in srgb,var(--blue) 45%,transparent));display:grid;place-items:center;color:#fff;font-size:20px;margin-bottom:10px}
+.w-body h2{margin:0;font-size:18px;font-weight:650}
+.w-body .w-sub{color:var(--dim);margin:2px 0 14px;font-size:12.5px}
+.w-sent{width:min(520px,calc(100% - 48px));display:flex;flex-direction:column;gap:6px;color:var(--dim);font-size:12.5px;margin-bottom:8px}
+.w-sl{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.w-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:7px;background:var(--card2);color:var(--text);font-weight:600;font-size:12.5px}
+.w-chip::after{content:"⌄";font-size:10px;color:var(--faint);margin-left:1px}
+.w-chip.ask{color:var(--orange);background:color-mix(in srgb,var(--orange) 15%,transparent)}.w-chip.ask::after{color:var(--orange)}
+.w-chip.nc::after{content:""}
+.w-chip.open{box-shadow:0 0 0 1.5px var(--blue) inset}
+.w-name{font:12px var(--mono);padding:2px 9px;border-radius:7px;background:var(--card2);color:var(--text);display:inline-flex;gap:3px;align-items:center}
+.w-name u{text-decoration:none;color:var(--faint)}
+.w-name.bad{box-shadow:0 0 0 1px var(--red) inset}
+.w-spin{width:12px;height:12px;border-radius:50%;border:2px solid color-mix(in srgb,var(--blue) 25%,transparent);border-top-color:var(--blue);animation:ws 1s linear infinite;display:inline-block}
+@keyframes ws{to{transform:rotate(360deg)}}
+.w-err{color:var(--red)}.w-warn{color:var(--orange)}.w-ok{color:var(--green)}
+.w-comp{width:min(520px,calc(100% - 48px));border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:11px 13px 9px;display:flex;flex-direction:column;gap:9px}
+.w-comp .in{color:var(--faint)}
+.w-comp .bar{display:flex;align-items:center;gap:6px}
+.w-comp .sp{flex:1}
+.w-comp.dim{opacity:.5}
+.w-pick{display:inline-flex;gap:5px;align-items:center;padding:3px 9px;border-radius:99px;background:var(--card2);color:var(--dim);font-size:12px;font-weight:550}
+.w-send{width:26px;height:26px;border-radius:50%;background:var(--blue);color:#fff;display:grid;place-items:center;font-weight:700}
+.w-send.off{opacity:.4}
+.w-hint{width:min(520px,calc(100% - 48px));margin-top:8px;color:var(--dim);font-size:11.5px}
+.w-pop{position:absolute;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);border-radius:14px;box-shadow:var(--shadow);padding:6px;font-size:12.5px;z-index:5}
+body:not(.light) .w-pop{background:rgba(48,48,52,.92)}
+.w-pop .h{font-size:10.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:6px 9px 3px}
+.w-mi{display:flex;gap:9px;align-items:center;padding:5px 9px;border-radius:7px}
+.w-mi.hv{background:var(--sel)}
+.w-mi .t{flex:1;min-width:0}.w-mi .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.w-mi .t span{display:block;color:var(--dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono)}
+.w-mi .ic{width:18px;text-align:center;color:var(--dim);flex:none}
+.w-mi .go{color:var(--faint);font-size:11px}
+.w-sep{height:.5px;background:var(--line);margin:5px 4px}
+.w-pf{display:flex;gap:6px;align-items:center;padding:5px 9px 3px;color:var(--faint);font-size:11px}
+.w-pf code{font-family:var(--mono);color:var(--dim)}
+.w-pf a{color:var(--blue);margin-left:auto}
+.w-ph{display:flex;align-items:center;gap:8px;padding:4px 6px 6px}
+.w-ph .bk{color:var(--blue);font-weight:600}.w-ph b{font-weight:650;flex:1;text-align:center;margin-right:30px}
+.w-in{display:flex;gap:6px;align-items:center;margin:4px 6px;padding:6px 9px;border-radius:8px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;color:var(--text)}
+.w-in.ph{color:var(--faint)}
+.w-in .m{font-family:var(--mono);font-size:12px}
+.w-in.bad{box-shadow:0 0 0 1px var(--red) inset}
+.w-cb{display:flex;gap:8px;align-items:flex-start;padding:5px 9px;color:var(--dim);font-size:12px}
+.w-cb i{width:14px;height:14px;border-radius:4px;background:var(--blue);color:#fff;display:grid;place-items:center;font-size:10px;font-style:normal;flex:none;margin-top:1px}
+.w-cb i.off{background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset;color:transparent}
+.w-cb b{color:var(--text);font-weight:600}
+.w-btns{display:flex;gap:8px;justify-content:flex-end;padding:6px 8px 4px;align-items:center}
+.w-btn{padding:4px 14px;border-radius:99px;background:var(--card2);font-weight:600;font-size:12px}
+.w-btn.pri{background:var(--blue);color:#fff}.w-btn.off{opacity:.4}
+.w-msg{padding:5px 9px;font-size:12px;color:var(--dim)}
+.w-repo{display:flex;gap:9px;align-items:center;padding:5px 9px;border-radius:7px}
+.w-repo .t{flex:1;min-width:0}.w-repo .t b{font-weight:600}.w-repo .t b span{color:var(--dim);font-weight:500}
+.w-repo .t small{display:block;color:var(--dim);font-size:11px}
+.w-repo .lk{color:var(--faint);font-size:11px}
+.w-repo.hv{background:var(--sel)}
+.w-tag{font-size:10.5px;font-weight:650;padding:1px 7px;border-radius:99px;background:color-mix(in srgb,var(--green) 22%,transparent);color:var(--green);white-space:nowrap}
+.w-more{text-align:center;padding:6px;color:var(--blue);font-weight:600}
+.w-part{padding:2px 9px 4px;color:var(--faint);font-size:11px}
+.w-dim{position:absolute;inset:0;background:rgba(0,0,0,.28);z-index:4}
+.w-sheet{position:absolute;left:50%;top:44px;transform:translateX(-50%);width:470px;background:var(--win);backdrop-filter:blur(40px);border-radius:16px;box-shadow:var(--shadow);z-index:6;padding:14px 14px 10px}
+body:not(.light) .w-sheet{background:rgba(44,44,48,.97)}
+.w-sheet h3{margin:0 0 8px;font-size:14px;text-align:center}
+.w-seg{display:flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;margin-bottom:10px}
+.w-seg span{flex:1;text-align:center;padding:4px 0;border-radius:99px;color:var(--dim);font-weight:600;font-size:12px}
+.w-seg span.on{background:rgba(255,255,255,.16);color:var(--text)}
+body.light .w-seg span.on{background:var(--win)}
+.w-tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+.w-tile{border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:10px 12px;display:flex;gap:10px;align-items:center}
+.w-tile .ic{font-size:18px;width:24px;text-align:center}
+.w-tile b{display:block;font-weight:650}.w-tile span{color:var(--dim);font-size:11.5px}
+.w-card{width:min(520px,calc(100% - 48px));border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:10px;margin-bottom:8px}
+.w-tbl{border-collapse:collapse;font-size:12.5px;max-width:980px;margin-top:10px}
+.w-tbl th{text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);padding:6px 10px;border-bottom:1px solid var(--line)}
+.w-tbl td{vertical-align:top;padding:7px 10px;border-bottom:.5px solid var(--line);color:var(--dim)}
+.w-tbl td:first-child{width:110px}.w-tbl td b{color:var(--text);font-weight:600}
+.w-set{width:520px;border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:12px 14px}
+.w-set .r{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:.5px solid var(--line)}
+.w-set .r:last-child{border:0}.w-set .r b{width:130px;font-weight:600}.w-set .r span{flex:1;font-family:var(--mono);font-size:12px;color:var(--dim)}
+.w-set small{display:block;color:var(--dim);margin-top:6px;font-size:11.5px}
+</style></head><body>
+<h1>Workspace sources: where the picker comes from</h1>
+<div class="sub">The chip “Choose a workspace…” opens a way to pick, clone or create the folder a session works in. Four sources: a local folder, a GitHub URL (cloned), your GitHub repositories (browsed, cloned when chosen) and a new project (folder + git init). Clones and new projects live in one projects folder, <b>~/.carrier/chat/projects</b>, that you can change. “Let Carrier watch this repo” is on by default for what comes from GitHub. Three shapes for the picker below; pick one. The states after choosing are the same for all.</div>
+<div class="bar"><button class="tog" onclick="document.body.classList.toggle('light')">Light / dark</button></div>
+<div class="w-sec">A · One popover that drills in</div>
+<div class="w-cap">The chip opens a menu: recent folders, the projects folder, then the four sources. Each source drills into its own step inside the same popover, with ‹ Back. Nothing leaves the sentence; the draft stays visible behind it. The same popover idiom as the branch picker.</div>
+<div class="w-row"><div class="w-fr"><h4>1 · the draft, no workspace yet</h4><div class="w-win" style="--h:470px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask">Choose a workspace…</span></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+
+</div></div></div><div class="w-fr"><h4>2 · the menu</h4><div class="w-win" style="--h:660px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask open">Choose a workspace…</span></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+<div class="w-pop" style="left:92px;top:176px;width:360px"><div class="h">Recent</div><div class="w-mi "><span class="ic">▢</span><div class="t"><b>optyra-api</b><span>~/dev/optyra-api</span></div><span class="go"></span></div><div class="w-mi "><span class="ic">▢</span><div class="t"><b>infra</b><span>~/dev/infra</span></div><span class="go"></span></div><div class="h">In your projects folder</div><div class="w-mi "><span class="ic">▢</span><div class="t"><b>AshuLab/carrier</b><span>~/.carrier/chat/projects/AshuLab/carrier</span></div><span class="go"></span></div><div class="w-mi "><span class="ic">▢</span><div class="t"><b>local/my-idea</b><span>~/.carrier/chat/projects/local/my-idea</span></div><span class="go"></span></div><div class="w-sep"></div><div class="w-mi "><span class="ic">📁</span><div class="t"><b>Open local folder…</b></div><span class="go"></span></div><div class="w-mi hv"><span class="ic">🔗</span><div class="t"><b>From a GitHub URL…</b></div><span class="go">›</span></div><div class="w-mi "><span class="ic">☁︎</span><div class="t"><b>My GitHub repositories…</b></div><span class="go">›</span></div><div class="w-mi "><span class="ic">＋</span><div class="t"><b>New project…</b></div><span class="go">›</span></div><div class="w-sep"></div><div class="w-pf">Projects folder <code>~/.carrier/chat/projects</code><a>Change…</a></div></div>
+</div></div></div></div>
+<div class="w-cap" style="margin-top:18px"><b>From a GitHub URL</b>: owner/repo or the full URL. The checkbox is on. “Clone and use” is off until the text parses.</div>
+<div class="w-row"><div class="w-fr"><h4>3a · URL, empty</h4><div class="w-win" style="--h:520px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask open">Choose a workspace…</span></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+<div class="w-pop" style="left:92px;top:176px;width:380px"><div class="w-ph"><span class="bk">‹ Back</span><b>From a GitHub URL</b></div><div class="w-in ph"><span class="m">owner/repo  or  https://github.com/owner/repo</span></div><div class="w-cb"><i>✓</i><div><b>Let Carrier watch this repo</b><br>Adds it to your Carrier repos; it starts listening the next time Carrier starts.</div></div><div class="w-btns"><span class="w-btn">Cancel</span><span class="w-btn pri off">Clone and use</span></div></div>
+</div></div></div><div class="w-fr"><h4>3b · URL, valid</h4><div class="w-win" style="--h:520px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask open">Choose a workspace…</span></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+<div class="w-pop" style="left:92px;top:176px;width:380px"><div class="w-ph"><span class="bk">‹ Back</span><b>From a GitHub URL</b></div><div class="w-in"><span class="m">https://github.com/AshuLab/carrier</span></div><div class="w-cb"><i>✓</i><div><b>Let Carrier watch this repo</b><br>Adds it to your Carrier repos; it starts listening the next time Carrier starts.</div></div><div class="w-btns"><span class="w-btn">Cancel</span><span class="w-btn pri ">Clone and use</span></div></div>
+</div></div></div><div class="w-fr"><h4>3c · cloning</h4><div class="w-win" style="--h:520px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask open">Choose a workspace…</span></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+<div class="w-pop" style="left:92px;top:176px;width:380px"><div class="w-ph"><span class="bk">‹ Back</span><b>From a GitHub URL</b></div><div class="w-in"><span class="m">AshuLab/carrier</span></div><div class="w-msg"><span class="w-spin"></span>&nbsp; Cloning AshuLab/carrier…<br><span style="font-family:var(--mono);font-size:11px;color:var(--faint)">into ~/.carrier/chat/projects/AshuLab/carrier</span></div><div class="w-btns"><span class="w-btn">Cancel</span></div></div>
+</div></div></div><div class="w-fr"><h4>3d · it fails, in words</h4><div class="w-win" style="--h:560px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask open">Choose a workspace…</span></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+<div class="w-pop" style="left:92px;top:176px;width:380px"><div class="w-ph"><span class="bk">‹ Back</span><b>From a GitHub URL</b></div><div class="w-in bad"><span class="m">AshuLab/nope</span></div><div class="w-msg w-err">GitHub says AshuLab/nope was not found, or your login (vemec) cannot see it.</div><div class="w-cb"><i>✓</i><div><b>Let Carrier watch this repo</b><br>Adds it to your Carrier repos; it starts listening the next time Carrier starts.</div></div><div class="w-btns"><span class="w-btn">Cancel</span><span class="w-btn pri">Try again</span></div></div>
+</div></div></div><div class="w-fr"><h4>3e · already cloned</h4><div class="w-win" style="--h:520px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask open">Choose a workspace…</span></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+<div class="w-pop" style="left:92px;top:176px;width:380px"><div class="w-ph"><span class="bk">‹ Back</span><b>From a GitHub URL</b></div><div class="w-in"><span class="m">AshuLab/carrier</span></div><div class="w-msg w-warn">Already in your projects folder. It will be updated (fetch) and opened, not cloned again.</div><div class="w-btns"><span class="w-btn">Cancel</span><span class="w-btn pri">Update and use</span></div></div>
+</div></div></div></div>
+<div class="w-cap" style="margin-top:18px"><b>My GitHub repositories</b>: the login that is active in <code>gh</code>, every repo it can read, newest push first, 30 at a time with Load more and a search over what is loaded (for a repo that is not loaded, paste its URL). Repos already in Carrier’s config carry a “watched” tag; the checkbox applies to the one you choose.</div>
+<div class="w-row"><div class="w-fr"><h4>4a · the list</h4><div class="w-win" style="--h:760px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask open">Choose a workspace…</span></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+<div class="w-pop" style="left:92px;top:176px;width:400px"><div class="w-ph"><span class="bk">‹ Back</span><b>My GitHub repositories</b></div><div class="w-msg" style="padding-top:0">Signed in to GitHub as <b style="color:var(--text)">vemec</b></div><div class="w-in">🔍&nbsp;<span style="color:var(--faint)">Search the loaded repositories</span></div><div style="max-height:218px;overflow:hidden"><div class="w-repo hv"><div class="t"><b><span>AshuLab/</span>carrier</b><small>🔒 pushed 2h ago</small></div><span class="w-tag">watched</span></div><div class="w-repo "><div class="t"><b><span>AshuLab/</span>skills</b><small>🔒 pushed 1d ago</small></div><span class="w-tag">watched</span></div><div class="w-repo "><div class="t"><b><span>vemec/</span>encaja</b><small>pushed 3d ago</small></div><span class="w-tag">watched</span></div><div class="w-repo "><div class="t"><b><span>vemec/</span>blog-engine</b><small>pushed 5d ago</small></div></div><div class="w-repo "><div class="t"><b><span>optyra/</span>api-gateway</b><small>🔒 pushed 1w ago</small></div></div><div class="w-repo "><div class="t"><b><span>vemec/</span>dotfiles</b><small>pushed 2w ago</small></div></div></div><div class="w-part">Partial list · 30 of your repositories loaded</div><div class="w-more">Load more</div><div class="w-sep"></div><div class="w-cb"><i>✓</i><div><b>Let Carrier watch the repo I choose</b><br>Not for repos that are already watched.</div></div></div>
+</div></div></div><div class="w-fr"><h4>4b · choosing one starts the clone</h4><div class="w-win" style="--h:470px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ">carrier</span> <span class="w-spin"></span> Cloning AshuLab/carrier…</div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+
+</div></div></div></div>
+<div class="w-cap" style="margin-top:18px"><b>New project</b>: a name; the path is shown before it is made. No watch option, because there is no GitHub repo.</div>
+<div class="w-row"><div class="w-fr"><h4>5a · name it</h4><div class="w-win" style="--h:520px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask open">Choose a workspace…</span></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+<div class="w-pop" style="left:92px;top:176px;width:380px"><div class="w-ph"><span class="bk">‹ Back</span><b>New project</b></div><div class="w-in"><span class="m">my-idea</span></div><div class="w-msg">Creates <span style="font-family:var(--mono);font-size:11px;color:var(--text)">~/.carrier/chat/projects/local/my-idea</span> and runs <span style="font-family:var(--mono);font-size:11px;color:var(--text)">git init</span>.<br>It stays on this Mac. Carrier can only watch a repo that is on GitHub, so there is no watch option here.</div><div class="w-btns"><span class="w-btn">Cancel</span><span class="w-btn pri">Create and use</span></div></div>
+</div></div></div><div class="w-fr"><h4>5b · after creating</h4><div class="w-win" style="--h:420px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ">my-idea</span> <span style="color:var(--dim)">in the folder (new project, no commits yet: no worktree)</span></div></div>
+<div class="w-comp "><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send ">↑</div></div></div>
+
+
+</div></div></div></div>
+<div class="w-sec">B · A sheet with a tab per source</div>
+<div class="w-cap">The chip opens a sheet over the window with a control at the top: Recent · GitHub URL · My repos · New project (the local folder is the Open folder button of Recent). More room for the repo list and for explanations; but it leaves the draft and is heavier for the common case of picking a recent folder.</div>
+<div class="w-row"><div class="w-fr"><h4>B1 · Recent</h4><div class="w-win" style="--h:560px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask open">Choose a workspace…</span></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+<div class="w-dim"></div><div class="w-sheet"><h3>Choose a workspace</h3><div class="w-seg"><span class="on">Recent</span><span class="">GitHub URL</span><span class="">My repos</span><span class="">New project</span></div><div class="w-mi hv"><span class="ic">▢</span><div class="t"><b>optyra-api</b><span>~/dev/optyra-api</span></div><span class="go"></span></div><div class="w-mi "><span class="ic">▢</span><div class="t"><b>infra</b><span>~/dev/infra</span></div><span class="go"></span></div><div class="w-mi "><span class="ic">▢</span><div class="t"><b>AshuLab/carrier</b><span>~/.carrier/chat/projects/AshuLab/carrier</span></div><span class="go"></span></div><div class="w-sep"></div><div class="w-mi "><span class="ic">📁</span><div class="t"><b>Open local folder…</b></div><span class="go"></span></div><div class="w-pf">Projects folder <code>~/.carrier/chat/projects</code><a>Change…</a></div><div class="w-btns"><span class="w-btn">Cancel</span><span class="w-btn pri">Use this folder</span></div></div>
+</div></div></div><div class="w-fr"><h4>B2 · My repos</h4><div class="w-win" style="--h:640px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask open">Choose a workspace…</span></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+<div class="w-dim"></div><div class="w-sheet"><h3>Choose a workspace</h3><div class="w-seg"><span class="">Recent</span><span class="">GitHub URL</span><span class="on">My repos</span><span class="">New project</span></div><div class="w-msg" style="padding-top:0">Signed in to GitHub as <b style="color:var(--text)">vemec</b></div><div class="w-in">🔍&nbsp;<span style="color:var(--faint)">Search the loaded repositories</span></div><div style="max-height:218px;overflow:hidden"><div class="w-repo hv"><div class="t"><b><span>AshuLab/</span>carrier</b><small>🔒 pushed 2h ago</small></div><span class="w-tag">watched</span></div><div class="w-repo "><div class="t"><b><span>AshuLab/</span>skills</b><small>🔒 pushed 1d ago</small></div><span class="w-tag">watched</span></div><div class="w-repo "><div class="t"><b><span>vemec/</span>encaja</b><small>pushed 3d ago</small></div><span class="w-tag">watched</span></div><div class="w-repo "><div class="t"><b><span>vemec/</span>blog-engine</b><small>pushed 5d ago</small></div></div><div class="w-repo "><div class="t"><b><span>optyra/</span>api-gateway</b><small>🔒 pushed 1w ago</small></div></div><div class="w-repo "><div class="t"><b><span>vemec/</span>dotfiles</b><small>pushed 2w ago</small></div></div></div><div class="w-part">Partial list · 30 of your repositories loaded</div><div class="w-more">Load more</div><div class="w-sep"></div><div class="w-cb"><i>✓</i><div><b>Let Carrier watch the repo I choose</b><br>Not for repos that are already watched.</div></div><div class="w-btns"><span class="w-btn">Cancel</span><span class="w-btn pri">Clone and use</span></div></div>
+</div></div></div></div>
+<div class="w-sec">C · The sentence grows a card of sources</div>
+<div class="w-cap">Choosing the chip unfolds a card under the sentence, inside the page: four tiles for the sources, with the recent folders as a list under them. A source opens its form in the same card. No overlay at all; the page has room, and the card can be as tall as the list needs. The sentence and the box slide down.</div>
+<div class="w-row"><div class="w-fr"><h4>C1 · sources</h4><div class="w-win" style="--h:640px;--top:18px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask open">Choose a workspace…</span></div><div class="w-card"><div class="w-tiles"><div class="w-tile"><span class="ic">📁</span><div><b>Local folder</b><span>Pick one on this Mac</span></div></div><div class="w-tile"><span class="ic">🔗</span><div><b>GitHub URL</b><span>Clone owner/repo</span></div></div><div class="w-tile"><span class="ic">☁︎</span><div><b>My repositories</b><span>Browse your GitHub</span></div></div><div class="w-tile"><span class="ic">＋</span><div><b>New project</b><span>Empty folder + git init</span></div></div></div><div class="w-sep"></div><div class="w-part" style="padding-top:2px">RECENT</div><div class="w-mi "><span class="ic">▢</span><div class="t"><b>optyra-api</b><span>~/dev/optyra-api</span></div><span class="go"></span></div><div class="w-mi "><span class="ic">▢</span><div class="t"><b>AshuLab/carrier</b><span>~/.carrier/chat/projects/AshuLab/carrier</span></div><span class="go"></span></div><div class="w-pf">Projects folder <code>~/.carrier/chat/projects</code><a>Change…</a></div></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+
+</div></div></div><div class="w-fr"><h4>C2 · GitHub URL in the card</h4><div class="w-win" style="--h:640px;--top:18px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask open">Choose a workspace…</span></div><div class="w-card"><div class="w-ph"><span class="bk">‹ Back</span><b>From a GitHub URL</b></div><div class="w-in"><span class="m">https://github.com/AshuLab/carrier</span></div><div class="w-cb"><i>✓</i><div><b>Let Carrier watch this repo</b><br>Adds it to your Carrier repos; it starts listening the next time Carrier starts.</div></div><div class="w-btns"><span class="w-btn">Cancel</span><span class="w-btn pri ">Clone and use</span></div></div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+
+</div></div></div></div>
+<div class="w-sec">After choosing (the same in A, B and C)</div>
+<div class="w-cap">Choosing or cloning a repo ends in the sentence the draft already has, with a Cloning… state while it runs. The box stays dimmed until the folder is ready. A failure leaves the chip orange and says why in words.</div>
+<div class="w-row"><div class="w-fr"><h4>6a · cloning</h4><div class="w-win" style="--h:380px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ">carrier</span> <span class="w-spin"></span> Cloning AshuLab/carrier…</div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+
+</div></div></div><div class="w-fr"><h4>6b · ready, Current folder</h4><div class="w-win" style="--h:380px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ">carrier</span> on <span class="w-chip ">Current folder</span> (main)</div></div>
+<div class="w-comp "><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send ">↑</div></div></div>
+
+
+</div></div></div><div class="w-fr"><h4>6c · New worktree</h4><div class="w-win" style="--h:400px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ">carrier</span> on <span class="w-chip ">New worktree</span> <span class="w-name"><u>carrier/</u>brave-marine-aiur ↻</span> from <span class="w-chip ">main</span></div></div>
+<div class="w-comp "><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send ">↑</div></div></div>
+<div class="w-hint">Creates a worktree on the new branch <span style="font-family:var(--mono)">carrier/brave-marine-aiur</span> from main. The base folder stays as it is.</div>
+
+</div></div></div><div class="w-fr"><h4>7 · the clone failed</h4><div class="w-win" style="--h:400px;--top:28px">
+<div class="w-tb"><div class="w-lights"><i></i><i></i><i></i></div><b>New session</b></div>
+<div class="w-body">
+<div class="w-mark">✦</div><h2>What do you want to work on?</h2><div class="w-sub">Pick where it works, then write.</div>
+<div class="w-sent"><div class="w-sl">Work in <span class="w-chip ask">Choose a workspace…</span></div><div class="w-err">Could not clone AshuLab/carrier: GitHub says repository not found, or your login (vemec) cannot see it.</div></div>
+<div class="w-comp dim"><div class="in">Write the first message…</div><div class="bar"><span class="w-pick">✦ claude ⌄</span><span class="sp"></span><div class="w-send off">↑</div></div></div>
+
+
+</div></div></div></div>
+<div class="w-sec">The projects folder</div>
+<div class="w-cap">One folder for everything Carrier’s chat brings onto this Mac: clones go to <b>&lt;owner&gt;/&lt;repo&gt;</b>, new projects to <b>local/&lt;name&gt;</b>, the same layout the session worktrees already use. It is in the config (so it can be changed) and the picker’s footer says where it is. Carrier never deletes anything in it.</div>
+<div class="w-set"><div class="r"><b>Projects folder</b><span>~/.carrier/chat/projects</span><span class="w-btn" style="flex:none;font-family:var(--font)">Choose…</span></div><small>Where cloned and new projects live. Changing it does not move what is already there; the picker lists what each folder holds.</small></div>
+<div class="w-sec">What is the same, what differs</div>
+<table class="w-tbl"><tr><th></th><th>A · popover</th><th>B · sheet</th><th>C · card</th></tr><tr><td><b>Common case</b> (recent folder)</td><td>one click, one menu</td><td>sheet, then a button</td><td>unfolds, then a click</td></tr><tr><td><b>Repo list</b> (long)</td><td>tight: 380 wide, 5-6 rows visible</td><td>roomy</td><td>roomy, pushes the box down</td></tr><tr><td><b>Clone progress</b></td><td>in the step; then in the sentence</td><td>in the sheet; then in the sentence</td><td>in the card; then in the sentence</td></tr><tr><td><b>Fits the app</b></td><td>same idiom as the branch picker</td><td>new idiom (a modal in a chat draft)</td><td>new idiom (inline expansion)</td></tr><tr><td><b>Build</b></td><td>popover steps in one view</td><td>one sheet view</td><td>one view with an expanding card</td></tr></table>
+</body></html>

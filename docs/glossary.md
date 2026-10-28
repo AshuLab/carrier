@@ -120,8 +120,11 @@ _Avoid_: card, tab, panel.
 **User session** - A conversation the person starts inside the app with the agent of their choice, in a workspace. It belongs to no epic ([0012](adr/0012-sessions-and-epics-are-two-separate-worlds.md)), is disposable once its job is done, and can be archived. It is a Session in the sense above, when that conversation is not an epic's execution.
 _Avoid_: chat, thread.
 
-**Workspace** - The folder a user session works in: a plain folder, a GitHub clone, or a repository already in Carrier's list. The sidebar groups sessions by workspace. It is never the shared clone an epic runs in nor an epic's worktree.
-_Avoid_: project, epic checkout.
+**Workspace** - The folder a user session works in: a folder on this Mac the person picks, a GitHub repository the chat cloned for them into the projects folder, or a new project it made there. The sidebar groups sessions by workspace. It is never the shared clone an epic runs in nor an epic's worktree, and Carrier's list of repos to watch is not where workspaces come from ([0015](adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)).
+_Avoid_: project (for the folder; "project" is only the word of the New project action), epic checkout.
+
+**Projects folder** - The one folder where the chat puts what it brings onto this Mac: a clone at `<owner>/<repo>`, a new project at `local/<name>`. By default `<CARRIER_HOME>/chat/projects`, changeable in the config. It is the person's: Carrier fetches in it and never deletes anything from it. It is not the shared root's `repos/`, where the engine keeps its own clones and the chat host refuses to work.
+_Avoid_: workspace folder, clones folder, repos folder.
 
 **Base folder** - The workspace's own folder, as opposed to a worktree made from it. A session that works in the base folder edits the person's own checkout, with whatever branch and uncommitted changes it has.
 _Avoid_: main folder, original, source.

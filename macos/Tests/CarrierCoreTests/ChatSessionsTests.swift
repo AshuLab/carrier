@@ -236,3 +236,35 @@ private let sample = [
     #expect(sessionsPage(sample, filter: SessionFilter(statuses: [.working], agents: ["codex"]), now: now).emptyState == .noSessionsMatch)
     #expect(sessionsPage([], query: "x", now: now).emptyState == .noSessionsMatch)
 }
+
+private func worktreeSession() throws -> ChatSession {
+    try JSONDecoder().decode(
+        ChatSession.self,
+        from: Data(
+            """
+            {"id":"t","agent":"claude","harness":"claude","folder":"/w/fix","workspace":{"base":"/Users/dev/web","branch":"carrier/fix"},
+             "title":"Fix login","state":"idle","createdAt":1,"lastActiveAt":2,"archived":false,"live":false}
+            """.utf8))
+}
+
+@Test func theTitleBarSaysTheTitleAndWhereAFolderSessionWorks() throws {
+    let row = sessionRows([try session("plain", folder: "/Users/dev/web", title: "Explore")])[0]
+    #expect(conversationTitle(row) == "Explore")
+    #expect(conversationSubtitle(row) == "web · base folder")
+    #expect(openMenuItems(row) == [
+        OpenItem(title: "Reveal in Finder", action: .reveal(path: "/Users/dev/web")), OpenItem(title: "Copy path", action: .copy("/Users/dev/web")),
+    ])
+}
+
+@Test func theTitleBarSaysTheBranchOfAWorktreeSessionAndItsMenuCopiesIt() throws {
+    let row = sessionRows([try worktreeSession()])[0]
+    #expect(conversationSubtitle(row) == "web · ⑂ carrier/fix")
+    #expect(openMenuItems(row) == [
+        OpenItem(title: "Reveal in Finder", action: .reveal(path: "/w/fix")), OpenItem(title: "Copy path", action: .copy("/w/fix")),
+        OpenItem(title: "Copy branch name", action: .copy("carrier/fix")),
+    ])
+}
+
+@Test func aSessionWithoutATitleIsANewSessionInTheTitleBar() throws {
+    #expect(conversationTitle(sessionRows([try session("n", title: nil)])[0]) == "New session")
+}

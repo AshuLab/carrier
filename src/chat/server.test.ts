@@ -43,7 +43,12 @@ const controls = (): ChatControls => ({
   fetch: async ({ folder }) => ({ folder, fetched: true }),
   suggestName: async ({ folder }) => ({ name: `named-in-${folder}` }),
   checkName: async ({ name }) => ({ valid: true, free: true, name }),
+  cloneRepo: async ({ repo }, gone) => {
+    seen.push(gone);
+    return { repo };
+  },
 });
+const seen: AbortSignal[] = [];
 async function open({ stop = async () => {}, clients = noClients } = {}) {
   const server = await startChatServer({ chatDir: dir, startedAt: 1234, controls: controls(), stop, clients });
   closers.push(server.close);
@@ -78,7 +83,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'stop'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'stop'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -163,6 +168,19 @@ test('suggestName takes a folder, checkName a folder and a name, and nothing els
   expect(await c.ask('{"id":7,"cmd":"checkName","folder":"","name":"a"}')).toEqual({ id: 7, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":8,"cmd":"checkName","folder":"/x","name":1}')).toEqual({ id: 8, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":9,"cmd":"checkName","folder":"/x","name":"a","force":true}')).toEqual({ id: 9, ok: false, error: 'invalid request' });
+});
+
+test('cloneRepo takes one owner/name repo and nothing else, and its signal aborts when the client leaves', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"cloneRepo","repo":"acme/app"}')).toEqual({ id: 1, ok: true, data: { repo: 'acme/app' } });
+  for (const [id, extra] of [[2, ''], [3, ',"repo":""'], [4, ',"repo":"../x"'], [5, ',"repo":"a/..'], [6, ',"repo":"a/b/c"'], [7, ',"repo":"solo"'], [8, ',"repo":7'], [9, ',"repo":"a/b","force":true']] as const) {
+    expect(await c.ask(`{"id":${id},"cmd":"cloneRepo"${extra}${id === 5 ? '"' : ''}}`)).toEqual({ id, ok: false, error: 'invalid request' });
+  }
+  expect(seen).toHaveLength(1);
+  expect(seen[0]!.aborted).toBe(false);
+  c.socket.destroy();
+  await vi.waitFor(() => expect(seen[0]!.aborted).toBe(true));
 });
 
 test('a line that is not JSON is "invalid JSON" and the connection goes on', async () => {

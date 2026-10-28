@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { realGit } from './git.ts';
+import { createProjects } from './projects.ts';
 import { ChatRefused } from './runner.ts';
 import { createWorktree, removeWorktree } from './worktree.ts';
 import { openChatDatabase } from './db.ts';
@@ -21,6 +22,7 @@ import { fetchFolder, inspectFolder } from './workspace.ts';
 // base folder is the same after, that a failure leaves nothing and that removing takes the folder and the branch. It only runs when this is
 // set explicitly (it also deletes sessions in worktrees through the host's sessions, with a fake agent, a temporary SQLite and the real git, with the base folder there and gone):
 //   CARRIER_IT_GIT=1
+// It also clones, fetches and aborts a clone through `cloneRepo`, with the GitHub URLs rewritten to local ones by a git config of its own (no network, no token).
 const enabled = process.env.CARRIER_IT_GIT === '1';
 
 let dir: string;
@@ -332,5 +334,45 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
     await s.delete({ sessionId: id });
     expect(git(base, 'branch', '--list', branch).trim()).toBe('');
     expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(1);
+  });
+});
+
+describe.skipIf(!enabled)('cloneRepo, with the real git', () => {
+  let work: string;
+  let previousGlobal: string | undefined;
+  beforeAll(() => {
+    work = dir = realpathSync(mkdtempSync(join(tmpdir(), 'carrier-clone-'))); // `repoAt` makes its repository in `dir`
+    // the "remote" is a bare repository here; git rewrites the GitHub URL the host asks for to it. `ext::` is a transport that never answers, for the abort.
+    const source = repoAt('source');
+    git(source, 'clone', '-q', '--bare', source, join(work, 'remote.git'));
+    writeFileSync(join(work, 'gitconfig'), `[url "${join(work, 'remote.git')}"]\n\tinsteadOf = https://github.com/acme/app.git\n[url "ext::sleep 5"]\n\tinsteadOf = https://github.com/acme/hang.git\n[protocol "ext"]\n\tallow = always\n`);
+    previousGlobal = process.env.GIT_CONFIG_GLOBAL;
+    process.env.GIT_CONFIG_GLOBAL = join(work, 'gitconfig');
+  });
+  afterAll(() => {
+    if (previousGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+    else process.env.GIT_CONFIG_GLOBAL = previousGlobal;
+    rmSync(work, { recursive: true, force: true });
+  });
+  const projects = () => createProjects({ git: realGit, token: async () => 'unused', config: { root: join(work, 'root'), chat: { projectsFolder: join(work, 'projects') } } as Config });
+
+  test('a real clone lands in <projects>/<owner>/<repo>, and asking again fetches it', async () => {
+    const dest = join(work, 'projects', 'acme', 'app');
+    expect(await projects().cloneRepo({ repo: 'acme/app' }, new AbortController().signal)).toEqual({ folder: dest, repo: 'acme/app', fetched: false });
+    expect(existsSync(join(dest, 'a.txt'))).toBe(true);
+    expect(git(dest, 'config', '--get', 'remote.origin.url').trim()).toBe('https://github.com/acme/app.git');
+    expect(await projects().cloneRepo({ repo: 'acme/app' }, new AbortController().signal)).toEqual({ folder: dest, repo: 'acme/app', fetched: true });
+  });
+
+  test('a real abort stops git and removes the destination this request made', async () => {
+    const abort = new AbortController();
+    const started = Date.now();
+    const cloning = projects().cloneRepo({ repo: 'acme/hang' }, abort.signal);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(existsSync(join(work, 'projects', 'acme', 'hang'))).toBe(true);
+    abort.abort();
+    await expect(cloning).rejects.toThrow(ChatRefused);
+    await vi.waitFor(() => expect(existsSync(join(work, 'projects', 'acme', 'hang'))).toBe(false), { timeout: 3000 });
+    expect(Date.now() - started).toBeLessThan(4000);
   });
 });

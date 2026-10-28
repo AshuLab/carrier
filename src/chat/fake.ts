@@ -1,4 +1,5 @@
 import { mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Git, GitResult } from './git.ts';
 import { ChatRefused, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 
@@ -104,12 +105,27 @@ export type FakeRepo = {
 export class FakeGit implements Git {
   repos = new Map<string, FakeRepo>();
   /** Every command run, in order. */
-  calls: { folder: string; args: string[]; timeoutMs?: number }[] = [];
+  calls: { folder: string; args: string[]; timeoutMs?: number; env?: NodeJS.ProcessEnv }[] = [];
+  /** While set, a `clone` waits for it (or for its signal to abort) before it ends: a clone that is still running. */
+  clonePending: Promise<void> | undefined;
   /** Commands that fail instead of answering, by their arguments joined with a space. */
   failures = new Map<string, Extract<GitResult, { ok: false }>>();
 
-  async run(folder: string, args: string[], options?: { timeoutMs?: number }): Promise<GitResult> {
-    this.calls.push({ folder, args, timeoutMs: options?.timeoutMs });
+  async run(folder: string, args: string[], options?: { timeoutMs?: number; env?: NodeJS.ProcessEnv; signal?: AbortSignal }): Promise<GitResult> {
+    this.calls.push({ folder, args, timeoutMs: options?.timeoutMs, env: options?.env });
+    if (args[0] === 'clone') {
+      // clone -- <url> <dest>: git makes the folder first; a failure or an abort leaves it half made
+      const [url, dest] = args.slice(2) as [string, string];
+      mkdirSync(dest, { recursive: true });
+      const signal = options?.signal;
+      if (this.clonePending !== undefined) await Promise.race([this.clonePending, new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true }))]);
+      if (signal?.aborted === true) return { ok: false, code: null, stderr: 'killed' };
+      const failure = this.failures.get(args.join(' '));
+      if (failure !== undefined) return failure;
+      mkdirSync(join(dest, '.git'));
+      this.repos.set(dest, { origin: url, head: 'main', branches: ['main'] });
+      return { ok: true, out: '' };
+    }
     const failure = this.failures.get(args.join(' '));
     if (failure !== undefined) return failure;
     const repo = this.repos.get(folder);

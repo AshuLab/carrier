@@ -324,6 +324,16 @@ describe('chat agents', () => {
     expect(agentsOf({})).toEqual([{ name: 'claude', harness: 'claude' }, { name: 'codex', harness: 'codex' }]);
   });
 
+  test('`chat.projectsFolder` is expanded from ~ and must then be absolute; the block may hold only it, only agents or neither', () => {
+    expect(load({ chat: { projectsFolder: '~/Projects' } })).toMatchObject({ ok: true, config: { chat: { projectsFolder: join(homedir(), 'Projects') } } });
+    expect(load({ chat: { projectsFolder: '/srv/projects' } })).toMatchObject({ ok: true, config: { chat: { projectsFolder: '/srv/projects' } } });
+    for (const projectsFolder of ['', 'relative/dir', './x', '~other/dir', 5]) expect(errorsOf({ chat: { projectsFolder } }).map((e) => e.path)).toEqual(['chat.projectsFolder']);
+    expect(errorsOf({ chat: { projectsFolder: 'x' } })[0]!.message).toContain('absolute');
+    expect(load({ chat: { agents: { zed: { harness: 'codex' } } } })).toMatchObject({ ok: true });
+    expect(load({ chat: {} })).toMatchObject({ ok: true });
+    expect(agentsOf({ chat: { projectsFolder: '/srv/p' } }).map((agent) => agent.name)).toEqual(['claude', 'codex']);
+  });
+
   test('with the block there are the agents it lists and only those, in the order written', () => {
     const agents = { zed: { harness: 'codex' }, work: { harness: 'claude', command: '/opt/claude', model: 'opus', options: { permissionMode: 'plan' } }, 'claude-2': { harness: 'claude' } };
     expect(agentsOf({ chat: { agents } })).toEqual([

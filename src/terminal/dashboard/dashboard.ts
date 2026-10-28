@@ -85,16 +85,25 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
   const lead = (repo: string, issue: number, plain: string) => (selected(repo, issue) ? ` ${pointer} ` : plain);
 
   // Only the keys that do something now: no ↑↓ with one row, no logs for a row with no agent.
+  // Packed into as many lines as the width needs: a line cut at the edge loses the keys at its end (q among them).
   const hints = () => {
     const items = itemsOf(s);
     const current = items.find((i) => i.key === ui?.selected);
     const waiting = canChoose && ui?.selected && waitingEpic(s, ui.selected);
-    return [items.length > 1 && '↑↓ select', current && 'enter open', current?.executionId && 'l logs', waiting && 'o options · a automatic', 'r check now', s.paused ? 'p resume' : 'p pause', '? help', quit === 'stop' ? 'q quit' : 'q leave'].filter(Boolean).join(' · ');
+    const parts = [items.length > 1 && '↑↓ select', current && 'enter open', current?.executionId && 'l logs', waiting && 'o options · a automatic', 'r check now', s.paused ? 'p resume' : 'p pause', '? help', quit === 'stop' ? 'q quit' : 'q leave'].filter(Boolean) as string[];
+    return parts.reduce<string[]>((rows, part) => {
+      const last = rows.at(-1);
+      if (last !== undefined && visibleLength(`${last} · ${part}`) <= width - 1) rows[rows.length - 1] = `${last} · ${part}`;
+      else rows.push(part);
+      return rows;
+    }, []);
   };
   const footer = () => {
     if (ui?.toast) add(`   ${paint(`› ${printable(ui.toast.text)}`, 'cyan')}`);
     add();
-    add(`   ${paint(ui === undefined ? (quit === 'stop' ? 'Ctrl+C stops it' : 'Ctrl+C leaves it running') : ui.mode === 'dashboard' ? hints() : ui.mode === 'choose' ? '↑↓ role · ←→ option · enter start · esc cancel' : `esc back · ${quit === 'stop' ? 'q quit' : 'q leave'}`, 'dim')}`);
+    const exit = quit === 'stop' ? 'q quit' : 'q leave';
+    const rows = ui === undefined ? [quit === 'stop' ? 'Ctrl+C stops it' : 'Ctrl+C leaves it running'] : ui.mode === 'dashboard' ? hints() : ui.mode === 'choose' ? [`↑↓ role · ←→ option · enter start · esc cancel · ${exit}`] : [`esc back · ${exit}`];
+    for (const row of rows) add(`   ${paint(row, 'dim')}`);
   };
 
   if (ui?.mode === 'help') {
@@ -119,7 +128,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
     const chosen = selected(e.repo, e.issue);
     const bar = chosen ? paint('▌', 'bold', 'cyan') : paint('┃', 'dim');
     const choice = e.options?.choiceDeadline;
-    const chain = choice != null ? paint(`waiting for its choice · ${formatDuration(choice - s.now)} left · author ${e.options!.author} · reviewer ${e.options!.reviewer}`, 'dim') : e.stage === null ? paint('starting', 'dim') : stages.map((st) => (st === e.stage ? paint(`[${st}]`, 'bold', 'cyan') : paint(st, 'dim'))).join(paint(' ▸ ', 'dim'));
+    const chain = choice != null ? paint(`waiting for its choice · starts in ${formatDuration(choice - s.now)}`, 'dim') : e.stage === null ? paint('starting', 'dim') : stages.map((st) => (st === e.stage ? paint(`[${st}]`, 'bold', 'cyan') : paint(st, 'dim'))).join(paint(' ▸ ', 'dim'));
     const round = e.round === null ? '' : ` · round ${Array.from({ length: e.maxReviews }, (_, i) => (i < e.round! ? '●' : '○')).join('')}`;
     if (!first) add();
     add(chosen ? ` ${pointer}${paint(` ${e.repo} #${e.issue} `, 'bold', 'inverse')}${titled(e.title)}` : ` ${bar} ${paint(`${e.repo} #${e.issue}`, 'bold')}${titled(e.title)}`); // the selected card's title is a highlighted label
@@ -127,6 +136,7 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
       add(` ${bar} ${paint(`choose the options · ${formatDuration(choice! - s.now)} left`, 'dim')}`);
       for (const role of ['author', 'reviewer'] as const) add(` ${bar} ${ui.choice.role === role ? pointer : ' '} ${role.padEnd(8)} ${paint(`‹ ${ui.choice[role]} ›`, ui.choice.role === role ? 'bold' : 'dim')}`);
     } else add(` ${bar} ${chain}${round}`);
+    if (choice != null && !(chosen && ui?.mode === 'choose' && ui.choice)) for (const role of ['author', 'reviewer'] as const) add(` ${bar} ${paint(`${role} ${e.options![role]}`, 'dim')}`); // one per line: long option names do not fit two roles in 50 columns
     const history = detail && detailOf(detail, e);
     if (history && history.length > 0) add(` ${bar} ${historyLine(history, s.now, paint, width - 4)}`);
     const blockers = e.blockers > 0 ? paint(` · blockers ${e.blockers}`, 'yellow') : '';

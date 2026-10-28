@@ -1,9 +1,10 @@
+import { createScopedLogger } from '@ashulab/universal-logger';
 import { startKeys } from './keys.ts';
 import { startPanel, type PanelOutput } from './panel.ts';
 import { renderDashboard } from './dashboard.ts';
 import type { PanelSnapshot } from '../../status/types.ts';
 import type { DetailProvider } from './history.ts';
-import { initialUi, itemsOf, onKey, settle, type Action } from './ui-state.ts';
+import { initialUi, itemsOf, onKey, settle, toastFor, type Action } from './ui-state.ts';
 
 /** What the keys can do. The program decides how: the panel only knows the names. */
 export interface Controls {
@@ -20,6 +21,15 @@ export interface Controls {
 }
 
 const logRows = 18;
+const log = createScopedLogger('panel');
+/** What a refused or failed `chooseOptions` tells the person, in the panel's own words. */
+const refusalText = (error: unknown) => {
+  const reason = error instanceof Error ? error.message : String(error);
+  return (
+    { 'not waiting': 'Already started on its defaults', 'unknown option': 'That option is not in the configuration', 'unknown epic': 'That epic is gone', 'github unavailable': 'GitHub is not answering: it starts on its own when it does' }[reason] ??
+    `Could not start it: ${reason}`
+  );
+};
 
 /**
  * The dashboard with keys: select an epic, open it, read its agent's output, check GitHub now, pause intake, choose the options of a waiting epic, quit.
@@ -51,7 +61,14 @@ export function startInteractivePanel({ snapshot, out, stdin, controls, now = Da
     if (action?.type === 'open') controls.open(action.url);
     else if (action?.type === 'poll') void controls.poll();
     else if (action?.type === 'pause') void controls.setPaused(action.paused);
-    else if (action?.type === 'choose') void controls.chooseOptions?.(action.repo, action.issue, { author: action.author, reviewer: action.reviewer });
+    else if (action?.type === 'choose') {
+      // The engine says no when the deadline won the race, and a rejection nobody catches ends the process: tell the person instead.
+      Promise.resolve(controls.chooseOptions?.(action.repo, action.issue, { author: action.author, reviewer: action.reviewer })).catch((error) => {
+        log.error('could not start the epic on the chosen options', error, { repo: action.repo, epic: action.issue });
+        ui = { ...ui, toast: { text: refusalText(error), until: now() + toastFor } };
+        panel.redraw();
+      });
+    }
     else if (action?.type === 'quit') controls.quit();
   };
   const stopKeys = startKeys(stdin, (key) => {

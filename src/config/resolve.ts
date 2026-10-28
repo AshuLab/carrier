@@ -1,7 +1,7 @@
 import type { Config } from './schema.ts';
 
 // What an agent runs with: the role (profile, persona) and the option it points at. `option` and `configDir` are absent from the config of an epic reserved before options existed; harness, model and provider are what it saved.
-type Agent = Config['agents']['author'] & Config['agentOptions'][string];
+type Agent = Omit<Config['agents']['author'], 'option'> & Partial<Pick<Config['agents']['author'], 'option'>> & Config['agentOptions'][string];
 
 // Only profile names, never credentials: Agent Forge resolves those from the profile at run time.
 // `sharedIdentity` is saved with the epic so a later config change does not move it; absent on epics saved before it existed.

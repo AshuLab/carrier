@@ -1,9 +1,12 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { afterEach, expect, test, vi } from 'vitest';
 import { defaults, loadConfig } from '../config/load.ts';
 import type { Config } from '../config/schema.ts';
-import { runDoctor, type Check, type DoctorDeps } from './doctor.ts';
+import { cliLoggedIn, runDoctor, type Check, type DoctorDeps } from './doctor.ts';
 
 const base = {
   root: '/tmp/carrier-doctor',
@@ -334,4 +337,28 @@ test('an Antigravity option whose CLI is not installed is not started', async ()
   const startAgy = vi.fn(() => fakeAgy({ end: true }));
   await runDoctor(config(onlyAgy), deps({ which: (command) => command !== 'agy', startAgy }));
   expect(startAgy).not.toHaveBeenCalled();
+});
+
+// The login probe runs the real CLI: a stand-in on the PATH answers, and the event loop is free while it does.
+test('cliLoggedIn reads the verdict of the CLI with the option\'s folder, without blocking, and a CLI that does not answer in time rejects', async () => {
+  const bin = mkdtempSync(join(tmpdir(), 'carrier-login-'));
+  const script = (name: string, body: string) => {
+    writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`);
+    chmodSync(join(bin, name), 0o755);
+  };
+  const path = process.env.PATH;
+  process.env.PATH = `${bin}:${path}`;
+  try {
+    script('claude', '[ "$CLAUDE_CONFIG_DIR" = /cfg ] && echo \'{"loggedIn":true}\' || echo \'{"loggedIn":false}\'');
+    script('codex', '[ "$CODEX_HOME" = /cfg ]');
+    const answers = await Promise.all([cliLoggedIn('claude', '/cfg'), cliLoggedIn('claude', undefined), cliLoggedIn('codex', '/cfg'), cliLoggedIn('codex', undefined)]);
+    expect(answers).toEqual([true, false, true, false]);
+    script('claude', 'echo not json');
+    expect(await cliLoggedIn('claude', undefined)).toBe(false);
+    process.env.PATH = '/nonexistent';
+    await expect(cliLoggedIn('codex', undefined)).rejects.toThrow();
+  } finally {
+    process.env.PATH = path;
+    rmSync(bin, { recursive: true, force: true });
+  }
 });

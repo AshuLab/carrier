@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { createScopedLogger } from '@ashulab/universal-logger';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ import { profileToken } from '../execution/git-workspaces.ts';
 import { forgeCwd } from '../integrations/forge-cwd.ts';
 import { GhGitHub, type GitHubProfile } from '../integrations/github.ts';
 import { listLocalModels, localLabel, localUrl, type LocalProvider } from '../harnesses/local.ts';
+import { configDirVariable } from '../harnesses/names.ts';
 import { fixes, installFix } from './fixes.ts';
 
 /** `fix` is one remedy line for the person at the terminal; only failures and warnings have one. */
@@ -34,6 +36,8 @@ export interface DoctorDeps {
   startAgy: () => AgyProcess;
 }
 
+const log = createScopedLogger('doctor');
+const LOGIN_TIMEOUT_MS = 20_000;
 const AGY_TIMEOUT_MS = 30_000; // logged in answers in about five seconds
 const AGY_LOGGED_OUT = 'Authentication required';
 
@@ -80,17 +84,27 @@ function agyLogin(deps: Pick<DoctorDeps, 'startAgy'>): Promise<'in' | 'out' | 'u
 }
 
 // Reads only the verdict: the output holds an email and an organisation, which never leave this function.
+// Async, so the wizard and the doctor's spinner go on while the CLI answers; it is killed after the timeout.
 export function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | undefined) {
-  const env = configDir ? { ...process.env, [harness === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME']: configDir } : process.env;
+  const env = configDir ? { ...process.env, [configDirVariable[harness]]: configDir } : process.env;
   const [command, args] = harness === 'claude' ? ['claude', ['auth', 'status']] : ['codex', ['login', 'status']];
-  const result = spawnSync(command!, args as string[], { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 20_000 });
-  if (result.error) throw result.error;
-  if (harness === 'codex') return Promise.resolve(result.status === 0);
-  try {
-    return Promise.resolve((JSON.parse(result.stdout) as { loggedIn?: unknown }).loggedIn === true);
-  } catch {
-    return Promise.resolve(false);
-  }
+  return new Promise<boolean>((resolve, reject) => {
+    const child = spawn(command!, args as string[], { env, stdio: ['ignore', 'pipe', 'ignore'], timeout: LOGIN_TIMEOUT_MS });
+    let out = '';
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => (out += chunk));
+    child.once('error', reject);
+    child.once('close', (status, signal) => {
+      if (signal !== null) return reject(new Error(`${command} ${args.join(' ')} did not answer in ${LOGIN_TIMEOUT_MS / 1000} s`));
+      if (harness === 'codex') return resolve(status === 0);
+      try {
+        resolve((JSON.parse(out) as { loggedIn?: unknown }).loggedIn === true);
+      } catch (error) {
+        log.warn('could not read the output of claude auth status', error);
+        resolve(false);
+      }
+    });
+  });
 }
 
 const realDeps: DoctorDeps = {
@@ -153,7 +167,8 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
     try {
       const have = await deps.localModels(provider);
       report(have.includes(model) ? { name, status: 'ok' } : { name, status: 'fail', detail: `not downloaded there (it has: ${have.join(', ') || 'nothing'})`, fix: fixes.modelMissing(model) });
-    } catch {
+    } catch (error) {
+      log.error('a local model server did not answer', error, { provider });
       report({ name, status: 'fail', detail: `${localLabel[provider]} is not answering at ${localUrl[provider]}; start its server`, fix: fixes.serverDown });
     }
   }
@@ -171,7 +186,8 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
         if (login === 'in') report({ name, status: 'ok' });
         else if (login === 'out') report({ name, status: roleOptions.has(option) ? 'fail' : 'warn', detail: 'not logged in', fix: fixes.login('agy', undefined) });
         else report({ name, status: 'warn', detail: 'could not tell whether agy is logged in (it neither answered nor asked for a login in time)' });
-      } catch {
+      } catch (error) {
+        log.error('could not run agy to check the login', error, { option });
         report({ name, status: 'warn', detail: 'could not run agy to check the login', fix: installFix.agy });
       }
       continue;
@@ -183,7 +199,8 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
     onStart(name);
     try {
       report((await deps.loggedIn(harness, configDir)) ? { name, status: 'ok' } : { name, status, detail: `not logged in ${where}`, fix: fixes.login(harness, configDir) });
-    } catch {
+    } catch (error) {
+      log.error(`could not run ${harness} to check the login`, error, { option });
       report({ name, status, detail: `could not run ${harness} to check the login ${where}`, fix: installFix[harness] });
     }
   }

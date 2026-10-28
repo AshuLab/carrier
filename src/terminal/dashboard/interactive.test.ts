@@ -96,7 +96,8 @@ function waitingSetup(withChoice = true) {
 
 test('o opens the choice on the card, the arrows change it, enter sends it and esc sends nothing', () => {
   const { chooseOptions, press, screen, stop } = waitingSetup();
-  expect(screen()).toContain('waiting for its choice · 42s left · author claude · reviewer codex');
+  expect(screen()).toContain('waiting for its choice · starts in 42s');
+  expect(screen()).toMatch(/author claude[\s\S]*reviewer codex/);
   expect(screen()).toContain('o options · a automatic');
   press('o');
   expect(screen()).toContain('‹ claude ›');
@@ -119,6 +120,19 @@ test('a starts the waiting epic on its defaults with no role', () => {
   const { chooseOptions, press, stop } = waitingSetup();
   press('a');
   expect(chooseOptions).toHaveBeenCalledWith('A/a', 1, { author: undefined, reviewer: undefined });
+  stop();
+});
+
+test('a chooseOptions the engine refuses is told on the panel and does not end the process', async () => {
+  const unhandled = vi.fn();
+  process.on('unhandledRejection', unhandled);
+  const { chooseOptions, press, screen, stop } = waitingSetup();
+  chooseOptions.mockRejectedValue(new Error('not waiting'));
+  press('a');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(screen()).toContain('Already started on its defaults');
+  expect(unhandled).not.toHaveBeenCalled();
+  process.off('unhandledRejection', unhandled);
   stop();
 });
 

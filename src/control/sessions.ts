@@ -33,6 +33,9 @@ function failureOf(row: typeof executions.$inferSelect): SessionFailure | null {
   return { kind, detail: safe(failureDetail ?? '', MAX_FAILURE_DETAIL), exitCode, signal, hostFreeMemMb, hostLoad };
 }
 
+/** The configuration folder each harness runs with when its option names none: the engine's own environment (a path, never a secret). */
+export type ConfigDirs = Partial<Record<PanelAgent['harness'], string>>;
+
 /** The agent an execution ran with: its own row, or the epic's frozen configuration for a row written before it was recorded. */
 export function agentOf(row: typeof executions.$inferSelect, config: typeof epics.$inferSelect.config): PanelAgent {
   const frozen = config?.agents[row.stage === 'review' ? 'reviewer' : 'author'];
@@ -45,9 +48,9 @@ export function agentOf(row: typeof executions.$inferSelect, config: typeof epic
 
 /**
  * Every execution of an epic, newest first; null for an epic the engine does not know.
- * A session has a descriptor only once it is not running and its id and folder are known (ADR 0007); `configDir` is the folder the execution that wrote it ran with, absent when it had none.
+ * A session has a descriptor only once it is not running and its id and folder are known (ADR 0007); `configDir` is the folder the execution that wrote it ran with: its option's, else the engine environment's (`inherited`).
  */
-export function sessionsOf(db: Db, repo: string, issue: number): SessionsReply | null {
+export function sessionsOf(db: Db, repo: string, issue: number, inherited: ConfigDirs = {}): SessionsReply | null {
   const epic = db.select({ id: epics.id, config: epics.config }).from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
   if (epic === undefined) return null;
   const rows = db
@@ -62,10 +65,11 @@ export function sessionsOf(db: Db, repo: string, issue: number): SessionsReply |
       const role = row.stage === 'review' ? 'reviewer' : 'author';
       const agent = agentOf(row, epic.config);
       const harness = agent.harness;
+      const configDir = row.configDir ?? inherited[harness];
       const resume =
         row.status === 'running' || row.sessionId === null || row.workspace === null
           ? null
-          : { harness, sessionId: row.sessionId, cwd: row.workspace, ...(row.configDir !== null && { configDir: row.configDir }) };
+          : { harness, sessionId: row.sessionId, cwd: row.workspace, ...(configDir !== undefined && { configDir }) };
       return { executionId: row.executionId, stage: row.stage, role, round: row.round, agent, status: row.status, startedAt: row.startedAt, finishedAt: row.finishedAt, resume, result: resultOf(result), failure: failureOf(row) };
     }),
   };

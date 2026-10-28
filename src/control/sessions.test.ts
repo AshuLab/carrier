@@ -108,6 +108,14 @@ test('a finished epic lists the descriptors; an execution that had no configurat
   expect(sessions.map((s: { resume: unknown }) => s.resume)).toEqual([null, null, { harness: 'codex', sessionId: 'sess-1', cwd: '/work/clone' }]);
 });
 
+test('an execution whose option names no folder takes the engine environment\'s; one that names its own keeps it', () => {
+  const id = epic(7, 'ready_for_test');
+  execution(id, 1, { ...ran, configDir: null, status: 'finished', finishedAt: 1500 });
+  execution(id, 2, { ...ran, status: 'finished', finishedAt: 2500 });
+  const resumes = sessionsOf(db, 'AshuLab/a', 7, { claude: '/env/claude' })!.sessions.map((s) => s.resume);
+  expect(resumes.map((r) => r?.configDir)).toEqual(['/cfg/claude', '/env/claude']);
+});
+
 test('an execution from before the agent was recorded takes the agent from the epic\'s frozen configuration and has no descriptor', async () => {
   const id = epic(5, 'ready_for_test');
   execution(id, 1, { stage: 'review', status: 'finished', finishedAt: 1500, sessionId: 'sess-1' });

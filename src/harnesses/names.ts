@@ -4,6 +4,9 @@ import type { LocalProvider } from './local.ts';
 export const harnessNames = ['claude', 'codex', 'agy'] as const;
 export type HarnessName = (typeof harnessNames)[number];
 
+/** The environment variable that points each CLI at its config folder (what an option's `configDir` sets). Antigravity has none. */
+export const configDirVariable = { claude: 'CLAUDE_CONFIG_DIR', codex: 'CODEX_HOME' } as const;
+
 export const harnessLabel: Record<HarnessName, string> = { claude: 'Claude Code', codex: 'Codex', agy: 'Antigravity' };
 
 /** Who serves the model when the config names no provider. */

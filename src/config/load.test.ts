@@ -272,6 +272,7 @@ describe('failover', () => {
 
   test('a name that is not declared in agentOptions is refused, naming the field', () => {
     expect(errorsOf(failover(['codex', 'ghost']))).toEqual([{ path: 'failover.order.1', message: 'failover.order: option "ghost" is not declared in agentOptions' }]);
+    expect(errorsOf(failover(['codex', 'constructor']))).toEqual([{ path: 'failover.order.1', message: 'failover.order: option "constructor" is not declared in agentOptions' }]); // an inherited property is not an option
   });
 
   test('a duplicate name is refused, naming the field', () => {

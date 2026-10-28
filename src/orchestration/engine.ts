@@ -160,8 +160,14 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // The options a person picked when restarting a stopped epic, by epic id, until the poll that requeues it reserves it again.
   // ponytail: in memory, an engine restart in between falls back to the defaults and the choice wait; persist it if that bites.
   const restarts = new Map<number, Partial<Record<'author' | 'reviewer', string>>>();
-  const declaredOnly = ({ config }: Epic, chosen: Partial<Record<'author' | 'reviewer', string>>) =>
-    Object.fromEntries(Object.entries(chosen).filter(([, name]) => Object.hasOwn(config?.options ?? {}, name)));
+  const declaredOnly = ({ id, config }: Epic, chosen: Partial<Record<'author' | 'reviewer', string>>) =>
+    Object.fromEntries(
+      Object.entries(chosen).filter(([role, name]) => {
+        const declared = Object.hasOwn(config?.options ?? {}, name);
+        if (!declared) log.warn('the option chosen at the restart is not declared any more, the role starts on its default', { epicId: id, role, option: name });
+        return declared;
+      }),
+    );
 
   // The timers of the epics waiting for their choice, by id.
   const choiceTimers = new Map<number, () => void>();
@@ -224,15 +230,15 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   };
 
   // With failover on, the role that ran out moves to the first option of `order` that has not run out in this epic and its stage runs
-  // again as a rebuilt session, no retry spent. Returns why it could not move, null once the stage was relaunched.
-  async function failOver(epicId: number, stage: AgentTask['stage'], failedExecution: Execution): Promise<string | null> {
+  // again as a rebuilt session, no retry spent. `why` is what to add to the stop reason when it could not move.
+  async function failOver(epicId: number, stage: AgentTask['stage'], failedExecution: Execution): Promise<{ relaunched: true } | { relaunched: false; why: string }> {
     const epic = fresh(epicId);
     const { config } = epic;
-    if (!config?.failover?.enabled) return '';
+    if (!config?.failover?.enabled) return { relaunched: false, why: '' };
     const ranOut = [...new Set(db.select({ option: executions.option }).from(executions).where(and(eq(executions.epicId, epicId), eq(executions.failureKind, 'usage_limit'))).orderBy(asc(sql`rowid`)).all().flatMap(({ option }) => option ?? []))];
     const next = config.failover.order.find((name) => !ranOut.includes(name));
-    if (next === undefined) return `; no option left in failover.order, ran out: ${ranOut.join(', ')}`;
-    if (stopping || epic.status !== 'running') return null;
+    if (next === undefined) return { relaunched: false, why: `; no option left in failover.order, ran out: ${ranOut.join(', ')}` };
+    if (stopping || epic.status !== 'running') return { relaunched: true };
     const role = stage === 'review' ? 'reviewer' : 'author';
     // Read only; GitHub being down is not a reason to stop: the agent verifies the state first anyway.
     const found = await github.findPullRequest(epic.repo, epic.issue).catch((e) => (failed(e), null));
@@ -241,7 +247,19 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'option_switched', data: { role, from: config.agents[role].option ?? null, to: next, stage } }).run();
     });
     await execute(fresh(epicId), stage, failedExecution, { pr: found && { number: found.number, headSha: found.headSha } });
-    return null;
+    return { relaunched: true };
+  }
+
+  // A stage ended on its usage limit: another option of the failover list, or the epic stops for a person. The reason says how to go on
+  // (the panel cuts long lines, so the way out comes before the agent's own detail, which carries the reset time).
+  async function onUsageLimit(epicId: number, execution: Execution) {
+    const moved = await failOver(epicId, execution.stage, execution);
+    if (moved.relaunched) return;
+    const { repo, issue } = fresh(epicId);
+    const role = execution.stage === 'review' ? 'reviewer' : 'author';
+    const detail = execution.failureDetail ? ` · ${execution.failureDetail}` : '';
+    toNeedsHuman(db, epicId, 'usage_limit', `the ${execution.stage} execution ran out of usage on option ${execution.option ?? execution.harness} · carrier restart ${repo}#${issue} --${role} <option>${detail}${moved.why}`);
+    await freeSlot();
   }
 
   // Launches the author (ship, fix) or the reviewer (review) for the epic's current stage.
@@ -362,12 +380,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         if (failure) db.update(epics).set({ lastError: failure }).where(eq(epics.id, epic.id)).run();
         if (exit === 'ok') await settle(db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         else if (outOfCredits) {
-          // Retrying the same option only burns the retries: another option of the failover list, or a person decides how to go on.
-          const stopped = await failOver(epic.id, stage, db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
-          if (stopped !== null) {
-            toNeedsHuman(db, epic.id, 'usage_limit', `the ${stage} execution ran out of usage on option ${task.option ?? task.harness}${processFailure.detail ? `: ${processFailure.detail}` : ''}${stopped}`);
-            await freeSlot();
-          }
+          // Retrying the same option only burns the retries.
+          await onUsageLimit(epic.id, db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         }
         else if (exit === 'failed' || exit === 'session_unavailable') await retry(epic.id);
         else if (exit === 'auth_failed') await stopProfile(task.profile);
@@ -662,6 +676,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
           db.update(executions).set({ status: 'finished' }).where(eq(executions.executionId, last.executionId)).run();
           await settle({ ...last, status: 'finished' });
         } else await execute(epic, last.stage, last);
+      } else if (last.status === 'failed' && last.failureKind === 'usage_limit') {
+        await onUsageLimit(id, last); // stopped before the epic moved on: no agent is running and none would be launched
       } else if (last.status === 'finished' && epic.stage && db.select().from(callerResults).where(eq(callerResults.executionId, last.executionId)).get()) {
         await launch(epic, epic.stage); // imported, but the next stage was never launched
       }
@@ -905,7 +921,9 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
       if (!epic) throw new ResumeRefused('unknown epic');
       if (epic.status !== 'needs_human') throw new ResumeRefused('not stopped');
-      if ([chosen.author, chosen.reviewer].some((name) => name !== undefined && !Object.hasOwn(epic.config?.options ?? {}, name))) throw new ResumeRefused('unknown option');
+      // The requeue freezes the epic's options again from the configuration the engine runs with, so that is what the names are checked against.
+      const declared = repos.find((r) => r.name === repo)?.options ?? {};
+      if ([chosen.author, chosen.reviewer].some((name) => name !== undefined && !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
       // A role left out keeps the option it has: the epic is not asked again.
       const author = chosen.author ?? epic.authorOption;
       const reviewer = chosen.reviewer ?? epic.reviewerOption;

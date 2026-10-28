@@ -122,14 +122,14 @@ export const configSchema = z
       }
     });
     for (const [path, name] of optionRefs) {
-      if (!(name in config.agentOptions)) {
+      if (!Object.hasOwn(config.agentOptions, name)) {
         ctx.addIssue({ code: 'custom', path, message: `option "${name}" is not declared in agentOptions` });
       }
     }
 
     const named = new Set<string>();
     config.failover?.order.forEach((name, i) => {
-      if (!(name in config.agentOptions)) ctx.addIssue({ code: 'custom', path: ['failover', 'order', i], message: `failover.order: option "${name}" is not declared in agentOptions` });
+      if (!Object.hasOwn(config.agentOptions, name)) ctx.addIssue({ code: 'custom', path: ['failover', 'order', i], message: `failover.order: option "${name}" is not declared in agentOptions` });
       else if (named.has(name)) ctx.addIssue({ code: 'custom', path: ['failover', 'order', i], message: `failover.order: option "${name}" appears twice` });
       named.add(name);
     });

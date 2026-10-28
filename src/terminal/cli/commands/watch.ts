@@ -47,7 +47,14 @@ export function socketPanel(client: Pick<CarrierClient, 'hello' | 'request'>, { 
     poll: () => guard(client.request('checkNow')),
     setPaused: (paused) => guard(client.request(paused ? 'pause' : 'resume')),
     // An engine that does not list agentOptions cannot be asked, so the panel is given no way to ask.
-    ...(client.hello.capabilities.includes('agentOptions') && { chooseOptions: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => guard(client.request('chooseOptions', { repo, issue, ...chosen })) }),
+    // The engine's refusal (`not waiting`, `unknown option`) goes back to the panel, which tells the person.
+    ...(client.hello.capabilities.includes('agentOptions') && {
+      chooseOptions: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) =>
+        client.request('chooseOptions', { repo, issue, ...chosen }).catch((error) => {
+          if (error instanceof ControlUnreachable) lost();
+          else throw error;
+        }),
+    }),
     open,
     quit,
     logs: (executionId, count) => {

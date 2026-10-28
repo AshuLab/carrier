@@ -11,7 +11,7 @@ pnpm only (never npm or yarn). Node 26 runs the TypeScript directly.
 - `pnpm build`: compiles to `dist/` (what is published as `@ashulab/carrier`).
 - `pnpm db:generate`: new Drizzle migration after changing the schema in `src/storage`.
 - `pnpm replay:events <stdout.log>`: prints the events a Claude log yields as JSON lines (`--db <file> --execution <id>` stores them for an execution that predates events).
-- Run from source: `node src/terminal/cli/main.ts <init|doctor|schema|start|status|watch|stop|pause|resume|check|chat|chat-host|--config file>`.
+- Run from source: `node src/terminal/cli/main.ts <init|doctor|schema|start|status|watch|stop|pause|resume|check|restart|chat|chat-host|--config file>`.
 
 ## Layout
 

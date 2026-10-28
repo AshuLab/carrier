@@ -1,3 +1,4 @@
+import { configDirVariable } from '../harnesses/names.ts';
 import type { GitHubProfile } from '../integrations/github.ts';
 
 // Every remedy lives here. They only repeat what a check already knows (names, owners): nothing from a child's output.
@@ -22,7 +23,7 @@ export const fixes = {
     if (detail.includes('401')) return "the identity's credentials were rejected: for gh run gh auth login, for a bot check its App in Forge";
     return undefined;
   },
-  login: (harness: 'claude' | 'codex' | 'agy', configDir: string | undefined) => (harness === 'agy' ? 'log in with: agy' : `log in with: ${configDir ? `${harness === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME'}=${configDir} ` : ''}${harness === 'claude' ? 'claude /login' : 'codex login'}`),
+  login: (harness: 'claude' | 'codex' | 'agy', configDir: string | undefined) => (harness === 'agy' ? 'log in with: agy' : `log in with: ${configDir ? `${configDirVariable[harness]}=${configDir} ` : ''}${harness === 'claude' ? 'claude /login' : 'codex login'}`),
   socketPath: 'move the shared root to a shorter path (root in the config, at most 77 bytes)',
   clash: 'use two different bots (agent-forge add) or one bot and your gh login, or set identities to "shared" to use one account for both',
   serverDown: 'start the server (LM Studio: lms server start, Ollama: ollama serve) and download the model',

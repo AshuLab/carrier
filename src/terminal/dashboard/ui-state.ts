@@ -55,7 +55,7 @@ export type Action =
   | { type: 'choose'; repo: string; issue: number; author?: string; reviewer?: string }
   | { type: 'quit' };
 
-const toastFor = 3000;
+export const toastFor = 3000;
 
 /** Pure: what a key does to the screen state, and what it asks the program to do. */
 export function onKey(ui: UiState, key: Key, s: PanelSnapshot, now: number, canChoose = false): { ui: UiState; action?: Action } {
@@ -65,7 +65,7 @@ export function onKey(ui: UiState, key: Key, s: PanelSnapshot, now: number, canC
   const name = raw === 'j' ? 'down' : raw === 'k' ? 'up' : raw; // vim keys move too
 
   if ((key.ctrl && name === 'c') || name === 'q') return { ui, action: { type: 'quit' } };
-  if (ui.mode === 'choose') return chooseKey(ui, name, s);
+  if (ui.mode === 'choose') return chooseKey(ui, name, s, now);
   if (name === '?') return { ui: { ...ui, mode: ui.mode === 'help' ? 'dashboard' : 'help' } };
   if (ui.mode !== 'dashboard') {
     // Help and logs are one keypress away from the dashboard and take no other keys.
@@ -103,7 +103,7 @@ export function onKey(ui: UiState, key: Key, s: PanelSnapshot, now: number, canC
 }
 
 /** The keys of the choice mode: ↑↓ move between the roles, ←→ change the option of the one they are on, enter sends, esc leaves. */
-function chooseKey(ui: UiState, name: string | undefined, s: PanelSnapshot): { ui: UiState; action?: Action } {
+function chooseKey(ui: UiState, name: string | undefined, s: PanelSnapshot, now: number): { ui: UiState; action?: Action } {
   const waiting = waitingEpic(s, ui.selected);
   const choice = ui.choice;
   if (!waiting?.options || !choice || name === 'escape') return { ui: { ...ui, mode: 'dashboard', choice: undefined } };
@@ -119,7 +119,7 @@ function chooseKey(ui: UiState, name: string | undefined, s: PanelSnapshot): { u
       return { ui: { ...ui, choice: { ...choice, [choice.role]: next } } };
     }
     case 'return':
-      return { ui: { ...ui, mode: 'dashboard', choice: undefined }, action: { type: 'choose', repo: waiting.repo, issue: waiting.issue, author: choice.author, reviewer: choice.reviewer } };
+      return { ui: { ...ui, mode: 'dashboard', choice: undefined, toast: { text: `Starting ${ui.selected} on ${choice.author} and ${choice.reviewer}`, until: now + toastFor } }, action: { type: 'choose', repo: waiting.repo, issue: waiting.issue, author: choice.author, reviewer: choice.reviewer } };
     default:
       return { ui };
   }
@@ -134,6 +134,7 @@ export function settle(ui: UiState, s: PanelSnapshot, now: number): UiState {
     selected: current ? ui.selected : (items[0]?.key ?? null), // something is always selected, so the keys always act on a visible row
     mode: gone ? 'dashboard' : ui.mode,
     ...(ui.mode === 'choose' && !gone && { choice: ui.choice }),
-    toast: ui.toast && ui.toast.until > now ? ui.toast : null,
+    // The wait ended with the choice still open: the options picked are lost, so say so.
+    toast: gone && ui.mode === 'choose' ? { text: 'Time ran out: started on its defaults', until: now + toastFor } : ui.toast && ui.toast.until > now ? ui.toast : null,
   };
 }

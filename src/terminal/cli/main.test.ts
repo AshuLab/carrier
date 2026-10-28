@@ -321,10 +321,10 @@ test('restart asks a running Carrier to resume the epic on the options named, pr
   const carrier = await fakeCarrier(root);
   try {
     const config = write('restart.json', { ...valid, root });
-    expect(await runAsync('restart', 'AshuLab/carrier#5', '--author', 'codex', '--config', config)).toEqual({ status: 0, stdout: 'Restarted AshuLab/carrier#5\n', stderr: '' });
-    expect(await runAsync('restart', 'AshuLab/carrier#6', '--reviewer', 'claude', '--author', 'claude', '--config', config)).toMatchObject({ status: 0, stdout: 'Restarted AshuLab/carrier#6\n' });
+    expect(await runAsync('restart', 'AshuLab/carrier#5', '--author', 'codex', '--config', config)).toEqual({ status: 0, stdout: 'Restarting AshuLab/carrier#5…\nRestarted AshuLab/carrier#5\n', stderr: '' });
+    expect(await runAsync('restart', 'AshuLab/carrier#6', '--reviewer', 'claude', '--author', 'claude', '--config', config)).toMatchObject({ status: 0, stdout: 'Restarting AshuLab/carrier#6…\nRestarted AshuLab/carrier#6\n' });
     // without flags and without a terminal each role keeps its option: neither is sent
-    expect(await runAsync('restart', 'AshuLab/carrier#7', '--config', config)).toMatchObject({ status: 0, stdout: 'Restarted AshuLab/carrier#7\n' });
+    expect(await runAsync('restart', 'AshuLab/carrier#7', '--config', config)).toMatchObject({ status: 0, stdout: 'Restarting AshuLab/carrier#7…\nRestarted AshuLab/carrier#7\n' });
     expect(carrier.requests.map(({ id, ...request }) => request)).toEqual([
       { cmd: 'resumeEpic', repo: 'AshuLab/carrier', issue: 5, author: 'codex' },
       { cmd: 'resumeEpic', repo: 'AshuLab/carrier', issue: 6, author: 'claude', reviewer: 'claude' },
@@ -335,12 +335,19 @@ test('restart asks a running Carrier to resume the epic on the options named, pr
   }
 });
 
-test.each(['unknown epic', 'not stopped', 'github unavailable', 'did not restart', 'unknown option'])('restart refused as "%s" prints that reason and exits 1', async (reason) => {
+test.each([
+  ['unknown epic', 'Carrier does not know AshuLab/carrier#5. Use the owner/repo#issue that carrier status shows.'],
+  ['not stopped', 'AshuLab/carrier#5 is not stopped, so there is nothing to restart.'],
+  ['github unavailable', 'GitHub did not answer, so nothing changed. Try again in a moment.'],
+  ['did not restart', 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.'],
+  ['unknown option', 'That option is not in agentOptions of the configuration. Use a name declared there.'],
+  ['internal error', 'Carrier refused: internal error'],
+])('restart refused as "%s" says what it means and exits 1', async (reason, words) => {
   const root = join(dir, 'r2');
   const carrier = await fakeCarrier(root, { reply: () => new Error(reason) });
   try {
     const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('refused.json', { ...valid, root }));
-    expect([result.status, result.stdout, result.stderr]).toEqual([1, '', `Carrier refused: ${reason}\n`]);
+    expect([result.status, result.stdout, result.stderr]).toEqual([1, 'Restarting AshuLab/carrier#5…\n', `${words}\n`]);
   } finally {
     carrier.close();
   }

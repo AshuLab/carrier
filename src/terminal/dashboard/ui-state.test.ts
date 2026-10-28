@@ -105,6 +105,13 @@ test('o on a waiting epic enters the choice mode on the options it would start o
   const sent = choose(entered.ui, 'return');
   expect(sent.action).toEqual({ type: 'choose', repo: 'A/a', issue: 1, author: 'claude', reviewer: 'codex' });
   expect(sent.ui.mode).toBe('dashboard');
+  expect(sent.ui.toast?.text).toBe('Starting A/a#1 on claude and codex');
+});
+
+test('a choice still open when the wait ends says the time ran out; a plain dashboard says nothing', () => {
+  const entered = choose(at, 'o').ui;
+  expect(settle(entered, snap(), now)).toMatchObject({ mode: 'dashboard', toast: { text: 'Time ran out: started on its defaults' } });
+  expect(settle(at, snap(), now).toast).toBeNull();
 });
 
 test('in the choice mode up and down move between the two roles, left and right change the option of the role and wrap', () => {

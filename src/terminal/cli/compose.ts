@@ -161,7 +161,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     open: deps.openUrl,
     quit: deps.quit,
     logs: (id: string, count: number) => tailExecution(config.root, id, count),
-    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue),
+    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, deps.sessionDirs),
     events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
     epic: (repo: string, issue: number) => epicOf(db, repo, issue),
     files: (repo: string, issue: number, executionId?: string) => filesOf(db, config.root, repo, issue, executionId),

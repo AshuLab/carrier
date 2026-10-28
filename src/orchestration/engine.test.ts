@@ -712,7 +712,7 @@ test('a usage limit stops the epic at once with the option that ran out and its 
   expect(eventsOf(engine.db)).toEqual([]);
   expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'failed', failureKind: 'usage_limit', failureDetail: outOfCredits.detail, error: null });
   expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'usage_limit', finishedAt: 5 * MIN });
-  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude-ashu: ${outOfCredits.detail}`);
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude-ashu · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}`);
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 });
@@ -789,7 +789,7 @@ test('when no option in the list is left the epic stops with usage_limit and nam
 
   expect(runner.tasks.filter((t) => t.epic === 1).map((t) => t.option)).toEqual(['claude', 'spare']); // codex is the reviewer's default, not in the list
   expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'usage_limit', finishedAt: 5 * MIN });
-  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option spare: ${outOfCredits.detail}; no option left in failover.order, ran out: claude, spare`);
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option spare · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}; no option left in failover.order, ran out: claude, spare`);
   expect(eventsOf(engine.db)).toMatchObject([{ type: 'option_switched', data: { from: 'claude', to: 'spare' } }]);
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
@@ -804,7 +804,7 @@ test.each([['off', { enabled: false, order: ['spare'] }], ['absent', undefined]]
   expect(runner.tasks.map((t) => t.option)).toEqual(['claude']);
   expect(eventsOf(engine.db)).toEqual([]);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'usage_limit' });
-  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude: ${outOfCredits.detail}`);
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}`);
 });
 
 test('a later epic starts on its own choice, whatever ran out in an earlier one', async () => {
@@ -1746,6 +1746,16 @@ test('a lost author session is rebuilt too, with the PR GitHub has now', async (
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
   expect(runner.tasks[1]).toMatchObject({ stage: 'ship', profile: 'a', context: { pr: { number: 50, headSha: SHA }, verifyStateFirst: true } });
   expect(runner.tasks[1]!.resumeSession).toBeUndefined();
+});
+
+test('an epic whose last execution ended on a usage limit before it moved on is stopped at start, not left running with no agent', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'failed', option: 'claude', failureKind: 'usage_limit', failureDetail: 'resets 12:40pm' });
+  const engine = await start(1);
+  await vi.waitFor(() => expect(rows(engine.db)[0]!.status).toBe('needs_human'));
+  expect(rows(engine.db)[0]).toMatchObject({ needsHumanKind: 'usage_limit', needsHumanReason: 'the ship execution ran out of usage on option claude · carrier restart AshuLab/a#1 --author <option> · resets 12:40pm' });
+  expect(runner.tasks).toHaveLength(0);
 });
 
 test('a result the interrupted agent had written is imported exactly once and the agent is not launched again', async () => {
@@ -2739,6 +2749,15 @@ test('resumeEpic with another reviewer option keeps the author on its session an
   expect(runner.tasks[1]).toMatchObject({ option: 'codex', resumeSession: 's-1' });
   expect(rows(engine.db)[0]).toMatchObject({ authorOption: 'codex', reviewerOption: 'claude' });
   expect(rows(engine.db)[0]!.config!.agents.reviewer).toMatchObject({ option: 'claude', harness: 'claude' });
+});
+
+test('resumeEpic accepts an option declared after the epic was frozen: the requeue freezes it again from the configuration the engine runs with', async () => {
+  const engine = await stoppedOnCodex();
+  const [row] = rows(engine.db);
+  const { claude: _added, ...frozen } = row!.config!.options!;
+  engine.db.update(epics).set({ config: { ...row!.config!, options: frozen } }).where(eq(epics.id, row!.id)).run();
+  await restartWith(engine, { author: 'claude' });
+  expect(runner.tasks[1]).toMatchObject({ stage: 'ship', option: 'claude' });
 });
 
 test('resumeEpic with an option that is not declared is refused and changes nothing', async () => {

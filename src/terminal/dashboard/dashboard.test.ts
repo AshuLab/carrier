@@ -51,7 +51,18 @@ test('idle: it says what it is doing and what to do, instead of a bare header', 
 
 test('an epic waiting for its choice shows the countdown and the option of each role where the chain would be', () => {
   const out = plain(snap({ slots: { busy: 1, total: 3 }, epics: [epic({ stage: null, options: { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', choiceDeadline: now + 42_000 } })] }));
-  expect(out).toContain('┃ waiting for its choice · 42s left · author claude · reviewer codex');
+  expect(out).toContain('┃ waiting for its choice · starts in 42s\n ┃ author claude\n ┃ reviewer codex');
+});
+
+test('a waiting epic with long option names and the keys that go with it fit 80 and 50 columns, with nothing cut', () => {
+  const options = { names: ['claude-ashu-lab', 'codex-personal'], author: 'claude-ashu-lab', reviewer: 'codex-personal', choiceDeadline: now + 42_000 };
+  const s = snap({ epics: [epic({ stage: null, options })] });
+  for (const columns of [80, 50]) {
+    const out = renderDashboard(s, { color: false, columns, canChoose: true, quit: 'leave', ui: { ...keysUi, selected: 'AshuLab/carrier#31' } });
+    expect(out.join('\n')).toContain('reviewer codex-personal');
+    expect(out.join('\n')).toContain('q leave');
+    for (const line of out) expect(line.length).toBeLessThanOrEqual(columns);
+  }
 });
 
 test('a running epic shows its stage in the chain, rounds as dots, blockers, times and the PR link', () => {
@@ -393,7 +404,8 @@ test('the logs screen names the execution of a finished row', () => {
 test('a read-only dashboard (a watch that is not interactive) shows the waiting state and offers no keys', () => {
   const s = snap({ epics: [epic({ stage: null, options: { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', choiceDeadline: now + 42_000 } })] });
   const out = renderDashboard(s, { color: false, canChoose: true }).join('\n');
-  expect(out).toContain('waiting for its choice · 42s left · author claude · reviewer codex');
+  expect(out).toContain('waiting for its choice · starts in 42s');
+  expect(out).toContain('author claude\n');
   expect(out).toContain('Ctrl+C stops it');
   expect(out).not.toContain('o options');
 });

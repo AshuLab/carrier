@@ -31,6 +31,12 @@ test('command: real binary, cwd in the workspace, stream-json, no prompts, the m
   expect(command.env).toMatchObject({ GH_TOKEN: 'ghs_secret', CARRIER_RESULT_PATH: task.resultPath });
 });
 
+test('an Antigravity command never gets a config folder variable', () => {
+  const { env } = buildAgyCommand({ ...task, configDir: '/cfg/x' }, ctx);
+  expect(env).not.toHaveProperty('CLAUDE_CONFIG_DIR');
+  expect(env).not.toHaveProperty('CODEX_HOME');
+});
+
 test('resumeSession adds --conversation', () => {
   expect(buildAgyCommand({ ...task, resumeSession: 'c-9' }, ctx).args).toEqual(['-p', buildPrompt({ ...task, resumeSession: 'c-9' }), ...fixed, '--conversation', 'c-9']);
 });

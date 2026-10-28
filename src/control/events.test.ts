@@ -28,7 +28,7 @@ beforeEach(async () => {
     poll: () => {},
     setPaused: () => {},
     logs: () => [],
-    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, {}),
+    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue),
     events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
     epic: () => null,
     files: () => null, fileDiff: () => null,

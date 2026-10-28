@@ -204,7 +204,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     };
     if (stopping) return;
     db.insert(executions)
-      .values({ executionId, epicId: epic.id, stage, harness: task.harness, model: task.model, provider: task.provider ?? null, workspace, round: epic.round, resultPath, startedAt: clock.now() })
+      .values({ executionId, epicId: epic.id, stage, harness: task.harness, model: task.model, provider: task.provider ?? null, option: task.option ?? null, configDir: task.configDir ?? null, workspace, round: epic.round, resultPath, startedAt: clock.now() })
       .run();
     const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId, stage, round: epic.round });
     log.info('execution started', context);

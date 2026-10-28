@@ -27,7 +27,7 @@ export function buildClaudeCommand(task: AgentTask, ctx: CommandContext): AgentC
       ...(task.resumeSession ? ['--resume', task.resumeSession] : []),
     ],
     cwd: task.workspace,
-    env: { ...childEnv(ctx), ...(task.provider ? claudeLocalEnv(task.provider) : {}), CARRIER_RESULT_PATH: task.resultPath },
+    env: { ...childEnv(ctx), ...(task.provider ? claudeLocalEnv(task.provider) : {}), ...(task.configDir && { CLAUDE_CONFIG_DIR: task.configDir }), CARRIER_RESULT_PATH: task.resultPath },
   };
 }
 

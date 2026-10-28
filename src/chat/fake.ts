@@ -14,6 +14,7 @@ export class FakeConversation implements ChatConversation {
   /** Events to play when a message arrives. */
   reply: (text: string, conversation: FakeConversation) => void = () => {};
   private listeners: ((event: ChatEvent) => void)[] = [];
+  private endListeners: (() => void)[] = [];
 
   send(text: string) {
     this.sent.push(text);
@@ -40,6 +41,14 @@ export class FakeConversation implements ChatConversation {
   }
   onEvent(listener: (event: ChatEvent) => void) {
     this.listeners.push(listener);
+  }
+  onEnd(listener: () => void) {
+    this.endListeners.push(listener);
+  }
+  /** Plays the agent's process ending on its own: the error (and the end of a running turn) as an adapter says them, then the end. */
+  die(...events: ChatEvent[]) {
+    this.emit(...events);
+    for (const listener of this.endListeners) listener();
   }
   emit(...events: ChatEvent[]) {
     for (const event of events) for (const listener of this.listeners) listener(event);

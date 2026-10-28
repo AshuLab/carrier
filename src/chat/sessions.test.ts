@@ -343,6 +343,45 @@ test('resume opens a closed session again from its native id, folder and options
   expect(sessions.events({ sessionId: id, limit: 50 }).events.map((e) => e.kind)).toEqual(['user', 'assistant', 'turn_end', 'user']); // the transcript goes on from where it was
 });
 
+test('an agent that ends on its own ends the live session: idle, or mid-turn with the turn recorded as an error; resume then reopens from the native id', async () => {
+  const s = setup();
+  s.claude.setup = (conversation) => void (conversation.process = { pid: 4242, pgid: 4242, command: '/bin/claude' });
+  const { sessions, claude, conversation, id, onLiveChange } = await openOne(s);
+  conversation.reply = (_text, c) => {
+    c.nativeId = 'native-1';
+    c.emit({ kind: 'assistant', text: 'ok' }, { kind: 'turn_end', outcome: 'ok' });
+  };
+  sessions.send({ sessionId: id, text: 'hello' });
+
+  // idle: the process dies between turns
+  onLiveChange.mockClear();
+  conversation.die({ kind: 'error', text: 'The Claude process ended' });
+  await vi.waitFor(() => expect(sessions.liveCount()).toBe(0));
+  expect(onLiveChange).toHaveBeenCalled();
+  expect(conversation.closed).toBe(true); // what the agent left behind is ended too
+  expect(rows('sessions')[0]).toMatchObject({ state: 'idle', pid: null, pgid: null, command: null });
+  expect(() => sessions.send({ sessionId: id, text: 'again' })).toThrow('This session is closed');
+
+  // the resume opens the conversation again from the native id instead of attaching to the dead one
+  await sessions.resume({ sessionId: id });
+  expect(claude.opened[1]).toMatchObject({ resume: 'native-1' });
+  const second = claude.conversations[1]!;
+
+  // mid-turn: the adapter says the error and the end of the turn, and the host drops the session once
+  sessions.send({ sessionId: id, text: 'work' });
+  second.die({ kind: 'error', text: 'The Claude process ended' }, { kind: 'turn_end', outcome: 'error' });
+  await vi.waitFor(() => expect(sessions.liveCount()).toBe(0));
+  expect(rows('chat_turns').map((t) => t.outcome)).toEqual(['ok', 'error']);
+  expect(sessions.events({ sessionId: id, limit: 50 })).toMatchObject({ session: { state: 'idle' }, approvals: [], streaming: '' });
+
+  // an adapter that does not say the turn ended: the host records it
+  await sessions.resume({ sessionId: id });
+  sessions.send({ sessionId: id, text: 'more' });
+  claude.conversations[2]!.die();
+  await vi.waitFor(() => expect(sessions.liveCount()).toBe(0));
+  expect(rows('chat_turns').map((t) => t.outcome)).toEqual(['ok', 'error', 'error']);
+});
+
 test('resume of a live session just attaches: no second conversation', async () => {
   const { sessions, claude, id } = await openOne();
   const resumed = await sessions.resume({ sessionId: id });

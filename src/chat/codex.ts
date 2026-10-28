@@ -100,6 +100,7 @@ export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner
 class CodexConversation implements ChatConversation {
   nativeId: string | undefined;
   private listeners: ((event: ChatEvent) => void)[] = [];
+  private endListeners: (() => void)[] = [];
   private transport!: CodexTransport;
   private nextId = 1;
   private waiting = new Map<number, { resolve: (result: any) => void; reject: (error: Error) => void }>();
@@ -238,6 +239,10 @@ class CodexConversation implements ChatConversation {
     this.listeners.push(listener);
   }
 
+  onEnd(listener: () => void) {
+    this.endListeners.push(listener);
+  }
+
   private emit(...events: ChatEvent[]) {
     for (const event of events) for (const listener of this.listeners) listener(event);
   }
@@ -259,6 +264,7 @@ class CodexConversation implements ChatConversation {
     this.emit({ kind: 'error', text: 'The Codex process ended' });
     if (this.turning) this.emit({ kind: 'turn_end', outcome: 'error', model: this.model });
     this.turning = false;
+    for (const listener of this.endListeners) listener();
   }
 
   private request(method: string, params: unknown) {

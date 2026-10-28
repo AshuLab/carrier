@@ -161,6 +161,26 @@ test('options are listed, change at once, and an interrupt ends the turn as inte
   expect(await turn(conversation, events, main[7]!.text)).toContainEqual({ kind: 'assistant', text: 'AFTER-INTERRUPT-OK' });
 });
 
+test('the process ending on its own ends the running turn as an error and tells the host it ended', async () => {
+  const { query } = replay(main);
+  // the stream ends on the first message instead of answering it
+  const dying = ((args: Parameters<typeof sdkQuery>[0]) => {
+    const real = query(args) as any;
+    async function* run() {
+      for await (const _ of args.prompt as AsyncIterable<any>) return;
+    }
+    return Object.assign(run(), { initializationResult: real.initializationResult, close: () => {} });
+  }) as unknown as typeof sdkQuery;
+  const conversation = await claudeChatRunner(deps(dying)).open({ folder: '/work', env: {} });
+  const events: ChatEvent[] = [];
+  conversation.onEvent((event) => events.push(event));
+  const ended = vi.fn();
+  conversation.onEnd(ended);
+  conversation.send('hi');
+  await vi.waitFor(() => expect(ended).toHaveBeenCalledTimes(1));
+  expect(events).toEqual([{ kind: 'error', text: 'The Claude process ended' }, { kind: 'turn_end', outcome: 'error', model: undefined }]);
+});
+
 test('a conversation resumes by the native id and keeps the context', async () => {
   const { conversation, events, seen } = await openWith(resumed, sessionId);
   expect(conversation.nativeId).toBe(sessionId);

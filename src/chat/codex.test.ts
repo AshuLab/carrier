@@ -274,9 +274,12 @@ test('open rejects with a reason when Codex is not installed, not logged in, or 
 test('the process ending on its own ends the running turn as an error', async () => {
   const { conversation, events, transport } = await openWith(main);
   const from = events.length;
+  const ended = vi.fn();
+  conversation.onEnd(ended);
   conversation.send('hi'); // nothing in the recording answers it: the process dies instead
   transport.exit();
   expect(events.slice(from)).toEqual([{ kind: 'error', text: 'The Codex process ended' }, { kind: 'turn_end', outcome: 'error', model: 'gpt-5.6-luna' }]);
+  expect(ended).toHaveBeenCalledTimes(1);
 });
 
 test('the conversation reports the process it started as the leader of its own group, with the command', async () => {

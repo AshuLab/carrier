@@ -30,6 +30,8 @@ export interface ChatConversation {
   setOption(id: string, value: string): Promise<void>;
   close(): Promise<void>;
   onEvent(listener: (event: ChatEvent) => void): void;
+  /** Called once when the agent's process ends on its own, after the events that say so; never for a `close()`. */
+  onEnd(listener: () => void): void;
 }
 
 export interface ChatRunner {

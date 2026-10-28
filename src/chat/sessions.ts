@@ -162,6 +162,16 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
         log.error('a chat event could not be handled', error);
       }
     });
+    // An agent that ends on its own ends the turn that was running (error) and then the live session, as a close does.
+    conversation.onEnd(() => {
+      if (lives.get(sessionId) !== live) return;
+      try {
+        if (live.turn !== undefined) onEvent(sessionId, live, { kind: 'turn_end', outcome: 'error' }); // the adapter normally said so already
+      } catch (error) {
+        log.error('the end of a turn could not be recorded', error);
+      }
+      close({ sessionId }).catch((error) => log.error('dropping a session whose agent ended failed', error));
+    });
     armIdle(sessionId, live);
     onLiveChange();
   };

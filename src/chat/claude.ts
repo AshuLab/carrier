@@ -71,6 +71,7 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
 class ClaudeConversation implements ChatConversation {
   nativeId: string | undefined;
   private listeners: ((event: ChatEvent) => void)[] = [];
+  private endListeners: (() => void)[] = [];
   private query!: Query;
   private models: ModelInfo[] = [];
   private mode: string;
@@ -195,6 +196,10 @@ class ClaudeConversation implements ChatConversation {
     this.listeners.push(listener);
   }
 
+  onEnd(listener: () => void) {
+    this.endListeners.push(listener);
+  }
+
   private emit(...events: ChatEvent[]) {
     for (const event of events) for (const listener of this.listeners) listener(event);
   }
@@ -233,6 +238,7 @@ class ClaudeConversation implements ChatConversation {
     this.emit({ kind: 'error', text: 'The Claude process ended' });
     if (this.turning) this.emit({ kind: 'turn_end', outcome: 'error', model: this.lastModel });
     this.turning = false;
+    for (const listener of this.endListeners) listener();
   }
 
   /** The events of one SDK message. Never throws on a shape it does not know: that message gives none. */

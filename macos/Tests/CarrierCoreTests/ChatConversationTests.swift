@@ -238,7 +238,13 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     let rest = try await host.events(finished, after: first.cursor, limit: 200)
     #expect(rest.events.count == 9 && rest.cursor == 14)
     // nothing new: the cursor stays where it was
-    #expect(try await host.events(finished, after: 14, limit: 200) == ChatEvents(events: [], cursor: 14, state: .idle))
+    let nothing = try await host.events(finished, after: 14, limit: 200)
+    #expect(nothing.events.isEmpty && nothing.cursor == 14 && nothing.state == .idle)
+    // the golden conversation lists what the provider offers, and the fixture host changes one and refuses a value it does not list
+    #expect(optionsPill(nothing.options) == "Sonnet · High · Ask first")
+    try await host.setOption(finished, option: "effort", value: "medium")
+    #expect(optionsPill(try await host.events(finished, after: 14, limit: 200).options) == "Sonnet · Medium · Ask first")
+    await #expect(throws: ControlError.self) { try await host.setOption(finished, option: "effort", value: "max") }
     #expect(try await host.events("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01", after: 0, limit: 200).streaming.hasPrefix("The worker calls"))
     // a listed session with no golden file has no events; one that is not listed, or not a UUID, is refused
     #expect(try await host.events("8a2e4b6d-1c3f-4d57-8e9a-0b1c2d3e4f02", after: 0, limit: 200).events.isEmpty)
@@ -269,6 +275,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     func resume(_ id: String) async throws {}
     func send(_ id: String, _ text: String) async throws {}
     func interrupt(_ id: String) async throws {}
+    func setOption(_ id: String, option: String, value: String) async throws {}
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         asked.append((after, limit))
         if let failing { throw failing }

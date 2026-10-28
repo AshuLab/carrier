@@ -22,9 +22,11 @@ public final class FixtureServer {
     private let chatSessions: [[String: Any]]
     /// Each session's golden conversation: its events and the message being written.
     private var chatConversations: [String: (events: [[String: Any]], streaming: String)] = [:]
+    /// What the provider offers in each golden conversation that lists options; `setOption` changes the current value here.
+    private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"events\"]}\n".utf8)
+    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"events\",\"setOption\"]}\n".utf8)
     private let data: [String: Data]
     private let hello: Data
     private var stopped = false
@@ -82,6 +84,7 @@ public final class FixtureServer {
                 let session = golden["sessionId"] as? String, let events = golden["events"] as? [[String: Any]]
             else { throw FixtureError.unreadable("\(fixtures)/\(file)") }
             chatConversations[session] = (events, golden["streaming"] as? String ?? "")
+            chatOptions[session] = golden["options"] as? [[String: Any]] ?? []
         }
         if longTranscript {
             longChat = try JSONSerialization.jsonObject(with: JSONEncoder().encode(longChatEvents(rounds: 500))) as? [[String: Any]]
@@ -202,11 +205,19 @@ public final class FixtureServer {
             let conversation = longChat.map { ($0, "") } ?? chatConversations[session] ?? ([], "")
             let page = Array(conversation.0.filter { ($0["id"] as? Int ?? 0) > after }.prefix(limit))
             let reply: [String: Any] = [
-                "events": page, "cursor": page.last?["id"] as? Int ?? after, "streaming": conversation.1, "approvals": [], "options": [],
+                "events": page, "cursor": page.last?["id"] as? Int ?? after, "streaming": conversation.1, "approvals": [], "options": chatOptions[session] ?? [],
                 "session": ["state": chatSessions.first { $0["id"] as? String == session }?["state"] as? String ?? "idle"],
             ]
             guard let body = try? JSONSerialization.data(withJSONObject: reply, options: .sortedKeys) else { break }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
+        case "setOption":
+            guard let session = request?["sessionId"] as? String, let option = request?["option"] as? String, let value = request?["value"] as? String,
+                let at = chatOptions[session]?.firstIndex(where: { $0["id"] as? String == option })
+            else { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"This agent has no such option\"}") }
+            let listed = (chatOptions[session]?[at]["values"] as? [[String: Any]])?.contains { $0["id"] as? String == value } ?? false
+            guard listed else { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"The agent does not offer that value for \(option)\"}") }
+            chatOptions[session]?[at]["current"] = value
+            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
         default: break
         }
         return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown request\"}")

@@ -37,6 +37,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         if let error = refuse["interrupt"] { throw error }
         state = .idle
     }
+    func setOption(_ id: String, option: String, value: String) async throws {}
 }
 
 @MainActor private func model(_ host: FakeChat, log: @escaping (String) -> Void = { _ in }) -> ConversationModel {

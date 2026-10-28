@@ -301,12 +301,28 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
     expect(s.list({}).sessions).toEqual([]);
   });
 
-  test('with the base folder removed first the worktree folder is removed directly', async () => {
+  test('with the base folder removed first the files left in the worktree folder are counted, and the folder is removed directly', async () => {
     const { s, id, base, path } = await session('no-base');
     rmSync(base, { recursive: true, force: true });
-    expect((await s.deletePreview({ sessionIds: [id] })).sessions[0]!.worktree).toMatchObject({ dirty: 0, unpushed: 0 });
+    // a.txt, committed.txt and untracked.txt: the commit went with the base folder, so only the files are counted
+    expect((await s.deletePreview({ sessionIds: [id] })).sessions[0]!.worktree).toMatchObject({ dirty: 3, unpushed: 0 });
     await s.delete({ sessionId: id });
     expect(existsSync(path)).toBe(false);
+    expect(s.list({}).sessions).toEqual([]);
+  });
+
+  test('two sessions that share a commit: the preview of each counts it, since deleting both loses it', async () => {
+    const { s, id, base, branch } = await session('shared');
+    const { session: twin } = await s.open({ agent: 'claude', folder: base, worktree: { from: branch, name: 'twin' } });
+    expect((await s.deletePreview({ sessionIds: [id, twin.id] })).sessions.map((preview) => preview.worktree?.unpushed)).toEqual([1, 1]);
+  });
+
+  test('a branch deleted by hand: the preview counts nothing and does not refuse the batch', async () => {
+    const { s, id, base, path, branch } = await session('no-branch');
+    git(base, 'worktree', 'remove', '--force', path);
+    git(base, 'branch', '-D', branch);
+    expect((await s.deletePreview({ sessionIds: [id] })).sessions[0]!.worktree).toMatchObject({ dirty: 0, unpushed: 0 });
+    await s.delete({ sessionId: id });
     expect(s.list({}).sessions).toEqual([]);
   });
 

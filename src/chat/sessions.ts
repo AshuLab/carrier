@@ -385,12 +385,14 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
     /** What deleting these sessions would discard: for each one in a worktree, its uncommitted files and the commits that exist nowhere else. An unknown id refuses the whole request. */
     async deletePreview({ sessionIds }: { sessionIds: string[] }) {
       const found = sessionIds.map(row);
+      // A commit shared by two of them is lost with both, so each one's preview excludes every branch of the batch.
+      const batch = found.flatMap(({ workspaceKind, worktreeBranch }) => (workspaceKind === 'worktree' ? [worktreeBranch!] : []));
       // One session after another: a worktree reads two git processes, and the preview is a one-off, not a hot path.
       const previews = [];
       for (const { id, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath } of found) {
         previews.push({
           sessionId: id,
-          worktree: workspaceKind === 'worktree' ? { path: worktreePath!, branch: worktreeBranch!, ...(await previewWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! })) } : null,
+          worktree: workspaceKind === 'worktree' ? { path: worktreePath!, branch: worktreeBranch!, ...(await previewWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! }, batch)) } : null,
         });
       }
       return { sessions: previews };

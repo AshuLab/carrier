@@ -36,7 +36,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .workspace, .fetch, .suggestName, .checkName])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {

@@ -45,15 +45,27 @@ struct ArchiveView: View {
     }
 
     private func delete(_ row: SessionRow) {
-        guard ask(deleteSessionQuestion(row)) else { return }
-        Task { if let refusal = await actions.delete(row.id) { tell(refusal) } }
+        Task {
+            switch await actions.confirmDelete(row) {
+            case .refused(let refusal): tell(refusal)
+            case .ask(let question):
+                guard ask(question) else { return }
+                if let refusal = await actions.delete(row.id) { tell(refusal) }
+            }
+        }
     }
 
     /// Deletes every archived session, not only the ones a search shows: the question names how many.
     private func clear() {
         let ids = rows.filter(\.archived).map(\.id)
-        guard ask(clearSessionsQuestion(count: ids.count)) else { return }
-        Task { if let refusal = await actions.clear(ids) { tell(refusal) } }
+        Task {
+            switch await actions.confirmClear(ids) {
+            case .refused(let refusal): tell(refusal)
+            case .ask(let question):
+                guard ask(question) else { return }
+                if let refusal = await actions.clear(ids) { tell(refusal) }
+            }
+        }
     }
 
     private func header(_ page: ArchivePage) -> some View {

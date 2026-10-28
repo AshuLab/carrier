@@ -64,6 +64,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     func setOption(_ id: String, option: String, value: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
+    func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
 }
 
 private func cleanRepo(_ folder: String) -> WorkspaceInfo {

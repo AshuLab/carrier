@@ -63,7 +63,7 @@ public final class ControlClient {
     /// The optional requests an engine can answer, and the chat host's own (`agents` onwards). A name this app does not know is dropped, so a newer engine never breaks an older app.
     public enum Capability: String {
         case sessions, events, epic, files, fileDiff, availableRepos, availableReposPaged, resumeEpic
-        case agents, list, open, resume, send, answer, interrupt, setOption, close, archive, delete, stop
+        case agents, list, open, resume, send, answer, interrupt, setOption, close, archive, delete, deletePreview, stop
         case workspace, fetch, suggestName, checkName
     }
 

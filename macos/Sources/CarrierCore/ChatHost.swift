@@ -68,6 +68,32 @@ public struct ChatSession: Decodable, Equatable {
     }
 }
 
+/// What `deletePreview` says of one session: `worktree` is nil for a session in a base folder, else what deleting would discard from it.
+public struct SessionDeletePreview: Decodable, Equatable {
+    public let sessionId: String
+    public let worktree: Worktree?
+
+    /// `dirty` is the files with uncommitted changes, `unpushed` the commits on the branch that no other branch or remote branch holds.
+    public struct Worktree: Decodable, Equatable {
+        public let path: String
+        public let branch: String
+        public let dirty: Int
+        public let unpushed: Int
+
+        public init(path: String, branch: String, dirty: Int, unpushed: Int) {
+            self.path = path
+            self.branch = branch
+            self.dirty = dirty
+            self.unpushed = unpushed
+        }
+    }
+
+    public init(sessionId: String, worktree: Worktree?) {
+        self.sessionId = sessionId
+        self.worktree = worktree
+    }
+}
+
 /// What the app needs from the chat host's socket; the real one speaks to the socket, tests use a fake.
 public protocol ChatHost {
     func agents() async throws -> [ChatAgent]
@@ -100,8 +126,11 @@ public protocol ChatHost {
     func setOption(_ id: String, option: String, value: String) async throws
     /// Sets or clears the archived mark; the host refuses a session that is working or waiting for an approval.
     func archive(_ id: String, _ archived: Bool) async throws
-    /// Removes the session and its transcript; refused like `archive` for a working or waiting one.
+    /// Removes the session and its transcript, and the worktree and branch of one in a worktree; refused like `archive` for a working or waiting
+    /// one, and for a worktree that cannot be removed (the session stays).
     func delete(_ id: String) async throws
+    /// What deleting these sessions would discard, one entry per id in the order asked; the host refuses the whole request when an id is unknown.
+    func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview]
 }
 
 /// The chat host over its socket: one connection per call (a host with no client attached may end itself), with the blocking
@@ -210,6 +239,19 @@ public struct SocketChatHost: ChatHost {
         let path = socketPath()
         let _: AnyReply = try await Task.detached { try chatRequest(path, "delete", requires: .delete, fields: fields) }.value
     }
+
+    /// The host takes 1 to 500 ids a request, so a longer list goes in several; a commit shared by two worktrees counts for both only when they are asked together.
+    public func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] {
+        let wired = try ids.map(wireId)
+        let path = socketPath()
+        var previews: [SessionDeletePreview] = []
+        for start in stride(from: 0, to: wired.count, by: 500) {
+            let list = wired[start..<min(start + 500, wired.count)].map { "\"\($0)\"" }.joined(separator: ",")
+            let reply: DeletePreviewReply = try await Task.detached { try chatRequest(path, "deletePreview", requires: .deletePreview, fields: ",\"sessionIds\":[\(list)]") }.value
+            previews += reply.sessions
+        }
+        return previews
+    }
 }
 
 /// Only a UUID goes on the wire as the session id, as the host accepts nothing else.
@@ -231,6 +273,8 @@ private struct SuggestedName: Decodable { let name: String }
 
 /// A reply whose content the app does not read: any JSON will do.
 private struct AnyReply: Decodable { init(from decoder: Decoder) throws {} }
+
+private struct DeletePreviewReply: Decodable { let sessions: [SessionDeletePreview] }
 
 private struct ChatSessionsReply: Decodable { let sessions: [ChatSession] }
 

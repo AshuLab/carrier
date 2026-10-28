@@ -10,7 +10,8 @@ public enum FixtureError: Error, Equatable {
 /// A second socket, `<home>/chat/chat.sock`, is a fake chat host: `agents` and `list` from `chat-agents.json` and `chat-list.json`,
 /// `events` from the `chat-events-*.json` files (each names its session; a listed session with none has no events) with the approvals
 /// asked and not answered as pending, `answer`, which records the answer as an event, `archive` and `delete` on the listed sessions
-/// (kept in memory, refused for a working or waiting one as the host does), and the worktree requests from `chat-workspace.json`
+/// (kept in memory, refused for a working or waiting one as the host does), `deletePreview`, which says what `chat-delete-preview.json`
+/// holds for the sessions it names and `worktree: null` for the other listed ones, and the worktree requests from `chat-workspace.json`
 /// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder), `chat-names.json` (`suggestName`,
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
@@ -32,13 +33,15 @@ public final class FixtureServer {
     private var suggested = 0
     /// `archive` and `delete` change it; the sockets' threads share it, so it is read and written with `lock`.
     private var chatSessions: [[String: Any]]
+    /// What `deletePreview` says of the sessions in a worktree, by session id: the entries of `chat-delete-preview.json`.
+    private var chatWorktrees: [String: Any] = [:]
     /// Each session's golden conversation: its events and the message being written.
     private var chatConversations: [String: (events: [[String: Any]], streaming: String)] = [:]
     /// What the provider offers in each golden conversation that lists options; `setOption` changes the current value here.
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\"]}\n".utf8)
+    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\"]}\n".utf8)
     private let data: [String: Data]
     private let hello: Data
     private var stopped = false
@@ -99,6 +102,9 @@ public final class FixtureServer {
         chatWorkspaces = try golden("chat-workspace.json", as: [String: [String: Any]].self)
         chatFetches = try golden("chat-fetch.json", as: [String: [String: Any]].self)
         chatNames = try golden("chat-names.json", as: [String: Any].self)
+        guard let previews = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-delete-preview.json"))) as? [String: Any])?["sessions"] as? [[String: Any]]
+        else { throw FixtureError.unreadable("\(fixtures)/chat-delete-preview.json") }
+        for entry in previews { if let id = entry["sessionId"] as? String { chatWorktrees[id] = entry["worktree"] } }
         let goldens = ((try? FileManager.default.contentsOfDirectory(atPath: fixtures)) ?? []).filter { $0.hasPrefix("chat-events-") && $0.hasSuffix(".json") }
         for file in goldens.sorted() {
             guard let golden = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/" + file)))) as? [String: Any],
@@ -297,6 +303,14 @@ public final class FixtureServer {
             }
             if let refusal { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"\(refusal)\"}") }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
+        case "deletePreview":
+            guard let asked = request?["sessionIds"] as? [String] else { break }
+            let listed = locked { Set(chatSessions.compactMap { $0["id"] as? String }) }
+            // as the host does: one unknown id refuses the whole request
+            guard asked.allSatisfy(listed.contains) else { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"There is no such session\"}") }
+            let sessions = asked.map { ["sessionId": $0, "worktree": chatWorktrees[$0] ?? NSNull()] as [String: Any] }
+            guard let body = try? JSONSerialization.data(withJSONObject: ["sessions": sessions], options: .sortedKeys) else { break }
+            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
         default: break
         }
         return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown request\"}")

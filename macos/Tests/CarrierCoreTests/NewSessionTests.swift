@@ -34,6 +34,8 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var cloneCancelled = false
     var holdClone = false
     var release = false
+    /// Where the host puts what it clones and makes; a test points it at the config's projects folder, which the real host reads at each request.
+    var projects: () -> String = { "/projects" }
 
     func agents() async throws -> [ChatAgent] { agents }
     func list(archived wanted: Bool) async throws -> [ChatSession] { wanted ? archived : active }
@@ -82,12 +84,12 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
             try? await Task.sleep(for: .milliseconds(2))
         }
         if let error = refuse["cloneRepo"] { throw error }
-        return ClonedRepo(folder: "/projects/\(repo)", repo: repo, fetched: false)
+        return ClonedRepo(folder: "\(projects())/\(repo)", repo: repo, fetched: false)
     }
     func createProject(_ name: String) async throws -> String {
         created.append(name)
         if let error = refuse["createProject"] { throw error }
-        return "/projects/local/\(name)"
+        return "\(projects())/local/\(name)"
     }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
 }
@@ -803,4 +805,65 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     #expect(model.watchNote != nil)
     await model.choose(folder: "/elsewhere")
     #expect(model.watchNote == nil && model.watchFailed == false)
+}
+
+// The footer's Change…: the config write, the refusals, and the next request using the new folder.
+
+@MainActor @Test func changingTheProjectsFolderWritesItAndTheNextCloneAndNewProjectGoThereWithTheOldFolderUntouched() async throws {
+    let old = try projectsRoot(["AshuLab/carrier"])
+    let new = try projectsRoot([])
+    defer { for path in [old, new] { try? FileManager.default.removeItem(atPath: path) } }
+    let config = FakeConfig("{\"chat\": {\"projectsFolder\": \"\(old)\"}, \"repos\": [{\"name\": \"acme/web\"}]}")
+    let host = FakeChat()
+    host.projects = { projectsFolder(configJSON: config.json, home: NSHomeDirectory()) }
+    let model = NewSessionModel(
+        host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: host.projects,
+        readConfig: { config.json }, writeConfig: { try config.write($0) }
+    )
+    await model.load()
+    model.openPicker()
+    #expect(model.projectsPath == old && model.projects.map(\.name) == ["AshuLab/carrier"])
+    model.changeProjectsFolder(to: new)
+    #expect(model.projectsFolderProblem == nil && model.projectsPath == new && model.projects.isEmpty && config.writes == 1)
+    #expect(FileManager.default.fileExists(atPath: old + "/AshuLab/carrier"))
+    model.show(.url)
+    model.urlText = "acme/web"
+    #expect(await model.cloneAndUse())
+    #expect(model.folder == new + "/acme/web" && host.clones == ["acme/web"])
+    model.show(.project)
+    model.projectName = "idea"
+    #expect(await model.createAndUse())
+    #expect(model.folder == new + "/local/idea")
+}
+
+@MainActor @Test func aFolderInsideTheEnginesOwnFoldersIsRefusedBeforeAnythingIsWrittenAndTheOldOneStands() async throws {
+    let config = FakeConfig("{\"root\": \"/data/solve\", \"chat\": {\"projectsFolder\": \"/srv/p\"}}")
+    let model = NewSessionModel(
+        host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in },
+        projectsFolder: { projectsFolder(configJSON: config.json, home: NSHomeDirectory()) }, readConfig: { config.json }, writeConfig: { try config.write($0) }
+    )
+    for folder in ["/data/solve/repos", "/data/solve/worktrees/x/y", "/data/solve/orchestrator", "relative/path"] {
+        model.changeProjectsFolder(to: folder)
+        #expect(model.projectsFolderProblem?.hasSuffix("The projects folder stays /srv/p.") == true, "\(folder)")
+        #expect(config.writes == 0 && model.projectsPath == "/srv/p")
+    }
+    #expect(model.projectsFolderProblem == "The projects folder must be an absolute path. The projects folder stays /srv/p.")
+    model.changeProjectsFolder(to: "/data/solve/repos")
+    #expect(model.projectsFolderProblem?.contains("Carrier's own repos folder") == true)
+    model.openPicker()
+    #expect(model.projectsFolderProblem == nil)
+}
+
+@MainActor @Test func aConfigThatCannotBeReadOrWrittenLeavesTheOldFolderAndSaysSo() async {
+    let unwritable = FakeConfig("{\"chat\": {\"projectsFolder\": \"/srv/p\"}}")
+    unwritable.unwritable = true
+    for config in [FakeConfig(nil), FakeConfig("[1]"), unwritable] {
+        let model = NewSessionModel(
+            host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in },
+            projectsFolder: { projectsFolder(configJSON: config.json, home: NSHomeDirectory()) }, readConfig: { config.json }, writeConfig: { try config.write($0) }
+        )
+        let before = model.projectsPath
+        model.changeProjectsFolder(to: "/srv/other")
+        #expect(model.projectsFolderProblem?.hasSuffix("The projects folder stays \(before).") == true && model.projectsPath == before && config.writes == 0)
+    }
 }

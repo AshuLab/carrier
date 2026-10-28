@@ -267,8 +267,13 @@ struct NewSessionView: View {
             HStack(spacing: 4) {
                 Text("Projects folder").foregroundStyle(.secondary)
                 Text((model.projectsPath as NSString).abbreviatingWithTildeInPath).font(.caption.monospaced()).lineLimit(1).truncationMode(.head)
+                Spacer(minLength: 0)
+                Button("Change…") { changeProjectsFolder() }.buttonStyle(.link)
             }
             .font(.caption).padding(.horizontal, 8).padding(.vertical, 2)
+            if let problem = model.projectsFolderProblem {
+                Text(problem).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true).padding(.horizontal, 8)
+            }
         }
         .padding(8).frame(width: 340)
     }
@@ -379,6 +384,20 @@ struct NewSessionView: View {
     private func clone() {
         guard model.canCloneNow else { return }
         Task { if await model.cloneAndUse() { foldersOpen = false } }
+    }
+
+    /// The footer's Change…: the folder panel, then the popover comes back to show the new path or why it was refused.
+    private func changeProjectsFolder() {
+        foldersOpen = false
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: model.projectsPath)
+        panel.prompt = "Choose"
+        if panel.runModal() == .OK, let url = panel.url { model.changeProjectsFolder(to: url.path) }
+        foldersOpen = true
     }
 
     private func openFolder() {

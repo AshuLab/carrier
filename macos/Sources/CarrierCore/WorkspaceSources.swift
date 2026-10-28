@@ -39,6 +39,29 @@ public func projectsFolder(configJSON: Data?, home: String) -> String {
     return chosen.hasPrefix("~/") ? home + chosen.dropFirst() : chosen
 }
 
+/// Why `folder` cannot be the projects folder, in words; nil when it can. The host's own rule (src/chat/folder.ts): an absolute path
+/// that is not the shared root's `repos`, `worktrees` or `orchestrator`, or inside one, symlinks resolved.
+public func projectsFolderRefusal(_ folder: String, configJSON: Data?, home: String) -> String? {
+    guard folder.hasPrefix("/") else { return "The projects folder must be an absolute path" }
+    let real = URL(fileURLWithPath: folder).resolvingSymlinksInPath().path
+    let root = URL(fileURLWithPath: sharedRoot(configJSON: configJSON, home: home)).resolvingSymlinksInPath().path
+    for name in ["repos", "worktrees", "orchestrator"] {
+        let engine = root + "/" + name
+        if real == engine || real.hasPrefix(engine + "/") { return "That folder is inside Carrier's own \(name) folder; the chat never works there" }
+    }
+    return nil
+}
+
+/// `json` with `chat.projectsFolder` set to `folder`; the rest of the file, the `chat` block's other keys and the keys the app does not
+/// know are left as they were. nil when `json` is not a JSON object: the app never makes a config file.
+public func applyingProjectsFolder(_ folder: String, to json: Data) -> Data? {
+    guard var file = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return nil }
+    var chat = file["chat"] as? [String: Any] ?? [:]
+    chat["projectsFolder"] = folder
+    file["chat"] = chat
+    return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+}
+
 /// A folder the projects folder holds: `name` is `<owner>/<repo>` (`local/<name>` for a new project) and `path` its full path.
 public struct ProjectFolder: Equatable {
     public let name: String

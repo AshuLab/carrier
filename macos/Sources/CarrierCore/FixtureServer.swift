@@ -7,7 +7,8 @@ public enum FixtureError: Error, Equatable {
 
 /// A fake Carrier for the app's `--fixture` mode: a control server on a temporary socket that answers the snapshot and the
 /// requests from the golden files (macos/Tests/Fixtures), and `availableRepos` with a made-up list, so the app is exercised through its real client path with no engine.
-/// A second socket, `<home>/chat/chat.sock`, is a fake chat host: `agents` and `list` from `chat-agents.json` and `chat-list.json`, anything else an error.
+/// A second socket, `<home>/chat/chat.sock`, is a fake chat host: `agents` and `list` from `chat-agents.json` and `chat-list.json`,
+/// `events` from the `chat-events-*.json` files (each names its session; a listed session with none has no events), anything else an error.
 /// It owns a temporary home (`home`) holding a `config.json` whose `root` is the home itself, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 public final class FixtureServer {
@@ -19,7 +20,11 @@ public final class FixtureServer {
     private let chatListener: Int32
     private let chatAgents: Data
     private let chatSessions: [[String: Any]]
-    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\"]}\n".utf8)
+    /// Each session's golden conversation: its events and the message being written.
+    private var chatConversations: [String: (events: [[String: Any]], streaming: String)] = [:]
+    /// Under `longTranscript`, every listed session answers this instead.
+    private var longChat: [[String: Any]]?
+    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"events\"]}\n".utf8)
     private let data: [String: Data]
     private let hello: Data
     private var stopped = false
@@ -71,6 +76,16 @@ public final class FixtureServer {
             guard let sessions = list?["sessions"] as? [[String: Any]] else { throw FixtureError.unreadable("\(fixtures)/chat-list.json") }
             chatSessions = sessions
         } catch { throw FixtureError.unreadable("\(fixtures)/chat-agents.json or chat-list.json") }
+        let goldens = ((try? FileManager.default.contentsOfDirectory(atPath: fixtures)) ?? []).filter { $0.hasPrefix("chat-events-") && $0.hasSuffix(".json") }
+        for file in goldens.sorted() {
+            guard let golden = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/" + file)))) as? [String: Any],
+                let session = golden["sessionId"] as? String, let events = golden["events"] as? [[String: Any]]
+            else { throw FixtureError.unreadable("\(fixtures)/\(file)") }
+            chatConversations[session] = (events, golden["streaming"] as? String ?? "")
+        }
+        if longTranscript {
+            longChat = try JSONSerialization.jsonObject(with: JSONEncoder().encode(longChatEvents(rounds: 500))) as? [[String: Any]]
+        }
         self.data = data
         let names = ["sessions", "events", "epic", "files", "fileDiff", "availableRepos", "availableReposPaged", "resumeEpic"].map { "\"\($0)\"" }.joined(separator: ",")
         hello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":\(getpid()),\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\(names)]}\n".utf8)
@@ -177,6 +192,17 @@ public final class FixtureServer {
             let archived = request?["archived"] as? Bool ?? false
             let sessions = chatSessions.filter { ($0["archived"] as? Bool) == archived }
             guard let body = try? JSONSerialization.data(withJSONObject: ["sessions": sessions], options: .sortedKeys) else { break }
+            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
+        case "events":
+            guard let session = request?["sessionId"] as? String, chatSessions.contains(where: { $0["id"] as? String == session }) else {
+                return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown session\"}")
+            }
+            let after = request?["after"] as? Int ?? 0
+            let limit = min(max(request?["limit"] as? Int ?? 200, 1), 200)
+            let conversation = longChat.map { ($0, "") } ?? chatConversations[session] ?? ([], "")
+            let page = Array(conversation.0.filter { ($0["id"] as? Int ?? 0) > after }.prefix(limit))
+            let reply: [String: Any] = ["events": page, "cursor": page.last?["id"] as? Int ?? after, "streaming": conversation.1, "approvals": [], "options": []]
+            guard let body = try? JSONSerialization.data(withJSONObject: reply, options: .sortedKeys) else { break }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
         default: break
         }

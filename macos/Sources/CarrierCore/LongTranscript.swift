@@ -29,3 +29,24 @@ public func longTranscriptEvents(rounds: Int) -> [ExecEvent] {
     }
     return events
 }
+
+/// `rounds` turns of a conversation, seven events a turn: a message, a read, a command with output, the answer in markdown (a list and
+/// a code block) and the turn's end with its usage; ids from 1. The fixture host answers `events` with it under `--fixture-long-transcript`.
+public func longChatEvents(rounds: Int) -> [ChatEvent] {
+    var events: [ChatEvent] = []
+    var id = 0
+    func add(_ kind: String, text: String? = nil, callId: String? = nil, tool: String? = nil, arg: String? = nil, output: [String]? = nil, status: String? = nil, usage: [String: Double]? = nil) {
+        id += 1
+        events.append(ChatEvent(id: id, at: 1_792_000_000_000 + id * 700, kind: kind, text: text, callId: callId, tool: tool, arg: arg, output: output, status: status, outcome: kind == "turn_end" ? "ok" : nil, model: kind == "turn_end" ? "claude-sonnet-5-5" : nil, usage: usage))
+    }
+    for round in 0..<rounds {
+        add("user", text: "Round \(round + 1): look at module \(round) and tell me what to change.")
+        add("tool_start", callId: "r\(round)a", tool: "Read", arg: "src/module\(round).ts")
+        add("tool_end", callId: "r\(round)a", tool: "Read", output: ["export const ttl = 60", "export const alg = \"HS256\""], status: "ok")
+        add("tool_start", callId: "r\(round)b", tool: "Bash", arg: "pnpm test module\(round)")
+        add("tool_end", callId: "r\(round)b", tool: "Bash", output: ["Tests 2 failed"], status: "err")
+        add("assistant", text: "Module \(round) has two problems:\n\n- the algorithm is `HS256`\n- the ttl is not read from the config\n\n```ts\nexport const alg = \"ES256\"\n```")
+        add("turn_end", usage: ["input_tokens": 1200, "output_tokens": 300])
+    }
+    return events
+}

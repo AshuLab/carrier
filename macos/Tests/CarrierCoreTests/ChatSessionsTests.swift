@@ -83,6 +83,7 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
         guard let answer = wanted ? archived : active else { throw ControlError.closed }
         return answer
     }
+    func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents { ChatEvents(events: [], cursor: after) }
 }
 
 private final class Clock { var now = Date(timeIntervalSince1970: 1_800_000_000) }

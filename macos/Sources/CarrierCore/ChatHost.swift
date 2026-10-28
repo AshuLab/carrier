@@ -46,6 +46,8 @@ public struct ChatSession: Decodable, Equatable {
 public protocol ChatHost {
     func agents() async throws -> [ChatAgent]
     func list(archived: Bool) async throws -> [ChatSession]
+    /// The events of a session after the cursor, at most `limit` (the host takes 1 to 200).
+    func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents
 }
 
 /// The chat host over its socket: one connection per call (a host with no client attached may end itself), with the blocking
@@ -64,6 +66,13 @@ public struct SocketChatHost: ChatHost {
         let path = socketPath()
         let reply: ChatSessionsReply = try await Task.detached { try chatRequest(path, "list", requires: .list, fields: ",\"archived\":\(archived)") }.value
         return reply.sessions
+    }
+
+    /// Only a UUID goes on the wire as the session id, as the host accepts nothing else.
+    public func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
+        guard let id = UUID(uuidString: id)?.uuidString.lowercased() else { throw ControlError.remote("not a valid session id") }
+        let path = socketPath()
+        return try await Task.detached { try chatRequest(path, "events", requires: .events, fields: ",\"sessionId\":\"\(id)\",\"after\":\(after),\"limit\":\(limit)") }.value
     }
 }
 

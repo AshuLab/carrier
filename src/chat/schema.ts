@@ -14,6 +14,7 @@ export const sessions = sqliteTable('sessions', {
   state: text({ enum: sessionStates }).notNull().default('idle'),
   pid: integer(), // of the live agent process, null when closed
   pgid: integer(),
+  command: text(), // what that process was started with, so a sweep knows it is still the agent
   createdAt: integer().notNull(), // ms since epoch
   lastActiveAt: integer().notNull(),
   archived: integer({ mode: 'boolean' }).notNull().default(false),

@@ -19,7 +19,7 @@ export const IDLE_CLOSE_MS = 60_000;
 type Harness = (typeof sessions.$inferSelect)['harness'];
 type State = (typeof sessions.$inferSelect)['state'];
 
-export type SessionSummary = Omit<typeof sessions.$inferSelect, 'options' | 'pid' | 'pgid'>;
+export type SessionSummary = Omit<typeof sessions.$inferSelect, 'options' | 'pid' | 'pgid' | 'command'>;
 
 export type PendingApproval = { approvalId: string; tool: string; arg?: string; choices: ChatChoice[] };
 
@@ -75,7 +75,7 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
     if (found === undefined) throw new ChatRefused('There is no such session');
     return found;
   };
-  const summary = ({ options: _options, pid: _pid, pgid: _pgid, ...rest }: typeof sessions.$inferSelect): SessionSummary => rest;
+  const summary = ({ options: _options, pid: _pid, pgid: _pgid, command: _command, ...rest }: typeof sessions.$inferSelect): SessionSummary => rest;
 
   // An idle session with no client attached is closed after a minute; working or waiting ones are kept.
   const armIdle = (sessionId: string, live: Live) => {
@@ -119,7 +119,7 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
     if (live === undefined) return {};
     lives.delete(sessionId);
     live.cancelIdle?.();
-    db.update(sessions).set({ state: 'idle', pid: null, pgid: null }).where(eq(sessions.id, sessionId)).run();
+    db.update(sessions).set({ state: 'idle', pid: null, pgid: null, command: null }).where(eq(sessions.id, sessionId)).run();
     try {
       await live.conversation.close();
     } catch (error) {
@@ -153,6 +153,8 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
   const attach = (sessionId: string, conversation: ChatConversation) => {
     const live: Live = { conversation, state: 'idle', streaming: '', approvals: new Map() };
     lives.set(sessionId, live);
+    const { pid = null, pgid = null, command = null } = conversation.process ?? {};
+    db.update(sessions).set({ pid, pgid, command }).where(eq(sessions.id, sessionId)).run();
     conversation.onEvent((event) => {
       try {
         onEvent(sessionId, live, event);

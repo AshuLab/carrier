@@ -223,3 +223,15 @@ test('the host stores the transcript of the replayed conversation and the native
   await sessions.closeAll();
   db.$client.close();
 });
+
+test('the conversation reports the process it started as the leader of its own group, with the command', async () => {
+  const replayed = replay(main);
+  const query = ((args: Parameters<typeof sdkQuery>[0]) => {
+    args.options!.spawnClaudeCodeProcess!({ command: '/bin/claude', args: [], cwd: '/work', env: {}, signal: new AbortController().signal });
+    return replayed.query(args);
+  }) as unknown as typeof sdkQuery;
+  const spawn = (() => ({ pid: 777 })) as unknown as ClaudeChatDeps['spawn'];
+  const conversation = await claudeChatRunner(deps(query, { spawn })).open({ folder: '/work', env: {} });
+  expect(conversation.process).toEqual({ pid: 777, pgid: 777, command: '/bin/claude' });
+  expect((await claudeChatRunner(deps(replayed.query)).open({ folder: '/work', env: {} })).process).toBeUndefined();
+});

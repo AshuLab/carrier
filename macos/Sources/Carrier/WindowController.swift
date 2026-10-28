@@ -158,6 +158,15 @@ final class WindowController: NSObject, NSWindowDelegate {
                 await draft.useWorktree(false)
             }
         }
+        // the workspace popover: what it lists, and the GitHub URL step against the host (a repository it lists, then one it does not)
+        draft.openPicker()
+        lines.append("new session picker: recent \(draft.recent.map(\.name)), projects \(draft.projects.map(\.name)), sources \(draft.sources.map(\.rawValue)), footer \(draft.projectsPath)")
+        draft.show(.url)
+        for text in ["https://github.com/AshuLab/web", "AshuLab/nope"] {
+            draft.urlText = text
+            let worked = await draft.cloneAndUse()
+            lines.append("new session clone \(text): \(draft.cloneButton), \(worked ? "used" : "refused: \(draft.cloneProblem ?? "no reason")"), \"\(draft.sentence)\"")
+        }
         return lines.joined(separator: "\n")
     }
 

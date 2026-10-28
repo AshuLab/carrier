@@ -55,11 +55,21 @@ struct NewSessionView: View {
         VStack(alignment: .leading, spacing: 6) {
             FlowLayout(spacing: 6) {
                 Text("Work in")
-                Button { foldersOpen.toggle() } label: {
-                    chip(model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Choose a workspace…", tint: model.folder == nil ? .orange : .primary)
+                Button {
+                    if foldersOpen == false { model.openPicker() }
+                    foldersOpen.toggle()
+                } label: {
+                    chip(
+                        model.cloningName ?? model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Choose a workspace…",
+                        tint: model.folder == nil && model.cloning == nil ? .orange : .primary
+                    )
                 }
                 .buttonStyle(.plain).accessibilityLabel("Workspace")
-                .popover(isPresented: $foldersOpen, arrowEdge: .bottom) { folders }
+                .popover(isPresented: $foldersOpen, arrowEdge: .bottom) { picker }
+                if let repo = model.cloning {
+                    ProgressView().controlSize(.small)
+                    Text("Cloning \(repo)…")
+                }
                 if model.folder != nil {
                     if model.offersWorktree {
                         Text("on")
@@ -220,25 +230,111 @@ struct NewSessionView: View {
         .opacity(model.folder == nil ? 0.5 : 1)
     }
 
-    /// The recent folders with their paths, and Open folder… for the system's folder panel.
-    private var folders: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(model.recent, id: \.path) { folder in
-                Button { foldersOpen = false; Task { await model.choose(folder: folder.path) } } label: {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(folder.name)
-                        Text(folder.path).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).padding(.horizontal, 8).padding(.vertical, 4)
-            }
-            if model.recent.isEmpty { Text("No recent folders").foregroundStyle(.secondary).padding(8) }
-            Divider()
-            Button { openFolder() } label: { Label("Open folder…", systemImage: "folder.badge.plus").frame(maxWidth: .infinity, alignment: .leading) }
-                .buttonStyle(.plain).padding(.horizontal, 8).padding(.vertical, 4)
+    /// The workspace popover: the menu, or the step of a source inside it.
+    @ViewBuilder private var picker: some View {
+        switch model.step {
+        case .menu: menu
+        case .url: urlStep
         }
-        .padding(8).frame(width: 320)
+    }
+
+    /// Recent folders, the projects folder's, the sources and a footer with where the projects folder is.
+    private var menu: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            menuHeader("Recent")
+            ForEach(model.recent, id: \.path) { folder in folderRow(folder.name, folder.path) }
+            if model.recent.isEmpty { Text("No recent folders").foregroundStyle(.secondary).padding(8) }
+            if model.projects.isEmpty == false {
+                menuHeader("In your projects folder")
+                ForEach(model.projects, id: \.path) { folderRow($0.name, $0.path) }
+            }
+            Divider().padding(.vertical, 4)
+            ForEach(model.sources, id: \.self) { source in
+                switch source {
+                case .localFolder:
+                    sourceRow(source.rawValue, "folder.badge.plus", drills: false) { openFolder() }
+                case .githubURL:
+                    sourceRow(source.rawValue, "link", drills: true) { model.show(.url) }
+                }
+            }
+            Divider().padding(.vertical, 4)
+            HStack(spacing: 4) {
+                Text("Projects folder").foregroundStyle(.secondary)
+                Text((model.projectsPath as NSString).abbreviatingWithTildeInPath).font(.caption.monospaced()).lineLimit(1).truncationMode(.head)
+            }
+            .font(.caption).padding(.horizontal, 8).padding(.vertical, 2)
+        }
+        .padding(8).frame(width: 340)
+    }
+
+    private func menuHeader(_ title: String) -> some View {
+        Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.top, 4)
+    }
+
+    private func folderRow(_ name: String, _ path: String) -> some View {
+        Button { foldersOpen = false; Task { await model.choose(folder: path) } } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(name)
+                Text((path as NSString).abbreviatingWithTildeInPath).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).padding(.horizontal, 8).padding(.vertical, 4)
+    }
+
+    private func sourceRow(_ title: String, _ icon: String, drills: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Label(title, systemImage: icon)
+                Spacer(minLength: 0)
+                if drills { Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).padding(.horizontal, 8).padding(.vertical, 4)
+    }
+
+    /// From a GitHub URL: the text, what will happen to it, and the button; while it clones, the clone and Cancel.
+    private var urlStep: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Button { model.show(.menu) } label: { Label("Back", systemImage: "chevron.left") }
+                    .buttonStyle(.plain).foregroundStyle(.secondary).disabled(model.cloning != nil)
+                Text("From a GitHub URL").fontWeight(.semibold)
+            }
+            TextField("owner/repo  or  https://github.com/owner/repo", text: $model.urlText)
+                .textFieldStyle(.roundedBorder).autocorrectionDisabled().disabled(model.cloning != nil)
+                .onSubmit { clone() }
+            if let repo = model.cloning {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Cloning \(repo)…")
+                }
+                .font(.callout)
+            } else if let problem = model.cloneProblem {
+                Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled)
+            } else if model.alreadyThere {
+                Text("Already in your projects folder. It will be updated (fetch) and opened, not cloned again.").font(.callout).foregroundStyle(.orange)
+            }
+            HStack {
+                Spacer(minLength: 0)
+                Button("Cancel") {
+                    model.cancelClone()
+                    foldersOpen = false
+                }
+                .keyboardShortcut(.cancelAction)
+                if model.cloning == nil {
+                    Button(model.cloneButton) { clone() }
+                        .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(model.canCloneNow == false)
+                }
+            }
+        }
+        .padding(12).frame(width: 340)
+    }
+
+    private func clone() {
+        guard model.canCloneNow else { return }
+        Task { if await model.cloneAndUse() { foldersOpen = false } }
     }
 
     private func openFolder() {

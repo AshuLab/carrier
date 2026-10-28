@@ -41,6 +41,17 @@ public struct FailedFirstSend: Equatable {
     public let reason: String
 }
 
+/// A way into the workspace popover besides the folders it lists. One that is not built, or that the host cannot do, is not in `sources`.
+public enum WorkspaceSource: String {
+    case localFolder = "Open local folder…"
+    case githubURL = "From a GitHub URL…"
+}
+
+/// The step of the workspace popover that is showing.
+public enum WorkspaceStep: Equatable {
+    case menu, url
+}
+
 /// The draft: loads what it offers, and `send()` opens the session and then sends the message, in two steps.
 @MainActor @Observable public final class NewSessionModel {
     public private(set) var recent: [RecentFolder] = []
@@ -67,7 +78,21 @@ public struct FailedFirstSend: Equatable {
     /// Why the last Fetch now failed, in the host's words; cleared by the next one.
     public private(set) var fetchProblem: String?
 
+    /// Whether the host can clone (its hello lists `cloneRepo`); an older one is not offered From a GitHub URL…
+    public private(set) var hostClones = false
+    /// The `<owner>/<repo>` folders of the projects folder, read from disk each time the popover opens.
+    public private(set) var projects: [ProjectFolder] = []
+    public private(set) var step = WorkspaceStep.menu
+    /// What the URL step was given.
+    public var urlText = ""
+    /// The repository being cloned, nil when none is.
+    public private(set) var cloning: String?
+    /// Why the last clone was refused, in the host's words; cleared when the next one starts.
+    public private(set) var cloneProblem: String?
+
     @ObservationIgnored private let host: ChatHost
+    @ObservationIgnored private let projectsFolder: () -> String
+    @ObservationIgnored private var cloneTask: Task<ClonedRepo, Error>?
     @ObservationIgnored private let ensureHost: @MainActor () async -> Bool
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
@@ -77,13 +102,15 @@ public struct FailedFirstSend: Equatable {
     @ObservationIgnored private var failedFirstSends: [String: FailedFirstSend] = [:]
 
     /// `ensureHost` starts the chat host when it is not running (#503) and says whether it answers now.
-    /// `sleep` is the wait before a typed name is checked.
+    /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where the config says the projects folder is.
     public init(
         host: ChatHost, ensureHost: @escaping @MainActor () async -> Bool = { true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
-        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        projectsFolder: @escaping () -> String = currentProjectsFolder
     ) {
         self.host = host
+        self.projectsFolder = projectsFolder
         self.ensureHost = ensureHost
         self.log = log
         self.sleep = sleep
@@ -106,19 +133,81 @@ public struct FailedFirstSend: Equatable {
     private func read() async throws {
         agents = agentChoices(try await host.agents())
         recent = recentFolders(try await host.list(archived: false) + (try await host.list(archived: true)))
+        hostClones = try await host.capabilities().contains(.cloneRepo)
+    }
+
+    /// The sources the popover lists under the folders.
+    public var sources: [WorkspaceSource] { hostClones ? [.localFolder, .githubURL] : [.localFolder] }
+
+    /// Where the footer says the projects folder is.
+    public var projectsPath: String { projectsFolder() }
+
+    /// The popover opens on the menu with the projects folder read again; one that is cloning stays on the step that shows it.
+    public func openPicker() {
+        projects = projectFolders(in: projectsFolder())
+        guard cloning == nil else { return }
+        step = .menu
+        cloneProblem = nil
+    }
+
+    public func show(_ next: WorkspaceStep) {
+        guard cloning == nil else { return }
+        step = next
+        cloneProblem = nil
+    }
+
+    /// The repository being cloned without its owner: what the chip says while it runs.
+    public var cloningName: String? { cloning.flatMap { $0.split(separator: "/").last.map(String.init) } }
+
+    /// The repository the URL step's text names.
+    public var reference: String? { repoReference(urlText) }
+
+    /// A repository already among the projects folder's folders is fetched, not cloned again.
+    public var alreadyThere: Bool { reference.map { name in projects.contains { $0.name.lowercased() == name.lowercased() } } ?? false }
+
+    public var cloneButton: String { cloneProblem != nil ? "Try again" : alreadyThere ? "Update and use" : "Clone and use" }
+
+    /// "Clone and use" stays off until the text is one repository, and while a clone runs.
+    public var canCloneNow: Bool { reference != nil && cloning == nil }
+
+    /// Clones (or fetches) the repository of the URL step and chooses its folder as the workspace; true when it did. The draft has no
+    /// workspace while it runs and when it fails, so the chip stays orange; the refusal is in `cloneProblem`.
+    public func cloneAndUse() async -> Bool {
+        guard let repo = reference, cloning == nil else { return false }
+        reset(folder: nil)
+        cloning = repo
+        cloneProblem = nil
+        step = .url
+        let task = Task { [host] in try await host.cloneRepo(repo) }
+        cloneTask = task
+        do {
+            let cloned = try await task.value
+            guard cloneTask == task else { return false }
+            cloning = nil
+            cloneTask = nil
+            urlText = ""
+            await choose(folder: cloned.folder)
+            return true
+        } catch {
+            // a clone that was cancelled has already been dropped by `cancelClone`
+            guard cloneTask == task else { return false }
+            cloning = nil
+            cloneTask = nil
+            cloneProblem = report(error, "clone \(repo)")
+            return false
+        }
+    }
+
+    /// Cancel: closes the request's connection, which stops the clone on the host, and the draft goes on with no workspace.
+    public func cancelClone() {
+        cloneTask?.cancel()
+        cloneTask = nil
+        cloning = nil
     }
 
     /// Chooses the workspace and asks the host what it is; the worktree choice starts over (a new folder has other branches and names).
     public func choose(folder path: String) async {
-        folder = path
-        workspace = nil
-        workspaceProblem = nil
-        worktree = false
-        picked = nil
-        fetchProblem = nil
-        worktreeName = ""
-        verifiedName = nil
-        nameState = .suggesting
+        reset(folder: path)
         do {
             let info = try await host.workspace(path)
             guard folder == path else { return }
@@ -130,13 +219,26 @@ public struct FailedFirstSend: Equatable {
         }
     }
 
+    private func reset(folder path: String?) {
+        folder = path
+        workspace = nil
+        workspaceProblem = nil
+        worktree = false
+        picked = nil
+        fetchProblem = nil
+        worktreeName = ""
+        verifiedName = nil
+        nameState = .suggesting
+    }
+
     /// The branch the worktree starts from, nil when none is known and the person is asked.
     public var startBranch: String? { picked ?? workspace.flatMap(defaultStartBranch) }
 
     public func choose(startBranch branch: String) { picked = branch }
 
     public var sentence: String {
-        workSentence(folder: folder, workspace: workspace, worktree: worktree ? (worktreeName, startBranch) : nil)
+        if let cloning, let name = cloningName { return "Work in \(name) Cloning \(cloning)…" }
+        return workSentence(folder: folder, workspace: workspace, worktree: worktree ? (worktreeName, startBranch) : nil)
     }
 
     /// The line under the sentence: the uncommitted files of the base folder, which a worktree would keep out of the agent's way.

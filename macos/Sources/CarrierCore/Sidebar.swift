@@ -13,6 +13,7 @@ public struct SidebarStore {
     private let key = "sidebar.groupBy"
     private let sortKey = "sidebar.sessionSort"
     private let openKey = "sidebar.open"
+    private let slotsTotalKey = "sidebar.slotsTotal"
 
     public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
@@ -24,6 +25,12 @@ public struct SidebarStore {
     public var sessionSort: SessionSort {
         get { defaults.string(forKey: sortKey).flatMap(SessionSort.init(rawValue:)) ?? .workspace }
         nonmutating set { defaults.set(newValue.rawValue, forKey: sortKey) }
+    }
+
+    /// The slots total the engine last reported, for the bars of a stopped engine; nil until one was seen.
+    public var slotsTotal: Int? {
+        get { defaults.object(forKey: slotsTotalKey) as? Int }
+        nonmutating set { defaults.set(newValue, forKey: slotsTotalKey) }
     }
 
     /// The unfolded section. Both folded is stored as "none"; a value that is not a section brings back Sessions.
@@ -61,6 +68,9 @@ public struct SidebarGroup: Equatable {
     public var rows: [SidebarRow]
     /// Whether the group is collapsed until the user opens it: Done and Cancelled.
     public var startsCollapsed = false
+
+    /// Shown on the group's header.
+    public var count: Int { rows.count }
 }
 
 /// What the user collapsed or expanded, by group title and grouping, kept while the app runs (not across launches). A group that
@@ -155,12 +165,13 @@ private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, wi
     }
 }
 
-/// The Carrier card's state, from what the app knows of the engine (docs/specs/sidebar-home-sessions-carrier.md).
+/// The Carrier section's state, from what the app knows of the engine (docs/specs/sidebar-home-sessions-carrier.md).
 public struct CarrierCardState: Equatable {
     public enum Kind: Equatable { case running, paused, stopped, problem, connecting }
 
     public var kind: Kind
-    /// Busy and total: present for running, paused and problem (when the engine answered), absent otherwise.
+    /// Busy and total: present for running, paused and problem (when the engine answered), and for a stopped engine from the last
+    /// total it reported (nothing busy); absent otherwise.
     public var slots: (busy: Int, total: Int)?
 
     /// The word of the pill.
@@ -180,30 +191,15 @@ public struct CarrierCardState: Equatable {
 }
 
 /// A problem reported by the snapshot wins over a pause: it is what the person has to look at.
-public func carrierCardState(_ state: ConnectionState?) -> CarrierCardState {
+public func carrierCardState(_ state: ConnectionState?, lastTotal: Int? = nil) -> CarrierCardState {
     switch state {
     case .running(let snapshot)?:
         let kind: CarrierCardState.Kind = snapshot.problem != nil ? .problem : snapshot.paused ? .paused : .running
         return CarrierCardState(kind: kind, slots: (snapshot.slots.busy, snapshot.slots.total))
     case .incompatible?: return CarrierCardState(kind: .problem, slots: nil)
-    case .stopped?: return CarrierCardState(kind: .stopped, slots: nil)
+    case .stopped?: return CarrierCardState(kind: .stopped, slots: lastTotal.map { (0, $0) })
     case nil: return CarrierCardState(kind: .connecting, slots: nil)
     }
-}
-
-/// What is waiting, for the Carrier card. Done and Cancelled are not counted.
-public struct CarrierCounters: Equatable {
-    public var needsYou: Int
-    public var running: Int
-    public var next: Int
-    public var ready: Int
-}
-
-public func carrierCounters(_ snapshot: PanelSnapshot) -> CarrierCounters {
-    CarrierCounters(
-        needsYou: snapshot.epics.filter { $0.status == .needsHuman }.count, running: snapshot.epics.filter { $0.status == .running }.count,
-        next: snapshot.queue.count, ready: snapshot.done.count
-    )
 }
 
 private func key(_ repo: String, _ issue: Int) -> String { "\(repo)#\(issue)" }

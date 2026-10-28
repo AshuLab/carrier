@@ -375,4 +375,13 @@ describe.skipIf(!enabled)('cloneRepo, with the real git', () => {
     await vi.waitFor(() => expect(existsSync(join(work, 'projects', 'acme', 'hang'))).toBe(false), { timeout: 3000 });
     expect(Date.now() - started).toBeLessThan(4000);
   });
+
+  test('a real createProject makes a repository on main with no commit, and a second one of the same name is refused', async () => {
+    const dest = join(work, 'projects', 'local', 'fresh');
+    expect(await projects().createProject({ name: 'fresh' })).toEqual({ folder: dest });
+    expect(git(dest, 'symbolic-ref', '--short', 'HEAD').trim()).toBe('main');
+    expect(git(dest, 'rev-list', '--all').trim()).toBe('');
+    await expect(projects().createProject({ name: 'fresh' })).rejects.toThrow(ChatRefused);
+    expect(existsSync(join(dest, '.git'))).toBe(true);
+  });
 });

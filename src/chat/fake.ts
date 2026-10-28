@@ -126,6 +126,14 @@ export class FakeGit implements Git {
       this.repos.set(dest, { origin: url, head: 'main', branches: ['main'] });
       return { ok: true, out: '' };
     }
+    if (args[0] === 'init') {
+      // init -b <branch>: a failure leaves a half-made .git, as git can
+      mkdirSync(join(folder, '.git'), { recursive: true });
+      const failure = this.failures.get(args.join(' '));
+      if (failure !== undefined) return failure;
+      this.repos.set(folder, { head: args[2]!, branches: [] });
+      return { ok: true, out: '' };
+    }
     const failure = this.failures.get(args.join(' '));
     if (failure !== undefined) return failure;
     const repo = this.repos.get(folder);

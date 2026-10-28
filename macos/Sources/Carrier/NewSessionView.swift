@@ -238,6 +238,7 @@ struct NewSessionView: View {
         switch model.step {
         case .menu: menu
         case .url: urlStep
+        case .project: projectStep
         }
     }
 
@@ -258,6 +259,8 @@ struct NewSessionView: View {
                     sourceRow(source.rawValue, "folder.badge.plus", drills: false) { openFolder() }
                 case .githubURL:
                     sourceRow(source.rawValue, "link", drills: true) { model.show(.url) }
+                case .newProject:
+                    sourceRow(source.rawValue, "folder.badge.gearshape", drills: true) { model.show(.project) }
                 }
             }
             Divider().padding(.vertical, 4)
@@ -338,6 +341,39 @@ struct NewSessionView: View {
             }
         }
         .padding(12).frame(width: 340)
+    }
+
+    /// New project: a name, the path it will make, and the button; no watch box, a new project has no GitHub repository.
+    private var projectStep: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Button { model.show(.menu) } label: { Label("Back", systemImage: "chevron.left") }
+                    .buttonStyle(.plain).foregroundStyle(.secondary).disabled(model.creating)
+                Text("New project").fontWeight(.semibold)
+            }
+            TextField("Project name", text: $model.projectName)
+                .textFieldStyle(.roundedBorder).autocorrectionDisabled().disabled(model.creating)
+                .onSubmit { create() }
+            Text("Will make \((model.projectPath as NSString).abbreviatingWithTildeInPath) and run git init on main.")
+                .font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(2).truncationMode(.head)
+            if let warning = model.projectNameWarning {
+                Text(warning).font(.callout).foregroundStyle(.orange)
+            } else if let problem = model.createProblem {
+                Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled)
+            }
+            HStack {
+                Spacer(minLength: 0)
+                Button("Cancel") { foldersOpen = false }.keyboardShortcut(.cancelAction)
+                Button("Create and use") { create() }
+                    .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(model.canCreateNow == false)
+            }
+        }
+        .padding(12).frame(width: 340)
+    }
+
+    private func create() {
+        guard model.canCreateNow else { return }
+        Task { if await model.createAndUse() { foldersOpen = false } }
     }
 
     private func clone() {

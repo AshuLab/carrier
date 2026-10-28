@@ -78,7 +78,7 @@ export async function startChatHost(config: Config, overrides: Partial<ChatHostD
       joined: () => void (idle?.joined(), sessions.clientJoined()),
       left: () => void (idle?.left(), sessions.clientLeft()),
     };
-    closeServer = (await startChatServer({ chatDir, startedAt: deps.clock.now(), controls: { ...sessions, cloneRepo: projects.cloneRepo }, stop, clients })).close;
+    closeServer = (await startChatServer({ chatDir, startedAt: deps.clock.now(), controls: { ...sessions, cloneRepo: projects.cloneRepo, createProject: projects.createProject }, stop, clients })).close;
   } catch (error) {
     close();
     throw error;

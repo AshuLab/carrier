@@ -167,6 +167,13 @@ final class WindowController: NSObject, NSWindowDelegate {
             let worked = await draft.cloneAndUse()
             lines.append("new session clone \(text): \(draft.cloneButton), \(worked ? "used" : "refused: \(draft.cloneProblem ?? "no reason")"), \"\(draft.sentence)\"")
         }
+        // New project against the host: a name it makes (and the draft then offers no worktree), then one it refuses as taken
+        draft.show(.project)
+        for name in ["my-idea", "web"] {
+            draft.projectName = name
+            let worked = await draft.createAndUse()
+            lines.append("new session project \(name): \(worked ? "used" : "refused: \(draft.createProblem ?? draft.projectNameWarning ?? "no reason")"), \"\(draft.sentence)\", worktree \(draft.offersWorktree ? "offered" : "not offered")")
+        }
         return lines.joined(separator: "\n")
     }
 

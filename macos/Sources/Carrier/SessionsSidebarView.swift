@@ -54,7 +54,7 @@ struct SessionsRows: View {
                         selection: Binding(get: { sort }, set: { sort = $0; SidebarStore().sessionSort = $0 }), close: { sortOpen = false }
                     )
                 }
-            IconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: Sessions.cannotStartReason) {}
+            IconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: sessions.cannotStartReason) {}
         }
         .tag(Selection.sessions)
         // the field is only drawn while unfolded, so a query must not outlive it: the magnifier would look pressed with no field
@@ -84,7 +84,7 @@ struct SessionsRows: View {
                 }
                 ForEach(groups, id: \.title) { group in
                     if sort == .workspace {
-                        WorkspaceHeader(title: group.title, canStart: sessions.canStart)
+                        WorkspaceHeader(title: group.title, cannotStartReason: sessions.cannotStartReason)
                     } else {
                         Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).selectionDisabled()
                     }
@@ -108,14 +108,14 @@ private extension SessionSort {
 /// A workspace's name, with a + that appears on hover.
 private struct WorkspaceHeader: View {
     let title: String
-    let canStart: Bool
+    let cannotStartReason: String?
     @State private var hovered = false
 
     var body: some View {
         HStack {
             Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 0)
-            IconButton(icon: "plus", name: "New session in \(title)", enabled: canStart, why: Sessions.cannotStartReason) {}
+            IconButton(icon: "plus", name: "New session in \(title)", enabled: cannotStartReason == nil, why: cannotStartReason) {}
                 .opacity(hovered ? 1 : 0)
         }
         .onHover { hovered = $0 }

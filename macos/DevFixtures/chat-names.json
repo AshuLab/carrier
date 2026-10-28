@@ -1,0 +1,10 @@
+{
+  "suggestions": [ "brave-marine-aiur", "keen-ghost-char", "swift-zealot-tarsonis" ],
+  "free": { "valid": true, "free": true },
+  "checks": {
+    "fix-login": { "valid": true, "free": false, "reason": "A branch called carrier/fix-login already exists" },
+    "Big_Name": { "valid": false, "free": false, "reason": "The name must start with a lowercase letter or a digit" },
+    "two words": { "valid": false, "free": false, "reason": "The name may only have lowercase letters, digits, hyphens, underscores and dots" },
+    "": { "valid": false, "free": false, "reason": "The name is empty" }
+  }
+}

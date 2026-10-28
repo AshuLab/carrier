@@ -22,7 +22,11 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var pending: Set<String> = []
 
     func agents() async throws -> [ChatAgent] { [] }
-    func open(agent: String, folder: String) async throws -> String { "" }
+    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String { "" }
+    func workspace(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
+    func fetch(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
+    func suggestName(_ folder: String) async throws -> String { "" }
+    func checkName(_ folder: String, _ name: String) async throws -> NameCheck { NameCheck(valid: true, free: true) }
     func list(archived: Bool) async throws -> [ChatSession] { [listed(live: live)] }
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         let page = events.filter { $0.id > after }

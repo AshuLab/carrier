@@ -31,7 +31,8 @@ public struct ChatSession: Decodable, Equatable {
     public let createdAt: Int
     public let lastActiveAt: Int
     public let archived: Bool
-    /// Set for a session in a worktree: `base` is the repository's folder, which is where the session is grouped.
+    /// Set for a session in a worktree: `base` is the repository's folder, which is where the session is grouped. The host says
+    /// `{kind: "folder"}` for a session in the base folder itself, which is nil here.
     public let workspace: Workspace?
     /// Whether the session's agent process runs: a closed one is resumed before a message is sent to it.
     public let live: Bool
@@ -39,6 +40,31 @@ public struct ChatSession: Decodable, Equatable {
     public struct Workspace: Decodable, Equatable {
         public let base: String
         public let branch: String?
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live }
+    private struct Kind: Decodable {
+        let kind: String
+        let base: String?
+        let branch: String?
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        agent = try values.decode(String.self, forKey: .agent)
+        harness = try values.decode(String.self, forKey: .harness)
+        folder = try values.decode(String.self, forKey: .folder)
+        title = try values.decodeIfPresent(String.self, forKey: .title)
+        state = try values.decode(State.self, forKey: .state)
+        createdAt = try values.decode(Int.self, forKey: .createdAt)
+        lastActiveAt = try values.decode(Int.self, forKey: .lastActiveAt)
+        archived = try values.decode(Bool.self, forKey: .archived)
+        live = try values.decode(Bool.self, forKey: .live)
+        let placed = try values.decodeIfPresent(Kind.self, forKey: .workspace)
+        guard let placed, placed.kind == "worktree" else { workspace = nil; return }
+        guard let base = placed.base else { throw DecodingError.keyNotFound(CodingKeys.workspace, .init(codingPath: decoder.codingPath, debugDescription: "a worktree without its base folder")) }
+        workspace = Workspace(base: base, branch: placed.branch)
     }
 }
 
@@ -72,9 +98,19 @@ public struct SessionDeletePreview: Decodable, Equatable {
 public protocol ChatHost {
     func agents() async throws -> [ChatAgent]
     func list(archived: Bool) async throws -> [ChatSession]
-    /// Creates a session with the agent in the folder (the agent's configured `options` apply on the host's side) and returns its id.
-    /// The host refuses a folder inside Carrier's own folders and a provider that is not logged in.
-    func open(agent: String, folder: String) async throws -> String
+    /// Creates a session with the agent in the folder (the agent's configured `options` apply on the host's side) and returns its id;
+    /// with a `worktree` it works in a new worktree of the folder instead. The host refuses a folder inside Carrier's own folders, a
+    /// provider that is not logged in, and a worktree request for a folder that is not a git repository, a branch it did not list
+    /// and a name that is invalid or taken.
+    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String
+    /// What a folder is as a git repository (`WorkspaceInfo.git` is false for a plain folder); refused for a folder the host will not open.
+    func workspace(_ folder: String) async throws -> WorkspaceInfo
+    /// Fetches the folder's `origin` and answers what the folder is after it; a fetch that fails or takes too long is refused in words.
+    func fetch(_ folder: String) async throws -> WorkspaceInfo
+    /// A free generated name for a worktree of the folder: the part after `carrier/`.
+    func suggestName(_ folder: String) async throws -> String
+    /// Whether a typed name (the part after `carrier/`) is valid and free, and why not.
+    func checkName(_ folder: String, _ name: String) async throws -> NameCheck
     /// The events of a session after the cursor, at most `limit` (the host takes 1 to 200).
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents
     /// Opens a closed session's agent again; the host refuses a `send` to one that is not live.
@@ -115,11 +151,39 @@ public struct SocketChatHost: ChatHost {
         return reply.sessions
     }
 
-    public func open(agent: String, folder: String) async throws -> String {
-        let fields = ",\"agent\":\(jsonString(agent)),\"folder\":\(jsonString(folder))"
+    public func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String {
+        let placed = worktree.map { request in
+            ",\"worktree\":{\"from\":\(jsonString(request.from))" + (request.name.map { ",\"name\":\(jsonString($0))" } ?? "") + "}"
+        } ?? ""
+        let fields = ",\"agent\":\(jsonString(agent)),\"folder\":\(jsonString(folder))" + placed
         let path = socketPath()
         let reply: OpenedReply = try await Task.detached { try chatRequest(path, "open", requires: .open, fields: fields) }.value
         return reply.session.id
+    }
+
+    public func workspace(_ folder: String) async throws -> WorkspaceInfo {
+        let fields = ",\"folder\":\(jsonString(folder))"
+        let path = socketPath()
+        return try await Task.detached { try chatRequest(path, "workspace", requires: .workspace, fields: fields) }.value
+    }
+
+    public func fetch(_ folder: String) async throws -> WorkspaceInfo {
+        let fields = ",\"folder\":\(jsonString(folder))"
+        let path = socketPath()
+        return try await Task.detached { try chatRequest(path, "fetch", requires: .fetch, fields: fields) }.value
+    }
+
+    public func suggestName(_ folder: String) async throws -> String {
+        let fields = ",\"folder\":\(jsonString(folder))"
+        let path = socketPath()
+        let reply: SuggestedName = try await Task.detached { try chatRequest(path, "suggestName", requires: .suggestName, fields: fields) }.value
+        return reply.name
+    }
+
+    public func checkName(_ folder: String, _ name: String) async throws -> NameCheck {
+        let fields = ",\"folder\":\(jsonString(folder)),\"name\":\(jsonString(name))"
+        let path = socketPath()
+        return try await Task.detached { try chatRequest(path, "checkName", requires: .checkName, fields: fields) }.value
     }
 
     public func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
@@ -204,6 +268,8 @@ private struct OpenedReply: Decodable {
     struct Session: Decodable { let id: String }
     let session: Session
 }
+
+private struct SuggestedName: Decodable { let name: String }
 
 /// A reply whose content the app does not read: any JSON will do.
 private struct AnyReply: Decodable { init(from decoder: Decoder) throws {} }

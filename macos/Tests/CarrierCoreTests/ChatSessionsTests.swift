@@ -6,7 +6,7 @@ private func session(
     _ id: String, folder: String = "/Users/dev/carrier", base: String? = nil, state: String = "idle", live: Bool = true, archived: Bool = false,
     title: String? = "t", lastActiveAt: Int = 1_792_000_000_000
 ) throws -> ChatSession {
-    let workspace = base.map { ",\"workspace\":{\"base\":\"\($0)\"}" } ?? ""
+    let workspace = base.map { ",\"workspace\":{\"kind\":\"worktree\",\"base\":\"\($0)\",\"branch\":\"carrier/fix\"}" } ?? ""
     let name = title.map { "\"\($0)\"" } ?? "null"
     let json = """
         {"id":"\(id)","agent":"codex","harness":"codex","folder":"\(folder)"\(workspace),"title":\(name),"state":"\(state)",
@@ -32,7 +32,7 @@ private func session(
         ChatSession.self,
         from: Data(
             """
-            {"id":"t","agent":"claude","harness":"claude","folder":"/w/fix","workspace":{"base":"/Users/dev/web","branch":"carrier/fix"},
+            {"id":"t","agent":"claude","harness":"claude","folder":"/w/fix","workspace":{"kind":"worktree","base":"/Users/dev/web","branch":"carrier/fix","from":"main","path":"/w/fix"},
              "title":"t","state":"idle","createdAt":1,"lastActiveAt":2,"archived":false,"live":false}
             """.utf8))
     #expect(sessionRows([tree, try session("plain")]).map(\.branch) == ["carrier/fix", nil])
@@ -78,7 +78,11 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     var calls: [Bool] = []
 
     func agents() async throws -> [ChatAgent] { [] }
-    func open(agent: String, folder: String) async throws -> String { "" }
+    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String { "" }
+    func workspace(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
+    func fetch(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
+    func suggestName(_ folder: String) async throws -> String { "" }
+    func checkName(_ folder: String, _ name: String) async throws -> NameCheck { NameCheck(valid: true, free: true) }
     func list(archived wanted: Bool) async throws -> [ChatSession] {
         calls.append(wanted)
         guard let answer = wanted ? archived : active else { throw ControlError.closed }
@@ -267,7 +271,7 @@ private func worktreeSession() throws -> ChatSession {
         ChatSession.self,
         from: Data(
             """
-            {"id":"t","agent":"claude","harness":"claude","folder":"/w/fix","workspace":{"base":"/Users/dev/web","branch":"carrier/fix"},
+            {"id":"t","agent":"claude","harness":"claude","folder":"/w/fix","workspace":{"kind":"worktree","base":"/Users/dev/web","branch":"carrier/fix","from":"main","path":"/w/fix"},
              "title":"Fix login","state":"idle","createdAt":1,"lastActiveAt":2,"archived":false,"live":false}
             """.utf8))
 }

@@ -146,7 +146,19 @@ final class WindowController: NSObject, NSWindowDelegate {
         model.shell.selection = .newSession
         await model.newSession.load()
         let draft = model.newSession
-        return "new session: \"\(draft.sentence)\", agents \(draft.agents.map { choice in choice.note.map { "\(choice.name) (\($0))" } ?? choice.name }), agent \(draft.agent ?? "none"), recent \(draft.recent.map(\.name))"
+        var lines = ["new session: \"\(draft.sentence)\", agents \(draft.agents.map { choice in choice.note.map { "\(choice.name) (\($0))" } ?? choice.name }), agent \(draft.agent ?? "none"), recent \(draft.recent.map(\.name))"]
+        // the worktree half, for the first recent folder: what the host says it is, then the sentence in a new worktree
+        if let folder = draft.recent.first?.path {
+            await draft.choose(folder: folder)
+            lines.append("new session folder: \"\(draft.sentence)\", warning \(draft.warning ?? "none"), worktree \(draft.offersWorktree ? "offered" : "not offered")")
+            await draft.useWorktree(true)
+            if draft.worktree {
+                let picker = draft.picker(query: "")
+                lines.append("new session worktree: \"\(draft.sentence)\", name \(draft.nameState), branches \(picker?.local.count ?? 0) local and \(picker?.remote.count ?? 0) remote, \(picker?.fetched ?? "no picker")")
+                await draft.useWorktree(false)
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     /// For `--smoke-window`: what the open window looks like, one line each: the minimum content size, the width of each

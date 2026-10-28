@@ -10,8 +10,12 @@ public enum FixtureError: Error, Equatable {
 /// A second socket, `<home>/chat/chat.sock`, is a fake chat host: `agents` and `list` from `chat-agents.json` and `chat-list.json`,
 /// `events` from the `chat-events-*.json` files (each names its session; a listed session with none has no events) with the approvals
 /// asked and not answered as pending, `answer`, which records the answer as an event, `archive` and `delete` on the listed sessions
-/// (kept in memory, refused for a working or waiting one as the host does), and `deletePreview`, which says what `chat-delete-preview.json`
-/// holds for the sessions it names and `worktree: null` for the other listed ones; anything else is an error.
+/// (kept in memory, refused for a working or waiting one as the host does), `deletePreview`, which says what `chat-delete-preview.json`
+/// holds for the sessions it names and `worktree: null` for the other listed ones, and the worktree requests from `chat-workspace.json`
+/// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder), `chat-names.json` (`suggestName`,
+/// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
+/// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
+/// and `send` adds the message to its events; anything else is an error.
 /// It owns a temporary home (`home`) holding a `config.json` whose `root` is the home itself, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 public final class FixtureServer {
@@ -22,6 +26,11 @@ public final class FixtureServer {
     private let listener: Int32
     private let chatListener: Int32
     private let chatAgents: Data
+    /// The golden replies of the worktree requests, and which of the suggested names `suggestName` answers next.
+    private let chatWorkspaces: [String: [String: Any]]
+    private let chatFetches: [String: [String: Any]]
+    private let chatNames: [String: Any]
+    private var suggested = 0
     /// `archive` and `delete` change it; the sockets' threads share it, so it is read and written with `lock`.
     private var chatSessions: [[String: Any]]
     /// What `deletePreview` says of the sessions in a worktree, by session id: the entries of `chat-delete-preview.json`.
@@ -32,7 +41,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\"]}\n".utf8)
+    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\"]}\n".utf8)
     private let data: [String: Data]
     private let hello: Data
     private var stopped = false
@@ -84,6 +93,15 @@ public final class FixtureServer {
             guard let sessions = list?["sessions"] as? [[String: Any]] else { throw FixtureError.unreadable("\(fixtures)/chat-list.json") }
             chatSessions = sessions
         } catch { throw FixtureError.unreadable("\(fixtures)/chat-agents.json or chat-list.json") }
+        func golden<Value>(_ file: String, as _: Value.Type) throws -> Value {
+            guard let value = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/" + file)))) as? Value else {
+                throw FixtureError.unreadable("\(fixtures)/\(file)")
+            }
+            return value
+        }
+        chatWorkspaces = try golden("chat-workspace.json", as: [String: [String: Any]].self)
+        chatFetches = try golden("chat-fetch.json", as: [String: [String: Any]].self)
+        chatNames = try golden("chat-names.json", as: [String: Any].self)
         guard let previews = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-delete-preview.json"))) as? [String: Any])?["sessions"] as? [[String: Any]]
         else { throw FixtureError.unreadable("\(fixtures)/chat-delete-preview.json") }
         for entry in previews { if let id = entry["sessionId"] as? String { chatWorktrees[id] = entry["worktree"] } }
@@ -222,6 +240,32 @@ public final class FixtureServer {
             ]
             guard let body = try? JSONSerialization.data(withJSONObject: reply, options: .sortedKeys) else { break }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
+        case "workspace", "fetch":
+            guard let folder = request?["folder"] as? String else { break }
+            if request?["cmd"] as? String == "workspace" {
+                return Self.answer(id, chatWorkspaces[folder] ?? ["folder": folder, "git": false, "bare": false, "linkedWorktree": false, "repo": NSNull(), "branch": NSNull(), "defaultBranch": NSNull(), "dirty": 0, "branches": [], "fetchedAt": NSNull()])
+            }
+            if let fetched = chatFetches[folder] { return Self.answer(id, fetched) }
+            let git = chatWorkspaces[folder]?["git"] as? Bool ?? false
+            return Self.refused(id, git ? "The fetch of origin failed" : "That folder is not a git repository")
+        case "suggestName":
+            let names = chatNames["suggestions"] as? [String] ?? []
+            guard request?["folder"] is String, names.isEmpty == false else { break }
+            return Self.answer(id, ["name": locked { defer { suggested += 1 }; return names[suggested % names.count] }])
+        case "checkName":
+            guard request?["folder"] is String, let name = request?["name"] as? String else { break }
+            return Self.answer(id, nameCheck(name))
+        case "open":
+            return open(id, request ?? [:])
+        case "send":
+            guard let session = request?["sessionId"] as? String, let text = request?["text"] as? String else { break }
+            let found = locked { () -> Bool in
+                guard chatSessions.contains(where: { $0["id"] as? String == session }) else { return false }
+                let events = chatConversations[session]?.events ?? []
+                chatConversations[session, default: ([], "")].events = events + [["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "user", "text": text]]
+                return true
+            }
+            return found ? Self.answer(id, [String: Any]()) : Self.refused(id, "unknown session")
         case "answer":
             guard let session = request?["sessionId"] as? String, let approval = request?["approvalId"] as? String, let choice = request?["choiceId"] as? String else { break }
             lock.lock()
@@ -270,6 +314,49 @@ public final class FixtureServer {
         default: break
         }
         return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown request\"}")
+    }
+
+    /// The golden check of a worktree name: free unless `chat-names.json` says why not.
+    private func nameCheck(_ name: String) -> [String: Any] {
+        (chatNames["checks"] as? [String: [String: Any]])?[name] ?? chatNames["free"] as? [String: Any] ?? ["valid": true, "free": true]
+    }
+
+    /// `open`: a session in memory, in a worktree of the folder when asked; refused as the host does.
+    private func open(_ id: Int, _ request: [String: Any]) -> Data {
+        guard let agent = request["agent"] as? String, let folder = request["folder"] as? String else { return Self.refused(id, "invalid request") }
+        guard let chosen = ((try? JSONSerialization.jsonObject(with: chatAgents)) as? [[String: Any]])?.first(where: { $0["name"] as? String == agent }) else {
+            return Self.refused(id, "There is no chat agent named \"\(agent)\"")
+        }
+        var session: [String: Any] = [
+            "id": UUID().uuidString.lowercased(), "agent": agent, "harness": chosen["harness"] as? String ?? agent, "folder": folder, "workspace": ["kind": "folder"],
+            "state": "idle", "createdAt": Int(Date().timeIntervalSince1970 * 1000), "lastActiveAt": Int(Date().timeIntervalSince1970 * 1000), "archived": false, "live": true,
+        ]
+        if let worktree = request["worktree"] as? [String: Any] {
+            guard let info = chatWorkspaces[folder], info["git"] as? Bool == true, info["bare"] as? Bool != true else { return Self.refused(id, "Worktrees need a git repository") }
+            let from = worktree["from"] as? String ?? ""
+            guard (info["branches"] as? [[String: Any]])?.contains(where: { $0["name"] as? String == from }) == true else {
+                return Self.refused(id, "The branch to start from is not one this repository lists")
+            }
+            let names = chatNames["suggestions"] as? [String] ?? []
+            let name = worktree["name"] as? String ?? names.first ?? "worktree"
+            let check = nameCheck(name)
+            guard check["valid"] as? Bool == true, check["free"] as? Bool == true else { return Self.refused(id, check["reason"] as? String ?? "That name cannot be used") }
+            let path = "/Users/dev/.carrier/chat/worktrees/local/\(URL(fileURLWithPath: folder).lastPathComponent)/\(name)"
+            session["folder"] = path
+            session["workspace"] = ["kind": "worktree", "branch": "carrier/\(name)", "from": from, "base": folder, "path": path]
+        }
+        locked { chatSessions.insert(session, at: 0) }
+        return Self.answer(id, ["session": session, "options": [Any]()])
+    }
+
+    private static func answer(_ id: Int, _ data: Any) -> Data {
+        let body = (try? JSONSerialization.data(withJSONObject: data, options: .sortedKeys)).map { String(decoding: $0, as: UTF8.self) } ?? "null"
+        return line("{\"id\":\(id),\"ok\":true,\"data\":" + body + "}")
+    }
+
+    private static func refused(_ id: Int, _ reason: String) -> Data {
+        let text = (try? JSONSerialization.data(withJSONObject: reason, options: .fragmentsAllowed)).map { String(decoding: $0, as: UTF8.self) } ?? "\"\""
+        return line("{\"id\":\(id),\"ok\":false,\"error\":" + text + "}")
     }
 
     private func locked<Value>(_ body: () -> Value) -> Value {

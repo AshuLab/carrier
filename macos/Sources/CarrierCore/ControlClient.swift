@@ -64,6 +64,7 @@ public final class ControlClient {
     public enum Capability: String {
         case sessions, events, epic, files, fileDiff, availableRepos, availableReposPaged, resumeEpic
         case agents, list, open, resume, send, answer, interrupt, setOption, close, archive, delete, deletePreview, stop
+        case workspace, fetch, suggestName, checkName
     }
 
     /// What the last `hello()` said Carrier can do; empty until then.

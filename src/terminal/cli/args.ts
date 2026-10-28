@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
 import { defaultConfigPath } from '../../config/default-path.ts';
 
-export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check'] as const;
+export const commandNames = ['init', 'doctor', 'schema', 'start', 'status', 'watch', 'stop', 'pause', 'resume', 'check', 'chat', 'chat-host'] as const;
 export type CommandName = (typeof commandNames)[number];
 
 export const usage = () => `Usage: carrier --config <path>          run the orchestrator
@@ -12,6 +12,8 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier status                    show once what the running Carrier is doing (exit 1: not running)
        carrier watch                     the live panel of the running Carrier; q leaves it running (exit 1: not running)
        carrier stop|pause|resume|check --config <path>   stop Carrier, pause or resume intake, look at GitHub now
+       carrier chat --list|--stop        list chat sessions (starts the chat host if needed) or stop the chat host
+       carrier chat-host --config <path> run the chat host in the foreground
 
 --config defaults to ${defaultConfigPath()} (where init writes it) when that file exists.
 
@@ -42,6 +44,8 @@ const options = {
   'reviewer-persona-prompt': { type: 'string' },
   out: { type: 'string' },
   yes: { type: 'boolean' },
+  list: { type: 'boolean' },
+  stop: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const;
 

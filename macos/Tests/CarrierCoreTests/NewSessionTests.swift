@@ -27,6 +27,12 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var names = ["brave-marine-aiur", "keen-ghost-char"]
     var taken: [String: NameCheck] = [:]
     var opens: [WorktreeRequest?] = []
+    var capabilities: Set<ControlClient.Capability> = [.cloneRepo]
+    /// What `cloneRepo` asked for, and whether it ended by being cancelled; while `holdClone` is set it waits for `release` or a cancel.
+    var clones: [String] = []
+    var cloneCancelled = false
+    var holdClone = false
+    var release = false
 
     func agents() async throws -> [ChatAgent] { agents }
     func list(archived wanted: Bool) async throws -> [ChatSession] { wanted ? archived : active }
@@ -64,6 +70,19 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     func setOption(_ id: String, option: String, value: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
+    func capabilities() async throws -> Set<ControlClient.Capability> { capabilities }
+    func cloneRepo(_ repo: String) async throws -> ClonedRepo {
+        clones.append(repo)
+        while holdClone && release == false {
+            if Task.isCancelled {
+                cloneCancelled = true
+                throw CancellationError()
+            }
+            try? await Task.sleep(for: .milliseconds(2))
+        }
+        if let error = refuse["cloneRepo"] { throw error }
+        return ClonedRepo(folder: "/projects/\(repo)", repo: repo, fetched: false)
+    }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
 }
 
@@ -441,6 +460,143 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8)).workspace == nil)
 }
 
+// The workspace popover: its sources, the projects folder, the URL step and the clone.
+
+private func projectsRoot(_ names: [String]) throws -> String {
+    let root = NSTemporaryDirectory() + "popover-\(UUID().uuidString)"
+    for name in names { try FileManager.default.createDirectory(atPath: root + "/" + name, withIntermediateDirectories: true) }
+    return root
+}
+
+@MainActor private func popover(_ host: FakeChat, projects: String = "/nowhere") async -> NewSessionModel {
+    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { projects })
+    await model.load()
+    return model
+}
+
+/// Waits (briefly) for something a task started in the background to happen.
+@MainActor private func settle(_ done: () -> Bool) async {
+    for _ in 0..<500 where done() == false { try? await Task.sleep(for: .milliseconds(2)) }
+}
+
+@MainActor @Test func theMenuListsOpenLocalFolderAndGitHubURLOnlyForAHostThatClones() async {
+    let host = FakeChat()
+    #expect(await popover(host).sources == [.localFolder, .githubURL])
+    host.capabilities = [.fetch]
+    #expect(await popover(host).sources == [.localFolder])
+}
+
+@MainActor @Test func theMenuListsWhatIsInTheProjectsFolderFromDiskAndSaysWhereItIs() async throws {
+    let root = try projectsRoot(["AshuLab/carrier", "local/my-idea"])
+    defer { try? FileManager.default.removeItem(atPath: root) }
+    let model = await popover(FakeChat(), projects: root)
+    #expect(model.projects.isEmpty && model.projectsPath == root)
+    model.openPicker()
+    #expect(model.projects.map(\.name) == ["AshuLab/carrier", "local/my-idea"] && model.step == .menu)
+    await model.choose(folder: model.projects[0].path)
+    #expect(model.folder == root + "/AshuLab/carrier" && model.workspace?.branch == "main")
+}
+
+@MainActor @Test func theUrlStepDrillsInAndBackAndItsButtonWaitsForOneRepository() async {
+    let model = await popover(FakeChat())
+    model.openPicker()
+    model.show(.url)
+    #expect(model.step == .url && model.canCloneNow == false && model.cloneButton == "Clone and use")
+    model.urlText = "AshuLab"
+    #expect(model.canCloneNow == false)
+    model.urlText = "https://github.com/AshuLab/carrier.git"
+    #expect(model.canCloneNow && model.reference == "AshuLab/carrier")
+    model.show(.menu)
+    #expect(model.step == .menu)
+}
+
+@MainActor @Test func cloningAsksTheHostSaysCloningWhileItRunsAndThenTheDraftShowsTheFolder() async {
+    let host = FakeChat()
+    host.holdClone = true
+    host.fetched = nil
+    let model = await popover(host)
+    model.show(.url)
+    model.urlText = "AshuLab/carrier"
+    await model.choose(folder: "/w/api")
+    let running = Task { await model.cloneAndUse() }
+    await settle { host.clones.isEmpty == false }
+    #expect(host.clones == ["AshuLab/carrier"] && model.cloning == "AshuLab/carrier")
+    #expect(model.sentence == "Work in carrier Cloning AshuLab/carrier…" && model.folder == nil && model.canSend == false)
+    host.release = true
+    #expect(await running.value)
+    #expect(model.cloning == nil && model.folder == "/projects/AshuLab/carrier" && model.workspace?.branch == "main" && model.urlText.isEmpty)
+    #expect(model.sentence == "Work in carrier on the base folder (main)" && model.offersWorktree)
+}
+
+@MainActor @Test func aRepositoryAlreadyInTheProjectsFolderIsSaidBeforeAndTheButtonUpdates() async throws {
+    let root = try projectsRoot(["AshuLab/carrier"])
+    defer { try? FileManager.default.removeItem(atPath: root) }
+    let model = await popover(FakeChat(), projects: root)
+    model.openPicker()
+    model.urlText = "AshuLab/web"
+    #expect(model.alreadyThere == false && model.cloneButton == "Clone and use")
+    model.urlText = "github.com/ashulab/Carrier"
+    #expect(model.alreadyThere && model.cloneButton == "Update and use")
+}
+
+@MainActor @Test func aRefusedCloneIsSaidInWordsTheChipStaysOrangeAndTryAgainWorks() async {
+    let host = FakeChat()
+    host.refuse["cloneRepo"] = ControlError.remote("AshuLab/nope was not found, or your GitHub login cannot see it")
+    let model = await popover(host)
+    model.show(.url)
+    model.urlText = "AshuLab/nope"
+    #expect(await model.cloneAndUse() == false)
+    #expect(model.cloneProblem == "AshuLab/nope was not found, or your GitHub login cannot see it")
+    #expect(model.folder == nil && model.cloning == nil && model.step == .url && model.cloneButton == "Try again" && model.canCloneNow)
+    host.refuse["cloneRepo"] = nil
+    #expect(await model.cloneAndUse())
+    #expect(model.cloneProblem == nil && model.folder == "/projects/AshuLab/nope")
+}
+
+@MainActor @Test func cancelWhileCloningStopsTheRequestAndLeavesTheDraftWithNoWorkspace() async {
+    let host = FakeChat()
+    host.holdClone = true
+    let model = await popover(host)
+    model.show(.url)
+    model.urlText = "AshuLab/carrier"
+    await model.choose(folder: "/w/api")
+    let running = Task { await model.cloneAndUse() }
+    await settle { model.cloning != nil }
+    model.cancelClone()
+    #expect(model.cloning == nil && model.folder == nil)
+    #expect(await running.value == false)
+    await settle { host.cloneCancelled }
+    #expect(host.cloneCancelled && model.folder == nil && model.cloneProblem == nil)
+}
+
+@Test func cancellingTheCloneRequestClosesItsConnection() async throws {
+    let closed = ConnectionClosed()
+    let server = TestServer { connection in
+        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"cloneRepo\"]}\n")
+        guard connection.readRequestId() != nil else { return }
+        closed.requested()
+        // the host answers only when the clone ends; what the app does here is close the connection
+        if connection.readLine() == nil { closed.closed() }
+    }
+    defer { server.stop() }
+    let call = Task { try await SocketChatHost(socketPath: { server.path }).cloneRepo("AshuLab/carrier") }
+    while closed.isRequested == false { try await Task.sleep(for: .milliseconds(2)) }
+    call.cancel()
+    for _ in 0..<500 where closed.isClosed == false { try await Task.sleep(for: .milliseconds(2)) }
+    #expect(closed.isClosed)
+    await #expect(throws: ControlError.closed) { try await call.value }
+}
+
+private final class ConnectionClosed: @unchecked Sendable {
+    private let lock = NSLock()
+    private var asked = false
+    private var gone = false
+    func requested() { lock.lock(); asked = true; lock.unlock() }
+    func closed() { lock.lock(); gone = true; lock.unlock() }
+    var isRequested: Bool { lock.lock(); defer { lock.unlock() }; return asked }
+    var isClosed: Bool { lock.lock(); defer { lock.unlock() }; return gone }
+}
+
 /// A host that is not there until `ensureHost` runs: its agents are refused before and answered after.
 private final class LateChat: ChatHost, @unchecked Sendable {
     var up = false
@@ -464,6 +620,8 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     func setOption(_ id: String, option: String, value: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
+    func capabilities() async throws -> Set<ControlClient.Capability> { [] }
+    func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
 }
 

@@ -94,6 +94,19 @@ public struct SessionDeletePreview: Decodable, Equatable {
     }
 }
 
+/// The reply of `cloneRepo`: where the repository is, and whether it was already there (and so fetched, not cloned).
+public struct ClonedRepo: Decodable, Equatable {
+    public let folder: String
+    public let repo: String
+    public let fetched: Bool
+
+    public init(folder: String, repo: String, fetched: Bool) {
+        self.folder = folder
+        self.repo = repo
+        self.fetched = fetched
+    }
+}
+
 /// What the app needs from the chat host's socket; the real one speaks to the socket, tests use a fake.
 public protocol ChatHost {
     func agents() async throws -> [ChatAgent]
@@ -111,6 +124,12 @@ public protocol ChatHost {
     func suggestName(_ folder: String) async throws -> String
     /// Whether a typed name (the part after `carrier/`) is valid and free, and why not.
     func checkName(_ folder: String, _ name: String) async throws -> NameCheck
+    /// The optional requests this host answers, from its hello.
+    func capabilities() async throws -> Set<ControlClient.Capability>
+    /// Clones `owner/repo` into the host's projects folder, or fetches it when it is already there. It can take minutes; cancelling the
+    /// task closes the request's connection, which makes the host stop and remove the half-made clone. Refused in words (not found
+    /// or not visible to the person's `gh` login, `gh` missing or signed out, no network, too slow).
+    func cloneRepo(_ repo: String) async throws -> ClonedRepo
     /// The events of a session after the cursor, at most `limit` (the host takes 1 to 200).
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents
     /// Opens a closed session's agent again; the host refuses a `send` to one that is not live.
@@ -184,6 +203,26 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"folder\":\(jsonString(folder)),\"name\":\(jsonString(name))"
         let path = socketPath()
         return try await Task.detached { try chatRequest(path, "checkName", requires: .checkName, fields: fields) }.value
+    }
+
+    public func capabilities() async throws -> Set<ControlClient.Capability> {
+        let path = socketPath()
+        return try await Task.detached {
+            guard let client = ControlClient.connect(path: path) else { throw ControlError.closed }
+            defer { client.close() }
+            guard try client.hello().protocolVersion == 1 else { throw ControlError.remote("incompatible chat host") }
+            return client.capabilities
+        }.value
+    }
+
+    /// A git command has ten minutes on the host, so the wait for the reply is longer than the 5 seconds of the other requests.
+    public func cloneRepo(_ repo: String) async throws -> ClonedRepo {
+        let fields = ",\"repo\":\(jsonString(repo))"
+        let path = socketPath()
+        let connection = Abortable()
+        return try await withTaskCancellationHandler {
+            try await Task.detached { try chatRequest(path, "cloneRepo", requires: .cloneRepo, fields: fields, timeout: 11 * 60, abortable: connection) }.value
+        } onCancel: { connection.abort() }
     }
 
     public func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
@@ -278,10 +317,43 @@ private struct DeletePreviewReply: Decodable { let sessions: [SessionDeletePrevi
 
 private struct ChatSessionsReply: Decodable { let sessions: [ChatSession] }
 
+/// The connection of a request that can be cancelled from another thread, for as long as the request lasts.
+private final class Abortable: @unchecked Sendable {
+    private let lock = NSLock()
+    private var client: ControlClient?
+    private var aborted = false
+
+    func attach(_ client: ControlClient) {
+        lock.lock()
+        defer { lock.unlock() }
+        self.client = client
+        if aborted { client.abort() }
+    }
+
+    func detach() {
+        lock.lock()
+        defer { lock.unlock() }
+        client = nil
+    }
+
+    func abort() {
+        lock.lock()
+        defer { lock.unlock() }
+        aborted = true
+        client?.abort()
+    }
+}
+
 /// Connects, reads the hello, makes one request the host said it can answer and decodes its reply.
-func chatRequest<Reply: Decodable>(_ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String = "") throws -> Reply {
-    guard let client = ControlClient.connect(path: path) else { throw ControlError.closed }
-    defer { client.close() }
+fileprivate func chatRequest<Reply: Decodable>(
+    _ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String = "", timeout: TimeInterval = 5, abortable: Abortable? = nil
+) throws -> Reply {
+    guard let client = ControlClient.connect(path: path, timeout: timeout) else { throw ControlError.closed }
+    abortable?.attach(client)
+    defer {
+        abortable?.detach()
+        client.close()
+    }
     guard try client.hello().protocolVersion == 1 else { throw ControlError.remote("incompatible chat host") }
     guard let data = try client.request(command, requires: capability, fields: fields) else {
         throw ControlError.remote("the chat host does not support \(command)")

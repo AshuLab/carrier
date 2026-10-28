@@ -1,0 +1,10 @@
+{
+  "sessionId": "e5f6a7b8-4c3d-4e0f-9a2b-3c4d5e6f7a05",
+  "events": [
+    { "id": 1, "at": 1791100000000, "kind": "user", "text": "Rename the config keys to snake_case." },
+    { "id": 2, "at": 1791100001000, "kind": "assistant", "text": "I will start with the keys in `config.ts`." },
+    { "id": 3, "at": 1791100004000, "kind": "turn_end", "outcome": "interrupted", "model": "claude-sonnet-5-5", "usage": {} }
+  ],
+  "cursor": 3,
+  "streaming": ""
+}

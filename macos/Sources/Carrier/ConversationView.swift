@@ -10,6 +10,7 @@ struct ConversationView: View {
     private static let column: CGFloat = 760
 
     @State private var model: ConversationModel
+    @FocusState private var boxFocused: Bool
 
     init(sessionId: String) {
         _model = State(initialValue: ConversationModel(host: SocketChatHost(), sessionId: sessionId))
@@ -31,7 +32,55 @@ struct ConversationView: View {
         }
         // the end of the conversation is what shows, and stays in view as it grows
         .defaultScrollAnchor(.bottom)
+        .safeAreaInset(edge: .bottom, spacing: 0) { box }
         .task { await model.run() }
+    }
+
+    /// The message box (chat-ui-conv.html, section 3): the queued message above it, the box with its send or Stop button, and what the host refused under it.
+    private var box: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let queued = model.queued {
+                HStack(spacing: 8) {
+                    Image(systemName: "clock").foregroundStyle(.secondary)
+                    Text(queued).lineLimit(2).textSelection(.enabled)
+                    Spacer(minLength: 0)
+                    Text("Sends when the agent finishes").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Button { model.cancelQueued() } label: { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain).foregroundStyle(.secondary).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
+                }
+                .font(.callout)
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
+            }
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("Message the agent", text: $model.draft, axis: .vertical)
+                    .textFieldStyle(.plain).lineLimit(1...8).focused($boxFocused)
+                    // Enter sends and Shift+Enter adds a line
+                    .onKeyPress(.return, phases: .down) { press in
+                        if press.modifiers.contains(.shift) {
+                            model.draft += "\n"
+                        } else {
+                            Task { await model.submit() }
+                        }
+                        return .handled
+                    }
+                Button {
+                    Task { if model.busy { await model.stop() } else { await model.submit() } }
+                } label: {
+                    Image(systemName: model.busy ? "stop.fill" : "arrow.up")
+                        .font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+                        .frame(width: 26, height: 26).background(Circle().fill(Color.accentColor))
+                }
+                .buttonStyle(.plain).help(model.busy ? "Stop" : "Send").accessibilityLabel(model.busy ? "Stop" : "Send")
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(RoundedRectangle(cornerRadius: 18).fill(Color.secondary.opacity(0.10)))
+            .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5))
+            if let refusal = model.refusal { Text(refusal).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
+        }
+        .padding(.horizontal, 40).padding(.vertical, 12)
+        .frame(maxWidth: Self.column).frame(maxWidth: .infinity)
+        .onAppear { boxFocused = true }
     }
 }
 

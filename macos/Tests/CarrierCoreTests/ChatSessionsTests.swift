@@ -84,6 +84,9 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
         return answer
     }
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents { ChatEvents(events: [], cursor: after) }
+    func resume(_ id: String) async throws {}
+    func send(_ id: String, _ text: String) async throws {}
+    func interrupt(_ id: String) async throws {}
 }
 
 private final class Clock { var now = Date(timeIntervalSince1970: 1_800_000_000) }

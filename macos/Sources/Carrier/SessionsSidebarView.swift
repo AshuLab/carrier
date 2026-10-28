@@ -11,6 +11,7 @@ struct SessionsRows: View {
     @Binding var open: Bool
     /// The last ⌘F: when it asks for Sessions, the search field opens and takes the keyboard.
     let searchRequest: SearchRequest?
+    let newSession: () -> Void
     @State private var sortOpen = false
     /// The search field's text while it is open, nil while it is closed; not remembered between launches.
     @State private var query: String?
@@ -55,7 +56,7 @@ struct SessionsRows: View {
                         selection: $sort, close: { sortOpen = false }
                     )
                 }
-            IconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: sessions.cannotStartReason) {}
+            IconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: sessions.cannotStartReason, action: newSession)
         }
         .tag(Selection.sessions)
         // the field is only drawn while unfolded, so a query must not outlive it: the magnifier would look pressed with no field

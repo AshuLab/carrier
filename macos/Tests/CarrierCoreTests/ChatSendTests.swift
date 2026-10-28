@@ -20,6 +20,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var refuse: [String: Error] = [:]
 
     func agents() async throws -> [ChatAgent] { [] }
+    func open(agent: String, folder: String) async throws -> String { "" }
     func list(archived: Bool) async throws -> [ChatSession] { [listed(live: live)] }
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents { ChatEvents(events: [], cursor: after, state: state) }
     func resume(_ id: String) async throws {

@@ -14,7 +14,11 @@ struct ConversationView: View {
     @State private var opened: Set<String> = []
     @FocusState private var boxFocused: Bool
 
-    init(sessionId: String) {
+    /// Where a first message that failed to send is handed over, by the session the draft opened.
+    private let draft: NewSessionModel?
+
+    init(sessionId: String, draft: NewSessionModel? = nil) {
+        self.draft = draft
         _model = State(initialValue: ConversationModel(host: SocketChatHost(), sessionId: sessionId))
     }
 
@@ -41,7 +45,10 @@ struct ConversationView: View {
         // the end of the conversation is what shows, and stays in view as it grows
         .defaultScrollAnchor(.bottom)
         .safeAreaInset(edge: .bottom, spacing: 0) { box }
-        .task { await model.run() }
+        .task {
+            if let failed = draft?.takeFailure(of: model.sessionId) { model.showRefusal(of: failed.text, failed.reason) }
+            await model.run()
+        }
     }
 
     /// The message box (chat-ui-conv.html, section 3): the queued message above it, the box with its send or Stop button, and what the host refused under it.

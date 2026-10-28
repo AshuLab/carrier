@@ -7,6 +7,7 @@ import SwiftUI
 struct SessionsHomeView: View {
     let sessions: Sessions
     @Binding var sort: SessionSort
+    let newSession: () -> Void
     let select: (String) -> Void
     /// The search field's text while it is open, nil while it is closed.
     @State private var query: String?
@@ -59,8 +60,7 @@ struct SessionsHomeView: View {
             }
             .glassEffect(.regular, in: .capsule)
             Spacer(minLength: 0)
-            // drawn here, made to do something by the slice that starts a session
-            Button {} label: { Label("New session", systemImage: "plus") }
+            Button(action: newSession) { Label("New session", systemImage: "plus") }
                 .buttonStyle(.glassProminent).buttonBorderShape(.capsule)
                 .disabled(sessions.canStart == false)
                 .help(sessions.cannotStartReason ?? "New session")

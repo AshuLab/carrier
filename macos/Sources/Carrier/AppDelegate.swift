@@ -48,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
                 Task { @MainActor in
                     print(await WindowController.shared.chatStructure())
+                    print(await WindowController.shared.newSessionStructure())
                     exit(0)
                 }
             }

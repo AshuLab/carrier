@@ -1,0 +1,42 @@
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { claudeChatRunner } from './claude.ts';
+import type { ChatConversation, ChatEvent } from './runner.ts';
+
+// The real Claude, through the user's own `claude` binary and login, in a temporary folder: two turns in one
+// conversation, the second referring to the first, show that the context is kept. It sends two tiny prompts to the
+// cheapest model, so it uses a little of the user's own plan. It only runs when this is set explicitly:
+//   CARRIER_IT_CLAUDE_CHAT=1   (optional: CARRIER_IT_CLAUDE_COMMAND=<path to the claude binary>, else the one on the path)
+// No token is read or printed: the agent runs with the environment of this process, as the chat host runs it.
+const enabled = process.env.CARRIER_IT_CLAUDE_CHAT === '1';
+
+describe.skipIf(!enabled)('the Claude chat adapter against the real Claude', () => {
+  let folder: string;
+  let conversation: ChatConversation | undefined;
+  beforeAll(() => {
+    folder = realpathSync(mkdtempSync(join(tmpdir(), 'carrier-claude-chat-')));
+  });
+  afterAll(async () => {
+    await conversation?.close();
+    rmSync(folder, { recursive: true, force: true });
+  });
+
+  test('the second turn remembers the first', { timeout: 180_000 }, async () => {
+    conversation = await claudeChatRunner().open({ folder, command: process.env.CARRIER_IT_CLAUDE_COMMAND, options: { model: 'haiku' }, env: process.env });
+    const events: ChatEvent[] = [];
+    conversation.onEvent((event) => events.push(event));
+    const turn = async (text: string) => {
+      const from = events.length;
+      conversation!.send(text);
+      await expect.poll(() => events.slice(from).some((e) => e.kind === 'turn_end'), { timeout: 120_000, interval: 200 }).toBe(true);
+      return events.slice(from);
+    };
+
+    expect((await turn('Remember the secret word PINEAPPLE. Reply with just: OK')).at(-1)).toMatchObject({ kind: 'turn_end', outcome: 'ok' });
+    const second = await turn('What secret word did I ask you to remember? Answer with just the word.');
+    expect(second.filter((e) => e.kind === 'assistant').map((e) => (e as { text: string }).text).join(' ')).toContain('PINEAPPLE');
+    expect(conversation.nativeId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});

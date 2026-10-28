@@ -136,7 +136,7 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
       const chosenOptions = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...options };
       let conversation: ChatConversation;
       try {
-        conversation = await runner.open({ folder: real, options: chosenOptions, env });
+        conversation = await runner.open({ folder: real, options: chosenOptions, command: chosen.command, env });
       } catch (error) {
         if (error instanceof ChatRefused) throw error;
         log.error('a chat runner failed to open', error);

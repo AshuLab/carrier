@@ -8,9 +8,11 @@ import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
 import { checkFolder } from './folder.ts';
+import type { Git } from './git.ts';
 import { ChatRefused, type ChatChoice, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
+import { inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
 
@@ -42,6 +44,8 @@ export type ChatSessionsDeps = {
   /** The runner of each harness; a harness with none cannot be opened. */
   runners: Partial<Record<Harness, ChatRunner>>;
   env: NodeJS.ProcessEnv;
+  /** The `git` of the machine. */
+  git: Git;
   /** Whether an agent's binary is there. */
   binaryFound: (command: string) => boolean;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
@@ -66,7 +70,7 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, config, clock, runners, env, binaryFound, onLiveChange }: ChatSessionsDeps) {
+export function createSessions({ db, config, clock, runners, env, git, binaryFound, onLiveChange }: ChatSessionsDeps) {
   const lives = new Map<string, Live>();
   let clients = 0;
 
@@ -343,6 +347,9 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
       });
       return {};
     },
+
+    /** What a folder is as a git repository, for the person to choose how to work in it. */
+    workspace: async ({ folder }: { folder: string }) => inspectFolder(git, checkFolder(folder, config.root)),
 
     /** Closes every live session: the host's stop. */
     async closeAll() {

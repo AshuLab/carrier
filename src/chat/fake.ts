@@ -1,3 +1,4 @@
+import type { Git, GitResult } from './git.ts';
 import { ChatRefused, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 
 /**
@@ -71,5 +72,52 @@ export class FakeChatRunner implements ChatRunner {
     this.setup(conversation);
     this.conversations.push(conversation);
     return conversation;
+  }
+}
+
+/** A repository the fake knows: what git would say about the folder it is the table entry of. */
+export type FakeRepo = {
+  bare?: boolean;
+  /** The folder is a linked worktree of another repository. */
+  linked?: boolean;
+  /** The URL of `origin`; none when absent. */
+  origin?: string;
+  /** The branch checked out; null for a detached HEAD. */
+  head: string | null;
+  branches: string[];
+  /** Remote branches without the `origin/` prefix. */
+  remoteBranches?: string[];
+  /** What `origin/HEAD` points at, without the prefix. */
+  originHead?: string;
+  /** The lines `git status --porcelain` prints. */
+  status?: string[];
+  /** Where git says FETCH_HEAD is, when a test wants a fetch time. */
+  fetchHead?: string;
+};
+
+/** A git with a table of folders and the repositories in them, which answers the commands the host sends, and plays scripted failures. */
+export class FakeGit implements Git {
+  repos = new Map<string, FakeRepo>();
+  /** Every command run, in order. */
+  calls: { folder: string; args: string[] }[] = [];
+  /** Commands that fail instead of answering, by their arguments joined with a space. */
+  failures = new Map<string, Extract<GitResult, { ok: false }>>();
+
+  async run(folder: string, args: string[]): Promise<GitResult> {
+    this.calls.push({ folder, args });
+    const failure = this.failures.get(args.join(' '));
+    if (failure !== undefined) return failure;
+    const repo = this.repos.get(folder);
+    if (repo === undefined) return { ok: false, code: 128, stderr: 'fatal: not a git repository' };
+    const out = (...printed: string[]) => ({ ok: true as const, out: printed.map((line) => `${line}\n`).join('') });
+    const no = { ok: false as const, code: 1, stderr: '' };
+    const [verb, ...rest] = args[0] === '--no-optional-locks' ? args.slice(1) : args;
+    if (verb === 'rev-parse') return out(String(repo.bare === true), repo.linked ? '/elsewhere/.git/worktrees/w' : '.git', repo.linked ? '/elsewhere/.git' : '.git', repo.fetchHead ?? '.git/FETCH_HEAD');
+    if (verb === 'config') return repo.origin === undefined ? no : out(repo.origin);
+    if (verb === 'symbolic-ref' && rest.includes('refs/remotes/origin/HEAD')) return repo.originHead === undefined ? no : out(`refs/remotes/origin/${repo.originHead}`);
+    if (verb === 'symbolic-ref') return repo.head === null ? no : out(repo.head);
+    if (verb === 'for-each-ref') return out(...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`), ...(repo.originHead === undefined ? [] : ['refs/remotes/origin/HEAD']));
+    if (verb === 'status') return out(...(repo.status ?? []));
+    return { ok: false, code: 129, stderr: `the fake git does not know ${verb}` };
   }
 }

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -7,7 +7,7 @@ import type { Config } from '../config/schema.ts';
 import { connectControl } from '../terminal/cli/control-client.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { acquireLock } from '../storage/lock.ts';
-import { FakeChatRunner } from './fake.ts';
+import { FakeChatRunner, FakeGit } from './fake.ts';
 import { HostBusy, startChatHost } from './host.ts';
 
 let root: string;
@@ -22,9 +22,9 @@ afterEach(async () => {
 });
 
 const config = () => ({ root, logLevel: 'info' }) as Config;
-async function host(clock = new FakeClock(), claude = new FakeChatRunner()) {
+async function host(clock = new FakeClock(), claude = new FakeChatRunner(), git = new FakeGit()) {
   const exit = vi.fn();
-  const started = await startChatHost(config(), { installLogging: () => {}, clock, exit, signals: false, runners: { claude }, binaryFound: () => true });
+  const started = await startChatHost(config(), { installLogging: () => {}, clock, exit, signals: false, runners: { claude }, git, binaryFound: () => true });
   stops.push(started.stop);
   return { ...started, exit, clock };
 }
@@ -183,4 +183,43 @@ test('an approval is asked with the provider choices, survives the client leavin
   expect(done.events.map((e: any) => e.kind)).toEqual(['user', 'approval', 'approval_answered']);
   expect(done.events.at(-1)).toMatchObject({ approvalId: 'a1', choiceId: 'deny' });
   again.close();
+});
+
+test('workspace tells a client what a folder is, with the fake git, and refuses the folders open refuses', async () => {
+  const git = new FakeGit();
+  await host(new FakeClock(), new FakeChatRunner(), git);
+  mkdirSync(join(root, 'repo'));
+  const repo = realpathSync(join(root, 'repo'));
+  const plain = join(root, 'plain');
+  mkdirSync(plain);
+  const fetched = join(root, 'FETCH_HEAD');
+  writeFileSync(fetched, '');
+  utimesSync(fetched, 1_700_000_000, 1_700_000_000);
+  git.repos.set(repo, { head: 'feat/x', branches: ['main', 'feat/x'], remoteBranches: ['main', 'dev'], originHead: 'main', origin: 'git@github.com:acme/app.git', status: [' M a.ts', '?? b.ts'], fetchHead: fetched });
+  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  expect(client.hello.capabilities).toContain('workspace');
+  expect(await client.request('workspace', { folder: repo })).toEqual({
+    folder: repo,
+    git: true,
+    bare: false,
+    linkedWorktree: false,
+    repo: { owner: 'acme', name: 'app' },
+    branch: 'feat/x',
+    defaultBranch: 'main',
+    dirty: 2,
+    branches: [{ name: 'main', remote: false }, { name: 'feat/x', remote: false }, { name: 'origin/main', remote: true }, { name: 'origin/dev', remote: true }],
+    fetchedAt: 1_700_000_000_000,
+  });
+  expect(await client.request('workspace', { folder: plain })).toEqual({ folder: realpathSync(plain), git: false, bare: false, linkedWorktree: false, repo: null, branch: null, defaultBranch: null, dirty: 0, branches: [], fetchedAt: null });
+  const asked = git.calls.length;
+  await expect(client.request('workspace', { folder: join(root, 'missing') })).rejects.toThrow('does not exist');
+  await expect(client.request('workspace', { folder: 'relative' })).rejects.toThrow('absolute');
+  writeFileSync(join(root, 'file'), '');
+  await expect(client.request('workspace', { folder: join(root, 'file') })).rejects.toThrow('not a folder');
+  mkdirSync(join(root, 'repos'));
+  await expect(client.request('workspace', { folder: join(root, 'repos') })).rejects.toThrow('inside Carrier');
+  expect(git.calls).toHaveLength(asked); // a refused folder never reaches git
+  git.failures.set('rev-parse --is-bare-repository --git-dir --git-common-dir --git-path FETCH_HEAD', { ok: false, code: null, stderr: 'git took too long' });
+  await expect(client.request('workspace', { folder: repo })).rejects.toThrow('Git could not read that folder');
+  client.close();
 });

@@ -31,15 +31,17 @@ public struct SessionGroup: Equatable {
     public var rows: [SessionRow]
 }
 
-/// What the Sessions half reads. `canStart` is false until the sessions epic sets it: the + is disabled while it is.
+/// What the Sessions half reads. The + is disabled, with `cannotStartReason` as its tooltip, until the chat host's state says it can start.
 public struct Sessions: Equatable {
     public var rows: [SessionRow] = []
-    public var canStart = false
+    public var cannotStartReason: String? = hostNotRunning
 
-    public init(rows: [SessionRow] = [], canStart: Bool = false) {
+    public init(rows: [SessionRow] = [], cannotStartReason: String? = hostNotRunning) {
         self.rows = rows
-        self.canStart = canStart
+        self.cannotStartReason = cannotStartReason
     }
+
+    public var canStart: Bool { cannotStartReason == nil }
 
     /// How many listed sessions wait for the person: archived ones are not counted.
     public var waiting: Int { rows.filter { $0.state == .waiting && $0.archived == false }.count }
@@ -52,9 +54,6 @@ public struct Sessions: Equatable {
         default: "\(waiting) sessions waiting"
         }
     }
-
-    /// Why the + is disabled, for its tooltip.
-    public static let cannotStartReason = "Starting sessions is not available yet"
 }
 
 /// How the Sessions list is ordered.

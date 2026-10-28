@@ -10,7 +10,7 @@ import SwiftUI
     let epics = EpicStore()
     var groupBy = SidebarStore().groupBy
     var collapse = SidebarCollapse()
-    /// Empty until the sessions epic feeds it; the dev fixture's sample with `--fixture`.
+    /// The dev fixture's sample with `--fixture`; the + follows the chat host (`ChatMonitor`).
     var sessions = Sessions(rows: CommandLine.arguments.contains("--fixture") ? sampleSessions(now: Date()) : [])
 }
 
@@ -119,6 +119,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         }
         if let content = window.contentView { walk(content) }
         for item in window.toolbar?.items ?? [] { lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)") }
+        lines.append("sessions +: \(model.sessions.cannotStartReason ?? "enabled")")
         lines.append("transcript: \(SessionSectionsView.layout)")
         let events = longTranscriptEvents(rounds: 556)
         var transcript = Transcript()
@@ -165,6 +166,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         stop?.set()
         stop = nil
         model.state = nil
+        model.sessions.cannotStartReason = hostNotRunning
         model.shell.reset(open: SidebarStore().open)
     }
 
@@ -173,19 +175,24 @@ final class WindowController: NSObject, NSWindowDelegate {
         self.stop = stop
         let model = model
         let poller = model.epics.poller!
+        // sleeps in short steps so closing the window ends the thread within a tenth of a second
+        let sleep: (TimeInterval) -> Bool = { seconds in
+            let end = Date().addingTimeInterval(seconds)
+            while Date() < end && stop.isSet == false { Thread.sleep(forTimeInterval: 0.1) }
+            return stop.isSet == false
+        }
         let monitor = ControlMonitor(
             socketPath: { controlSocketPath() },
-            // sleeps in short steps so closing the window ends the thread within a tenth of a second
-            wait: { seconds in
-                let end = Date().addingTimeInterval(seconds)
-                while Date() < end && stop.isSet == false { Thread.sleep(forTimeInterval: 0.1) }
-                return stop.isSet == false
-            },
+            wait: sleep,
             tick: { try poller.poll($0) },
             onChange: { state in
                 DispatchQueue.main.async { if stop.isSet == false { model.state = state } }
             }
         )
         Thread.detachNewThread { monitor.run() }
+        let chat = ChatMonitor(wait: sleep) { host in
+            DispatchQueue.main.async { if stop.isSet == false { model.sessions.cannotStartReason = cannotStartReason(host: host) } }
+        }
+        Thread.detachNewThread { chat.run() }
     }
 }

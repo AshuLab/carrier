@@ -7,13 +7,19 @@ public enum FixtureError: Error, Equatable {
 
 /// A fake Carrier for the app's `--fixture` mode: a control server on a temporary socket that answers the snapshot and the
 /// requests from the golden files (macos/Tests/Fixtures), and `availableRepos` with a made-up list, so the app is exercised through its real client path with no engine.
+/// A second socket, `<home>/chat/chat.sock`, is a fake chat host: `agents` and `list` from `chat-agents.json` and `chat-list.json`, anything else an error.
 /// It owns a temporary home (`home`) holding a `config.json` whose `root` is the home itself, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 public final class FixtureServer {
     public let home: String
     public var socketPath: String { home + "/orchestrator/control.sock" }
+    public var chatSocketPath: String { home + "/chat/chat.sock" }
 
     private let listener: Int32
+    private let chatListener: Int32
+    private let chatAgents: Data
+    private let chatSessions: [[String: Any]]
+    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\"]}\n".utf8)
     private let data: [String: Data]
     private let hello: Data
     private var stopped = false
@@ -59,6 +65,12 @@ public final class FixtureServer {
             data["events"] = try JSONEncoder().encode(reply)
         }
         data["availableRepos"] = Data(Self.availableRepos.utf8)
+        do {
+            chatAgents = try JSONSerialization.data(withJSONObject: JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-agents.json"))), options: .sortedKeys)
+            let list = try JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-list.json"))) as? [String: Any]
+            guard let sessions = list?["sessions"] as? [[String: Any]] else { throw FixtureError.unreadable("\(fixtures)/chat-list.json") }
+            chatSessions = sessions
+        } catch { throw FixtureError.unreadable("\(fixtures)/chat-agents.json or chat-list.json") }
         self.data = data
         let names = ["sessions", "events", "epic", "files", "fileDiff", "availableRepos", "availableReposPaged", "resumeEpic"].map { "\"\($0)\"" }.joined(separator: ",")
         hello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":\(getpid()),\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\(names)]}\n".utf8)
@@ -72,12 +84,18 @@ public final class FixtureServer {
             let orchestrator = home + "/orchestrator"
             try FileManager.default.createDirectory(atPath: orchestrator, withIntermediateDirectories: true)
             try JSONSerialization.data(withJSONObject: ["root": home]).write(to: URL(fileURLWithPath: home + "/config.json"))
+            try FileManager.default.createDirectory(atPath: home + "/chat", withIntermediateDirectories: true)
             listener = try Self.listen(path: orchestrator + "/control.sock")
+            do { chatListener = try Self.listen(path: home + "/chat/chat.sock") } catch {
+                Darwin.close(listener)
+                throw error
+            }
         } catch {
             try? FileManager.default.removeItem(atPath: home)
             throw error
         }
-        Thread.detachNewThread { [self] in accept() }
+        Thread.detachNewThread { [self] in accept(listener, chat: false) }
+        Thread.detachNewThread { [self] in accept(chatListener, chat: true) }
     }
 
     public func stop() {
@@ -104,7 +122,7 @@ public final class FixtureServer {
         return fd
     }
 
-    private func accept() {
+    private func accept(_ listener: Int32, chat: Bool) {
         while isStopped == false {
             var ready = pollfd(fd: listener, events: Int16(POLLIN), revents: 0)
             guard poll(&ready, 1, 50) > 0 else { continue }
@@ -113,7 +131,7 @@ public final class FixtureServer {
             Thread.detachNewThread { [self] in
                 var on: Int32 = 1
                 setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
-                serve(fd)
+                serve(fd, chat: chat)
                 Darwin.close(fd)
             }
         }
@@ -121,8 +139,8 @@ public final class FixtureServer {
     }
 
     /// The hello, then one reply per line until the client leaves or the server stops.
-    private func serve(_ fd: Int32) {
-        guard send(hello, to: fd) else { return }
+    private func serve(_ fd: Int32, chat: Bool) {
+        guard send(chat ? chatHello : hello, to: fd) else { return }
         var pending = Data()
         while isStopped == false {
             var ready = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
@@ -135,7 +153,7 @@ public final class FixtureServer {
             while let end = pending.firstIndex(of: 0x0A) {
                 let line = pending[pending.startIndex..<end]
                 pending.removeSubrange(pending.startIndex...end)
-                guard send(reply(to: Data(line)), to: fd) else { return }
+                guard send(chat ? chatReply(to: Data(line)) : reply(to: Data(line)), to: fd) else { return }
             }
         }
     }
@@ -146,6 +164,22 @@ public final class FixtureServer {
         guard let cmd = request?["cmd"] as? String else { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"invalid request\"}") }
         if let body = data[cmd] { return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}") }
         if Self.controls.contains(cmd) { return Self.line("{\"id\":\(id),\"ok\":true}") }
+        return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown request\"}")
+    }
+
+    private func chatReply(to line: Data) -> Data {
+        let request = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any]
+        guard let id = request?["id"] as? Int else { return Self.line("{\"id\":null,\"ok\":false,\"error\":\"invalid request\"}") }
+        switch request?["cmd"] as? String {
+        case "agents":
+            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: chatAgents, as: UTF8.self) + "}")
+        case "list":
+            let archived = request?["archived"] as? Bool ?? false
+            let sessions = chatSessions.filter { ($0["archived"] as? Bool) == archived }
+            guard let body = try? JSONSerialization.data(withJSONObject: ["sessions": sessions], options: .sortedKeys) else { break }
+            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
+        default: break
+        }
         return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown request\"}")
     }
 

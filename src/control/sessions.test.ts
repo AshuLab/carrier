@@ -9,7 +9,7 @@ import { callerResults } from '../storage/caller-results.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import { startControlServer } from './server.ts';
-import { sessionsOf } from './sessions.ts';
+import { inheritedConfigDirs, sessionsOf } from './sessions.ts';
 
 // The sessions request over a real socket, answered from a real (temp) SQLite.
 let dir: string;
@@ -114,6 +114,11 @@ test('an execution whose option names no folder takes the engine environment\'s;
   execution(id, 2, { ...ran, status: 'finished', finishedAt: 2500 });
   const resumes = sessionsOf(db, 'AshuLab/a', 7, { claude: '/env/claude' })!.sessions.map((s) => s.resume);
   expect(resumes.map((r) => r?.configDir)).toEqual(['/cfg/claude', '/env/claude']);
+});
+
+test('only the folders the environment sets are inherited: an unset variable is not its default folder', () => {
+  expect(inheritedConfigDirs({ CLAUDE_CONFIG_DIR: '/env/claude' })).toEqual({ claude: '/env/claude' });
+  expect(inheritedConfigDirs({ CODEX_HOME: '', HOME: '/h' })).toEqual({});
 });
 
 test('an execution from before the agent was recorded takes the agent from the epic\'s frozen configuration and has no descriptor', async () => {

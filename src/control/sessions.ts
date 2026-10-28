@@ -2,6 +2,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
+import { configDirVariable } from '../harnesses/names.ts';
 import type { PanelAgent } from '../status/types.ts';
 import type { CallerResult } from '../execution/caller-result.ts';
 import { redact } from '../logging/redact.ts';
@@ -35,6 +36,10 @@ function failureOf(row: typeof executions.$inferSelect): SessionFailure | null {
 
 /** The configuration folder each harness runs with when its option names none: the engine's own environment (a path, never a secret). */
 export type ConfigDirs = Partial<Record<PanelAgent['harness'], string>>;
+
+/** The folders the environment really sets, as the agents inherit them: a harness whose variable is unset has no entry, not its default folder. */
+export const inheritedConfigDirs = (env: NodeJS.ProcessEnv = process.env): ConfigDirs =>
+  Object.fromEntries(Object.entries(configDirVariable).flatMap(([harness, variable]) => (env[variable] ? [[harness, env[variable]]] : [])));
 
 /** The agent an execution ran with: its own row, or the epic's frozen configuration for a row written before it was recorded. */
 export function agentOf(row: typeof executions.$inferSelect, config: typeof epics.$inferSelect.config): PanelAgent {

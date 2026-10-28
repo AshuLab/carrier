@@ -84,23 +84,35 @@ function agyLogin(deps: Pick<DoctorDeps, 'startAgy'>): Promise<'in' | 'out' | 'u
 }
 
 // Reads only the verdict: the output holds an email and an organisation, which never leave this function.
-// Async, so the wizard and the doctor's spinner go on while the CLI answers; it is killed after the timeout.
-export function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | undefined) {
+// Async, so the wizard and the doctor's spinner go on while the CLI answers. After the timeout the whole process group is killed and the
+// probe rejects at once: a CLI that traps SIGTERM, or leaves a child holding the pipe, cannot keep it waiting.
+export function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | undefined, timeoutMs = LOGIN_TIMEOUT_MS) {
   const env = configDir ? { ...process.env, [configDirVariable[harness]]: configDir } : process.env;
   const [command, args] = harness === 'claude' ? ['claude', ['auth', 'status']] : ['codex', ['login', 'status']];
   return new Promise<boolean>((resolve, reject) => {
-    const child = spawn(command!, args as string[], { env, stdio: ['ignore', 'pipe', 'ignore'], timeout: LOGIN_TIMEOUT_MS });
+    const child = spawn(command!, args as string[], { env, stdio: ['ignore', 'pipe', 'ignore'], detached: true });
     let out = '';
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk) => (out += chunk));
-    child.once('error', reject);
-    child.once('close', (status, signal) => {
-      if (signal !== null) return reject(new Error(`${command} ${args.join(' ')} did not answer in ${LOGIN_TIMEOUT_MS / 1000} s`));
+    const timer = setTimeout(() => {
+      try {
+        process.kill(-child.pid!, 'SIGKILL');
+      } catch {
+        child.kill('SIGKILL'); // no process group to signal (not POSIX), or it is already gone
+      }
+      reject(new Error(`${command} ${args.join(' ')} did not answer in ${timeoutMs / 1000} s`));
+    }, timeoutMs);
+    child.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once('close', (status) => {
+      clearTimeout(timer);
       if (harness === 'codex') return resolve(status === 0);
       try {
         resolve((JSON.parse(out) as { loggedIn?: unknown }).loggedIn === true);
-      } catch (error) {
-        log.warn('could not read the output of claude auth status', error);
+      } catch {
+        log.warn('could not read the output of claude auth status'); // the parse error carries the start of the output: only this fixed text is logged
         resolve(false);
       }
     });

@@ -676,8 +676,10 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
           db.update(executions).set({ status: 'finished' }).where(eq(executions.executionId, last.executionId)).run();
           await settle({ ...last, status: 'finished' });
         } else await execute(epic, last.stage, last);
-      } else if (last.status === 'failed' && last.failureKind === 'usage_limit') {
-        await onUsageLimit(id, last); // stopped before the epic moved on: no agent is running and none would be launched
+      } else if (epic.stage !== null && last.status === 'failed' && last.failureKind === 'usage_limit') {
+        // Stopped before the epic moved on: no agent is running and none would be launched. A requeued epic (no stage yet) keeps its old
+        // executions: that history is not this stop, the restart's own launch (begin, resumeChoices) takes it from here.
+        await onUsageLimit(id, last);
       } else if (last.status === 'finished' && epic.stage && db.select().from(callerResults).where(eq(callerResults.executionId, last.executionId)).get()) {
         await launch(epic, epic.stage); // imported, but the next stage was never launched
       }

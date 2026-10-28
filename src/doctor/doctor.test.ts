@@ -362,3 +362,25 @@ test('cliLoggedIn reads the verdict of the CLI with the option\'s folder, withou
     rmSync(bin, { recursive: true, force: true });
   }
 });
+
+test('cliLoggedIn gives up on time on a CLI that ignores SIGTERM and one whose child holds the pipe, and kills them', async () => {
+  const bin = mkdtempSync(join(tmpdir(), 'carrier-login-hang-'));
+  const path = process.env.PATH;
+  process.env.PATH = `${bin}:${path}`;
+  const stub = (name: string, body: string) => {
+    writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`);
+    chmodSync(join(bin, name), 0o755);
+  };
+  try {
+    stub('codex', "trap '' TERM; sleep 8");
+    stub('claude', 'sleep 8; true');
+    for (const harness of ['codex', 'claude'] as const) {
+      const started = Date.now();
+      await expect(cliLoggedIn(harness, undefined, 200)).rejects.toThrow('did not answer');
+      expect(Date.now() - started).toBeLessThan(3000);
+    }
+  } finally {
+    process.env.PATH = path;
+    rmSync(bin, { recursive: true, force: true });
+  }
+});

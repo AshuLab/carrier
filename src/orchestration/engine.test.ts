@@ -1758,6 +1758,14 @@ test('an epic whose last execution ended on a usage limit before it moved on is 
   expect(runner.tasks).toHaveLength(0);
 });
 
+test('a requeued epic that has not launched yet is not stopped again by the usage limit of its old history', async () => {
+  const db = open();
+  seedEpic(db, 1, { stage: null });
+  seedExecution(db, 'e0', 1, { status: 'failed', option: 'claude', failureKind: 'usage_limit', failureDetail: 'resets 12:40pm' });
+  const engine = await start(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', needsHumanKind: null });
+});
+
 test('a result the interrupted agent had written is imported exactly once and the agent is not launched again', async () => {
   const db = open();
   seedEpic(db, 1);

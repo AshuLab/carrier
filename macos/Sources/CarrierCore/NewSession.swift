@@ -45,12 +45,13 @@ public struct FailedFirstSend: Equatable {
 public enum WorkspaceSource: String {
     case localFolder = "Open local folder…"
     case githubURL = "From a GitHub URL…"
+    case githubRepos = "My GitHub repositories…"
     case newProject = "New project…"
 }
 
 /// The step of the workspace popover that is showing.
 public enum WorkspaceStep: Equatable {
-    case menu, url, project
+    case menu, url, repos, project
 }
 
 /// The draft: loads what it offers, and `send()` opens the session and then sends the message, in two steps.
@@ -81,6 +82,8 @@ public enum WorkspaceStep: Equatable {
 
     /// Whether the host can clone (its hello lists `cloneRepo`); an older one is not offered From a GitHub URL…
     public private(set) var hostClones = false
+    /// Whether the host can list the person's GitHub repositories (its hello lists `githubRepos`).
+    public private(set) var hostLists = false
     /// Whether the host can make a new project (its hello lists `createProject`).
     public private(set) var hostCreates = false
     /// The `<owner>/<repo>` folders of the projects folder, read from disk each time the popover opens.
@@ -92,6 +95,14 @@ public enum WorkspaceStep: Equatable {
     public private(set) var cloning: String?
     /// Why the last clone was refused, in the host's words; cleared when the next one starts.
     public private(set) var cloneProblem: String?
+    /// The pages of the person's repositories loaded so far (My GitHub repositories), the login they were read with (page 1 only),
+    /// and why the latest read failed, in the host's words; the list keeps what was loaded when a later page fails.
+    public private(set) var repoList = AvailableReposList()
+    public private(set) var login: String?
+    public private(set) var reposReason: String?
+    public private(set) var loadingRepos = false
+    /// The search over the loaded repositories.
+    public var reposQuery = ""
     /// What the New project step was given: the part after `local/`.
     public var projectName = ""
     public private(set) var creating = false
@@ -113,6 +124,8 @@ public enum WorkspaceStep: Equatable {
     @ObservationIgnored private let projectsFolder: () -> String
     @ObservationIgnored private let readConfig: () -> Data?
     @ObservationIgnored private let writeConfig: (Data) throws -> Void
+    /// Counts the times the list was started over, so a page that was asked for before is dropped when it comes back.
+    @ObservationIgnored private var reposRead = 0
     @ObservationIgnored private var cloneTask: Task<ClonedRepo, Error>?
     @ObservationIgnored private let ensureHost: @MainActor () async -> Bool
     @ObservationIgnored private let log: (String) -> Void
@@ -162,10 +175,11 @@ public enum WorkspaceStep: Equatable {
         let capabilities = try await host.capabilities()
         hostClones = capabilities.contains(.cloneRepo)
         hostCreates = capabilities.contains(.createProject)
+        hostLists = capabilities.contains(.githubRepos)
     }
 
     /// The sources the popover lists under the folders.
-    public var sources: [WorkspaceSource] { [.localFolder] + (hostClones ? [.githubURL] : []) + (hostCreates ? [.newProject] : []) }
+    public var sources: [WorkspaceSource] { [.localFolder] + (hostClones ? [.githubURL] : []) + (hostLists && hostClones ? [.githubRepos] : []) + (hostCreates ? [.newProject] : []) }
 
     /// The popover opens on the menu with the projects folder read again; one that is cloning stays on the step that shows it.
     public func openPicker() {
@@ -218,7 +232,10 @@ public enum WorkspaceStep: Equatable {
     public var cloneButton: String { cloneProblem != nil ? "Try again" : alreadyThere ? "Update and use" : "Clone and use" }
 
     /// Why the box cannot be on for the repository typed (already watched, or a folder name another watched repo has); nil when it can.
-    public var watchProblem: String? { reference.flatMap { name in watched.flatMap { repoProblem(name, joining: $0) } } }
+    public var watchProblem: String? { reference.flatMap(watchProblem(for:)) }
+
+    /// The same for any repository: why the box cannot apply to it.
+    public func watchProblem(for repo: String) -> String? { watched.flatMap { repoProblem(repo, joining: $0) } }
 
     public var watching: Bool { watch && watchProblem == nil }
 
@@ -228,12 +245,20 @@ public enum WorkspaceStep: Equatable {
     /// Clones (or fetches) the repository of the URL step and chooses its folder as the workspace; true when it did. The draft has no
     /// workspace while it runs and when it fails, so the chip stays orange; the refusal is in `cloneProblem`.
     public func cloneAndUse() async -> Bool {
-        guard let repo = reference, cloning == nil else { return false }
-        let adding = watching
+        guard let repo = reference else { return false }
+        return await clone(repo, showing: .url)
+    }
+
+    /// The same for a repository chosen in My GitHub repositories, where the clone shows.
+    public func cloneAndUse(repo: String) async -> Bool { await clone(repo, showing: .repos) }
+
+    private func clone(_ repo: String, showing shown: WorkspaceStep) async -> Bool {
+        guard cloning == nil else { return false }
+        let adding = watch && watchProblem(for: repo) == nil
         reset(folder: nil)
         cloning = repo
         cloneProblem = nil
-        step = .url
+        step = shown
         let task = Task { [host] in try await host.cloneRepo(repo) }
         cloneTask = task
         do {
@@ -241,7 +266,7 @@ public enum WorkspaceStep: Equatable {
             guard cloneTask == task else { return false }
             cloning = nil
             cloneTask = nil
-            urlText = ""
+            if shown == .url { urlText = "" }
             await choose(folder: cloned.folder)
             // the clone stands whatever happens to the list
             if adding, folder == cloned.folder { addToWatched(repo) }
@@ -255,6 +280,42 @@ public enum WorkspaceStep: Equatable {
             return false
         }
     }
+
+    /// My GitHub repositories: starts the list over and reads its first page. The step does not open while a clone or a new project is running.
+    public func showRepos() async {
+        show(.repos)
+        guard step == .repos else { return }
+        reposRead += 1
+        repoList = AvailableReposList()
+        login = nil
+        reposReason = nil
+        reposQuery = ""
+        loadingRepos = false
+        await loadRepos()
+    }
+
+    /// Reads the next page, the first one included: what is loaded stays, and a page that fails is `reposReason` and is asked again by the next call.
+    public func loadRepos() async {
+        guard loadingRepos == false else { return }
+        let read = reposRead
+        let page = repoList.nextPage
+        loadingRepos = true
+        defer { if read == reposRead { loadingRepos = false } }
+        do {
+            let loaded = try await host.githubRepos(page: page)
+            guard read == reposRead else { return }
+            if page == 1 { login = loaded.login }
+            repoList.apply(.repos(loaded.repos.filter { isRepoName($0.name) }, hasMore: loaded.hasMore))
+            reposReason = nil
+        } catch {
+            guard read == reposRead else { return }
+            repoList.apply(.githubError)
+            reposReason = report(error, "list repositories")
+        }
+    }
+
+    /// The loaded repositories that match the search, in the host's order.
+    public func repoRows(now: Date = Date()) -> [GithubRepoRow] { githubRepoRows(repoList.repos, watched: watched ?? [], query: reposQuery, now: now) }
 
     /// The path New project will make, shown before anything is made.
     public var projectPath: String { "\(projectsPath)/local/\(projectName.isEmpty ? "<name>" : projectName)" }

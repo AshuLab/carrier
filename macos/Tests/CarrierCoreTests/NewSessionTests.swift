@@ -27,7 +27,10 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var names = ["brave-marine-aiur", "keen-ghost-char"]
     var taken: [String: NameCheck] = [:]
     var opens: [WorktreeRequest?] = []
-    var capabilities: Set<ControlClient.Capability> = [.cloneRepo, .createProject]
+    var capabilities: Set<ControlClient.Capability> = [.cloneRepo, .createProject, .githubRepos]
+    /// What `githubRepos` answers by page (one not listed is an empty last page) and the pages it was asked for.
+    var repoPages: [Int: GithubReposPage] = [:]
+    var repoCalls: [Int] = []
     var created: [String] = []
     /// What `cloneRepo` asked for, and whether it ended by being cancelled; while `holdClone` is set it waits for `release` or a cancel.
     var clones: [String] = []
@@ -90,6 +93,11 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         created.append(name)
         if let error = refuse["createProject"] { throw error }
         return "\(projects())/local/\(name)"
+    }
+    func githubRepos(page: Int) async throws -> GithubReposPage {
+        repoCalls.append(page)
+        if let error = refuse["githubRepos"] { throw error }
+        return repoPages[page] ?? GithubReposPage(repos: [], hasMore: false)
     }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
 }
@@ -506,6 +514,8 @@ private func projectsRoot(_ names: [String]) throws -> String {
 
 @MainActor @Test func theMenuListsOpenLocalFolderAndGitHubURLOnlyForAHostThatClones() async {
     let host = FakeChat()
+    #expect(await popover(host).sources == [.localFolder, .githubURL, .githubRepos, .newProject])
+    host.capabilities = [.cloneRepo, .createProject]
     #expect(await popover(host).sources == [.localFolder, .githubURL, .newProject])
     host.capabilities = [.cloneRepo]
     #expect(await popover(host).sources == [.localFolder, .githubURL])
@@ -700,6 +710,7 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     func capabilities() async throws -> Set<ControlClient.Capability> { [] }
     func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
     func createProject(_ name: String) async throws -> String { throw ControlError.closed }
+    func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
 }
 
@@ -866,4 +877,117 @@ private final class LateChat: ChatHost, @unchecked Sendable {
         model.changeProjectsFolder(to: "/srv/other")
         #expect(model.projectsFolderProblem?.hasSuffix("The projects folder stays \(before).") == true && model.projectsPath == before && config.writes == 0)
     }
+}
+
+// My GitHub repositories: the paged list over `AvailableReposList`, the search, the tag and the watch box, the clone of a row.
+
+private func page(_ names: [String], more: Bool, login: String? = nil) -> GithubReposPage {
+    GithubReposPage(repos: names.map { AvailableRepo(name: $0, isPrivate: $0.hasPrefix("AshuLab/")) }, hasMore: more, login: login)
+}
+
+@MainActor @Test func theRepositoriesStepReadsPageOneWithTheLoginAndLoadMoreAddsTheNextPageInOrder() async {
+    let host = FakeChat()
+    host.repoPages = [1: page(["AshuLab/carrier", "acme/web"], more: true, login: "vemec"), 2: page(["vemec/encaja", "acme/web"], more: false)]
+    let model = await popover(host)
+    await model.showRepos()
+    #expect(model.step == .repos && model.login == "vemec" && host.repoCalls == [1])
+    #expect(model.repoList.repos.map(\.name) == ["AshuLab/carrier", "acme/web"] && model.repoList.hasMore && model.repoList.blocked == false)
+    await model.loadRepos()
+    #expect(host.repoCalls == [1, 2] && model.login == "vemec")
+    // a repo that moved onto the next page keeps its first place
+    #expect(model.repoList.repos.map(\.name) == ["AshuLab/carrier", "acme/web", "vemec/encaja"] && model.repoList.hasMore == false)
+}
+
+@MainActor @Test func aPageThatFailsAfterTheFirstKeepsWhatIsLoadedAndTheNextAskTriesItAgain() async {
+    let host = FakeChat()
+    host.repoPages = [1: page(["AshuLab/carrier"], more: true, login: "vemec"), 2: page(["vemec/encaja"], more: false)]
+    let model = await popover(host)
+    await model.showRepos()
+    host.refuse["githubRepos"] = ControlError.remote("GitHub could not be reached; check the network connection")
+    await model.loadRepos()
+    #expect(model.reposReason == "GitHub could not be reached; check the network connection" && model.repoList.blocked == false)
+    #expect(model.repoList.repos.map(\.name) == ["AshuLab/carrier"] && model.repoList.hasMore && model.login == "vemec")
+    host.refuse["githubRepos"] = nil
+    await model.loadRepos()
+    #expect(host.repoCalls == [1, 2, 2] && model.reposReason == nil && model.repoList.repos.map(\.name) == ["AshuLab/carrier", "vemec/encaja"])
+}
+
+@MainActor @Test func aFirstPageThatFailsSaysWhyInWordsAndOpeningTheStepAgainStartsOver() async {
+    let host = FakeChat()
+    host.refuse["githubRepos"] = ControlError.remote("gh is not signed in to GitHub; run \"gh auth login\"")
+    let model = await popover(host)
+    await model.showRepos()
+    #expect(model.repoList.blocked && model.reposReason == "gh is not signed in to GitHub; run \"gh auth login\"" && model.login == nil)
+    host.refuse["githubRepos"] = nil
+    host.repoPages = [1: page(["AshuLab/carrier"], more: false, login: "vemec")]
+    model.show(.menu)
+    await model.showRepos()
+    #expect(model.repoList.blocked == false && model.reposReason == nil && model.login == "vemec" && host.repoCalls == [1, 1])
+}
+
+@MainActor @Test func theSearchFiltersWhatIsLoadedAndTheRowsCarryTheWatchedTagAndTheReasonTheBoxWouldNotApply() async {
+    let host = FakeChat()
+    host.repoPages = [1: page(["AshuLab/carrier", "acme/web", "other/web", "vemec/Encaja"], more: false, login: "vemec")]
+    let model = await popover(host)  // the config watches acme/web
+    await model.showRepos()
+    let rows = model.repoRows()
+    #expect(rows.map(\.name) == ["AshuLab/carrier", "acme/web", "other/web", "vemec/Encaja"])
+    #expect(rows.map(\.watched) == [false, true, false, false] && rows.map(\.isPrivate) == [true, false, false, false])
+    #expect(rows[0].cannotWatch == nil && rows[1].cannotWatch == nil && rows[2].cannotWatch?.contains("same folder name as acme/web") == true)
+    model.reposQuery = " ENCAJA "
+    #expect(model.repoRows().map(\.name) == ["vemec/Encaja"])
+    model.reposQuery = "nothing"
+    #expect(model.repoRows().isEmpty)
+}
+
+@MainActor @Test func choosingARowClonesItLikeTheUrlStepAndAddsItToTheConfigWithTheBoxOn() async throws {
+    let host = FakeChat()
+    host.repoPages = [1: page(["AshuLab/carrier"], more: false, login: "vemec")]
+    let config = FakeConfig()
+    let model = await popover(host, config: config)
+    await model.showRepos()
+    #expect(await model.cloneAndUse(repo: "AshuLab/carrier"))
+    #expect(host.clones == ["AshuLab/carrier"] && model.folder == "/projects/AshuLab/carrier" && model.cloning == nil)
+    #expect(configRepoNames(json: try #require(config.json)) == ["acme/web", "AshuLab/carrier"])
+    #expect(model.watchNote == "Carrier will listen to AshuLab/carrier from its next start.")
+}
+
+@MainActor @Test func aRowClonesWithoutTouchingTheConfigWhenTheBoxIsOffOrTheRepoIsWatchedOrClashes() async {
+    let host = FakeChat()
+    host.repoPages = [1: page(["AshuLab/carrier", "acme/web", "other/web"], more: false)]
+    let config = FakeConfig()
+    let model = await popover(host, config: config)
+    await model.showRepos()
+    model.watch = false
+    #expect(await model.cloneAndUse(repo: "AshuLab/carrier"))
+    model.watch = true
+    model.show(.repos)
+    #expect(await model.cloneAndUse(repo: "acme/web") && model.watchProblem(for: "acme/web") == "acme/web is already watched")
+    #expect(await model.cloneAndUse(repo: "other/web"))
+    #expect(config.writes == 0 && model.watchNote == nil && model.folder == "/projects/other/web")
+}
+
+@MainActor @Test func aRefusedCloneFromTheListStaysOnTheStepWithItsReasonAndTheListIntact() async {
+    let host = FakeChat()
+    host.repoPages = [1: page(["AshuLab/carrier"], more: false, login: "vemec")]
+    host.refuse["cloneRepo"] = ControlError.remote("The clone took more than ten minutes and was stopped")
+    let model = await popover(host)
+    await model.showRepos()
+    #expect(await model.cloneAndUse(repo: "AshuLab/carrier") == false)
+    #expect(model.step == .repos && model.cloneProblem == "The clone took more than ten minutes and was stopped" && model.folder == nil)
+    #expect(model.repoList.repos.count == 1 && model.login == "vemec")
+}
+
+@MainActor @Test func theStepCannotBeOpenedWhileACloneRuns() async {
+    let host = FakeChat()
+    host.holdClone = true
+    let model = await popover(host)
+    model.show(.url)
+    model.urlText = "AshuLab/carrier"
+    let running = Task { await model.cloneAndUse() }
+    await settle { model.cloning != nil }
+    await model.showRepos()
+    #expect(model.step == .url && host.repoCalls.isEmpty)
+    host.release = true
+    #expect(await running.value)
 }

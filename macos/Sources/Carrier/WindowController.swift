@@ -167,6 +167,16 @@ final class WindowController: NSObject, NSWindowDelegate {
             let worked = await draft.cloneAndUse()
             lines.append("new session clone \(text): \(draft.cloneButton), \(worked ? "used" : "refused: \(draft.cloneProblem ?? "no reason")"), \"\(draft.sentence)\"")
         }
+        // My GitHub repositories against the host: page 1 with the login, Load more, and a repository chosen from the list
+        await draft.showRepos()
+        lines.append("new session repos: login \(draft.login ?? "none"), \(draft.repoRows().count) loaded, more \(draft.repoList.hasMore), watched \(draft.repoRows().filter(\.watched).map(\.name))")
+        await draft.loadRepos()
+        lines.append("new session repos page 2: \(draft.repoRows().count) loaded, more \(draft.repoList.hasMore), reason \(draft.reposReason ?? "none")")
+        draft.watch = false  // a smoke pass never writes the config
+        if let first = draft.repoRows().first {
+            let worked = await draft.cloneAndUse(repo: first.name)
+            lines.append("new session repo \(first.name): \(worked ? "used" : "refused: \(draft.cloneProblem ?? "no reason")"), \"\(draft.sentence)\"")
+        }
         // New project against the host: a name it makes (and the draft then offers no worktree), then one it refuses as taken
         draft.show(.project)
         for name in ["my-idea", "web"] {

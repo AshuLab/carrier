@@ -7,6 +7,13 @@ test('ghReposArgs asks for one page of 30 and prints the raw count first', () =>
   expect(args[3]).toMatch(/^\(length \| tostring\), \(\.\[\] \| select\(\.archived or \.disabled \| not\) \| select\(\.permissions\.push\)/);
 });
 
+test('the chat reads every repo the login can see: collaborator too, and no push filter', () => {
+  const [, url, , jq] = ghReposArgs(2, 'read');
+  expect(url).toBe('user/repos?affiliation=owner,collaborator,organization_member&sort=pushed&per_page=30&page=2');
+  expect(jq).toBe('(length | tostring), (.[] | select(.archived or .disabled | not) | [.full_name, .private, .pushed_at // ""] | @tsv)');
+  expect(ghReposArgs(2)).toEqual(ghReposArgs(2, 'push'));
+});
+
 test('a full raw page has more, even when the filter left fewer repos', () => {
   const out = ['30', 'AshuLab/carrier\ttrue\t2026-10-20T10:00:00Z', 'vemec/encaja\tfalse\t'].join('\n');
   expect(parseRepos(out)).toEqual({

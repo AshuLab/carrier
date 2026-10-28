@@ -1,9 +1,11 @@
 import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { defaults, loadConfig } from '../config/load.ts';
+import { listAvailableRepos, type AvailableRepo } from '../integrations/available-repos.ts';
 import { repoNamePattern, type Config } from '../config/schema.ts';
 import { checkProjectsFolder } from './folder.ts';
 import type { Git, GitResult } from './git.ts';
@@ -29,6 +31,33 @@ export const ghToken = (): Promise<string> =>
     });
   });
 
+/** What a failed `gh` call comes to, in a sentence for the person: gh missing, signed out, offline or too slow. What gh printed is logged by code only, never forwarded. */
+export function ghRefusal(error: unknown, did: string): ChatRefused {
+  const { code, killed, stderr } = error as { code?: unknown; killed?: boolean; stderr?: unknown };
+  const said = typeof stderr === 'string' ? stderr : '';
+  log.error(`gh ${did} failed`, { code: typeof code === 'number' || typeof code === 'string' ? code : null, killed: killed === true });
+  if (code === 'ENOENT') return new ChatRefused('The GitHub CLI (gh) is not installed');
+  if (killed === true) return new ChatRefused('GitHub took too long to answer');
+  if (/gh auth login|not logged in|http 401|bad credentials/i.test(said)) return new ChatRefused('gh is not signed in to GitHub; run "gh auth login"');
+  if (/error connecting|could not resolve|no such host|dial tcp|network is unreachable|timed out/i.test(said)) return new ChatRefused('GitHub could not be reached; check the network connection');
+  return new ChatRefused(`GitHub did not answer; check "gh auth status"`);
+}
+
+/** One page of every repository the person's `gh` login can read, thirty at a time, newest push first. */
+export const ghRepos = (page: number, timeoutMs: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }> =>
+  listAvailableRepos(page, timeoutMs, 'read').catch((error) => {
+    throw ghRefusal(error, 'repos');
+  });
+
+/** The login that is active in `gh`. */
+export const ghLogin = (timeoutMs: number): Promise<string> =>
+  promisify(execFile)('gh', ['api', 'user', '--jq', '.login'], { encoding: 'utf8', timeout: timeoutMs }).then(
+    ({ stdout }) => stdout.trim(),
+    (error) => {
+      throw ghRefusal(error, 'login');
+    },
+  );
+
 // What git's stderr says, read here and never forwarded: it can hold a URL.
 const notVisible = /repository not found|not found|authentication failed|could not read username|error: 40[134]/i;
 const offline = /could not resolve host|failed to connect|connection (timed out|refused|reset)|network is unreachable|unable to access/i;
@@ -41,6 +70,9 @@ function refusal(result: Extract<GitResult, { ok: false }>, did: 'clone' | 'fetc
   return new ChatRefused(`git could not ${did} ${repo}`);
 }
 
+/** What the host takes of GitHub as a dependency, so a test injects a fake. Both throw a `ChatRefused` in words. */
+export type GithubRepos = { repos: (page: number) => Promise<{ repos: AvailableRepo[]; hasMore: boolean }>; login: () => Promise<string> };
+
 type CloneReply = { folder: string; repo: string; fetched: boolean };
 type Job = { done: Promise<CloneReply>; waiters: number; abort: AbortController };
 
@@ -48,7 +80,7 @@ type Job = { done: Promise<CloneReply>; waiters: number; abort: AbortController 
  * Brings GitHub repositories into the projects folder with the person's own `gh` login (ADR 0015). `configPath`
  * is the file the host was started from: the folder is read from it at each request, so a change applies to the next one.
  */
-export function createProjects({ git, token, config, configPath }: { git: Git; token: () => Promise<string>; config: Config; configPath?: string }) {
+export function createProjects({ git, token, github, config, configPath }: { git: Git; token: () => Promise<string>; github: GithubRepos; config: Config; configPath?: string }) {
   const running = new Map<string, Job>();
 
   const current = (): Config => {
@@ -102,6 +134,13 @@ export function createProjects({ git, token, config, configPath }: { git: Git; t
   }
 
   return {
+    /** A page of the repositories the person's login can read; page 1 also says the login. */
+    async githubRepos({ page }: { page: number }): Promise<{ repos: AvailableRepo[]; hasMore: boolean; login?: string }> {
+      if (page > 1) return github.repos(page);
+      const [first, who] = await Promise.all([github.repos(page), github.login()]);
+      return { ...first, login: who };
+    },
+
     /** Makes `<projects folder>/local/<name>` and runs `git init -b main` in it. A name that is taken is refused and nothing is changed; a `git init` that fails removes what this request made. */
     async createProject({ name }: { name: string }): Promise<{ folder: string }> {
       if (projectNamePattern.test(name) === false) throw new ChatRefused(`"${name}" is not a plain folder name`);

@@ -107,6 +107,20 @@ public struct ClonedRepo: Decodable, Equatable {
     }
 }
 
+/// The reply of `githubRepos`: one page of the repositories the person's `gh` login can read, whether the host has another, and (page 1
+/// only) the login.
+public struct GithubReposPage: Decodable, Equatable {
+    public let repos: [AvailableRepo]
+    public let hasMore: Bool
+    public let login: String?
+
+    public init(repos: [AvailableRepo], hasMore: Bool, login: String? = nil) {
+        self.repos = repos
+        self.hasMore = hasMore
+        self.login = login
+    }
+}
+
 /// What the app needs from the chat host's socket; the real one speaks to the socket, tests use a fake.
 public protocol ChatHost {
     func agents() async throws -> [ChatAgent]
@@ -133,6 +147,9 @@ public protocol ChatHost {
     /// Makes `<projects folder>/local/<name>` with `git init -b main` and answers its path. Refused in words for a name that is taken
     /// or not a plain folder name.
     func createProject(_ name: String) async throws -> String
+    /// One page (1 to 100) of the repositories the person's `gh` login can read, thirty at a time, newest push first. Refused in words
+    /// (`gh` missing or signed out, no network, too slow). Gh can take seconds.
+    func githubRepos(page: Int) async throws -> GithubReposPage
     /// The events of a session after the cursor, at most `limit` (the host takes 1 to 200).
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents
     /// Opens a closed session's agent again; the host refuses a `send` to one that is not live.
@@ -234,6 +251,13 @@ public struct SocketChatHost: ChatHost {
         let path = socketPath()
         let reply: Created = try await Task.detached { try chatRequest(path, "createProject", requires: .createProject, fields: fields) }.value
         return reply.folder
+    }
+
+    /// A page has the host's 30 seconds for `gh`, so the wait for the reply is longer than the 5 seconds of the other requests.
+    public func githubRepos(page: Int) async throws -> GithubReposPage {
+        let fields = ",\"page\":\(page)"
+        let path = socketPath()
+        return try await Task.detached { try chatRequest(path, "githubRepos", requires: .githubRepos, fields: fields, timeout: 40) }.value
     }
 
     public func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {

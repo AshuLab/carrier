@@ -354,7 +354,7 @@ describe.skipIf(!enabled)('cloneRepo, with the real git', () => {
     else process.env.GIT_CONFIG_GLOBAL = previousGlobal;
     rmSync(work, { recursive: true, force: true });
   });
-  const projects = () => createProjects({ git: realGit, token: async () => 'unused', config: { root: join(work, 'root'), chat: { projectsFolder: join(work, 'projects') } } as Config });
+  const projects = () => createProjects({ git: realGit, token: async () => 'unused', github: { repos: async () => ({ repos: [], hasMore: false }), login: async () => 'unused' }, config: { root: join(work, 'root'), chat: { projectsFolder: join(work, 'projects') } } as Config });
 
   test('a real clone lands in <projects>/<owner>/<repo>, and asking again fetches it', async () => {
     const dest = join(work, 'projects', 'acme', 'app');

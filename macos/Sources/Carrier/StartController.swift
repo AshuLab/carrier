@@ -142,7 +142,7 @@ final class StartController: ObservableObject {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = title
-        alert.informativeText = reason + " The end of app-start.log:"
+        alert.informativeText = tail.isEmpty ? reason : reason + " The end of app-start.log:"
         let scroll = NSTextView.scrollableTextView()
         scroll.frame = NSRect(x: 0, y: 0, width: 520, height: 220)
         if let text = scroll.documentView as? NSTextView {
@@ -150,7 +150,7 @@ final class StartController: ObservableObject {
             text.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
             text.string = tail
         }
-        alert.accessoryView = scroll
+        if tail.isEmpty == false { alert.accessoryView = scroll }
         // an accessory app is not frontmost, and its alert would open behind the other windows
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()

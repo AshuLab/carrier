@@ -13,14 +13,22 @@ final class ChatHostStarter {
         let settings = SetupController.shared.settings
         let root = configRoot(configPath: settings.configPath, home: NSHomeDirectory())
         let command = startChatHostCommand(settings: settings, root: root, environment: ProcessInfo.processInfo.environment)
-        let socket = chatSocketPath()
+        // the socket asked here and the one the start waits on are the same: the settings' config file decides both
+        let socket = command?.socketPath ?? chatSocketPath()
         DispatchQueue.global().async {
             let answers = ControlClient.connect(path: socket) != nil
             DispatchQueue.main.async {
                 let start = shouldStartChatHost(
                     startingSession: true, hostAnswers: answers, startRunning: self.starting, fixture: CommandLine.arguments.contains("--fixture")
                 )
-                guard start, let command else { done(answers); return }
+                guard start else { done(answers); return }
+                guard let command else {
+                    let missing = startMissing(settings).joined(separator: ", ")
+                    FileHandle.standardError.write(Data("carrier: the chat host was not started, the settings lack: \(missing)\n".utf8))
+                    StartController.showAlert(title: "The chat host did not start", reason: "The settings lack: \(missing).", tail: "")
+                    done(false)
+                    return
+                }
                 self.starting = true
                 DispatchQueue.global().async {
                     let failure = StartController.launch(command, name: "The chat host")

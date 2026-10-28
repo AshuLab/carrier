@@ -77,7 +77,9 @@ struct SidebarView: View {
         .safeAreaInset(edge: .bottom) {
             // Archive above the divider and Settings alone under it; both stay while the list above scrolls
             VStack(spacing: 0) {
-                ArchiveSection(sessions: sessions, selection: $selection, open: open == .archive, searchRequest: searchRequest)
+                ArchiveSection(
+                    sessions: sessions, selection: $selection, open: open == .archive, keepOpen: { open = .archive }, searchRequest: searchRequest
+                )
                     .padding(.horizontal, 8).padding(.vertical, 8)
                 Divider()
                 SidebarSectionRow(title: "Settings", icon: "gearshape", selected: selection == .settings, action: { selection = .settings })
@@ -255,10 +257,20 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
         let dark = scheme == .dark
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Image(systemName: icon).resizable().scaledToFit().frame(width: 15, height: 15)
-                    .foregroundStyle(selected ? .primary : .secondary)
-                Text(title).fontWeight(.medium)
-                Spacer(minLength: 0)
+                // the one control a keyboard reaches: Tab (with Full Keyboard Access) and Space run `action`; a click anywhere on the
+                // row, but on its actions, still does through the tap below
+                Button(action: action) {
+                    HStack(spacing: 8) {
+                        Image(systemName: icon).resizable().scaledToFit().frame(width: 15, height: 15)
+                            .foregroundStyle(selected ? .primary : .secondary)
+                        Text(title).fontWeight(.medium)
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(title)
+                .accessibilityAddTraits(selected ? .isSelected : [])
                 actions
             }
             .frame(minHeight: 20)
@@ -271,8 +283,6 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
         .onTapGesture(perform: action)
         .onHover { hovered = $0 }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(title)
-        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .listRowBackground(Color.clear)
         .flatSidebarRow()
     }

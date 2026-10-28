@@ -54,14 +54,13 @@ public struct SearchRequest: Equatable {
 }
 
 @Observable public final class WindowShell {
-    /// Choosing the Sessions home opens Sessions, an epic or the Carrier home opens the card, Archive opens its list; a session opens
-    /// Sessions unless it was chosen in the Archive list; the rest leave it.
+    /// Choosing the Sessions home or a session opens Sessions, an epic or the Carrier home opens the card, Archive opens its list; the
+    /// rest leave it. The Archive list puts itself back after choosing a session from it.
     public var selection: Selection = .home {
         didSet {
             switch selection {
-            case .sessions: open = .sessions
-            case .session: if open != .archive { open = .sessions }
-            case .carrier, .epic: open = .carrier
+            case .sessions, .session: open = .sessions
+                        case .carrier, .epic: open = .carrier
             case .archive: open = .archive
             case .home, .settings: break
             }

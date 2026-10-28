@@ -697,6 +697,34 @@ test('a killed execution stores its failure, names the kind in the epic error, a
   expect(rows(engine.db)[0]?.needsHumanReason).toContain(text);
 });
 
+const outOfCredits: AgentFailure = { kind: 'usage_limit', detail: "You've hit your session limit · resets 12:40pm", exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null };
+
+test('a usage limit stops the epic at once with the option that ran out and its reset time, and spends no retry', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  const config = [{ name: 'AshuLab/a', agents: { ...agents, author: { ...agents.author, option: 'claude-ashu' } } }];
+  runner.behavior = (task) => (task.epic === 1 ? { sessionId: 's', exit: 'failed', failure: outOfCredits } : { exit: 'hang' });
+  const engine = await start(1, config); // maxExecutionRetries 3
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks.some((t) => t.epic === 2)).toBe(true));
+
+  expect(runner.tasks.filter((t) => t.epic === 1)).toHaveLength(1);
+  expect(eventsOf(engine.db)).toEqual([]);
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'failed', failureKind: 'usage_limit', failureDetail: outOfCredits.detail, error: null });
+  expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'usage_limit', finishedAt: 5 * MIN });
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude-ashu: ${outOfCredits.detail}`);
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+  expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
+});
+
+test('a usage limit does not count in the retry streak', async () => {
+  const db = open();
+  seedEpic(db, 1);
+  seedExecution(db, 'e0', 1, { status: 'failed', error: 'boom', failureKind: 'crashed' });
+  seedExecution(db, 'e1', 1, { status: 'failed', failureKind: 'usage_limit', failureDetail: 'resets 12:40pm' });
+  seedExecution(db, 'e2', 1, { status: 'failed', error: 'boom', failureKind: 'crashed' });
+  expect(failureStreak(db, 1).map((e) => e.executionId)).toEqual(['e2']);
+});
+
 test('a failed end the runner gave no failure for is stored as unknown, with no dangling colon', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   runner.behavior = () => ({ sessionId: 's', exit: 'failed', failure: undefined });

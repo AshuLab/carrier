@@ -241,7 +241,9 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         active.delete(executionId);
         output.flush();
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
-        const failure = { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}${processFailure?.detail ? `: ${processFailure.detail}` : ''})`, auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
+        const outOfCredits = exit === 'failed' && processFailure?.kind === 'usage_limit';
+        // Like a timeout, a usage limit leaves no error on the execution: it is not a retryable failure and ends the streak.
+        const failure = outOfCredits ? undefined : { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}${processFailure?.detail ? `: ${processFailure.detail}` : ''})`, auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
         // The ends with their own handling carry no failure from the runner: their kind follows from the exit.
         const endFailure: Partial<Record<AgentExit, Pick<AgentFailure, 'kind' | 'detail'>>> = {
           failed: { kind: 'unknown', detail: '' },
@@ -255,6 +257,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
           .run();
         if (failure) db.update(epics).set({ lastError: failure }).where(eq(epics.id, epic.id)).run();
         if (exit === 'ok') await settle(db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
+        else if (outOfCredits) {
+          // Retrying the same option only burns the retries; a person decides how to go on.
+          toNeedsHuman(db, epic.id, 'usage_limit', `the ${stage} execution ran out of usage on option ${task.option ?? task.harness}${processFailure.detail ? `: ${processFailure.detail}` : ''}`);
+          await freeSlot();
+        }
         else if (exit === 'failed' || exit === 'session_unavailable') await retry(epic.id);
         else if (exit === 'auth_failed') await stopProfile(task.profile);
         else if (exit === 'timed_out') {

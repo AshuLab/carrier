@@ -36,20 +36,13 @@ struct SidebarView: View {
             if let snapshot, open == .carrier {
                 // a row of its own, not selectable, so a click in the field does not select the card
                 if searching {
-                    TextField("Search epics", text: $query)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($searchFocused)
-                        .onKeyPress(.escape) {
-                            searching = false
-                            return .handled
-                        }
-                        .selectionDisabled()
-                        .flatSidebarRow()
+                    SidebarSearchField(placeholder: "Search epics", text: $query, focus: $searchFocused, close: { searching = false })
                 }
                 let queried = query.trimmingCharacters(in: .whitespaces).isEmpty == false
                 let groups = sidebarGroups(snapshot, by: groupBy, query: query)
-                if groups.isEmpty && queried {
-                    Text("No epics match").foregroundStyle(.secondary).selectionDisabled().flatSidebarRow()
+                let total = sidebarGroups(snapshot, by: groupBy).reduce(0) { $0 + $1.count }
+                if case .noMatch(let typed) = SidebarListState(shown: groups.reduce(0) { $0 + $1.count }, of: total, query: query) {
+                    SidebarNoResults(query: typed, clear: { query = "" })
                 }
                 ForEach(groups.indices, id: \.self) { index in
                     let group = groups[index]

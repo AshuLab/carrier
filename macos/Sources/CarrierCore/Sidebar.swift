@@ -63,6 +63,24 @@ public struct SidebarRow: Equatable {
     public var selection: Selection { .epic(repo: repo, issue: issue) }
 }
 
+/// What a sidebar section's list says: it has rows, has nothing to list, or has rows but none match what was typed. `shown` is how
+/// many rows the query leaves, `total` how many the list has without it.
+public enum SidebarListState: Equatable {
+    case rows, empty
+    case noMatch(query: String)
+
+    public init(shown: Int, of total: Int, query: String) {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if shown > 0 {
+            self = .rows
+        } else if total > 0 && query.isEmpty == false {
+            self = .noMatch(query: query)
+        } else {
+            self = .empty
+        }
+    }
+}
+
 public struct SidebarGroup: Equatable {
     public var title: String
     public var rows: [SidebarRow]

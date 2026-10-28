@@ -50,19 +50,13 @@ struct SessionsRows: View {
         .onChange(of: searchRequest) { if searchRequest?.section == .sessions { openSearch() } }
         if open {
             if let text = Binding($query) {
-                TextField("Search sessions", text: text)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($searching)
-                    .onKeyPress(.escape) {
-                        query = nil
-                        return .handled
-                    }
-                    .selectionDisabled()
-                    .flatSidebarRow()
+                SidebarSearchField(placeholder: "Search sessions", text: text, focus: $searching, close: { query = nil })
             }
             let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", now: Date(), calendar: .current)
-            if groups.isEmpty {
-                Text(sessions.open == 0 ? "No sessions yet" : "No sessions match").foregroundStyle(.secondary).selectionDisabled().flatSidebarRow()
+            switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
+            case .empty: Text("No sessions yet").foregroundStyle(.secondary).selectionDisabled().flatSidebarRow()
+            case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
+            case .rows: EmptyView()
             }
             ForEach(groups, id: \.title) { group in
                 if sort == .workspace {

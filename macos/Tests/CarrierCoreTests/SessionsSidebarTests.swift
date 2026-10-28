@@ -175,3 +175,25 @@ private func found(_ rows: [SessionRow], _ query: String) -> [String] {
     #expect(archivedCount([row("1", "web", archived: true), row("2", "web", archived: true)]) == 2)
     #expect(archivedCount(sampleSessions(now: now)) == 2)
 }
+
+@Test func aListWithRowsIsRowsWhateverTheQuery() {
+    #expect(SidebarListState(shown: 3, of: 5, query: "") == .rows)
+    #expect(SidebarListState(shown: 1, of: 5, query: "web") == .rows)
+}
+
+@Test func aListWithNothingToListIsEmptyEvenWithAQuery() {
+    #expect(SidebarListState(shown: 0, of: 0, query: "") == .empty)
+    #expect(SidebarListState(shown: 0, of: 0, query: "web") == .empty)
+}
+
+@Test func aQueryThatKeepsNoRowOfAListThatHasSomeIsNoMatchWithWhatWasTyped() {
+    #expect(SidebarListState(shown: 0, of: 4, query: "  zzz \n") == .noMatch(query: "zzz"))
+}
+
+@Test func aBlankQueryNeverMakesNoMatch() {
+    #expect(SidebarListState(shown: 0, of: 4, query: "   ") == .empty)
+}
+
+@Test func theNoResultsLineSaysWhatWasTyped() {
+    #expect(EmptyState.noResultsLine(for: "zzz") == "Nothing matches “zzz”")
+}

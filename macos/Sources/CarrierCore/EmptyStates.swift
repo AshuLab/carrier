@@ -1,9 +1,9 @@
-// The twelve places that can have nothing to show, with their SF Symbol, title and one line
+// The thirteen places that can have nothing to show, with their SF Symbol, title and one line
 // (docs/specs/macos-app-redesign.md, story 24; the wording is the mockup's gallery).
 
 public enum EmptyState: CaseIterable {
     case reviewNotStarted, noFilesChanged, noSlices, waitingForSlot, nothingWaiting, nothingNeedsYou, idle, nothingToTest, noActivity
-    case welcome, noSessions, nothingArchived
+    case welcome, noSessions, nothingArchived, noResults
 
     public var icon: String {
         switch self {
@@ -19,6 +19,8 @@ public enum EmptyState: CaseIterable {
         case .welcome: "house"
         case .noSessions: "bubble.left.and.bubble.right"
         case .nothingArchived: "archivebox"
+        // the nearest SF Symbol to the exploration's struck magnifier
+        case .noResults: "minus.magnifyingglass"
         }
     }
 
@@ -36,6 +38,7 @@ public enum EmptyState: CaseIterable {
         case .welcome: "Welcome"
         case .noSessions: "No sessions yet"
         case .nothingArchived: "Nothing archived"
+        case .noResults: "No results"
         }
     }
 
@@ -53,6 +56,10 @@ public enum EmptyState: CaseIterable {
         case .welcome: "Pick Sessions or Carrier in the sidebar."
         case .noSessions: "Sessions you start are listed here."
         case .nothingArchived: "Archived sessions are kept here."
+        case .noResults: "Nothing matches your search."
         }
     }
+
+    /// The no-results line of a list searched for `query`, which is what it says in the sidebar.
+    public static func noResultsLine(for query: String) -> String { "Nothing matches “\(query)”" }
 }

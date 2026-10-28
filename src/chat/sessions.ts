@@ -12,6 +12,7 @@ import type { Git } from './git.ts';
 import { ChatRefused, type ChatChoice, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
+import { checkName, suggestName } from './names.ts';
 import { fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
@@ -353,6 +354,12 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
 
     /** Fetches `origin` of a folder and answers what it is after it. */
     fetch: async ({ folder }: { folder: string }) => fetchFolder(git, checkFolder(folder, config.root)),
+
+    /** A free name for a worktree of a folder, from the StarCraft word lists. */
+    suggestName: async ({ folder }: { folder: string }) => suggestName(git, checkFolder(folder, config.root)),
+
+    /** Whether a typed worktree name is valid and free. */
+    checkName: async ({ folder, name }: { folder: string; name: string }) => checkName(git, checkFolder(folder, config.root), name),
 
     /** Closes every live session: the host's stop. */
     async closeAll() {

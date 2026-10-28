@@ -255,3 +255,38 @@ test('fetch runs git fetch origin --prune with a 60 second limit, answers the re
   await expect(client.request('fetch', { folder: join(root, 'missing') })).rejects.toThrow('does not exist');
   client.close();
 });
+
+test('suggestName and checkName answer a free name, say why a name is invalid or taken in each of the three places, and refuse what is not a repository', async () => {
+  vi.stubEnv('CARRIER_HOME', join(root, 'home'));
+  stops.push(async () => void vi.unstubAllEnvs());
+  const git = new FakeGit();
+  await host(new FakeClock(), new FakeChatRunner(), git);
+  mkdirSync(join(root, 'repo'));
+  const repo = realpathSync(join(root, 'repo'));
+  git.repos.set(repo, { head: 'main', branches: ['main', 'carrier/local-one'], remoteBranches: ['main', 'carrier/remote-one'], origin: 'git@github.com:acme/app.git' });
+  mkdirSync(join(root, 'home', 'chat', 'worktrees', 'acme', 'app', 'folder-one'), { recursive: true });
+  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  expect(client.hello.capabilities).toEqual(expect.arrayContaining(['suggestName', 'checkName']));
+
+  const suggested = (await client.request('suggestName', { folder: repo })) as { name: string };
+  expect(suggested.name).toMatch(/^[a-z]+-[a-z]+-[a-z]+$/);
+  expect(await client.request('checkName', { folder: repo, name: suggested.name })).toEqual({ valid: true, free: true });
+  expect(await client.request('checkName', { folder: repo, name: 'fresh-name' })).toEqual({ valid: true, free: true });
+  expect(await client.request('checkName', { folder: repo, name: 'local-one' })).toEqual({ valid: true, free: false, reason: 'A branch called carrier/local-one already exists' });
+  expect(await client.request('checkName', { folder: repo, name: 'remote-one' })).toEqual({ valid: true, free: false, reason: 'The remote already has a branch called carrier/remote-one' });
+  expect(await client.request('checkName', { folder: repo, name: 'folder-one' })).toEqual({ valid: true, free: false, reason: 'A folder for that worktree already exists' });
+  expect(await client.request('checkName', { folder: repo, name: 'Bad Name' })).toMatchObject({ valid: false, free: false, reason: expect.stringContaining('lowercase') });
+  expect(await client.request('checkName', { folder: repo, name: 'a..b' })).toMatchObject({ valid: false, free: false, reason: expect.stringContaining('two dots') });
+  expect(await client.request('checkName', { folder: repo, name: 'x'.repeat(61) })).toMatchObject({ valid: false });
+
+  const plain = join(root, 'plain');
+  mkdirSync(plain);
+  git.repos.set(join(root, 'bare'), { head: null, branches: [], bare: true });
+  mkdirSync(join(root, 'bare'));
+  for (const folder of [plain, realpathSync(join(root, 'bare'))]) {
+    await expect(client.request('suggestName', { folder })).rejects.toThrow('Worktrees need a git repository');
+    await expect(client.request('checkName', { folder, name: 'fine' })).rejects.toThrow('Worktrees need a git repository');
+  }
+  await expect(client.request('suggestName', { folder: join(root, 'missing') })).rejects.toThrow('does not exist');
+  client.close();
+});

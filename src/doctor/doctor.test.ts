@@ -1,4 +1,6 @@
-import { expect, test, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
+import { afterEach, expect, test, vi } from 'vitest';
 import { defaults, loadConfig } from '../config/load.ts';
 import type { Config } from '../config/schema.ts';
 import { runDoctor, type Check, type DoctorDeps } from './doctor.ts';
@@ -21,12 +23,24 @@ const config = (overrides: Record<string, unknown> = {}): Config => {
   return result.config;
 };
 
+// A stand-in for the agy process: prints what it is told and ends only when `end` says so.
+function fakeAgy({ stdout = '', stderr = '', end = false }: { stdout?: string; stderr?: string; end?: boolean }) {
+  const process = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn(() => { process.emit('close'); }) });
+  setImmediate(() => {
+    if (stdout) process.stdout.write(stdout);
+    if (stderr) process.stderr.write(stderr);
+    if (end) process.emit('close');
+  });
+  return process;
+}
+
 const deps = (overrides: Partial<DoctorDeps> = {}): DoctorDeps => ({
   which: () => true,
   mint: async () => 'secret-token',
   listLabels: async () => [],
   localModels: async () => [],
   loggedIn: async () => true,
+  startAgy: () => fakeAgy({ stdout: '{"status":"SUCCESS"}', end: true }),
   ...overrides,
 });
 
@@ -269,4 +283,55 @@ test('an option whose CLI is not installed is not asked for its login', async ()
   const loggedIn = vi.fn(async () => true);
   await runDoctor(config(), deps({ which: (command) => command !== 'claude', loggedIn }));
   expect(loggedIn).toHaveBeenCalledTimes(1);
+});
+
+// The Antigravity login: agy has no status command, so the check reads the first stderr line of `agy -p /usage`.
+afterEach(() => vi.useRealTimers());
+const agyChecks = (checks: Check[]) => checks.filter((c) => c.name.startsWith('agy option'));
+const onlyAgy = { agentOptions: { agy: { harness: 'agy', model: 'm' } }, agents: { author: { profile: 'a', option: 'agy' }, reviewer: { profile: 'b', option: 'agy' } } };
+
+test('an Antigravity option whose /usage answers SUCCESS is logged in', async () => {
+  const startAgy = vi.fn(() => fakeAgy({ stdout: '{"status":"SUCCESS"}', end: true }));
+  const checks = await runDoctor(config(onlyAgy), deps({ startAgy }));
+  expect(startAgy).toHaveBeenCalledTimes(1);
+  expect(agyChecks(checks)).toEqual([{ name: 'agy option agy is logged in', status: 'ok' }]);
+});
+
+test('Authentication required on the first stderr line is logged out at once: the process is killed, not waited for, and the login URL stays out', async () => {
+  const process = fakeAgy({ stderr: 'Authentication required. Open https://accounts.example/login?code=SECRET\n' }); // never ends by itself
+  const checks = await runDoctor(config(onlyAgy), deps({ startAgy: () => process }));
+  expect(process.kill).toHaveBeenCalledTimes(1);
+  expect(agyChecks(checks)).toEqual([{ name: 'agy option agy is logged in', status: 'fail', detail: 'not logged in', fix: 'log in with: agy' }]);
+  expect(JSON.stringify(checks)).not.toContain('SECRET');
+});
+
+test('an Antigravity option that is not a role option only warns when logged out', async () => {
+  const spare = { agentOptions: { ...base.agentOptions, agy: { harness: 'agy', model: 'm' } } };
+  const checks = await runDoctor(config(spare), deps({ startAgy: () => fakeAgy({ stderr: 'Authentication required\n' }) }));
+  expect(failed(checks)).toEqual([]);
+  expect(agyChecks(checks)).toMatchObject([{ status: 'warn', detail: 'not logged in', fix: 'log in with: agy' }]);
+});
+
+test('an agy that neither succeeds nor asks for login within the time limit is killed and only a warning, even for a role option', async () => {
+  vi.useFakeTimers();
+  const process = fakeAgy({});
+  const done = runDoctor(config(onlyAgy), deps({ startAgy: () => process }));
+  await vi.advanceTimersByTimeAsync(60_000);
+  const checks = await done;
+  expect(process.kill).toHaveBeenCalled();
+  expect(failed(checks)).toEqual([]);
+  expect(agyChecks(checks)).toMatchObject([{ status: 'warn', detail: expect.stringContaining('could not tell') }]);
+});
+
+test('an agy that ends without SUCCESS or the login line could not be told, and one that cannot start is reported too', async () => {
+  const ended = await runDoctor(config(onlyAgy), deps({ startAgy: () => fakeAgy({ stdout: 'garbage', end: true }) }));
+  expect(agyChecks(ended)).toMatchObject([{ status: 'warn', detail: expect.stringContaining('could not tell') }]);
+  const broken = await runDoctor(config(onlyAgy), deps({ startAgy: () => { throw new Error('spawn agy EACCES'); } }));
+  expect(agyChecks(broken)).toMatchObject([{ status: 'warn', detail: expect.stringContaining('could not run agy') }]);
+});
+
+test('an Antigravity option whose CLI is not installed is not started', async () => {
+  const startAgy = vi.fn(() => fakeAgy({ end: true }));
+  await runDoctor(config(onlyAgy), deps({ which: (command) => command !== 'agy', startAgy }));
+  expect(startAgy).not.toHaveBeenCalled();
 });

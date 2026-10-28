@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -7,6 +7,7 @@ import type { Config } from '../config/schema.ts';
 import { connectControl } from '../terminal/cli/control-client.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { acquireLock } from '../storage/lock.ts';
+import { FakeChatRunner } from './fake.ts';
 import { HostBusy, startChatHost } from './host.ts';
 
 let root: string;
@@ -21,9 +22,9 @@ afterEach(async () => {
 });
 
 const config = () => ({ root, logLevel: 'info' }) as Config;
-async function host(clock = new FakeClock()) {
+async function host(clock = new FakeClock(), claude = new FakeChatRunner()) {
   const exit = vi.fn();
-  const started = await startChatHost(config(), { installLogging: () => {}, clock, exit, signals: false });
+  const started = await startChatHost(config(), { installLogging: () => {}, clock, exit, signals: false, runners: { claude }, binaryFound: () => true });
   stops.push(started.stop);
   return { ...started, exit, clock };
 }
@@ -81,4 +82,36 @@ test('the host exits a minute after its start, and a client connected keeps it u
     await clock.advance(60_000);
     expect(exit).toHaveBeenCalledWith(0);
   });
+});
+
+test('a client opens a conversation, sends, reads the events by cursor and closes it, all over the socket; the stop closes what is live', async () => {
+  const claude = new FakeChatRunner();
+  claude.setup = (c) => {
+    c.reply = (text) => c.emit({ kind: 'assistant', text: `re: ${text}` }, { kind: 'turn_end', outcome: 'ok' });
+  };
+  const { exit } = await host(new FakeClock(), claude);
+  const work = join(root, 'w');
+  mkdirSync(work);
+  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  expect(client.hello.capabilities).toEqual(expect.arrayContaining(['agents', 'open', 'send', 'events', 'close', 'list']));
+  expect(await client.request('agents')).toEqual([
+    { name: 'claude', harness: 'claude', found: true },
+    { name: 'codex', harness: 'codex', found: true },
+  ]);
+  await expect(client.request('open', { agent: 'claude', folder: join(root, 'chat') })).resolves.toBeDefined(); // the chat folder is the host's own, not a forbidden one
+  await expect(client.request('open', { agent: 'claude', folder: join(root, 'repos') })).rejects.toThrow('does not exist');
+  mkdirSync(join(root, 'repos'));
+  await expect(client.request('open', { agent: 'claude', folder: join(root, 'repos') })).rejects.toThrow('inside Carrier');
+  await expect(client.request('open', { agent: 'codex', folder: work })).rejects.toThrow('no chat runner for codex');
+  const { session } = (await client.request('open', { agent: 'claude', folder: work })) as { session: { id: string } };
+  await client.request('send', { sessionId: session.id, text: 'hi' });
+  const reply = (await client.request('events', { sessionId: session.id, limit: 50 })) as any;
+  expect(reply.events.map((e: any) => [e.kind, e.text])).toEqual([['user', 'hi'], ['assistant', 're: hi'], ['turn_end', undefined]]);
+  expect(reply.session).toMatchObject({ id: session.id, title: 'hi', state: 'idle' });
+  expect(((await client.request('list')) as any).sessions).toHaveLength(2);
+  await client.request('close', { sessionId: session.id });
+  expect(claude.conversations.map((c) => c.closed)).toEqual([false, true]);
+  await client.request('stop');
+  await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(0));
+  expect(claude.conversations.map((c) => c.closed)).toEqual([true, true]);
 });

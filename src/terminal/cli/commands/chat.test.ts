@@ -1,7 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Readable } from 'node:stream';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { FakeChatRunner } from '../../../chat/fake.ts';
 import { startChatHost } from '../../../chat/host.ts';
 import type { Config } from '../../../config/schema.ts';
 import { FakeClock } from '../../../orchestration/fake.ts';
@@ -24,9 +26,10 @@ afterEach(async () => {
 });
 
 const config = () => ({ root, logLevel: 'info' }) as Config;
+const claude = new FakeChatRunner();
 const host = async () => {
   const exit = vi.fn();
-  const { stop } = await startChatHost(config(), { installLogging: () => {}, clock: new FakeClock(), exit, signals: false });
+  const { stop } = await startChatHost(config(), { installLogging: () => {}, clock: new FakeClock(), exit, signals: false, runners: { claude } });
   stops.push(stop);
   return exit;
 };
@@ -68,4 +71,47 @@ test('--stop ends the host and says so; with none it says none runs', async () =
 
 test('without --list or --stop it says how to use it', async () => {
   await expect(chatCommand({}, config(), '/abs/config.json')).rejects.toMatchObject({ code: 2 });
+});
+
+// The person's lines, one per read; the pace of the answer is the fake agent's.
+const typed = (...lines: string[]) => Readable.from(lines.map((line) => `${line}\n`));
+
+test('--workspace opens a conversation, prints the answer as it streams and a tool call as one line, asks again, and /quit leaves the session open', async () => {
+  await host();
+  const work = join(root, 'work');
+  mkdirSync(work);
+  claude.conversations.length = 0;
+  claude.setup = (conversation) => {
+    conversation.reply = (text, c) => {
+      c.emit({ kind: 'delta', text: 'You said ' });
+      setTimeout(() => {
+        c.emit({ kind: 'delta', text: text.toUpperCase() });
+        c.emit({ kind: 'assistant', text: `You said ${text.toUpperCase()}.` });
+        c.emit({ kind: 'tool_start', callId: '1', tool: 'Bash', arg: 'ls -la' }, { kind: 'tool_end', callId: '1', tool: 'Bash', status: 'ok' });
+        c.emit({ kind: 'assistant', text: 'Done' }, { kind: 'turn_end', outcome: 'ok' });
+      }, 30);
+    };
+  };
+  expect(await chatCommand({ workspace: work }, config(), '/abs/config.json', { input: typed('', 'hello', 'again', '/quit'), pollMs: 5 })).toBe(0);
+  const out = written.join('');
+  expect(out).toContain('with claude in ');
+  expect(out).toContain('> You said HELLO.\n  [Bash ls -la]\nDone\n> You said AGAIN.\n  [Bash ls -la]\nDone\n> \n');
+  expect(claude.conversations[0]!.sent).toEqual(['hello', 'again']);
+  expect(claude.conversations[0]!.closed).toBe(false); // /quit leaves, the session stays open
+  expect(claude.opened[0]!.folder).toContain('work');
+});
+
+test('--workspace with --agent names the agent, and a refusal of the host is shown in words', async () => {
+  await host();
+  await expect(chatCommand({ workspace: join(root, 'missing'), agent: 'claude' }, config(), '/abs/config.json', { input: typed('/quit') })).rejects.toMatchObject({ code: 1, lines: ['That folder does not exist'] });
+  await expect(chatCommand({ workspace: root, agent: 'nobody' }, config(), '/abs/config.json', { input: typed('/quit') })).rejects.toMatchObject({ lines: ['There is no chat agent named "nobody"'] });
+});
+
+test('--workspace starts the host when none answers', async () => {
+  const start = vi.fn(async () => {
+    await host();
+    return 1;
+  });
+  expect(await chatCommand({ workspace: root }, config(), '/abs/config.json', { start, input: typed('/quit') })).toBe(0);
+  expect(start).toHaveBeenCalledTimes(1);
 });

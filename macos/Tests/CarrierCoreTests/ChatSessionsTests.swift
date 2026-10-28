@@ -78,6 +78,7 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     var calls: [Bool] = []
 
     func agents() async throws -> [ChatAgent] { [] }
+    func open(agent: String, folder: String) async throws -> String { "" }
     func list(archived wanted: Bool) async throws -> [ChatSession] {
         calls.append(wanted)
         guard let answer = wanted ? archived : active else { throw ControlError.closed }
@@ -87,6 +88,7 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     func resume(_ id: String) async throws {}
     func send(_ id: String, _ text: String) async throws {}
     func interrupt(_ id: String) async throws {}
+    func answer(_ id: String, approval: String, choice: String) async throws {}
     func setOption(_ id: String, option: String, value: String) async throws {}
     var changes: [String] = []
     var refuse: [String: Error] = [:]

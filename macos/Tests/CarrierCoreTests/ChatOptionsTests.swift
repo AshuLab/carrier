@@ -61,12 +61,14 @@ private final class OptionsHost: ChatHost, @unchecked Sendable {
     var changes: [String] = []
 
     func agents() async throws -> [ChatAgent] { [] }
+    func open(agent: String, folder: String) async throws -> String { "" }
     func list(archived: Bool) async throws -> [ChatSession] { [] }
     func resume(_ id: String) async throws {}
     func send(_ id: String, _ text: String) async throws {}
     func interrupt(_ id: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
+    func answer(_ id: String, approval: String, choice: String) async throws {}
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents { ChatEvents(events: [], cursor: after, options: options) }
     func setOption(_ id: String, option: String, value: String) async throws {
         changes.append("\(option)=\(value)")

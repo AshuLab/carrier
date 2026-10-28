@@ -8,8 +8,9 @@ public enum FixtureError: Error, Equatable {
 /// A fake Carrier for the app's `--fixture` mode: a control server on a temporary socket that answers the snapshot and the
 /// requests from the golden files (macos/Tests/Fixtures), and `availableRepos` with a made-up list, so the app is exercised through its real client path with no engine.
 /// A second socket, `<home>/chat/chat.sock`, is a fake chat host: `agents` and `list` from `chat-agents.json` and `chat-list.json`,
-/// `events` from the `chat-events-*.json` files (each names its session; a listed session with none has no events), `archive` and `delete`
-/// on the listed sessions (kept in memory, refused for a working or waiting one as the host does), anything else an error.
+/// `events` from the `chat-events-*.json` files (each names its session; a listed session with none has no events) with the approvals
+/// asked and not answered as pending, `answer`, which records the answer as an event, `archive` and `delete` on the listed sessions
+/// (kept in memory, refused for a working or waiting one as the host does); anything else is an error.
 /// It owns a temporary home (`home`) holding a `config.json` whose `root` is the home itself, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 public final class FixtureServer {
@@ -28,7 +29,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"events\",\"setOption\",\"archive\",\"delete\"]}\n".utf8)
+    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\"]}\n".utf8)
     private let data: [String: Data]
     private let hello: Data
     private var stopped = false
@@ -204,14 +205,31 @@ public final class FixtureServer {
             }
             let after = request?["after"] as? Int ?? 0
             let limit = min(max(request?["limit"] as? Int ?? 200, 1), 200)
+            lock.lock()
             let conversation = longChat.map { ($0, "") } ?? chatConversations[session] ?? ([], "")
+            lock.unlock()
             let page = Array(conversation.0.filter { ($0["id"] as? Int ?? 0) > after }.prefix(limit))
             let reply: [String: Any] = [
-                "events": page, "cursor": page.last?["id"] as? Int ?? after, "streaming": conversation.1, "approvals": [], "options": chatOptions[session] ?? [],
+                "events": page, "cursor": page.last?["id"] as? Int ?? after, "streaming": conversation.1,
+                "approvals": Self.pending(conversation.0), "options": chatOptions[session] ?? [],
                 "session": ["state": locked { chatSessions.first { $0["id"] as? String == session }?["state"] as? String } ?? "idle"],
             ]
             guard let body = try? JSONSerialization.data(withJSONObject: reply, options: .sortedKeys) else { break }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
+        case "answer":
+            guard let session = request?["sessionId"] as? String, let approval = request?["approvalId"] as? String, let choice = request?["choiceId"] as? String else { break }
+            lock.lock()
+            defer { lock.unlock() }
+            var events = chatConversations[session]?.events ?? []
+            guard let asked = Self.pending(events).first(where: { $0["approvalId"] as? String == approval }) else {
+                return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"That approval is not pending: it is unknown or was already answered\"}")
+            }
+            guard (asked["choices"] as? [[String: Any]] ?? []).contains(where: { $0["id"] as? String == choice }) else {
+                return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"That is not one of the choices\"}")
+            }
+            events.append(["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "approval_answered", "approvalId": approval, "choiceId": choice])
+            chatConversations[session]?.events = events
+            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
         case "setOption":
             guard let session = request?["sessionId"] as? String, let option = request?["option"] as? String, let value = request?["value"] as? String,
                 let at = chatOptions[session]?.firstIndex(where: { $0["id"] as? String == option })
@@ -244,6 +262,12 @@ public final class FixtureServer {
         lock.lock()
         defer { lock.unlock() }
         return body()
+    }
+
+    /// The approvals asked and not answered yet, as the host lists them in `events`.
+    private static func pending(_ events: [[String: Any]]) -> [[String: Any]] {
+        let answered = Set(events.filter { $0["kind"] as? String == "approval_answered" }.compactMap { $0["approvalId"] as? String })
+        return events.filter { $0["kind"] as? String == "approval" && answered.contains($0["approvalId"] as? String ?? "") == false }
     }
 
     private static func line(_ text: String) -> Data { Data((text + "\n").utf8) }

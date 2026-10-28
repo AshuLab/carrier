@@ -16,6 +16,13 @@ import SwiftUI
     var collapse = SidebarCollapse()
     /// The chat host's sessions (`ChatSessionsPoller`); the + follows the host (`ChatMonitor`).
     var sessions = Sessions()
+    /// The draft of a new session; it starts the chat host when it is not running (#503) before it opens the session.
+    // built on the main thread, where the app creates its window
+    let newSession = MainActor.assumeIsolated {
+        NewSessionModel(host: SocketChatHost()) {
+            await withCheckedContinuation { continuation in ChatHostStarter.shared.ensureRunning { continuation.resume(returning: $0) } }
+        }
+    }
 }
 
 private extension ShortcutModifiers {
@@ -134,6 +141,14 @@ final class WindowController: NSObject, NSWindowDelegate {
         return lines.joined(separator: "\n")
     }
 
+    /// For `--smoke-window`: shows the draft of a new session and says what it offers, as the view reads it from the chat host.
+    @MainActor func newSessionStructure() async -> String {
+        model.shell.selection = .newSession
+        await model.newSession.load()
+        let draft = model.newSession
+        return "new session: \"\(draft.sentence)\", agents \(draft.agents.map { choice in choice.note.map { "\(choice.name) (\($0))" } ?? choice.name }), agent \(draft.agent ?? "none"), recent \(draft.recent.map(\.name))"
+    }
+
     /// For `--smoke-window`: what the open window looks like, one line each: the minimum content size, the width of each
     /// column of the split view, the scroll pockets (the system's blur under a bar over a scroll view: the epic's pipeline
     /// makes one in the centre column), the toolbar's items, how the transcript is laid out and the time to merge 5,000 events.
@@ -186,6 +201,8 @@ final class WindowController: NSObject, NSWindowDelegate {
             guard let self, let window, window.isKeyWindow, event.window === window,
                 let action = shortcutAction(key: event.charactersIgnoringModifiers ?? "", modifiers: .init(event.modifierFlags))
             else { return event }
+            // the + is off, with its reason, when no session can start: ⌘N does what it does
+            if action == .select(.newSession), self.model.sessions.canStart == false { return nil }
             self.model.shell.perform(action)
             return nil
         }

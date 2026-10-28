@@ -16,7 +16,11 @@ struct ConversationView: View {
     @FocusState private var boxFocused: Bool
     @State private var optionsOpen = false
 
-    init(sessionId: String) {
+    /// Where a first message that failed to send is handed over, by the session the draft opened.
+    private let draft: NewSessionModel?
+
+    init(sessionId: String, draft: NewSessionModel? = nil) {
+        self.draft = draft
         _model = State(initialValue: ConversationModel(host: SocketChatHost(), sessionId: sessionId))
     }
 
@@ -28,7 +32,8 @@ struct ConversationView: View {
                     ForEach(model.rows) { row in
                         FeedRowView(
                             row: row, opened: $opened, agent: model.agent, offersWayOut: row.id == open,
-                            continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } }
+                            continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
+                            answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
                         )
                     }
                 } else if model.failure == nil {
@@ -43,7 +48,10 @@ struct ConversationView: View {
         // the end of the conversation is what shows, and stays in view as it grows
         .defaultScrollAnchor(.bottom)
         .safeAreaInset(edge: .bottom, spacing: 0) { if model.archived { archivedBox } else { box } }
-        .task { await model.run() }
+        .task {
+            if let failed = draft?.takeFailure(of: model.sessionId) { model.showRefusal(of: failed.text, failed.reason) }
+            await model.run()
+        }
     }
 
     /// An archived session is read only: a notice with Resume, which takes it out of the archive (the next poll gives the box back).
@@ -199,6 +207,7 @@ private struct FeedRowView: View {
     let offersWayOut: Bool
     let continueTurn: () -> Void
     let retry: () -> Void
+    let answer: (String, String) -> Void
 
     var body: some View {
         switch row {
@@ -217,6 +226,10 @@ private struct FeedRowView: View {
             Text(text).font(.system(size: 11)).foregroundStyle(.tertiary).textSelection(.enabled)
         case .tools(let id, let group):
             ChatToolGroupView(id: id, group: group, opened: $opened)
+        case .approval(_, let card):
+            ApprovalCardView(card: card, answer: answer)
+        case .decided(_, let text, let allow):
+            ApprovalDecidedView(text: text, allow: allow)
         case .line(_, let text):
             Text(text).font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         case .error(_, let text):

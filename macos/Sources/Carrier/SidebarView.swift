@@ -1,14 +1,14 @@
 import CarrierCore
 import SwiftUI
 
-/// The sidebar's list: the Home row, Sessions, Archive, then Carrier with the epics in groups under it; Settings at the bottom. The five
-/// are sidebar sections: the view draws their fill, so the list's own selection only ever marks a session or an epic.
+/// The sidebar's list: the Home row, Sessions, then Carrier with the epics in groups under it; Archive and Settings are fixed in the foot.
+/// The five are sidebar sections: the view draws their fill, so the list's own selection only ever marks a session or an epic.
 struct SidebarView: View {
     let snapshot: PanelSnapshot?
     let state: ConnectionState?
     let sessions: Sessions
     @Binding var selection: Selection
-    /// Which of Sessions and Carrier is unfolded, nil when both are folded.
+    /// Which of Sessions, Carrier and Archive is unfolded, nil when all are folded.
     @Binding var open: OpenSection?
     @Binding var groupBy: GroupBy
     @Binding var collapse: SidebarCollapse
@@ -28,11 +28,6 @@ struct SidebarView: View {
                 sessions: sessions, selected: selection == .sessions, select: { selection = .sessions },
                 open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }), searchRequest: searchRequest
             )
-            // its own row, outside Sessions, so folding Sessions does not hide it
-            let archived = archivedCount(sessions.rows)
-            SidebarSectionRow(title: "Archive", icon: "archivebox", selected: selection == .archive, action: { selection = .archive }, actions: {
-                Text("\(archived)").font(.callout.monospacedDigit()).foregroundStyle(.secondary).accessibilityLabel("\(archived) archived")
-            })
             CarrierRow(
                 state: state, selected: selection == .carrier, unfolded: open == .carrier, hasEpics: epicCount > 0,
                 select: { selection = .carrier }, groupBy: $groupBy, searching: $searching
@@ -80,11 +75,16 @@ struct SidebarView: View {
         }
         .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 320)
         .safeAreaInset(edge: .bottom) {
-            SidebarSectionRow(title: "Settings", icon: "gearshape", selected: selection == .settings, action: { selection = .settings })
-                .padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 8)
-                // opaque enough that the list scrolls under it without showing through
-                .background(.regularMaterial)
-                .overlay(alignment: .top) { Divider() }
+            // Archive above the divider and Settings alone under it; both stay while the list above scrolls
+            VStack(spacing: 0) {
+                ArchiveSection(sessions: sessions, selection: $selection, open: open == .archive, searchRequest: searchRequest)
+                    .padding(.horizontal, 8).padding(.vertical, 8)
+                Divider()
+                SidebarSectionRow(title: "Settings", icon: "gearshape", selected: selection == .settings, action: { selection = .settings })
+                    .padding(.horizontal, 8).padding(.vertical, 8)
+            }
+            // opaque enough that the list scrolls under it without showing through
+            .background(.regularMaterial)
         }
     }
 }

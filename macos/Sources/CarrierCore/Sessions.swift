@@ -64,34 +64,48 @@ public enum SessionSort: String, CaseIterable { case workspace, age, status }
 public func sessionGroups(
     _ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", now: Date = Date(), calendar: Calendar = .current
 ) -> [SessionGroup] {
-    let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    let listed = rows.filter {
-        $0.archived == false
-            && (query.isEmpty || [$0.title, $0.workspace, $0.agent].contains { $0.localizedCaseInsensitiveContains(query) })
-    }
-    func group(_ title: String, _ rows: [SessionRow]) -> SessionGroup? {
-        rows.isEmpty ? nil : SessionGroup(title: title, rows: rows.sorted { $0.updatedAt > $1.updatedAt })
-    }
+    let listed = matching(rows.filter { $0.archived == false }, query)
     switch sort {
     case .workspace:
         return Dictionary(grouping: listed, by: \.workspace)
-            .compactMap { group($0.key, $0.value) }
+            .compactMap { newestFirst($0.key, $0.value) }
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     case .age:
-        let today = calendar.startOfDay(for: now)
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
-        let week = calendar.date(byAdding: .day, value: -7, to: today) ?? yesterday
-        let buckets: [(String, (Date) -> Bool)] = [
-            ("Today", { $0 >= today }),
-            ("Yesterday", { $0 >= yesterday && $0 < today }),
-            ("Last 7 days", { $0 >= week && $0 < yesterday }),
-            ("Older", { $0 < week }),
-        ]
-        return buckets.compactMap { title, contains in group(title, listed.filter { contains($0.updatedAt) }) }
+        return ageGroups(listed, now: now, calendar: calendar)
     case .status:
         let states: [(String, SessionState)] = [("Waiting for you", .waiting), ("Working", .working), ("Idle", .idle), ("Done", .done)]
-        return states.compactMap { title, state in group(title, listed.filter { $0.state == state }) }
+        return states.compactMap { title, state in newestFirst(title, listed.filter { $0.state == state }) }
     }
+}
+
+/// The archived sessions, and only those, in the age buckets of the Sessions list (Today, Yesterday, Last 7 days, Older), newest
+/// first, empty buckets left out. A non-empty `query` keeps the buckets, filtered to the rows whose title, workspace or agent contain
+/// it ignoring case.
+public func archivedGroups(_ rows: [SessionRow], query: String = "", now: Date = Date(), calendar: Calendar = .current) -> [SessionGroup] {
+    ageGroups(matching(rows.filter(\.archived), query), now: now, calendar: calendar)
+}
+
+private func matching(_ rows: [SessionRow], _ query: String) -> [SessionRow] {
+    let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    return rows.filter { query.isEmpty || [$0.title, $0.workspace, $0.agent].contains { $0.localizedCaseInsensitiveContains(query) } }
+}
+
+private func newestFirst(_ title: String, _ rows: [SessionRow]) -> SessionGroup? {
+    rows.isEmpty ? nil : SessionGroup(title: title, rows: rows.sorted { $0.updatedAt > $1.updatedAt })
+}
+
+/// Today, Yesterday, Last 7 days and Older, counted from the start of today in `calendar`.
+private func ageGroups(_ rows: [SessionRow], now: Date, calendar: Calendar) -> [SessionGroup] {
+    let today = calendar.startOfDay(for: now)
+    let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+    let week = calendar.date(byAdding: .day, value: -7, to: today) ?? yesterday
+    let buckets: [(String, (Date) -> Bool)] = [
+        ("Today", { $0 >= today }),
+        ("Yesterday", { $0 >= yesterday && $0 < today }),
+        ("Last 7 days", { $0 >= week && $0 < yesterday }),
+        ("Older", { $0 < week }),
+    ]
+    return buckets.compactMap { title, contains in newestFirst(title, rows.filter { contains($0.updatedAt) }) }
 }
 
 /// How many of the sessions are archived, for the Archive row of the sidebar.

@@ -210,3 +210,44 @@ private func found(_ rows: [SessionRow], _ query: String) -> [String] {
     let sessions = Sessions(rows: [row("1", "web")])
     #expect(SidebarListState(shown: sessionGroups(sessions.rows).count, of: sessions.open, query: "") == .rows)
 }
+
+private func archivedByAge(_ rows: [SessionRow], _ query: String = "") -> [SessionGroup] {
+    archivedGroups(rows, query: query, now: noon, calendar: utc)
+}
+
+@Test func archivedGroupsHoldOnlyArchivedRowsInTheAgeBucketsNewestFirst() {
+    let day = 86400.0
+    let groups = archivedByAge([
+        at("open", noon, archived: false), at("old", noon.addingTimeInterval(-20 * day), archived: true),
+        at("today", noon.addingTimeInterval(-60), archived: true), at("today2", noon.addingTimeInterval(-10), archived: true),
+        at("older2", noon.addingTimeInterval(-30 * day), archived: true),
+    ])
+    #expect(groups.map(\.title) == ["Today", "Older"])
+    #expect(groups.map { $0.rows.map(\.id) } == [["today2", "today"], ["old", "older2"]])
+    #expect(groups.map(\.rows.count) == [2, 2])
+}
+
+@Test func archivedGroupsWithAQueryKeepTheBucketsWithAMatchOnTitleWorkspaceOrAgent() {
+    let day = 86400.0
+    let rows = [
+        SessionRow(id: "title", title: "Spike OAuth", workspace: "a", agent: "Claude", state: .done, updatedAt: noon, archived: true),
+        SessionRow(id: "space", title: "x", workspace: "oauth-app", agent: "Claude", state: .done, updatedAt: noon.addingTimeInterval(-20 * day), archived: true),
+        SessionRow(id: "agent", title: "y", workspace: "b", agent: "Codex", state: .done, updatedAt: noon.addingTimeInterval(-3 * day), archived: true),
+        SessionRow(id: "none", title: "z", workspace: "c", agent: "Claude", state: .done, updatedAt: noon.addingTimeInterval(-3 * day), archived: true),
+        SessionRow(id: "open", title: "oauth", workspace: "oauth", agent: "Codex", state: .idle, updatedAt: noon, archived: false),
+    ]
+    #expect(archivedByAge(rows, "OAuth").map { $0.rows.map(\.id) } == [["title"], ["space"]])
+    #expect(archivedByAge(rows, "OAuth").map(\.title) == ["Today", "Older"])
+    #expect(archivedByAge(rows, "codex").map { $0.rows.map(\.id) } == [["agent"]])
+    #expect(archivedByAge(rows, "  ").flatMap(\.rows).count == 4)
+    #expect(archivedByAge(rows, "nothing like this").isEmpty)
+}
+
+@Test func archivedGroupsOfNoArchivedRowsAreEmptyAndTheListSaysNothingArchived() {
+    for rows in [[], [at("open", noon)]] {
+        #expect(archivedByAge(rows).isEmpty)
+        #expect(SidebarListState(shown: archivedByAge(rows).count, of: archivedCount(rows), query: "") == .empty)
+    }
+    let rows = [at("a", noon, archived: true)]
+    #expect(SidebarListState(shown: archivedByAge(rows, "zzz").count, of: archivedCount(rows), query: "zzz") == .noMatch(query: "zzz"))
+}

@@ -14,8 +14,8 @@ public enum Selection: Hashable {
     case settings
 }
 
-/// Which of the Sessions section and the Carrier card is unfolded; the other shows its summary.
-public enum OpenSection: String { case sessions, carrier }
+/// Which of the Sessions, Carrier and Archive sections is unfolded; the others are folded.
+public enum OpenSection: String { case sessions, carrier, archive }
 
 /// The modifier keys a shortcut can carry; only ⌘ alone makes one.
 public struct ShortcutModifiers: OptionSet {
@@ -54,17 +54,20 @@ public struct SearchRequest: Equatable {
 }
 
 @Observable public final class WindowShell {
-    /// Choosing a session or the Sessions home opens Sessions, an epic or the Carrier home opens the card; the rest leave it.
+    /// Choosing the Sessions home opens Sessions, an epic or the Carrier home opens the card, Archive opens its list; a session opens
+    /// Sessions unless it was chosen in the Archive list; the rest leave it.
     public var selection: Selection = .home {
         didSet {
             switch selection {
-            case .sessions, .session: open = .sessions
+            case .sessions: open = .sessions
+            case .session: if open != .archive { open = .sessions }
             case .carrier, .epic: open = .carrier
-            case .home, .archive, .settings: break
+            case .archive: open = .archive
+            case .home, .settings: break
             }
         }
     }
-    /// The unfolded section; nil when both are folded.
+    /// The unfolded section; nil when all are folded.
     public var open: OpenSection?
     public var sidebarShown = true
     public var inspectorShown = true

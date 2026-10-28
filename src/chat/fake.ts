@@ -23,7 +23,11 @@ export class FakeConversation implements ChatConversation {
     this.emit({ kind: 'approval_answered', approvalId, choiceId });
   }
   async interrupt() {}
-  async setOption() {}
+  async setOption(id: string, value: string) {
+    const option = this.options.find((o) => o.id === id);
+    if (option) option.current = value;
+    this.emit({ kind: 'option', id, value });
+  }
   async close() {
     this.closed = true;
   }

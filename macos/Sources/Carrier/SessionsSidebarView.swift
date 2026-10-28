@@ -26,12 +26,11 @@ struct SessionsRows: View {
 
     var body: some View {
         SidebarSectionRow(title: "Sessions", icon: "bubble.left.and.bubble.right", selected: selected, action: select, actions: {
-            // folded, the row says how many sessions wait for the person
-            if open == false, let label = sessions.waitingLabel {
-                Text("\(sessions.waiting)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.black)
+            if sessions.open > 0 {
+                Text("\(sessions.open)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
                     .padding(.horizontal, 6).padding(.vertical, 1)
-                    .background(Capsule().fill(Color.orange))
-                    .accessibilityLabel(label)
+                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                    .accessibilityLabel(sessions.openLabel)
             }
             IconButton(icon: "magnifyingglass", name: "Search sessions", shortcut: "⌘F", pressed: query != nil) {
                 if query == nil { openSearch() } else { query = nil }
@@ -61,26 +60,18 @@ struct SessionsRows: View {
                     .selectionDisabled()
                     .flatSidebarRow()
             }
-            let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", now: Date(), calendar: .current)
-            if searched {
-                let found = groups.flatMap(\.rows)
-                Text(found.isEmpty ? "No sessions match" : found.count == 1 ? "1 result" : "\(found.count) results")
-                    .font(.caption).foregroundStyle(.secondary).selectionDisabled().flatSidebarRow()
-                ForEach(found, id: \.id) { SessionRowView(row: $0, showsWorkspace: true).tag(Selection.session(id: $0.id)).flatSidebarRow() }
-            } else {
-                if groups.isEmpty {
-                    Text("No sessions yet").foregroundStyle(.secondary).selectionDisabled().flatSidebarRow()
+            if groups.isEmpty {
+                Text(sessions.open == 0 ? "No sessions yet" : "No sessions match").foregroundStyle(.secondary).selectionDisabled().flatSidebarRow()
+            }
+            ForEach(groups, id: \.title) { group in
+                if sort == .workspace {
+                    WorkspaceHeader(title: group.title, canStart: sessions.canStart)
+                } else {
+                    Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).selectionDisabled().flatSidebarRow()
                 }
-                ForEach(groups, id: \.title) { group in
-                    if sort == .workspace {
-                        WorkspaceHeader(title: group.title, canStart: sessions.canStart)
-                    } else {
-                        Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).selectionDisabled().flatSidebarRow()
-                    }
-                    ForEach(group.rows, id: \.id) {
-                        SessionRowView(row: $0, showsWorkspace: sort != .workspace).tag(Selection.session(id: $0.id)).flatSidebarRow()
-                    }
+                ForEach(group.rows, id: \.id) {
+                    SessionRowView(row: $0, showsWorkspace: sort != .workspace).tag(Selection.session(id: $0.id)).flatSidebarRow()
                 }
             }
         }
@@ -134,16 +125,10 @@ private struct SessionRowView: View {
                 Text(showsWorkspace ? "\(row.workspace) · \(row.agent)" : row.agent).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
-            if row.archived {
-                Text("Archived").font(.caption2).foregroundStyle(.secondary)
-                    .padding(.horizontal, 6).padding(.vertical, 1)
-                    .background(Capsule().strokeBorder(Color.secondary.opacity(0.5)))
-            }
             // "5m" reads aloud as "5 m": say it in words
             Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
                 .accessibilityLabel(Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date()))
         }
-        .opacity(row.archived ? 0.55 : 1)
         .padding(.horizontal, 2).padding(.vertical, 2)
         .help(row.title)
     }

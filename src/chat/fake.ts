@@ -1,3 +1,4 @@
+import { mkdirSync, rmSync } from 'node:fs';
 import type { Git, GitResult } from './git.ts';
 import { ChatRefused, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 
@@ -93,6 +94,8 @@ export type FakeRepo = {
   status?: string[];
   /** Where git says FETCH_HEAD is, when a test wants a fetch time. */
   fetchHead?: string;
+  /** The folders of the linked worktrees git made here, with their branches: `worktree add` fills it and `worktree remove` empties it. */
+  worktrees?: { path: string; branch: string }[];
 };
 
 /** A git with a table of folders and the repositories in them, which answers the commands the host sends, and plays scripted failures. */
@@ -112,6 +115,28 @@ export class FakeGit implements Git {
     const out = (...printed: string[]) => ({ ok: true as const, out: printed.map((line) => `${line}\n`).join('') });
     const no = { ok: false as const, code: 1, stderr: '' };
     const [verb, ...rest] = args[0] === '--no-optional-locks' ? args.slice(1) : args;
+    if (verb === 'rev-parse' && rest.includes('--verify')) return [...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`)].includes(rest.at(-1)!) ? out(rest.at(-1)!) : no;
+    if (verb === 'worktree' && rest[0] === 'add') {
+      // worktree add --no-track -b <branch> <path> <start>: the branch and the folder appear, as git makes them
+      const [branch, path, start] = rest.slice(3);
+      const known = [...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`)];
+      if (repo.branches.includes(branch!) || known.includes(start!) === false) return { ok: false, code: 128, stderr: 'fatal: invalid reference' };
+      mkdirSync(path!, { recursive: true });
+      repo.branches.push(branch!);
+      (repo.worktrees ??= []).push({ path: path!, branch: branch! });
+      return out();
+    }
+    if (verb === 'worktree' && rest[0] === 'remove') {
+      rmSync(rest.at(-1)!, { recursive: true, force: true });
+      repo.worktrees = (repo.worktrees ?? []).filter((worktree) => worktree.path !== rest.at(-1));
+      return out();
+    }
+    if (verb === 'worktree' && rest[0] === 'prune') return out();
+    if (verb === 'branch' && rest[0] === '-D') {
+      if (repo.branches.includes(rest[1]!) === false) return { ok: false, code: 1, stderr: 'error: branch not found' };
+      repo.branches = repo.branches.filter((name) => name !== rest[1]);
+      return out();
+    }
     if (verb === 'rev-parse') return out(String(repo.bare === true), repo.linked ? '/elsewhere/.git/worktrees/w' : '.git', repo.linked ? '/elsewhere/.git' : '.git', repo.fetchHead ?? '.git/FETCH_HEAD');
     if (verb === 'config') return repo.origin === undefined ? no : out(repo.origin);
     if (verb === 'symbolic-ref' && rest.includes('refs/remotes/origin/HEAD')) return repo.originHead === undefined ? no : out(`refs/remotes/origin/${repo.originHead}`);

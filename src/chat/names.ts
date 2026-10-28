@@ -1,5 +1,5 @@
 import { lstatSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, join, sep } from 'node:path';
 import { carrierHome } from '../config/default-path.ts';
 import type { Git } from './git.ts';
 import { ChatRefused } from './runner.ts';
@@ -32,10 +32,15 @@ export function generateName(random: () => number = Math.random): string {
   return `${pick(adjectives)}-${pick(units)}-${pick(places)}`;
 }
 
-/** Where a worktree called `name` of this repository lives: `<CARRIER_HOME>/chat/worktrees/<owner>/<repo>/<name>`, or `local/<folder name>` without a GitHub origin. */
+/** Where every session worktree lives. */
+export const worktreesDir = () => join(carrierHome(), 'chat', 'worktrees');
+
+/** Where a worktree called `name` of this repository lives: `<CARRIER_HOME>/chat/worktrees/<owner>/<repo>/<name>`, or `local/<folder name>` without a GitHub origin. A path that would lie anywhere else is refused. */
 export function worktreePath(info: WorkspaceInfo, name: string): string {
   const [owner, repo] = info.repo === null ? ['local', basename(info.folder)] : [info.repo.owner, info.repo.name];
-  return join(carrierHome(), 'chat', 'worktrees', owner, repo, name);
+  const path = join(worktreesDir(), owner, repo, name);
+  if (path.startsWith(worktreesDir() + sep) === false) throw new ChatRefused('That worktree would not be inside Carrier\'s worktrees folder');
+  return path;
 }
 
 const exists = (path: string) => {
@@ -48,7 +53,7 @@ const exists = (path: string) => {
 };
 
 /** What a name is up against in a repository: the three places where `carrier/<name>` must not exist yet. */
-async function repository(git: Git, folder: string) {
+export async function repository(git: Git, folder: string) {
   const info = await inspectFolder(git, folder);
   if (info.git === false) throw new ChatRefused('Worktrees need a git repository');
   if (info.bare) throw new ChatRefused('Worktrees need a git repository with a working folder, and this one is bare');
@@ -60,17 +65,20 @@ async function repository(git: Git, folder: string) {
     if (exists(worktreePath(info, name))) return 'A folder for that worktree already exists';
     return null;
   };
-  return { info, takenBecause };
+  /** A generated name that is free, rolled again while it is taken and never numbered. */
+  const freeName = (random: () => number = Math.random) => {
+    for (let roll = 0; roll < ROLLS; roll++) {
+      const name = generateName(random);
+      if (takenBecause(name) === null) return name;
+    }
+    throw new ChatRefused(`Every name that was tried (${ROLLS}) is already taken; type one instead`);
+  };
+  return { info, takenBecause, freeName };
 }
 
-/** A free name for a worktree of `folder` (already checked, a real path), rolled again while it is taken and never numbered. */
-export async function suggestName(git: Git, folder: string, random: () => number = Math.random): Promise<{ name: string }> {
-  const { takenBecause } = await repository(git, folder);
-  for (let roll = 0; roll < ROLLS; roll++) {
-    const name = generateName(random);
-    if (takenBecause(name) === null) return { name };
-  }
-  throw new ChatRefused(`Every name that was tried (${ROLLS}) is already taken; type one instead`);
+/** A free name for a worktree of `folder` (already checked, a real path). */
+export async function suggestName(git: Git, folder: string, random?: () => number): Promise<{ name: string }> {
+  return { name: (await repository(git, folder)).freeName(random) };
 }
 
 /** Whether a name typed for a worktree of `folder` (already checked, a real path) is valid and free, and why not when it is not. */

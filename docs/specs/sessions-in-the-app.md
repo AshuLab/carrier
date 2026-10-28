@@ -92,4 +92,4 @@ The changes panel and the diff. The Home page. Take over of a stopped epic. Clon
 
 ## Open questions
 
-Whether SwiftUI's own markdown rendering (`AttributedString`) covers what the agents write (paragraphs, lists, inline code), and how the code blocks, which it does not draw, are done. Settled by the first slice that draws a message, against a recorded conversation.
+Whether SwiftUI's own markdown rendering (`AttributedString`) covers what the agents write (paragraphs, lists, inline code), and how the code blocks, which it does not draw, are done. Settled by #496, against a recorded conversation (`chat-events-finished.json`): `AttributedString` covers what is inside a line (bold, italics, inline code, links); the blocks, the bullets and the code are read by `markdownBlocks`, the reader the epics' Agent output already had, extended to read fenced code as a block of its own with its language, drawn by `CodeBlockView` with a Copy button. Numbered lists and tables are not read as blocks (a numbered item shows as a line with its number): a block parser is the step if agents write them a lot.

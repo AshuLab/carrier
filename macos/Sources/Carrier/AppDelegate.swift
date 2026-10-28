@@ -43,7 +43,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { WindowController.shared.selectFirstEpic() }
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 print(WindowController.shared.structure)
-                exit(0)
+                WindowController.shared.selectFirstSession()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
+                Task { @MainActor in
+                    print(await WindowController.shared.chatStructure())
+                    exit(0)
+                }
             }
         }
         if let path = Self.selfTestPath() {

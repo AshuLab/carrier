@@ -98,6 +98,27 @@ final class WindowController: NSObject, NSWindowDelegate {
         if let (repo, issue) = first { model.shell.selection = .epic(repo: repo, issue: issue) }
     }
 
+    /// For `--smoke-window`: selects the first session the chat host lists, so its conversation is on screen.
+    func selectFirstSession() {
+        if let first = model.sessions.rows.first(where: { $0.archived == false }) { model.shell.selection = .session(id: first.id) }
+    }
+
+    /// For `--smoke-window`, after `selectFirstSession`: how the conversation is laid out (read from the constants the view uses) and
+    /// what the model makes of the first session's events, which it asks the chat host for as the view does.
+    @MainActor func chatStructure() async -> String {
+        var lines = ["chat transcript: \(ConversationView.layout)"]
+        if case .session(let id) = model.shell.selection {
+            let conversation = ConversationModel(host: SocketChatHost(), sessionId: id)
+            let start = Date()
+            await conversation.poll()
+            let took = Int(Date().timeIntervalSince(start) * 1000)
+            lines.append("chat feed: \(conversation.rows.count) rows from \(conversation.cursor) events in \(took) ms\(conversation.failure.map { ", failed: \($0)" } ?? "")")
+        } else {
+            lines.append("chat feed: no session to select")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// For `--smoke-window`: what the open window looks like, one line each: the minimum content size, the width of each
     /// column of the split view, the scroll pockets (the system's blur under a bar over a scroll view: the epic's pipeline
     /// makes one in the centre column), the toolbar's items, how the transcript is laid out and the time to merge 5,000 events.

@@ -188,23 +188,40 @@ public enum MarkdownBlock: Equatable {
     case line(AttributedString)
     /// A `- ` list item; `level` is how many steps of two spaces it is indented.
     case bullet(level: Int, AttributedString)
+    /// A fenced block: `language` is what follows the opening fence, nil when nothing does. Its text is kept as written.
+    case code(language: String?, String)
     /// A blank line, once however many there were.
     case gap
 }
 
 /// An agent's message as Markdown, a block per line: bold, italics, code and links inside the line, `- ` lists as bullets and
-/// `#` headings as bold lines, which the inline parser leaves alone. ponytail: no code fences, tables or numbered lists, the fence
-/// lines are dropped and what is inside shows as lines of text; a block parser if agents start writing them a lot.
+/// `#` headings as bold lines, which the inline parser leaves alone, and fenced code as a block of its own (one left open, as in a
+/// message still being written, runs to the end). ponytail: no tables or numbered lists, a numbered item shows as a line with its
+/// number; a block parser if agents start writing them a lot.
 public func markdownBlocks(_ text: String) -> [MarkdownBlock] {
     let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
     func inline(_ line: String) -> AttributedString {
         withWebLinks((try? AttributedString(markdown: line, options: options)) ?? AttributedString(line))
     }
     var blocks: [MarkdownBlock] = []
+    var fence: (language: String?, lines: [String])?
     for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
         let trimmed = line.drop { $0 == " " }
         let indent = line.count - trimmed.count
-        if trimmed.hasPrefix("```") { continue }
+        if trimmed.hasPrefix("```") {
+            if let open = fence {
+                blocks.append(.code(language: open.language, open.lines.joined(separator: "\n")))
+                fence = nil
+            } else {
+                let language = trimmed.drop { $0 == "`" }.split(separator: " ").first.map(String.init)
+                fence = (language, [])
+            }
+            continue
+        }
+        if fence != nil {
+            fence?.lines.append(String(line))
+            continue
+        }
         if trimmed.allSatisfy(\.isWhitespace) {
             if blocks.isEmpty == false, blocks.last != .gap { blocks.append(.gap) }
         } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
@@ -215,6 +232,7 @@ public func markdownBlocks(_ text: String) -> [MarkdownBlock] {
             blocks.append(.line(inline(String(line))))
         }
     }
+    if let open = fence { blocks.append(.code(language: open.language, open.lines.joined(separator: "\n"))) }
     if blocks.last == .gap { blocks.removeLast() }
     return blocks
 }

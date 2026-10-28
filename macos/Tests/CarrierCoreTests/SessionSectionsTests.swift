@@ -270,6 +270,7 @@ func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
     func text(_ block: MarkdownBlock) -> String {
         switch block {
         case .line(let line), .bullet(_, let line): String(line.characters)
+        case .code(_, let code): code
         case .gap: "·"
         }
     }

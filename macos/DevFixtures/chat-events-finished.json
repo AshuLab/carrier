@@ -1,0 +1,21 @@
+{
+  "sessionId": "c3d4e5f6-2a1b-4c8d-9e0f-1a2b3c4d5e03",
+  "events": [
+    { "id": 1, "at": 1791940000000, "kind": "user", "text": "Explore the pricing page layout and tell me what to change." },
+    { "id": 2, "at": 1791940001000, "kind": "tool_start", "callId": "c1", "tool": "Glob", "arg": "src/pricing/**/*.tsx" },
+    { "id": 3, "at": 1791940001400, "kind": "tool_end", "callId": "c1", "tool": "Glob", "status": "ok", "output": ["src/pricing/Page.tsx", "src/pricing/Plans.tsx"] },
+    { "id": 4, "at": 1791940002000, "kind": "tool_start", "callId": "c2", "tool": "Read", "arg": "src/pricing/Plans.tsx" },
+    { "id": 5, "at": 1791940002300, "kind": "tool_end", "callId": "c2", "tool": "Read", "status": "ok", "output": ["export function Plans() {", "  return <section className=\"plans\">", "  </section>", "}"] },
+    { "id": 6, "at": 1791940003000, "kind": "approval", "approvalId": "a1", "tool": "Bash", "arg": "pnpm lint", "choices": [{ "id": "allow", "label": "Allow once", "allow": true }, { "id": "deny", "label": "Decline", "allow": false }] },
+    { "id": 7, "at": 1791940005000, "kind": "approval_answered", "approvalId": "a1", "choiceId": "allow" },
+    { "id": 8, "at": 1791940005100, "kind": "tool_start", "callId": "c3", "tool": "Bash", "arg": "pnpm lint" },
+    { "id": 9, "at": 1791940008000, "kind": "tool_end", "callId": "c3", "tool": "Bash", "status": "err", "output": ["src/pricing/Plans.tsx", "  12:3  error  Missing key prop"] },
+    { "id": 10, "at": 1791940012000, "kind": "assistant", "text": "The page is two components: `Page.tsx` lays out the header and `Plans.tsx` draws the cards.\n\nThree things to change:\n\n- give each card a `key`, the linter fails on it\n- move the price into a `PriceTag` component\n  - so the yearly toggle can reuse it\n- stop hard-coding the plan names\n\nThe card list could look like this:\n\n```tsx\nexport function Plans({ plans }: { plans: Plan[] }) {\n  return (\n    <section className=\"plans\">\n      {plans.map((plan) => <PlanCard key={plan.id} plan={plan} />)}\n    </section>\n  )\n}\n```\n\nAnd the check that guards it:\n\n```\npnpm lint && pnpm test\n```" },
+    { "id": 11, "at": 1791940012500, "kind": "turn_end", "outcome": "ok", "model": "claude-sonnet-5-5", "usage": { "input_tokens": 1820, "output_tokens": 436, "cache_read_input_tokens": 9000, "total_cost_usd": 0.0123 } },
+    { "id": 12, "at": 1791945000000, "kind": "user", "text": "Now run the tests." },
+    { "id": 13, "at": 1791945001000, "kind": "error", "text": "The turn failed" },
+    { "id": 14, "at": 1791945001200, "kind": "turn_end", "outcome": "error", "model": "claude-sonnet-5-5", "usage": {} }
+  ],
+  "cursor": 14,
+  "streaming": ""
+}

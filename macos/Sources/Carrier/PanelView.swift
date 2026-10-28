@@ -48,6 +48,7 @@ struct PanelView: View {
         if let epic { return "\(epic.subject.repo.split(separator: "/").last ?? "") #\(epic.subject.issue)" }
         switch model.shell.selection {
         case .settings: return "Settings"
+        case .session(let id): return model.sessions.rows.first { $0.id == id }?.title ?? "Session"
         default: return "Carrier"
         }
     }
@@ -103,8 +104,7 @@ struct PanelView: View {
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
                     } else if case .session(let id) = shell.selection {
-                        // no session page until the sessions epic: the name, not "No sessions yet" beside a list that has some
-                        Text(model.sessions.rows.first { $0.id == id }?.title ?? id).foregroundStyle(.secondary)
+                        ConversationView(sessionId: id).id(id)
                     } else if case .running(let snapshot)? = model.state {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 26) {

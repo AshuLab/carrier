@@ -89,9 +89,18 @@ public enum WorkspaceStep: Equatable {
     public private(set) var cloning: String?
     /// Why the last clone was refused, in the host's words; cleared when the next one starts.
     public private(set) var cloneProblem: String?
+    /// "Let Carrier watch this repo": the person's choice, on by default; `watching` is what it comes to for the repository typed.
+    public var watch = true
+    /// The `repos` of the config file as of the last time the popover opened or showed a step; nil when the file cannot be read.
+    public private(set) var watched: [String]?
+    /// What the draft says about Carrier's list after a clone that was to add the repository, in words; `watchFailed` when it did not.
+    public private(set) var watchNote: String?
+    public private(set) var watchFailed = false
 
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let projectsFolder: () -> String
+    @ObservationIgnored private let readConfig: () -> Data?
+    @ObservationIgnored private let writeConfig: (Data) throws -> Void
     @ObservationIgnored private var cloneTask: Task<ClonedRepo, Error>?
     @ObservationIgnored private let ensureHost: @MainActor () async -> Bool
     @ObservationIgnored private let log: (String) -> Void
@@ -102,15 +111,19 @@ public enum WorkspaceStep: Equatable {
     @ObservationIgnored private var failedFirstSends: [String: FailedFirstSend] = [:]
 
     /// `ensureHost` starts the chat host when it is not running (#503) and says whether it answers now.
-    /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where the config says the projects folder is.
+    /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where the config says the projects folder is;
+    /// `readConfig` and `writeConfig` are the config file itself.
     public init(
         host: ChatHost, ensureHost: @escaping @MainActor () async -> Bool = { true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        projectsFolder: @escaping () -> String = currentProjectsFolder
+        projectsFolder: @escaping () -> String = currentProjectsFolder,
+        readConfig: @escaping () -> Data? = currentConfig, writeConfig: @escaping (Data) throws -> Void = writeCurrentConfig
     ) {
         self.host = host
         self.projectsFolder = projectsFolder
+        self.readConfig = readConfig
+        self.writeConfig = writeConfig
         self.ensureHost = ensureHost
         self.log = log
         self.sleep = sleep
@@ -145,6 +158,7 @@ public enum WorkspaceStep: Equatable {
     /// The popover opens on the menu with the projects folder read again; one that is cloning stays on the step that shows it.
     public func openPicker() {
         projects = projectFolders(in: projectsFolder())
+        watched = readConfig().flatMap { configRepoNames(json: $0) }
         guard cloning == nil else { return }
         step = .menu
         cloneProblem = nil
@@ -152,6 +166,7 @@ public enum WorkspaceStep: Equatable {
 
     public func show(_ next: WorkspaceStep) {
         guard cloning == nil else { return }
+        watched = readConfig().flatMap { configRepoNames(json: $0) }
         step = next
         cloneProblem = nil
     }
@@ -167,6 +182,11 @@ public enum WorkspaceStep: Equatable {
 
     public var cloneButton: String { cloneProblem != nil ? "Try again" : alreadyThere ? "Update and use" : "Clone and use" }
 
+    /// Why the box cannot be on for the repository typed (already watched, or a folder name another watched repo has); nil when it can.
+    public var watchProblem: String? { reference.flatMap { name in watched.flatMap { repoProblem(name, joining: $0) } } }
+
+    public var watching: Bool { watch && watchProblem == nil }
+
     /// "Clone and use" stays off until the text is one repository, and while a clone runs.
     public var canCloneNow: Bool { reference != nil && cloning == nil }
 
@@ -174,6 +194,7 @@ public enum WorkspaceStep: Equatable {
     /// workspace while it runs and when it fails, so the chip stays orange; the refusal is in `cloneProblem`.
     public func cloneAndUse() async -> Bool {
         guard let repo = reference, cloning == nil else { return false }
+        let adding = watching
         reset(folder: nil)
         cloning = repo
         cloneProblem = nil
@@ -187,6 +208,8 @@ public enum WorkspaceStep: Equatable {
             cloneTask = nil
             urlText = ""
             await choose(folder: cloned.folder)
+            // the clone stands whatever happens to the list
+            if adding, folder == cloned.folder { addToWatched(repo) }
             return true
         } catch {
             // a clone that was cancelled has already been dropped by `cancelClone`
@@ -195,6 +218,27 @@ public enum WorkspaceStep: Equatable {
             cloneTask = nil
             cloneProblem = report(error, "clone \(repo)")
             return false
+        }
+    }
+
+    /// Adds `repo` to the config's `repos`, the file read again just now; the engine reads it when it starts, so nothing is restarted.
+    private func addToWatched(_ repo: String) {
+        func failed(_ reason: String) {
+            watchNote = "\(repo) could not be added to Carrier's list: \(reason)."
+            watchFailed = true
+        }
+        guard let json = readConfig(), let names = configRepoNames(json: json) else {
+            return failed("the config file could not be read or is not a JSON object")
+        }
+        if let problem = reposProblem(names + [repo]) { return failed(problem) }
+        guard let updated = applyingRepos(names + [repo], to: json) else { return failed("the config file could not be rewritten") }
+        do {
+            try writeConfig(updated)
+            watched = names + [repo]
+            watchNote = "Carrier will listen to \(repo) from its next start."
+        } catch {
+            log("new session: could not write the config: \(error)")
+            failed("the config file is not writable")
         }
     }
 
@@ -229,6 +273,8 @@ public enum WorkspaceStep: Equatable {
         worktreeName = ""
         verifiedName = nil
         nameState = .suggesting
+        watchNote = nil
+        watchFailed = false
     }
 
     /// The branch the worktree starts from, nil when none is known and the person is asked.

@@ -89,6 +89,9 @@ struct NewSessionView: View {
             }
             .font(.callout).foregroundStyle(.secondary).padding(.leading, 4)
             .accessibilityElement(children: .contain)
+            if let note = model.watchNote {
+                Text(note).font(.callout).foregroundStyle(model.watchFailed ? .orange : .secondary).padding(.leading, 4).textSelection(.enabled)
+            }
             if let warning = model.warning { Text(warning).font(.callout).foregroundStyle(.orange).padding(.leading, 4) }
             if case .problem(let reason) = model.nameState, model.worktree {
                 Text(reason).font(.callout).foregroundStyle(.red).padding(.leading, 4).textSelection(.enabled)
@@ -305,6 +308,11 @@ struct NewSessionView: View {
             TextField("owner/repo  or  https://github.com/owner/repo", text: $model.urlText)
                 .textFieldStyle(.roundedBorder).autocorrectionDisabled().disabled(model.cloning != nil)
                 .onSubmit { clone() }
+            Toggle("Let Carrier watch this repo", isOn: Binding(get: { model.watching }, set: { model.watch = $0 }))
+                .disabled(model.watchProblem != nil || model.cloning != nil)
+            if let reason = model.watchProblem {
+                Text(reason).font(.caption).foregroundStyle(.secondary)
+            }
             if let repo = model.cloning {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)

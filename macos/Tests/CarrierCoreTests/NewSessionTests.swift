@@ -468,8 +468,25 @@ private func projectsRoot(_ names: [String]) throws -> String {
     return root
 }
 
-@MainActor private func popover(_ host: FakeChat, projects: String = "/nowhere") async -> NewSessionModel {
-    let model = NewSessionModel(host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { projects })
+/// The config file in memory: what `readConfig` gives, what `writeConfig` last got, and a way to make it unwritable.
+@MainActor private final class FakeConfig {
+    var json: Data?
+    var writes = 0
+    var unwritable = false
+    init(_ text: String? = "{\"repos\": [{\"name\": \"acme/web\"}]}") { json = text.map { Data($0.utf8) } }
+    func write(_ data: Data) throws {
+        if unwritable { throw CocoaError(.fileWriteNoPermission) }
+        json = data
+        writes += 1
+    }
+}
+
+@MainActor private func popover(_ host: FakeChat, projects: String = "/nowhere", config: FakeConfig? = nil) async -> NewSessionModel {
+    let config = config ?? FakeConfig()
+    let model = NewSessionModel(
+        host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { projects },
+        readConfig: { config.json }, writeConfig: { try config.write($0) }
+    )
     await model.load()
     return model
 }
@@ -636,4 +653,95 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     let none = NewSessionModel(host: dead, ensureHost: { false }, log: { _ in }, sleep: { _ in })
     await none.load()
     #expect(dead.agentCalls == 1 && none.agents.isEmpty)
+}
+
+// "Let Carrier watch this repo": on by default, off with the reason, and the config write after the clone.
+
+@MainActor @Test func theWatchBoxIsOnByDefaultAndOffWithItsReasonForAWatchedRepoOrAFolderNameClash() async {
+    let model = await popover(FakeChat())
+    model.show(.url)
+    model.urlText = "AshuLab/carrier"
+    #expect(model.watch && model.watching && model.watchProblem == nil)
+    model.urlText = "acme/web"
+    #expect(model.watching == false && model.watchProblem == "acme/web is already watched")
+    model.urlText = "other/web"
+    #expect(model.watching == false && model.watchProblem?.contains("same folder name as acme/web") == true)
+}
+
+@MainActor @Test func cloningWithTheBoxOnAddsTheRepoToTheConfigKeepingEverythingElseAndSaysItListensFromTheNextStart() async throws {
+    let config = FakeConfig("""
+    {"root": "~/work", "limits": {"maxReviews": 7}, "repos": [{"name": "acme/web", "agents": {"author": {"profile": "p"}}}]}
+    """)
+    let model = await popover(FakeChat(), config: config)
+    model.show(.url)
+    model.urlText = "https://github.com/AshuLab/carrier"
+    #expect(await model.cloneAndUse())
+    let saved = try #require(config.json)
+    let file = try #require(try JSONSerialization.jsonObject(with: saved) as? [String: Any])
+    let repos = try #require(file["repos"] as? [[String: Any]])
+    #expect(repos.map { $0["name"] as? String } == ["acme/web", "AshuLab/carrier"] && repos[0]["agents"] != nil && repos[1].keys.sorted() == ["name"])
+    #expect(file["root"] as? String == "~/work" && (file["limits"] as? [String: Any])?["maxReviews"] as? Int == 7)
+    #expect(model.watchNote == "Carrier will listen to AshuLab/carrier from its next start." && model.watchFailed == false)
+    #expect(model.folder == "/projects/AshuLab/carrier")
+}
+
+@MainActor @Test func theConfigIsReadAgainJustBeforeTheWrite() async throws {
+    let host = FakeChat()
+    host.holdClone = true
+    let config = FakeConfig()
+    let model = await popover(host, config: config)
+    model.show(.url)
+    model.urlText = "AshuLab/carrier"
+    let running = Task { await model.cloneAndUse() }
+    await settle { host.clones.isEmpty == false }
+    // another tab saves while the clone runs
+    config.json = Data(#"{"repos": [{"name": "acme/web"}, {"name": "vemec/encaja"}], "pollIntervalMinutes": 3}"#.utf8)
+    host.release = true
+    #expect(await running.value)
+    let saved = try #require(config.json)
+    #expect(configRepoNames(json: saved) == ["acme/web", "vemec/encaja", "AshuLab/carrier"])
+    #expect(String(decoding: saved, as: UTF8.self).contains("pollIntervalMinutes"))
+}
+
+@MainActor @Test func withTheBoxOffOrNotAllowedTheCloneGoesAheadAndTheConfigIsNotTouched() async {
+    let config = FakeConfig()
+    let model = await popover(FakeChat(), config: config)
+    model.show(.url)
+    model.urlText = "AshuLab/carrier"
+    model.watch = false
+    #expect(await model.cloneAndUse())
+    #expect(config.writes == 0 && model.watchNote == nil)
+    model.show(.url)
+    model.urlText = "acme/web"
+    let boxOff = await model.cloneAndUse()
+    #expect(model.watch == false && boxOff)
+    model.watch = true
+    model.show(.url)
+    model.urlText = "acme/web"
+    #expect(model.watching == false)
+    let notAllowed = await model.cloneAndUse()
+    #expect(notAllowed)
+    #expect(config.writes == 0 && model.watchNote == nil && model.folder == "/projects/acme/web")
+}
+
+@MainActor @Test func aConfigThatCannotBeWrittenDoesNotUndoTheCloneAndTheDraftSaysSo() async {
+    for config in [FakeConfig("[1]"), FakeConfig(nil), { let c = FakeConfig(); c.unwritable = true; return c }()] {
+        let model = await popover(FakeChat(), config: config)
+        model.show(.url)
+        model.urlText = "AshuLab/carrier"
+        #expect(await model.cloneAndUse())
+        #expect(model.folder == "/projects/AshuLab/carrier" && model.watchFailed)
+        #expect(model.watchNote?.hasPrefix("AshuLab/carrier could not be added to Carrier's list: ") == true)
+        #expect(config.writes == 0)
+    }
+}
+
+@MainActor @Test func theNoteGoesWhenAnotherFolderIsChosen() async {
+    let model = await popover(FakeChat())
+    model.show(.url)
+    model.urlText = "AshuLab/carrier"
+    _ = await model.cloneAndUse()
+    #expect(model.watchNote != nil)
+    await model.choose(folder: "/elsewhere")
+    #expect(model.watchNote == nil && model.watchFailed == false)
 }

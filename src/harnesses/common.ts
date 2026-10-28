@@ -15,7 +15,7 @@ export interface AgentCommand {
 export interface LineSignal {
   session?: string;
   authFailed?: true;
-  /** An API error the agent printed as its final result; only Claude fills it. */
+  /** An API error the agent printed as its final result. */
   failure?: { kind: 'usage_limit' | 'api_error'; detail: string };
   sessionUnavailable?: true;
 }

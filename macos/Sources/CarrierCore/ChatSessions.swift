@@ -21,7 +21,8 @@ public func sessionRows(_ sessions: [ChatSession]) -> [SessionRow] {
         }
         return SessionRow(
             id: session.id, title: session.title ?? "Untitled session", workspace: title(base(session)), agent: session.agent, state: state,
-            updatedAt: Date(timeIntervalSince1970: Double(session.lastActiveAt) / 1000), archived: session.archived
+            updatedAt: Date(timeIntervalSince1970: Double(session.lastActiveAt) / 1000), archived: session.archived,
+            branch: session.workspace?.branch
         )
     }
 }

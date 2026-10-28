@@ -3,7 +3,19 @@ import Foundation
 // The Sessions half of the sidebar as plain values (docs/specs/sidebar-home-sessions-carrier.md, Decisions). The sessions epic
 // feeds them from the chat host (ChatSessions.swift). The views map them one to one.
 
-public enum SessionState: Hashable { case working, waiting, idle, done }
+public enum SessionState: Hashable {
+    case working, waiting, idle, done
+
+    /// The group's title by status and the filter's wording.
+    public var title: String {
+        switch self {
+        case .waiting: "Waiting for you"
+        case .working: "Working"
+        case .idle: "Idle"
+        case .done: "Done"
+        }
+    }
+}
 
 public struct SessionRow: Equatable {
     public var id: String
@@ -14,8 +26,12 @@ public struct SessionRow: Equatable {
     public var state: SessionState
     public var updatedAt: Date
     public var archived: Bool
+    /// The branch of a session in a worktree, nil for one in a plain folder.
+    public var branch: String?
 
-    public init(id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false) {
+    public init(
+        id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil
+    ) {
         self.id = id
         self.title = title
         self.workspace = workspace
@@ -23,6 +39,7 @@ public struct SessionRow: Equatable {
         self.state = state
         self.updatedAt = updatedAt
         self.archived = archived
+        self.branch = branch
     }
 }
 
@@ -97,8 +114,7 @@ public func sessionGroups(
         ]
         return buckets.compactMap { title, contains in group(title, listed.filter { contains($0.updatedAt) }) }
     case .status:
-        let states: [(String, SessionState)] = [("Waiting for you", .waiting), ("Working", .working), ("Idle", .idle), ("Done", .done)]
-        return states.compactMap { title, state in group(title, listed.filter { $0.state == state }) }
+        return [SessionState.waiting, .working, .idle, .done].compactMap { state in group(state.title, listed.filter { $0.state == state }) }
     }
 }
 

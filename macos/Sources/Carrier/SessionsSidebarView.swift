@@ -6,10 +6,11 @@ import SwiftUI
 /// field under the row.
 struct SessionsRows: View {
     let sessions: Sessions
+    /// The order, shared with the Sessions home and remembered by the model.
+    @Binding var sort: SessionSort
     @Binding var open: Bool
     /// The last ⌘F: when it asks for Sessions, the search field opens and takes the keyboard.
     let searchRequest: SearchRequest?
-    @State private var sort = SidebarStore().sessionSort
     @State private var sortOpen = false
     /// The search field's text while it is open, nil while it is closed; not remembered between launches.
     @State private var query: String?
@@ -51,7 +52,7 @@ struct SessionsRows: View {
                 .popover(isPresented: $sortOpen, arrowEdge: .bottom) {
                     ChoiceMenu(
                         title: "Sort sessions", options: SessionSort.allCases.map { ($0.title, $0) },
-                        selection: Binding(get: { sort }, set: { sort = $0; SidebarStore().sessionSort = $0 }), close: { sortOpen = false }
+                        selection: $sort, close: { sortOpen = false }
                     )
                 }
             IconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: sessions.cannotStartReason) {}
@@ -157,7 +158,7 @@ private struct SessionRowView: View {
 }
 
 /// A spinner while working, an orange mark while it waits for the person, a hollow circle when idle and a green check when done.
-private struct SessionGlyph: View {
+struct SessionGlyph: View {
     let state: SessionState
 
     var body: some View {

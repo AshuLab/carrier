@@ -9,6 +9,7 @@ import SwiftUI
     let shell = WindowShell(open: SidebarStore().open)
     let epics = EpicStore()
     var groupBy = SidebarStore().groupBy
+    var sessionSort = SidebarStore().sessionSort
     var collapse = SidebarCollapse()
     /// The chat host's sessions (`ChatSessionsPoller`); the + follows the host (`ChatMonitor`).
     var sessions = Sessions()
@@ -121,6 +122,8 @@ final class WindowController: NSObject, NSWindowDelegate {
         for item in window.toolbar?.items ?? [] { lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)") }
         lines.append("sessions +: \(model.sessions.cannotStartReason ?? "enabled")")
         lines.append("sessions: \(model.sessions.rows.count) rows, \(archivedCount(model.sessions.rows)) archived, groups \(sessionGroups(model.sessions.rows).map(\.title))")
+        let home = sessionsPage(model.sessions.rows, by: model.sessionSort)
+        lines.append("sessions home: \(home.subtitle.isEmpty ? "no count" : home.subtitle), \(home.emptyState?.title ?? "listed")")
         lines.append("transcript: \(SessionSectionsView.layout)")
         let events = longTranscriptEvents(rounds: 556)
         var transcript = Transcript()

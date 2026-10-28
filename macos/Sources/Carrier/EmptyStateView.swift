@@ -7,13 +7,18 @@ struct EmptyStateView: View {
     let icon: String
     let title: String
     let line: String
+    /// An optional button under the line, for a state the person can get out of by themselves.
+    let action: (title: String, run: () -> Void)?
 
-    init(state: EmptyState) { self.init(icon: state.icon, title: state.title, line: state.line) }
+    init(state: EmptyState, action: (title: String, run: () -> Void)? = nil) {
+        self.init(icon: state.icon, title: state.title, line: state.line, action: action)
+    }
 
-    init(icon: String, title: String, line: String) {
+    init(icon: String, title: String, line: String, action: (title: String, run: () -> Void)? = nil) {
         self.icon = icon
         self.title = title
         self.line = line
+        self.action = action
     }
 
     var body: some View {
@@ -28,6 +33,9 @@ struct EmptyStateView: View {
             // wraps to as many lines as it needs, whatever height it is given
             Text(line).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true).frame(maxWidth: 280)
+            if let action {
+                Button(action.title, action: action.run).buttonStyle(.glass).buttonBorderShape(.capsule).padding(.top, 8)
+            }
         }
         .padding(22)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

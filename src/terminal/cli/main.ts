@@ -50,6 +50,14 @@ else if (cli.flags.help) {
         if (configPath === undefined) throw noConfig(`Usage: carrier ${cli.command} --config <path>`);
         exit = await (await import('./commands/control.ts')).controlCommand(cli.command, loadConfigFile(configPath));
         break;
+      case 'chat':
+        if (configPath === undefined) throw noConfig('Usage: carrier chat --workspace <folder> [--agent <name>] | --resume <id> | --list [--archived] | --archive|--unarchive|--delete <id> | --stop [--config <path>]');
+        exit = await (await import('./commands/chat.ts')).chatCommand(cli.flags, loadConfigFile(configPath), resolve(configPath));
+        break;
+      case 'chat-host':
+        if (configPath === undefined) throw noConfig('Usage: carrier chat-host --config <path>');
+        await (await import('./commands/chat-host.ts')).chatHostCommand(loadConfigFile(configPath)); // runs until stopped
+        break;
       default:
         if (configPath === undefined) throw noConfig(usage(), '');
         await (await import('./commands/run.ts')).runCommand(loadConfigFile(configPath)); // runs until Ctrl+C

@@ -60,6 +60,7 @@ _Avoid_: ticket progress, issue status.
 _Avoid_: comment (a thread holds several), blocker (what the reviewer agent reports in its result).
 
 **Session** - The conversation an agent holds in its harness, identified by an id the harness can resume (`claude --resume`, `codex resume`, `agy --conversation`). Each execution has one; the app shows an execution's work as one session block and Continue in Terminal resumes it ([0007](adr/0007-continue-in-terminal-through-a-validated-descriptor.md)).
+_Avoid_: execution (the invocation with its time limit and result), thread, chat.
 
 **Chat host** - The process that holds user sessions: it starts when a person opens the first chat and ends when no session is running and no client is attached. It has its own lock and control socket, shares code with the engine but not its state, and the engine's stop does not touch it ([0013](adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md)).
 _Avoid_: chat server, session manager, engine (the engine runs epics).
@@ -69,7 +70,6 @@ _Avoid_: provider client, driver.
 
 **Chat event** - What a chat runner reports about a conversation in Carrier's own shape, whatever the provider speaks: a message from the person or the agent, a tool call and its outcome, an approval asked, an option changed, the usage of a turn, the end of a turn. The host stores them as the transcript of a user session, bounded and redacted.
 _Avoid_: agent event (the epic executions' events), message, log line.
-_Avoid_: execution (the invocation with its time limit and result), thread, chat.
 
 **Lane** - One of the up to three parallel worktrees inside a `ship` execution (`<epic worktree>--lane-N`). A lane is a place, not a worker: it is reused, so lane 1 builds one slice and then another, and the subagent that builds a slice runs in a lane. Solve decides the lanes; the engine does not know them, and a lane has no session of its own, so it cannot be resumed apart from the ship session.
 _Avoid_: slot (that counts epics), thread, worker, subagent (a lane holds one at a time).

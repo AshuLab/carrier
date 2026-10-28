@@ -338,3 +338,29 @@ test('a start that cannot come up prints the end of the log and exits 1 as soon 
   expect(result.stderr).toContain('carrier failed to start');
   expect(result.stderr).toContain(join(root, 'orchestrator', 'logs', 'start.log'));
 });
+
+test('--help lists chat and chat-host', () => {
+  const out = run('--help').stdout;
+  expect(out).toContain('carrier chat ');
+  expect(out).toContain('carrier chat-host');
+});
+
+test('chat --list starts a real detached host, a second one starts no other, an engine on the same root keeps running, and chat --stop ends only the host', () => {
+  const root = join(dir, 'chat-run');
+  const config = write('chat.json', { ...valid, root });
+  const engine = acquireLock(join(root, 'orchestrator')); // an engine holding its lock on the same root
+  expect(engine.ok).toBe(true);
+  try {
+    const first = run('chat', '--list', '--config', config);
+    expect(first.stdout).toBe('No chat sessions.\n');
+    expect(run('chat', '--list', '--config', config).stdout).toBe('No chat sessions.\n');
+    expect(run('stop', '--config', config).stdout).toBe('Carrier is not running\n'); // the engine's stop does not reach the host
+    expect(existsSync(join(root, 'chat', 'chat.sock'))).toBe(true);
+    expect(run('chat', '--stop', '--config', config).stdout).toBe('Chat host stopped\n');
+    expect(existsSync(join(root, 'chat', 'chat.sock'))).toBe(false);
+    expect(run('chat', '--stop', '--config', config).stdout).toBe('No chat host is running\n');
+  } finally {
+    run('chat', '--stop', '--config', config);
+    if (engine.ok) engine.release();
+  }
+}, 30_000);

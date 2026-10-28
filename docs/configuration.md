@@ -34,6 +34,7 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `finishedWindowDays` | no | `15` | Days a merged or cancelled epic stays in the snapshot after it ends, a whole number from 1 to 30 (30 is the retention purge). |
+| `chat.agents` | no | `claude` and `codex` | The agents a chat can start with, by name. See [Chat agents](#chat-agents). |
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |
 | `identities` | no | `separate` | `separate` or `shared`. Under `separate` the author and the reviewer must be different identities. Under `shared` they may use the same profile, normally your `gh` login. See [Profiles](#profiles). |
 | `limits.maxConcurrentEpics` | no | `3` | Epics running at the same time. |
@@ -75,11 +76,34 @@ A repo inherits every value from the global `agents` and replaces only what it n
 
 Profile names used in an override must exist in `profiles`. Under `identities: "separate"` the author and the reviewer must still differ after the override.
 
+## Chat agents
+
+A chat (`carrier chat`) starts with one of the agents listed in `chat.agents`. Without the block there are two, `claude` and `codex`, each running its own harness with the binary on the path and the provider's defaults. With the block there are the agents it lists and only those, in the order written.
+
+```json
+"chat": {
+  "agents": {
+    "claude": { "harness": "claude" },
+    "claude-opus": { "harness": "claude", "model": "opus", "options": { "permissionMode": "plan" } },
+    "codex": { "harness": "codex", "command": "/opt/homebrew/bin/codex" }
+  }
+}
+```
+
+| Field | Required | Meaning |
+|-------|----------|---------|
+| the key | yes | The agent's name: lowercase letters, digits and hyphens, starting with a letter. |
+| `harness` | yes | `claude` or `codex`. Antigravity is not offered in a chat. |
+| `command` | no | The binary, when it is not the one on the path. Not empty. |
+| `model` | no | The model the provider starts with. Not empty. |
+| `options` | no | Default options of the provider, by the provider's own option id. An option the provider does not list is refused when the session opens. |
+
 ## Things that are checked
 
 - Every profile named anywhere is declared in `profiles`.
 - Repo names are `owner/name`, and no two repos share the same folder name (Solve's worktree paths have no owner).
 - A `provider` is only accepted for a harness that can use it (Claude Code and Codex; not Antigravity), globally and in a per-repo override.
+- Each chat agent has a lowercase name, a harness of `claude` or `codex`, and a `command` and `model` that are not empty when present.
 - The effective configuration of an epic is saved, without credentials, when it starts and kept when it resumes, even if you change the file in between.
 
 ## Local models

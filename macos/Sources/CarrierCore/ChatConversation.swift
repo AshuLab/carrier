@@ -82,24 +82,28 @@ public enum FeedRow: Equatable, Identifiable {
     case agent(id: String, text: String, inProgress: Bool)
     /// The line that closes a turn: the model, how long it took and the usage the provider reported.
     case turnEnd(id: String, text: String)
-    /// A tool call or an approval, for now as one plain line each.
+    /// A run of tool calls: one row that opens to its calls.
+    case tools(id: String, ToolGroup)
+    /// An approval, for now as one plain line.
     case line(id: String, text: String)
     /// An error event, in red.
     case error(id: String, text: String)
 
     public var id: String {
         switch self {
-        case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .line(let id, _), .error(let id, _): id
+        case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .tools(let id, _), .line(let id, _), .error(let id, _): id
         }
     }
 }
 
-/// The rows the events make, in order, and then the message in progress when `streaming` has text. A call is one row at the place
-/// where it started, completed by its end; an approval is one row at the place where it was asked, completed by the answer.
+/// The rows the events make, in order, and then the message in progress when `streaming` has text. Consecutive calls are one row
+/// at the place where the first started, each completed by its end (a turn that ends first stops the calls still going); an
+/// approval is one row at the place where it was asked, completed by the answer.
 /// Options and anything else the host may add are not drawn.
 public func chatFeed(_ events: [ChatEvent], streaming: String = "") -> [FeedRow] {
     var rows: [FeedRow] = []
-    var started: [String: (row: Int, event: ChatEvent)] = [:]
+    // where each call still going is: its row and its place in it
+    var going: [String: (row: Int, call: Int)] = [:]
     var asked: [String: (row: Int, event: ChatEvent)] = [:]
     var turnStart: Int?
     for event in events {
@@ -111,13 +115,14 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "") -> [FeedRow]
         case "assistant":
             rows.append(.agent(id: id, text: event.text ?? "", inProgress: false))
         case "tool_start":
-            if let call = event.callId { started[call] = (rows.count, event) }
-            rows.append(.line(id: id, text: callLine(event, ended: nil)))
+            let call = ToolCall(start: event)
+            going[call.id] = place(call, in: &rows, id: id)
         case "tool_end":
-            if let call = event.callId, let start = started[call] {
-                rows[start.row] = .line(id: rows[start.row].id, text: callLine(start.event, ended: event))
+            if let call = event.callId, let spot = going.removeValue(forKey: call), case .tools(let group, var calls) = rows[spot.row] {
+                calls.calls[spot.call].finish(event)
+                rows[spot.row] = .tools(id: group, calls)
             } else {
-                rows.append(.line(id: id, text: callLine(event, ended: event)))
+                _ = place(ToolCall(orphanEnd: event), in: &rows, id: id)
             }
         case "approval":
             if let approval = event.approvalId { asked[approval] = (rows.count, event) }
@@ -126,6 +131,12 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "") -> [FeedRow]
             guard let approval = event.approvalId, let question = asked[approval] else { continue }
             rows[question.row] = .line(id: rows[question.row].id, text: approvalLine(question.event, choice: event.choiceId))
         case "turn_end":
+            for spot in going.values {
+                guard case .tools(let group, var calls) = rows[spot.row] else { continue }
+                calls.calls[spot.call].stop()
+                rows[spot.row] = .tools(id: group, calls)
+            }
+            going = [:]
             if let text = closingLine(event, turnStart: turnStart) { rows.append(.turnEnd(id: id, text: text)) }
             turnStart = nil
         case "error":
@@ -138,14 +149,15 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "") -> [FeedRow]
     return rows
 }
 
-/// What was done, on what, and a short result: the first line of the output, or that the call failed.
-private func callLine(_ start: ChatEvent, ended: ChatEvent?) -> String {
-    var line = [start.tool ?? ended?.tool, start.arg ?? ended?.arg].compactMap { $0 }.joined(separator: " ")
-    guard let ended else { return line }
-    let first = ended.output?.first { $0.allSatisfy(\.isWhitespace) == false }.map { String($0.trimmingCharacters(in: .whitespaces).prefix(80)) }
-    let result = [ended.status == "err" ? "failed" : nil, first].compactMap { $0 }.joined(separator: ": ")
-    if result.isEmpty == false { line += " · " + result }
-    return line
+/// Puts a call at the end of the run the last row is, or opens a row for it.
+private func place(_ call: ToolCall, in rows: inout [FeedRow], id: String) -> (row: Int, call: Int) {
+    if case .tools(let group, var run)? = rows.last {
+        run.calls.append(call)
+        rows[rows.count - 1] = .tools(id: group, run)
+        return (rows.count - 1, run.calls.count - 1)
+    }
+    rows.append(.tools(id: id, ToolGroup(calls: [call])))
+    return (rows.count - 1, 0)
 }
 
 private func approvalLine(_ approval: ChatEvent, choice: String?) -> String {

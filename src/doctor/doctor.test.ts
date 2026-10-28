@@ -26,6 +26,7 @@ const deps = (overrides: Partial<DoctorDeps> = {}): DoctorDeps => ({
   mint: async () => 'secret-token',
   listLabels: async () => [],
   localModels: async () => [],
+  loggedIn: async () => true,
   ...overrides,
 });
 
@@ -40,6 +41,8 @@ test('everything in place: all checks pass and no token reaches the report', asy
     'claude installed',
     'codex installed',
     'agent-forge installed',
+    'claude option claude is logged in',
+    'codex option codex is logged in',
     'author and reviewer are different identities',
     'forge agent artanis-agent can mint a token for AshuLab/carrier',
     'forge agent tassadar-agent can mint a token for AshuLab/carrier',
@@ -218,4 +221,52 @@ test('checks skipped because a prerequisite failed announce nothing', async () =
   const started: string[] = [];
   const checks = await runDoctor(config(), deps({ which: (c) => c !== 'gh' }), () => {}, (name) => started.push(name));
   expect(started).toEqual(checks.map((c) => c.name)); // no start for the mints and reads that were skipped
+});
+
+// The login of each Claude and Codex option; the answer is faked, no test starts a real CLI.
+const withDirs = { agentOptions: { claude: { harness: 'claude', model: 'm', configDir: '/home/me/.claude-work' }, codex: { harness: 'codex', model: 'm', configDir: '/home/me/.codex-alt' }, spare: { harness: 'claude', model: 'm', configDir: '/home/me/.claude-spare' }, agy: { harness: 'agy', model: 'm' } } };
+
+test('every Claude and Codex option is asked with its folder, role or not, and agy is left out', async () => {
+  const loggedIn = vi.fn(async (_harness: string, _dir: string | undefined) => true);
+  const checks = await runDoctor(config(withDirs), deps({ loggedIn }));
+  expect(loggedIn.mock.calls).toEqual([['claude', '/home/me/.claude-work'], ['codex', '/home/me/.codex-alt'], ['claude', '/home/me/.claude-spare']]);
+  expect(failed(checks)).toEqual([]);
+});
+
+test('an option without a folder is checked in the process environment', async () => {
+  const loggedIn = vi.fn(async (_harness: string, _dir: string | undefined) => true);
+  await runDoctor(config(), deps({ loggedIn }));
+  expect(loggedIn.mock.calls).toEqual([['claude', undefined], ['codex', undefined]]);
+});
+
+test('a role option that is not logged in fails, a spare one only warns, both name the option and folder and carry the login remedy', async () => {
+  const checks = await runDoctor(config(withDirs), deps({ loggedIn: async (_harness, dir) => dir !== '/home/me/.claude-work' && dir !== '/home/me/.claude-spare' }));
+  const logins = checks.filter((c) => c.name.endsWith('is logged in'));
+  expect(logins.filter((c) => c.status !== 'ok')).toMatchObject([
+    { name: 'claude option claude is logged in', status: 'fail', detail: 'not logged in at /home/me/.claude-work', fix: 'log in with: CLAUDE_CONFIG_DIR=/home/me/.claude-work claude /login' },
+    { name: 'claude option spare is logged in', status: 'warn', detail: 'not logged in at /home/me/.claude-spare', fix: 'log in with: CLAUDE_CONFIG_DIR=/home/me/.claude-spare claude /login' },
+  ]);
+});
+
+test('a Codex option that is not logged in has the Codex remedy, and one without a folder says so', async () => {
+  const checks = await runDoctor(config(withDirs), deps({ loggedIn: async (harness) => harness !== 'codex' }));
+  expect(failed(checks)).toMatchObject([{ name: 'codex option codex is logged in', detail: 'not logged in at /home/me/.codex-alt', fix: 'log in with: CODEX_HOME=/home/me/.codex-alt codex login' }]);
+  const inherited = failed(await runDoctor(config(), deps({ loggedIn: async () => false })));
+  expect(inherited.map((c) => c.detail)).toEqual(['not logged in in the environment Carrier runs in', 'not logged in in the environment Carrier runs in']);
+  expect(inherited.map((c) => c.fix)).toEqual(['log in with: claude /login', 'log in with: codex login']);
+});
+
+test('a login check that cannot run is reported by option, and an email never reaches the report', async () => {
+  const loggedIn = async () => {
+    throw new Error('spawnSync claude ENOENT me@example.com');
+  };
+  const checks = await runDoctor(config(), deps({ loggedIn }));
+  expect(failed(checks)).toMatchObject([{ name: 'claude option claude is logged in' }, { name: 'codex option codex is logged in' }]);
+  expect(JSON.stringify(checks)).not.toContain('me@example.com');
+});
+
+test('an option whose CLI is not installed is not asked for its login', async () => {
+  const loggedIn = vi.fn(async () => true);
+  await runDoctor(config(), deps({ which: (command) => command !== 'claude', loggedIn }));
+  expect(loggedIn).toHaveBeenCalledTimes(1);
 });

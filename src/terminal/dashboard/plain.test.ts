@@ -37,6 +37,13 @@ test('slices show next to the round when GitHub reports some, and nothing when i
   expect(line({ done: 0, total: 0 })).not.toContain('slices');
 });
 
+test('an epic waiting for its choice says so with the seconds left, and an epic whose deadline is gone is starting', () => {
+  const waiting = (choiceDeadline: number | null) => renderPanel(snapshot({ epics: [epic({ stage: null, options: { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', choiceDeadline } })] }))[1];
+  expect(waiting(now + 42_500)).toContain('acme/web#12  waiting for its choice (starts in 42s)  blockers 0');
+  expect(waiting(now - 1)).toContain('acme/web#12  waiting for its choice (starts in 0s)');
+  expect(waiting(null)).toContain('acme/web#12  starting  ');
+});
+
 test('empty queue', () => {
   expect(renderPanel(snapshot()).join('\n')).toMatchInlineSnapshot(`"carrier  slots 0/3  queue 0"`);
 });

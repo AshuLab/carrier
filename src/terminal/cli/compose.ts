@@ -8,7 +8,7 @@ import type { Workspaces } from '../../execution/workspaces.ts';
 import { epicOf } from '../../control/epic.ts';
 import { eventsOf, lastEventOf } from '../../control/events.ts';
 import { fileDiff, filesOf } from '../../control/files.ts';
-import { sessionsOf } from '../../control/sessions.ts';
+import { inheritedConfigDirs, sessionsOf } from '../../control/sessions.ts';
 import { startControlServer, version } from '../../control/server.ts';
 import { listAvailableRepos } from '../../integrations/available-repos.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
@@ -110,6 +110,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     maxConcurrentEpics: limits.maxConcurrentEpics,
     maxReviews: limits.maxReviews,
     maxExecutionRetries: limits.maxExecutionRetries,
+    optionChoiceSeconds: limits.optionChoiceSeconds,
     maxExecutionHours: limits.maxExecutionHours,
     root: config.root,
     sessionDirs: deps.sessionDirs,
@@ -160,13 +161,14 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     open: deps.openUrl,
     quit: deps.quit,
     logs: (id: string, count: number) => tailExecution(config.root, id, count),
-    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, deps.sessionDirs),
+    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, inheritedConfigDirs()),
     events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
     epic: (repo: string, issue: number) => epicOf(db, repo, issue),
     files: (repo: string, issue: number, executionId?: string) => filesOf(db, config.root, repo, issue, executionId),
     fileDiff: (repo: string, issue: number, section: string, path: string) => fileDiff(db, config.root, repo, issue, section, path),
     availableRepos: (page: number) => deps.listRepos(page, limits.githubCallTimeoutSeconds * 1000),
-    resumeEpic: (repo: string, issue: number) => engine.resumeEpic(repo, issue),
+    resumeEpic: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => engine.resumeEpic(repo, issue, chosen),
+    chooseOptions: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => engine.chooseOptions(repo, issue, chosen),
   };
   stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop: shutdown })).close;
   const detail = (repo: string, issue: number) => controls.sessions(repo, issue)?.sessions ?? null;

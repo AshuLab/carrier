@@ -70,7 +70,7 @@ test('what the engine does not keep yet is empty: no title, labels, branch, kind
 });
 
 test('watched lists every repo with the agents it resolves to and its last check, ok and unchecked before the first poll', () => {
-  const agent = (harness: 'claude' | 'codex', model: string) => ({ profile: 'secret-profile', harness, model });
+  const agent = (harness: 'claude' | 'codex', model: string) => ({ profile: 'secret-profile', option: 'o', harness, model });
   const repos = ['acme/web', 'acme/api'].map((name) => ({ name, agents: { author: agent('claude', 'm-author'), reviewer: { ...agent('codex', 'm-review'), provider: 'ollama' as const } } }));
   const checks: Record<string, { at: number; ok: boolean; error: string | null }> = { 'acme/api': { at: 90_000, ok: false, error: 'GitHub unavailable (rate_limited: HTTP 403)' } };
   const watched = watchedOf(repos, (repo) => checks[repo]);
@@ -83,8 +83,8 @@ test('watched lists every repo with the agents it resolves to and its last check
 });
 
 test('a running epic with a frozen config lists its running execution as a session, without the profile; blocker titles are capped', () => {
-  const agent = { profile: 'secret-profile', harness: 'claude' as const, model: 'm-author' };
-  const config = { name: 'acme/web', agents: { author: agent, reviewer: { profile: 'other', harness: 'codex' as const, model: 'm-review', provider: 'ollama' as const } } };
+  const agent = { profile: 'secret-profile', option: 'o', harness: 'claude' as const, model: 'm-author' };
+  const config = { name: 'acme/web', agents: { author: agent, reviewer: { profile: 'other', option: 'o', harness: 'codex' as const, model: 'm-review', provider: 'ollama' as const } } };
   const epic = add(7, 'running', { config, round: 2 });
   db.insert(executions).values({ executionId: 'e1', epicId: epic.id, stage: 'review', resultPath: '/r', startedAt: 10 }).run();
   db.insert(callerResults).values({ executionId: 'e1', outcome: 'changes_requested', result: JSON.stringify({ blockers: Array.from({ length: 12 }, () => ({ title: 'x'.repeat(300) })) }) }).run();

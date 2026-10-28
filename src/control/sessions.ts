@@ -2,6 +2,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
+import { configDirVariable } from '../harnesses/names.ts';
 import type { PanelAgent } from '../status/types.ts';
 import type { CallerResult } from '../execution/caller-result.ts';
 import { redact } from '../logging/redact.ts';
@@ -33,8 +34,12 @@ function failureOf(row: typeof executions.$inferSelect): SessionFailure | null {
   return { kind, detail: safe(failureDetail ?? '', MAX_FAILURE_DETAIL), exitCode, signal, hostFreeMemMb, hostLoad };
 }
 
-/** The configuration folder each harness ran with, when the engine's environment set one (a path, never a secret). */
+/** The configuration folder each harness runs with when its option names none: the engine's own environment (a path, never a secret). */
 export type ConfigDirs = Partial<Record<PanelAgent['harness'], string>>;
+
+/** The folders the environment really sets, as the agents inherit them: a harness whose variable is unset has no entry, not its default folder. */
+export const inheritedConfigDirs = (env: NodeJS.ProcessEnv = process.env): ConfigDirs =>
+  Object.fromEntries(Object.entries(configDirVariable).flatMap(([harness, variable]) => (env[variable] ? [[harness, env[variable]]] : [])));
 
 /** The agent an execution ran with: its own row, or the epic's frozen configuration for a row written before it was recorded. */
 export function agentOf(row: typeof executions.$inferSelect, config: typeof epics.$inferSelect.config): PanelAgent {
@@ -48,9 +53,9 @@ export function agentOf(row: typeof executions.$inferSelect, config: typeof epic
 
 /**
  * Every execution of an epic, newest first; null for an epic the engine does not know.
- * A session has a descriptor only once it is not running and its id and folder are known (ADR 0007).
+ * A session has a descriptor only once it is not running and its id and folder are known (ADR 0007); `configDir` is the folder the execution that wrote it ran with: its option's, else the engine environment's (`inherited`).
  */
-export function sessionsOf(db: Db, repo: string, issue: number, configDirs: ConfigDirs): SessionsReply | null {
+export function sessionsOf(db: Db, repo: string, issue: number, inherited: ConfigDirs = {}): SessionsReply | null {
   const epic = db.select({ id: epics.id, config: epics.config }).from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
   if (epic === undefined) return null;
   const rows = db
@@ -65,7 +70,7 @@ export function sessionsOf(db: Db, repo: string, issue: number, configDirs: Conf
       const role = row.stage === 'review' ? 'reviewer' : 'author';
       const agent = agentOf(row, epic.config);
       const harness = agent.harness;
-      const configDir = configDirs[harness];
+      const configDir = row.configDir ?? inherited[harness];
       const resume =
         row.status === 'running' || row.sessionId === null || row.workspace === null
           ? null

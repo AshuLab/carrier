@@ -40,7 +40,7 @@ private func firstEpic(_ json: inout [String: Any], _ change: (inout [String: An
         .init(repo: "acme/api", issue: 31, prNumber: nil, finishedAt: 80_000, executionId: nil, title: "Issue 31 of acme/api"),
     ])
 
-    #expect(s.epics.count == 9)
+    #expect(s.epics.count == 10)
     #expect(s.epics[0] == PanelEpic(
         repo: "acme/web", issue: 12, status: .running, stage: .review, round: 2, maxReviews: 5, blockers: 2, stageSince: 40_000,
         lastActivityAt: 90_000, issueUrl: "https://github.com/acme/web/issues/12", prUrl: "https://github.com/acme/web/pull/50",
@@ -79,7 +79,7 @@ private let agents = PanelSnapshot.Agents(
         .init(executionId: "exec-ship-13", repo: "acme/web", issue: 13, stage: .ship, round: nil, harness: "claude", model: "claude-sonnet-5-5",
               startedAt: 7_000, last: .init(kind: "say", text: "Writing the migration", at: 99_500)),
     ])
-    #expect(s.epics.map(\.needsHumanKind) == [nil, nil, "review_limit", "agent_needs_human", "retries_exhausted", "timeout", "auth", "workspace", "pr_invalid"])
+    #expect(s.epics.map(\.needsHumanKind) == [nil, nil, "review_limit", "agent_needs_human", "retries_exhausted", "timeout", "auth", "workspace", "pr_invalid", "usage_limit"])
     #expect(s.epics[2].finishedAt == 60_000)
 }
 

@@ -80,3 +80,79 @@ test('in watch, q and Ctrl+C leave through quit and the screens say so', () => {
   stop();
   expect(writes.at(-1)).toBe('\x1b[?25h'); // the cursor is given back
 });
+
+// An epic waiting for its option choice, with the fake controls recording what the panel asks.
+const waitingEpic: PanelEpic = { ...epic, stage: null, executionId: null, options: { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', choiceDeadline: 5000 + 42_000 } };
+function waitingSetup(withChoice = true) {
+  const stdin = Object.assign(new EventEmitter(), { isTTY: true, setRawMode: vi.fn(), resume: vi.fn(), pause: vi.fn() });
+  const writes: string[] = [];
+  const chooseOptions = vi.fn();
+  const controls = { poll: vi.fn(), setPaused: vi.fn(), open: vi.fn(), quit: vi.fn(), logs: vi.fn(() => []), ...(withChoice && { chooseOptions }) } satisfies Controls;
+  const stop = startInteractivePanel({ snapshot: () => ({ ...snapshot(), epics: [waitingEpic] }), out: { isTTY: true, write: (t) => writes.push(t) }, stdin: stdin as never, controls, now: () => 5000, intervalMs: 3_600_000 });
+  const press = (name: string) => stdin.emit('keypress', name, { name });
+  const screen = () => writes.at(-1)!.replace(/\x1b\[[0-9;]*m/g, '');
+  return { chooseOptions, press, screen, stop };
+}
+
+test('o opens the choice on the card, the arrows change it, enter sends it and esc sends nothing', () => {
+  const { chooseOptions, press, screen, stop } = waitingSetup();
+  expect(screen()).toContain('waiting for its choice · starts in 42s');
+  expect(screen()).toMatch(/author claude[\s\S]*reviewer codex/);
+  expect(screen()).toContain('o options · a automatic');
+  press('o');
+  expect(screen()).toContain('‹ claude ›');
+  expect(screen()).toContain('↑↓ role · ←→ option · enter start · esc cancel');
+  press('right'); // author: codex
+  press('down');
+  press('right'); // reviewer: claude
+  expect(screen()).toMatch(/author\s+‹ codex ›[\s\S]*reviewer\s+‹ claude ›/);
+  press('return');
+  expect(chooseOptions).toHaveBeenCalledWith('A/a', 1, { author: 'codex', reviewer: 'claude' });
+  expect(screen()).not.toContain('‹');
+  press('o');
+  press('escape');
+  expect(chooseOptions).toHaveBeenCalledTimes(1);
+  expect(screen()).toContain('o options · a automatic');
+  stop();
+});
+
+test('a starts the waiting epic on its defaults with no role', () => {
+  const { chooseOptions, press, stop } = waitingSetup();
+  press('a');
+  expect(chooseOptions).toHaveBeenCalledWith('A/a', 1, { author: undefined, reviewer: undefined });
+  stop();
+});
+
+test('a chooseOptions the engine refuses is told on the panel and does not end the process', async () => {
+  const unhandled = vi.fn();
+  process.on('unhandledRejection', unhandled);
+  const { chooseOptions, press, screen, stop } = waitingSetup();
+  chooseOptions.mockRejectedValue(new Error('not waiting'));
+  press('a');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(screen()).toContain('Already started on its defaults');
+  expect(unhandled).not.toHaveBeenCalled();
+  process.off('unhandledRejection', unhandled);
+  stop();
+});
+
+test('without controls.chooseOptions o and a do nothing and are not offered in the hints or in ?', () => {
+  const { chooseOptions, press, screen, stop } = waitingSetup(false);
+  expect(screen()).not.toContain('o options');
+  press('o');
+  press('a');
+  expect(screen()).not.toContain('‹');
+  expect(screen()).not.toContain('Starting');
+  press('?');
+  expect(screen()).not.toContain('choose the options');
+  expect(chooseOptions).not.toHaveBeenCalled();
+  stop();
+});
+
+test('with the capability the help lists o and a', () => {
+  const { press, screen, stop } = waitingSetup();
+  press('?');
+  expect(screen()).toContain('choose the options of the selected epic that is waiting');
+  expect(screen()).toContain('start it on its default options now');
+  stop();
+});

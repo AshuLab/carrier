@@ -19,7 +19,7 @@ import { epicOf, MAX_ROUNDS } from './epic.ts';
 const MIN = 60_000;
 const CLIENT_LINE_LIMIT = 8 * 1024 * 1024; // macos/Sources/CarrierCore/ControlClient.swift maxLineBytes
 const SHA = 'a'.repeat(40);
-const agents = { author: { profile: 'a', harness: 'claude' as const, model: 'm' }, reviewer: { profile: 'b', harness: 'codex' as const, model: 'r' } };
+const agents = { author: { profile: 'a', option: 'o', harness: 'claude' as const, model: 'm' }, reviewer: { profile: 'b', option: 'o', harness: 'codex' as const, model: 'r' } };
 const repos: EffectiveRepoConfig[] = [{ name: 'AshuLab/a', agents }];
 
 let dir: string;
@@ -58,7 +58,7 @@ async function drive(script: (string[] | 'approved')[], { maxReviews = 5, flaky 
     return { write: verdict === 'approved' ? result(task, { outcome: 'completed', pr, verification: { ci: 'passed', evidence: 'ok' } }) : result(task, { outcome: 'changes_requested', pr, blockers: verdict.map((title) => ({ title })) }) };
   };
   const engine = createEngine({
-    db, github, clock, repos, pollIntervalMs: 5 * MIN, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews, runner, workspaces: new FakeWorkspaces(), root: dir,
+    db, github, clock, repos, pollIntervalMs: 5 * MIN, maxConcurrentEpics: 1, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews, optionChoiceSeconds: 60, runner, workspaces: new FakeWorkspaces(), root: dir,
   });
   await engine.start();
   await clock.advance(5 * MIN);

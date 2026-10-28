@@ -4,10 +4,14 @@ import { latestBlockers } from '../orchestration/blockers.ts';
 import type { Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
-import type { ControlSnapshot, PanelAgent, PanelAgents, PanelEpic, PanelSession } from './types.ts';
+import type { ControlSnapshot, EpicOptions, PanelAgent, PanelAgents, PanelEpic, PanelSession } from './types.ts';
 
 const agentOf = ({ harness, model, provider }: EffectiveRepoConfig['agents']['author']): PanelAgent => ({ harness, model, provider: provider ?? null });
 const agentsOf = (config: EffectiveRepoConfig): PanelAgents => ({ author: agentOf(config.agents.author), reviewer: agentOf(config.agents.reviewer) });
+
+/** The options of an epic as the panel and the epic's reply list them; undefined for one saved before options existed. */
+export const optionsOf = ({ config, authorOption, reviewerOption, choiceDeadline }: { config: EffectiveRepoConfig | null; authorOption: string | null; reviewerOption: string | null; choiceDeadline: number | null }): EpicOptions | undefined =>
+  config?.options && { names: Object.keys(config.options), author: authorOption, reviewer: reviewerOption, choiceDeadline };
 
 /** One row per watched repo: the agents it resolves to and its last poll (not checked yet: null and ok). */
 export function watchedOf(repos: EffectiveRepoConfig[], lastCheck: (repo: string) => { at: number; ok: boolean; error: string | null } | undefined): ControlSnapshot['watched'] {
@@ -101,6 +105,7 @@ export function buildSnapshot(
         needsHumanKind: e.needsHumanKind,
         blockerTitles: blockers.slice(0, maxBlockerTitles).map((b) => b.title.slice(0, maxBlockerTitleLength)),
         agents: epicAgents(e),
+        options: optionsOf(e),
       };
     }),
   };

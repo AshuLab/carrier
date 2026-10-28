@@ -5,6 +5,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import type { ChatCapability } from '../chat/server.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
+import { optionNamePattern } from '../config/schema.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
 import type { EpicReply, EventsReply, FileDiffReply, FilesReply, SessionsReply } from './replies.ts';
 
@@ -26,6 +27,7 @@ const repo = z
   .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/)
   .refine((value) => value.split('/').every((part) => part !== '.' && part !== '..'));
 const issue = z.number().int().positive();
+const optionName = z.string().regex(optionNamePattern);
 // An allowlist: any other command, field or type is rejected before anything acts on it.
 export const request = z.union([
   z.strictObject({ id, cmd: z.enum(['snapshot', 'pause', 'resume', 'checkNow', 'stop']) }),
@@ -36,14 +38,15 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('files'), repo, issue, executionId: z.uuid().optional() }),
   z.strictObject({ id, cmd: z.literal('fileDiff'), repo, issue, section: z.string().min(1).max(100), path: z.string().min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('availableRepos'), page: z.int().min(1).max(100).optional() }),
-  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue }),
+  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional() }),
+  z.strictObject({ id, cmd: z.literal('chooseOptions'), repo, issue, author: optionName.optional(), reviewer: optionName.optional() }),
 ]);
 
 // src/control and dist/control both sit two folders under the package root.
 export const version = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
 
 /** The optional requests an engine can answer; each one's slice adds its name to `capabilities`. */
-export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic';
+export type Capability = 'sessions' | 'events' | 'epic' | 'files' | 'fileDiff' | 'availableRepos' | 'availableReposPaged' | 'resumeEpic' | 'agentOptions';
 export type Hello = { event: 'hello'; protocol: 1; pid: number; startedAt: number; version: string; capabilities: (Capability | ChatCapability)[] };
 export type Reply = { id: number; ok: true; data?: unknown } | { id: number | null; ok: false; error: string };
 
@@ -65,11 +68,13 @@ export type Controls = {
   /** One page of the repos the gh login can push to, and whether there is a next one; rejects when GitHub cannot be read. */
   availableRepos(page: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }>;
   /** Puts a stopped epic back in motion and resolves once it started; rejects with ResumeRefused when it could not. */
-  resumeEpic(repo: string, issue: number): Promise<void>;
+  resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string }): Promise<void>;
+  /** Ends the wait of an epic that is waiting for its choice and resolves once it started; rejects with ResumeRefused when it could not. A role left out takes its default. */
+  chooseOptions(repo: string, issue: number, chosen: { author?: string; reviewer?: string }): Promise<void>;
 };
 
 /** pause, resume, checkNow and tail. Like the panel's keys, a check is started and not waited for: its failure is the engine's to report. */
-function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | 'stop' | Capability }>, controls: Controls): Reply {
+function control(command: Exclude<z.infer<typeof request>, { cmd: 'snapshot' | 'stop' | 'chooseOptions' | Capability }>, controls: Controls): Reply {
   try {
     if (command.cmd === 'tail') return { id: command.id, ok: true, data: controls.logs(command.executionId, command.lines) };
     if (command.cmd === 'checkNow') void Promise.resolve(controls.poll()).catch((error) => log.error('check now failed', error));
@@ -148,14 +153,27 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       );
   }
   if (parsed.data.cmd === 'resumeEpic') {
-    const { id: replyId, repo, issue } = parsed.data;
+    const { id: replyId, repo, issue, author, reviewer } = parsed.data;
     return Promise.resolve()
-      .then(() => controls.resumeEpic(repo, issue))
+      .then(() => controls.resumeEpic(repo, issue, { author, reviewer }))
       .then(
         (): Reply => ({ id: replyId, ok: true }),
         (error): Reply => {
           if (error instanceof ResumeRefused) return { id: replyId, ok: false, error: error.reason };
           log.error('resumeEpic failed', error);
+          return { id: replyId, ok: false, error: 'internal error' };
+        },
+      );
+  }
+  if (parsed.data.cmd === 'chooseOptions') {
+    const { id: replyId, repo, issue, author, reviewer } = parsed.data;
+    return Promise.resolve()
+      .then(() => controls.chooseOptions(repo, issue, { author, reviewer }))
+      .then(
+        (): Reply => ({ id: replyId, ok: true }),
+        (error): Reply => {
+          if (error instanceof ResumeRefused) return { id: replyId, ok: false, error: error.reason };
+          log.error('chooseOptions failed', error);
           return { id: replyId, ok: false, error: 'internal error' };
         },
       );
@@ -188,7 +206,7 @@ export async function startControlServer({ orchestratorDir, snapshot, startedAt,
     return { close: () => {} };
   }
   const sockets = new Set<Socket>();
-  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic'] };
+  const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities: ['sessions', 'events', 'epic', 'files', 'fileDiff', 'availableRepos', 'availableReposPaged', 'resumeEpic', 'agentOptions'] };
   const send = (socket: Socket, message: Hello | Reply, written?: () => void) => void socket.write(`${JSON.stringify(message)}\n`, written);
 
   const server = createServer((socket) => {

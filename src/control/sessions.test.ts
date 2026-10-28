@@ -9,7 +9,7 @@ import { callerResults } from '../storage/caller-results.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import { startControlServer } from './server.ts';
-import { sessionsOf } from './sessions.ts';
+import { inheritedConfigDirs, sessionsOf } from './sessions.ts';
 
 // The sessions request over a real socket, answered from a real (temp) SQLite.
 let dir: string;
@@ -22,11 +22,11 @@ beforeEach(async () => {
     poll: () => {},
     setPaused: () => {},
     logs: () => [],
-    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, { claude: '/cfg/claude' }),
+    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue),
     epic: () => null,
     events: () => null,
     files: () => null, fileDiff: () => null,
-    availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(),
+    availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), chooseOptions: () => Promise.resolve(),
   };
   close = (await startControlServer({ orchestratorDir: dir, snapshot: () => ({}), startedAt: 1, controls, stop: async () => {} })).close;
 });
@@ -36,13 +36,13 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const agent = { profile: 'p', harness: 'claude' as const, model: 'm' };
+const agent = { profile: 'p', option: 'o', harness: 'claude' as const, model: 'm' };
 const config = { name: 'AshuLab/a', agents: { author: agent, reviewer: { ...agent, harness: 'codex' as const } } };
 const epic = (issue: number, status: (typeof epics.$inferInsert)['status']) =>
   db.insert(epics).values({ repo: 'AshuLab/a', issue, status, config }).returning({ id: epics.id }).get().id;
 const execution = (epicId: number, n: number, extra: Partial<typeof executions.$inferInsert>) =>
   db.insert(executions).values({ executionId: `00000000-0000-4000-8000-00000000000${n}`, epicId, stage: 'ship', resultPath: '/r.json', startedAt: n * 1000, ...extra }).run();
-const ran = { harness: 'claude', model: 'opus', provider: null, workspace: '/work/clone', sessionId: 'sess-1' };
+const ran = { harness: 'claude', model: 'opus', provider: null, workspace: '/work/clone', sessionId: 'sess-1', configDir: '/cfg/claude' };
 
 async function ask(issue: number) {
   const socket = connect(join(dir, 'control.sock'));
@@ -99,13 +99,26 @@ test('a stopped epic: the interrupted and failed sessions carry a descriptor wit
   expect(sessions[0]).toMatchObject({ stage: 'fix', role: 'author', round: 2, resume: { sessionId: 'sess-3' } });
 });
 
-test('a finished epic lists the descriptors; a harness with no configuration folder omits it, and a session without an id or folder has none', async () => {
+test('a finished epic lists the descriptors; an execution that had no configuration folder omits it, and a session without an id or folder has none', async () => {
   const id = epic(4, 'ready_for_test');
-  execution(id, 1, { ...ran, harness: 'codex', status: 'finished', finishedAt: 1500 });
+  execution(id, 1, { ...ran, harness: 'codex', configDir: null, status: 'finished', finishedAt: 1500 });
   execution(id, 2, { ...ran, status: 'finished', finishedAt: 2500, sessionId: null });
   execution(id, 3, { ...ran, status: 'finished', finishedAt: 3500, workspace: null });
   const { sessions } = (await ask(4)).reply.data;
   expect(sessions.map((s: { resume: unknown }) => s.resume)).toEqual([null, null, { harness: 'codex', sessionId: 'sess-1', cwd: '/work/clone' }]);
+});
+
+test('an execution whose option names no folder takes the engine environment\'s; one that names its own keeps it', () => {
+  const id = epic(7, 'ready_for_test');
+  execution(id, 1, { ...ran, configDir: null, status: 'finished', finishedAt: 1500 });
+  execution(id, 2, { ...ran, status: 'finished', finishedAt: 2500 });
+  const resumes = sessionsOf(db, 'AshuLab/a', 7, { claude: '/env/claude' })!.sessions.map((s) => s.resume);
+  expect(resumes.map((r) => r?.configDir)).toEqual(['/cfg/claude', '/env/claude']);
+});
+
+test('only the folders the environment sets are inherited: an unset variable is not its default folder', () => {
+  expect(inheritedConfigDirs({ CLAUDE_CONFIG_DIR: '/env/claude' })).toEqual({ claude: '/env/claude' });
+  expect(inheritedConfigDirs({ CODEX_HOME: '', HOME: '/h' })).toEqual({});
 });
 
 test('an execution from before the agent was recorded takes the agent from the epic\'s frozen configuration and has no descriptor', async () => {

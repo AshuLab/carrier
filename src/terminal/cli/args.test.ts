@@ -48,6 +48,33 @@ test('watch takes the config flag and no other word', () => {
   expect(usage()).toContain('carrier watch');
 });
 
+test('restart takes one owner/name#N and the option of each role', () => {
+  expect(parseCli(['restart', 'AshuLab/carrier#12', '--author', 'codex', '--reviewer', 'claude', '--config', 'x.json'])).toMatchObject({
+    ok: true, command: 'restart', target: { repo: 'AshuLab/carrier', issue: 12 }, flags: { author: 'codex', reviewer: 'claude', config: 'x.json' },
+  });
+  expect(parseCli(['restart', 'a.b/c_d-e#1'])).toMatchObject({ ok: true, target: { repo: 'a.b/c_d-e', issue: 1 } });
+});
+
+test.each(['', 'AshuLab/carrier', 'AshuLab/carrier#', 'AshuLab/carrier#0', 'AshuLab/carrier#-1', 'AshuLab/carrier#1.5', 'AshuLab/carrier#01x', 'carrier#1', 'a/b/c#1', '../b#1', 'a/..#1', ' AshuLab/carrier#1', 'AshuLab/carrier #1', '#1', '12'])(
+  'restart with the argument "%s" is a usage error',
+  (target) => {
+    const parsed = parseCli(['restart', target]);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.ok === false && parsed.message).toContain('owner/name#N');
+  },
+);
+
+test('restart without its argument or with a second one is a usage error, and the argument belongs to no other command', () => {
+  expect(parseCli(['restart'])).toMatchObject({ ok: false, message: expect.stringContaining('owner/name#N') });
+  expect(parseCli(['restart', 'A/a#1', 'B/b#2'])).toMatchObject({ ok: false });
+  expect(parseCli(['status', 'A/a#1'])).toEqual({ ok: false, message: 'Unknown command: status A/a#1' });
+});
+
+test('the usage names restart and its flags', () => {
+  expect(usage()).toContain('carrier restart <owner/name>#<issue>');
+  expect(usage()).toContain('--author <option>');
+});
+
 test('chat takes --list or --stop, and chat-host the config', () => {
   expect(parseCli(['chat', '--list'])).toMatchObject({ ok: true, command: 'chat', flags: { list: true } });
   expect(parseCli(['chat', '--stop', '--config', 'x.json'])).toMatchObject({ ok: true, command: 'chat', flags: { stop: true, config: 'x.json' } });

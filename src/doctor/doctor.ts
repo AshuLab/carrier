@@ -1,4 +1,7 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { createScopedLogger } from '@ashulab/universal-logger';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { socketPathFits } from '../control/server.ts';
 import { resolveRepoConfig, sameAccount } from '../config/resolve.ts';
@@ -7,10 +10,19 @@ import { profileToken } from '../execution/git-workspaces.ts';
 import { forgeCwd } from '../integrations/forge-cwd.ts';
 import { GhGitHub, type GitHubProfile } from '../integrations/github.ts';
 import { listLocalModels, localLabel, localUrl, type LocalProvider } from '../harnesses/local.ts';
+import { configDirVariable } from '../harnesses/names.ts';
 import { fixes, installFix } from './fixes.ts';
 
 /** `fix` is one remedy line for the person at the terminal; only failures and warnings have one. */
 export type Check = { name: string; status: 'ok' | 'warn' | 'fail'; detail?: string; fix?: string };
+
+/** The part of the agy process the login check reads; the check kills it as soon as it knows. */
+export interface AgyProcess {
+  stdout: NodeJS.ReadableStream;
+  stderr: NodeJS.ReadableStream;
+  kill: () => unknown;
+  once: (event: 'close' | 'error', listener: (error?: Error) => void) => unknown;
+}
 
 export interface DoctorDeps {
   which: (command: string) => boolean;
@@ -18,10 +30,99 @@ export interface DoctorDeps {
   listLabels: (config: Config, repo: string) => Promise<string[]>;
   /** What a local model server has; throws when it does not answer. */
   localModels: (local: LocalProvider) => Promise<string[]>;
+  /** Whether a Claude or Codex login works, with the option's config folder (the process environment when none); throws when the CLI cannot run. */
+  loggedIn: (harness: 'claude' | 'codex', configDir: string | undefined) => Promise<boolean>;
+  /** Starts `agy -p /usage` for the Antigravity login check; throws when it cannot start. */
+  startAgy: () => AgyProcess;
+}
+
+const log = createScopedLogger('doctor');
+const LOGIN_TIMEOUT_MS = 20_000;
+const AGY_TIMEOUT_MS = 30_000; // logged in answers in about five seconds
+const AGY_LOGGED_OUT = 'Authentication required';
+
+// Antigravity has no status command, so ask for /usage: it costs nothing. The stderr is never kept past the first line (it holds the login URL).
+function startAgy(): AgyProcess {
+  const cwd = mkdtempSync(join(tmpdir(), 'carrier-agy-'));
+  const child = spawn('agy', ['-p', '/usage', '--output-format', 'json'], { cwd, env: { ...process.env, BROWSER: 'true' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  child.once('close', () => rmSync(cwd, { recursive: true, force: true }));
+  return child;
+}
+
+/** 'in' on status SUCCESS, 'out' at the first stderr line asking for login (the process is killed then, not awaited), 'unknown' otherwise. */
+function agyLogin(deps: Pick<DoctorDeps, 'startAgy'>): Promise<'in' | 'out' | 'unknown'> {
+  return new Promise((resolve, reject) => {
+    const child = deps.startAgy();
+    let out = '';
+    let err = '';
+    let settled = false;
+    const settle = (verdict: 'in' | 'out' | 'unknown') => {
+      if (settled) return; // killing the process closes it, which comes back here
+      settled = true;
+      clearTimeout(timer);
+      resolve(verdict);
+      child.kill();
+    };
+    const timer = setTimeout(() => settle('unknown'), AGY_TIMEOUT_MS);
+    child.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.stdout.on('data', (chunk) => (out += chunk));
+    child.stderr.on('data', (chunk) => {
+      if (err.length < AGY_LOGGED_OUT.length) err += chunk; // only the start of the first line matters
+      if (err.startsWith(AGY_LOGGED_OUT)) settle('out');
+    });
+    child.once('close', () => {
+      try {
+        settle((JSON.parse(out) as { status?: unknown }).status === 'SUCCESS' ? 'in' : 'unknown');
+      } catch {
+        settle('unknown');
+      }
+    });
+  });
+}
+
+// Reads only the verdict: the output holds an email and an organisation, which never leave this function.
+// Async, so the wizard and the doctor's spinner go on while the CLI answers. After the timeout the whole process group is killed and the
+// probe rejects at once: a CLI that traps SIGTERM, or leaves a child holding the pipe, cannot keep it waiting.
+export function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | undefined, timeoutMs = LOGIN_TIMEOUT_MS) {
+  const env = configDir ? { ...process.env, [configDirVariable[harness]]: configDir } : process.env;
+  const [command, args] = harness === 'claude' ? ['claude', ['auth', 'status']] : ['codex', ['login', 'status']];
+  return new Promise<boolean>((resolve, reject) => {
+    const child = spawn(command!, args as string[], { env, stdio: ['ignore', 'pipe', 'ignore'], detached: true });
+    let out = '';
+    child.stdout.setEncoding('utf8');
+    child.stdout.on('data', (chunk) => (out += chunk));
+    const timer = setTimeout(() => {
+      try {
+        process.kill(-child.pid!, 'SIGKILL');
+      } catch {
+        child.kill('SIGKILL'); // no process group to signal (not POSIX), or it is already gone
+      }
+      reject(new Error(`${command} ${args.join(' ')} did not answer in ${timeoutMs / 1000} s`));
+    }, timeoutMs);
+    child.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once('close', (status) => {
+      clearTimeout(timer);
+      if (harness === 'codex') return resolve(status === 0);
+      try {
+        resolve((JSON.parse(out) as { loggedIn?: unknown }).loggedIn === true);
+      } catch {
+        log.warn('could not read the output of claude auth status'); // the parse error carries the start of the output: only this fixed text is logged
+        resolve(false);
+      }
+    });
+  });
 }
 
 const realDeps: DoctorDeps = {
   localModels: (local) => listLocalModels(local),
+  loggedIn: cliLoggedIn,
+  startAgy,
   which: (command) => spawnSync('which', [command]).status === 0,
   mint: (profile, repo) => profileToken(profile)(repo),
   listLabels: (config, repo) =>
@@ -45,10 +146,13 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
     onCheck(check);
     return check.status === 'ok';
   };
+  const missing = new Set<string>();
   const installed = (command: string) => {
     const name = `${command} installed`;
     onStart(name);
-    return report(deps.which(command) ? { name, status: 'ok' } : { name, status: 'fail', detail: 'not found on PATH', fix: installFix[command] });
+    const found = deps.which(command);
+    if (!found) missing.add(command);
+    return report(found ? { name, status: 'ok' } : { name, status: 'fail', detail: 'not found on PATH', fix: installFix[command] });
   };
 
   const repos = config.repos.map((repo) => resolveRepoConfig(config, repo));
@@ -75,8 +179,41 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
     try {
       const have = await deps.localModels(provider);
       report(have.includes(model) ? { name, status: 'ok' } : { name, status: 'fail', detail: `not downloaded there (it has: ${have.join(', ') || 'nothing'})`, fix: fixes.modelMissing(model) });
-    } catch {
+    } catch (error) {
+      log.error('a local model server did not answer', error, { provider });
       report({ name, status: 'fail', detail: `${localLabel[provider]} is not answering at ${localUrl[provider]}; start its server`, fix: fixes.serverDown });
+    }
+  }
+
+  // Every Claude and Codex option, whether a role uses it or not: a login that has run out shows here before an epic needs it.
+  // A role's option that is not logged in fails; any other only warns. Antigravity has no folder and a behaviour test instead.
+  const roleOptions = new Set(repos.flatMap((repo) => rolesOf(repo).map((agent) => agent.option)));
+  for (const [option, { harness, configDir }] of Object.entries(config.agentOptions)) {
+    if (missing.has(harness)) continue;
+    if (harness === 'agy') {
+      const name = `agy option ${option} is logged in`;
+      onStart(name);
+      try {
+        const login = await agyLogin(deps);
+        if (login === 'in') report({ name, status: 'ok' });
+        else if (login === 'out') report({ name, status: roleOptions.has(option) ? 'fail' : 'warn', detail: 'not logged in', fix: fixes.login('agy', undefined) });
+        else report({ name, status: 'warn', detail: 'could not tell whether agy is logged in (it neither answered nor asked for a login in time)' });
+      } catch (error) {
+        log.error('could not run agy to check the login', error, { option });
+        report({ name, status: 'warn', detail: 'could not run agy to check the login', fix: installFix.agy });
+      }
+      continue;
+    }
+    if (harness !== 'claude' && harness !== 'codex') continue;
+    const name = `${harness} option ${option} is logged in`;
+    const status = roleOptions.has(option) ? 'fail' : 'warn';
+    const where = configDir ? `at ${configDir}` : 'in the environment Carrier runs in';
+    onStart(name);
+    try {
+      report((await deps.loggedIn(harness, configDir)) ? { name, status: 'ok' } : { name, status, detail: `not logged in ${where}`, fix: fixes.login(harness, configDir) });
+    } catch (error) {
+      log.error(`could not run ${harness} to check the login`, error, { option });
+      report({ name, status, detail: `could not run ${harness} to check the login ${where}`, fix: installFix[harness] });
     }
   }
 

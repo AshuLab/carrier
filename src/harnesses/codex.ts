@@ -29,9 +29,13 @@ export function buildCodexCommand(task: AgentTask, ctx: CommandContext): AgentCo
       `carrier_marker="${markerFor(task.executionId)}"`,
     ],
     cwd: task.workspace,
-    env: { ...childEnv(ctx), CARRIER_RESULT_PATH: task.resultPath },
+    env: { ...childEnv(ctx), ...(task.configDir && { CODEX_HOME: task.configDir }), CARRIER_RESULT_PATH: task.resultPath },
   };
 }
+
+const str = (value: unknown) => (typeof value === 'string' ? value : undefined);
+
+const usageLimitStarts = ["You've hit your usage limit", 'You hit your spend cap', 'Your workspace is out of credits', 'Quota exceeded.'];
 
 // Shapes observed with codex 0.153.4: thread.started carries the session; a missing login ends with
 // turn.failed "unexpected status 401 Unauthorized" (the "Reconnecting... n/5 (... 401" error events before it
@@ -44,11 +48,14 @@ export function parseCodexLine(line: string): LineSignal | undefined {
     return line.includes('no rollout found for thread id') ? { sessionUnavailable: true } : undefined;
   }
   if (event.type === 'thread.started' && typeof event.thread_id === 'string') return { session: event.thread_id };
-  if (event.type === 'turn.failed' && String(event.error?.message).includes('401 Unauthorized')) return { authFailed: true };
+  if (event.type === 'turn.failed') {
+    const message = str(event.error?.message) ?? 'the turn failed';
+    if (message.includes('401 Unauthorized')) return { authFailed: true };
+    // Text only (docs/research/agent-usage-limit-signals.md); the reset time stays in the detail, nothing computes on it.
+    return { failure: { kind: usageLimitStarts.some((start) => message.startsWith(start)) ? 'usage_limit' : 'api_error', detail: message } };
+  }
   return undefined;
 }
-
-const str = (value: unknown) => (typeof value === 'string' ? value : undefined);
 
 // Codex runs every command as `<shell> -lc '<the command>'`; the user's command is what is inside.
 const unwrap = (command: string) => {

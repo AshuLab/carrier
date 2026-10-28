@@ -90,3 +90,81 @@ test('finished rows are selectable after the ready ones, merged then cancelled, 
   expect(press(at, 'l', s).ui.mode).toBe('logs');
   expect(settle({ ...at, mode: 'logs' }, s, now).mode).toBe('logs');
 });
+
+// An epic waiting for its option choice: running, no stage yet, with a deadline; the roles would start on claude and codex.
+const waiting = (over: Partial<PanelEpic> = {}) => epic({ stage: null, executionId: null, options: { names: ['claude', 'codex', 'agy'], author: 'claude', reviewer: 'codex', choiceDeadline: now + 40_000 }, ...over });
+const waitingSnap = (over: Partial<PanelSnapshot> = {}) => snap({ epics: [waiting(), epic({ issue: 2 })], queue: [], done: [], ...over });
+const at = { ...initialUi, selected: 'A/a#1' };
+const choose = (ui: UiState, name: string, s = waitingSnap()) => onKey(ui, { name, sequence: name }, s, now, true);
+
+test('o on a waiting epic enters the choice mode on the options it would start on; enter sends what is shown', () => {
+  const entered = choose(at, 'o');
+  expect(entered.ui.mode).toBe('choose');
+  expect(entered.ui.choice).toEqual({ role: 'author', author: 'claude', reviewer: 'codex' });
+  expect(entered.action).toBeUndefined();
+  const sent = choose(entered.ui, 'return');
+  expect(sent.action).toEqual({ type: 'choose', repo: 'A/a', issue: 1, author: 'claude', reviewer: 'codex' });
+  expect(sent.ui.mode).toBe('dashboard');
+  expect(sent.ui.toast?.text).toBe('Starting A/a#1 on claude and codex');
+});
+
+test('a choice still open when the wait ends says the time ran out; a plain dashboard says nothing', () => {
+  const entered = choose(at, 'o').ui;
+  expect(settle(entered, snap(), now)).toMatchObject({ mode: 'dashboard', toast: { text: 'Time ran out: started on its defaults' } });
+  expect(settle(at, snap(), now).toast).toBeNull();
+});
+
+test('in the choice mode up and down move between the two roles, left and right change the option of the role and wrap', () => {
+  let ui = choose(at, 'o').ui;
+  ui = choose(ui, 'right').ui;
+  expect(ui.choice).toEqual({ role: 'author', author: 'codex', reviewer: 'codex' });
+  ui = choose(choose(ui, 'right').ui, 'right').ui; // agy, then around to claude
+  expect(ui.choice?.author).toBe('claude');
+  ui = choose(ui, 'left').ui; // back to agy
+  expect(ui.choice?.author).toBe('agy');
+  ui = choose(ui, 'down').ui;
+  expect(ui.choice?.role).toBe('reviewer');
+  ui = choose(ui, 'left').ui;
+  expect(ui.choice).toEqual({ role: 'reviewer', author: 'agy', reviewer: 'claude' });
+  ui = choose(ui, 'up').ui;
+  expect(ui.choice?.role).toBe('author');
+  expect(choose(ui, 'return').action).toEqual({ type: 'choose', repo: 'A/a', issue: 1, author: 'agy', reviewer: 'claude' });
+});
+
+test('esc leaves the choice mode without sending, and the mode takes no other key but q', () => {
+  const ui = choose(at, 'o').ui;
+  const left = choose(ui, 'escape');
+  expect(left.ui.mode).toBe('dashboard');
+  expect(left.action).toBeUndefined();
+  for (const name of ['r', 'p', 'l', 'o', 'a']) expect(choose(ui, name).action).toBeUndefined();
+  expect(choose(ui, 'r').ui.mode).toBe('choose');
+  expect(onKey(ui, { sequence: '?' }, waitingSnap(), now, true).ui.mode).toBe('choose');
+  expect(choose(ui, 'q').action).toEqual({ type: 'quit' });
+});
+
+test('a sends the choice with no role, which starts the epic on the defaults', () => {
+  const sent = choose(at, 'a');
+  expect(sent.action).toEqual({ type: 'choose', repo: 'A/a', issue: 1 });
+  expect(sent.ui.mode).toBe('dashboard');
+});
+
+test('o and a do nothing on an epic that is not waiting, and against an engine without agentOptions', () => {
+  const other = { ...initialUi, selected: 'A/a#2' };
+  for (const name of ['o', 'a']) {
+    expect(choose(other, name)).toEqual({ ui: other });
+    expect(choose({ ...initialUi, selected: 'B/b#5' }, name, snap({ queue: [{ repo: 'B/b', issue: 5 }] }))).toEqual({ ui: { ...initialUi, selected: 'B/b#5' } }); // a queued row
+    expect(onKey(at, { name, sequence: name }, waitingSnap(), now)).toEqual({ ui: at }); // canChoose off
+  }
+  const started = waitingSnap({ epics: [waiting({ options: { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', choiceDeadline: null } })] });
+  expect(choose(at, 'a', started).action).toBeUndefined();
+  const oneOption = waitingSnap({ epics: [waiting({ options: { names: ['claude'], author: 'claude', reviewer: 'claude', choiceDeadline: now + 1 } })] });
+  expect(choose(at, 'o', oneOption).ui.mode).toBe('dashboard');
+});
+
+test('settle leaves the choice mode when the epic is no longer waiting, and keeps it while it is', () => {
+  const ui = choose(at, 'o').ui;
+  expect(settle(ui, waitingSnap(), now)).toEqual({ ...ui, selected: 'A/a#1', toast: null });
+  const started = waitingSnap({ epics: [waiting({ options: { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', choiceDeadline: null } })] });
+  expect(settle(ui, started, now).mode).toBe('dashboard');
+  expect(settle(ui, started, now).choice).toBeUndefined();
+});

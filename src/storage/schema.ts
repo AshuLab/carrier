@@ -2,7 +2,7 @@ import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { PullRequestBlock } from '../orchestration/github.ts';
 import { integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
-export const needsHumanKinds = ['review_limit', 'agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid'] as const;
+export const needsHumanKinds = ['review_limit', 'agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit'] as const;
 export const epicStates = ['queued', 'running', 'ready_for_test', 'needs_human', 'cancelled', 'merged', 'repo_removed'] as const;
 
 export const epics = sqliteTable(
@@ -42,6 +42,10 @@ export const epics = sqliteTable(
     removedFrom: text({ enum: epicStates }),
     removedReason: text(),
     finishedAt: integer(), // ms since epoch, when the epic left `running`
+    // The agent option each role runs on, set when the epic is reserved and replaced by a choice; null on epics from before options existed.
+    authorOption: text(),
+    reviewerOption: text(),
+    choiceDeadline: integer(), // ms since epoch: while set, the running epic waits for its choice and has launched nothing
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

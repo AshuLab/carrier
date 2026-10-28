@@ -15,7 +15,23 @@ export function useTempDir() {
   return dir;
 }
 
-export const quietUi = (answers: Record<string, string | boolean> = {}) => {
+/** A role of a written config with the option it points at spread in, to assert on harness, model and provider. */
+export function roleOf(written: string, role: 'author' | 'reviewer') {
+  const config = JSON.parse(written);
+  const agent = config.agents[role];
+  return { ...agent, ...config.agentOptions[agent.option] };
+}
+
+/** An answer by question; a list answers the same question again and again, in order, and what is left unanswered takes the default. */
+type Answers = Record<string, string | boolean | (string | boolean)[]>;
+
+export const quietUi = (scripted: Answers = {}) => {
+  const answers: Record<string, string | boolean | undefined> = {};
+  for (const message of Object.keys(scripted)) {
+    const answer = scripted[message]!;
+    const list = Array.isArray(answer) ? [...answer] : undefined;
+    Object.defineProperty(answers, message, { get: () => (list ? list.shift() : answer) });
+  }
   const asked: string[] = [];
   const listed: string[][] = [];
   const ui: Ui = {
@@ -54,6 +70,9 @@ export const quietUi = (answers: Record<string, string | boolean> = {}) => {
   return { ui, asked, listed };
 };
 
+/** Adds a second option (the machine's other CLI, on its defaults) to the first, then stops: Claude on sonnet and Codex on the model it runs with. */
+export const twoOptions = { 'Add another agent option?': [true, false] };
+
 export const okCheck: Check = { name: 'x', status: 'ok' };
 export const fakeDeps = (over: Partial<InitDeps> = {}) => {
   const written: Record<string, string> = {};
@@ -67,6 +86,8 @@ export const fakeDeps = (over: Partial<InitDeps> = {}) => {
     codexModels: () => [],
     agyModels: () => [],
     localModels: async () => Promise.reject(new Error('not running')),
+    configFolders: () => [],
+    loggedIn: async () => true,
     exists: () => false,
     write: (path, content) => (written[path] = content),
     doctor: async () => [okCheck],

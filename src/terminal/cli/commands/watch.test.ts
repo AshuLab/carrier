@@ -10,14 +10,14 @@ const epic: PanelEpic = {
   repo: 'A/a', issue: 1, status: 'running', stage: 'ship', round: null, maxReviews: 5, blockers: 0, stageSince: 0, lastActivityAt: null,
   issueUrl: 'https://github.com/A/a/issues/1', prUrl: 'https://github.com/A/a/pull/9', lastError: null, needsHumanReason: null, slices: null, executionId: '0b9d7a52-6d0e-4a52-8f8e-0f3a6d3c1a11',
 };
-const snapshotOf = (paused: boolean): PanelSnapshot => ({ now: 5000, slots: { busy: 1, total: 3 }, queue: [], epics: [epic], startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused, done: [] });
+const snapshotOf = (paused: boolean, epics: PanelEpic[] = [epic]): PanelSnapshot => ({ now: 5000, slots: { busy: 1, total: 3 }, queue: [], epics, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused, done: [] });
 
 /** The keys of the foreground panel, drawn from a fake client instead of an engine. */
-async function setup(paused = false) {
-  let state = snapshotOf(paused);
+async function setup(paused = false, { capabilities = ['sessions'], epics }: { capabilities?: string[]; epics?: PanelEpic[] } = {}) {
+  let state = snapshotOf(paused, epics);
   const requests: Array<[string, unknown]> = [];
   const client = {
-    hello: { capabilities: ['sessions'] } as never,
+    hello: { capabilities } as never,
     request: vi.fn(async (cmd: string, fields?: Record<string, unknown>) => {
       requests.push([cmd, fields]);
       if (cmd === 'snapshot') return state;
@@ -72,6 +72,26 @@ test('a socket that stops answering calls lost; a refused request does not', asy
   press('r');
   await vi.waitFor(() => expect(hooks.lost).toHaveBeenCalledTimes(1));
   stop();
+});
+
+test('o and a reach the socket as chooseOptions when the engine lists agentOptions, and do nothing when it does not', async () => {
+  const waiting: PanelEpic = { ...epic, stage: null, executionId: null, options: { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', choiceDeadline: 5000 + 42_000 } };
+  const withCapability = await setup(false, { capabilities: ['sessions', 'agentOptions'], epics: [waiting] });
+  withCapability.press('o');
+  withCapability.press('right');
+  withCapability.press('return');
+  withCapability.press('a');
+  expect(withCapability.requests.filter(([cmd]) => cmd === 'chooseOptions')).toEqual([
+    ['chooseOptions', { repo: 'A/a', issue: 1, author: 'codex', reviewer: 'codex' }],
+    ['chooseOptions', { repo: 'A/a', issue: 1 }],
+  ]);
+  withCapability.stop();
+  const without = await setup(false, { epics: [waiting] });
+  without.press('o');
+  without.press('a');
+  expect(without.requests.map(([cmd]) => cmd)).not.toContain('chooseOptions');
+  expect(without.writes.at(-1)).not.toContain('o options');
+  without.stop();
 });
 
 // The stage detail: a running card per epic, drawn from the provider the panel is given, with the engine's `sessions` answered by a fake client.

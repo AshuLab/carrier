@@ -39,8 +39,9 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 - **Setup** — `carrier init` (guided, or all flags) writes the config; `carrier doctor` checks it and the machine; `carrier schema` prints the config's JSON Schema.
 - **Run without a terminal** — `carrier start --config <path>` launches Carrier as a detached run (its own session, its output in `<root>/orchestrator/logs/start.log`) and returns once the control socket answers, within 15 seconds; on a root where Carrier already runs it says so, does nothing and exits 0, and if it does not come up it prints the end of the log and exits 1. `carrier stop`, `pause`, `resume` and `check` do from any terminal what the panel's `Ctrl+C`, `p` and `r` do (`check` looks at GitHub now) and confirm in one line: exit 0 on success (`stop` also when none runs), 1 when no Carrier runs (or answers), 2 when it speaks another protocol. See [ADR 0010](docs/adr/0010-carrier-runs-in-the-background-as-a-detached-process.md).
 - **Status** — `carrier status` prints the panel of the running Carrier once, from any terminal; exit 0 it runs, 1 it is not running, 2 it speaks another protocol. `carrier watch` attaches the live panel to it with the same keys as the foreground one, except `q` (and `Ctrl+C`) only leave: Carrier keeps running. It exits 1 when none runs or when the Carrier it watches stops. Both show each epic's stage history (running, needing you, or ready for test), asked over the socket; a Carrier that does not list `sessions` in its hello is drawn from the snapshot alone, and an epic whose request fails is drawn without it.
+- **Restart a stopped epic** — `carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose. In a terminal and without flags it asks for each role, with the current option preselected and the role that failed marked; without a terminal it keeps the current options. The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session. It prints one line and exits 0; a refusal prints the engine's reason and exits 1 (so does no Carrier running), a malformed argument or another protocol exits 2. It needs an engine that lists `agentOptions` in its hello.
 - **Chat host** — `carrier chat --workspace <folder> [--agent <name>]` opens a conversation (it prints the answer as it streams; `/quit` leaves and the session stays open), `carrier chat --list [--archived]`, `--archive`, `--unarchive` and `--delete <id>` (deleting leaves nothing of the session; a working one is refused) talk to the chat host, a process of its own under `<root>/chat/` (socket `chat.sock`, `chat.db`, `logs/`), and starts it detached when none answers; it ends by itself a minute after the last client leaves, or at once with `carrier chat --stop`. The engine and the host run side by side and neither's stop touches the other. `carrier chat-host --config <path>` runs it in the foreground. See [ADR 0013](docs/adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md) and [the spec](docs/specs/chat-host.md).
-- **Config** — a user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, harness, provider and model; under separate identities (the default) author and reviewer must resolve to different profiles.
+- **Config** — a user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, agent option and persona; under separate identities (the default) author and reviewer must resolve to different profiles.
 - **Polling and queue** — FIFO across repos with pagination, rate-limit and outage handling; one instance per root folder (an exclusive SQLite lock released by the OS on death).
 - **Scheduler** — atomic reservation, configurable concurrency, label management (`running`, `ready-for-test`, `needs-human` are created in each repo if missing).
 - **Stages** — ship, review and fix loops with a typed caller result (`completed`, `changes_requested`, `needs_human`) imported idempotently in a single transaction.
@@ -122,13 +123,15 @@ Or run it without installing: `pnpm dlx @ashulab/carrier`. To work on Carrier it
 carrier init
 ```
 
-It looks at the machine (stopping with the fix if `git`, `gh` or every agent CLI is missing, and listing the models your local servers have), asks for the repos to watch (picked from the repos your `gh` login can push to, grouped by owner), whether the author and the reviewer use separate identities or one shared identity (your `gh` login for both, after a note that both act with everything its token can do; it never reads Agent Forge), the identity of each role under separate identities, and the CLI and model each one uses, then the persona of each role (a name and a prompt, each skippable, and when editing `-` clears one; `--author-persona-name`, `--author-persona-prompt`, `--reviewer-persona-name` and `--reviewer-persona-prompt` answer them), writes the config to `~/.carrier/config.json` (one global file per user; change it with `--out`) and runs the checks below. Run again on an existing config, it offers to edit it with its answers as the starting points. Before saving it shows a recap to confirm, and the checks that follow print only what fails (otherwise a single count), then it shows how many epics are waiting and offers to start Carrier. If there is no second GitHub identity it can run `agent-forge add` for you on the spot. Every question has a flag (`carrier init --help`), and `--yes` never asks, so an agent can run it too (`--identities shared --yes` takes the `gh` login for both roles and prints the note; it cannot go with `--author-profile` or `--reviewer-profile`):
+It looks at the machine (stopping with the fix if `git`, `gh` or every agent CLI is missing, and listing the models your local servers have), asks for the repos to watch (picked from the repos your `gh` login can push to, grouped by owner), whether the author and the reviewer use separate identities or one shared identity (your `gh` login for both, after a note that both act with everything its token can do; it never reads Agent Forge), the identity of each role under separate identities, then an **Agent options** section before the roles, where you add agent options one at a time (the CLI among the installed ones, the local provider when a server is running, the model and, for Claude and Codex, the config folder: the `~/.claude`, `~/.claude-*` and `~/.codex` it finds with their login state, the environment, or a typed path; Antigravity has no folder), each with a suggested name that must be a lowercase word and unique, and after each one whether to add another; each role then asks one question, which of those options runs it, and with two or more options it asks whether to turn failover on and in which order (the `failover` block). Run again on an existing config it keeps the options and the `failover` block and lets you add more (editing or removing one is done in the file). Then the persona of each role (a name and a prompt, each skippable, and when editing `-` clears one; `--author-persona-name`, `--author-persona-prompt`, `--reviewer-persona-name` and `--reviewer-persona-prompt` answer them), writes the config to `~/.carrier/config.json` (one global file per user; change it with `--out`) and runs the checks below. Run again on an existing config, it offers to edit it with its answers as the starting points. Before saving it shows a recap to confirm, and the checks that follow print only what fails (otherwise a single count), then it shows how many epics are waiting and offers to start Carrier. If there is no second GitHub identity it can run `agent-forge add` for you on the spot. Every question has a flag (`carrier init --help`); `--author` and `--reviewer` (`<harness>:<model>`, with `--author-provider` and `--reviewer-provider`) each declare one option named after its harness and skip the section and the failover question when both are given. `--yes` never asks, so an agent can run it too (`--identities shared --yes` takes the `gh` login for both roles and prints the note; it cannot go with `--author-profile` or `--reviewer-profile`):
 
 ```bash
 carrier init --yes --repo AshuLab/my-repo \
   --author-profile forge:<agent-1> --author claude:<model> \
   --reviewer-profile forge:<agent-2> --reviewer codex:<model>
 ```
+
+Without `--author` and `--reviewer`, `--yes` writes one `claude` option that runs both roles; the flags above give each role its own option.
 
 Check a config (yours or a hand-written one) at any time:
 
@@ -144,20 +147,24 @@ A JSON file merged over the defaults (objects merge by field, simple values repl
 
 ```json
 {
-  "repos": [{ "name": "AshuLab/my-repo", "agents": { "reviewer": { "model": "<model>" } } }],
+  "repos": [{ "name": "AshuLab/my-repo", "agents": { "reviewer": { "option": "claude" } } }],
   "profiles": {
     "author-bot": { "kind": "forge", "agent": "<forge-agent-1>" },
     "reviewer-bot": { "kind": "forge", "agent": "<forge-agent-2>" }
   },
   "orchestratorProfile": "author-bot",
+  "agentOptions": {
+    "claude": { "harness": "claude", "model": "<model>" },
+    "codex": { "harness": "codex", "model": "<model>" }
+  },
   "agents": {
-    "author": { "profile": "author-bot", "harness": "claude", "model": "<model>" },
-    "reviewer": { "profile": "reviewer-bot", "harness": "codex", "model": "<model>" }
+    "author": { "profile": "author-bot", "option": "claude" },
+    "reviewer": { "profile": "reviewer-bot", "option": "codex" }
   }
 }
 ```
 
-Defaults: `root` `~/.solve`, `pollIntervalMinutes` 5, `logLevel` `info`, and `limits` of `maxConcurrentEpics` 3, `maxReviews` 5, `maxExecutionRetries` 3, `maxExecutionHours` 4 (or `"unlimited"`), `githubCallTimeoutSeconds` 30. Identity, harness, provider and model for author and reviewer can be overridden per repo. The file holds no secrets: a profile is `{ "kind": "forge", "agent": ... }` or `{ "kind": "gh" }`.
+Defaults: `root` `~/.solve`, `pollIntervalMinutes` 5, `logLevel` `info`, and `limits` of `maxConcurrentEpics` 3, `maxReviews` 5, `maxExecutionRetries` 3, `maxExecutionHours` 4 (or `"unlimited"`), `githubCallTimeoutSeconds` 30. Identity, agent option and persona for author and reviewer can be overridden per repo; an agent option (`agentOptions`) is a harness, model, optional provider and optional config folder. The file holds no secrets: a profile is `{ "kind": "forge", "agent": ... }` or `{ "kind": "gh" }`.
 
 ### 4. Run it
 

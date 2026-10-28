@@ -11,6 +11,8 @@ export interface AgentTask {
   harness: HarnessName;
   model: string;
   provider?: 'lmstudio' | 'ollama'; // `model` is served by that local server
+  option?: string; // name of the agent option the role ran on; absent on an epic saved before options existed
+  configDir?: string; // the option's config folder (CLAUDE_CONFIG_DIR, CODEX_HOME); absent: the process environment's own
   persona?: { name?: string; prompt?: string }; // of the role, told in the prompt
   sharedIdentity?: boolean; // the epic's author and reviewer use one GitHub profile: the prompt asks for the signature
   workspace: string; // checkout where the agent runs

@@ -1,6 +1,6 @@
 import { readdirSync, realpathSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, sep } from 'node:path';
+import { isAbsolute, join, sep } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, eq, inArray, isNotNull, lte } from 'drizzle-orm';
 import type { Db } from '../storage/db.ts';
@@ -74,7 +74,7 @@ function sessionFiles({ claude, codex }: SessionDirs, ids: string[]): string[] {
  */
 export function purgeExpired(db: Db, root: string, now: number, sessionDirs: SessionDirs = sessionDirsFrom()): string[] {
   const rows = db
-    .select({ executionId: executions.executionId, sessionId: executions.sessionId })
+    .select({ executionId: executions.executionId, sessionId: executions.sessionId, configDir: executions.configDir })
     .from(executions)
     .innerJoin(epics, eq(epics.id, executions.epicId))
     .where(and(inArray(epics.status, finished), isNotNull(epics.finishedAt), lte(epics.finishedAt, now - retentionMs)))
@@ -90,8 +90,19 @@ export function purgeExpired(db: Db, root: string, now: number, sessionDirs: Ses
     rmSync(target, { recursive: true, force: true });
     deleted.push(target);
   };
-  const sessionIds = rows.flatMap(({ sessionId }) => (sessionId !== null && safeId.test(sessionId) ? [sessionId] : []));
-  for (const file of sessionFiles(sessionDirs, sessionIds)) remove(file);
+  // Each session is looked up in the folder of the execution that wrote it; a row that predates the column uses the environment's own.
+  const idsByFolder = new Map<string | null, string[]>();
+  for (const { sessionId, configDir } of rows) {
+    if (sessionId === null || !safeId.test(sessionId)) continue;
+    if (configDir !== null && !isAbsolute(configDir)) {
+      log.warn('ignoring a recorded config folder that is not an absolute path', { configDir });
+      continue;
+    }
+    idsByFolder.set(configDir, [...(idsByFolder.get(configDir) ?? []), sessionId]);
+  }
+  for (const [folder, ids] of idsByFolder) {
+    for (const file of sessionFiles(folder === null ? sessionDirs : { claude: folder, codex: folder }, ids)) if (!deleted.includes(file)) remove(file);
+  }
 
   const base = join(root, 'orchestrator');
   let real: string;

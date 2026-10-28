@@ -39,6 +39,8 @@ export type EngineOptions = {
   maxExecutionRetries: number;
   /** Reviews of the final PR before the epic goes to a person; fix turns do not count. */
   maxReviews: number;
+  /** How long a reserved epic waits for the choice of its agent options when the config has two or more. */
+  optionChoiceSeconds: number;
   runner: AgentRunner;
   workspaces: Workspaces;
   /** Shared root: execution results go under `orchestrator/results/`. */
@@ -78,7 +80,7 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
   session_unavailable: 'failed',
 };
 
-export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, runner, workspaces, root, sessionDirs }: EngineOptions) {
+export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, optionChoiceSeconds, runner, workspaces, root, sessionDirs }: EngineOptions) {
   let error: GitHubUnavailable | AuthError | null = null;
   let nextPollAt: number | null = null;
   let paused = false; // intake only: nothing new is reserved, what is running goes on
@@ -116,7 +118,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   const restart = (queuedAt: number) => ({
     status: 'queued' as const, queuedAt, startedAt: null, config: null, labelPending: false, stage: null, stageStartedAt: null, workspace: null,
     lastActivityAt: null, lastError: null, round: null, prNumber: null, prHeadSha: null, pr: null, reviewedSha: null, verification: null, observationsPassAt: null,
-    needsHumanReason: null, needsHumanKind: null, finishedAt: null,
+    needsHumanReason: null, needsHumanKind: null, finishedAt: null, authorOption: null, reviewerOption: null, choiceDeadline: null,
   });
 
   // Mirrors the epic's status on its issue: its label, none of the other owned ones, and no `ready` while running.
@@ -143,29 +145,149 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   const toNeedsHuman = (writer: Pick<Db, 'update'>, id: number, kind: (typeof needsHumanKinds)[number], reason: string) =>
     writer.update(epics).set({ status: 'needs_human', needsHumanKind: kind, needsHumanReason: reason, finishedAt: clock.now(), labelPending: true }).where(eq(epics.id, id)).run();
 
-  // Mirrors the label, then launches the author unless the epic already has one.
+  // Mirrors the label, then launches the author unless the epic already has one or is waiting for its choice of options.
   const begin = async (epic: Epic) => {
     if (stopping) return;
     await applyLabels(epic);
-    if (epic.status === 'running' && epic.stage === null) await launch(epic, 'ship');
+    if (epic.status !== 'running' || epic.stage !== null) return;
+    const restarted = restarts.get(epic.id);
+    restarts.delete(epic.id);
+    if (restarted && epic.choiceDeadline !== null) await startChosen(epic.id, declaredOnly(epic, restarted)); // already chosen at the restart: no wait
+    else if (epic.choiceDeadline === null) await launch(epic, 'ship');
+    else await awaitChoice(epic);
   };
+
+  // The options a person picked when restarting a stopped epic, by epic id, until the poll that requeues it reserves it again.
+  // ponytail: in memory, an engine restart in between falls back to the defaults and the choice wait; persist it if that bites.
+  const restarts = new Map<number, Partial<Record<'author' | 'reviewer', string>>>();
+  const declaredOnly = ({ id, config }: Epic, chosen: Partial<Record<'author' | 'reviewer', string>>) =>
+    Object.fromEntries(
+      Object.entries(chosen).filter(([role, name]) => {
+        const declared = Object.hasOwn(config?.options ?? {}, name);
+        if (!declared) log.warn('the option chosen at the restart is not declared any more, the role starts on its default', { epicId: id, role, option: name });
+        return declared;
+      }),
+    );
+
+  // The timers of the epics waiting for their choice, by id.
+  const choiceTimers = new Map<number, () => void>();
+
+  // Waits for `chooseOptions`, or for the deadline: a deadline already gone starts the epic on its defaults at once.
+  async function awaitChoice({ id, choiceDeadline }: Epic) {
+    if (choiceTimers.has(id)) return;
+    const wait = choiceDeadline! - clock.now();
+    if (wait <= 0) return void (await startChosen(id, {}));
+    choiceTimers.set(id, clock.after(wait, async () => {
+      try {
+        await startChosen(id, {});
+      } catch (e) {
+        log.error('could not start the epic at the end of its choice', e, { epicId: id });
+      }
+    }));
+  }
+
+  // Ends the wait of a waiting epic and launches its author, on the options chosen for the roles and on the saved ones for the roles left out.
+  // False when the epic is not waiting (any more): the claim is one write, so only one caller gets it.
+  async function startChosen(id: number, chosen: Partial<Record<'author' | 'reviewer', string>>) {
+    choiceTimers.get(id)?.();
+    choiceTimers.delete(id);
+    if (stopping) return false;
+    const { config, choiceDeadline } = fresh(id);
+    if (!config) return false;
+    const roleOn = (role: 'author' | 'reviewer') => {
+      const name = chosen[role];
+      return name === undefined ? config.agents[role] : onOption(config, role, name);
+    };
+    const agents = { author: roleOn('author'), reviewer: roleOn('reviewer') };
+    const claimed = db
+      .update(epics)
+      .set({ config: { ...config, agents }, choiceDeadline: null, authorOption: agents.author.option ?? null, reviewerOption: agents.reviewer.option ?? null })
+      .where(and(eq(epics.id, id), eq(epics.status, 'running'), isNotNull(epics.choiceDeadline)))
+      .returning()
+      .get();
+    if (!claimed) return false;
+    try {
+      await launch(claimed, 'ship');
+    } catch (e) {
+      // launch reads GitHub before it takes the stage: failing there leaves no agent and no wait. The wait is put back (the options
+      // chosen stay saved in the config), and resumeChoices starts the epic again on a later poll.
+      if (fresh(id).stage === null) db.update(epics).set({ choiceDeadline }).where(eq(epics.id, id)).run();
+      throw e;
+    }
+    return true;
+  }
+
+  // Running epics whose wait for a choice has no timer: the start failed (GitHub was down) or a timer was lost. Past its deadline, each starts now.
+  async function resumeChoices() {
+    if (stopping || suspended) return;
+    for (const epic of db.select().from(epics).where(and(eq(epics.status, 'running'), isNull(epics.stage), isNotNull(epics.choiceDeadline))).orderBy(asc(epics.id)).all()) await awaitChoice(epic);
+  }
+
+  // The role of the epic's saved config pointed at another of its saved options: same profile and persona.
+  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string) => {
+    const { profile, persona } = config.agents[role];
+    return { profile, ...(persona && { persona }), ...config.options![name]!, option: name };
+  };
+
+  // With failover on, the role that ran out moves to the first option of `order` that has not run out in this epic and its stage runs
+  // again as a rebuilt session, no retry spent. `why` is what to add to the stop reason when it could not move.
+  async function failOver(epicId: number, stage: AgentTask['stage'], failedExecution: Execution): Promise<{ relaunched: true } | { relaunched: false; why: string }> {
+    const epic = fresh(epicId);
+    const { config } = epic;
+    if (!config?.failover?.enabled) return { relaunched: false, why: '' };
+    const ranOut = [...new Set(db.select({ option: executions.option }).from(executions).where(and(eq(executions.epicId, epicId), eq(executions.failureKind, 'usage_limit'))).orderBy(asc(sql`rowid`)).all().flatMap(({ option }) => option ?? []))];
+    const next = config.failover.order.find((name) => !ranOut.includes(name));
+    if (next === undefined) return { relaunched: false, why: `; no option left in failover.order, ran out: ${ranOut.join(', ')}` };
+    if (stopping || epic.status !== 'running') return { relaunched: true };
+    const role = stage === 'review' ? 'reviewer' : 'author';
+    // Read only; GitHub being down is not a reason to stop: the agent verifies the state first anyway.
+    const found = await github.findPullRequest(epic.repo, epic.issue).catch((e) => (failed(e), null));
+    db.transaction((tx) => {
+      tx.update(epics).set({ config: { ...config, agents: { ...config.agents, [role]: onOption(config, role, next) } }, ...(role === 'author' ? { authorOption: next } : { reviewerOption: next }) }).where(eq(epics.id, epicId)).run();
+      tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'option_switched', data: { role, from: config.agents[role].option ?? null, to: next, stage } }).run();
+    });
+    await execute(fresh(epicId), stage, failedExecution, { pr: found && { number: found.number, headSha: found.headSha } });
+    return { relaunched: true };
+  }
+
+  // A stage ended on its usage limit: another option of the failover list, or the epic stops for a person. The reason says how to go on
+  // (the panel cuts long lines, so the way out comes before the agent's own detail, which carries the reset time).
+  async function onUsageLimit(epicId: number, execution: Execution) {
+    const moved = await failOver(epicId, execution.stage, execution);
+    if (moved.relaunched) return;
+    const { repo, issue } = fresh(epicId);
+    const role = execution.stage === 'review' ? 'reviewer' : 'author';
+    const detail = execution.failureDetail ? ` · ${execution.failureDetail}` : '';
+    toNeedsHuman(db, epicId, 'usage_limit', `the ${execution.stage} execution ran out of usage on option ${execution.option ?? execution.harness} · carrier restart ${repo}#${issue} --${role} <option>${detail}${moved.why}`);
+    await freeSlot();
+  }
 
   // Launches the author (ship, fix) or the reviewer (review) for the epic's current stage.
   async function launch(epic: Epic, stage: AgentTask['stage']) {
     if (stopping) return;
+    let rebuild: Parameters<typeof execute>[3];
     if (stage === 'ship') {
+      // An author on another option than the one that wrote the epic's session cannot continue it: a new session, rebuilt like a lost one.
+      // Read before the claim: if GitHub is down this throws with the stage still free (startChosen puts the wait back).
+      const before = lastAuthor(epic.id);
+      const optionNow = epic.config!.agents.author.option ?? null;
+      if (before && (before.option ?? null) !== optionNow) {
+        const pr = await github.findPullRequest(epic.repo, epic.issue);
+        rebuild = { pr: pr && { number: pr.number, headSha: pr.headSha } };
+      }
       // Claim the launch first: concurrent reconciles (a result freeing a slot, the poll) never start a second author.
       const claimed = db.update(epics).set({ stage: 'ship', stageStartedAt: clock.now() }).where(and(eq(epics.id, epic.id), isNull(epics.stage))).returning().get();
       if (!claimed) return;
+      if (rebuild) db.insert(epicEvents).values({ epicId: epic.id, at: clock.now(), type: 'session_rebuilt', data: { stage, from: before!.option, to: optionNow, pr: rebuild.pr } }).run();
     }
-    await execute(epic, stage);
+    await execute(epic, stage, undefined, rebuild);
   }
 
   // Starts an execution of the stage; `retryOf` is the failed or interrupted one it replaces: same session, verify
   // the real state first. `rebuild` (the session is gone) starts a new session instead, with the PR as GitHub has it now.
   async function execute(epic: Epic, stage: AgentTask['stage'], retryOf?: Execution, rebuild?: { pr: { number: number; headSha: string } | null }) {
     const reviewing = stage === 'review';
-    const resumeSession = rebuild ? undefined : (retryOf?.sessionId ?? (stage === 'fix' ? authorSession(epic.id) : undefined));
+    const resumeSession = rebuild ? undefined : (retryOf?.sessionId ?? (stage === 'fix' ? authorSession(epic.id) : stage === 'ship' && !retryOf ? sameOptionSession(epic) : undefined));
     const pr = rebuild?.pr ?? (epic.prNumber ? { number: epic.prNumber, headSha: epic.prHeadSha! } : undefined);
     let workspace: string;
     try {
@@ -204,7 +326,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     };
     if (stopping) return;
     db.insert(executions)
-      .values({ executionId, epicId: epic.id, stage, harness: task.harness, model: task.model, provider: task.provider ?? null, workspace, round: epic.round, resultPath, startedAt: clock.now() })
+      .values({ executionId, epicId: epic.id, stage, harness: task.harness, model: task.model, provider: task.provider ?? null, option: task.option ?? null, configDir: task.configDir ?? null, workspace, round: epic.round, resultPath, startedAt: clock.now() })
       .run();
     const context = taskContext({ repo: epic.repo, epic: epic.issue, executionId, stage, round: epic.round });
     log.info('execution started', context);
@@ -241,7 +363,9 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         active.delete(executionId);
         output.flush();
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
-        const failure = { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}${processFailure?.detail ? `: ${processFailure.detail}` : ''})`, auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
+        const outOfCredits = exit === 'failed' && processFailure?.kind === 'usage_limit';
+        // Like a timeout, a usage limit leaves no error on the execution: it is not a retryable failure and ends the streak.
+        const failure = outOfCredits ? undefined : { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}${processFailure?.detail ? `: ${processFailure.detail}` : ''})`, auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
         // The ends with their own handling carry no failure from the runner: their kind follows from the exit.
         const endFailure: Partial<Record<AgentExit, Pick<AgentFailure, 'kind' | 'detail'>>> = {
           failed: { kind: 'unknown', detail: '' },
@@ -255,6 +379,10 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
           .run();
         if (failure) db.update(epics).set({ lastError: failure }).where(eq(epics.id, epic.id)).run();
         if (exit === 'ok') await settle(db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
+        else if (outOfCredits) {
+          // Retrying the same option only burns the retries.
+          await onUsageLimit(epic.id, db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
+        }
         else if (exit === 'failed' || exit === 'session_unavailable') await retry(epic.id);
         else if (exit === 'auth_failed') await stopProfile(task.profile);
         else if (exit === 'timed_out') {
@@ -321,14 +449,21 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       .all()
       .map(({ result }) => (JSON.parse(result) as { summary: string }).summary);
 
-  // Where the author left off: the fix turn resumes it.
-  const authorSession = (epicId: number) =>
+  // Where the author left off, and the option that wrote it.
+  const lastAuthor = (epicId: number) =>
     db
-      .select({ sessionId: executions.sessionId })
+      .select({ sessionId: executions.sessionId, option: executions.option })
       .from(executions)
       .where(and(eq(executions.epicId, epicId), inArray(executions.stage, ['ship', 'fix']), isNotNull(executions.sessionId)))
       .orderBy(desc(sql`rowid`))
-      .get()?.sessionId ?? undefined;
+      .get();
+  // The fix turn resumes it.
+  const authorSession = (epicId: number) => lastAuthor(epicId)?.sessionId ?? undefined;
+  // A ship that starts again continues the author's session only on the option that wrote it.
+  const sameOptionSession = (epic: Epic) => {
+    const before = lastAuthor(epic.id);
+    return before && (before.option ?? null) === (epic.config!.agents.author.option ?? null) ? (before.sessionId ?? undefined) : undefined;
+  };
 
   const inflight = new Set<Promise<void>>();
   const track = (work: Promise<void>) => {
@@ -475,7 +610,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   async function fillSlots() {
     for (;;) {
       if (stopping || suspended || paused) return;
-      const epic = reserve(db, { maxConcurrent: maxConcurrentEpics, now: clock.now(), repos });
+      const epic = reserve(db, { maxConcurrent: maxConcurrentEpics, now: clock.now(), repos, choiceMs: optionChoiceSeconds * 1000 });
       if (!epic) return;
       const cancelWith = (cancelReason: string) =>
         db.update(epics).set({ status: 'cancelled', cancelReason, finishedAt: clock.now(), labelPending: false }).where(eq(epics.id, epic.id)).run();
@@ -484,7 +619,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         issue = await github.getIssue(epic.repo, epic.issue);
       } catch (e) {
         // Could not check it: give the slot back, the epic keeps its place in the queue.
-        db.update(epics).set({ status: 'queued', startedAt: null, config: null, labelPending: false }).where(eq(epics.id, epic.id)).run();
+        db.update(epics).set({ status: 'queued', startedAt: null, config: null, labelPending: false, authorOption: null, reviewerOption: null, choiceDeadline: null }).where(eq(epics.id, epic.id)).run();
         throw e;
       }
       if (issue.state === 'closed') cancelWith('closed before it started');
@@ -529,7 +664,9 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       const epic = fresh(id);
       const last = db.select().from(executions).where(eq(executions.epicId, id)).orderBy(desc(sql`rowid`)).get();
       log.info('recovering epic', { repo: epic.repo, epic: epic.issue, stage: epic.stage, lastStatus: last?.status });
-      if (!last) {
+      if (!last && epic.choiceDeadline !== null) {
+        await awaitChoice(epic); // still waiting for its choice, or past the deadline: the defaults
+      } else if (!last) {
         // Stopped between claiming the launch and inserting the execution: no agent ever ran, so launching is not a blind restart.
         db.update(epics).set({ stage: null }).where(eq(epics.id, id)).run();
         await launch(fresh(id), 'ship');
@@ -539,6 +676,10 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
           db.update(executions).set({ status: 'finished' }).where(eq(executions.executionId, last.executionId)).run();
           await settle({ ...last, status: 'finished' });
         } else await execute(epic, last.stage, last);
+      } else if (epic.stage !== null && last.status === 'failed' && last.failureKind === 'usage_limit') {
+        // Stopped before the epic moved on: no agent is running and none would be launched. A requeued epic (no stage yet) keeps its old
+        // executions: that history is not this stop, the restart's own launch (begin, resumeChoices) takes it from here.
+        await onUsageLimit(id, last);
       } else if (last.status === 'finished' && epic.stage && db.select().from(callerResults).where(eq(callerResults.executionId, last.executionId)).get()) {
         await launch(epic, epic.stage); // imported, but the next stage was never launched
       }
@@ -693,6 +834,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       await stopEnded();
       await settlePending();
       await retryPending();
+      await resumeChoices();
       await reconcileLabels();
       await fillSlots();
       error = null;
@@ -742,6 +884,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     },
     stop() {
       cancel?.();
+      for (const cancelChoice of choiceTimers.values()) cancelChoice();
+      choiceTimers.clear();
       stopSliceReads();
       stopRetention?.();
     },
@@ -753,6 +897,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     async shutdown() {
       stopping = true;
       cancel?.();
+      for (const cancelChoice of choiceTimers.values()) cancelChoice();
+      choiceTimers.clear();
       stopSliceReads();
       stopRetention?.();
       await Promise.all([...active.values()].map((run) => run.stop()));
@@ -770,15 +916,24 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     },
     /**
      * Puts `ready` on a stopped epic's issue, as a person does, and checks now; resolves once the epic is no longer in
-     * needs_human. Rejects with ResumeRefused: nothing was changed unless it is `did not restart`, which leaves the label for the next check.
+     * needs_human. It restarts on the option named for each role and on the one it has for a role left out, without waiting for a choice.
+     * Rejects with ResumeRefused: nothing was changed unless it is `did not restart`, which leaves the label for the next check.
      */
-    async resumeEpic(repo: string, issue: number) {
+    async resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string } = {}) {
       const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
       if (!epic) throw new ResumeRefused('unknown epic');
       if (epic.status !== 'needs_human') throw new ResumeRefused('not stopped');
+      // The requeue freezes the epic's options again from the configuration the engine runs with, so that is what the names are checked against.
+      const declared = repos.find((r) => r.name === repo)?.options ?? {};
+      if ([chosen.author, chosen.reviewer].some((name) => name !== undefined && !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
+      // A role left out keeps the option it has: the epic is not asked again.
+      const author = chosen.author ?? epic.authorOption;
+      const reviewer = chosen.reviewer ?? epic.reviewerOption;
+      restarts.set(epic.id, { ...(author && { author }), ...(reviewer && { reviewer }) });
       try {
         await github.setLabels(repo, issue, { add: [readyLabel], remove: [] });
       } catch (e) {
+        restarts.delete(epic.id);
         if (e instanceof GitHubUnavailable || e instanceof AuthError) throw new ResumeRefused('github unavailable');
         throw e;
       }
@@ -790,13 +945,28 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       let again = false;
       const deadline = clock.now() + resumeWaitMs;
       while (fresh(epic.id).status === 'needs_human') {
-        if (clock.now() >= deadline) throw new ResumeRefused('did not restart');
+        if (clock.now() >= deadline) {
+          restarts.delete(epic.id);
+          throw new ResumeRefused('did not restart');
+        }
         if (settled && !again) {
           again = true;
           void check();
         }
         await new Promise<void>((resolve) => clock.after(resumeTickMs, async () => resolve()));
       }
+    },
+    /**
+     * Ends the wait of an epic that is waiting for its choice: it starts on the option named for each role and on the saved one for a role left out,
+     * and this resolves once the author is launched. Rejects with ResumeRefused, changing nothing: an unknown epic, one that is not waiting, an option not declared.
+     */
+    async chooseOptions(repo: string, issue: number, chosen: { author?: string; reviewer?: string }) {
+      const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
+      if (!epic) throw new ResumeRefused('unknown epic');
+      if (epic.status !== 'running' || epic.choiceDeadline === null) throw new ResumeRefused('not waiting');
+      const declared = epic.config?.options ?? {};
+      if ([chosen.author, chosen.reviewer].some((name) => name !== undefined && !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
+      if (!(await startChosen(epic.id, chosen))) throw new ResumeRefused('not waiting');
     },
     /** Stops (or resumes) taking epics from the queue; running epics are not touched. Resuming fills the free slots at once. */
     setPaused(value: boolean) {

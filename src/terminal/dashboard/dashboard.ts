@@ -1,7 +1,7 @@
 import { formatDuration } from '../../format/duration.ts';
 import { printable } from './printable.ts';
 import type { PanelEpic, PanelSnapshot } from '../../status/types.ts';
-import { finishedSections, itemsOf, maxListed, type UiState } from './ui-state.ts';
+import { finishedSections, itemsOf, maxListed, waitingEpic, type UiState } from './ui-state.ts';
 import { detailOf, historyLine, type DetailProvider } from './history.ts';
 
 type Style = 'bold' | 'dim' | 'inverse' | 'red' | 'green' | 'yellow' | 'cyan';
@@ -45,13 +45,15 @@ export type DashboardOptions = {
   detail?: DetailProvider;
   /** What `q` and Ctrl+C do: 'stop' Carrier (the foreground, the default) or 'leave' it running (`watch`). */
   quit?: 'stop' | 'leave';
+  /** The engine can start a waiting epic on chosen options: `o` and `a` are offered. */
+  canChoose?: boolean;
 };
 
 /**
  * The panel for a terminal: header, slots, then one section per kind of epic (running, queued, needing a person, ready
  * for test). Pure: the same snapshot gives the same lines; `color: false` gives them with no ANSI.
  */
-export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, ui, logLines = [], activity, detail, quit = 'stop' }: DashboardOptions = {}): string[] {
+export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, ui, logLines = [], activity, detail, quit = 'stop', canChoose = false }: DashboardOptions = {}): string[] {
   const paint = (text: string, ...styles: Style[]) => (color && styles.length > 0 ? `\x1b[${styles.map((x) => codes[x]).join(';')}m${text}\x1b[0m` : text);
   const width = Math.min(Math.max(columns, 50), 80) - 2;
   const ago = (at: number | null) => (at === null ? 'a while' : `${formatDuration(Math.max(0, s.now - at))} ago`);
@@ -83,20 +85,30 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
   const lead = (repo: string, issue: number, plain: string) => (selected(repo, issue) ? ` ${pointer} ` : plain);
 
   // Only the keys that do something now: no ↑↓ with one row, no logs for a row with no agent.
+  // Packed into as many lines as the width needs: a line cut at the edge loses the keys at its end (q among them).
   const hints = () => {
     const items = itemsOf(s);
     const current = items.find((i) => i.key === ui?.selected);
-    return [items.length > 1 && '↑↓ select', current && 'enter open', current?.executionId && 'l logs', 'r check now', s.paused ? 'p resume' : 'p pause', '? help', quit === 'stop' ? 'q quit' : 'q leave'].filter(Boolean).join(' · ');
+    const waiting = canChoose && ui?.selected && waitingEpic(s, ui.selected);
+    const parts = [items.length > 1 && '↑↓ select', current && 'enter open', current?.executionId && 'l logs', waiting && 'o options · a automatic', 'r check now', s.paused ? 'p resume' : 'p pause', '? help', quit === 'stop' ? 'q quit' : 'q leave'].filter(Boolean) as string[];
+    return parts.reduce<string[]>((rows, part) => {
+      const last = rows.at(-1);
+      if (last !== undefined && visibleLength(`${last} · ${part}`) <= width - 1) rows[rows.length - 1] = `${last} · ${part}`;
+      else rows.push(part);
+      return rows;
+    }, []);
   };
   const footer = () => {
     if (ui?.toast) add(`   ${paint(`› ${printable(ui.toast.text)}`, 'cyan')}`);
     add();
-    add(`   ${paint(ui === undefined ? (quit === 'stop' ? 'Ctrl+C stops it' : 'Ctrl+C leaves it running') : ui.mode === 'dashboard' ? hints() : `esc back · ${quit === 'stop' ? 'q quit' : 'q leave'}`, 'dim')}`);
+    const exit = quit === 'stop' ? 'q quit' : 'q leave';
+    const rows = ui === undefined ? [quit === 'stop' ? 'Ctrl+C stops it' : 'Ctrl+C leaves it running'] : ui.mode === 'dashboard' ? hints() : ui.mode === 'choose' ? [`↑↓ role · ←→ option · enter start · esc cancel · ${exit}`] : [`esc back · ${exit}`];
+    for (const row of rows) add(`   ${paint(row, 'dim')}`);
   };
 
   if (ui?.mode === 'help') {
     section('KEYS');
-    for (const [key, what] of [['↑ ↓ j k', 'select an epic'], ['enter', 'open its PR (or issue) in the browser'], ['l', 'agent output of the selected epic'], ['r', 'check GitHub now'], ['p', 'pause or resume taking new epics'], ['?', 'this help'], ['esc', 'back'], ['q', quit === 'stop' ? 'stop Carrier (same as Ctrl+C)' : 'leave (Carrier keeps running)']]) add(`   ${paint(key!.padEnd(9), 'bold', 'cyan')} ${what}`);
+    for (const [key, what] of [['↑ ↓ j k', 'select an epic'], ['enter', 'open its PR (or issue) in the browser'], ['l', 'agent output of the selected epic'], ...(canChoose ? [['o', 'choose the options of the selected epic that is waiting'], ['a', 'start it on its default options now']] : []), ['r', 'check GitHub now'], ['p', 'pause or resume taking new epics'], ['?', 'this help'], ['esc', 'back'], ['q', quit === 'stop' ? 'stop Carrier (same as Ctrl+C)' : 'leave (Carrier keeps running)']]) add(`   ${paint(key!.padEnd(9), 'bold', 'cyan')} ${what}`);
     footer();
     return lines.map((line) => fit(line, width + 2));
   }
@@ -115,11 +127,16 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
   const card = (e: PanelEpic, first: boolean) => {
     const chosen = selected(e.repo, e.issue);
     const bar = chosen ? paint('▌', 'bold', 'cyan') : paint('┃', 'dim');
-    const chain = e.stage === null ? paint('starting', 'dim') : stages.map((st) => (st === e.stage ? paint(`[${st}]`, 'bold', 'cyan') : paint(st, 'dim'))).join(paint(' ▸ ', 'dim'));
+    const choice = e.options?.choiceDeadline;
+    const chain = choice != null ? paint(`waiting for its choice · starts in ${formatDuration(choice - s.now)}`, 'dim') : e.stage === null ? paint('starting', 'dim') : stages.map((st) => (st === e.stage ? paint(`[${st}]`, 'bold', 'cyan') : paint(st, 'dim'))).join(paint(' ▸ ', 'dim'));
     const round = e.round === null ? '' : ` · round ${Array.from({ length: e.maxReviews }, (_, i) => (i < e.round! ? '●' : '○')).join('')}`;
     if (!first) add();
     add(chosen ? ` ${pointer}${paint(` ${e.repo} #${e.issue} `, 'bold', 'inverse')}${titled(e.title)}` : ` ${bar} ${paint(`${e.repo} #${e.issue}`, 'bold')}${titled(e.title)}`); // the selected card's title is a highlighted label
-    add(` ${bar} ${chain}${round}`);
+    if (chosen && ui?.mode === 'choose' && ui.choice) {
+      add(` ${bar} ${paint(`choose the options · ${formatDuration(choice! - s.now)} left`, 'dim')}`);
+      for (const role of ['author', 'reviewer'] as const) add(` ${bar} ${ui.choice.role === role ? pointer : ' '} ${role.padEnd(8)} ${paint(`‹ ${ui.choice[role]} ›`, ui.choice.role === role ? 'bold' : 'dim')}`);
+    } else add(` ${bar} ${chain}${round}`);
+    if (choice != null && !(chosen && ui?.mode === 'choose' && ui.choice)) for (const role of ['author', 'reviewer'] as const) add(` ${bar} ${paint(`${role} ${e.options![role]}`, 'dim')}`); // one per line: long option names do not fit two roles in 50 columns
     const history = detail && detailOf(detail, e);
     if (history && history.length > 0) add(` ${bar} ${historyLine(history, s.now, paint, width - 4)}`);
     const blockers = e.blockers > 0 ? paint(` · blockers ${e.blockers}`, 'yellow') : '';

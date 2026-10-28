@@ -32,7 +32,7 @@ const add = (repo: string, issue: number, status: (typeof epicStates)[number], e
 const exec = (executionId: string, epicId: number, stage: 'ship' | 'review' | 'fix', startedAt: number) =>
   db.insert(executions).values({ executionId, epicId, stage, resultPath: '/r', startedAt }).run();
 
-const agent = (harness: 'claude' | 'codex' | 'agy', model: string, provider?: 'ollama') => ({ profile: `${harness}-profile`, harness, model, provider });
+const agent = (harness: 'claude' | 'codex' | 'agy', model: string, provider?: 'ollama') => ({ profile: `${harness}-profile`, option: 'o', harness, model, provider });
 const config = { name: 'acme', agents: { author: agent('claude', 'claude-sonnet-5-5'), reviewer: agent('codex', 'gpt-5', 'ollama') } };
 
 // Every field of the snapshot has a value somewhere in this sample, so the app can be built against it.
@@ -40,7 +40,7 @@ test('the snapshot JSON equals macos/Tests/Fixtures/snapshot.json (UPDATE_FIXTUR
   const inReview = add('acme/web', 12, 'running', { config, stage: 'review', round: 2, prNumber: 50, queuedAt: 500, startedAt: 1_000, stageStartedAt: 40_000, lastActivityAt: 90_000, lastError: 'the agent process ended with an error', workspace: '/work/acme/web-epic' });
   const inShip = add('acme/web', 13, 'running', { config, stage: 'ship', queuedAt: 600, startedAt: 7_000, stageStartedAt: 7_000, workspace: '/work/acme/web-13' });
   const waiting = add('acme/api', 4, 'needs_human', { config, stage: 'fix', round: 5, prNumber: 9, queuedAt: 700, startedAt: 2_000, stageStartedAt: 8_000, finishedAt: 60_000, needsHumanKind: 'review_limit', needsHumanReason: 'review limit' });
-  for (const [i, kind] of (['agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid'] as const).entries()) {
+  for (const [i, kind] of (['agent_needs_human', 'retries_exhausted', 'timeout', 'auth', 'workspace', 'pr_invalid', 'usage_limit'] as const).entries()) {
     add('acme/api', 5 + i, 'needs_human', { config, stage: 'ship', queuedAt: 800 + i, startedAt: 3_000 + i, finishedAt: 61_000 + i, needsHumanKind: kind, needsHumanReason: kind.replace('_', ' ') });
   }
   add('acme/web', 20, 'queued', { queuedAt: 20_000 });

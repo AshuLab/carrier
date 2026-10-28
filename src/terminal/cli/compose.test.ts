@@ -30,14 +30,15 @@ const config = (user: object = {}): Config => {
     root,
     pollIntervalMinutes: 1,
     logLevel: 'debug',
-    repos: [{ name: 'AshuLab/a', agents: { reviewer: { model: 'override' } } }, { name: 'AshuLab/b' }],
+    repos: [{ name: 'AshuLab/a', agents: { reviewer: { option: 'override' } } }, { name: 'AshuLab/b' }],
     profiles: { orchestrator: { kind: 'gh' }, 'author-bot': { kind: 'forge', agent: 'artanis-agent' }, 'reviewer-bot': { kind: 'forge', agent: 'tassadar-agent' } },
     orchestratorProfile: 'orchestrator',
+    agentOptions: { claude: { harness: 'claude', model: 'm' }, codex: { harness: 'codex', model: 'm' }, override: { harness: 'codex', model: 'override' } },
     agents: {
-      author: { profile: 'author-bot', harness: 'claude', model: 'm' },
-      reviewer: { profile: 'reviewer-bot', harness: 'codex', model: 'm' },
+      author: { profile: 'author-bot', option: 'claude' },
+      reviewer: { profile: 'reviewer-bot', option: 'codex' },
     },
-    limits: { maxConcurrentEpics: 2, maxReviews: 4, maxExecutionRetries: 1, maxExecutionHours: 2, githubCallTimeoutSeconds: 7 },
+    limits: { maxConcurrentEpics: 2, maxReviews: 4, maxExecutionRetries: 1, maxExecutionHours: 2, githubCallTimeoutSeconds: 7, optionChoiceSeconds: 1 },
     ...user,
   });
   if (!result.ok) throw new Error(JSON.stringify(result.errors));
@@ -81,6 +82,9 @@ test('builds the engine with the config\'s limits, effective repos and the real 
 
   // Limits and effective repos: two epics at once, the repo override reaches the reviewer, the time limit is in ms.
   await clock.advance(MIN);
+  expect(runner.tasks).toEqual([]); // two options are declared: the epics wait for their choice first
+  expect(app.db.$client.prepare('select count(*) from epics where choiceDeadline is not null').pluck().get()).toBe(2);
+  await clock.advance(1000);
   expect(runner.tasks.map((t) => [t.epic, t.stage, t.timeoutMs])).toEqual([[1, 'ship', 2 * 3_600_000], [2, 'ship', 2 * 3_600_000]]);
   expect(app.db.$client.prepare('select config from epics order by id').pluck().get()).toContain('"model":"override"');
 });
@@ -140,7 +144,7 @@ test('the foreground panel is given the in-process provider: a running epic list
   github.ready = { 'AshuLab/a': [{ issue: 5, title: 'Menu bar' }] };
   const app = await startCarrier(config(), { ...deps, panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 10 });
   closers.push(async () => (await app.engine.shutdown(), app.close()));
-  await clock.advance(MIN);
+  await clock.advance(MIN + 1000);
   await vi.waitFor(() => expect(seen.panel.join('').replace(/\x1b\[[0-9;]*m/g, '')).toMatch(/┃ \[ship\] \d+s\n/));
 });
 

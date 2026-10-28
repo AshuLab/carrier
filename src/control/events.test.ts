@@ -28,11 +28,11 @@ beforeEach(async () => {
     poll: () => {},
     setPaused: () => {},
     logs: () => [],
-    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, {}),
+    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue),
     events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
     epic: () => null,
     files: () => null, fileDiff: () => null,
-    availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(),
+    availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), chooseOptions: () => Promise.resolve(),
   };
   close = (await startControlServer({ orchestratorDir: dir, snapshot: () => ({}), startedAt: 1, controls, stop: async () => {} })).close;
 });
@@ -42,7 +42,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const agent = { profile: 'p', harness: 'claude' as const, model: 'm' };
+const agent = { profile: 'p', option: 'o', harness: 'claude' as const, model: 'm' };
 const config = { name: 'AshuLab/a', agents: { author: agent, reviewer: { ...agent, harness: 'codex' as const } } };
 const epicId = (db_: Db) => db_.insert(epics).values({ repo: 'AshuLab/a', issue: 1, status: 'running', config }).returning({ id: epics.id }).get().id;
 const run = '00000000-0000-4000-8000-000000000001';

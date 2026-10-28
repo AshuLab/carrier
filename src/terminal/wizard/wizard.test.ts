@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { defaults, loadConfig } from '../../config/load.ts';
 import { Cancelled, type Ui } from '../prompts/types.ts';
-import { fakeDeps, okCheck, quietUi, useTempDir } from './testing.ts';
+import { fakeDeps, okCheck, quietUi, twoOptions, useTempDir } from './testing.ts';
 import { runInit } from './wizard.ts';
 
 const dir = useTempDir();
@@ -22,13 +22,14 @@ const existing = {
   repos: [{ name: 'X/y' }, { name: 'X/z' }],
   profiles: { 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' }, gh: { kind: 'gh' } },
   orchestratorProfile: 'tassadar-agent',
-  agents: { author: { profile: 'tassadar-agent', harness: 'claude', model: 'opus' }, reviewer: { profile: 'gh', harness: 'codex', model: 'gpt-test' } },
+  agentOptions: { claude: { harness: 'claude', model: 'opus' }, codex: { harness: 'codex', model: 'gpt-test' } },
+  agents: { author: { profile: 'tassadar-agent', option: 'claude' }, reviewer: { profile: 'gh', option: 'codex' } },
 };
 
 test('the questions fill a config that has only what defaults lack, and the doctor runs on it', async () => {
   let doctored: unknown;
   const { deps, written } = fakeDeps({ doctor: async (config) => ((doctored = config), [okCheck]) });
-  const { ui, asked } = quietUi({ 'Repos to watch (owner/name, comma separated)': 'AshuLab/a, AshuLab/b' });
+  const { ui, asked } = quietUi({ ...twoOptions, 'Repos to watch (owner/name, comma separated)': 'AshuLab/a, AshuLab/b' });
   const out = join(dir, 'a.json');
   const result = await runInit({ out }, ui, deps);
 
@@ -36,9 +37,10 @@ test('the questions fill a config that has only what defaults lack, and the doct
     repos: [{ name: 'AshuLab/a' }, { name: 'AshuLab/b' }],
     profiles: { 'artanis-agent': { kind: 'forge', agent: 'artanis-agent' }, 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' } },
     orchestratorProfile: 'artanis-agent',
+    agentOptions: { claude: { harness: 'claude', model: 'sonnet' }, codex: { harness: 'codex', model: 'gpt-test' } },
     agents: {
-      author: { profile: 'artanis-agent', harness: 'claude', model: 'sonnet' },
-      reviewer: { profile: 'tassadar-agent', harness: 'codex', model: 'gpt-test' }, // author's bot is not offered again; codex default from ~/.codex
+      author: { profile: 'artanis-agent', option: 'claude' },
+      reviewer: { profile: 'tassadar-agent', option: 'codex' }, // author's bot is not offered again; codex default from ~/.codex
     },
   });
   expect(doctored).toMatchObject({ pollIntervalMinutes: 5 }); // the doctor gets the merged config
@@ -52,10 +54,10 @@ test('every flag skips its question', async () => {
   const out = join(dir, 'b.json');
   await runInit({ repo: ['AshuLab/x'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'codex:m1', reviewer: 'claude:m2', out, yes: true }, ui, deps);
   expect(asked.filter((a) => !a.startsWith('outro') && !a.startsWith('checks:'))).toEqual([]);
-  expect(JSON.parse(written[out]!).agents).toEqual({
-    author: { profile: 'artanis-agent', harness: 'codex', model: 'm1' },
-    reviewer: { profile: 'gh', harness: 'claude', model: 'm2' },
-  });
+  const config = JSON.parse(written[out]!);
+  expect(config.agentOptions).toEqual({ codex: { harness: 'codex', model: 'm1' }, claude: { harness: 'claude', model: 'm2' } });
+  expect(config.agents).toEqual({ author: { profile: 'artanis-agent', option: 'codex' }, reviewer: { profile: 'gh', option: 'claude' } });
+  expect(loadConfig(defaults, config).ok).toBe(true);
 });
 
 test('failed checks are reported in the closing line', async () => {
@@ -69,7 +71,7 @@ test('failed checks are reported in the closing line', async () => {
 test('each role gets its own box, and the author is fully asked before the reviewer', async () => {
   const notes: string[] = [];
   const order: string[] = [];
-  const { ui } = quietUi();
+  const { ui } = quietUi(twoOptions);
   const spy: Ui = {
     ...ui,
     note: (_m, title) => notes.push(title),
@@ -79,9 +81,9 @@ test('each role gets its own box, and the author is fully asked before the revie
   await runInit({ repo: ['A/b'], out: join(dir, 'o.json') }, spy, fakeDeps().deps);
   expect(notes.filter((t) => t === 'Author' || t === 'Reviewer')).toEqual(['Author', 'Reviewer']);
   expect(order.filter((m) => /author|reviewer/i.test(m))).toEqual([
-    'GitHub identity for the author', 'Which agent CLI runs the author?', 'Model for the author',
+    'GitHub identity for the author', 'Which option runs the author?',
     'Author persona',
-    'GitHub identity for the reviewer', 'Which agent CLI runs the reviewer?', 'Model for the reviewer',
+    'GitHub identity for the reviewer', 'Which option runs the reviewer?',
     'Reviewer persona',
   ]);
 });
@@ -89,11 +91,11 @@ test('each role gets its own box, and the author is fully asked before the revie
 test('the recap lists what will be saved, and declining it writes nothing', async () => {
   const { deps, written } = fakeDeps();
   const notes: Record<string, string> = {};
-  const { ui } = quietUi({ 'Save it?': false });
+  const { ui } = quietUi({ ...twoOptions, 'Save it?': false });
   const spy: Ui = { ...ui, note: (m, title) => void (notes[title] = m) };
   await expect(runInit({ repo: ['A/b'], out: join(dir, 'u.json') }, spy, deps)).rejects.toBeInstanceOf(Cancelled);
   expect(written).toEqual({});
-  expect(notes['This is what will be saved']).toMatch(/Repos {5}A\/b\nAuthor {4}artanis-agent · Claude Code · sonnet\nReviewer {2}tassadar-agent · Codex · gpt-test\nSaved to {2}/);
+  expect(notes['This is what will be saved']).toMatch(/Repos {5}A\/b\nOptions {3}claude, codex\nAuthor {4}artanis-agent · claude · Claude Code · sonnet\nReviewer {2}tassadar-agent · codex · Codex · gpt-test\nSaved to {2}/);
 });
 
 test('--yes skips the recap and the start question', async () => {
@@ -114,7 +116,8 @@ test('an existing config can be edited: its answers are the starting points and 
     repos: [{ name: 'X/y' }, { name: 'X/z' }],
     profiles: { 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' }, gh: { kind: 'gh' } },
     orchestratorProfile: 'tassadar-agent',
-    agents: { author: { profile: 'tassadar-agent', harness: 'claude', model: 'opus' }, reviewer: { profile: 'gh', harness: 'codex', model: 'gpt-test' } },
+    agentOptions: { claude: { harness: 'claude', model: 'opus' }, codex: { harness: 'codex', model: 'gpt-test' } },
+    agents: { author: { profile: 'tassadar-agent', option: 'claude' }, reviewer: { profile: 'gh', option: 'codex' } },
   });
   expect(asked).not.toContain('Where should the config be saved?');
   expect(asked.some((q) => q.endsWith('exists. Overwrite it?'))).toBe(false);
@@ -182,7 +185,7 @@ const touchesForge = () => {
 
 test('choosing shared by answer asks no identity, never touches Forge, and writes a config that loads', async () => {
   const { deps, written } = fakeDeps({ forgeAgents: touchesForge, forgeAdd: touchesForge });
-  const { ui, asked } = quietUi({ [sharedMessage]: 'shared', 'Use your gh login for both roles?': true });
+  const { ui, asked } = quietUi({ ...twoOptions, [sharedMessage]: 'shared', 'Use your gh login for both roles?': true });
   const notes: string[] = [];
   const out = join(dir, 's1.json');
   await runInit({ repo: ['A/b'], out }, { ...ui, note: (_m, title) => void notes.push(title) }, deps);
@@ -192,7 +195,8 @@ test('choosing shared by answer asks no identity, never touches Forge, and write
     identities: 'shared',
     profiles: { gh: { kind: 'gh' } },
     orchestratorProfile: 'gh',
-    agents: { author: { profile: 'gh', harness: 'claude', model: 'sonnet' }, reviewer: { profile: 'gh', harness: 'codex', model: 'gpt-test' } },
+    agentOptions: { claude: { harness: 'claude', model: 'sonnet' }, codex: { harness: 'codex', model: 'gpt-test' } },
+    agents: { author: { profile: 'gh', option: 'claude' }, reviewer: { profile: 'gh', option: 'codex' } },
   });
   expect(loadConfig(defaults, written1).ok).toBe(true);
   expect(asked.some((q) => q.startsWith('GitHub identity for'))).toBe(false);
@@ -250,7 +254,8 @@ test('editing a shared config starts with shared selected, and the recap shows t
     identities: 'shared',
     profiles: { gh: { kind: 'gh' } },
     orchestratorProfile: 'gh',
-    agents: { author: { profile: 'gh', harness: 'claude', model: 'opus' }, reviewer: { profile: 'gh', harness: 'codex', model: 'gpt-test' } },
+    agentOptions: { claude: { harness: 'claude', model: 'opus' }, codex: { harness: 'codex', model: 'gpt-test' } },
+    agents: { author: { profile: 'gh', option: 'claude' }, reviewer: { profile: 'gh', option: 'codex' } },
   };
   const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => shared, forgeAgents: touchesForge });
   const { ui } = quietUi({ 'Use your gh login for both roles?': true });
@@ -270,12 +275,12 @@ const gateOf = (role: string) => `${titled(role)} persona`;
 
 test('each role is asked for a persona after its agent, the author first; Default skips name and prompt and leaves none', async () => {
   const { deps, written } = fakeDeps();
-  const { ui, asked } = quietUi({ [gateOf('reviewer')]: 'set', [nameOf('reviewer')]: ' Rex ', [promptOf('reviewer')]: 'Be strict about migrations.' });
+  const { ui, asked } = quietUi({ ...twoOptions, [gateOf('reviewer')]: 'set', [nameOf('reviewer')]: ' Rex ', [promptOf('reviewer')]: 'Be strict about migrations.' });
   const out = join(dir, 'p1.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  const order = [gateOf('author'), nameOf('author'), promptOf('author'), 'Model for the reviewer', gateOf('reviewer'), nameOf('reviewer'), promptOf('reviewer')];
-  expect(asked.filter((q) => order.includes(q))).toEqual([gateOf('author'), 'Model for the reviewer', gateOf('reviewer'), nameOf('reviewer'), promptOf('reviewer')]);
-  expect(asked.indexOf('Model for the author')).toBeLessThan(asked.indexOf(gateOf('author')));
+  const order = [gateOf('author'), nameOf('author'), promptOf('author'), 'Which option runs the reviewer?', gateOf('reviewer'), nameOf('reviewer'), promptOf('reviewer')];
+  expect(asked.filter((q) => order.includes(q))).toEqual([gateOf('author'), 'Which option runs the reviewer?', gateOf('reviewer'), nameOf('reviewer'), promptOf('reviewer')]);
+  expect(asked.indexOf('Which option runs the author?')).toBeLessThan(asked.indexOf(gateOf('author')));
   expect(asked.indexOf(gateOf('author'))).toBeLessThan(asked.indexOf('GitHub identity for the reviewer'));
   const agents = JSON.parse(written[out]!).agents;
   expect(agents.author).not.toHaveProperty('persona');

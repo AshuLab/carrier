@@ -1,16 +1,22 @@
-import { expect, test, vi } from 'vitest';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
+import { afterEach, expect, test, vi } from 'vitest';
 import { defaults, loadConfig } from '../config/load.ts';
 import type { Config } from '../config/schema.ts';
-import { runDoctor, type Check, type DoctorDeps } from './doctor.ts';
+import { cliLoggedIn, runDoctor, type Check, type DoctorDeps } from './doctor.ts';
 
 const base = {
   root: '/tmp/carrier-doctor',
   repos: [{ name: 'AshuLab/carrier' }],
   profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'forge', agent: 'tassadar-agent' } },
   orchestratorProfile: 'a',
+  agentOptions: { claude: { harness: 'claude', model: 'm' }, codex: { harness: 'codex', model: 'm' } },
   agents: {
-    author: { profile: 'a', harness: 'claude', model: 'm' },
-    reviewer: { profile: 'b', harness: 'codex', model: 'm' },
+    author: { profile: 'a', option: 'claude' },
+    reviewer: { profile: 'b', option: 'codex' },
   },
 };
 
@@ -20,11 +26,24 @@ const config = (overrides: Record<string, unknown> = {}): Config => {
   return result.config;
 };
 
+// A stand-in for the agy process: prints what it is told and ends only when `end` says so.
+function fakeAgy({ stdout = '', stderr = '', end = false }: { stdout?: string; stderr?: string; end?: boolean }) {
+  const process = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(), kill: vi.fn(() => { process.emit('close'); }) });
+  setImmediate(() => {
+    if (stdout) process.stdout.write(stdout);
+    if (stderr) process.stderr.write(stderr);
+    if (end) process.emit('close');
+  });
+  return process;
+}
+
 const deps = (overrides: Partial<DoctorDeps> = {}): DoctorDeps => ({
   which: () => true,
   mint: async () => 'secret-token',
   listLabels: async () => [],
   localModels: async () => [],
+  loggedIn: async () => true,
+  startAgy: () => fakeAgy({ stdout: '{"status":"SUCCESS"}', end: true }),
   ...overrides,
 });
 
@@ -39,6 +58,8 @@ test('everything in place: all checks pass and no token reaches the report', asy
     'claude installed',
     'codex installed',
     'agent-forge installed',
+    'claude option claude is logged in',
+    'codex option codex is logged in',
     'author and reviewer are different identities',
     'forge agent artanis-agent can mint a token for AshuLab/carrier',
     'forge agent tassadar-agent can mint a token for AshuLab/carrier',
@@ -69,7 +90,7 @@ test('a missing harness CLI fails once, by name', async () => {
 
 test('only the harnesses in use are required', async () => {
   const which = vi.fn(() => true);
-  await runDoctor(config({ agents: { author: { profile: 'a', harness: 'claude', model: 'm' }, reviewer: { profile: 'b', harness: 'claude', model: 'm' } } }), deps({ which }));
+  await runDoctor(config({ agents: { author: { profile: 'a', option: 'claude' }, reviewer: { profile: 'b', option: 'claude' } } }), deps({ which }));
   expect(which).not.toHaveBeenCalledWith('codex');
 });
 
@@ -164,7 +185,7 @@ test('onCheck sees every check as it finishes, in the order of the result', asyn
   expect(seen).toEqual(checks);
 });
 
-const local = (over: Record<string, unknown> = {}) => config({ agents: { ...base.agents, reviewer: { ...base.agents.reviewer, model: 'google/gemma-4-12b', provider: 'lmstudio', ...over } } });
+const local = (over: Record<string, unknown> = {}) => config({ agentOptions: { ...base.agentOptions, local: { harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio', ...over } }, agents: { ...base.agents, reviewer: { ...base.agents.reviewer, option: 'local' } } });
 
 test('a local model passes when its server has it', async () => {
   const checks = await runDoctor(local(), deps({ localModels: async () => ['google/gemma-4-12b'] }));
@@ -190,7 +211,7 @@ test.each([
   ['no installation', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: has no installations')) }), 'install the GitHub App of that agent on AshuLab'],
   ['an unreadable key', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: Private key for x not found or unreadable')) }), 'check privateKeyPath of that agent in your Forge registry'],
   ['any other mint error', () => fixOf(config(), { mint: async () => Promise.reject(new Error('boom')) }), 'run: agent-forge token --agent artanis-agent from a clone of the repo to see the full error'],
-  ['a gh login that cannot mint', () => fixOf(config({ profiles: gh, orchestratorProfile: 'b', agents: { author: { profile: 'a', harness: 'claude', model: 'm' }, reviewer: { profile: 'b', harness: 'codex', model: 'm' } } }), { mint: async (p) => (p.kind === 'gh' ? Promise.reject(new Error('x')) : 't') }), 'run: gh auth login'],
+  ['a gh login that cannot mint', () => fixOf(config({ profiles: gh, orchestratorProfile: 'b', agents: { author: { profile: 'a', option: 'claude' }, reviewer: { profile: 'b', option: 'codex' } } }), { mint: async (p) => (p.kind === 'gh' ? Promise.reject(new Error('x')) : 't') }), 'run: gh auth login'],
   ['a 404 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 404: Not Found')) }), 'the repo does not exist or this identity cannot see it: install the App on AshuLab and give it access to AshuLab/carrier'],
   ['a 401 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 401: Bad credentials')) }), "the identity's credentials were rejected: for gh run gh auth login, for a bot check its App in Forge"],
   ['the same identity twice', () => fixOf(config({ profiles: { a: { kind: 'forge', agent: 'bot' }, b: { kind: 'forge', agent: 'bot' } } }), {}), 'use two different bots (agent-forge add) or one bot and your gh login, or set identities to "shared" to use one account for both'],
@@ -217,4 +238,149 @@ test('checks skipped because a prerequisite failed announce nothing', async () =
   const started: string[] = [];
   const checks = await runDoctor(config(), deps({ which: (c) => c !== 'gh' }), () => {}, (name) => started.push(name));
   expect(started).toEqual(checks.map((c) => c.name)); // no start for the mints and reads that were skipped
+});
+
+// The login of each Claude and Codex option; the answer is faked, no test starts a real CLI.
+const withDirs = { agentOptions: { claude: { harness: 'claude', model: 'm', configDir: '/home/me/.claude-work' }, codex: { harness: 'codex', model: 'm', configDir: '/home/me/.codex-alt' }, spare: { harness: 'claude', model: 'm', configDir: '/home/me/.claude-spare' }, agy: { harness: 'agy', model: 'm' } } };
+
+test('every Claude and Codex option is asked with its folder, role or not, and agy is left out', async () => {
+  const loggedIn = vi.fn(async (_harness: string, _dir: string | undefined) => true);
+  const checks = await runDoctor(config(withDirs), deps({ loggedIn }));
+  expect(loggedIn.mock.calls).toEqual([['claude', '/home/me/.claude-work'], ['codex', '/home/me/.codex-alt'], ['claude', '/home/me/.claude-spare']]);
+  expect(failed(checks)).toEqual([]);
+});
+
+test('an option without a folder is checked in the process environment', async () => {
+  const loggedIn = vi.fn(async (_harness: string, _dir: string | undefined) => true);
+  await runDoctor(config(), deps({ loggedIn }));
+  expect(loggedIn.mock.calls).toEqual([['claude', undefined], ['codex', undefined]]);
+});
+
+test('a role option that is not logged in fails, a spare one only warns, both name the option and folder and carry the login remedy', async () => {
+  const checks = await runDoctor(config(withDirs), deps({ loggedIn: async (_harness, dir) => dir !== '/home/me/.claude-work' && dir !== '/home/me/.claude-spare' }));
+  const logins = checks.filter((c) => c.name.endsWith('is logged in'));
+  expect(logins.filter((c) => c.status !== 'ok')).toMatchObject([
+    { name: 'claude option claude is logged in', status: 'fail', detail: 'not logged in at /home/me/.claude-work', fix: 'log in with: CLAUDE_CONFIG_DIR=/home/me/.claude-work claude /login' },
+    { name: 'claude option spare is logged in', status: 'warn', detail: 'not logged in at /home/me/.claude-spare', fix: 'log in with: CLAUDE_CONFIG_DIR=/home/me/.claude-spare claude /login' },
+  ]);
+});
+
+test('a Codex option that is not logged in has the Codex remedy, and one without a folder says so', async () => {
+  const checks = await runDoctor(config(withDirs), deps({ loggedIn: async (harness) => harness !== 'codex' }));
+  expect(failed(checks)).toMatchObject([{ name: 'codex option codex is logged in', detail: 'not logged in at /home/me/.codex-alt', fix: 'log in with: CODEX_HOME=/home/me/.codex-alt codex login' }]);
+  const inherited = failed(await runDoctor(config(), deps({ loggedIn: async () => false })));
+  expect(inherited.map((c) => c.detail)).toEqual(['not logged in in the environment Carrier runs in', 'not logged in in the environment Carrier runs in']);
+  expect(inherited.map((c) => c.fix)).toEqual(['log in with: claude /login', 'log in with: codex login']);
+});
+
+test('a login check that cannot run is reported by option, and an email never reaches the report', async () => {
+  const loggedIn = async () => {
+    throw new Error('spawnSync claude ENOENT me@example.com');
+  };
+  const checks = await runDoctor(config(), deps({ loggedIn }));
+  expect(failed(checks)).toMatchObject([{ name: 'claude option claude is logged in' }, { name: 'codex option codex is logged in' }]);
+  expect(JSON.stringify(checks)).not.toContain('me@example.com');
+});
+
+test('an option whose CLI is not installed is not asked for its login', async () => {
+  const loggedIn = vi.fn(async () => true);
+  await runDoctor(config(), deps({ which: (command) => command !== 'claude', loggedIn }));
+  expect(loggedIn).toHaveBeenCalledTimes(1);
+});
+
+// The Antigravity login: agy has no status command, so the check reads the first stderr line of `agy -p /usage`.
+afterEach(() => vi.useRealTimers());
+const agyChecks = (checks: Check[]) => checks.filter((c) => c.name.startsWith('agy option'));
+const onlyAgy = { agentOptions: { agy: { harness: 'agy', model: 'm' } }, agents: { author: { profile: 'a', option: 'agy' }, reviewer: { profile: 'b', option: 'agy' } } };
+
+test('an Antigravity option whose /usage answers SUCCESS is logged in', async () => {
+  const startAgy = vi.fn(() => fakeAgy({ stdout: '{"status":"SUCCESS"}', end: true }));
+  const checks = await runDoctor(config(onlyAgy), deps({ startAgy }));
+  expect(startAgy).toHaveBeenCalledTimes(1);
+  expect(agyChecks(checks)).toEqual([{ name: 'agy option agy is logged in', status: 'ok' }]);
+});
+
+test('Authentication required on the first stderr line is logged out at once: the process is killed, not waited for, and the login URL stays out', async () => {
+  const process = fakeAgy({ stderr: 'Authentication required. Open https://accounts.example/login?code=SECRET\n' }); // never ends by itself
+  const checks = await runDoctor(config(onlyAgy), deps({ startAgy: () => process }));
+  expect(process.kill).toHaveBeenCalledTimes(1);
+  expect(agyChecks(checks)).toEqual([{ name: 'agy option agy is logged in', status: 'fail', detail: 'not logged in', fix: 'log in with: agy' }]);
+  expect(JSON.stringify(checks)).not.toContain('SECRET');
+});
+
+test('an Antigravity option that is not a role option only warns when logged out', async () => {
+  const spare = { agentOptions: { ...base.agentOptions, agy: { harness: 'agy', model: 'm' } } };
+  const checks = await runDoctor(config(spare), deps({ startAgy: () => fakeAgy({ stderr: 'Authentication required\n' }) }));
+  expect(failed(checks)).toEqual([]);
+  expect(agyChecks(checks)).toMatchObject([{ status: 'warn', detail: 'not logged in', fix: 'log in with: agy' }]);
+});
+
+test('an agy that neither succeeds nor asks for login within the time limit is killed and only a warning, even for a role option', async () => {
+  vi.useFakeTimers();
+  const process = fakeAgy({});
+  const done = runDoctor(config(onlyAgy), deps({ startAgy: () => process }));
+  await vi.advanceTimersByTimeAsync(60_000);
+  const checks = await done;
+  expect(process.kill).toHaveBeenCalled();
+  expect(failed(checks)).toEqual([]);
+  expect(agyChecks(checks)).toMatchObject([{ status: 'warn', detail: expect.stringContaining('could not tell') }]);
+});
+
+test('an agy that ends without SUCCESS or the login line could not be told, and one that cannot start is reported too', async () => {
+  const ended = await runDoctor(config(onlyAgy), deps({ startAgy: () => fakeAgy({ stdout: 'garbage', end: true }) }));
+  expect(agyChecks(ended)).toMatchObject([{ status: 'warn', detail: expect.stringContaining('could not tell') }]);
+  const broken = await runDoctor(config(onlyAgy), deps({ startAgy: () => { throw new Error('spawn agy EACCES'); } }));
+  expect(agyChecks(broken)).toMatchObject([{ status: 'warn', detail: expect.stringContaining('could not run agy') }]);
+});
+
+test('an Antigravity option whose CLI is not installed is not started', async () => {
+  const startAgy = vi.fn(() => fakeAgy({ end: true }));
+  await runDoctor(config(onlyAgy), deps({ which: (command) => command !== 'agy', startAgy }));
+  expect(startAgy).not.toHaveBeenCalled();
+});
+
+// The login probe runs the real CLI: a stand-in on the PATH answers, and the event loop is free while it does.
+test('cliLoggedIn reads the verdict of the CLI with the option\'s folder, without blocking, and a CLI that does not answer in time rejects', async () => {
+  const bin = mkdtempSync(join(tmpdir(), 'carrier-login-'));
+  const script = (name: string, body: string) => {
+    writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`);
+    chmodSync(join(bin, name), 0o755);
+  };
+  const path = process.env.PATH;
+  process.env.PATH = `${bin}:${path}`;
+  try {
+    script('claude', '[ "$CLAUDE_CONFIG_DIR" = /cfg ] && echo \'{"loggedIn":true}\' || echo \'{"loggedIn":false}\'');
+    script('codex', '[ "$CODEX_HOME" = /cfg ]');
+    const answers = await Promise.all([cliLoggedIn('claude', '/cfg'), cliLoggedIn('claude', undefined), cliLoggedIn('codex', '/cfg'), cliLoggedIn('codex', undefined)]);
+    expect(answers).toEqual([true, false, true, false]);
+    script('claude', 'echo not json');
+    expect(await cliLoggedIn('claude', undefined)).toBe(false);
+    process.env.PATH = '/nonexistent';
+    await expect(cliLoggedIn('codex', undefined)).rejects.toThrow();
+  } finally {
+    process.env.PATH = path;
+    rmSync(bin, { recursive: true, force: true });
+  }
+});
+
+test('cliLoggedIn gives up on time on a CLI that ignores SIGTERM and one whose child holds the pipe, and kills them', async () => {
+  const bin = mkdtempSync(join(tmpdir(), 'carrier-login-hang-'));
+  const path = process.env.PATH;
+  process.env.PATH = `${bin}:${path}`;
+  const stub = (name: string, body: string) => {
+    writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`);
+    chmodSync(join(bin, name), 0o755);
+  };
+  try {
+    stub('codex', "trap '' TERM; sleep 8");
+    stub('claude', 'sleep 8; true');
+    for (const harness of ['codex', 'claude'] as const) {
+      const started = Date.now();
+      await expect(cliLoggedIn(harness, undefined, 200)).rejects.toThrow('did not answer');
+      expect(Date.now() - started).toBeLessThan(3000);
+    }
+  } finally {
+    process.env.PATH = path;
+    rmSync(bin, { recursive: true, force: true });
+  }
 });

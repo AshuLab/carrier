@@ -11,6 +11,7 @@ import { executionEvents } from '../storage/events.ts';
 import { executions } from '../storage/executions.ts';
 import { epics } from '../storage/schema.ts';
 import type { Blocker, EpicReply } from './replies.ts';
+import { optionsOf } from '../status/snapshot.ts';
 import { agentOf } from './sessions.ts';
 
 const log = createScopedLogger('control');
@@ -216,5 +217,5 @@ export function epicOf(db: Db, repo: string, issue: number): EpicReply | null {
   const slices = db.select().from(epicSlices).where(eq(epicSlices.epicId, epic.id)).orderBy(epicSlices.number).all();
   const threads = db.select().from(epicReviewThreads).where(eq(epicReviewThreads.epicId, epic.id)).orderBy(epicReviewThreads.position).all();
   const hints = liveHints(db, epic.id);
-  return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt, lane: null, activity: null, ...(state === 'in_progress' && hints.get(number)) })), slicesTruncated: slices.some((s) => s.truncated), threads: threads.map(({ epicId, position, readAt, truncated, ...thread }) => thread), threadsTruncated: threads.some((t) => t.truncated), worktrees, branch, pr: epic.pr };
+  return { stages, rounds, slices: slices.map(({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt }) => ({ number, title, state, blockedBy, prNumber, prState, prMergedAt, closedAt, readAt, lane: null, activity: null, ...(state === 'in_progress' && hints.get(number)) })), slicesTruncated: slices.some((s) => s.truncated), threads: threads.map(({ epicId, position, readAt, truncated, ...thread }) => thread), threadsTruncated: threads.some((t) => t.truncated), worktrees, branch, options: optionsOf(epic), pr: epic.pr };
 }

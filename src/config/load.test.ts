@@ -8,9 +8,10 @@ const valid = {
   repos: [{ name: 'AshuLab/carrier' }],
   profiles: { 'author-bot': { kind: 'forge', agent: 'artanis-agent' }, 'reviewer-bot': { kind: 'gh' } },
   orchestratorProfile: 'author-bot',
+  agentOptions: { claude: { harness: 'claude', model: 'm' }, codex: { harness: 'codex', model: 'm' } },
   agents: {
-    author: { profile: 'author-bot', harness: 'claude', model: 'm' },
-    reviewer: { profile: 'reviewer-bot', harness: 'codex', model: 'm' },
+    author: { profile: 'author-bot', option: 'claude' },
+    reviewer: { profile: 'reviewer-bot', option: 'codex' },
   },
 };
 
@@ -31,6 +32,12 @@ describe('merge', () => {
   test('applies defaults when the user omits them', () => {
     const result = load({});
     expect(result).toMatchObject({ ok: true, config: { pollIntervalMinutes: 5, limits: defaults.limits } });
+  });
+
+  test('limits.optionChoiceSeconds defaults to 60 and must be a positive whole number', () => {
+    expect(load({})).toMatchObject({ ok: true, config: { limits: { optionChoiceSeconds: 60 } } });
+    expect(load({ limits: { optionChoiceSeconds: 15 } })).toMatchObject({ ok: true, config: { limits: { optionChoiceSeconds: 15 } } });
+    for (const bad of [0, -1, 1.5, '60']) expect(errorsOf({ limits: { optionChoiceSeconds: bad } }).map((e) => e.path)).toEqual(['limits.optionChoiceSeconds']);
   });
 
   test('merges objects field by field', () => {
@@ -62,7 +69,7 @@ describe('merge', () => {
 describe('invalid config', () => {
   test('missing required fields are all listed at once', () => {
     const paths = loadConfig(defaults, {}) as { errors: { path: string }[] };
-    expect(paths.errors.map((e) => e.path).sort()).toEqual(['agents', 'orchestratorProfile', 'profiles', 'repos']);
+    expect(paths.errors.map((e) => e.path).sort()).toEqual(['agentOptions', 'agents', 'orchestratorProfile', 'profiles', 'repos']);
   });
 
   test('empty repos', () => {
@@ -119,7 +126,7 @@ describe('maxExecutionHours', () => {
 });
 
 describe('identities', () => {
-  const same = { profiles: { me: { kind: 'gh' }, bot: { kind: 'gh' } }, orchestratorProfile: 'me', agents: { author: { profile: 'me', harness: 'claude', model: 'm' }, reviewer: { profile: 'me', harness: 'codex', model: 'm' } } };
+  const same = { profiles: { me: { kind: 'gh' }, bot: { kind: 'gh' } }, orchestratorProfile: 'me', agents: { author: { profile: 'me', option: 'claude' }, reviewer: { profile: 'me', option: 'codex' } } };
   const perRepo = { ...valid, repos: [{ name: 'a/one' }, { name: 'a/two', agents: { reviewer: { profile: 'author-bot' } } }, { name: 'a/three', agents: { reviewer: { profile: 'author-bot' } } }] };
 
   test('defaults to separate', () => {
@@ -193,28 +200,88 @@ describe('repos', () => {
   });
 });
 
-describe('local models', () => {
-  const reviewer = { profile: 'reviewer-bot', harness: 'codex', model: 'google/gemma-4-12b' };
+describe('agent options', () => {
+  const withOptions = (agentOptions: object, agents: object = valid.agents) => ({ agentOptions, agents });
+  const optionPaths = (agentOptions: object, agents?: object) => errorsOf(withOptions(agentOptions, agents)).map((e) => e.path);
 
-  test('`provider` is optional, per role, and only lmstudio or ollama', () => {
-    expect(load({ agents: { ...valid.agents, reviewer: { ...reviewer, provider: 'lmstudio' } } })).toMatchObject({ ok: true, config: { agents: { reviewer: { provider: 'lmstudio' } } } });
-    expect(load({})).toMatchObject({ ok: true }); // no local anywhere
-    expect(errorsOf({ agents: { ...valid.agents, reviewer: { ...reviewer, provider: 'vllm' } } }).map((e) => e.path)).toEqual(['agents.reviewer.provider']);
+  test('roles point at declared options, and a repo override of `option` is the one resolved for that repo', () => {
+    expect(load({})).toMatchObject({ ok: true, config: { agentOptions: valid.agentOptions, agents: { author: { option: 'claude' }, reviewer: { option: 'codex' } } } });
+    const result = load({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { option: 'claude' } } }] });
+    expect(result).toMatchObject({ ok: true, config: { repos: [{ agents: { reviewer: { option: 'claude' } } }] } });
   });
 
-  test('a repo can override it', () => {
-    const result = load({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { model: 'qwen3:8b', provider: 'ollama' } } }] });
-    expect(result).toMatchObject({ ok: true, config: { repos: [{ agents: { reviewer: { provider: 'ollama' } } }] } });
+  test('`provider` is optional and only lmstudio or ollama', () => {
+    expect(load(withOptions({ ...valid.agentOptions, codex: { harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio' } }))).toMatchObject({ ok: true, config: { agentOptions: { codex: { provider: 'lmstudio' } } } });
+    expect(optionPaths({ ...valid.agentOptions, codex: { harness: 'codex', model: 'm', provider: 'vllm' } })).toEqual(['agentOptions.codex.provider']);
+  });
+
+  test('agy is a harness, but it cannot use a provider', () => {
+    expect(load(withOptions({ ...valid.agentOptions, agy: { harness: 'agy', model: 'gemini-3.8-flash-low' } }, { ...valid.agents, author: { profile: 'author-bot', option: 'agy' } }))).toMatchObject({ ok: true });
+    expect(errorsOf(withOptions({ ...valid.agentOptions, claude: { harness: 'agy', model: 'm', provider: 'ollama' } }))).toEqual([{ path: 'agentOptions.claude.provider', message: 'agentOptions.claude: agy cannot use the provider "ollama"' }]);
+  });
+
+  test('an option name is a lowercase word of up to 40 characters', () => {
+    const option = { harness: 'codex', model: 'm' };
+    for (const name of ['a', 'claude-ashu', 'x1-2', 'a'.repeat(40)]) expect(load(withOptions({ ...valid.agentOptions, [name]: option })).ok).toBe(true);
+    for (const name of ['Claude', '1claude', '-claude', 'claude_work', 'claude work', '', 'a'.repeat(41)]) {
+      const errors = errorsOf(withOptions({ ...valid.agentOptions, [name]: option }));
+      expect(errors.map((e) => e.path)).toEqual([`agentOptions.${name}`]);
+      expect(errors[0]!.message).toContain('lowercase word');
+    }
+  });
+
+  test('a role or a repo override pointing at an option that is not declared names the field', () => {
+    expect(errorsOf({ agents: { ...valid.agents, reviewer: { ...valid.agents.reviewer, option: 'ghost' } } })).toEqual([{ path: 'agents.reviewer.option', message: expect.stringContaining('ghost') }]);
+    expect(errorsOf({ repos: [{ name: 'x/y', agents: { author: { option: 'phantom' } } }] })).toEqual([{ path: 'repos.0.agents.author.option', message: expect.stringContaining('phantom') }]);
+  });
+
+  test('`configDir` is expanded from ~ and must then be absolute; an empty one is refused', () => {
+    expect(load(withOptions({ ...valid.agentOptions, claude: { harness: 'claude', model: 'm', configDir: '~/.claude-ashu' } }))).toMatchObject({ ok: true, config: { agentOptions: { claude: { configDir: join(homedir(), '.claude-ashu') } } } });
+    expect(load(withOptions({ ...valid.agentOptions, codex: { harness: 'codex', model: 'm', configDir: '/srv/codex' } }))).toMatchObject({ ok: true, config: { agentOptions: { codex: { configDir: '/srv/codex' } } } });
+    for (const configDir of ['', 'relative/dir', '.claude', '~other/dir']) expect(optionPaths({ ...valid.agentOptions, claude: { harness: 'claude', model: 'm', configDir } })).toEqual(['agentOptions.claude.configDir']);
+  });
+
+  test('an agy option cannot have a `configDir`', () => {
+    const errors = errorsOf(withOptions({ ...valid.agentOptions, claude: { harness: 'agy', model: 'm', configDir: '/srv/agy' } }));
+    expect(errors).toEqual([{ path: 'agentOptions.claude.configDir', message: expect.stringContaining('agy') }]);
+  });
+
+  test('an unknown field inside an option is refused', () => {
+    const errors = errorsOf(withOptions({ ...valid.agentOptions, claude: { harness: 'claude', model: 'm', token: 'x' } }));
+    expect(errors).toEqual([{ path: 'agentOptions.claude', message: expect.stringContaining('token') }]);
+  });
+
+  test.each(['harness', 'model', 'provider'])('the old shape, `%s` inside agents.<role> or a repo override, is refused with where it went', (key) => {
+    const paths = (user: object) => errorsOf(user).map((e) => e.path);
+    const old = { ...valid.agents, author: { ...valid.agents.author, [key]: key === 'model' ? 'm' : key === 'harness' ? 'claude' : 'ollama' } };
+    const errors = errorsOf({ agents: old });
+    expect(errors).toEqual([{ path: `agents.author.${key}`, message: expect.stringMatching(new RegExp(`"${key}" moved to agentOptions.*docs/configuration\\.md`)) }]);
+    expect(paths({ repos: [{ name: 'x/y', agents: { reviewer: { [key]: 'x' } } }] })).toEqual([`repos.0.agents.reviewer.${key}`]);
   });
 });
 
-describe('harness and provider', () => {
-  test('agy is a harness, but it cannot use a local provider (globally or through a repo override)', () => {
-    expect(load({ agents: { ...valid.agents, author: { profile: 'author-bot', harness: 'agy', model: 'gemini-3.8-flash-low' } } })).toMatchObject({ ok: true });
-    const agy = { profile: 'author-bot', harness: 'agy', model: 'm', provider: 'ollama' };
-    expect(errorsOf({ agents: { ...valid.agents, author: agy } })).toEqual([{ path: 'agents.author.provider', message: 'agy cannot use the provider "ollama"' }]);
-    const viaRepo = errorsOf({ agents: { ...valid.agents, author: { profile: 'author-bot', harness: 'codex', model: 'm', provider: 'ollama' } }, repos: [{ name: 'AshuLab/carrier', agents: { author: { harness: 'agy' } } }] });
-    expect(viaRepo.map((e) => e.path)).toEqual(['repos.0.agents.author']);
+describe('failover', () => {
+  const failover = (order: string[], enabled = true) => ({ failover: { enabled, order } });
+
+  test('absent means off, and a declared order loads as written', () => {
+    const absent = load({});
+    expect(absent.ok && absent.config.failover).toBeUndefined();
+    expect(load(failover(['codex', 'claude']))).toMatchObject({ ok: true, config: { failover: { enabled: true, order: ['codex', 'claude'] } } });
+    expect(load(failover([], false)).ok).toBe(true);
+  });
+
+  test('a name that is not declared in agentOptions is refused, naming the field', () => {
+    expect(errorsOf(failover(['codex', 'ghost']))).toEqual([{ path: 'failover.order.1', message: 'failover.order: option "ghost" is not declared in agentOptions' }]);
+    expect(errorsOf(failover(['codex', 'constructor']))).toEqual([{ path: 'failover.order.1', message: 'failover.order: option "constructor" is not declared in agentOptions' }]); // an inherited property is not an option
+  });
+
+  test('a duplicate name is refused, naming the field', () => {
+    expect(errorsOf(failover(['codex', 'claude', 'codex']))).toEqual([{ path: 'failover.order.2', message: 'failover.order: option "codex" appears twice' }]);
+  });
+
+  test('`enabled` is required, and an unknown field is refused', () => {
+    expect(errorsOf({ failover: { order: ['codex'] } }).map((e) => e.path)).toEqual(['failover.enabled']);
+    expect(errorsOf({ failover: { enabled: true, order: ['codex'], retries: 2 } }).map((e) => e.path)).toEqual(['failover']);
   });
 });
 

@@ -31,6 +31,12 @@ test('command: real binary, cwd in the workspace, stream-json, no prompts, the m
   expect(command.env).toMatchObject({ GH_TOKEN: 'ghs_secret', CARRIER_RESULT_PATH: task.resultPath });
 });
 
+test('an Antigravity command never gets a config folder variable', () => {
+  const { env } = buildAgyCommand({ ...task, configDir: '/cfg/x' }, ctx);
+  expect(env).not.toHaveProperty('CLAUDE_CONFIG_DIR');
+  expect(env).not.toHaveProperty('CODEX_HOME');
+});
+
 test('resumeSession adds --conversation', () => {
   expect(buildAgyCommand({ ...task, resumeSession: 'c-9' }, ctx).args).toEqual(['-p', buildPrompt({ ...task, resumeSession: 'c-9' }), ...fixed, '--conversation', 'c-9']);
 });
@@ -50,7 +56,7 @@ test('a lost conversation is only a stderr warning, and a missing login shows on
   expect(parseAgyLine('warning: conversation "00000000-0000" not found')).toEqual({ sessionUnavailable: true });
   expect(parseAgyLine('Authentication required. Please visit the URL to log in:')).toEqual({ authFailed: true });
   expect(parseAgyLine('{"event":"result","result":{"status":"ERROR","error":"authentication failed or timed out"}}')).toEqual({ authFailed: true });
-  expect(parseAgyLine('{"event":"result","result":{"status":"ERROR","error":"interrupted"}}')).toBeUndefined();
+  expect(parseAgyLine('{"event":"result","result":{"status":"ERROR","error":"interrupted"}}')).toEqual({ failure: { kind: 'api_error', detail: 'interrupted' } });
 });
 
 test('a real recorded stream: only the init line is a signal and every line is JSON', () => {
@@ -71,4 +77,22 @@ test('the prompt carries the 401 rule only when the context has a forgeAgent', (
   expect(withAgent.args).toContain(buildPrompt(task, { forgeAgent: 'artanis-agent' }));
   expect(withAgent.args.join('\n')).toContain('agent-forge gh artanis-agent <the same arguments>');
   expect(buildAgyCommand(task, ctx).args.join('\n')).not.toContain('agent-forge');
+});
+
+const errorResult = (error: string) => JSON.stringify({ event: 'result', result: { status: 'ERROR', error } });
+
+// Inferred from the changelog and the binary, not captured: replace it with a real capture (docs/research/agent-usage-limit-signals.md).
+test('parseAgyLine reads the ERROR result of the usage-limit fixture as usage_limit, with the error text as detail', () => {
+  const lines = readFileSync(new URL('./agy-usage-limit.fixture.jsonl', import.meta.url), 'utf8').trim().split('\n');
+  const signals = lines.map(parseAgyLine).filter((signal) => signal !== undefined);
+  expect(signals).toEqual([{ session: '00000000-0000-4000-8000-000000000001' }, { failure: { kind: 'usage_limit', detail: 'Your AI credits balance is too low to continue.' } }]);
+});
+
+test('parseAgyLine reads each quota text as usage_limit and any other ERROR result as api_error', () => {
+  for (const error of ['Your AI credits balance is too low to continue.', 'individual quota reached', 'You have exhausted your quota for this model']) {
+    expect(parseAgyLine(errorResult(error))).toEqual({ failure: { kind: 'usage_limit', detail: error } });
+  }
+  expect(parseAgyLine(errorResult('model overloaded'))).toEqual({ failure: { kind: 'api_error', detail: 'model overloaded' } });
+  expect(parseAgyLine('{"event":"result","result":{"status":"ERROR"}}')).toEqual({ failure: { kind: 'api_error', detail: 'the run ended: ERROR' } });
+  expect(parseAgyLine('{"event":"result","result":{"status":"SUCCESS","error":"AI credits balance is too low"}}')).toBeUndefined();
 });

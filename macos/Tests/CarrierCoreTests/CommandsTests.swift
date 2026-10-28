@@ -20,7 +20,7 @@ private func snapshot(_ change: (inout PanelSnapshot) -> Void = { _ in }) throws
 
 @Test func stoppingDoesNotAskWhenEpicsOnlyNeedAPerson() throws {
     let s = try snapshot { $0.epics = $0.epics.filter { $0.status == .needsHuman } }
-    #expect(s.epics.count == 7)
+    #expect(s.epics.count == 8)
     #expect(s.stopNeedsConfirmation == false)
 }
 

@@ -34,6 +34,8 @@ export function buildAgyCommand(task: AgentTask, ctx: CommandContext): AgentComm
   };
 }
 
+const usageLimitTexts = ['AI credits balance is too low', 'individual quota reached', 'exhausted your quota'];
+
 // Shapes observed with agy 1.4.0: the first stdout line is `init` with the conversation id, written before the model is
 // called; a missing login prints "Authentication required" on stderr and ~60 s later ends with a `result` whose error is
 // "authentication failed or timed out"; resuming an unknown id does NOT fail: it exits 0 in a new conversation and only
@@ -48,7 +50,13 @@ export function parseAgyLine(line: string): LineSignal | undefined {
     return undefined;
   }
   if (event.event === 'init' && typeof event.conversation_id === 'string') return { session: event.conversation_id };
-  if (event.event === 'result' && event.result?.error === 'authentication failed or timed out') return { authFailed: true };
+  if (event.event === 'result' && event.result?.status === 'ERROR') {
+    const error = str(event.result.error);
+    if (error === 'authentication failed or timed out') return { authFailed: true };
+    // No reset time in the text (docs/research/agent-usage-limit-signals.md).
+    const usageLimit = error !== undefined && usageLimitTexts.some((text) => error.includes(text));
+    return { failure: { kind: usageLimit ? 'usage_limit' : 'api_error', detail: error ?? 'the run ended: ERROR' } };
+  }
   return undefined;
 }
 

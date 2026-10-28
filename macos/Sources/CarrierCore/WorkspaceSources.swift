@@ -47,8 +47,16 @@ public func projectFolders(in root: String) -> [ProjectFolder] {
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 }
 
-/// `projectsFolder` of the config file the app works with, read each time so a change in the file is followed.
-public func currentProjectsFolder() -> String {
-    let path = activeConfigPath(saved: SetupStore().load(), environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
-    return projectsFolder(configJSON: try? Data(contentsOf: URL(fileURLWithPath: path)), home: NSHomeDirectory())
+/// The config file the app works with: the one the setup chose, else the default.
+private func currentConfigURL() -> URL {
+    URL(fileURLWithPath: activeConfigPath(saved: SetupStore().load(), environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()))
 }
+
+/// The config file's bytes, read each time so a change in the file is followed; nil when it cannot be read.
+public func currentConfig() -> Data? { try? Data(contentsOf: currentConfigURL()) }
+
+/// Writes the config file in place; the caller read it just before, as the Repos tab does.
+public func writeCurrentConfig(_ data: Data) throws { try data.write(to: currentConfigURL(), options: .atomic) }
+
+/// `projectsFolder` of the config file the app works with.
+public func currentProjectsFolder() -> String { projectsFolder(configJSON: currentConfig(), home: NSHomeDirectory()) }

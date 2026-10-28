@@ -385,14 +385,15 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
     /** What deleting these sessions would discard: for each one in a worktree, its uncommitted files and the commits that exist nowhere else. An unknown id refuses the whole request. */
     async deletePreview({ sessionIds }: { sessionIds: string[] }) {
       const found = sessionIds.map(row);
-      return {
-        sessions: await Promise.all(
-          found.map(async ({ id, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath }) => ({
-            sessionId: id,
-            worktree: workspaceKind === 'worktree' ? { path: worktreePath!, branch: worktreeBranch!, ...(await previewWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! })) } : null,
-          })),
-        ),
-      };
+      // One session after another: a worktree reads two git processes, and the preview is a one-off, not a hot path.
+      const previews = [];
+      for (const { id, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath } of found) {
+        previews.push({
+          sessionId: id,
+          worktree: workspaceKind === 'worktree' ? { path: worktreePath!, branch: worktreeBranch!, ...(await previewWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! })) } : null,
+        });
+      }
+      return { sessions: previews };
     },
 
     /** What a folder is as a git repository, for the person to choose how to work in it. */

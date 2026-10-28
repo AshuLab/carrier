@@ -388,6 +388,28 @@ test('a git failure while adding leaves no worktree, no branch and no session, a
   client.close();
 });
 
+test('a failed add leaves alone the branch or folder that appeared after the name was checked', async () => {
+  const { git, client, repo, worktrees, base } = await worktreeHost();
+  const path = join(worktrees, 'acme', 'app', 'raced');
+  const run = git.run.bind(git);
+  // the person's own git makes the branch and the folder just after the name was checked free; the add then fails
+  let raced = false;
+  git.run = async (folder, args, options) => {
+    if (raced === false && args[0] === 'rev-parse' && args.at(-1) === 'refs/heads/carrier/raced') {
+      raced = true;
+      base.branches.push('carrier/raced');
+      mkdirSync(path, { recursive: true });
+    }
+    if (args[0] === 'worktree' && args[1] === 'add') return { ok: false, code: 128, stderr: 'fatal: already exists' };
+    return run(folder, args, options);
+  };
+  await expect(client.request('open', { agent: 'claude', folder: repo, worktree: { from: 'main', name: 'raced' } })).rejects.toThrow('Git could not create the worktree');
+  expect(raced).toBe(true);
+  expect(base.branches).toContain('carrier/raced');
+  expect(statSync(path).isDirectory()).toBe(true);
+  client.close();
+});
+
 test('a session that cannot be created after the worktree exists takes the worktree, its branch and the conversation away', async () => {
   const { git, claude, client, repo, worktrees, base } = await worktreeHost();
   const db = new Database(join(root, 'chat', 'chat.db'));
@@ -441,6 +463,24 @@ test('deletePreview says null for a session in the base folder and the path, bra
   // it only reads: the branch is a full ref and the exclusion one value
   expect(h.git.calls.find((call) => call.args[0] === 'rev-list')!.args).toEqual(['rev-list', '--count', 'refs/heads/carrier/only-created', '--not', '--exclude=carrier/only-created', '--branches', '--remotes']);
   expect(h.git.calls.filter((call) => call.args[0] === 'worktree' && call.args[1] === 'remove')).toEqual([]);
+  h.client.close();
+});
+
+test('deletePreview reads the worktrees one session at a time', async () => {
+  const h = await worktreeHost();
+  const ids = [(await inWorktree(h, 'one')).id, (await inWorktree(h, 'two')).id, (await inWorktree(h, 'three')).id];
+  const run = h.git.run.bind(h.git);
+  let running = 0;
+  let most = 0;
+  h.git.run = async (folder, args, options) => {
+    running += 1;
+    most = Math.max(most, running);
+    await new Promise((done) => setTimeout(done, 5));
+    running -= 1;
+    return run(folder, args, options);
+  };
+  await h.client.request('deletePreview', { sessionIds: ids });
+  expect(most).toBeLessThanOrEqual(2); // the two reads of one worktree, never those of several
   h.client.close();
 });
 

@@ -31,21 +31,29 @@ export async function createWorktree(git: Git, folder: string, request: { from: 
   }
   const name = request.name ?? freeName(random);
   const made = { path: worktreePath(info, name), branch: `${BRANCH_PREFIX}${name}`, from: start.name, base: folder };
+  // What is absent right before the add is what this call may take away if the add fails: a branch or folder that appears in between is someone else's.
+  const mine = {
+    branch: (await git.run(folder, ['rev-parse', '--verify', '--quiet', `refs/heads/${made.branch}`])).ok === false,
+    folder: existsSync(made.path) === false,
+  };
   // The start point is spelled as a full ref, so it cannot read as an option, and `--no-track` leaves the new branch without an upstream.
   const added = await git.run(folder, ['worktree', 'add', '--no-track', '-b', made.branch, made.path, `${start.remote ? 'refs/remotes/' : 'refs/heads/'}${start.name}`], { timeoutMs: ADD_TIMEOUT_MS });
   if (added.ok === false) {
     log.error('git worktree add failed', { code: added.code, timedOut: added.timedOut === true });
-    await removeWorktree(git, made);
+    await removeWorktree(git, made, mine);
     throw new ChatRefused(added.timedOut === true ? 'Creating the worktree took too long and was stopped' : 'Git could not create the worktree');
   }
   return made;
 }
 
-/** Takes away what `createWorktree` made, whatever state it was left in: the worktree, its folder and its branch. Never throws; what cannot be removed is logged. */
-export async function removeWorktree(git: Git, { path, branch, base }: MadeWorktree): Promise<void> {
-  await git.run(base, ['worktree', 'remove', '--force', path]);
-  if (existsSync(path)) rmSync(path, { recursive: true, force: true });
-  await git.run(base, ['worktree', 'prune']);
+/** Takes away what `createWorktree` made, whatever state it was left in: the worktree, its folder and its branch. `mine` leaves alone the branch or the folder this call did not make. Never throws; what cannot be removed is logged. */
+export async function removeWorktree(git: Git, { path, branch, base }: MadeWorktree, mine = { branch: true, folder: true }): Promise<void> {
+  if (mine.folder) {
+    await git.run(base, ['worktree', 'remove', '--force', path]);
+    if (existsSync(path)) rmSync(path, { recursive: true, force: true });
+    await git.run(base, ['worktree', 'prune']);
+  }
+  if (mine.branch === false) return;
   const exists = await git.run(base, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]);
   if (exists.ok === false) return;
   const deleted = await git.run(base, ['branch', '-D', branch]);

@@ -54,6 +54,8 @@ public protocol ChatHost {
     func send(_ id: String, _ text: String) async throws
     /// Ends the turn that is in progress.
     func interrupt(_ id: String) async throws
+    /// Passes the person's choice for a pending approval to the agent; the host refuses one that is not pending and a choice the provider did not list.
+    func answer(_ id: String, approval: String, choice: String) async throws
 }
 
 /// The chat host over its socket: one connection per call (a host with no client attached may end itself), with the blocking
@@ -97,6 +99,15 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
         let _: AnyReply = try await Task.detached { try chatRequest(path, "interrupt", requires: .interrupt, fields: fields) }.value
+    }
+
+    /// Both ids go on the wire JSON-encoded, as they come from the provider.
+    public func answer(_ id: String, approval: String, choice: String) async throws {
+        let encoder = JSONEncoder()
+        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"approvalId\":" + String(decoding: try encoder.encode(approval), as: UTF8.self)
+            + ",\"choiceId\":" + String(decoding: try encoder.encode(choice), as: UTF8.self)
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "answer", requires: .answer, fields: fields) }.value
     }
 }
 

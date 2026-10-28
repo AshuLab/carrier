@@ -22,7 +22,9 @@ struct ConversationView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 if model.loaded {
-                    ForEach(model.rows) { FeedRowView(row: $0, opened: $opened) }
+                    ForEach(model.rows) { row in
+                        FeedRowView(row: row, opened: $opened) { approval, choice in Task { await model.answer(approval, choice: choice) } }
+                    }
                 } else if model.failure == nil {
                     LoadingRow()
                 }
@@ -122,6 +124,7 @@ struct OpenMenu: View {
 private struct FeedRowView: View {
     let row: FeedRow
     @Binding var opened: Set<String>
+    let answer: (String, String) -> Void
 
     var body: some View {
         switch row {
@@ -140,6 +143,10 @@ private struct FeedRowView: View {
             Text(text).font(.system(size: 11)).foregroundStyle(.tertiary).textSelection(.enabled)
         case .tools(let id, let group):
             ChatToolGroupView(id: id, group: group, opened: $opened)
+        case .approval(_, let card):
+            ApprovalCardView(card: card, answer: answer)
+        case .decided(_, let text, let allow):
+            ApprovalDecidedView(text: text, allow: allow)
         case .line(_, let text):
             Text(text).font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         case .error(_, let text):

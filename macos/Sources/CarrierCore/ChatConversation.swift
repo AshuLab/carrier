@@ -61,23 +61,26 @@ public struct ChatEvent: Codable, Equatable {
 }
 
 /// The reply of `events`: the page after the cursor, the cursor to ask from next and the text of the message being written.
-/// The session's state (from its summary) comes with it, as the model needs to know whether the agent is answering; the pending
-/// approvals and the options come too, and the slices that draw them read them.
+/// The session's state (from its summary) comes with it, as the model needs to know whether the agent is answering; so do the ids
+/// of the approvals still pending (the ones the person can answer) and the options, which the slice that draws them reads.
 public struct ChatEvents: Decodable, Equatable {
     public let events: [ChatEvent]
     public let cursor: Int
     public let streaming: String
     public let state: ChatSession.State?
+    public let pending: Set<String>
 
-    public init(events: [ChatEvent], cursor: Int, streaming: String = "", state: ChatSession.State? = nil) {
+    public init(events: [ChatEvent], cursor: Int, streaming: String = "", state: ChatSession.State? = nil, pending: Set<String> = []) {
         self.events = events
         self.cursor = cursor
         self.streaming = streaming
         self.state = state
+        self.pending = pending
     }
 
-    private enum CodingKeys: String, CodingKey { case events, cursor, streaming, session }
+    private enum CodingKeys: String, CodingKey { case events, cursor, streaming, session, approvals }
     private struct Summary: Decodable { let state: ChatSession.State }
+    private struct Approval: Decodable { let approvalId: String }
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -85,6 +88,7 @@ public struct ChatEvents: Decodable, Equatable {
         cursor = try values.decode(Int.self, forKey: .cursor)
         streaming = try values.decode(String.self, forKey: .streaming)
         state = try values.decodeIfPresent(Summary.self, forKey: .session)?.state
+        pending = Set(try values.decodeIfPresent([Approval].self, forKey: .approvals)?.map(\.approvalId) ?? [])
     }
 }
 
@@ -98,23 +102,38 @@ public enum FeedRow: Equatable, Identifiable {
     case turnEnd(id: String, text: String)
     /// A run of tool calls: one row that opens to its calls.
     case tools(id: String, ToolGroup)
-    /// An approval, for now as one plain line.
+    /// An approval waiting for the person: a card with the provider's choices.
+    case approval(id: String, ApprovalCard)
+    /// An approval that was answered: one line, green when the choice allowed and red when it did not.
+    case decided(id: String, text: String, allow: Bool)
+    /// An approval that is not waiting any more and was not answered (its turn ended): one plain line.
     case line(id: String, text: String)
     /// An error event, in red.
     case error(id: String, text: String)
 
     public var id: String {
         switch self {
-        case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .tools(let id, _), .line(let id, _), .error(let id, _): id
+        case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .tools(let id, _), .approval(let id, _), .decided(let id, _, _),
+            .line(let id, _), .error(let id, _): id
         }
     }
 }
 
+/// An approval as the card draws it: the question, the tool and its argument, and the provider's choices in its own order.
+public struct ApprovalCard: Equatable {
+    public let approvalId: String
+    public let question: String
+    public let tool: String
+    public let arg: String?
+    public let choices: [ChatChoice]
+}
+
 /// The rows the events make, in order, and then the message in progress when `streaming` has text. Consecutive calls are one row
 /// at the place where the first started, each completed by its end (a turn that ends first stops the calls still going); an
-/// approval is one row at the place where it was asked, completed by the answer.
+/// approval is one row at the place where it was asked: a card while its id is in `pending` (what the host still waits for),
+/// a line once answered, and a plain line when it is neither (the turn ended without it).
 /// Options and anything else the host may add are not drawn.
-public func chatFeed(_ events: [ChatEvent], streaming: String = "") -> [FeedRow] {
+public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set<String> = []) -> [FeedRow] {
     var rows: [FeedRow] = []
     // where each call still going is: its row and its place in it
     var going: [String: (row: Int, call: Int)] = [:]
@@ -140,10 +159,15 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "") -> [FeedRow]
             }
         case "approval":
             if let approval = event.approvalId { asked[approval] = (rows.count, event) }
-            rows.append(.line(id: id, text: approvalLine(event, choice: nil)))
+            if let approval = event.approvalId, pending.contains(approval) {
+                let tool = event.tool ?? "the tool"
+                rows.append(.approval(id: id, ApprovalCard(approvalId: approval, question: "Allow \(tool)?", tool: tool, arg: event.arg, choices: event.choices ?? [])))
+            } else {
+                rows.append(.line(id: id, text: "\(what(event)) · no longer waiting for an answer"))
+            }
         case "approval_answered":
             guard let approval = event.approvalId, let question = asked[approval] else { continue }
-            rows[question.row] = .line(id: rows[question.row].id, text: approvalLine(question.event, choice: event.choiceId))
+            rows[question.row] = decided(question.event, choice: event.choiceId, id: rows[question.row].id)
         case "turn_end":
             for spot in going.values {
                 guard case .tools(let group, var calls) = rows[spot.row] else { continue }
@@ -174,11 +198,14 @@ private func place(_ call: ToolCall, in rows: inout [FeedRow], id: String) -> (r
     return (rows.count - 1, 0)
 }
 
-private func approvalLine(_ approval: ChatEvent, choice: String?) -> String {
-    let what = [approval.tool, approval.arg].compactMap { $0 }.joined(separator: " ")
-    guard let choice else { return "Approval for \(what): waiting for you" }
-    let label = approval.choices?.first { $0.id == choice }?.label ?? choice
-    return "Approval for \(what): \(label)"
+private func what(_ approval: ChatEvent) -> String { [approval.tool, approval.arg].compactMap { $0 }.joined(separator: " ") }
+
+/// "Allowed pnpm test · Allow once · by you": the verb is from whether the chosen choice allows, the label is the provider's own.
+private func decided(_ approval: ChatEvent, choice: String?, id: String) -> FeedRow {
+    guard let chosen = approval.choices?.first(where: { $0.id == choice }) else {
+        return .decided(id: id, text: "Answered \(what(approval)) · by you", allow: false)
+    }
+    return .decided(id: id, text: "\(chosen.allow ? "Allowed" : "Declined") \(what(approval)) · \(chosen.label) · by you", allow: chosen.allow)
 }
 
 /// "claude-sonnet-5-5 · 12s · 1.8k in · 436 out": each part only when the host or the provider gave it.
@@ -216,7 +243,7 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     public private(set) var busy = false
     /// The message typed while the agent answered: one at a time, sent when the turn ends.
     public private(set) var queued: String?
-    /// Why the last send, resume or stop was refused, said under the box; nil when it worked.
+    /// Why the last send, resume, stop or answer was refused, said under the box; nil when it worked.
     public private(set) var refusal: String?
     /// Counts the sends, so a poll that began before one does not tell the model the agent is idle when it is not.
     @ObservationIgnored private var sends = 0
@@ -226,6 +253,8 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private var events: [ChatEvent] = []
     @ObservationIgnored private var streaming = ""
+    /// The approvals the host still waits for, from the last reply.
+    @ObservationIgnored private var pending: Set<String> = []
 
     public init(
         host: ChatHost, sessionId: String, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
@@ -257,6 +286,8 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
             } while reply.events.count >= Self.page
             changed = changed || reply.streaming != streaming
             streaming = reply.streaming
+            changed = changed || reply.pending != pending
+            pending = reply.pending
             loaded = true
             failure = nil
             if sends == sendsBefore, let state = reply.state { busy = state != .idle }
@@ -265,7 +296,7 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
             if failure != message { log("session \(sessionId): \(message)") }
             failure = message
         }
-        if changed { rows = chatFeed(events, streaming: streaming) }
+        if changed { rows = chatFeed(events, streaming: streaming, pending: pending) }
         if busy == false, let next = queued {
             queued = nil
             await deliver(next)
@@ -284,6 +315,19 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
         } else {
             await deliver(text)
         }
+    }
+
+    /// A button of an approval card: passes the choice to the host and polls, so the card becomes the line once the host recorded the
+    /// answer. A refusal (not pending any more, not one of the choices) is shown in words; the next poll draws what the host says.
+    public func answer(_ approvalId: String, choice: String) async {
+        do {
+            try await host.answer(sessionId, approval: approvalId, choice: choice)
+        } catch {
+            refusal = report(error, "answer the approval")
+            return
+        }
+        refusal = nil
+        await poll()
     }
 
     /// Drops the queued message.

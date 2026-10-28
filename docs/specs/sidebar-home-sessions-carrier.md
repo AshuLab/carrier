@@ -2,6 +2,8 @@
 
 Status: spec
 
+Superseded in part by [the flat sections](sidebar-flat-sections.md): the look of every row and of the selection, the Carrier card (now the Carrier section, with no counters), the Sessions badge (the count of open sessions, in grey), the place of Archive and the search and empty states. The rest of this spec stands.
+
 ## Problem
 
 The macOS app is about to have two worlds: the automation Carrier already is (epics the engine runs on its own) and conversations the person starts with an agent of their choice, called user sessions (see [the research](../research/in-app-sessions.md) and [ADR 0012](../adr/0012-sessions-and-epics-are-two-separate-worlds.md)). Its sidebar has room for one: an Overview row that is both the landing page and the engine's page, a Status | Repository switch that is always on screen, the epic groups as the whole body of the list, the engine's status as a card pinned at the foot, and Settings and About rows (`SidebarView.swift`; story 11 of [the macOS redesign](macos-app-redesign.md)). There is nowhere to put sessions, nothing says which part is the automation, and the first screen is the engine's page even for someone who opens the app to talk to an agent.

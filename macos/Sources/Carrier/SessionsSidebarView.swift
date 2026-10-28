@@ -1,11 +1,14 @@
 import CarrierCore
 import SwiftUI
 
-/// The Sessions row and, while `open`, the sessions under it in the chosen order (or "No sessions yet"). Rows of the sidebar's
-/// list: the row and each session are tagged with a `Selection`; the buttons in them do not select. The magnifier opens a search
+/// The Sessions section and, while `open`, the sessions under it in the chosen order (or its empty state). Rows of the sidebar's
+/// list: each session is tagged with a `Selection` and the section is drawn and selected by its own row; the buttons in them do not select. The magnifier opens a search
 /// field under the row.
 struct SessionsRows: View {
     let sessions: Sessions
+    let selected: Bool
+    /// Chooses Sessions, which unfolds it.
+    let select: () -> Void
     @Binding var open: Bool
     /// The last ⌘F: when it asks for Sessions, the search field opens and takes the keyboard.
     let searchRequest: SearchRequest?
@@ -16,35 +19,25 @@ struct SessionsRows: View {
     @FocusState private var searching: Bool
 
     private func openSearch() {
+        // nothing to search while there are no open sessions
+        guard sessions.open > 0 else { return }
         open = true
         if query == nil { query = "" }
         searching = true
     }
 
     var body: some View {
-        HStack(spacing: 4) {
-            Button { open.toggle() } label: {
-                Image(systemName: "chevron.right").rotationEffect(.degrees(open ? 90 : 0)).frame(width: 16, height: 22).contentShape(Rectangle())
+        SidebarSectionRow(title: "Sessions", icon: "bubble.left.and.bubble.right", selected: selected, action: select, actions: {
+            if sessions.open > 0 {
+                Text("\(sessions.open)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
+                    .padding(.horizontal, 6).padding(.vertical, 1)
+                    .background(Capsule().fill(Color.secondary.opacity(0.15)))
+                    .accessibilityLabel(sessions.openLabel)
             }
-            .buttonStyle(.plain)
-            .help(open ? "Fold Sessions" : "Unfold Sessions")
-            .accessibilityLabel(open ? "Fold Sessions" : "Unfold Sessions")
-            // the row selects Sessions and unfolds the list; the gesture sits beside the list's own click, not instead of it
-            HStack(spacing: 4) {
-                Label("Sessions", systemImage: "bubble.left.and.bubble.right")
-                Spacer(minLength: 0)
-                // folded, the row says how many sessions wait for the person
-                if open == false, let label = sessions.waitingLabel {
-                    Text("\(sessions.waiting)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.black)
-                        .padding(.horizontal, 6).padding(.vertical, 1)
-                        .background(Capsule().fill(Color.orange))
-                        .accessibilityLabel(label)
-                }
-            }
-            .contentShape(Rectangle())
-            .simultaneousGesture(TapGesture().onEnded { open = true })
-            .help("Sessions (⌘2)")
-            IconButton(icon: "magnifyingglass", name: "Search sessions", shortcut: "⌘F", pressed: query != nil) {
+            IconButton(
+                icon: "magnifyingglass", name: "Search sessions", enabled: sessions.open > 0, why: "No sessions to search", shortcut: "⌘F",
+                pressed: query != nil
+            ) {
                 if query == nil { openSearch() } else { query = nil }
             }
             IconButton(icon: "ellipsis", name: "Sort sessions") { sortOpen.toggle() }
@@ -55,40 +48,33 @@ struct SessionsRows: View {
                     )
                 }
             IconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: Sessions.cannotStartReason) {}
-        }
-        .tag(Selection.sessions)
+        })
+        .help("Sessions (⌘2)")
         // the field is only drawn while unfolded, so a query must not outlive it: the magnifier would look pressed with no field
         .onChange(of: open) { if open == false { query = nil } }
         .onChange(of: searchRequest) { if searchRequest?.section == .sessions { openSearch() } }
         if open {
             if let text = Binding($query) {
-                TextField("Search sessions", text: text)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($searching)
-                    .onKeyPress(.escape) {
-                        query = nil
-                        return .handled
-                    }
-                    .selectionDisabled()
+                SidebarSearchField(placeholder: "Search sessions", text: text, focus: $searching, close: { query = nil })
             }
-            let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
             let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", now: Date(), calendar: .current)
-            if searched {
-                let found = groups.flatMap(\.rows)
-                Text(found.isEmpty ? "No sessions match" : found.count == 1 ? "1 result" : "\(found.count) results")
-                    .font(.caption).foregroundStyle(.secondary).selectionDisabled()
-                ForEach(found, id: \.id) { SessionRowView(row: $0, showsWorkspace: true).tag(Selection.session(id: $0.id)) }
-            } else {
-                if groups.isEmpty {
-                    Text("No sessions yet").foregroundStyle(.secondary).selectionDisabled()
+            switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
+            case .empty:
+                let empty = EmptyState.noSessions
+                SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
+                    Button("New session") {}.disabled(sessions.canStart == false).help(sessions.canStart ? "New session" : Sessions.cannotStartReason)
                 }
-                ForEach(groups, id: \.title) { group in
-                    if sort == .workspace {
-                        WorkspaceHeader(title: group.title, canStart: sessions.canStart)
-                    } else {
-                        Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).selectionDisabled()
-                    }
-                    ForEach(group.rows, id: \.id) { SessionRowView(row: $0, showsWorkspace: sort != .workspace).tag(Selection.session(id: $0.id)) }
+            case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
+            case .rows: EmptyView()
+            }
+            ForEach(groups, id: \.title) { group in
+                if sort == .workspace {
+                    WorkspaceHeader(title: group.title, canStart: sessions.canStart)
+                } else {
+                    Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).selectionDisabled().flatSidebarRow()
+                }
+                ForEach(group.rows, id: \.id) {
+                    SessionRowView(row: $0, showsWorkspace: sort != .workspace).tag(Selection.session(id: $0.id)).flatSidebarRow()
                 }
             }
         }
@@ -120,10 +106,11 @@ private struct WorkspaceHeader: View {
         }
         .onHover { hovered = $0 }
         .selectionDisabled()
+        .flatSidebarRow()
     }
 }
 
-private struct SessionRowView: View {
+struct SessionRowView: View {
     let row: SessionRow
     /// Outside the workspace order the group is not the workspace, so the second line says it.
     let showsWorkspace: Bool
@@ -141,17 +128,11 @@ private struct SessionRowView: View {
                 Text(showsWorkspace ? "\(row.workspace) · \(row.agent)" : row.agent).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
-            if row.archived {
-                Text("Archived").font(.caption2).foregroundStyle(.secondary)
-                    .padding(.horizontal, 6).padding(.vertical, 1)
-                    .background(Capsule().strokeBorder(Color.secondary.opacity(0.5)))
-            }
             // "5m" reads aloud as "5 m": say it in words
             Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
                 .accessibilityLabel(Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date()))
         }
-        .opacity(row.archived ? 0.55 : 1)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 2).padding(.vertical, 2)
         .help(row.title)
     }
 }

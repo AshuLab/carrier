@@ -82,9 +82,9 @@ test('each role gets its own box, and the author is fully asked before the revie
   expect(notes.filter((t) => t === 'Author' || t === 'Reviewer')).toEqual(['Author', 'Reviewer']);
   expect(order.filter((m) => /author|reviewer/i.test(m))).toEqual([
     'GitHub identity for the author', 'Which option runs the author?',
-    'Author persona: give it a name', 'Author persona: describe how it behaves',
+    'Author persona',
     'GitHub identity for the reviewer', 'Which option runs the reviewer?',
-    'Reviewer persona: give it a name', 'Reviewer persona: describe how it behaves',
+    'Reviewer persona',
   ]);
 });
 
@@ -271,16 +271,17 @@ test('editing a shared config starts with shared selected, and the recap shows t
 const titled = (role: string) => `${role[0]!.toUpperCase()}${role.slice(1)}`;
 const nameOf = (role: string) => `${titled(role)} persona: give it a name`;
 const promptOf = (role: string) => `${titled(role)} persona: describe how it behaves`;
+const gateOf = (role: string) => `${titled(role)} persona`;
 
-test('each role is asked name and prompt after its agent, the author first, and a role with both skipped has no persona', async () => {
+test('each role is asked for a persona after its agent, the author first; Default skips name and prompt and leaves none', async () => {
   const { deps, written } = fakeDeps();
-  const { ui, asked } = quietUi({ ...twoOptions, [nameOf('reviewer')]: ' Rex ', [promptOf('reviewer')]: 'Be strict about migrations.' });
+  const { ui, asked } = quietUi({ ...twoOptions, [gateOf('reviewer')]: 'set', [nameOf('reviewer')]: ' Rex ', [promptOf('reviewer')]: 'Be strict about migrations.' });
   const out = join(dir, 'p1.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  const order = [nameOf('author'), promptOf('author'), 'Which option runs the reviewer?', nameOf('reviewer'), promptOf('reviewer')];
-  expect(asked.filter((q) => order.includes(q))).toEqual([nameOf('author'), promptOf('author'), 'Which option runs the reviewer?', nameOf('reviewer'), promptOf('reviewer')]);
-  expect(asked.indexOf('Which option runs the author?')).toBeLessThan(asked.indexOf(nameOf('author')));
-  expect(asked.indexOf(promptOf('author'))).toBeLessThan(asked.indexOf('GitHub identity for the reviewer'));
+  const order = [gateOf('author'), nameOf('author'), promptOf('author'), 'Which option runs the reviewer?', gateOf('reviewer'), nameOf('reviewer'), promptOf('reviewer')];
+  expect(asked.filter((q) => order.includes(q))).toEqual([gateOf('author'), 'Which option runs the reviewer?', gateOf('reviewer'), nameOf('reviewer'), promptOf('reviewer')]);
+  expect(asked.indexOf('Which option runs the author?')).toBeLessThan(asked.indexOf(gateOf('author')));
+  expect(asked.indexOf(gateOf('author'))).toBeLessThan(asked.indexOf('GitHub identity for the reviewer'));
   const agents = JSON.parse(written[out]!).agents;
   expect(agents.author).not.toHaveProperty('persona');
   expect(agents.reviewer.persona).toEqual({ name: 'Rex', prompt: 'Be strict about migrations.' });
@@ -288,7 +289,7 @@ test('each role is asked name and prompt after its agent, the author first, and 
 
 test('personas are asked under a shared identity too, and the config loads', async () => {
   const { deps, written } = fakeDeps();
-  const { ui } = quietUi({ [sharedMessage]: 'shared', 'Use your gh login for both roles?': true, [nameOf('author')]: 'Ada' });
+  const { ui } = quietUi({ [sharedMessage]: 'shared', 'Use your gh login for both roles?': true, [gateOf('author')]: 'set', [nameOf('author')]: 'Ada' });
   const out = join(dir, 'p2.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
   const user = JSON.parse(written[out]!);
@@ -324,7 +325,7 @@ test('a persona flag that is empty, over the limit or has a line break fails and
 
 test('an answer outside the limits is refused in the question', async () => {
   const { deps } = fakeDeps();
-  const { ui } = quietUi();
+  const { ui } = quietUi({ [gateOf('author')]: 'set' });
   const refused: Array<string | undefined> = [];
   await runInit({ repo: ['A/b'], out: join(dir, 'p5.json') }, { ...ui, text: async (o) => (o.message === nameOf('author') ? (refused.push(o.validate?.('x'.repeat(41)), o.validate?.('a\nb'), o.validate?.(''), o.validate?.('Ada')), 'Ada') : ui.text(o)) }, deps);
   expect(refused[0]).toBeDefined();
@@ -337,13 +338,12 @@ test('editing a config with personas starts from them, and the recap lists them'
   const persona = { name: 'Rex', prompt: 'Be strict.' };
   const withPersona = { ...existing, agents: { ...existing.agents, reviewer: { ...existing.agents.reviewer, persona } } };
   const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => withPersona });
-  const { ui } = quietUi();
+  const { ui } = quietUi({ [gateOf('reviewer')]: 'set' });
   const defaultsSeen: Record<string, string | undefined> = {};
   const notes: Record<string, string> = {};
   await withHome(() => runInit({}, { ...ui, text: async (o) => (defaultsSeen[o.message] = o.defaultValue, ui.text(o)), note: (m, t) => void (notes[t] = m) }, deps));
   expect(defaultsSeen[nameOf('reviewer')]).toBe('Rex');
   expect(defaultsSeen[promptOf('reviewer')]).toBe('Be strict.');
-  expect(defaultsSeen[nameOf('author')]).toBe('');
   expect(notes['This is what will be saved']).toContain('persona: Rex · Be strict.');
   expect(JSON.parse(written[join(dir, 'home', 'config.json')]!)).toEqual(withPersona);
 });
@@ -351,7 +351,18 @@ test('editing a config with personas starts from them, and the recap lists them'
 test('editing a persona: a dash clears the field, and clearing both leaves no persona', async () => {
   const withPersona = { ...existing, agents: { ...existing.agents, reviewer: { ...existing.agents.reviewer, persona: { name: 'Rex', prompt: 'Be strict.' } } } };
   const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => withPersona });
-  const { ui } = quietUi({ [nameOf('reviewer')]: '-', [promptOf('reviewer')]: '-' });
+  const { ui } = quietUi({ [gateOf('reviewer')]: 'set', [nameOf('reviewer')]: '-', [promptOf('reviewer')]: '-' });
   await withHome(() => runInit({}, ui, deps));
   expect(JSON.parse(written[join(dir, 'home', 'config.json')]!).agents.reviewer).not.toHaveProperty('persona');
+});
+
+test('editing a persona: Keep leaves it as it was without asking its fields, Remove drops it', async () => {
+  const withPersona = { ...existing, agents: { ...existing.agents, reviewer: { ...existing.agents.reviewer, persona: { name: 'Rex', prompt: 'Be strict.' } } } };
+  for (const [answer, expected] of [[undefined, { name: 'Rex', prompt: 'Be strict.' }], ['default', undefined]] as const) {
+    const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => withPersona });
+    const { ui, asked } = quietUi(answer ? { [gateOf('reviewer')]: answer } : {});
+    await withHome(() => runInit({}, ui, deps));
+    expect(asked).not.toContain(nameOf('reviewer'));
+    expect(JSON.parse(written[join(dir, 'home', 'config.json')]!).agents.reviewer.persona).toEqual(expected);
+  }
 });

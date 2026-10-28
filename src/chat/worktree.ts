@@ -1,4 +1,4 @@
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import type { Git, GitResult } from './git.ts';
@@ -21,7 +21,7 @@ const ADD_TIMEOUT_MS = 60_000;
  * that `workspace` does not list and a name that is invalid or taken. When git fails nothing is left behind.
  * Callers run it one at a time, so what it checked is still true when git adds.
  */
-export async function createWorktree(git: Git, folder: string, request: { from: string; name?: string }, random?: () => number): Promise<MadeWorktree> {
+export async function createWorktree(git: Git, folder: string, request: { from: string; name?: string }): Promise<MadeWorktree> {
   const { info, takenBecause, freeName } = await repository(git, folder);
   const start = info.branches.find((branch) => branch.name === request.from);
   if (start === undefined) throw new ChatRefused('The branch to start from is not one this repository lists');
@@ -29,11 +29,11 @@ export async function createWorktree(git: Git, folder: string, request: { from: 
     const refusal = invalidReason(request.name) ?? takenBecause(request.name);
     if (refusal !== null) throw new ChatRefused(refusal);
   }
-  const name = request.name ?? freeName(random);
+  const name = request.name ?? freeName();
   const made = { path: worktreePath(info, name), branch: `${BRANCH_PREFIX}${name}`, from: start.name, base: folder };
   // What is absent right before the add is what this call may take away if the add fails: a branch or folder that appears in between is someone else's.
   const mine = {
-    branch: (await git.run(folder, ['rev-parse', '--verify', '--quiet', `refs/heads/${made.branch}`])).ok === false,
+    branch: (await branchExists(git, folder, made.branch)) === false,
     folder: existsSync(made.path) === false,
   };
   // The start point is spelled as a full ref, so it cannot read as an option, and `--no-track` leaves the new branch without an upstream.
@@ -46,16 +46,39 @@ export async function createWorktree(git: Git, folder: string, request: { from: 
   return made;
 }
 
+/** Whether `refs/heads/<branch>` exists in `base`. A missing branch is an answer; any other git failure refuses, since guessing would decide what gets deleted. */
+async function branchExists(git: Git, base: string, branch: string): Promise<boolean> {
+  const found = await git.run(base, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]);
+  if (found.ok) return true;
+  if (found.code === 1) return false;
+  log.error('git could not tell whether a branch exists', { code: found.code, timedOut: found.timedOut === true });
+  throw new ChatRefused('Git could not read the branches of the repository');
+}
+
+/** Removes a folder Carrier made. One that cannot be removed is logged and left, and `false` says so. */
+function removeFolder(path: string): boolean {
+  try {
+    rmSync(path, { recursive: true, force: true });
+    return true;
+  } catch (error) {
+    log.error('a worktree folder could not be removed', error);
+    return false;
+  }
+}
+
 /** Takes away what `createWorktree` made, whatever state it was left in: the worktree, its folder and its branch. `mine` leaves alone the branch or the folder this call did not make. Never throws; what cannot be removed is logged. */
 export async function removeWorktree(git: Git, { path, branch, base }: MadeWorktree, mine = { branch: true, folder: true }): Promise<void> {
   if (mine.folder) {
     await git.run(base, ['worktree', 'remove', '--force', path]);
-    if (existsSync(path)) rmSync(path, { recursive: true, force: true });
+    if (existsSync(path)) removeFolder(path);
     await git.run(base, ['worktree', 'prune']);
   }
   if (mine.branch === false) return;
   const exists = await git.run(base, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]);
-  if (exists.ok === false) return;
+  if (exists.ok === false) {
+    if (exists.code !== 1) log.error('git could not tell whether the branch of a worktree that was not kept exists', { code: exists.code });
+    return;
+  }
   const deleted = await git.run(base, ['branch', '-D', branch]);
   if (deleted.ok === false) log.error('the branch of a worktree that was not kept could not be removed', { code: deleted.code });
 }
@@ -63,21 +86,27 @@ export async function removeWorktree(git: Git, { path, branch, base }: MadeWorkt
 /** The number `git rev-list --count` printed. */
 export const parseCount = (out: string) => Number.parseInt(out.trim(), 10) || 0;
 
-/** The path of a recorded worktree when it lies under the worktrees folder and its branch is a `carrier/` one; refuses anything else, so a tampered record removes nothing. */
+/** The entries a worktree folder holds besides its `.git` link: what is left to lose when git cannot read the worktree. */
+const filesLeft = (path: string) => (existsSync(path) ? readdirSync(path).filter((entry) => entry !== '.git').length : 0);
+
+/** The path of a recorded worktree, which must be `<worktrees>/<owner>/<repo>/<name>` with the branch `carrier/<name>`; refuses anything else, so a tampered record removes nothing. */
 function recorded({ path, branch }: MadeWorktree): string {
   const target = resolve(path);
-  if (target.startsWith(resolve(worktreesDir()) + sep) === false || branch.startsWith(BRANCH_PREFIX) === false) throw new ChatRefused('This session\'s worktree is not one Carrier made, so nothing was removed');
+  const root = resolve(worktreesDir());
+  const [owner, repo, name, ...deeper] = target.startsWith(root + sep) ? target.slice(root.length + 1).split(sep) : [];
+  if (owner === undefined || repo === undefined || name === undefined || deeper.length > 0 || invalidReason(name) !== null || branch !== `${BRANCH_PREFIX}${name}`) throw new ChatRefused('This session\'s worktree is not one Carrier made, so nothing was removed');
   return target;
 }
 
-/** What deleting a worktree would discard: the lines `git status --porcelain` prints in it and the commits of its branch that no other branch or remote branch contains. With the base folder gone git can read nothing, so it counts 0; a worktree folder that is gone has nothing uncommitted. */
-export async function previewWorktree(git: Git, made: MadeWorktree): Promise<{ dirty: number; unpushed: number }> {
-  if (existsSync(made.base) === false) return { dirty: 0, unpushed: 0 };
+/** What deleting a worktree would discard: the lines `git status --porcelain` prints in it and the commits of its branch that no other branch of `batch` (the branches of the sessions deleted together, this one included) or remote branch contains. With the base folder gone git reads nothing and the commits went with it, so only the files left in the worktree folder count. A branch that is already gone has no commits to lose. */
+export async function previewWorktree(git: Git, made: MadeWorktree, batch: string[]): Promise<{ dirty: number; unpushed: number }> {
+  if (existsSync(made.base) === false) return { dirty: filesLeft(made.path), unpushed: 0 };
   const where = existsSync(made.path) ? made.path : made.base;
+  const hasBranch = await branchExists(git, made.base, made.branch);
   const [status, ahead] = await Promise.all([
     where === made.path ? git.run(where, ['--no-optional-locks', 'status', '--porcelain']) : Promise.resolve<GitResult>({ ok: true, out: '' }),
-    // the branch is spelled as a full ref and the exclusion is a value of its own option, so neither can read as an option
-    git.run(where, ['rev-list', '--count', `refs/heads/${made.branch}`, '--not', `--exclude=${made.branch}`, '--branches', '--remotes']),
+    // the branch is spelled as a full ref and each exclusion is a value of its own option, so neither can read as an option
+    hasBranch ? git.run(where, ['rev-list', '--count', `refs/heads/${made.branch}`, '--not', ...[...new Set([made.branch, ...batch])].map((branch) => `--exclude=${branch}`), '--branches', '--remotes']) : Promise.resolve<GitResult>({ ok: true, out: '0' }),
   ]);
   if (status.ok === false || ahead.ok === false) {
     log.error('git could not read a worktree to preview its deletion', { status: status.ok ? 0 : status.code, ahead: ahead.ok ? 0 : ahead.code });
@@ -92,7 +121,10 @@ export async function previewWorktree(git: Git, made: MadeWorktree): Promise<{ d
  */
 export async function deleteWorktree(git: Git, made: MadeWorktree): Promise<void> {
   const path = recorded(made);
-  if (existsSync(made.base) === false) return rmSync(path, { recursive: true, force: true });
+  if (existsSync(made.base) === false) {
+    if (removeFolder(path) === false) throw new ChatRefused('Its folder could not be removed, so the session was kept');
+    return;
+  }
   const cannot = (what: string, result: Extract<GitResult, { ok: false }>) => {
     log.error(`git ${what} failed while deleting a worktree`, { code: result.code, timedOut: result.timedOut === true });
     return new ChatRefused(`Git could not ${what === 'branch' ? 'delete the branch of' : 'remove'} the worktree, so the session was kept`);

@@ -33,6 +33,12 @@ describe('merge', () => {
     expect(result).toMatchObject({ ok: true, config: { pollIntervalMinutes: 5, limits: defaults.limits } });
   });
 
+  test('limits.optionChoiceSeconds defaults to 60 and must be a positive whole number', () => {
+    expect(load({})).toMatchObject({ ok: true, config: { limits: { optionChoiceSeconds: 60 } } });
+    expect(load({ limits: { optionChoiceSeconds: 15 } })).toMatchObject({ ok: true, config: { limits: { optionChoiceSeconds: 15 } } });
+    for (const bad of [0, -1, 1.5, '60']) expect(errorsOf({ limits: { optionChoiceSeconds: bad } }).map((e) => e.path)).toEqual(['limits.optionChoiceSeconds']);
+  });
+
   test('merges objects field by field', () => {
     const result = load({ limits: { maxReviews: 9 } });
     expect(result).toMatchObject({ ok: true, config: { limits: { ...defaults.limits, maxReviews: 9 } } });

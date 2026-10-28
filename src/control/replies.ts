@@ -1,5 +1,5 @@
 import type { ReviewThread } from '../orchestration/github.ts';
-import type { PanelAgent } from '../status/types.ts';
+import type { EpicOptions, PanelAgent } from '../status/types.ts';
 import type { executionStates } from '../storage/executions.ts';
 import type { AgentFailure } from '../execution/agent-runner.ts';
 
@@ -138,6 +138,8 @@ export type EpicReply = {
   /** `reviewer` is the detached checkout the reviewer works in. */
   worktrees: { kind: 'epic' | 'reviewer' | 'lane'; lane: number | null; path: string }[];
   branch: string | null;
+  /** Absent from an epic reserved before options existed. */
+  options?: EpicOptions;
   /** null during ship, before the pull request exists. */
   pr: {
     number: number;

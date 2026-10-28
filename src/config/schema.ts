@@ -28,7 +28,7 @@ const agentOption = z.strictObject({
 });
 
 /** The key of an option: stored and shown as is. */
-const optionNamePattern = /^[a-z][a-z0-9-]{0,39}$/;
+export const optionNamePattern = /^[a-z][a-z0-9-]{0,39}$/;
 
 // A role keeps its GitHub identity and persona, and points at an option by name, the way it points at a profile.
 const agent = z.strictObject({
@@ -69,6 +69,8 @@ export const configSchema = z
       maxExecutionRetries: z.int().nonnegative(),
       maxExecutionHours: z.union([z.literal('unlimited'), z.int().positive()]),
       githubCallTimeoutSeconds: z.int().positive(),
+      /** How long a reserved epic waits for its choice of agent options when there are two or more. */
+      optionChoiceSeconds: z.int().positive(),
     }),
   })
   .superRefine((config, ctx) => {

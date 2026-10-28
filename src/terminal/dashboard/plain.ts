@@ -10,7 +10,7 @@ export function renderPanel(s: PanelSnapshot): string[] {
   for (const e of epics) {
     const parts = [
       `${e.repo}#${e.issue}`,
-      e.status === 'needs_human' ? 'NEEDS HUMAN' : (e.stage ?? 'starting'),
+      e.status === 'needs_human' ? 'NEEDS HUMAN' : e.options?.choiceDeadline != null ? `waiting for its choice (${formatDuration(e.options.choiceDeadline - now)} left)` : (e.stage ?? 'starting'),
       ...(e.round === null ? [] : [`round ${e.round}/${e.maxReviews}`]),
       ...(e.slices && e.slices.total > 0 ? [`slices ${e.slices.done}/${e.slices.total}`] : []),
       `blockers ${e.blockers}`,

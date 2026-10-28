@@ -35,7 +35,10 @@ async function hostClient(socketPath: string, config: Config, configPath: string
   return started;
 }
 
-type Reply = { events: Record<string, any>[]; cursor: number; streaming: string };
+type Option = { id: string; label: string; values: { id: string; label: string }[]; current: string };
+type Reply = { events: Record<string, any>[]; cursor: number; streaming: string; options: Option[] };
+
+const describeOption = (o: Option) => `${o.label} (${o.id}): ${o.current}\n    offers: ${o.values.map((v) => v.id).join(', ')}\n`;
 
 /**
  * Opens a conversation and runs it in plain lines: one line in, the answer out as it streams. `/quit` leaves and the
@@ -50,7 +53,7 @@ async function converse(client: CarrierClient, { agent, folder, input, pollMs, s
     throw new CliError(1, error instanceof Error ? error.message : String(error));
   }
   const sessionId = opened.session.id;
-  write(`Chat ${sessionId} with ${opened.session.agent} in ${opened.session.folder}. /quit leaves it open.\n`);
+  write(`Chat ${sessionId} with ${opened.session.agent} in ${opened.session.folder}. /options, /option <id> <value>, /quit leaves it open.\n`);
 
   let cursor = 0;
   let printed = 0; // characters of the message being written that are already on screen
@@ -87,6 +90,26 @@ async function converse(client: CarrierClient, { agent, folder, input, pollMs, s
       const text = done ? '/quit' : String(value).trim();
       if (text === '/quit') break;
       if (text === '') continue;
+      if (text === '/options' || text.startsWith('/option ')) {
+        try {
+          if (text === '/options') {
+            // after the cursor, so what is waiting to be shown is not consumed
+            const { options } = (await client.request('events', { sessionId, after: cursor, limit: 1 })) as Reply;
+            write(options.map(describeOption).join('') || 'This agent lists no options.\n');
+          } else {
+            const [id, value, ...extra] = text.split(/\s+/).slice(1);
+            if (id === undefined || value === undefined || extra.length > 0) {
+              write('Usage: /option <id> <value>\n');
+              continue;
+            }
+            const { options } = (await client.request('setOption', { sessionId, option: id, value })) as Pick<Reply, 'options'>;
+            write(describeOption(options.find((o) => o.id === id)!));
+          }
+        } catch (error) {
+          write(`${error instanceof Error ? error.message : String(error)}\n`);
+        }
+        continue;
+      }
       turning = true;
       try {
         await client.request('send', { sessionId, text });

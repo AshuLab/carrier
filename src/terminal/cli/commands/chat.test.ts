@@ -144,3 +144,23 @@ test('Ctrl+C while a turn runs interrupts it and returns to the prompt, where th
   expect(claude.conversations[0]!.closed).toBe(false);
   expect(sigint.listenerCount('SIGINT')).toBe(0);
 });
+
+test('/options prints each option with its current value and what it offers, /option changes one and prints it, and a refusal is shown in words', async () => {
+  await host();
+  claude.conversations.length = 0;
+  claude.setup = (conversation) => {
+    conversation.options = [
+      { id: 'mode', label: 'Permission mode', values: [{ id: 'default', label: 'Default' }, { id: 'plan', label: 'Plan' }], current: 'default' },
+      { id: 'model', label: 'Model', values: [{ id: 'haiku', label: 'Haiku' }], current: 'haiku' },
+    ];
+  };
+  expect(await chatCommand({ workspace: root }, config(), '/abs/config.json', { input: typed('/options', '/option mode plan', '/option mode yolo', '/option nope x', '/option mode', '/options', '/quit'), pollMs: 5 })).toBe(0);
+  const out = written.join('');
+  expect(out).toContain('> Permission mode (mode): default\n    offers: default, plan\nModel (model): haiku\n    offers: haiku\n> ');
+  expect(out).toContain('> Permission mode (mode): plan\n    offers: default, plan\n> ');
+  expect(out).toContain('"yolo" is not a value of the option "mode"; it offers: default, plan\n');
+  expect(out).toContain('no option "nope"');
+  expect(out).toContain('Usage: /option <id> <value>\n');
+  expect(out.lastIndexOf('Permission mode (mode): plan')).toBeGreaterThan(out.indexOf('Usage:')); // the second /options sees the change
+  expect(claude.conversations[0]!.sent).toEqual([]); // none of this went to the agent
+});

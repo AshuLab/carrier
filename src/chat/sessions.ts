@@ -8,7 +8,7 @@ import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
 import { checkFolder } from './folder.ts';
-import { ChatRefused, type ChatConversation, type ChatEvent, type ChatRunner } from './runner.ts';
+import { ChatRefused, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
 
@@ -43,6 +43,13 @@ export type ChatSessionsDeps = {
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
   onLiveChange: () => void;
 };
+
+/** Refuses, naming the option, one the provider does not list or a value it does not offer for it. */
+function checkOption(options: ChatOption[], id: string, value: string) {
+  const option = options.find((candidate) => candidate.id === id);
+  if (option === undefined) throw new ChatRefused(`This agent has no option "${id}"; it offers: ${options.map((o) => o.id).join(', ') || 'none'}`);
+  if (option.values.some((offered) => offered.id === value) === false) throw new ChatRefused(`"${value}" is not a value of the option "${id}"; it offers: ${option.values.map((v) => v.id).join(', ')}`);
+}
 
 export function binaryFound(command: string): boolean {
   try {
@@ -86,6 +93,10 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
     if (event.kind === 'turn_end' && live.turn === undefined) return; // a turn already recorded (an interrupt, then the adapter's own end)
     if (event.kind === 'assistant' || event.kind === 'turn_end') live.streaming = '';
     store(sessionId, event);
+    if (event.kind === 'option') {
+      const { options } = row(sessionId);
+      db.update(sessions).set({ options: { ...options, [event.id]: event.value } }).where(eq(sessions.id, sessionId)).run();
+    }
     if (event.kind === 'tool_start' && live.turn) live.turn.toolCalls++;
     if (event.kind === 'turn_end') {
       const startedAt = live.turn?.startedAt ?? clock.now();
@@ -143,6 +154,12 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
         log.error('a chat runner failed to open', error);
         throw new ChatRefused(`${chosen.name} could not be started`);
       }
+      try {
+        for (const [id, value] of Object.entries(chosenOptions)) checkOption(conversation.options, id, value);
+      } catch (error) {
+        await conversation.close().catch((closing) => log.error('closing a refused conversation failed', closing));
+        throw error;
+      }
       const now = clock.now();
       const created = db
         .insert(sessions)
@@ -197,6 +214,21 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
       // The adapter says the turn ended; if it did not, the interrupt still did, so the host records it.
       if (live.turn !== undefined) onEvent(sessionId, live, { kind: 'turn_end', outcome: 'interrupted' });
       return {};
+    },
+
+    async setOption({ sessionId, option, value }: { sessionId: string; option: string; value: string }) {
+      row(sessionId);
+      const live = lives.get(sessionId);
+      if (live === undefined) throw new ChatRefused('This session is closed');
+      checkOption(live.conversation.options, option, value);
+      try {
+        await live.conversation.setOption(option, value);
+      } catch (error) {
+        if (error instanceof ChatRefused) throw error;
+        log.error('an option could not be changed', error);
+        throw new ChatRefused(`The option "${option}" could not be changed`);
+      }
+      return { options: live.conversation.options };
     },
 
     events({ sessionId, after = 0, limit }: { sessionId: string; after?: number; limit: number }) {

@@ -13,6 +13,7 @@ import { ChatRefused, type ChatChoice, type ChatConversation, type ChatEvent, ty
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
 import { checkName, suggestName } from './names.ts';
+import { createWorktree, removeWorktree } from './worktree.ts';
 import { fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
@@ -22,7 +23,10 @@ export const IDLE_CLOSE_MS = 60_000;
 type Harness = (typeof sessions.$inferSelect)['harness'];
 type State = (typeof sessions.$inferSelect)['state'];
 
-export type SessionSummary = Omit<typeof sessions.$inferSelect, 'options' | 'pid' | 'pgid' | 'command'>;
+/** Where a session works: the folder it was opened in, or a worktree made for it from that base folder. */
+export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: string; from: string; base: string; path: string };
+
+export type SessionSummary = Omit<typeof sessions.$inferSelect, 'options' | 'pid' | 'pgid' | 'command' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath'> & { workspace: SessionWorkspace };
 
 export type PendingApproval = { approvalId: string; tool: string; arg?: string; choices: ChatChoice[] };
 
@@ -80,7 +84,18 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
     if (found === undefined) throw new ChatRefused('There is no such session');
     return found;
   };
-  const summary = ({ options: _options, pid: _pid, pgid: _pgid, command: _command, ...rest }: typeof sessions.$inferSelect): SessionSummary => rest;
+  const summary = ({ options: _options, pid: _pid, pgid: _pgid, command: _command, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
+    ...rest,
+    workspace: workspaceKind === 'worktree' ? { kind: 'worktree', branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase!, path: worktreePath! } : { kind: 'folder' },
+  });
+
+  // Worktrees are made one at a time: what a request checked (a free name) is still true when git adds.
+  let making: Promise<unknown> = Promise.resolve();
+  const exclusive = <T>(work: () => Promise<T>): Promise<T> => {
+    const run = making.then(work, work);
+    making = run.catch(() => {});
+    return run;
+  };
 
   // An idle session with no client attached is closed after a minute; working or waiting ones are kept.
   const armIdle = (sessionId: string, live: Live) => {
@@ -198,26 +213,41 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
       sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => ({ ...summary(found), live: lives.has(found.id) })),
     }),
 
-    async open({ agent, folder, options }: { agent: string; folder: string; options?: Record<string, string> }) {
+    async open({ agent, folder, options, worktree }: { agent: string; folder: string; options?: Record<string, string>; worktree?: { from: string; name?: string } }) {
       const chosen = chatAgents(config).find((candidate) => candidate.name === agent);
       if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
       const real = checkFolder(folder, config.root);
       const runner = runners[chosen.harness];
       if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
       const chosenOptions = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...options };
-      const conversation = await openConversation(chosen, runner, { folder: real, options: chosenOptions });
+      const made = worktree === undefined ? undefined : await exclusive(() => createWorktree(git, real, worktree));
+      let conversation: ChatConversation | undefined;
+      let created: typeof sessions.$inferSelect;
+      // One step: a worktree whose session could not be created is taken away again.
       try {
+        conversation = await openConversation(chosen, runner, { folder: made?.path ?? real, options: chosenOptions });
         for (const [id, value] of Object.entries(chosenOptions)) checkOption(conversation.options, id, value);
+        const now = clock.now();
+        created = db
+          .insert(sessions)
+          .values({
+            id: randomUUID(),
+            agent: chosen.name,
+            harness: chosen.harness,
+            folder: made?.path ?? real,
+            ...(made !== undefined && { workspaceKind: 'worktree', worktreeBranch: made.branch, worktreeFrom: made.from, worktreeBase: made.base, worktreePath: made.path }),
+            options: chosenOptions,
+            nativeId: conversation.nativeId ?? null,
+            createdAt: now,
+            lastActiveAt: now,
+          })
+          .returning()
+          .get();
       } catch (error) {
-        await conversation.close().catch((closing) => log.error('closing a refused conversation failed', closing));
+        await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
+        if (made !== undefined) await removeWorktree(git, made);
         throw error;
       }
-      const now = clock.now();
-      const created = db
-        .insert(sessions)
-        .values({ id: randomUUID(), agent: chosen.name, harness: chosen.harness, folder: real, options: chosenOptions, nativeId: conversation.nativeId ?? null, createdAt: now, lastActiveAt: now })
-        .returning()
-        .get();
       attach(created.id, conversation);
       return { session: summary(created), options: conversation.options };
     },

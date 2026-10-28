@@ -7,7 +7,12 @@ export const sessions = sqliteTable('sessions', {
   id: text().primaryKey(),
   agent: text().notNull(), // the configured agent's name
   harness: text({ enum: ['claude', 'codex'] }).notNull(),
-  folder: text().notNull(),
+  folder: text().notNull(), // where the agent runs: the base folder, or the worktree when there is one
+  workspaceKind: text({ enum: ['folder', 'worktree'] }).notNull().default('folder'),
+  worktreeBranch: text(), // the four below are set for a worktree session only
+  worktreeFrom: text(), // the branch it was cut from, as `workspace` listed it
+  worktreeBase: text(), // the folder it was made from
+  worktreePath: text(),
   title: text(),
   options: text({ mode: 'json' }).$type<Record<string, string>>(),
   nativeId: text(), // the provider's id for the conversation, to resume it

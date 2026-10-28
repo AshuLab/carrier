@@ -290,3 +290,120 @@ test('suggestName and checkName answer a free name, say why a name is invalid or
   await expect(client.request('suggestName', { folder: join(root, 'missing') })).rejects.toThrow('does not exist');
   client.close();
 });
+
+/** A host with a fake git, a base repository acme/app and CARRIER_HOME under the temporary root. */
+async function worktreeHost() {
+  vi.stubEnv('CARRIER_HOME', join(root, 'home'));
+  stops.push(async () => void vi.unstubAllEnvs());
+  const git = new FakeGit();
+  const claude = new FakeChatRunner();
+  await host(new FakeClock(), claude, git);
+  mkdirSync(join(root, 'repo'));
+  const repo = realpathSync(join(root, 'repo'));
+  git.repos.set(repo, { head: 'feat/x', branches: ['main', 'feat/x'], remoteBranches: ['main', 'dev'], origin: 'git@github.com:acme/app.git', status: [' M a.ts'] });
+  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  const worktrees = join(root, 'home', 'chat', 'worktrees');
+  return { git, claude, client, repo, worktrees, base: git.repos.get(repo)! };
+}
+const worktreeAdds = (git: FakeGit) => git.calls.filter((call) => call.args[0] === 'worktree' && call.args[1] === 'add');
+
+test('open with a worktree makes it under Carrier home on carrier/<name> from a local and from a remote branch, runs the session in it, leaves the base alone and lists the workspace', async () => {
+  const { git, claude, client, repo, worktrees, base } = await worktreeHost();
+  expect(client.hello.capabilities).toContain('open');
+  const local = (await client.request('open', { agent: 'claude', folder: repo, worktree: { from: 'main', name: 'alpha' } })) as { session: any };
+  const path = join(worktrees, 'acme', 'app', 'alpha');
+  expect(local.session).toMatchObject({ folder: path, workspace: { kind: 'worktree', branch: 'carrier/alpha', from: 'main', base: repo, path } });
+  expect(statSync(path).isDirectory()).toBe(true);
+  expect(claude.opened[0]).toMatchObject({ folder: path });
+  expect(worktreeAdds(git)).toEqual([{ folder: repo, args: ['worktree', 'add', '--no-track', '-b', 'carrier/alpha', path, 'refs/heads/main'], timeoutMs: 60_000 }]);
+
+  const remote = (await client.request('open', { agent: 'claude', folder: repo, worktree: { from: 'origin/dev' } })) as { session: any };
+  expect(remote.session.workspace).toMatchObject({ kind: 'worktree', from: 'origin/dev', base: repo });
+  expect(remote.session.workspace.branch).toMatch(/^carrier\/[a-z]+-[a-z]+-[a-z]+$/); // a generated name
+  expect(remote.session.workspace.path).toBe(join(worktrees, 'acme', 'app', remote.session.workspace.branch.slice('carrier/'.length)));
+  expect(worktreeAdds(git)[1]!.args.at(-1)).toBe('refs/remotes/origin/dev');
+
+  const plain = (await client.request('open', { agent: 'claude', folder: repo })) as { session: any };
+  expect(plain.session).toMatchObject({ folder: repo, workspace: { kind: 'folder' } });
+  const listed = ((await client.request('list')) as any).sessions;
+  expect(listed.find((s: any) => s.id === local.session.id).workspace).toEqual(local.session.workspace);
+  expect(listed.find((s: any) => s.id === plain.session.id).workspace).toEqual({ kind: 'folder' });
+  const events = (await client.request('events', { sessionId: local.session.id, limit: 10 })) as any;
+  expect(events.session.workspace).toEqual(local.session.workspace);
+
+  // the base folder: same branch checked out, same changes, and git was only ever asked to add (never checkout, stash, commit, reset)
+  expect(base).toMatchObject({ head: 'feat/x', status: [' M a.ts'] });
+  const verbs = new Set(git.calls.map((call) => call.args.find((arg) => arg !== '--no-optional-locks')));
+  expect([...verbs].filter((verb) => ['checkout', 'switch', 'stash', 'commit', 'reset', 'merge', 'clean'].includes(verb!))).toEqual([]);
+  expect(git.calls.every((call) => call.folder === repo)).toBe(true);
+
+  // a repository without a GitHub origin goes under local/<folder name>
+  mkdirSync(join(root, 'solo'));
+  const solo = realpathSync(join(root, 'solo'));
+  git.repos.set(solo, { head: 'main', branches: ['main'] });
+  const opened = (await client.request('open', { agent: 'claude', folder: solo, worktree: { from: 'main', name: 'beta' } })) as { session: any };
+  expect(opened.session.workspace.path).toBe(join(worktrees, 'local', 'solo', 'beta'));
+  client.close();
+});
+
+test('open with a worktree refuses a folder that is not a repository, a bare one, an unlisted start, and an invalid or taken name, and leaves nothing', async () => {
+  const { git, claude, client, repo, worktrees } = await worktreeHost();
+  mkdirSync(join(worktrees, 'acme', 'app', 'folder-one'), { recursive: true });
+  git.repos.set(repo, { head: 'main', branches: ['main', 'carrier/local-one'], remoteBranches: ['main', 'carrier/remote-one'], origin: 'git@github.com:acme/app.git' });
+  const plain = join(root, 'plain');
+  mkdirSync(plain);
+  mkdirSync(join(root, 'bare'));
+  git.repos.set(realpathSync(join(root, 'bare')), { head: null, branches: [], bare: true });
+  const open = (folder: string, worktree: { from: string; name?: string }) => client.request('open', { agent: 'claude', folder, worktree });
+  await expect(open(plain, { from: 'main' })).rejects.toThrow('Worktrees need a git repository');
+  await expect(open(join(root, 'bare'), { from: 'main' })).rejects.toThrow('this one is bare');
+  await expect(open(repo, { from: 'nope' })).rejects.toThrow('not one this repository lists');
+  await expect(open(repo, { from: 'origin/HEAD' })).rejects.toThrow('not one this repository lists');
+  await expect(open(repo, { from: '--orphan' })).rejects.toThrow('not one this repository lists');
+  await expect(open(repo, { from: 'main', name: 'Bad Name' })).rejects.toThrow('lowercase');
+  await expect(open(repo, { from: 'main', name: '--force' })).rejects.toThrow('must start with');
+  await expect(open(repo, { from: 'main', name: 'a/../escape' })).rejects.toThrow('may only have');
+  await expect(open(repo, { from: 'main', name: 'local-one' })).rejects.toThrow('A branch called carrier/local-one already exists');
+  await expect(open(repo, { from: 'main', name: 'remote-one' })).rejects.toThrow('The remote already has a branch called carrier/remote-one');
+  await expect(open(repo, { from: 'main', name: 'folder-one' })).rejects.toThrow('A folder for that worktree already exists');
+  await expect(client.request('open', { agent: 'claude', folder: repo, worktree: { from: 'main', extra: 1 } })).rejects.toThrow('invalid request');
+  expect(worktreeAdds(git)).toEqual([]);
+  expect(claude.opened).toEqual([]);
+  expect(((await client.request('list')) as any).sessions).toEqual([]);
+  client.close();
+});
+
+test('a git failure while adding leaves no worktree, no branch and no session, and says so in words without what git said', async () => {
+  const { git, claude, client, repo, worktrees, base } = await worktreeHost();
+  const path = join(worktrees, 'acme', 'app', 'gamma');
+  git.failures.set(['worktree', 'add', '--no-track', '-b', 'carrier/gamma', path, 'refs/heads/main'].join(' '), { ok: false, code: 128, stderr: 'fatal: https://user:ghp_secret@github.com/acme/app.git' });
+  const failed = await client.request('open', { agent: 'claude', folder: repo, worktree: { from: 'main', name: 'gamma' } }).catch((error: Error) => error.message);
+  expect(failed).toBe('Git could not create the worktree');
+  expect(() => statSync(path)).toThrow();
+  expect(base.branches).toEqual(['main', 'feat/x']);
+  expect(claude.opened).toEqual([]);
+  expect(((await client.request('list')) as any).sessions).toEqual([]);
+  git.failures.clear();
+  expect(await client.request('open', { agent: 'claude', folder: repo, worktree: { from: 'main', name: 'gamma' } })).toBeDefined(); // the name is free again
+  client.close();
+});
+
+test('a session that cannot be created after the worktree exists takes the worktree, its branch and the conversation away', async () => {
+  const { git, claude, client, repo, worktrees, base } = await worktreeHost();
+  const db = new Database(join(root, 'chat', 'chat.db'));
+  db.exec("create trigger no_sessions before insert on sessions begin select raise(abort, 'disk full'); end");
+  await expect(client.request('open', { agent: 'claude', folder: repo, worktree: { from: 'main', name: 'delta' } })).rejects.toThrow('internal error');
+  expect(() => statSync(join(worktrees, 'acme', 'app', 'delta'))).toThrow();
+  expect(base.branches).toEqual(['main', 'feat/x']);
+  expect(base.worktrees).toEqual([]);
+  expect(claude.conversations.map((c) => c.closed)).toEqual([true]);
+  expect(git.calls.map((call) => call.args.slice(0, 2).join(' '))).toEqual(expect.arrayContaining(['worktree add', 'worktree remove', 'branch -D']));
+
+  // an option the provider does not offer refuses the open the same way
+  db.exec('drop trigger no_sessions');
+  db.close();
+  await expect(client.request('open', { agent: 'claude', folder: repo, worktree: { from: 'main', name: 'delta' }, options: { mode: 'plan' } })).rejects.toThrow('no option "mode"');
+  expect(() => statSync(join(worktrees, 'acme', 'app', 'delta'))).toThrow();
+  expect(base.branches).toEqual(['main', 'feat/x']);
+  client.close();
+});

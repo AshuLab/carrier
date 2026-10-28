@@ -21,7 +21,7 @@ const sessionId = z.uuid();
 export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('agents') }),
   z.strictObject({ id, cmd: z.literal('list'), archived: z.boolean().optional() }),
-  z.strictObject({ id, cmd: z.literal('open'), agent: z.string().min(1), folder: z.string().min(1), options: z.record(z.string(), z.string()).optional() }),
+  z.strictObject({ id, cmd: z.literal('open'), agent: z.string().min(1), folder: z.string().min(1), options: z.record(z.string(), z.string()).optional(), worktree: z.strictObject({ from: z.string().min(1).max(1000), name: z.string().max(1000).optional() }).optional() }),
   z.strictObject({ id, cmd: z.literal('resume'), sessionId }),
   z.strictObject({ id, cmd: z.literal('send'), sessionId, text: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('answer'), sessionId, approvalId: z.string().min(1), choiceId: z.string().min(1) }),
@@ -67,7 +67,7 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
     case 'list':
       return controls.list({ archived: request.archived });
     case 'open':
-      return controls.open({ agent: request.agent, folder: request.folder, options: request.options });
+      return controls.open({ agent: request.agent, folder: request.folder, options: request.options, worktree: request.worktree });
     case 'resume':
       return controls.resume({ sessionId: request.sessionId });
     case 'send':

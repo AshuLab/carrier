@@ -1,15 +1,19 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { realGit } from './git.ts';
+import { ChatRefused } from './runner.ts';
+import { createWorktree, removeWorktree } from './worktree.ts';
 import { fetchFolder, inspectFolder } from './workspace.ts';
 
 // What the host's `workspace` request finds in real repositories made in temporary folders, with the `git` on this
 // machine: a repository with and without a remote, a detached HEAD, a bare repository, a linked worktree as the
 // folder, an untracked file and a modified file counted in `dirty`. Nothing leaves the machine: the "remote" is a
-// bare repository in a temporary folder, and only its URL is then changed to a GitHub one. It only runs when this is
+// bare repository in a temporary folder, and only its URL is then changed to a GitHub one. It also makes session
+// worktrees (from a local and from a remote branch, from a detached HEAD and from a linked worktree), checks that the
+// base folder is the same after, that a failure leaves nothing and that removing takes the folder and the branch. It only runs when this is
 // set explicitly:
 //   CARRIER_IT_GIT=1
 const enabled = process.env.CARRIER_IT_GIT === '1';
@@ -129,5 +133,122 @@ describe.skipIf(!enabled)('the workspace of a folder, with the real git', () => 
     mkdirSync(path);
     git(path, 'init', '-q', '-b', 'main');
     expect(await inspectFolder(realGit, realpathSync(path))).toMatchObject({ git: true, branch: 'main' });
+  });
+});
+
+describe.skipIf(!enabled)('a session worktree, with the real git', () => {
+  let home: string;
+  beforeAll(() => void (dir = realpathSync(mkdtempSync(join(tmpdir(), 'carrier-wt-')))));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  beforeEach(() => {
+    home = join(dir, `home-${Math.random().toString(36).slice(2)}`);
+    vi.stubEnv('CARRIER_HOME', home);
+  });
+  afterEach(() => void vi.unstubAllEnvs());
+
+  /** Everything the base folder is: HEAD, branch, index, working tree changes and the refs other than the new branch. */
+  const snapshot = (folder: string) => ({
+    head: git(folder, 'rev-parse', 'HEAD').trim(),
+    branch: git(folder, 'branch', '--show-current').trim(),
+    index: git(folder, 'ls-files', '-s'),
+    status: git(folder, 'status', '--porcelain'),
+    refs: git(folder, 'for-each-ref', '--format=%(refname) %(objectname)').split('\n').filter((line) => line.includes('refs/heads/carrier/') === false).join('\n'),
+    stash: git(folder, 'stash', 'list'),
+  });
+  const cloneOf = (name: string) => {
+    const bare = join(dir, `${name}.git`);
+    git(dir, 'clone', '-q', '--bare', repoAt(`${name}-src`), bare);
+    const other = join(dir, `${name}-other`);
+    git(dir, 'clone', '-q', bare, other);
+    git(other, 'push', '-q', 'origin', 'main:release');
+    const clone = join(dir, name);
+    git(dir, 'clone', '-q', bare, clone);
+    git(clone, 'fetch', '-q', 'origin');
+    git(clone, 'remote', 'set-url', 'origin', 'git@github.com:acme/app.git');
+    return realpathSync(clone);
+  };
+
+  test('from a local and from a remote branch: the folder, the new branch at the right commit, the base untouched, then removed with its branch', async () => {
+    const clone = cloneOf('both');
+    git(clone, 'checkout', '-q', '-b', 'local-only');
+    writeFileSync(join(clone, 'b.txt'), 'b\n');
+    git(clone, 'add', '.');
+    git(clone, 'commit', '-q', '-m', 'two');
+    writeFileSync(join(clone, 'a.txt'), 'dirty\n'); // uncommitted: must survive
+    writeFileSync(join(clone, 'untracked.txt'), 'u\n');
+    const before = snapshot(clone);
+
+    const fromLocal = await createWorktree(realGit, clone, { from: 'local-only', name: 'one' });
+    expect(fromLocal).toEqual({ path: join(home, 'chat', 'worktrees', 'acme', 'app', 'one'), branch: 'carrier/one', from: 'local-only', base: clone });
+    expect(git(fromLocal.path, 'branch', '--show-current').trim()).toBe('carrier/one');
+    expect(git(clone, 'rev-parse', 'carrier/one').trim()).toBe(before.head);
+    expect(git(clone, 'for-each-ref', '--format=%(upstream)', 'refs/heads/carrier/one').trim()).toBe(''); // no upstream
+
+    const fromRemote = await createWorktree(realGit, clone, { from: 'origin/release', name: 'two' });
+    expect(git(fromRemote.path, 'branch', '--show-current').trim()).toBe('carrier/two');
+    expect(git(clone, 'rev-parse', 'carrier/two').trim()).toBe(git(clone, 'rev-parse', 'origin/release').trim());
+    expect(git(clone, 'for-each-ref', '--format=%(upstream)', 'refs/heads/carrier/two').trim()).toBe('');
+    expect(snapshot(clone)).toEqual(before);
+
+    await removeWorktree(realGit, fromLocal);
+    expect(existsSync(fromLocal.path)).toBe(false);
+    expect(git(clone, 'branch', '--list', 'carrier/one').trim()).toBe('');
+    expect(git(clone, 'worktree', 'list')).not.toContain(fromLocal.path);
+    expect(existsSync(fromRemote.path)).toBe(true); // only the one asked
+    expect(snapshot(clone)).toEqual(before);
+  });
+
+  test('a name is generated when none is given, and refused when taken by a branch', async () => {
+    const repo = repoAt('names');
+    git(repo, 'branch', 'carrier/taken');
+    const made = await createWorktree(realGit, repo, { from: 'main' });
+    expect(made.branch).toMatch(/^carrier\/[a-z]+-[a-z]+-[a-z]+$/);
+    expect(made.path).toBe(join(home, 'chat', 'worktrees', 'local', 'names', made.branch.slice('carrier/'.length)));
+    await expect(createWorktree(realGit, repo, { from: 'main', name: 'taken' })).rejects.toBeInstanceOf(ChatRefused);
+    await expect(createWorktree(realGit, repo, { from: 'dev', name: 'free' })).rejects.toThrow('not one this repository lists');
+  });
+
+  test('from a base folder with a detached HEAD, which stays detached', async () => {
+    const repo = repoAt('detached-base');
+    git(repo, 'checkout', '-q', '--detach');
+    const before = snapshot(repo);
+    const made = await createWorktree(realGit, repo, { from: 'main', name: 'from-detached' });
+    expect(git(made.path, 'branch', '--show-current').trim()).toBe('carrier/from-detached');
+    expect(snapshot(repo)).toEqual(before);
+    expect(before.branch).toBe('');
+  });
+
+  test('from a base folder that is itself a linked worktree', async () => {
+    const repo = repoAt('linked-main');
+    const linked = join(dir, 'linked-base');
+    git(repo, 'worktree', 'add', '-q', '-b', 'side', linked);
+    const base = realpathSync(linked);
+    const before = snapshot(base);
+    const mainBefore = snapshot(repo);
+    const made = await createWorktree(realGit, base, { from: 'main', name: 'from-linked' });
+    expect(made.base).toBe(base);
+    expect(existsSync(made.path)).toBe(true);
+    expect(snapshot(base)).toEqual(before);
+    expect(snapshot(repo)).toEqual(mainBefore);
+  });
+
+  test('a failure of git leaves no folder, no branch and no worktree entry', async () => {
+    const repo = repoAt('failing');
+    mkdirSync(home, { recursive: true });
+    writeFileSync(join(home, 'chat'), 'a file where the folder should go');
+    const before = snapshot(repo);
+    await expect(createWorktree(realGit, repo, { from: 'main', name: 'doomed' })).rejects.toThrow('Git could not create the worktree');
+    expect(git(repo, 'branch', '--list', 'carrier/*').trim()).toBe('');
+    expect(git(repo, 'worktree', 'list').trim().split('\n')).toHaveLength(1);
+    expect(snapshot(repo)).toEqual(before);
+  });
+
+  test('a bare repository and a plain folder are refused', async () => {
+    const bare = join(dir, 'refused.git');
+    git(dir, 'clone', '-q', '--bare', repoAt('refused-src'), bare);
+    await expect(createWorktree(realGit, realpathSync(bare), { from: 'main' })).rejects.toThrow('bare');
+    const plain = join(dir, 'refused-plain');
+    mkdirSync(plain);
+    await expect(createWorktree(realGit, plain, { from: 'main' })).rejects.toThrow('Worktrees need a git repository');
   });
 });

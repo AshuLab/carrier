@@ -13,7 +13,7 @@ import { ChatRefused, type ChatChoice, type ChatConversation, type ChatEvent, ty
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
 import { checkName, suggestName } from './names.ts';
-import { createWorktree, removeWorktree } from './worktree.ts';
+import { createWorktree, deleteWorktree, previewWorktree, removeWorktree } from './worktree.ts';
 import { fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
@@ -371,12 +371,28 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
     /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */
     async delete({ sessionId }: { sessionId: string }) {
       await settle(sessionId, 'delete');
+      const { workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath } = row(sessionId);
+      // The worktree goes first: one that cannot be removed stops the deletion and the session stays.
+      if (workspaceKind === 'worktree') await deleteWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! });
       db.transaction((tx) => {
         tx.delete(chatEvents).where(eq(chatEvents.sessionId, sessionId)).run();
         tx.delete(chatTurns).where(eq(chatTurns.sessionId, sessionId)).run();
         tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
       });
       return {};
+    },
+
+    /** What deleting these sessions would discard: for each one in a worktree, its uncommitted files and the commits that exist nowhere else. An unknown id refuses the whole request. */
+    async deletePreview({ sessionIds }: { sessionIds: string[] }) {
+      const found = sessionIds.map(row);
+      return {
+        sessions: await Promise.all(
+          found.map(async ({ id, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath }) => ({
+            sessionId: id,
+            worktree: workspaceKind === 'worktree' ? { path: worktreePath!, branch: worktreeBranch!, ...(await previewWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! })) } : null,
+          })),
+        ),
+      };
     },
 
     /** What a folder is as a git repository, for the person to choose how to work in it. */

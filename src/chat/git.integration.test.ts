@@ -6,6 +6,11 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi 
 import { realGit } from './git.ts';
 import { ChatRefused } from './runner.ts';
 import { createWorktree, removeWorktree } from './worktree.ts';
+import { openChatDatabase } from './db.ts';
+import { FakeChatRunner } from './fake.ts';
+import { createSessions } from './sessions.ts';
+import { FakeClock } from '../orchestration/fake.ts';
+import type { Config } from '../config/schema.ts';
 import { fetchFolder, inspectFolder } from './workspace.ts';
 
 // What the host's `workspace` request finds in real repositories made in temporary folders, with the `git` on this
@@ -14,7 +19,7 @@ import { fetchFolder, inspectFolder } from './workspace.ts';
 // bare repository in a temporary folder, and only its URL is then changed to a GitHub one. It also makes session
 // worktrees (from a local and from a remote branch, from a detached HEAD and from a linked worktree), checks that the
 // base folder is the same after, that a failure leaves nothing and that removing takes the folder and the branch. It only runs when this is
-// set explicitly:
+// set explicitly (it also deletes sessions in worktrees through the host's sessions, with a fake agent, a temporary SQLite and the real git, with the base folder there and gone):
 //   CARRIER_IT_GIT=1
 const enabled = process.env.CARRIER_IT_GIT === '1';
 
@@ -250,5 +255,66 @@ describe.skipIf(!enabled)('a session worktree, with the real git', () => {
     const plain = join(dir, 'refused-plain');
     mkdirSync(plain);
     await expect(createWorktree(realGit, plain, { from: 'main' })).rejects.toThrow('Worktrees need a git repository');
+  });
+});
+
+describe.skipIf(!enabled)('deleting a session in a worktree, with the real git', () => {
+  let home: string;
+  beforeAll(() => void (dir = realpathSync(mkdtempSync(join(tmpdir(), 'carrier-del-')))));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  beforeEach(() => {
+    home = join(dir, `home-${Math.random().toString(36).slice(2)}`);
+    vi.stubEnv('CARRIER_HOME', home);
+  });
+  afterEach(() => void vi.unstubAllEnvs());
+
+  const sessionsOf = () => createSessions({ db: openChatDatabase(join(home, 'chat.db')), config: { root: join(dir, 'root') } as Config, clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, binaryFound: () => true, onLiveChange: () => {} });
+  const stateOf = (folder: string) => ({ head: git(folder, 'rev-parse', 'HEAD').trim(), status: git(folder, 'status', '--porcelain'), branches: git(folder, 'branch', '--format=%(refname:short)').split('\n').filter((line) => line.startsWith('carrier/') === false).join('\n') });
+  /** A session in a worktree with an uncommitted change, an untracked file and one commit nobody else has. */
+  async function session(name: string) {
+    const base = repoAt(name);
+    mkdirSync(home, { recursive: true });
+    const s = sessionsOf();
+    const { session: opened } = await s.open({ agent: 'claude', folder: base, worktree: { from: 'main', name: 'work' } });
+    const { path, branch } = opened.workspace as { path: string; branch: string };
+    writeFileSync(join(path, 'committed.txt'), 'c\n');
+    git(path, 'add', 'committed.txt');
+    git(path, 'commit', '-q', '-m', 'two');
+    writeFileSync(join(path, 'a.txt'), 'changed\n');
+    writeFileSync(join(path, 'untracked.txt'), 'u\n');
+    return { s, id: opened.id, base: realpathSync(base), path, branch };
+  }
+
+  test('the preview counts the changes and the commit, and delete removes the folder and the branch and leaves the base as it was', async () => {
+    const { s, id, base, path, branch } = await session('with-base');
+    const before = stateOf(base);
+    expect(await s.deletePreview({ sessionIds: [id] })).toEqual({ sessions: [{ sessionId: id, worktree: { path, branch, dirty: 2, unpushed: 1 } }] });
+    git(path, 'update-ref', `refs/remotes/origin/${branch}`, git(path, 'rev-parse', 'HEAD').trim()); // as if it was pushed: nobody else's any more
+    expect((await s.deletePreview({ sessionIds: [id] })).sessions[0]!.worktree).toMatchObject({ dirty: 2, unpushed: 0 });
+    git(base, 'update-ref', '-d', `refs/remotes/origin/${branch}`);
+
+    await s.delete({ sessionId: id });
+    expect(existsSync(path)).toBe(false);
+    expect(git(base, 'branch', '--list', branch).trim()).toBe('');
+    expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(1);
+    expect(stateOf(base)).toEqual(before);
+    expect(s.list({}).sessions).toEqual([]);
+  });
+
+  test('with the base folder removed first the worktree folder is removed directly', async () => {
+    const { s, id, base, path } = await session('no-base');
+    rmSync(base, { recursive: true, force: true });
+    expect((await s.deletePreview({ sessionIds: [id] })).sessions[0]!.worktree).toMatchObject({ dirty: 0, unpushed: 0 });
+    await s.delete({ sessionId: id });
+    expect(existsSync(path)).toBe(false);
+    expect(s.list({}).sessions).toEqual([]);
+  });
+
+  test('a worktree folder already deleted by hand is forgotten by git and the branch still goes', async () => {
+    const { s, id, base, path, branch } = await session('hand');
+    rmSync(path, { recursive: true, force: true });
+    await s.delete({ sessionId: id });
+    expect(git(base, 'branch', '--list', branch).trim()).toBe('');
+    expect(git(base, 'worktree', 'list').trim().split('\n')).toHaveLength(1);
   });
 });

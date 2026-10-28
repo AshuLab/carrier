@@ -104,3 +104,20 @@ export async function inspectFolder(git: Git, folder: string): Promise<Workspace
     fetchedAt: mtimeOf(resolve(folder, fetchHead)),
   };
 }
+
+/** What a fetch may take before the host gives up on it. */
+export const FETCH_TIMEOUT_MS = 60_000;
+
+/** Runs `git fetch origin --prune` in `folder` (already checked, a real path) and answers what the folder is after it. A refusal never carries git's own words: they can hold a URL or a token. */
+export async function fetchFolder(git: Git, folder: string): Promise<WorkspaceInfo> {
+  const probe = await git.run(folder, ['rev-parse', '--git-dir']);
+  if (probe.ok === false && probe.code === 128) throw new ChatRefused('That folder is not a git repository');
+  mustRun(probe, 'rev-parse');
+  if (answer(await git.run(folder, ['config', '--get', 'remote.origin.url']), 'config') === null) throw new ChatRefused('That repository has no origin remote to fetch');
+  const fetched = await git.run(folder, ['fetch', 'origin', '--prune'], { timeoutMs: FETCH_TIMEOUT_MS });
+  if (fetched.ok === false) {
+    log.error('git fetch failed', { code: fetched.code, timedOut: fetched.timedOut === true });
+    throw new ChatRefused(fetched.timedOut === true ? 'The fetch took too long and was stopped' : 'The fetch of origin failed');
+  }
+  return inspectFolder(git, folder);
+}

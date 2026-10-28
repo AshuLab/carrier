@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { realGit } from './git.ts';
-import { inspectFolder } from './workspace.ts';
+import { fetchFolder, inspectFolder } from './workspace.ts';
 
 // What the host's `workspace` request finds in real repositories made in temporary folders, with the `git` on this
 // machine: a repository with and without a remote, a detached HEAD, a bare repository, a linked worktree as the
@@ -67,6 +67,32 @@ describe.skipIf(!enabled)('the workspace of a folder, with the real git', () => 
     expect(info.fetchedAt).toBeGreaterThan(Date.now() - 60_000);
     git(clone, 'remote', 'set-url', 'origin', 'https://gitlab.com/acme/app.git');
     expect((await inspectFolder(realGit, realpathSync(clone))).repo).toBeNull();
+  });
+
+  test('a fetch brings a branch pushed to a local origin into branches and moves fetchedAt', async () => {
+    const bare = join(dir, 'fetch-origin.git');
+    git(dir, 'clone', '-q', '--bare', repoAt('fetch-src'), bare);
+    const clone = join(dir, 'fetch-clone');
+    git(dir, 'clone', '-q', bare, clone);
+    const folder = realpathSync(clone);
+    const before = await inspectFolder(realGit, folder);
+    expect(before.branches.map((branch) => branch.name)).not.toContain('origin/pushed');
+    const other = join(dir, 'fetch-other');
+    git(dir, 'clone', '-q', bare, other);
+    git(other, 'push', '-q', 'origin', 'main:pushed');
+    await new Promise((done) => setTimeout(done, 20)); // FETCH_HEAD is stamped in ms
+    const after = await fetchFolder(realGit, folder);
+    expect(after.branches).toContainEqual({ name: 'origin/pushed', remote: true });
+    expect(after.fetchedAt).toBeGreaterThan(before.fetchedAt ?? 0);
+    git(other, 'push', '-q', 'origin', '--delete', 'pushed');
+    expect((await fetchFolder(realGit, folder)).branches).not.toContainEqual({ name: 'origin/pushed', remote: true }); // --prune
+  });
+
+  test('a fetch refuses a folder that is not a repository and a repository with no origin', async () => {
+    const plain = join(dir, 'fetch-plain');
+    mkdirSync(plain);
+    await expect(fetchFolder(realGit, plain)).rejects.toThrow('not a git repository');
+    await expect(fetchFolder(realGit, repoAt('fetch-local'))).rejects.toThrow('no origin');
   });
 
   test('a detached HEAD has no branch', async () => {

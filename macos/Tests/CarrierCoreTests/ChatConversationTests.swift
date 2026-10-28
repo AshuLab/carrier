@@ -363,7 +363,11 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var resumed = 0
 
     func agents() async throws -> [ChatAgent] { [] }
-    func open(agent: String, folder: String) async throws -> String { "" }
+    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String { "" }
+    func workspace(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
+    func fetch(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
+    func suggestName(_ folder: String) async throws -> String { "" }
+    func checkName(_ folder: String, _ name: String) async throws -> NameCheck { NameCheck(valid: true, free: true) }
     func list(archived: Bool) async throws -> [ChatSession] {
         let json = #"{"id":"s","agent":"claude","harness":"claude","folder":"/x","state":"idle","createdAt":1,"lastActiveAt":1,"archived":false,"live":\#(live)}"#
         return [try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))]

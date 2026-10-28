@@ -36,7 +36,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .events, .answer, .setOption, .archive, .delete])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .workspace, .fetch, .suggestName, .checkName])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {
@@ -44,7 +44,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
     _ = try client.hello()
-    #expect(throws: ControlError.remote("unknown request")) { try client.request("open") }
+    #expect(throws: ControlError.remote("unknown request")) { try client.request("resume") }
     // the connection is still good afterwards
     #expect(try client.request("list").isEmpty == false)
 }

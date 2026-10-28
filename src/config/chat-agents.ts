@@ -1,6 +1,6 @@
 import type { Config } from './schema.ts';
 
-type ChatAgentConfig = NonNullable<Config['chat']>['agents'][string];
+type ChatAgentConfig = NonNullable<NonNullable<Config['chat']>['agents']>[string];
 export type ChatAgent = ChatAgentConfig & { name: string };
 
 const defaultChatAgents: Record<string, ChatAgentConfig> = { claude: { harness: 'claude' }, codex: { harness: 'codex' } };

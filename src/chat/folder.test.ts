@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test } from 'vitest';
-import { checkFolder } from './folder.ts';
+import { checkFolder, checkProjectsFolder } from './folder.ts';
 
 let base: string;
 let root: string;
@@ -46,4 +46,16 @@ test('a root that is itself reached through a symlink is still protected', () =>
 test('a folder that only starts with the name of an engine folder is fine', () => {
   mkdirSync(join(root, 'repos-old'));
   expect(checkFolder(join(root, 'repos-old'), root)).toBe(realpathSync(join(root, 'repos-old')));
+});
+
+test('a projects folder may not exist yet, but not be relative nor lie in the engine\'s repos, worktrees or orchestrator, even through a symlink', () => {
+  expect(checkProjectsFolder(join(root, 'chat', 'projects'), root)).toBe(join(root, 'chat', 'projects'));
+  expect(checkProjectsFolder(join(work, 'a', 'b'), root)).toBe(join(work, 'a', 'b'));
+  expect(() => checkProjectsFolder('projects', root)).toThrow('absolute');
+  for (const name of ['repos', 'worktrees', 'orchestrator']) {
+    expect(() => checkProjectsFolder(join(root, name), root)).toThrow(`inside Carrier's own ${name} folder`);
+    expect(() => checkProjectsFolder(join(root, name, 'new', 'deeper'), root)).toThrow(`inside Carrier's own ${name} folder`);
+  }
+  symlinkSync(join(root, 'repos'), join(work, 'link'));
+  expect(() => checkProjectsFolder(join(work, 'link', 'x'), root)).toThrow("inside Carrier's own repos folder");
 });

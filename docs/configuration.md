@@ -40,6 +40,7 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `finishedWindowDays` | no | `15` | Days a merged or cancelled epic stays in the snapshot after it ends, a whole number from 1 to 30 (30 is the retention purge). |
 | `chat.agents` | no | `claude` and `codex` | The agents a chat can start with, by name. See [Chat agents](#chat-agents). |
+| `chat.projectsFolder` | no | `<root>/chat/projects` | The folder where the chat host puts the repositories it clones (`<owner>/<repo>` inside it). An absolute path, or one starting with `~/`. It may not lie inside `repos`, `worktrees` or `orchestrator` of the shared `root`. The host reads it at each request, so a change applies to the next clone with no restart. See [Projects folder](#projects-folder). |
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |
 | `identities` | no | `separate` | `separate` or `shared`. Under `separate` the author and the reviewer must be different identities. Under `shared` they may use the same profile, normally your `gh` login. See [Profiles](#profiles). |
 | `limits.maxConcurrentEpics` | no | `3` | Epics running at the same time. |
@@ -148,6 +149,16 @@ A chat (`carrier chat`) starts with one of the agents listed in `chat.agents`. W
 | `model` | no | The model the provider starts with. Not empty. |
 | `options` | no | Default options of the provider, by the provider's own option id. An option the provider does not list is refused when the session opens. |
 
+## Projects folder
+
+The chat host can clone a GitHub repository for a session (the `cloneRepo` request). It goes to `<projects folder>/<owner>/<repo>`; one already there (a `.git` whose `origin` is that repository) is fetched instead, and anything else at that path stops the request and is left untouched. The clone and the fetch use the token of your active `gh` login, handed to git in its environment, so `gh` must be installed and signed in. Each git command has ten minutes. Carrier never deletes anything in the folder, except the half-made clone of a request that failed or was cancelled.
+
+```json
+"chat": { "projectsFolder": "~/Projects/carrier" }
+```
+
+`chat` can hold `agents`, `projectsFolder`, both or neither.
+
 ## Things that are checked
 
 - Every profile named anywhere is declared in `profiles`, and every option named anywhere in `agentOptions`.
@@ -155,6 +166,7 @@ A chat (`carrier chat`) starts with one of the agents listed in `chat.agents`. W
 - Option names are lowercase words, a `configDir` is absolute after `~` is expanded, and an option has no field this page does not list.
 - Repo names are `owner/name`, and no two repos share the same folder name (Solve's worktree paths have no owner).
 - A `provider` is only accepted for a harness that can use it (Claude Code and Codex; not Antigravity), and so is a `configDir`.
+- `chat.projectsFolder` is an absolute path once `~/` is expanded.
 - Each chat agent has a lowercase name, a harness of `claude` or `codex`, and a `command` and `model` that are not empty when present.
 - The effective configuration of an epic is saved, without credentials, when it starts and kept when it resumes, even if you change the file in between.
 

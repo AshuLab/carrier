@@ -65,7 +65,6 @@ struct PanelView: View {
     private var emptyPage: EmptyState? {
         switch model.shell.selection {
         case .home: .welcome
-        case .sessions: .noSessions
         case .archive: .nothingArchived
         default: nil
         }
@@ -76,11 +75,12 @@ struct PanelView: View {
         @Bindable var epics = model.epics
         let groupBy = Binding(get: { model.groupBy }, set: { model.groupBy = $0; SidebarStore().groupBy = $0 })
         let collapse = Binding(get: { model.collapse }, set: { model.collapse = $0 })
+        let sessionSort = Binding(get: { model.sessionSort }, set: { model.sessionSort = $0; SidebarStore().sessionSort = $0 })
         let columns = Binding<NavigationSplitViewVisibility>(
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, collapse: collapse, searchRequest: shell.searchRequest)
+            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, sessionSort: sessionSort, collapse: collapse, searchRequest: shell.searchRequest)
                 .onChange(of: shell.open) { SidebarStore().open = shell.open }
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
@@ -101,6 +101,8 @@ struct PanelView: View {
                     } else if shell.selection == .settings {
                         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
                         SettingsScreen(state: model.state)
+                    } else if shell.selection == .sessions {
+                        SessionsHomeView(sessions: model.sessions, sort: sessionSort) { shell.selection = .session(id: $0) }
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
                     } else if case .session(let id) = shell.selection {

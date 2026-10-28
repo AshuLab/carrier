@@ -1,9 +1,9 @@
-// The twelve places that can have nothing to show, with their SF Symbol, title and one line
+// The thirteen places that can have nothing to show, with their SF Symbol, title and one line
 // (docs/specs/macos-app-redesign.md, story 24; the wording is the mockup's gallery).
 
 public enum EmptyState: CaseIterable {
     case reviewNotStarted, noFilesChanged, noSlices, waitingForSlot, nothingWaiting, nothingNeedsYou, idle, nothingToTest, noActivity
-    case welcome, noSessions, nothingArchived
+    case welcome, noSessions, noSessionsMatch, nothingArchived
 
     public var icon: String {
         switch self {
@@ -18,6 +18,7 @@ public enum EmptyState: CaseIterable {
         case .noActivity: "ellipsis.bubble"
         case .welcome: "house"
         case .noSessions: "bubble.left.and.bubble.right"
+        case .noSessionsMatch: "magnifyingglass"
         case .nothingArchived: "archivebox"
         }
     }
@@ -35,6 +36,7 @@ public enum EmptyState: CaseIterable {
         case .noActivity: "No activity yet"
         case .welcome: "Welcome"
         case .noSessions: "No sessions yet"
+        case .noSessionsMatch: "No sessions match"
         case .nothingArchived: "Nothing archived"
         }
     }
@@ -52,6 +54,7 @@ public enum EmptyState: CaseIterable {
         case .noActivity: "What the agent does shows up here as it works."
         case .welcome: "Pick Sessions or Carrier in the sidebar."
         case .noSessions: "Sessions you start are listed here."
+        case .noSessionsMatch: "Nothing fits what you searched or filtered."
         case .nothingArchived: "Archived sessions are kept here."
         }
     }

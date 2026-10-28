@@ -38,6 +38,7 @@ public struct ChatSession: Decodable, Equatable {
 
     public struct Workspace: Decodable, Equatable {
         public let base: String
+        public let branch: String?
     }
 }
 

@@ -27,6 +27,17 @@ private func session(
     #expect(rows[3].updatedAt == Date(timeIntervalSince1970: 1_792_000_123.456))
 }
 
+@Test func aWorktreeSessionRowCarriesItsBranchAndAFolderSessionHasNone() throws {
+    let tree = try JSONDecoder().decode(
+        ChatSession.self,
+        from: Data(
+            """
+            {"id":"t","agent":"claude","harness":"claude","folder":"/w/fix","workspace":{"base":"/Users/dev/web","branch":"carrier/fix"},
+             "title":"t","state":"idle","createdAt":1,"lastActiveAt":2,"archived":false,"live":false}
+            """.utf8))
+    #expect(sessionRows([tree, try session("plain")]).map(\.branch) == ["carrier/fix", nil])
+}
+
 @Test func aSessionThatIsNotLiveIsIdle() throws {
     let rows = sessionRows([try session("w", state: "working", live: false), try session("a", state: "waiting_approval", live: false)])
     #expect(rows.map(\.state) == [.idle, .idle])
@@ -143,4 +154,85 @@ private func rig(_ host: FakeHost) -> (ChatSessionsPoller, Clock, () -> [Session
     clock.now.addTimeInterval(1)
     await poller.poll()
     #expect(rows().map(\.id) == ["a"])
+}
+
+// The Sessions home: search across active and archived, filters, sorts, counts and the empty states, over rows.
+
+private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+private func row(
+    _ id: String, _ title: String = "t", workspace: String = "web", agent: String = "claude", state: SessionState = .idle, ago: TimeInterval = 60,
+    archived: Bool = false
+) -> SessionRow {
+    SessionRow(id: id, title: title, workspace: workspace, agent: agent, state: state, updatedAt: now.addingTimeInterval(-ago), archived: archived)
+}
+
+private let sample = [
+    row("a", "Rate-limit the webhook", workspace: "api", state: .working, ago: 30),
+    row("b", "Billing schema", workspace: "api", agent: "codex", state: .waiting, ago: 240),
+    row("c", "Pricing copy", workspace: "web", ago: 7200),
+    row("d", "Old spike", workspace: "web", agent: "codex", ago: 86400 * 3),
+    row("x", "Rate limit v1", workspace: "api", ago: 86400 * 12, archived: true),
+]
+
+@Test func theSubtitleCountsActiveSessionsAndTheOnesThatWaitForThePerson() {
+    #expect(sessionsPage(sample, now: now).subtitle == "4 active · 1 waits for you")
+    #expect(sessionsPage([sample[0], sample[1], row("w", state: .waiting)], now: now).subtitle == "3 active · 2 wait for you")
+    #expect(sessionsPage([sample[0], sample[2]], now: now).subtitle == "2 active")
+    #expect(sessionsPage([sample[4]], now: now).subtitle == "")
+}
+
+@Test func aFilterKeepsWhatMatchesAndTheSubtitleSaysHowManyOfTheActiveOnes() {
+    let page = sessionsPage(sample, filter: SessionFilter(statuses: [.waiting]), now: now)
+    #expect(page.groups.flatMap(\.rows).map(\.id) == ["b"])
+    #expect(page.subtitle == "1 of 4 · 1 waits for you")
+    let codex = sessionsPage(sample, filter: SessionFilter(agents: ["codex"]), now: now)
+    #expect(codex.groups.flatMap(\.rows).map(\.id) == ["b", "d"])
+    // statuses and agents together both have to hold; within a kind any of the ticked ones does
+    let both = SessionFilter(statuses: [.idle, .waiting], agents: ["codex"])
+    #expect(sessionsPage(sample, filter: both, now: now).groups.flatMap(\.rows).map(\.id) == ["b", "d"])
+}
+
+@Test func theFilterCountsItsTickedValuesAndHasAChipForEachThatRemovesIt() {
+    var filter = SessionFilter(statuses: [.working, .waiting], agents: ["codex"])
+    #expect(filter.count == 3 && SessionFilter().count == 0)
+    #expect(filter.chips == [.status(.waiting), .status(.working), .agent("codex")])
+    #expect(filter.chips.map(\.title) == ["Waiting for you", "Working", "codex"])
+    filter.remove(.status(.working))
+    #expect(filter.chips == [.status(.waiting), .agent("codex")])
+    filter.remove(.agent("codex"))
+    filter.remove(.status(.waiting))
+    #expect(filter == SessionFilter())
+}
+
+@Test func searchFindsActiveThenArchivedByTitleWorkspaceOrAgentAndSaysHowManyResults() {
+    let page = sessionsPage(sample, query: "rate", now: now)
+    #expect(page.groups.flatMap(\.rows).map(\.id) == ["a", "x"])
+    #expect(page.subtitle == "2 results")
+    #expect(sessionsPage(sample, query: "API", now: now).groups.flatMap(\.rows).map(\.id) == ["a", "b", "x"])
+    #expect(sessionsPage(sample, query: "codex", now: now).groups.flatMap(\.rows).map(\.id) == ["b", "d"])
+    #expect(sessionsPage(sample, query: "billing", now: now).subtitle == "1 result")
+}
+
+@Test func aFilterNarrowsASearchToo() {
+    let page = sessionsPage(sample, query: "rate", filter: SessionFilter(statuses: [.working]), now: now)
+    #expect(page.groups.flatMap(\.rows).map(\.id) == ["a"])
+}
+
+@Test func theSortsGroupByWorkspaceByAgeAndByStatus() {
+    #expect(sessionsPage(sample, by: .workspace, now: now).groups.map(\.title) == ["api", "web"])
+    #expect(sessionsPage(sample, by: .age, now: now).groups.map(\.title) == ["Today", "Last 7 days"])
+    #expect(sessionsPage(sample, by: .status, now: now).groups.map(\.title) == ["Waiting for you", "Working", "Idle"])
+}
+
+@Test func withNoActiveSessionsThePageIsNoSessionsYetEvenWhenSomethingIsArchived() {
+    #expect(sessionsPage([], now: now).emptyState == .noSessions)
+    #expect(sessionsPage([sample[4]], now: now).emptyState == .noSessions)
+    #expect(sessionsPage(sample, now: now).emptyState == nil)
+}
+
+@Test func aSearchOrAFilterThatMatchesNothingIsNoSessionsMatch() {
+    #expect(sessionsPage(sample, query: "zzz", now: now).emptyState == .noSessionsMatch)
+    #expect(sessionsPage(sample, filter: SessionFilter(statuses: [.working], agents: ["codex"]), now: now).emptyState == .noSessionsMatch)
+    #expect(sessionsPage([], query: "x", now: now).emptyState == .noSessionsMatch)
 }

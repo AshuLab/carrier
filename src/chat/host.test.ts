@@ -223,3 +223,35 @@ test('workspace tells a client what a folder is, with the fake git, and refuses 
   await expect(client.request('workspace', { folder: repo })).rejects.toThrow('Git could not read that folder');
   client.close();
 });
+
+test('fetch runs git fetch origin --prune with a 60 second limit, answers the refreshed workspace and never tells what git said', async () => {
+  const git = new FakeGit();
+  await host(new FakeClock(), new FakeChatRunner(), git);
+  mkdirSync(join(root, 'repo'));
+  const repo = realpathSync(join(root, 'repo'));
+  const fetched = join(root, 'FETCH_HEAD');
+  writeFileSync(fetched, '');
+  utimesSync(fetched, 1_700_000_000, 1_700_000_000);
+  git.repos.set(repo, { head: 'main', branches: ['main'], remoteBranches: ['main'], origin: 'git@github.com:acme/app.git', fetchHead: fetched });
+  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  expect(client.hello.capabilities).toContain('fetch');
+  const info = (await client.request('fetch', { folder: repo })) as { fetchedAt: number; branches: unknown[] };
+  expect(info).toMatchObject({ folder: repo, git: true, fetchedAt: 1_700_000_000_000 });
+  expect(git.calls.filter((call) => call.args[0] === 'fetch')).toEqual([{ folder: repo, args: ['fetch', 'origin', '--prune'], timeoutMs: 60_000 }]);
+
+  const failure = 'fatal: unable to access https://user:ghp_secret@github.com/acme/app.git/';
+  git.failures.set('fetch origin --prune', { ok: false, code: 128, stderr: failure });
+  const failed = await client.request('fetch', { folder: repo }).catch((error: Error) => error.message);
+  expect(failed).toBe('The fetch of origin failed');
+  git.failures.set('fetch origin --prune', { ok: false, code: null, timedOut: true, stderr: 'git took too long' });
+  await expect(client.request('fetch', { folder: repo })).rejects.toThrow('The fetch took too long and was stopped');
+
+  git.repos.set(repo, { head: 'main', branches: ['main'] });
+  git.failures.clear();
+  await expect(client.request('fetch', { folder: repo })).rejects.toThrow('no origin remote');
+  const plain = join(root, 'plain');
+  mkdirSync(plain);
+  await expect(client.request('fetch', { folder: plain })).rejects.toThrow('not a git repository');
+  await expect(client.request('fetch', { folder: join(root, 'missing') })).rejects.toThrow('does not exist');
+  client.close();
+});

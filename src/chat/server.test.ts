@@ -39,6 +39,7 @@ const controls = (): ChatControls => ({
   archive: async ({ archived }) => ({ archived }),
   delete: async () => ({}),
   workspace: async ({ folder }) => ({ folder }),
+  fetch: async ({ folder }) => ({ folder, fetched: true }),
 });
 async function open({ stop = async () => {}, clients = noClients } = {}) {
   const server = await startChatServer({ chatDir: dir, startedAt: 1234, controls: controls(), stop, clients });
@@ -74,7 +75,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'stop'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'stop'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -124,6 +125,15 @@ test('workspace takes a folder and nothing else', async () => {
   expect(await c.ask('{"id":2,"cmd":"workspace"}')).toEqual({ id: 2, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":3,"cmd":"workspace","folder":""}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":4,"cmd":"workspace","folder":"/x","fetch":true}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
+});
+
+test('fetch takes a folder and nothing else', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"fetch","folder":"/some/where"}')).toEqual({ id: 1, ok: true, data: { folder: '/some/where', fetched: true } });
+  expect(await c.ask('{"id":2,"cmd":"fetch"}')).toEqual({ id: 2, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":3,"cmd":"fetch","folder":""}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":4,"cmd":"fetch","folder":"/x","prune":false}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
 });
 
 test('a line that is not JSON is "invalid JSON" and the connection goes on', async () => {

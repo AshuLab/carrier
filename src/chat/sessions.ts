@@ -12,7 +12,7 @@ import type { Git } from './git.ts';
 import { ChatRefused, type ChatChoice, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
-import { inspectFolder } from './workspace.ts';
+import { fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
 
@@ -350,6 +350,9 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
 
     /** What a folder is as a git repository, for the person to choose how to work in it. */
     workspace: async ({ folder }: { folder: string }) => inspectFolder(git, checkFolder(folder, config.root)),
+
+    /** Fetches `origin` of a folder and answers what it is after it. */
+    fetch: async ({ folder }: { folder: string }) => fetchFolder(git, checkFolder(folder, config.root)),
 
     /** Closes every live session: the host's stop. */
     async closeAll() {

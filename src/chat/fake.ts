@@ -99,12 +99,12 @@ export type FakeRepo = {
 export class FakeGit implements Git {
   repos = new Map<string, FakeRepo>();
   /** Every command run, in order. */
-  calls: { folder: string; args: string[] }[] = [];
+  calls: { folder: string; args: string[]; timeoutMs?: number }[] = [];
   /** Commands that fail instead of answering, by their arguments joined with a space. */
   failures = new Map<string, Extract<GitResult, { ok: false }>>();
 
-  async run(folder: string, args: string[]): Promise<GitResult> {
-    this.calls.push({ folder, args });
+  async run(folder: string, args: string[], options?: { timeoutMs?: number }): Promise<GitResult> {
+    this.calls.push({ folder, args, timeoutMs: options?.timeoutMs });
     const failure = this.failures.get(args.join(' '));
     if (failure !== undefined) return failure;
     const repo = this.repos.get(folder);
@@ -117,6 +117,7 @@ export class FakeGit implements Git {
     if (verb === 'symbolic-ref' && rest.includes('refs/remotes/origin/HEAD')) return repo.originHead === undefined ? no : out(`refs/remotes/origin/${repo.originHead}`);
     if (verb === 'symbolic-ref') return repo.head === null ? no : out(repo.head);
     if (verb === 'for-each-ref') return out(...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`), ...(repo.originHead === undefined ? [] : ['refs/remotes/origin/HEAD']));
+    if (verb === 'fetch') return out();
     if (verb === 'status') return out(...(repo.status ?? []));
     return { ok: false, code: 129, stderr: `the fake git does not know ${verb}` };
   }

@@ -27,7 +27,8 @@ struct ConversationView: View {
                     ForEach(model.rows) { row in
                         FeedRowView(
                             row: row, opened: $opened, agent: model.agent, offersWayOut: row.id == open,
-                            continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } }
+                            continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
+                            answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
                         )
                     }
                 } else if model.failure == nil {
@@ -183,6 +184,7 @@ private struct FeedRowView: View {
     let offersWayOut: Bool
     let continueTurn: () -> Void
     let retry: () -> Void
+    let answer: (String, String) -> Void
 
     var body: some View {
         switch row {
@@ -201,6 +203,10 @@ private struct FeedRowView: View {
             Text(text).font(.system(size: 11)).foregroundStyle(.tertiary).textSelection(.enabled)
         case .tools(let id, let group):
             ChatToolGroupView(id: id, group: group, opened: $opened)
+        case .approval(_, let card):
+            ApprovalCardView(card: card, answer: answer)
+        case .decided(_, let text, let allow):
+            ApprovalDecidedView(text: text, allow: allow)
         case .line(_, let text):
             Text(text).font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         case .error(_, let text):

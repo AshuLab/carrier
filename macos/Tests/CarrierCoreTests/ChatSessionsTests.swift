@@ -87,6 +87,7 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     func resume(_ id: String) async throws {}
     func send(_ id: String, _ text: String) async throws {}
     func interrupt(_ id: String) async throws {}
+    func answer(_ id: String, approval: String, choice: String) async throws {}
     func setOption(_ id: String, option: String, value: String) async throws {}
 }
 

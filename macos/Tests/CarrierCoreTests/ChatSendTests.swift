@@ -18,10 +18,15 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var state: ChatSession.State = .idle
     var calls: [String] = []
     var refuse: [String: Error] = [:]
+    var events: [ChatEvent] = []
+    var pending: Set<String> = []
 
     func agents() async throws -> [ChatAgent] { [] }
     func list(archived: Bool) async throws -> [ChatSession] { [listed(live: live)] }
-    func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents { ChatEvents(events: [], cursor: after, state: state) }
+    func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
+        let page = events.filter { $0.id > after }
+        return ChatEvents(events: page, cursor: page.last?.id ?? after, state: state, pending: pending)
+    }
     func resume(_ id: String) async throws {
         calls.append("resume")
         if let error = refuse["resume"] { throw error }
@@ -36,6 +41,13 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         calls.append("interrupt")
         if let error = refuse["interrupt"] { throw error }
         state = .idle
+    }
+    func answer(_ id: String, approval: String, choice: String) async throws {
+        calls.append("answer \(approval) \(choice)")
+        if let error = refuse["answer"] { throw error }
+        pending.remove(approval)
+        events.append(ChatEvent(id: events.count + 1, at: 0, kind: "approval_answered", approvalId: approval, choiceId: choice))
+        state = .working
     }
     func setOption(_ id: String, option: String, value: String) async throws {}
 }
@@ -199,12 +211,66 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     #expect(chat.queued == "also" && host.calls == ["send go"])
 }
 
+// MARK: approvals
+
+private let asked = ChatEvent(
+    id: 1, at: 0, kind: "approval", tool: "Bash", arg: "pnpm test webhook", approvalId: "p",
+    choices: [.init(id: "allow", label: "Allow", allow: true), .init(id: "deny", label: "Decline", allow: false)]
+)
+
+@MainActor @Test func anApprovalPendingWhenTheSessionOpensIsACardAndChoosingItSendsTheAnswerAndTurnsItIntoALine() async {
+    let host = FakeChat()
+    host.events = [asked]
+    host.pending = ["p"]
+    host.state = .waitingApproval
+    let chat = model(host)
+    await chat.poll()
+    guard case .approval(_, let card)? = chat.rows.last else {
+        Issue.record("not a card")
+        return
+    }
+    #expect(card.approvalId == "p" && chat.busy)
+    await chat.answer("p", choice: "deny")
+    #expect(host.calls == ["answer p deny"] && chat.refusal == nil)
+    #expect(chat.rows == [.decided(id: "e1", text: "Declined Bash pnpm test webhook · Decline · by you", allow: false)])
+}
+
+@MainActor @Test func aRefusedAnswerIsShownInWordsAndTheCardStaysUntilTheHostSaysOtherwise() async {
+    let host = FakeChat()
+    host.events = [asked]
+    host.pending = ["p"]
+    let chat = model(host)
+    await chat.poll()
+    host.refuse["answer"] = ControlError.remote("That approval is not pending: it is unknown or was already answered")
+    await chat.answer("p", choice: "allow")
+    #expect(chat.refusal == "That approval is not pending: it is unknown or was already answered")
+    guard case .approval? = chat.rows.last else {
+        Issue.record("the card went")
+        return
+    }
+    // a later answer that works clears the words
+    host.refuse["answer"] = nil
+    await chat.answer("p", choice: "allow")
+    #expect(chat.refusal == nil)
+}
+
+@MainActor @Test func anApprovalThatStopsBeingPendingWithoutAnAnswerLeavesTheCardOnTheNextPoll() async {
+    let host = FakeChat()
+    host.events = [asked]
+    host.pending = ["p"]
+    let chat = model(host)
+    await chat.poll()
+    host.pending = []
+    await chat.poll()
+    #expect(chat.rows == [.line(id: "e1", text: "Bash pnpm test webhook · no longer waiting for an answer")])
+}
+
 // MARK: the real client
 
 @Test func theClientSendsTheTextInsideAJSONStringAndResumesAndInterruptsByTheSessionId() async throws {
     var lines: [String] = []
     let server = TestServer { connection in
-        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"resume\",\"send\",\"interrupt\"]}\n")
+        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"resume\",\"send\",\"interrupt\",\"answer\"]}\n")
         guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
         lines.append(line)
         connection.send("{\"id\":\(id),\"ok\":true,\"data\":{}}\n")
@@ -216,6 +282,9 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     #expect(sent["cmd"] as? String == "send" && sent["sessionId"] as? String == session && sent["text"] as? String == "say \"hi\"\n\"},\"cmd\":\"stop")
     try await host.resume(session)
     try await host.interrupt(session)
-    #expect(lines.compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }.map { $0["cmd"] as? String } == ["send", "resume", "interrupt"])
+    try await host.answer(session, approval: "a\"1", choice: "allow\n")
+    let all = lines.compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+    #expect(all.map { $0["cmd"] as? String } == ["send", "resume", "interrupt", "answer"])
+    #expect(all[3]["sessionId"] as? String == session && all[3]["approvalId"] as? String == "a\"1" && all[3]["choiceId"] as? String == "allow\n")
     await #expect(throws: ControlError.remote("not a valid session id")) { try await host.send("../x", "hi") }
 }

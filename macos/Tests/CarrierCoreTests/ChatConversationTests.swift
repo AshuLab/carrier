@@ -17,6 +17,8 @@ private func texts(_ rows: [FeedRow]) -> [String] {
         case .agent(_, let text, let inProgress): "agent\(inProgress ? "…" : ""): \(text.prefix(24))"
         case .turnEnd(_, let text): "end: \(text)"
         case .tools(_, let group): "tools: \(group.title) | \(group.summary)"
+        case .approval(_, let card): "card: \(card.question) | \(card.arg ?? "") | \(card.choices.map(\.label).joined(separator: " / "))"
+        case .decided(_, let text, let allow): "\(allow ? "allowed" : "declined"): \(text)"
         case .line(_, let text): "line: \(text)"
         case .error(_, let text): "error: \(text)"
         case .stopped: "stopped"
@@ -36,7 +38,7 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
     #expect(texts(rows) == [
         "user: Explore the pricing page layout and tell me what to change.",
         "tools: Explored | 1 file read · 1 search",
-        "line: Approval for Bash pnpm lint: Allow once",
+        "allowed: Allowed Bash pnpm lint · Allow · by you",
         "tools: Worked | 1 command",
         "agent: The page is two componen",
         "end: claude-sonnet-5-5 · 12s · 1.8k in · 436 out",
@@ -84,13 +86,49 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
 @Test func anApprovalIsOneRowAtItsPlaceCompletedByItsAnswerAndEndsTheRunBeforeIt() {
     let start = ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "c", tool: "Read", arg: "a.ts")
     let ask = ChatEvent(id: 2, at: 0, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [.init(id: "y", label: "Yes", allow: true)])
-    #expect(texts(chatFeed([start, ask])) == ["tools: Working | 1 file read", "line: Approval for Bash ls: waiting for you"])
+    #expect(texts(chatFeed([start, ask], pending: ["p"])) == ["tools: Working | 1 file read", "card: Allow Bash? | ls | Yes"])
     let end = ChatEvent(id: 3, at: 0, kind: "tool_end", callId: "c", tool: "Read", output: ["", "  one", "two"], status: "ok")
     let answer = ChatEvent(id: 4, at: 0, kind: "approval_answered", approvalId: "p", choiceId: "y")
     let rows = chatFeed([start, ask, end, answer])
-    #expect(texts(rows) == ["tools: Explored | 1 file read", "line: Approval for Bash ls: Yes"])
+    #expect(texts(rows) == ["tools: Explored | 1 file read", "allowed: Allowed Bash ls · Yes · by you"])
     // the rows keep the id of the event that opened them
     #expect(rows.map { $0.id } == ["e1", "e2"])
+}
+
+@Test func anAskedApprovalIsACardWithTheProvidersChoicesInItsOrderForClaudeAndForCodex() throws {
+    let claude = chatFeed(try golden("finished").events.prefix(6).map { $0 }, pending: ["a1"])
+    #expect(texts(claude).last == "card: Allow Bash? | pnpm lint | Allow / Allow for this session / Decline")
+    guard case .approval(_, let card)? = claude.last else {
+        Issue.record("not a card")
+        return
+    }
+    #expect(card.approvalId == "a1" && card.choices.map(\.allow) == [true, true, false])
+    let codex = chatFeed(try golden("approval").events, pending: ["b1"])
+    guard case .approval(_, let asked)? = codex.last else {
+        Issue.record("not a card")
+        return
+    }
+    #expect(asked.choices.map(\.id) == ["accept", "acceptForSession", "decline", "cancel"] && asked.choices.map(\.allow) == [true, true, false, false])
+}
+
+@Test func anAnsweredApprovalIsOneLineWithTheChosenLabelAndWhetherItAllowedAndADeclinedOneSaysSo() {
+    let choices: [ChatChoice] = [.init(id: "y", label: "Allow for this session", allow: true), .init(id: "n", label: "Decline", allow: false)]
+    let ask = ChatEvent(id: 1, at: 0, kind: "approval", tool: "Bash", arg: "pnpm test webhook", approvalId: "p", choices: choices)
+    func line(_ choice: String) -> String { texts(chatFeed([ask, ChatEvent(id: 2, at: 0, kind: "approval_answered", approvalId: "p", choiceId: choice)]))[0] }
+    #expect(line("y") == "allowed: Allowed Bash pnpm test webhook · Allow for this session · by you")
+    #expect(line("n") == "declined: Declined Bash pnpm test webhook · Decline · by you")
+    // an answer naming a choice the question never had still closes the card
+    #expect(line("?") == "declined: Answered Bash pnpm test webhook · by you")
+}
+
+@Test func anApprovalThatIsNeitherPendingNorAnsweredIsAPlainLineNotACard() {
+    let ask = ChatEvent(id: 1, at: 0, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [.init(id: "y", label: "Yes", allow: true)])
+    #expect(texts(chatFeed([ask, ChatEvent(id: 2, at: 0, kind: "turn_end", outcome: "interrupted")])) == ["line: Bash ls · no longer waiting for an answer", "stopped"])
+}
+
+@Test func theHostsPendingApprovalsAreReadFromTheEventsReply() throws {
+    let reply = try JSONDecoder().decode(ChatEvents.self, from: Data(#"{"events":[],"cursor":0,"streaming":"","approvals":[{"approvalId":"p","tool":"Bash","choices":[]}],"options":[]}"#.utf8))
+    #expect(reply.pending == ["p"])
 }
 
 @Test func anEndWithNoStartAndAnAnswerWithNoQuestionAreHandledWhereACursorCanStartMidTurn() {
@@ -283,9 +321,23 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     await #expect(throws: ControlError.self) { try await host.setOption(finished, option: "effort", value: "max") }
     #expect(try await host.events("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01", after: 0, limit: 200).streaming.hasPrefix("The worker calls"))
     // a listed session with no golden file has no events; one that is not listed, or not a UUID, is refused
-    #expect(try await host.events("8a2e4b6d-1c3f-4d57-8e9a-0b1c2d3e4f02", after: 0, limit: 200).events.isEmpty)
+    #expect(try await host.events("d4e5f6a7-3b2c-4d9e-8f1a-2b3c4d5e6f04", after: 0, limit: 200).events.isEmpty)
+    // the Codex session is waiting: its approval is pending
+    #expect(try await host.events("8a2e4b6d-1c3f-4d57-8e9a-0b1c2d3e4f02", after: 0, limit: 200).pending == ["b1"])
     await #expect(throws: ControlError.remote("unknown session")) { try await host.events(UUID().uuidString, after: 0, limit: 200) }
     await #expect(throws: ControlError.remote("not a valid session id")) { try await host.events("../x\",\"cmd\":\"stop", after: 0, limit: 200) }
+}
+
+@Test func theFixtureHostRecordsAnAnswerAndRefusesOneThatIsNotPendingOrNotAChoice() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let waiting = "8a2e4b6d-1c3f-4d57-8e9a-0b1c2d3e4f02"
+    await #expect(throws: ControlError.remote("That is not one of the choices")) { try await host.answer(waiting, approval: "b1", choice: "maybe") }
+    await #expect(throws: ControlError.remote("That approval is not pending: it is unknown or was already answered")) { try await host.answer(waiting, approval: "zz", choice: "accept") }
+    try await host.answer(waiting, approval: "b1", choice: "decline")
+    let after = try await host.events(waiting, after: 4, limit: 200)
+    #expect(after.pending.isEmpty && after.events.map(\.kind) == ["approval_answered"] && after.events[0].choiceId == "decline")
 }
 
 @Test func theLongConversationBehindTheFlagIsServedInPagesAndMakesAFeed() async throws {
@@ -321,6 +373,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     }
     func send(_ id: String, _ text: String) async throws { sent.append(text) }
     func interrupt(_ id: String) async throws {}
+    func answer(_ id: String, approval: String, choice: String) async throws {}
     func setOption(_ id: String, option: String, value: String) async throws {}
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         asked.append((after, limit))

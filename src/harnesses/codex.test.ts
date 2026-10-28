@@ -53,7 +53,7 @@ test('parseCodexLine reads session, login and lost-session errors', () => {
   expect(parseCodexLine('Error: thread/resume: thread/resume failed: no rollout found for thread id 01a1 (code -32600)')).toEqual({ sessionUnavailable: true });
   // retries before the turn ends are not the end of the run
   expect(parseCodexLine('{"type":"error","message":"Reconnecting... 2/5 (unexpected status 401 Unauthorized: Missing bearer)"}')).toBeUndefined();
-  expect(parseCodexLine('{"type":"turn.failed","error":{"message":"stream disconnected"}}')).toBeUndefined();
+  expect(parseCodexLine('{"type":"turn.failed","error":{"message":"stream disconnected"}}')).toEqual({ failure: { kind: 'api_error', detail: 'stream disconnected' } });
   expect(parseCodexLine('{"type":"turn.completed","usage":{}}')).toBeUndefined();
   expect(parseCodexLine('2026-10-16T01:37:13Z ERROR codex_api: HTTP error: 401 Unauthorized')).toBeUndefined();
 });
@@ -80,4 +80,31 @@ test('the prompt carries the 401 rule only when the context has a forgeAgent', (
   expect(withAgent.args).toContain(buildPrompt(task, { forgeAgent: 'artanis-agent' }));
   expect(withAgent.args.join('\n')).toContain('agent-forge gh artanis-agent <the same arguments>');
   expect(buildCodexCommand(task, ctx).args.join('\n')).not.toContain('agent-forge');
+});
+
+const failed = (message: string) => JSON.stringify({ type: 'turn.failed', error: { message } });
+
+// Constructed from the sources, not captured (docs/research/agent-usage-limit-signals.md).
+test('parseCodexLine reads the final turn.failed of the usage-limit fixture as usage_limit, reset time kept in the detail', () => {
+  const lines = readFileSync(new URL('./codex-usage-limit.fixture.jsonl', import.meta.url), 'utf8').trim().split('\n');
+  const signals = lines.map((line) => parseCodexLine(line)).filter(Boolean);
+  expect(signals).toEqual([{ session: '00000000-0000-7000-8000-000000000000' }, { failure: { kind: 'usage_limit', detail: "You've hit your usage limit. Try again at Oct 28th, 2026 3:45 PM." } }]);
+});
+
+test('parseCodexLine reads every usage-limit and credit message as usage_limit', () => {
+  for (const message of [
+    "You've hit your usage limit. Try again later.",
+    'You hit your spend cap set in your workspace. Increase your spend cap to continue.',
+    'Your workspace is out of credits. Add credits to continue.',
+    'Quota exceeded. Check your plan and billing details.',
+  ]) {
+    expect(parseCodexLine(failed(message))).toEqual({ failure: { kind: 'usage_limit', detail: message } });
+  }
+});
+
+test('a retried 429, and a usage-limit error event with no turn.failed, are not usage_limit', () => {
+  const retried = 'exceeded retry limit, last status: 429 Too Many Requests, request id: abc';
+  expect(parseCodexLine(failed(retried))).toEqual({ failure: { kind: 'api_error', detail: retried } });
+  expect(parseCodexLine('{"type":"error","message":"You\'ve hit your usage limit. Try again later."}')).toBeUndefined();
+  expect(parseCodexLine('{"type":"turn.failed","error":{}}')).toEqual({ failure: { kind: 'api_error', detail: 'the turn failed' } });
 });

@@ -35,6 +35,39 @@ struct ConversationView: View {
     }
 }
 
+/// The title bar's Open button: reveals the session's folder in Finder and copies its path or its branch name; a copy item says
+/// "Copied" for a moment.
+struct OpenMenu: View {
+    let items: [OpenItem]
+    @State private var copied: String?
+
+    var body: some View {
+        Menu {
+            ForEach(items, id: \.title) { item in
+                Button(copied == item.title ? "Copied" : item.title) { run(item) }
+            }
+        } label: {
+            Label("Open", systemImage: "folder").labelStyle(.titleAndIcon)
+        }
+        .help("Open the session's folder")
+    }
+
+    private func run(_ item: OpenItem) {
+        switch item.action {
+        case .reveal(let path):
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+        case .copy(let text):
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            copied = item.title
+            Task {
+                try? await Task.sleep(for: .seconds(1.5))
+                copied = nil
+            }
+        }
+    }
+}
+
 private struct FeedRowView: View {
     let row: FeedRow
 

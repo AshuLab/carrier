@@ -28,9 +28,14 @@ public struct SessionRow: Equatable {
     public var archived: Bool
     /// The branch of a session in a worktree, nil for one in a plain folder.
     public var branch: String?
+    /// Where the session works: the worktree's path, or the folder.
+    public var folder: String
+    /// Whether the host has a title for it; `title` says "Untitled session" when it has none.
+    public var titled: Bool
 
     public init(
-        id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil
+        id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil,
+        folder: String = "", titled: Bool = true
     ) {
         self.id = id
         self.title = title
@@ -40,6 +45,8 @@ public struct SessionRow: Equatable {
         self.updatedAt = updatedAt
         self.archived = archived
         self.branch = branch
+        self.folder = folder
+        self.titled = titled
     }
 }
 

@@ -12,8 +12,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'stop'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -31,6 +31,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('close'), sessionId }),
   z.strictObject({ id, cmd: z.literal('archive'), sessionId, archived: z.boolean() }),
   z.strictObject({ id, cmd: z.literal('delete'), sessionId }),
+  z.strictObject({ id, cmd: z.literal('workspace'), folder: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
@@ -50,6 +51,7 @@ export type ChatControls = {
   close(args: Args<'close'>): Promise<unknown>;
   archive(args: Args<'archive'>): Promise<unknown>;
   delete(args: Args<'delete'>): Promise<unknown>;
+  workspace(args: Args<'workspace'>): Promise<unknown>;
 };
 
 async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls): Promise<unknown> {
@@ -78,6 +80,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.archive({ sessionId: request.sessionId, archived: request.archived });
     case 'delete':
       return controls.delete({ sessionId: request.sessionId });
+    case 'workspace':
+      return controls.workspace({ folder: request.folder });
   }
 }
 

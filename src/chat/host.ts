@@ -6,6 +6,7 @@ import { realClock, type Clock } from '../orchestration/clock.ts';
 import { acquireLock } from '../storage/lock.ts';
 import { claudeChatRunner } from './claude.ts';
 import { codexChatRunner } from './codex.ts';
+import { realGit, type Git } from './git.ts';
 import { openChatDatabase } from './db.ts';
 import { idleExit } from './idle.ts';
 import { chatDirOf, startChatServer } from './server.ts';
@@ -26,12 +27,13 @@ export interface ChatHostDeps {
   /** The runner of each harness. */
   runners: ChatSessionsDeps['runners'];
   env: NodeJS.ProcessEnv;
+  git: Git;
   binaryFound: ChatSessionsDeps['binaryFound'];
   /** The process table and the kill the start-up sweep uses. */
   processes: Processes;
 }
 
-const realDeps = (): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, binaryFound, processes: realProcesses });
+const realDeps = (): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, binaryFound, processes: realProcesses });
 
 /**
  * Runs the chat host: its own lock, log, database and socket under `<root>/chat/`, sharing nothing with the engine's
@@ -49,7 +51,7 @@ export async function startChatHost(config: Config, overrides: Partial<ChatHostD
   await sweepDeadHost(db, deps.processes); // the lock is ours, so any recorded process belongs to a host that died
   let closeServer = () => {};
   let idle: ReturnType<typeof idleExit> | undefined;
-  const sessions = createSessions({ db, config, clock: deps.clock, runners: deps.runners, env: deps.env, binaryFound: deps.binaryFound, onLiveChange: () => idle?.recheck() });
+  const sessions = createSessions({ db, config, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, binaryFound: deps.binaryFound, onLiveChange: () => idle?.recheck() });
   const close = () => {
     idle?.stop();
     closeServer();

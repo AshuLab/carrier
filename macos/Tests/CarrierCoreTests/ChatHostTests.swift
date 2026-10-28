@@ -26,8 +26,9 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     #expect(agents.first?.model == "claude-sonnet-5-5")
 
     let active = try await host.list(archived: false)
-    #expect(active.map(\.state) == [.working, .waitingApproval, .idle])
-    #expect(active.map(\.live) == [true, true, false])
+    #expect(active.map(\.state) == [.working, .waitingApproval, .idle, .idle])
+    #expect(active.map(\.live) == [true, true, false, false])
+    #expect(active.map { $0.workspace?.base } == [nil, nil, nil, "/Users/dev/work/web"])
     #expect(try await host.list(archived: true).map(\.archived) == [true, true])
 }
 

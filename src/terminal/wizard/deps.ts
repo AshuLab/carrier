@@ -1,11 +1,11 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Config } from '../../config/schema.ts';
 import { repoNamePattern } from '../../config/schema.ts';
 import { defaults } from '../../config/load.ts';
-import { runDoctor } from '../../doctor/doctor.ts';
+import { cliLoggedIn, runDoctor } from '../../doctor/doctor.ts';
 import { ghReposArgs, parseRepos } from '../../integrations/available-repos.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
 import { GhGitHub } from '../../integrations/github.ts';
@@ -28,6 +28,10 @@ export interface InitDeps {
   agyModels: () => Option<string>[];
   /** The models a local server has; throws when it is not running. */
   localModels: (local: LocalProvider) => Promise<string[]>;
+  /** The config folders of that harness found in the home folder (`~/.claude`, `~/.claude-*`, `~/.codex`), absolute. */
+  configFolders: (harness: 'claude' | 'codex') => string[];
+  /** Whether that harness is logged in with that config folder (the environment when none); throws when its CLI cannot run. */
+  loggedIn: typeof cliLoggedIn;
   exists: (path: string) => boolean;
   write: (path: string, content: string) => void;
   doctor: typeof runDoctor;
@@ -88,6 +92,21 @@ export const realDeps: InitDeps = {
     }
   },
   localModels: (local) => listLocalModels(local),
+  configFolders: (harness) => {
+    const home = homedir();
+    const isFolder = (path: string) => {
+      try {
+        return statSync(path).isDirectory();
+      } catch {
+        return false; // a dangling link
+      }
+    };
+    return readdirSync(home)
+      .filter((name) => (harness === 'claude' ? name === '.claude' || name.startsWith('.claude-') : name === '.codex') && isFolder(join(home, name)))
+      .sort()
+      .map((name) => join(home, name));
+  },
+  loggedIn: cliLoggedIn,
   exists: existsSync,
   write: (path, content) => {
     mkdirSync(dirname(path), { recursive: true });

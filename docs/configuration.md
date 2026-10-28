@@ -72,6 +72,8 @@ An agent option is a named way to run an agent. The config declares them once in
 | `provider` | no | Who serves the model: `lmstudio` or `ollama` for a local server; without it, the harness's own cloud. See [Local models](#local-models). Not for `agy`. |
 | `configDir` | no | The harness's config folder, which holds its login: `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. It must be an absolute path once a leading `~` is expanded. Without it the agent inherits the environment of the process that started Carrier. Not for `agy`, which has no setting for it. |
 
+`carrier init` writes this shape: a section of its own adds the options, each role then picks one, and `--author` / `--reviewer` (`<harness>:<model>`) declare one option named after its harness for unattended runs. Run again on an existing config it keeps `agentOptions` and `failover` and lets you add options; editing or removing one is done in the file.
+
 A repo's `agents.<role>` can override `profile`, `option` and `persona`; the option is looked up in the same `agentOptions`. `harness`, `model` and `provider` used to be written inside `agents.<role>`: a config that still does so is refused, with a message that says they moved here. There is no migration; move the three fields into an option and point the role at it.
 
 ### Choosing the option of an epic

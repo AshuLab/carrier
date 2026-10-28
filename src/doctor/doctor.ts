@@ -80,7 +80,7 @@ function agyLogin(deps: Pick<DoctorDeps, 'startAgy'>): Promise<'in' | 'out' | 'u
 }
 
 // Reads only the verdict: the output holds an email and an organisation, which never leave this function.
-function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | undefined) {
+export function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | undefined) {
   const env = configDir ? { ...process.env, [harness === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME']: configDir } : process.env;
   const [command, args] = harness === 'claude' ? ['claude', ['auth', 'status']] : ['codex', ['login', 'status']];
   const result = spawnSync(command!, args as string[], { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 20_000 });

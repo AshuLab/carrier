@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { defaults, loadConfig } from '../../config/load.ts';
 import { Cancelled, type Ui } from '../prompts/types.ts';
-import { fakeDeps, okCheck, quietUi, useTempDir } from './testing.ts';
+import { fakeDeps, okCheck, quietUi, twoOptions, useTempDir } from './testing.ts';
 import { runInit } from './wizard.ts';
 
 const dir = useTempDir();
@@ -29,7 +29,7 @@ const existing = {
 test('the questions fill a config that has only what defaults lack, and the doctor runs on it', async () => {
   let doctored: unknown;
   const { deps, written } = fakeDeps({ doctor: async (config) => ((doctored = config), [okCheck]) });
-  const { ui, asked } = quietUi({ 'Repos to watch (owner/name, comma separated)': 'AshuLab/a, AshuLab/b' });
+  const { ui, asked } = quietUi({ ...twoOptions, 'Repos to watch (owner/name, comma separated)': 'AshuLab/a, AshuLab/b' });
   const out = join(dir, 'a.json');
   const result = await runInit({ out }, ui, deps);
 
@@ -71,7 +71,7 @@ test('failed checks are reported in the closing line', async () => {
 test('each role gets its own box, and the author is fully asked before the reviewer', async () => {
   const notes: string[] = [];
   const order: string[] = [];
-  const { ui } = quietUi();
+  const { ui } = quietUi(twoOptions);
   const spy: Ui = {
     ...ui,
     note: (_m, title) => notes.push(title),
@@ -81,9 +81,9 @@ test('each role gets its own box, and the author is fully asked before the revie
   await runInit({ repo: ['A/b'], out: join(dir, 'o.json') }, spy, fakeDeps().deps);
   expect(notes.filter((t) => t === 'Author' || t === 'Reviewer')).toEqual(['Author', 'Reviewer']);
   expect(order.filter((m) => /author|reviewer/i.test(m))).toEqual([
-    'GitHub identity for the author', 'Which agent CLI runs the author?', 'Model for the author',
+    'GitHub identity for the author', 'Which option runs the author?',
     'Author persona: give it a name', 'Author persona: describe how it behaves',
-    'GitHub identity for the reviewer', 'Which agent CLI runs the reviewer?', 'Model for the reviewer',
+    'GitHub identity for the reviewer', 'Which option runs the reviewer?',
     'Reviewer persona: give it a name', 'Reviewer persona: describe how it behaves',
   ]);
 });
@@ -91,11 +91,11 @@ test('each role gets its own box, and the author is fully asked before the revie
 test('the recap lists what will be saved, and declining it writes nothing', async () => {
   const { deps, written } = fakeDeps();
   const notes: Record<string, string> = {};
-  const { ui } = quietUi({ 'Save it?': false });
+  const { ui } = quietUi({ ...twoOptions, 'Save it?': false });
   const spy: Ui = { ...ui, note: (m, title) => void (notes[title] = m) };
   await expect(runInit({ repo: ['A/b'], out: join(dir, 'u.json') }, spy, deps)).rejects.toBeInstanceOf(Cancelled);
   expect(written).toEqual({});
-  expect(notes['This is what will be saved']).toMatch(/Repos {5}A\/b\nAuthor {4}artanis-agent · Claude Code · sonnet\nReviewer {2}tassadar-agent · Codex · gpt-test\nSaved to {2}/);
+  expect(notes['This is what will be saved']).toMatch(/Repos {5}A\/b\nOptions {3}claude, codex\nAuthor {4}artanis-agent · claude · Claude Code · sonnet\nReviewer {2}tassadar-agent · codex · Codex · gpt-test\nSaved to {2}/);
 });
 
 test('--yes skips the recap and the start question', async () => {
@@ -185,7 +185,7 @@ const touchesForge = () => {
 
 test('choosing shared by answer asks no identity, never touches Forge, and writes a config that loads', async () => {
   const { deps, written } = fakeDeps({ forgeAgents: touchesForge, forgeAdd: touchesForge });
-  const { ui, asked } = quietUi({ [sharedMessage]: 'shared', 'Use your gh login for both roles?': true });
+  const { ui, asked } = quietUi({ ...twoOptions, [sharedMessage]: 'shared', 'Use your gh login for both roles?': true });
   const notes: string[] = [];
   const out = join(dir, 's1.json');
   await runInit({ repo: ['A/b'], out }, { ...ui, note: (_m, title) => void notes.push(title) }, deps);
@@ -274,12 +274,12 @@ const promptOf = (role: string) => `${titled(role)} persona: describe how it beh
 
 test('each role is asked name and prompt after its agent, the author first, and a role with both skipped has no persona', async () => {
   const { deps, written } = fakeDeps();
-  const { ui, asked } = quietUi({ [nameOf('reviewer')]: ' Rex ', [promptOf('reviewer')]: 'Be strict about migrations.' });
+  const { ui, asked } = quietUi({ ...twoOptions, [nameOf('reviewer')]: ' Rex ', [promptOf('reviewer')]: 'Be strict about migrations.' });
   const out = join(dir, 'p1.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  const order = [nameOf('author'), promptOf('author'), 'Model for the reviewer', nameOf('reviewer'), promptOf('reviewer')];
-  expect(asked.filter((q) => order.includes(q))).toEqual([nameOf('author'), promptOf('author'), 'Model for the reviewer', nameOf('reviewer'), promptOf('reviewer')]);
-  expect(asked.indexOf('Model for the author')).toBeLessThan(asked.indexOf(nameOf('author')));
+  const order = [nameOf('author'), promptOf('author'), 'Which option runs the reviewer?', nameOf('reviewer'), promptOf('reviewer')];
+  expect(asked.filter((q) => order.includes(q))).toEqual([nameOf('author'), promptOf('author'), 'Which option runs the reviewer?', nameOf('reviewer'), promptOf('reviewer')]);
+  expect(asked.indexOf('Which option runs the author?')).toBeLessThan(asked.indexOf(nameOf('author')));
   expect(asked.indexOf(promptOf('author'))).toBeLessThan(asked.indexOf('GitHub identity for the reviewer'));
   const agents = JSON.parse(written[out]!).agents;
   expect(agents.author).not.toHaveProperty('persona');

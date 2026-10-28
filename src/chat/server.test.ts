@@ -38,6 +38,11 @@ const controls = (): ChatControls => ({
   close: async () => ({}),
   archive: async ({ archived }) => ({ archived }),
   delete: async () => ({}),
+  deletePreview: async ({ sessionIds }) => ({ sessionIds }),
+  workspace: async ({ folder }) => ({ folder }),
+  fetch: async ({ folder }) => ({ folder, fetched: true }),
+  suggestName: async ({ folder }) => ({ name: `named-in-${folder}` }),
+  checkName: async ({ name }) => ({ valid: true, free: true, name }),
 });
 async function open({ stop = async () => {}, clients = noClients } = {}) {
   const server = await startChatServer({ chatDir: dir, startedAt: 1234, controls: controls(), stop, clients });
@@ -73,7 +78,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'stop'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'stop'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -114,6 +119,50 @@ test('archive takes a session and a boolean, delete a session, both strict', asy
   expect(await c.ask(`{"id":2,"cmd":"archive","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
   expect(await c.ask(`{"id":3,"cmd":"delete","sessionId":"${uuid}"}`)).toEqual({ id: 3, ok: true, data: {} });
   expect(await c.ask(`{"id":4,"cmd":"delete","sessionId":"${uuid}","archived":true}`)).toEqual({ id: 4, ok: false, error: 'invalid request' });
+});
+
+test('deletePreview takes one to 500 session ids and nothing else', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask(`{"id":1,"cmd":"deletePreview","sessionIds":["${uuid}"]}`)).toEqual({ id: 1, ok: true, data: { sessionIds: [uuid] } });
+  expect(await c.ask(`{"id":2,"cmd":"deletePreview","sessionIds":${JSON.stringify(Array(500).fill(uuid))}}`)).toMatchObject({ id: 2, ok: true });
+  expect(await c.ask(`{"id":3,"cmd":"deletePreview","sessionIds":${JSON.stringify(Array(501).fill(uuid))}}`)).toEqual({ id: 3, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":4,"cmd":"deletePreview","sessionIds":[]}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":5,"cmd":"deletePreview","sessionIds":["../x"]}')).toEqual({ id: 5, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":6,"cmd":"deletePreview"}')).toEqual({ id: 6, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":7,"cmd":"deletePreview","sessionIds":["${uuid}"],"force":true}`)).toEqual({ id: 7, ok: false, error: 'invalid request' });
+});
+
+test('workspace takes a folder and nothing else', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"workspace","folder":"/some/where"}')).toEqual({ id: 1, ok: true, data: { folder: '/some/where' } });
+  expect(await c.ask('{"id":2,"cmd":"workspace"}')).toEqual({ id: 2, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":3,"cmd":"workspace","folder":""}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":4,"cmd":"workspace","folder":"/x","fetch":true}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
+});
+
+test('fetch takes a folder and nothing else', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"fetch","folder":"/some/where"}')).toEqual({ id: 1, ok: true, data: { folder: '/some/where', fetched: true } });
+  expect(await c.ask('{"id":2,"cmd":"fetch"}')).toEqual({ id: 2, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":3,"cmd":"fetch","folder":""}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":4,"cmd":"fetch","folder":"/x","prune":false}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
+});
+
+test('suggestName takes a folder, checkName a folder and a name, and nothing else', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"suggestName","folder":"/some/where"}')).toEqual({ id: 1, ok: true, data: { name: 'named-in-/some/where' } });
+  expect(await c.ask('{"id":2,"cmd":"suggestName"}')).toEqual({ id: 2, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":3,"cmd":"suggestName","folder":"/x","name":"a"}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":4,"cmd":"checkName","folder":"/x","name":"a-b"}')).toEqual({ id: 4, ok: true, data: { valid: true, free: true, name: 'a-b' } });
+  expect(await c.ask('{"id":5,"cmd":"checkName","folder":"/x"}')).toEqual({ id: 5, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":6,"cmd":"checkName","name":"a"}')).toEqual({ id: 6, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":7,"cmd":"checkName","folder":"","name":"a"}')).toEqual({ id: 7, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":8,"cmd":"checkName","folder":"/x","name":1}')).toEqual({ id: 8, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":9,"cmd":"checkName","folder":"/x","name":"a","force":true}')).toEqual({ id: 9, ok: false, error: 'invalid request' });
 });
 
 test('a line that is not JSON is "invalid JSON" and the connection goes on', async () => {

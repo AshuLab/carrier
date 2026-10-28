@@ -8,9 +8,13 @@ import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
 import { checkFolder } from './folder.ts';
+import type { Git } from './git.ts';
 import { ChatRefused, type ChatChoice, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
+import { checkName, suggestName } from './names.ts';
+import { createWorktree, deleteWorktree, previewWorktree, removeWorktree } from './worktree.ts';
+import { fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
 
@@ -19,7 +23,10 @@ export const IDLE_CLOSE_MS = 60_000;
 type Harness = (typeof sessions.$inferSelect)['harness'];
 type State = (typeof sessions.$inferSelect)['state'];
 
-export type SessionSummary = Omit<typeof sessions.$inferSelect, 'options' | 'pid' | 'pgid' | 'command'>;
+/** Where a session works: the folder it was opened in, or a worktree made for it from that base folder. */
+export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: string; from: string; base: string; path: string };
+
+export type SessionSummary = Omit<typeof sessions.$inferSelect, 'options' | 'pid' | 'pgid' | 'command' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath'> & { workspace: SessionWorkspace };
 
 export type PendingApproval = { approvalId: string; tool: string; arg?: string; choices: ChatChoice[] };
 
@@ -42,6 +49,8 @@ export type ChatSessionsDeps = {
   /** The runner of each harness; a harness with none cannot be opened. */
   runners: Partial<Record<Harness, ChatRunner>>;
   env: NodeJS.ProcessEnv;
+  /** The `git` of the machine. */
+  git: Git;
   /** Whether an agent's binary is there. */
   binaryFound: (command: string) => boolean;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
@@ -66,8 +75,10 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, config, clock, runners, env, binaryFound, onLiveChange }: ChatSessionsDeps) {
+export function createSessions({ db, config, clock, runners, env, git, binaryFound, onLiveChange }: ChatSessionsDeps) {
   const lives = new Map<string, Live>();
+  // Sessions being deleted: no agent may open in their folder while it is removed.
+  const deleting = new Set<string>();
   let clients = 0;
 
   const row = (sessionId: string) => {
@@ -75,7 +86,18 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
     if (found === undefined) throw new ChatRefused('There is no such session');
     return found;
   };
-  const summary = ({ options: _options, pid: _pid, pgid: _pgid, command: _command, ...rest }: typeof sessions.$inferSelect): SessionSummary => rest;
+  const summary = ({ options: _options, pid: _pid, pgid: _pgid, command: _command, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
+    ...rest,
+    workspace: workspaceKind === 'worktree' ? { kind: 'worktree', branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase!, path: worktreePath! } : { kind: 'folder' },
+  });
+
+  // Worktrees are made one at a time: what a request checked (a free name) is still true when git adds.
+  let making: Promise<unknown> = Promise.resolve();
+  const exclusive = <T>(work: () => Promise<T>): Promise<T> => {
+    const run = making.then(work, work);
+    making = run.catch(() => {});
+    return run;
+  };
 
   // An idle session with no client attached is closed after a minute; working or waiting ones are kept.
   const armIdle = (sessionId: string, live: Live) => {
@@ -193,26 +215,41 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
       sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => ({ ...summary(found), live: lives.has(found.id) })),
     }),
 
-    async open({ agent, folder, options }: { agent: string; folder: string; options?: Record<string, string> }) {
+    async open({ agent, folder, options, worktree }: { agent: string; folder: string; options?: Record<string, string>; worktree?: { from: string; name?: string } }) {
       const chosen = chatAgents(config).find((candidate) => candidate.name === agent);
       if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
       const real = checkFolder(folder, config.root);
       const runner = runners[chosen.harness];
       if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
       const chosenOptions = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...options };
-      const conversation = await openConversation(chosen, runner, { folder: real, options: chosenOptions });
+      const made = worktree === undefined ? undefined : await exclusive(() => createWorktree(git, real, worktree));
+      let conversation: ChatConversation | undefined;
+      let created: typeof sessions.$inferSelect;
+      // One step: a worktree whose session could not be created is taken away again.
       try {
+        conversation = await openConversation(chosen, runner, { folder: made?.path ?? real, options: chosenOptions });
         for (const [id, value] of Object.entries(chosenOptions)) checkOption(conversation.options, id, value);
+        const now = clock.now();
+        created = db
+          .insert(sessions)
+          .values({
+            id: randomUUID(),
+            agent: chosen.name,
+            harness: chosen.harness,
+            folder: made?.path ?? real,
+            ...(made !== undefined && { workspaceKind: 'worktree', worktreeBranch: made.branch, worktreeFrom: made.from, worktreeBase: made.base, worktreePath: made.path }),
+            options: chosenOptions,
+            nativeId: conversation.nativeId ?? null,
+            createdAt: now,
+            lastActiveAt: now,
+          })
+          .returning()
+          .get();
       } catch (error) {
-        await conversation.close().catch((closing) => log.error('closing a refused conversation failed', closing));
+        await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
+        if (made !== undefined) await removeWorktree(git, made);
         throw error;
       }
-      const now = clock.now();
-      const created = db
-        .insert(sessions)
-        .values({ id: randomUUID(), agent: chosen.name, harness: chosen.harness, folder: real, options: chosenOptions, nativeId: conversation.nativeId ?? null, createdAt: now, lastActiveAt: now })
-        .returning()
-        .get();
       attach(created.id, conversation);
       return { session: summary(created), options: conversation.options };
     },
@@ -222,6 +259,7 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
       const current = row(sessionId);
       const present = lives.get(sessionId);
       if (present !== undefined) return { session: summary(current), options: present.conversation.options };
+      if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
       const chosen = chatAgents(config).find((candidate) => candidate.name === current.agent);
       if (chosen === undefined) throw new ChatRefused(`The agent "${current.agent}" of this session is not configured any more`);
       const runner = runners[chosen.harness];
@@ -233,6 +271,11 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
         // another client resumed it while this one waited for the provider
         await conversation.close();
         return { session: summary(row(sessionId)), options: lives.get(sessionId)!.conversation.options };
+      }
+      if (deleting.has(sessionId)) {
+        // the session was deleted while this one waited for the provider: nothing may stay attached to its folder
+        await conversation.close();
+        throw new ChatRefused('This session is being deleted');
       }
       attach(sessionId, conversation);
       return { session: summary(current), options: conversation.options };
@@ -335,14 +378,51 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
 
     /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */
     async delete({ sessionId }: { sessionId: string }) {
-      await settle(sessionId, 'delete');
-      db.transaction((tx) => {
-        tx.delete(chatEvents).where(eq(chatEvents.sessionId, sessionId)).run();
-        tx.delete(chatTurns).where(eq(chatTurns.sessionId, sessionId)).run();
-        tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
-      });
+      // marked before the first await, so a resume that comes in meanwhile is refused
+      deleting.add(sessionId);
+      try {
+        await settle(sessionId, 'delete');
+        const { workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath } = row(sessionId);
+        // The worktree goes first: one that cannot be removed stops the deletion and the session stays.
+        if (workspaceKind === 'worktree') await deleteWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! });
+        db.transaction((tx) => {
+          tx.delete(chatEvents).where(eq(chatEvents.sessionId, sessionId)).run();
+          tx.delete(chatTurns).where(eq(chatTurns.sessionId, sessionId)).run();
+          tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
+        });
+      } finally {
+        deleting.delete(sessionId);
+      }
       return {};
     },
+
+    /** What deleting these sessions would discard: for each one in a worktree, its uncommitted files and the commits that exist nowhere else. An unknown id refuses the whole request. */
+    async deletePreview({ sessionIds }: { sessionIds: string[] }) {
+      const found = sessionIds.map(row);
+      // A commit shared by two of them is lost with both, so each one's preview excludes every branch of the batch.
+      const batch = found.flatMap(({ workspaceKind, worktreeBranch }) => (workspaceKind === 'worktree' ? [worktreeBranch!] : []));
+      // One session after another: a worktree reads two git processes, and the preview is a one-off, not a hot path.
+      const previews = [];
+      for (const { id, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath } of found) {
+        previews.push({
+          sessionId: id,
+          worktree: workspaceKind === 'worktree' ? { path: worktreePath!, branch: worktreeBranch!, ...(await previewWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! }, batch)) } : null,
+        });
+      }
+      return { sessions: previews };
+    },
+
+    /** What a folder is as a git repository, for the person to choose how to work in it. */
+    workspace: async ({ folder }: { folder: string }) => inspectFolder(git, checkFolder(folder, config.root)),
+
+    /** Fetches `origin` of a folder and answers what it is after it. */
+    fetch: async ({ folder }: { folder: string }) => fetchFolder(git, checkFolder(folder, config.root)),
+
+    /** A free name for a worktree of a folder, from the StarCraft word lists. */
+    suggestName: async ({ folder }: { folder: string }) => suggestName(git, checkFolder(folder, config.root)),
+
+    /** Whether a typed worktree name is valid and free. */
+    checkName: async ({ folder, name }: { folder: string; name: string }) => checkName(git, checkFolder(folder, config.root), name),
 
     /** Closes every live session: the host's stop. */
     async closeAll() {

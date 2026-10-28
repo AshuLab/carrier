@@ -35,4 +35,4 @@ Disk use grows with the sessions in worktrees until they are deleted, in a place
 
 The prefix `carrier/` makes Carrier's branches easy to find, hide or delete in a repository's own tools, and means a branch of that name that Carrier did not create is never touched, because only recorded worktrees are removed.
 
-Creating and removing worktrees needs `git` on the machine; a folder that is not a git repository gets no worktree and the session works in the folder.
+Creating and removing worktrees needs `git` on the machine; a folder that is not a git repository is refused with a reason in words; it is never opened as a session in a worktree instead.

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { Config } from '../config/schema.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { openChatDatabase } from './db.ts';
-import { FakeChatRunner, type FakeConversation } from './fake.ts';
+import { FakeChatRunner, FakeGit, type FakeConversation } from './fake.ts';
 import { ChatRefused } from './runner.ts';
 import { chatCaps } from './transcript.ts';
 import { sessions as schemaSessions } from './schema.ts';
@@ -29,7 +29,7 @@ function setup(chat?: Config['chat']) {
   const claude = new FakeChatRunner();
   const onLiveChange = vi.fn();
   const config = { root: join(dir, 'root'), chat } as Config;
-  const sessions = createSessions({ db, config, clock, runners: { claude }, env: { SOME: 'env' }, binaryFound: (command) => command === 'claude', onLiveChange });
+  const sessions = createSessions({ db, config, clock, runners: { claude }, env: { SOME: 'env' }, git: new FakeGit(), binaryFound: (command) => command === 'claude', onLiveChange });
   return { db, clock, claude, sessions, onLiveChange };
 }
 async function openOne(s = setup()) {
@@ -341,6 +341,17 @@ test('resume opens a closed session again from its native id, folder and options
   sessions.send({ sessionId: id, text: 'again' });
   expect(claude.conversations[1]!.sent).toEqual(['again']);
   expect(sessions.events({ sessionId: id, limit: 50 }).events.map((e) => e.kind)).toEqual(['user', 'assistant', 'turn_end', 'user']); // the transcript goes on from where it was
+});
+
+test('a resume that comes while a session is being deleted is refused, and the session is gone after', async () => {
+  const s = setup();
+  const { sessions, claude, id } = await openOne(s);
+  await sessions.close({ sessionId: id });
+  const deleting = sessions.delete({ sessionId: id }); // the first step of the delete runs before it yields
+  await expect(sessions.resume({ sessionId: id })).rejects.toThrow('being deleted');
+  await deleting;
+  expect(claude.opened).toHaveLength(1);
+  expect(sessions.list({}).sessions).toEqual([]);
 });
 
 test('an agent that ends on its own ends the live session: idle, or mid-turn with the turn recorded as an error; resume then reopens from the native id', async () => {

@@ -6,6 +6,7 @@ import type { Ui } from '../../prompts/types.ts';
 import { realDeps } from '../deps.ts';
 import { fakeDeps, quietUi, twoOptions, useTempDir } from '../testing.ts';
 import { runInit } from '../wizard.ts';
+import { normalizeOptionName } from './options.ts';
 
 const dir = useTempDir();
 const home = join(dir, 'home');
@@ -19,11 +20,11 @@ const load = (written: string) => {
 test('the folder is chosen among the ones found, each with its login state, plus the environment and a typed path', async () => {
   const { deps, written } = fakeDeps({ ...folders, which: (c) => c !== 'agy' });
   const seen: Record<string, { value: string; hint?: string }[]> = {};
-  const { ui } = quietUi({ 'Config folder of this Claude Code option': '/h/.claude-ashu-lab', 'Add another agent option?': [true, false], 'Which agent CLI runs this option?': ['claude', 'claude'] });
+  const { ui } = quietUi({ 'Config folder of this Claude Code provider': '/h/.claude-ashu-lab', 'Add another AI provider?': [true, false], 'Which agent CLI runs this provider?': ['claude', 'claude'] });
   const spy: Ui = { ...ui, select: async (o) => ((seen[o.message] = o.options.map(({ value, hint }) => ({ value, hint }))), ui.select(o)) };
   const out = join(dir, 'f1.json');
   await runInit({ repo: ['A/b'], out }, spy, deps);
-  expect(seen['Config folder of this Claude Code option']).toEqual([
+  expect(seen['Config folder of this Claude Code provider']).toEqual([
     { value: '/h/.claude', hint: 'not logged in' },
     { value: '/h/.claude-ashu-lab', hint: 'logged in' },
     { value: '\0inherit', hint: 'the login Carrier runs in: logged in' },
@@ -35,7 +36,7 @@ test('the folder is chosen among the ones found, each with its login state, plus
 
 test('a typed path is validated, and a login that cannot be checked is said so', async () => {
   const { deps, written } = fakeDeps({ loggedIn: async () => Promise.reject(new Error('no cli')) });
-  const { ui } = quietUi({ 'Config folder of this Claude Code option': '\0path' });
+  const { ui } = quietUi({ 'Config folder of this Claude Code provider': '\0path' });
   let hint: string | undefined;
   const refused: Array<string | undefined> = [];
   const spy: Ui = {
@@ -51,28 +52,38 @@ test('a typed path is validated, and a login that cannot be checked is said so',
   expect(load(written[out]!).agentOptions).toEqual({ 'claude-x': { harness: 'claude', model: 'sonnet', configDir: '~/.claude-x' } });
 });
 
-test('the name is suggested from harness and folder, must be a lowercase word and unique, and the question repeats until it is', async () => {
+test('the name is suggested from harness and folder, is normalized to a lowercase slug, and must be unique', async () => {
   const { deps, written } = fakeDeps(folders);
-  const { ui, asked } = quietUi({ 'Add another agent option?': [true, true, false], 'Which agent CLI runs this option?': ['claude', 'codex', 'codex'], 'Config folder of this Claude Code option': '/h/.claude', 'Config folder of this Codex option': '/h/.codex', 'Name of this option': [undefined as never, undefined as never, 'x'] });
+  const { ui, asked } = quietUi({ 'Add another AI provider?': [true, true, false], 'Which agent CLI runs this provider?': ['claude', 'codex', 'codex'], 'Config folder of this Claude Code provider': '/h/.claude', 'Config folder of this Codex provider': '/h/.codex', 'Name of this provider': [undefined as never, undefined as never, '  Teams 2  '] });
   const names: Array<(string | undefined)[]> = [];
-  const spy: Ui = { ...ui, text: async (o) => (o.message === 'Name of this option' ? (names.push([o.defaultValue, o.validate?.('Codex'), o.validate?.('1a'), o.validate?.('claude'), o.validate?.('ok-1')]), ui.text(o)) : ui.text(o)) };
+  const spy: Ui = { ...ui, text: async (o) => (o.message === 'Name of this provider' ? (names.push([o.defaultValue, o.validate?.('Codex'), o.validate?.('1a'), o.validate?.('claude'), o.validate?.('Claude'), o.validate?.('ok-1')]), ui.text(o)) : ui.text(o)) };
   const out = join(dir, 'n1.json');
   await runInit({ repo: ['A/b'], out }, spy, deps);
   expect(names.map(([suggested]) => suggested)).toEqual(['claude', 'codex', 'codex-2']); // `~/.claude` -> claude, `~/.codex` -> codex, and the third codex is not the first
-  expect(names[1]!.slice(1).map((v) => v !== undefined)).toEqual([true, true, true, false]); // uppercase, digit first and the taken `claude` are refused; `ok-1` is fine
-  expect(asked.filter((q) => q === 'Add another agent option?')).toHaveLength(3);
-  expect(Object.keys(load(written[out]!).agentOptions)).toEqual(['claude', 'codex', 'x']);
+  expect(names[1]!.slice(1).map((v) => v !== undefined)).toEqual([false, true, true, true, false]); // uppercase normalizes to codex (fine); digit first, taken claude and uppercase Claude are refused; ok-1 is fine
+  expect(asked.filter((q) => q === 'Add another AI provider?')).toHaveLength(3);
+  expect(Object.keys(load(written[out]!).agentOptions)).toEqual(['claude', 'codex', 'teams-2']);
+});
+
+test('normalizeOptionName turns human names into kebab-case slugs', () => {
+  expect(normalizeOptionName('Teams')).toBe('teams');
+  expect(normalizeOptionName('Teams 2')).toBe('teams-2');
+  expect(normalizeOptionName('Claude_Ashu_Lab')).toBe('claude-ashu-lab');
+  expect(normalizeOptionName('  --My  Custom--Option--  ')).toBe('my-custom-option');
+  expect(normalizeOptionName('1a')).toBe('1a');
+  expect(normalizeOptionName('!!!')).toBe('');
+  expect(normalizeOptionName('a'.repeat(50))).toBe('a'.repeat(40));
 });
 
 test('each role asks one question, which option runs it, and the choices are the options created', async () => {
   const { deps, written } = fakeDeps();
-  const { ui, asked } = quietUi({ 'Add another agent option?': [true, false], 'Which option runs the reviewer?': 'claude', 'Which option runs the author?': 'codex' });
+  const { ui, asked } = quietUi({ 'Add another AI provider?': [true, false], 'Which AI provider runs the reviewer?': 'claude', 'Which AI provider runs the author?': 'codex' });
   const choices: Record<string, string[]> = {};
   const spy: Ui = { ...ui, select: async (o) => ((choices[o.message] = o.options.map((x) => x.value)), ui.select(o)) };
   const out = join(dir, 'r1.json');
   await runInit({ repo: ['A/b'], out }, spy, deps);
-  expect(choices['Which option runs the author?']).toEqual(['claude', 'codex']);
-  expect(asked.some((q) => q.startsWith('Which agent CLI runs the') || q.startsWith('Model for the'))).toBe(false);
+  expect(choices['Which AI provider runs the author?']).toEqual(['claude', 'codex']);
+  expect(asked.some((q) => q.startsWith('Which agent CLI runs the'))).toBe(false);
   expect(load(written[out]!).agents).toMatchObject({ author: { option: 'codex' }, reviewer: { option: 'claude' } });
 });
 
@@ -81,14 +92,14 @@ test('with one option the roles are not asked, and neither is failover', async (
   const { ui, asked } = quietUi();
   const out = join(dir, 'r2.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  expect(asked.some((q) => q.startsWith('Which option runs') || q.startsWith('Turn failover'))).toBe(false);
+  expect(asked.some((q) => q.startsWith('Which AI provider runs') || q.startsWith('Turn failover'))).toBe(false);
   const config = load(written[out]!);
   expect(config.agents).toMatchObject({ author: { option: 'claude' }, reviewer: { option: 'claude' } });
   expect(config).not.toHaveProperty('failover');
 });
 
 test('with two or more options failover is asked, and "yes" asks the order until the person is done', async () => {
-  const three = { 'Add another agent option?': [true, true, false], 'Which agent CLI runs this option?': ['claude', 'claude', 'codex'], 'Config folder of this Claude Code option': ['/h/.claude', '/h/.claude-ashu-lab'] };
+  const three = { 'Add another AI provider?': [true, true, false], 'Which agent CLI runs this provider?': ['claude', 'claude', 'codex'], 'Config folder of this Claude Code provider': ['/h/.claude', '/h/.claude-ashu-lab'] };
   const { deps, written } = fakeDeps(folders);
   const { ui } = quietUi({ ...three, 'Turn failover on? A role that runs out of credits then moves to the next option you list, so its code can reach another provider.': true, 'Failover order: which option goes first?': 'codex', 'Failover order: which option goes next?': ['claude', '\0done'] });
   const picks: Record<string, string[]> = {};
@@ -97,7 +108,12 @@ test('with two or more options failover is asked, and "yes" asks the order until
   await runInit({ repo: ['A/b'], out }, spy, deps);
   expect(picks['Failover order: which option goes first?']).toEqual(['claude', 'claude-ashu-lab', 'codex']);
   expect(picks['Failover order: which option goes next?']).toEqual(['claude-ashu-lab', '\0done']); // codex and claude are already in; the person ends it here
-  expect(load(written[out]!).failover).toEqual({ enabled: true, order: ['codex', 'claude'] });
+  expect(load(written[out]!).failover).toEqual({
+    enabled: true,
+    order: ['codex', 'claude'],
+    default: ['codex', 'claude'],
+    triggers: ['usage_limit', 'rate_limit', 'service_down'],
+  });
 
   const off = fakeDeps();
   const no = quietUi(twoOptions);
@@ -117,23 +133,23 @@ test('running again on an existing config keeps its options and failover, adds m
     agents: { author: { profile: 'tassadar-agent', option: 'codex' }, reviewer: { profile: 'gh', option: 'work' } },
   };
   const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => existing });
-  const { ui, asked } = quietUi({ 'Add another agent option?': [true, false], 'Which agent CLI runs this option?': 'agy', 'Model of this option': 'gemini-x' });
+  const { ui, asked } = quietUi({ 'Add another AI provider?': [true, false], 'Which agent CLI runs this provider?': 'agy' });
   const initial: Record<string, unknown> = {};
-  const spy: Ui = { ...ui, select: async (o) => ((initial[o.message] = o.initialValue), ui.select(o)), text: async (o) => (o.message === 'Model of this option' ? 'gemini-x' : ui.text(o)) };
+  const spy: Ui = { ...ui, select: async (o) => ((initial[o.message] = o.initialValue), ui.select(o)) };
   process.env.CARRIER_HOME = home;
   try {
     await runInit({}, spy, deps);
   } finally {
     delete process.env.CARRIER_HOME;
   }
-  expect(initial['Which option runs the author?']).toBe('codex');
-  expect(initial['Which option runs the reviewer?']).toBe('work');
+  expect(initial['Which AI provider runs the author?']).toBe('codex');
+  expect(initial['Which AI provider runs the reviewer?']).toBe('work');
   expect(asked).not.toContain('Where should the config be saved?');
   expect(asked.some((q) => q.startsWith('Turn failover'))).toBe(false);
   const config = load(written[join(home, 'config.json')]!);
-  expect(config.agentOptions).toEqual({ ...existing.agentOptions, agy: { harness: 'agy', model: 'gemini-x' } });
+  expect(config.agentOptions).toEqual({ ...existing.agentOptions, agy: { harness: 'agy', model: 'gemini-3.8-flash-high' } });
   expect(config.failover).toEqual(existing.failover);
-  expect(config.agents).toEqual(existing.agents);
+  expect(config.agents).toMatchObject(existing.agents);
 });
 
 test('the flags declare the options and skip the section, the failover question and the role question', async () => {
@@ -149,11 +165,11 @@ test('the flags declare the options and skip the section, the failover question 
 
 test('one flag declares one option; the section then offers more and the other role picks among them', async () => {
   const { deps, written } = fakeDeps();
-  const { ui, asked } = quietUi({ 'Add another agent option?': [true, false] });
+  const { ui, asked } = quietUi({ 'Add another AI provider?': [true, false] });
   const out = join(dir, 'u2.json');
   await runInit({ repo: ['A/b'], author: 'claude:m1', out }, ui, deps);
-  expect(asked).not.toContain('Which option runs the author?');
-  expect(asked).toContain('Which option runs the reviewer?');
+  expect(asked).not.toContain('Which AI provider runs the author?');
+  expect(asked).toContain('Which AI provider runs the reviewer?');
   expect(load(written[out]!).agents).toMatchObject({ author: { option: 'claude' }, reviewer: { option: 'codex' } });
 });
 

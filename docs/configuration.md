@@ -32,8 +32,10 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `repos` | yes, at least one | | Repos to watch. Each is `{ "name": "owner/name", "agents"?: ... }`. |
 | `profiles` | yes | | The GitHub identities you can use, by name (below). |
 | `orchestratorProfile` | yes | | Profile used to read issues and PRs and to change labels. It may be the author's. |
+| `providers` | no | | Configured AI accounts/logins (`harness`, `configDir?`, `provider?`). See [AI providers](#ai-providers). |
 | `agentOptions` | yes | | The ways to run an agent, by name. See [Agent options](#agent-options). |
 | `agents.author` / `agents.reviewer` | yes | | `{ profile, option, persona? }` for each role: the GitHub identity it acts as and the name of the agent option it runs on. |
+| `agents.leadReviewer` | no | none | Optional technical lead role `{ profile, option, persona? }` that evaluates overall architecture and production readiness after the author and reviewer agree. |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
 | `failover` | no | off | `{ enabled, order }`: moves a role to the next agent option when its credits run out. See [Failover](#failover). |
 | `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |
@@ -48,6 +50,20 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
 | `limits.optionChoiceSeconds` | no | `60` | With two or more `agentOptions`, how long a reserved epic holds its slot waiting for the option of each role to be chosen. When it passes, or nobody answers, the epic starts on the options of `agents`. With one option nothing waits. |
+
+## AI providers
+
+An AI provider is an account/login setup for an AI harness (e.g. Claude Code with a specific `configDir`, Antigravity, or Codex). Unlike `agentOptions`, a provider defines the account or installation independently of the model.
+
+```json
+"providers": {
+  "claude-work": { "harness": "claude", "configDir": "~/.claude-work" },
+  "claude-personal": { "harness": "claude", "configDir": "~/.claude" },
+  "agy": { "harness": "agy" }
+}
+```
+
+`carrier init` configures your AI providers upfront in Stage 2, before role assignment. When assigning roles in Stage 4, you pick which provider runs the author and reviewer and specify the model.
 
 ## Agent options
 
@@ -83,15 +99,41 @@ With one option nothing is asked. With two or more, a reserved epic does not sta
 
 ### Failover
 
-Off unless the config has a `failover` block with `enabled: true`. `order` is the list of option names a role may move to, and it is an allowlist: switching can send the code of a private repo to another provider and spend another account, so a role never moves to an option that is not in it, even if it is the other role's option.
+Off unless the config has a `failover` block with `enabled: true`.
+
+Failover automatically moves an agent to the next option in its fallback chain when an execution fails due to account/provider issues, without wasting technical retries on a broken provider.
 
 ```jsonc
-"failover": { "enabled": true, "order": ["claude-personal", "codex"] }
+"failover": {
+  "enabled": true,
+  // Events that trigger failover (defaults to all three):
+  "triggers": ["usage_limit", "rate_limit", "service_down"],
+
+  // Global fallback chain used by any role without a specific override:
+  "default": ["claude-teams", "claude-personal", "codex"],
+
+  // Optional role-specific fallback chains:
+  "roles": {
+    "author": ["claude-teams", "claude-personal", "codex"],
+    "reviewer": ["codex-reviewer", "claude-reviewer"],
+    "leadReviewer": ["opus-work", "opus-personal", "gemini-pro"]
+  }
+}
 ```
 
-When an execution of a role ends because its option ran out of credits (`usage_limit`), the role moves to the first name in `order` that has not already run out in this epic, and the stage runs again as a new session in the epic's worktree and pull request, with its context rebuilt from SQLite and GitHub (the conversation of the agent is lost, the work is not). It spends no retry and records an `option_switched` event with the role, the two options and the stage. Only the role that ran out moves; the other keeps its option. When no name in `order` is left, the epic stops in `needs-human` with kind `usage_limit` and a reason that names every option that ran out. With `enabled: false`, or without the block, a `usage_limit` stops the epic at once, as before. Nothing is remembered across epics: the next epic starts on its own choice, and pays one failed attempt if that option is still out.
+#### Triggers
+- `usage_limit`: The agent CLI or API ran out of credits/billing quota.
+- `rate_limit`: Persistent HTTP 429 rate limit that exceeds normal backoff retry.
+- `service_down`: Provider or local server unavailable (`ECONNREFUSED`, 5xx, or CLI connection failure).
 
-Every name in `order` must be declared in `agentOptions`, and none may appear twice.
+#### Fallback resolution
+When a role experiences a failure matching `triggers`:
+1. Carrier checks `failover.roles.<role>`. If defined, it uses that role's fallback chain.
+2. Otherwise, it falls back to `failover.default` (or `failover.order`).
+3. The role moves to the next option in the chain that has not already failed in this epic. The stage restarts as a fresh session in the epic's worktree with its context rebuilt from SQLite and GitHub (spending no retry and emitting an `option_switched` event).
+4. If no options in the chain are left, the epic stops in `needs-human` detailing which options failed.
+
+Every option name in `default`, `order`, or `roles.<role>` must be declared in `agentOptions`, and none may appear twice within the same list.
 
 ## Personas
 

@@ -28,11 +28,11 @@ of the config here, not the <harness>:<model> of init.
 init flags (each one skips its question; --yes never asks):
   --repo <owner/name>            repeat for several repos
   --identities <separate|shared>  separate: a different identity per role (default); shared: your gh login for both
-  --author-profile <forge:<agent>|gh>   --reviewer-profile <forge:<agent>|gh>
-  --author <harness>:<model>            --reviewer <harness>:<model>           harness: claude, codex or agy
-  --author-provider <lmstudio|ollama>   --reviewer-provider <lmstudio|ollama>   the model runs on that local server
-  --author-persona-name <text>   --reviewer-persona-name <text>   who the role says it is: one line, up to 40 characters
-  --author-persona-prompt <text> --reviewer-persona-prompt <text> how the role behaves: up to 4000 characters
+  --author-profile <forge:<agent>|gh>   --reviewer-profile <forge:<agent>|gh>   --lead-reviewer-profile <forge:<agent>|gh>
+  --author <harness>:<model>            --reviewer <harness>:<model>            --lead-reviewer <harness>:<model>
+  --author-provider <lmstudio|ollama>   --reviewer-provider <lmstudio|ollama>   --lead-reviewer-provider <lmstudio|ollama>
+  --author-persona-name <text>   --reviewer-persona-name <text>   --lead-reviewer-persona-name <text>
+  --author-persona-prompt <text> --reviewer-persona-prompt <text> --lead-reviewer-persona-prompt <text>
   --out <path>                   default is the --config default above
   --yes                          no questions; overwrite the output file (without --author and --reviewer, one claude option runs both roles)`;
 
@@ -42,14 +42,19 @@ const options = {
   identities: { type: 'string' },
   'author-profile': { type: 'string' },
   'reviewer-profile': { type: 'string' },
+  'lead-reviewer-profile': { type: 'string' },
   author: { type: 'string' },
   reviewer: { type: 'string' },
+  'lead-reviewer': { type: 'string' },
   'author-provider': { type: 'string' },
   'reviewer-provider': { type: 'string' },
+  'lead-reviewer-provider': { type: 'string' },
   'author-persona-name': { type: 'string' },
   'author-persona-prompt': { type: 'string' },
   'reviewer-persona-name': { type: 'string' },
   'reviewer-persona-prompt': { type: 'string' },
+  'lead-reviewer-persona-name': { type: 'string' },
+  'lead-reviewer-persona-prompt': { type: 'string' },
   out: { type: 'string' },
   yes: { type: 'boolean' },
   list: { type: 'boolean' },

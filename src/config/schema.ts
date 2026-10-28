@@ -17,6 +17,15 @@ export const persona = z.strictObject({
   prompt: z.string().trim().min(1).max(4000).optional(),
 });
 
+/** An AI provider account / connection without a model. */
+export const aiProvider = z.strictObject({
+  harness: z.enum(harnessNames),
+  /** Run on a local server through the harness's CLI instead of the cloud. */
+  provider: z.enum(['lmstudio', 'ollama']).optional(),
+  /** `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. Absolute once `~` is expanded. */
+  configDir: z.string().min(1).transform(expandHome).optional(),
+});
+
 /** A way to run an agent. The harness's config folder holds its login, so `configDir` is what picks the account; without one the agent inherits the environment. */
 const agentOption = z.strictObject({
   harness: z.enum(harnessNames),
@@ -55,6 +64,24 @@ const chatAgent = z.strictObject({
 
 const chatAgentName = /^[a-z][a-z0-9-]*$/;
 
+export const failoverTriggers = ['usage_limit', 'rate_limit', 'service_down'] as const;
+export type FailoverTrigger = (typeof failoverTriggers)[number];
+
+const failoverSchema = z.strictObject({
+  enabled: z.boolean(),
+  triggers: z.array(z.enum(failoverTriggers)).min(1).optional(),
+  default: z.array(z.string()).optional(),
+  order: z.array(z.string()).optional(),
+  roles: z
+    .strictObject({
+      author: z.array(z.string()).optional(),
+      reviewer: z.array(z.string()).optional(),
+      leadReviewer: z.array(z.string()).optional(),
+    })
+    .partial()
+    .optional(),
+});
+
 export const configSchema = z
   .strictObject({
     root: z.string().min(1).transform(expandHome),
@@ -67,7 +94,7 @@ export const configSchema = z
       .array(
         z.strictObject({
           name: z.string().regex(repoNamePattern, 'must be owner/name'),
-          agents: z.strictObject({ author: agent.partial(), reviewer: agent.partial() }).partial().optional(),
+          agents: z.strictObject({ author: agent.partial(), reviewer: agent.partial(), leadReviewer: agent.partial().optional() }).partial().optional(),
         }),
       )
       .min(1),
@@ -79,10 +106,11 @@ export const configSchema = z
       })
       .optional(),
     orchestratorProfile: z.string().min(1),
+    providers: z.record(z.string(), aiProvider).optional(),
     agentOptions: z.record(z.string(), agentOption),
-    agents: z.strictObject({ author: agent, reviewer: agent }),
-    /** Off unless present and enabled. `order` is an allowlist: a role that runs out of credits only ever moves to a name in it. */
-    failover: z.strictObject({ enabled: z.boolean(), order: z.array(z.string()) }).optional(),
+    agents: z.strictObject({ author: agent, reviewer: agent, leadReviewer: agent.optional() }),
+    /** Off unless present and enabled. Moves a role to the next agent option upon usage_limit, rate_limit, or service_down. */
+    failover: failoverSchema.optional(),
     limits: z.strictObject({
       maxConcurrentEpics: z.int().positive(),
       maxReviews: z.int().positive(),
@@ -99,8 +127,9 @@ export const configSchema = z
       [['agents', 'author', 'profile'], config.agents.author.profile],
       [['agents', 'reviewer', 'profile'], config.agents.reviewer.profile],
     ];
+    if (config.agents.leadReviewer) refs.push([['agents', 'leadReviewer', 'profile'], config.agents.leadReviewer.profile]);
     config.repos.forEach((repo, i) => {
-      for (const role of ['author', 'reviewer'] as const) {
+      for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
         const profile = repo.agents?.[role]?.profile;
         if (profile !== undefined) refs.push([['repos', i, 'agents', role, 'profile'], profile]);
       }
@@ -115,8 +144,9 @@ export const configSchema = z
       [['agents', 'author', 'option'], config.agents.author.option],
       [['agents', 'reviewer', 'option'], config.agents.reviewer.option],
     ];
+    if (config.agents.leadReviewer) optionRefs.push([['agents', 'leadReviewer', 'option'], config.agents.leadReviewer.option]);
     config.repos.forEach((repo, i) => {
-      for (const role of ['author', 'reviewer'] as const) {
+      for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
         const option = repo.agents?.[role]?.option;
         if (option !== undefined) optionRefs.push([['repos', i, 'agents', role, 'option'], option]);
       }
@@ -127,12 +157,38 @@ export const configSchema = z
       }
     }
 
-    const named = new Set<string>();
-    config.failover?.order.forEach((name, i) => {
-      if (!Object.hasOwn(config.agentOptions, name)) ctx.addIssue({ code: 'custom', path: ['failover', 'order', i], message: `failover.order: option "${name}" is not declared in agentOptions` });
-      else if (named.has(name)) ctx.addIssue({ code: 'custom', path: ['failover', 'order', i], message: `failover.order: option "${name}" appears twice` });
-      named.add(name);
-    });
+    if (config.failover?.enabled) {
+      const hasDefault = (config.failover.default && config.failover.default.length > 0) || (config.failover.order && config.failover.order.length > 0);
+      const hasRoles = config.failover.roles && Object.values(config.failover.roles).some((r) => r && r.length > 0);
+      if (!hasDefault && !hasRoles) {
+        ctx.addIssue({ code: 'custom', path: ['failover'], message: 'failover is enabled but has neither a default nor role-specific fallback order' });
+      }
+    }
+
+    const checkFailoverList = (list: string[] | undefined, basePath: (string | number)[]) => {
+      if (!list) return;
+      const named = new Set<string>();
+      list.forEach((name, i) => {
+        const p = [...basePath, i];
+        const label = basePath.join('.');
+        if (!Object.hasOwn(config.agentOptions, name)) {
+          ctx.addIssue({ code: 'custom', path: p, message: `${label}: option "${name}" is not declared in agentOptions` });
+        } else if (named.has(name)) {
+          ctx.addIssue({ code: 'custom', path: p, message: `${label}: option "${name}" appears twice` });
+        }
+        named.add(name);
+      });
+    };
+
+    if (config.failover) {
+      checkFailoverList(config.failover.order, ['failover', 'order']);
+      checkFailoverList(config.failover.default, ['failover', 'default']);
+      if (config.failover.roles) {
+        for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
+          checkFailoverList(config.failover.roles[role], ['failover', 'roles', role]);
+        }
+      }
+    }
 
     // What an option can have depends on its harness: a local provider and a config folder only where the CLI has a setting for them.
     for (const [name, option] of Object.entries(config.agentOptions)) {
@@ -150,6 +206,23 @@ export const configSchema = z
       }
     }
 
+    if (config.providers !== undefined) {
+      for (const [name, p] of Object.entries(config.providers)) {
+        const where = `providers.${name}`;
+        if (!optionNamePattern.test(name)) {
+          ctx.addIssue({ code: 'custom', path: ['providers', name], message: `${where}: a provider name is a lowercase word: letters, digits and hyphens, starting with a letter, up to 40 characters` });
+        }
+        if (p.provider !== undefined && !(localProvidersOf[p.harness] as readonly string[]).includes(p.provider)) {
+          ctx.addIssue({ code: 'custom', path: ['providers', name, 'provider'], message: `${where}: ${p.harness} cannot use the provider "${p.provider}"` });
+        }
+        if (p.configDir !== undefined && p.harness === 'agy') {
+          ctx.addIssue({ code: 'custom', path: ['providers', name, 'configDir'], message: `${where}: agy has no config folder setting, so it cannot have a configDir` });
+        } else if (p.configDir !== undefined && p.configDir !== '' && !isAbsolute(p.configDir)) {
+          ctx.addIssue({ code: 'custom', path: ['providers', name, 'configDir'], message: `${where}: configDir must be an absolute path, or start with ~/ (got "${p.configDir}")` });
+        }
+      }
+    }
+
     // Solve's worktrees are `worktrees/<repo>/<feature>`, with no owner: same-name repos would share paths.
     const seen = new Map<string, string>();
     config.repos.forEach((repo, i) => {
@@ -162,19 +235,26 @@ export const configSchema = z
     // Under separate identities, author and reviewer must differ, globally and for each repo once its overrides are applied.
     if (config.identities !== 'separate') return;
     // A global clash is reported once, not again for every repo that inherits it.
-    const clash = (path: (string | number)[], where: string, profile: string) =>
+    const clash = (path: (string | number)[], where: string, profile: string, role1 = 'agents.author.profile', role2 = 'agents.reviewer.profile') =>
       ctx.addIssue({
         code: 'custom',
         path,
-        message: `${where}agents.author.profile and agents.reviewer.profile must differ, both are "${profile}" (or set identities to "shared" to use one account for both)`,
+        message: `${where}${role1} and ${role2} must differ, both are "${profile}" (or set identities to "shared" to use one account for both)`,
       });
     if (config.agents.author.profile === config.agents.reviewer.profile) {
       clash(['agents'], '', config.agents.author.profile);
       return;
     }
+    if (config.agents.leadReviewer && config.agents.author.profile === config.agents.leadReviewer.profile) {
+      clash(['agents'], '', config.agents.author.profile, 'agents.author.profile', 'agents.leadReviewer.profile');
+      return;
+    }
     config.repos.forEach((repo, i) => {
-      const { author, reviewer } = resolveRepoConfig(config, repo).agents;
-      if (author.profile === reviewer.profile) clash(['repos', i, 'agents'], `repo "${repo.name}": `, author.profile);
+      const resolved = resolveRepoConfig(config, repo).agents;
+      if (resolved.author.profile === resolved.reviewer.profile) clash(['repos', i, 'agents'], `repo "${repo.name}": `, resolved.author.profile);
+      else if (resolved.leadReviewer && resolved.author.profile === resolved.leadReviewer.profile) {
+        clash(['repos', i, 'agents'], `repo "${repo.name}": `, resolved.author.profile, 'agents.author.profile', 'agents.leadReviewer.profile');
+      }
     });
   });
 

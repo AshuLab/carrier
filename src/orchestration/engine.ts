@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
-import type { EffectiveRepoConfig } from '../config/resolve.ts';
+import { failoverOrderFor, type EffectiveRepoConfig } from '../config/resolve.ts';
 import type { AgentExit, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { failureDetail } from '../execution/failure.ts';
 import { parseCallerResult } from '../execution/caller-result.ts';
@@ -236,10 +236,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     const { config } = epic;
     if (!config?.failover?.enabled) return { relaunched: false, why: '' };
     const ranOut = [...new Set(db.select({ option: executions.option }).from(executions).where(and(eq(executions.epicId, epicId), eq(executions.failureKind, 'usage_limit'))).orderBy(asc(sql`rowid`)).all().flatMap(({ option }) => option ?? []))];
-    const next = config.failover.order.find((name) => !ranOut.includes(name));
+    const role = stage === 'review' ? 'reviewer' : 'author';
+    const order = failoverOrderFor(config.failover, role) ?? config.failover.default ?? config.failover.order ?? [];
+    const next = order.find((name) => !ranOut.includes(name));
     if (next === undefined) return { relaunched: false, why: `; no option left in failover.order, ran out: ${ranOut.join(', ')}` };
     if (stopping || epic.status !== 'running') return { relaunched: true };
-    const role = stage === 'review' ? 'reviewer' : 'author';
     // Read only; GitHub being down is not a reason to stop: the agent verifies the state first anyway.
     const found = await github.findPullRequest(epic.repo, epic.issue).catch((e) => (failed(e), null));
     db.transaction((tx) => {

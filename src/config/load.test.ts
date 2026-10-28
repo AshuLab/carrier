@@ -153,6 +153,24 @@ describe('identities', () => {
     expect(errorsOf({ ...same, identities: 'shared', orchestratorProfile: 'ghost' }).map((e) => e.path)).toEqual(['orchestratorProfile']);
   });
 
+  test('lead reviewer profile and option validation', () => {
+    expect(load({ agents: { ...valid.agents, leadReviewer: { profile: 'reviewer-bot', option: 'claude' } } })).toMatchObject({
+      ok: true,
+      config: { agents: { leadReviewer: { profile: 'reviewer-bot', option: 'claude' } } },
+    });
+    // Under separate identities, lead reviewer cannot share profile with author
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'author-bot', option: 'claude' } } })).toEqual([
+      { path: 'agents', message: expect.stringContaining('agents.author.profile and agents.leadReviewer.profile must differ') },
+    ]);
+    // Unknown profile or option
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'phantom', option: 'claude' } } })).toEqual([
+      { path: 'agents.leadReviewer.profile', message: expect.stringContaining('phantom') },
+    ]);
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'reviewer-bot', option: 'phantom' } } })).toEqual([
+      { path: 'agents.leadReviewer.option', message: expect.stringContaining('phantom') },
+    ]);
+  });
+
   test.each(['both', 'Shared', '', true])('rejects %j', (identities) => {
     expect(errorsOf({ identities }).map((e) => e.path)).toEqual(['identities']);
   });
@@ -277,6 +295,45 @@ describe('failover', () => {
 
   test('a duplicate name is refused, naming the field', () => {
     expect(errorsOf(failover(['codex', 'claude', 'codex']))).toEqual([{ path: 'failover.order.2', message: 'failover.order: option "codex" appears twice' }]);
+  });
+
+  test('default and role-specific failover chains with triggers load as written', () => {
+    const custom = {
+      failover: {
+        enabled: true,
+        triggers: ['usage_limit', 'service_down'] as const,
+        default: ['codex', 'claude'],
+        roles: {
+          leadReviewer: ['claude'],
+        },
+      },
+    };
+    expect(load(custom)).toMatchObject({
+      ok: true,
+      config: {
+        failover: {
+          enabled: true,
+          triggers: ['usage_limit', 'service_down'],
+          default: ['codex', 'claude'],
+          roles: { leadReviewer: ['claude'] },
+        },
+      },
+    });
+  });
+
+  test('a name in default or roles not declared in agentOptions is refused', () => {
+    expect(errorsOf({ failover: { enabled: true, default: ['codex', 'ghost'] } })).toEqual([
+      { path: 'failover.default.1', message: 'failover.default: option "ghost" is not declared in agentOptions' },
+    ]);
+    expect(errorsOf({ failover: { enabled: true, roles: { author: ['ghost'] } } })).toEqual([
+      { path: 'failover.roles.author.0', message: 'failover.roles.author: option "ghost" is not declared in agentOptions' },
+    ]);
+  });
+
+  test('enabled failover with neither default nor roles is refused', () => {
+    expect(errorsOf({ failover: { enabled: true } })).toEqual([
+      { path: 'failover', message: expect.stringContaining('neither a default nor role-specific fallback order') },
+    ]);
   });
 
   test('`enabled` is required, and an unknown field is refused', () => {

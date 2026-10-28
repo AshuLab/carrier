@@ -2,33 +2,86 @@ import { basename } from 'node:path';
 import { optionNamePattern } from '../../../config/schema.ts';
 import type { LocalProvider } from '../../../harnesses/local.ts';
 import type { HarnessName } from '../../../harnesses/names.ts';
-import type { Ui } from '../../prompts/types.ts';
-import { parseHarnessModel, parseProvider, type AgentOption, type Failover } from '../build-config.ts';
+import type { Option, Ui } from '../../prompts/types.ts';
+import { parseHarnessModel, parseProvider, type AgentOption, type AIProvider, type Failover } from '../build-config.ts';
 import type { InitDeps } from '../deps.ts';
-import { optionLine } from '../summary.ts';
-import { askAgentOption } from './agent.ts';
+import { optionLine, providerLine } from '../summary.ts';
+import { askAgentOption, askAIProvider } from './agent.ts';
 
 type Options = Record<string, AgentOption>;
-type RoleName = 'author' | 'reviewer';
+export type Providers = Record<string, AIProvider>;
+type RoleName = 'author' | 'reviewer' | 'lead reviewer';
 
-const uniqueName = (options: Options, base: string) => {
+const uniqueName = (items: Record<string, unknown>, base: string) => {
   let name = base;
-  for (let n = 2; name in options; n += 1) name = `${base}-${n}`;
+  for (let n = 2; name in items; n += 1) name = `${base}-${n}`;
   return name;
 };
+
+/** Turn a user-typed name into a valid option code: lowercase, hyphens instead of spaces/symbols, no leading/trailing hyphens. */
+export function normalizeOptionName(raw: string): string {
+  return raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+    .replace(/-+$/, '');
+}
+
+export function suggestProviderName(providers: Providers, provider: AIProvider) {
+  const folder = (provider.configDir ? basename(provider.configDir) : '').replace(/^\.+/, '');
+  const raw = folder === '' ? provider.harness : folder.startsWith(provider.harness) ? folder : `${provider.harness}-${folder}`;
+  const slug = normalizeOptionName(raw).slice(0, 30);
+  return uniqueName(providers, optionNamePattern.test(slug) ? slug : provider.harness);
+}
+
+/** Pure AI providers section: CLI, config folder, and local provider. No models. */
+export async function askProviders(ui: Ui, start: Providers, installed: readonly HarnessName[], locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps): Promise<Providers> {
+  const there = Object.entries(start).map(([name, provider]) => `${name}: ${providerLine(provider)}`);
+  ui.note(['Your AI accounts and local model servers (Claude Code, Codex, Antigravity). Each role will pick one.', ...(there.length > 0 ? ['', 'Already there:', ...there] : [])].join('\n'), 'AI Providers');
+  let providers = start;
+  while (Object.keys(providers).length === 0 || (await ui.confirm('Add another AI provider?'))) {
+    const provider = await askAIProvider(ui, installed, Object.values(providers).map((p) => p.harness), locals, deps);
+    const raw = await ui.text({
+      message: 'Name of this provider',
+      defaultValue: suggestProviderName(providers, provider),
+      validate: (v) => {
+        const slug = normalizeOptionName(v);
+        if (!optionNamePattern.test(slug)) return 'A name starting with a letter: letters, digits and hyphens, up to 40 characters';
+        if (slug in providers) return 'Another provider has this name';
+        return undefined;
+      },
+    });
+    const name = normalizeOptionName(raw);
+    providers = { ...providers, [name]: provider };
+  }
+  return providers;
+}
+
+export async function askRoleProvider(ui: Ui, role: RoleName, providers: Providers, current?: string, other?: string): Promise<string> {
+  const names = Object.keys(providers);
+  if (names.length === 1) return names[0]!;
+  return ui.select({
+    message: `Which AI provider runs the ${role}?`,
+    options: names.map((name) => ({ value: name, label: name, hint: providerLine(providers[name]!) })),
+    initialValue: [current, names.find((name) => name !== other)].find((name) => name !== undefined && name in providers) ?? names[0]!,
+  });
+}
 
 /** Named after its harness and folder: `claude`, `claude-ashu-lab` for `~/.claude-ashu-lab`, `codex`. */
 function suggestName(options: Options, option: AgentOption) {
   const folder = (option.configDir ? basename(option.configDir) : '').replace(/^\.+/, '');
   const raw = folder === '' ? option.harness : folder.startsWith(option.harness) ? folder : `${option.harness}-${folder}`;
-  const slug = raw.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30);
+  const slug = normalizeOptionName(raw).slice(0, 30);
   return uniqueName(options, optionNamePattern.test(slug) ? slug : option.harness);
 }
 
 const sameOption = (a: AgentOption, b: AgentOption) => a.harness === b.harness && a.model === b.model && a.provider === b.provider && a.configDir === b.configDir;
 
 /** The option a `--author` or `--reviewer` flag declares: one that is already there, or a new one named after its harness (`<harness>-<role>` when that name is taken). */
-export function declareFlagged(options: Options, role: RoleName, flag: string, providerFlag?: string): { options: Options; name: string } {
+export function declareFlagged(options: Options, role: string, flag: string, providerFlag?: string): { options: Options; name: string } {
   const option: AgentOption = { ...parseHarnessModel(flag), ...(providerFlag && { provider: parseProvider(providerFlag) }) };
   const existing = Object.keys(options).find((name) => sameOption(options[name]!, option));
   if (existing !== undefined) return { options, name: existing };
@@ -43,11 +96,17 @@ export async function askOptions(ui: Ui, start: Options, installed: readonly Har
   let options = start;
   while (Object.keys(options).length === 0 || (await ui.confirm('Add another agent option?'))) {
     const option = await askAgentOption(ui, installed, Object.values(options).map((o) => o.harness), locals, deps);
-    const name = (await ui.text({
+    const raw = await ui.text({
       message: 'Name of this option',
       defaultValue: suggestName(options, option),
-      validate: (v) => (!optionNamePattern.test(v.trim()) ? 'A lowercase word: letters, digits and hyphens, starting with a letter' : v.trim() in options ? 'Another option has this name' : undefined),
-    })).trim();
+      validate: (v) => {
+        const slug = normalizeOptionName(v);
+        if (!optionNamePattern.test(slug)) return 'A name starting with a letter: letters, digits and hyphens, up to 40 characters';
+        if (slug in options) return 'Another option has this name';
+        return undefined;
+      },
+    });
+    const name = normalizeOptionName(raw);
     options = { ...options, [name]: option };
   }
   return options;
@@ -79,5 +138,5 @@ export async function askFailover(ui: Ui, options: Options): Promise<Failover | 
     if (pick === done) break;
     order.push(pick);
   }
-  return { enabled: true, order };
+  return { enabled: true, triggers: ['usage_limit', 'rate_limit', 'service_down'], default: order, order };
 }

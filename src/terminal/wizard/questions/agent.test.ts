@@ -13,15 +13,15 @@ test('the model is picked from what the CLI offers; Codex starts on the model it
   const { ui, asked } = quietUi(twoOptions);
   const out = join(dir, 'm.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  expect(asked.filter((q) => q === 'Model of this option')).toHaveLength(2); // a select each, answered by its initial value
+  expect(asked.filter((q) => q.startsWith('Model for the'))).toHaveLength(2); // a select each, answered by its initial value
   expect(roleOf(written[out]!, 'author')).toMatchObject({ model: 'sonnet' });
   expect(roleOf(written[out]!, 'reviewer')).toMatchObject({ model: 'gpt-test' });
 });
 
 test('"Other…" in the model list asks for the id', async () => {
   const { deps, written } = fakeDeps();
-  const { ui } = quietUi({ 'Model of this option': '\0other' });
-  const withText: Ui = { ...ui, text: async (o) => (o.message === 'Model of this option' ? 'claude-x-1' : ui.text(o)) };
+  const { ui } = quietUi({ 'Model for the author': '\0other' });
+  const withText: Ui = { ...ui, text: async (o) => (o.message === 'Model for the author' ? 'claude-x-1' : ui.text(o)) };
   const out = join(dir, 'n.json');
   await runInit({ repo: ['A/b'], out }, withText, deps);
   expect(roleOf(written[out]!, 'author').model).toBe('claude-x-1');
@@ -30,14 +30,14 @@ test('"Other…" in the model list asks for the id', async () => {
 test('each question has one meaning: harness, then provider (only when there is a choice), then that provider\'s models, then the folder', async () => {
   const { deps, written } = fakeDeps({ ...running, configFolders: (h) => (h === 'codex' ? ['/home/d/.codex'] : []) });
   const selects: Record<string, string[]> = {};
-  const { ui } = quietUi({ ...twoOptions, 'Which provider serves the model of this option?': ['\0native', 'lmstudio'] });
+  const { ui } = quietUi({ ...twoOptions, 'Where does this provider run?': ['\0native', 'lmstudio'] });
   const spy: Ui = { ...ui, select: async (o) => ((selects[o.message] = o.options.map((x) => `${x.value}${x.disabled ? ' (disabled)' : ''}`)), ui.select(o)) };
   const out = join(dir, 'p.json');
   await runInit({ repo: ['A/b'], out }, spy, deps);
-  expect(selects['Which agent CLI runs this option?']).toEqual(['claude', 'codex', 'agy']); // only harnesses
-  expect(selects['Which provider serves the model of this option?']).toEqual(['\0native', 'lmstudio', 'ollama (disabled)']); // Ollama is there, not running
-  expect(selects['Model of this option']).toEqual(['google/gemma-4-12b', 'qwen/qwen3.8-27b', '\0other']); // only LM Studio's models, no cloud ones (the last one asked)
-  expect(selects['Config folder of this Codex option']).toEqual(['/home/d/.codex', '\0inherit', '\0path']);
+  expect(selects['Which agent CLI runs this provider?']).toEqual(['claude', 'codex', 'agy']); // only harnesses
+  expect(selects['Where does this provider run?']).toEqual(['\0native', 'lmstudio', 'ollama (disabled)']); // Ollama is there, not running
+  expect(selects['Model for the reviewer']).toEqual(['google/gemma-4-12b', 'qwen/qwen3.8-27b', '\0other']); // only LM Studio's models, no cloud ones (the last one asked)
+  expect(selects['Config folder of this Codex provider']).toEqual(['/home/d/.codex', '\0inherit', '\0path']);
   expect(roleOf(written[out]!, 'reviewer')).toEqual({ profile: 'tassadar-agent', option: 'codex', harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio' });
   expect(roleOf(written[out]!, 'author')).not.toHaveProperty('provider');
 });

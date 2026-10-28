@@ -157,7 +157,7 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
 
   const repos = config.repos.map((repo) => resolveRepoConfig(config, repo));
   const orchestrator = config.profiles[config.orchestratorProfile]!;
-  const rolesOf = (repo: (typeof repos)[number]) => [repo.agents.author, repo.agents.reviewer];
+  const rolesOf = (repo: (typeof repos)[number]) => [repo.agents.author, repo.agents.reviewer, ...(repo.agents.leadReviewer ? [repo.agents.leadReviewer] : [])];
   const profiles = [orchestrator, ...repos.flatMap((repo) => rolesOf(repo).map((agent) => config.profiles[agent.profile]!))];
 
   // Only a path that does not fit is reported: Carrier works without the socket, it just has none for the app to use.
@@ -185,10 +185,10 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
     }
   }
 
-  // Every Claude and Codex option, whether a role uses it or not: a login that has run out shows here before an epic needs it.
+  // Every Claude and Codex option or provider, whether a role uses it or not: a login that has run out shows here before an epic needs it.
   // A role's option that is not logged in fails; any other only warns. Antigravity has no folder and a behaviour test instead.
-  const roleOptions = new Set(repos.flatMap((repo) => rolesOf(repo).map((agent) => agent.option)));
-  for (const [option, { harness, configDir }] of Object.entries(config.agentOptions)) {
+  const roleOptions = new Set(repos.flatMap((repo) => rolesOf(repo).flatMap((agent) => [agent.option, agent.provider].filter((v): v is string => v !== undefined))));
+  for (const [option, { harness, configDir }] of Object.entries(config.providers ?? config.agentOptions)) {
     if (missing.has(harness)) continue;
     if (harness === 'agy') {
       const name = `agy option ${option} is logged in`;

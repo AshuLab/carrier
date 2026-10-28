@@ -10,6 +10,7 @@ struct SidebarView: View {
     /// Which of Sessions and the Carrier card is unfolded, nil when both are folded.
     @Binding var open: OpenSection?
     @Binding var groupBy: GroupBy
+    @Binding var sessionSort: SessionSort
     @Binding var collapse: SidebarCollapse
     /// The last ⌘F, for the open section to show its search.
     let searchRequest: SearchRequest?
@@ -22,7 +23,7 @@ struct SidebarView: View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
         List(selection: list) {
             Label("Home", systemImage: "house").tag(Selection.home).help("Home (⌘1)")
-            SessionsRows(sessions: sessions, open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }), searchRequest: searchRequest)
+            SessionsRows(sessions: sessions, sort: $sessionSort, open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }), searchRequest: searchRequest)
             // its own row, outside Sessions, so folding Sessions does not hide it
             let archived = archivedCount(sessions.rows)
             HStack {

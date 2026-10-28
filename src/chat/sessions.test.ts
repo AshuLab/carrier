@@ -407,3 +407,73 @@ test('an interrupt on a closed session is ok and changes nothing; on an unknown 
   expect(conversation.interrupts).toBe(0);
   await expect(sessions.interrupt({ sessionId: '3b241101-e2bb-4255-8caf-4136c566a962' })).rejects.toThrow('no such session');
 });
+
+const say = (conversation: FakeConversation, sessions: ReturnType<typeof setup>['sessions'], id: string) => {
+  conversation.reply = (_text, c) => c.emit({ kind: 'assistant', text: 'hi' }, { kind: 'tool_start', callId: 'c', tool: 'Bash' }, { kind: 'turn_end', outcome: 'ok' });
+  sessions.send({ sessionId: id, text: 'hello' });
+};
+
+test('archive marks a session and the archived listing shows it instead of the others; unarchive brings it back', async () => {
+  const s = setup();
+  const a = await openOne(s);
+  const b = (await s.sessions.open({ agent: 'claude', folder: work })).session.id;
+  await s.sessions.archive({ sessionId: a.id, archived: true });
+  expect(s.sessions.list({}).sessions.map((x) => x.id)).toEqual([b]);
+  expect(s.sessions.list({ archived: true }).sessions.map((x) => x.id)).toEqual([a.id]);
+  expect(s.sessions.list({ archived: true }).sessions[0]).toMatchObject({ archived: true, live: false });
+  await s.sessions.archive({ sessionId: a.id, archived: false });
+  expect(s.sessions.list({ archived: true }).sessions).toEqual([]);
+  expect(s.sessions.list({}).sessions).toHaveLength(2);
+});
+
+test('archive and delete close a live idle session first', async () => {
+  const s = setup();
+  const a = await openOne(s);
+  await s.sessions.archive({ sessionId: a.id, archived: true });
+  expect(a.conversation.closed).toBe(true);
+  expect(s.sessions.liveCount()).toBe(0);
+  const b = await s.sessions.open({ agent: 'claude', folder: work });
+  await s.sessions.delete({ sessionId: b.session.id });
+  expect(s.claude.conversations[1]!.closed).toBe(true);
+  expect(s.sessions.liveCount()).toBe(0);
+});
+
+test('delete leaves nothing of the session in sessions, chat_events or chat_turns, and keeps the others', async () => {
+  const s = setup();
+  const a = await openOne(s);
+  const b = await s.sessions.open({ agent: 'claude', folder: work });
+  say(a.conversation, s.sessions, a.id);
+  s.claude.conversations[1]!.reply = (_t, c) => c.emit({ kind: 'turn_end', outcome: 'ok' });
+  s.sessions.send({ sessionId: b.session.id, text: 'other' });
+  expect(rows('chat_events')).toHaveLength(6);
+  expect(rows('chat_turns')).toHaveLength(2);
+  await s.sessions.delete({ sessionId: a.id });
+  expect(rows('sessions').map((r) => r.id)).toEqual([b.session.id]);
+  expect(rows('chat_events').map((r) => r.sessionId)).toEqual([b.session.id, b.session.id]);
+  expect(rows('chat_turns').map((r) => r.sessionId)).toEqual([b.session.id]);
+  expect(() => s.sessions.events({ sessionId: a.id, limit: 5 })).toThrow('no such session');
+});
+
+test('archive and delete refuse a working session and one waiting for an approval, with the reason, and change nothing', async () => {
+  const s = setup();
+  const a = await openOne(s);
+  a.conversation.reply = () => {};
+  s.sessions.send({ sessionId: a.id, text: 'go' });
+  for (const attempt of [() => s.sessions.archive({ sessionId: a.id, archived: true }), () => s.sessions.delete({ sessionId: a.id })]) {
+    await expect(attempt()).rejects.toThrow(/working; interrupt or close it first/);
+  }
+  a.conversation.emit({ kind: 'approval', approvalId: 'p', tool: 'Bash', choices: [] });
+  await expect(s.sessions.delete({ sessionId: a.id })).rejects.toThrow(/waiting for an approval; interrupt or close it first/);
+  await expect(s.sessions.archive({ sessionId: a.id, archived: true })).rejects.toBeInstanceOf(ChatRefused);
+  expect(rows('sessions')).toHaveLength(1);
+  expect(rows('sessions')[0]!.archived).toBe(0);
+  expect(rows('chat_events').length).toBeGreaterThan(0);
+  expect(a.conversation.closed).toBe(false);
+});
+
+test('archive, unarchive and delete refuse an unknown session in words', async () => {
+  const { sessions } = setup();
+  for (const attempt of [sessions.archive({ sessionId: 'nope', archived: true }), sessions.archive({ sessionId: 'nope', archived: false }), sessions.delete({ sessionId: 'nope' })]) {
+    await expect(attempt).rejects.toThrow('There is no such session');
+  }
+});

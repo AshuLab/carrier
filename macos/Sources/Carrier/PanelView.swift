@@ -48,14 +48,23 @@ struct PanelView: View {
         if let epic { return "\(epic.subject.repo.split(separator: "/").last ?? "") #\(epic.subject.issue)" }
         switch model.shell.selection {
         case .settings: return "Settings"
+        case .session: return openSession.map(conversationTitle) ?? "Session"
+        case .newSession: return "New session"
         default: return "Carrier"
         }
+    }
+
+    /// The row of the session whose conversation is open.
+    private var openSession: SessionRow? {
+        guard case .session(let id) = model.shell.selection else { return nil }
+        return model.sessions.rows.first { $0.id == id }
     }
 
     private var subtitle: String {
         switch model.shell.selection {
         case .carrier: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
         case .settings: "what the app starts Carrier with"
+        case .session: openSession.map(conversationSubtitle) ?? ""
         default: ""
         }
     }
@@ -64,8 +73,6 @@ struct PanelView: View {
     private var emptyPage: EmptyState? {
         switch model.shell.selection {
         case .home: .welcome
-        case .sessions: .noSessions
-        case .archive: .nothingArchived
         default: nil
         }
     }
@@ -75,11 +82,13 @@ struct PanelView: View {
         @Bindable var epics = model.epics
         let groupBy = Binding(get: { model.groupBy }, set: { model.groupBy = $0; SidebarStore().groupBy = $0 })
         let collapse = Binding(get: { model.collapse }, set: { model.collapse = $0 })
+        let archiveSort = Binding(get: { model.archiveSort }, set: { model.archiveSort = $0; SidebarStore().archiveSort = $0 })
+        let sessionSort = Binding(get: { model.sessionSort }, set: { model.sessionSort = $0; SidebarStore().sessionSort = $0 })
         let columns = Binding<NavigationSplitViewVisibility>(
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived)
+            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, sessionSort: sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived)
                 .onChange(of: shell.open) { SidebarStore().open = shell.open }
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
@@ -100,11 +109,16 @@ struct PanelView: View {
                     } else if shell.selection == .settings {
                         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
                         SettingsScreen(state: model.state)
+                    } else if shell.selection == .sessions {
+                        SessionsHomeView(sessions: model.sessions, sort: sessionSort, newSession: { shell.selection = .newSession }) { shell.selection = .session(id: $0) }
+                    } else if shell.selection == .archive {
+                        ArchiveView(rows: model.sessions.rows, sort: archiveSort) { shell.selection = .session(id: $0) }
+                    } else if shell.selection == .newSession {
+                        NewSessionView(model: model.newSession) { shell.selection = .session(id: $0) }
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
                     } else if case .session(let id) = shell.selection {
-                        // no session page until the sessions epic: the name, not "No sessions yet" beside a list that has some
-                        Text(model.sessions.rows.first { $0.id == id }?.title ?? id).foregroundStyle(.secondary)
+                        ConversationView(sessionId: id, draft: model.newSession).id(id)
                     } else if case .running(let snapshot)? = model.state {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 26) {
@@ -156,6 +170,9 @@ struct PanelView: View {
                         .sharedBackgroundVisibility(.hidden)
                 }
             }
+            if let session = openSession {
+                ToolbarItem(placement: .primaryAction) { OpenMenu(items: openMenuItems(session)).id(session.id) }
+            }
             if let snapshot, shell.selection == .carrier {
                 // two pills: the check against GitHub, then what governs Carrier itself (intake and stopping)
                 ToolbarItem(placement: .primaryAction) {
@@ -191,6 +208,7 @@ struct PanelView: View {
             }
         }
         .frame(minWidth: 1100, minHeight: 600)
+        .environment(model.actions)
         .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
         .onChange(of: snapshot) { if let snapshot { model.epics.settleResuming(snapshot) } }
     }
@@ -207,7 +225,7 @@ private struct Running: View {
         case .epic(let repo, let issue):
             // not in the snapshot (any more)
             Text("\(repo) #\(issue)")
-        case .home, .sessions, .session, .archive, .settings:
+        case .home, .sessions, .session, .newSession, .archive, .settings:
             EmptyView()  // PanelView shows these pages
         }
     }

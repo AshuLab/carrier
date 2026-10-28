@@ -6,13 +6,15 @@ import SwiftUI
 /// field under the row.
 struct SessionsRows: View {
     let sessions: Sessions
+    /// The order, shared with the Sessions home and remembered by the model.
+    @Binding var sort: SessionSort
     let selected: Bool
     /// Chooses Sessions, which unfolds it.
     let select: () -> Void
     @Binding var open: Bool
     /// The last ⌘F: when it asks for Sessions, the search field opens and takes the keyboard.
     let searchRequest: SearchRequest?
-    @State private var sort = SidebarStore().sessionSort
+    let newSession: () -> Void
     @State private var sortOpen = false
     /// The search field's text while it is open, nil while it is closed; not remembered between launches.
     @State private var query: String?
@@ -44,10 +46,10 @@ struct SessionsRows: View {
                 .popover(isPresented: $sortOpen, arrowEdge: .bottom) {
                     ChoiceMenu(
                         title: "Sort sessions", options: SessionSort.allCases.map { ($0.title, $0) },
-                        selection: Binding(get: { sort }, set: { sort = $0; SidebarStore().sessionSort = $0 }), close: { sortOpen = false }
+                        selection: $sort, close: { sortOpen = false }
                     )
                 }
-            IconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: Sessions.cannotStartReason) {}
+            IconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: sessions.cannotStartReason, action: newSession)
         })
         .help("Sessions (⌘2)")
         // the field is only drawn while unfolded, so a query must not outlive it: the magnifier would look pressed with no field
@@ -62,14 +64,14 @@ struct SessionsRows: View {
             case .empty:
                 let empty = EmptyState.noSessions
                 SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
-                    Button("New session") {}.disabled(sessions.canStart == false).help(sessions.canStart ? "New session" : Sessions.cannotStartReason)
+                    Button("New session", action: newSession).disabled(sessions.canStart == false).help(sessions.cannotStartReason ?? "New session")
                 }
             case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
             case .rows: EmptyView()
             }
             ForEach(groups, id: \.title) { group in
                 if sort == .workspace {
-                    WorkspaceHeader(title: group.title, canStart: sessions.canStart)
+                    WorkspaceHeader(title: group.title, cannotStartReason: sessions.cannotStartReason)
                 } else {
                     Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).selectionDisabled().flatSidebarRow()
                 }
@@ -94,14 +96,14 @@ private extension SessionSort {
 /// A workspace's name, with a + that appears on hover.
 private struct WorkspaceHeader: View {
     let title: String
-    let canStart: Bool
+    let cannotStartReason: String?
     @State private var hovered = false
 
     var body: some View {
         HStack {
             Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 0)
-            IconButton(icon: "plus", name: "New session in \(title)", enabled: canStart, why: Sessions.cannotStartReason) {}
+            IconButton(icon: "plus", name: "New session in \(title)", enabled: cannotStartReason == nil, why: cannotStartReason) {}
                 .opacity(hovered ? 1 : 0)
         }
         .onHover { hovered = $0 }
@@ -133,12 +135,13 @@ struct SessionRowView: View {
                 .accessibilityLabel(Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date()))
         }
         .padding(.horizontal, 2).padding(.vertical, 2)
+        .contextMenu { SessionMenuItems(row: row) }
         .help(row.title)
     }
 }
 
 /// A spinner while working, an orange mark while it waits for the person, a hollow circle when idle and a green check when done.
-private struct SessionGlyph: View {
+struct SessionGlyph: View {
     let state: SessionState
 
     var body: some View {

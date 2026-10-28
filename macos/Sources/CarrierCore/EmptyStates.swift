@@ -1,9 +1,9 @@
-// The fourteen places that can have nothing to show, with their SF Symbol, title and one line
+// The fifteen places that can have nothing to show, with their SF Symbol, title and one line
 // (docs/specs/macos-app-redesign.md, story 24; the wording is the mockup's gallery).
 
 public enum EmptyState: CaseIterable {
     case reviewNotStarted, noFilesChanged, noSlices, waitingForSlot, nothingWaiting, nothingNeedsYou, idle, nothingToTest, noActivity
-    case welcome, noSessions, nothingArchived, noResults, noEpics
+    case welcome, noSessions, noSessionsMatch, nothingArchived, noResults, noEpics
 
     public var icon: String {
         switch self {
@@ -18,6 +18,7 @@ public enum EmptyState: CaseIterable {
         case .noActivity: "ellipsis.bubble"
         case .welcome: "house"
         case .noSessions: "bubble.left.and.bubble.right"
+        case .noSessionsMatch: "magnifyingglass"
         case .nothingArchived: "archivebox"
         // the nearest SF Symbol to the exploration's struck magnifier
         case .noResults: "minus.magnifyingglass"
@@ -38,6 +39,7 @@ public enum EmptyState: CaseIterable {
         case .noActivity: "No activity yet"
         case .welcome: "Welcome"
         case .noSessions: "No sessions yet"
+        case .noSessionsMatch: "No sessions match"
         case .nothingArchived: "Nothing archived"
         case .noResults: "No results"
         case .noEpics: "No epics yet"
@@ -57,6 +59,7 @@ public enum EmptyState: CaseIterable {
         case .noActivity: "What the agent does shows up here as it works."
         case .welcome: "Pick Sessions or Carrier in the sidebar."
         case .noSessions: "Sessions you start are listed here."
+        case .noSessionsMatch: "Nothing fits what you searched or filtered."
         case .nothingArchived: "Archived sessions are kept here."
         case .noResults: "Nothing matches your search."
         case .noEpics: "Label an issue solve:epic:ready and Carrier will pick it up."

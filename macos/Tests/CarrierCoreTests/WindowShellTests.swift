@@ -20,7 +20,7 @@ import Testing
 
 @Test func theSelectionHoldsEveryPage() {
     let shell = WindowShell()
-    for next in [Selection.epic(repo: "acme/web", issue: 7), .settings, .home, .sessions, .session(id: "s1"), .archive, .carrier] {
+    for next in [Selection.epic(repo: "acme/web", issue: 7), .settings, .home, .sessions, .session(id: "s1"), .newSession, .archive, .carrier] {
         shell.selection = next
         #expect(shell.selection == next)
     }
@@ -42,6 +42,7 @@ import Testing
     let shell = WindowShell()
     for (next, opens) in [
         (Selection.carrier, OpenSection.carrier), (.sessions, .sessions), (.epic(repo: "acme/web", issue: 7), .carrier), (.session(id: "s1"), .sessions),
+        (.newSession, .sessions),
         (.archive, .archive),
     ] {
         shell.open = nil
@@ -116,13 +117,14 @@ import Testing
     #expect(shortcutAction(key: "1", modifiers: .command) == .select(.home))
     #expect(shortcutAction(key: "2", modifiers: .command) == .select(.sessions))
     #expect(shortcutAction(key: "3", modifiers: .command) == .select(.carrier))
+    #expect(shortcutAction(key: "n", modifiers: .command) == .select(.newSession))
     #expect(shortcutAction(key: "f", modifiers: .command) == .search)
     #expect(shortcutAction(key: "F", modifiers: .command) == .search)
 }
 
 @Test func anotherModifierOrAnotherKeyIsNothing() {
     for modifiers in [ShortcutModifiers([]), .shift, .option, .control, [.command, .shift], [.command, .option], [.command, .control]] {
-        for key in ["1", "2", "3", "f"] { #expect(shortcutAction(key: key, modifiers: modifiers) == nil) }
+        for key in ["1", "2", "3", "n", "f"] { #expect(shortcutAction(key: key, modifiers: modifiers) == nil) }
     }
     for key in ["4", "0", "g", "", "12"] { #expect(shortcutAction(key: key, modifiers: .command) == nil) }
 }

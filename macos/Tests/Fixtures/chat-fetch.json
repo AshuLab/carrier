@@ -1,0 +1,17 @@
+{
+  "/Users/dev/carrier": {
+    "folder": "/Users/dev/carrier", "git": true, "bare": false, "linkedWorktree": false,
+    "repo": { "owner": "AshuLab", "name": "carrier" }, "branch": "main", "defaultBranch": "main", "dirty": 3,
+    "branches": [
+      { "name": "main", "remote": false }, { "name": "feat/retry-sync", "remote": false },
+      { "name": "origin/main", "remote": true }, { "name": "origin/feat/retry-sync", "remote": true }, { "name": "origin/feat/worktrees", "remote": true }
+    ],
+    "fetchedAt": 1792007200000
+  },
+  "/Users/dev/web": {
+    "folder": "/Users/dev/web", "git": true, "bare": false, "linkedWorktree": false,
+    "repo": { "owner": "AshuLab", "name": "web" }, "branch": null, "defaultBranch": "main", "dirty": 0,
+    "branches": [ { "name": "main", "remote": false }, { "name": "origin/main", "remote": true }, { "name": "origin/release/2" , "remote": true } ],
+    "fetchedAt": 1792007200000
+  }
+}

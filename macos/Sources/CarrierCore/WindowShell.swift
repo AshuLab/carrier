@@ -8,6 +8,8 @@ public enum Selection: Hashable {
     case home
     case sessions
     case session(id: String)
+    /// The draft of a session that does not exist yet.
+    case newSession
     case archive
     case carrier
     case epic(repo: String, issue: Int)
@@ -34,7 +36,7 @@ public enum ShortcutAction: Equatable {
     case search
 }
 
-/// ⌘1 Home, ⌘2 the Sessions home, ⌘3 the Carrier home, ⌘F the search of the open section; anything else, or these keys with another
+/// ⌘1 Home, ⌘2 the Sessions home, ⌘3 the Carrier home, ⌘N the new session's draft, ⌘F the search of the open section; anything else, or these keys with another
 /// modifier, is nothing. `key` is the character without modifiers.
 public func shortcutAction(key: String, modifiers: ShortcutModifiers) -> ShortcutAction? {
     guard modifiers == .command else { return nil }
@@ -42,6 +44,7 @@ public func shortcutAction(key: String, modifiers: ShortcutModifiers) -> Shortcu
     case "1": return .select(.home)
     case "2": return .select(.sessions)
     case "3": return .select(.carrier)
+    case "n": return .select(.newSession)
     case "f": return .search
     default: return nil
     }
@@ -59,7 +62,7 @@ public struct SearchRequest: Equatable {
     public var selection: Selection = .home {
         didSet {
             switch selection {
-            case .sessions, .session: open = .sessions
+            case .sessions, .session, .newSession: open = .sessions
             case .carrier, .epic: open = .carrier
             case .archive: open = .archive
             case .home, .settings: break

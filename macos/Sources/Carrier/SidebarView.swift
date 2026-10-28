@@ -11,6 +11,7 @@ struct SidebarView: View {
     /// Which of Sessions, Carrier and Archive is unfolded, nil when all are folded.
     @Binding var open: OpenSection?
     @Binding var groupBy: GroupBy
+    @Binding var sessionSort: SessionSort
     @Binding var collapse: SidebarCollapse
     /// The last ⌘F, for the open section to show its search.
     let searchRequest: SearchRequest?
@@ -27,8 +28,9 @@ struct SidebarView: View {
         List(selection: list) {
             SidebarSectionRow(title: "Home", icon: "house", selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
             SessionsRows(
-                sessions: sessions, selected: selection == .sessions, select: { selection = .sessions },
-                open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }), searchRequest: searchRequest
+                sessions: sessions, sort: $sessionSort, selected: selection == .sessions, select: { selection = .sessions },
+                open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }), searchRequest: searchRequest,
+                newSession: { selection = .newSession }
             )
             CarrierRow(
                 state: state, selected: selection == .carrier, unfolded: open == .carrier, hasEpics: epicCount > 0,

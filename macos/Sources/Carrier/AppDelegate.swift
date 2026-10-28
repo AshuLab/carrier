@@ -43,6 +43,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { WindowController.shared.selectFirstEpic() }
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 print(WindowController.shared.structure)
+                WindowController.shared.selectFirstSession()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
+                Task { @MainActor in
+                    print(await WindowController.shared.chatStructure())
+                    print(await WindowController.shared.newSessionStructure())
+                    WindowController.shared.selectArchive()
+                }
+            }
+            // the Archive page on screen: its line and the layout again
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.5) {
+                print(WindowController.shared.archiveStructure)
                 exit(0)
             }
         }

@@ -1,0 +1,5 @@
+[
+  { "name": "claude", "harness": "claude", "model": "claude-sonnet-5-5", "found": true },
+  { "name": "codex", "harness": "codex", "found": true },
+  { "name": "claude-beta", "harness": "claude", "found": false }
+]

@@ -1,9 +1,21 @@
 import Foundation
 
 // The Sessions half of the sidebar as plain values (docs/specs/sidebar-home-sessions-carrier.md, Decisions). The sessions epic
-// feeds them; until then the list is empty, or a dev fixture with `--fixture`. The views map them one to one.
+// feeds them from the chat host (ChatSessions.swift). The views map them one to one.
 
-public enum SessionState: Hashable { case working, waiting, idle, done }
+public enum SessionState: Hashable {
+    case working, waiting, idle, done
+
+    /// The group's title by status and the filter's wording.
+    public var title: String {
+        switch self {
+        case .waiting: "Waiting for you"
+        case .working: "Working"
+        case .idle: "Idle"
+        case .done: "Done"
+        }
+    }
+}
 
 public struct SessionRow: Equatable {
     public var id: String
@@ -14,8 +26,17 @@ public struct SessionRow: Equatable {
     public var state: SessionState
     public var updatedAt: Date
     public var archived: Bool
+    /// The branch of a session in a worktree, nil for one in a plain folder.
+    public var branch: String?
+    /// Where the session works: the worktree's path, or the folder.
+    public var folder: String
+    /// Whether the host has a title for it; `title` says "Untitled session" when it has none.
+    public var titled: Bool
 
-    public init(id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false) {
+    public init(
+        id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil,
+        folder: String = "", titled: Bool = true
+    ) {
         self.id = id
         self.title = title
         self.workspace = workspace
@@ -23,6 +44,9 @@ public struct SessionRow: Equatable {
         self.state = state
         self.updatedAt = updatedAt
         self.archived = archived
+        self.branch = branch
+        self.folder = folder
+        self.titled = titled
     }
 }
 
@@ -31,15 +55,17 @@ public struct SessionGroup: Equatable {
     public var rows: [SessionRow]
 }
 
-/// What the Sessions half reads. `canStart` is false until the sessions epic sets it: the + is disabled while it is.
+/// What the Sessions half reads. The + is disabled, with `cannotStartReason` as its tooltip, until the chat host's state says it can start.
 public struct Sessions: Equatable {
     public var rows: [SessionRow] = []
-    public var canStart = false
+    public var cannotStartReason: String? = hostNotRunning
 
-    public init(rows: [SessionRow] = [], canStart: Bool = false) {
+    public init(rows: [SessionRow] = [], cannotStartReason: String? = hostNotRunning) {
         self.rows = rows
-        self.canStart = canStart
+        self.cannotStartReason = cannotStartReason
     }
+
+    public var canStart: Bool { cannotStartReason == nil }
 
     /// How many sessions are open, every one that is not archived: the badge on the Sessions row.
     public var open: Int { rows.filter { $0.archived == false }.count }
@@ -49,9 +75,6 @@ public struct Sessions: Equatable {
 
     /// How many listed sessions wait for the person: archived ones are not counted.
     public var waiting: Int { rows.filter { $0.state == .waiting && $0.archived == false }.count }
-
-    /// Why the + is disabled, for its tooltip.
-    public static let cannotStartReason = "Starting sessions is not available yet"
 }
 
 /// How the Sessions list is ordered.
@@ -73,8 +96,7 @@ public func sessionGroups(
     case .age:
         return ageGroups(listed, now: now, calendar: calendar)
     case .status:
-        let states: [(String, SessionState)] = [("Waiting for you", .waiting), ("Working", .working), ("Idle", .idle), ("Done", .done)]
-        return states.compactMap { title, state in newestFirst(title, listed.filter { $0.state == state }) }
+        return [SessionState.waiting, .working, .idle, .done].compactMap { state in newestFirst(state.title, listed.filter { $0.state == state }) }
     }
 }
 
@@ -85,7 +107,7 @@ public func archivedGroups(_ rows: [SessionRow], query: String = "", now: Date =
     ageGroups(matching(rows.filter(\.archived), query), now: now, calendar: calendar)
 }
 
-private func matching(_ rows: [SessionRow], _ query: String) -> [SessionRow] {
+func matching(_ rows: [SessionRow], _ query: String) -> [SessionRow] {
     let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
     return rows.filter { query.isEmpty || [$0.title, $0.workspace, $0.agent].contains { $0.localizedCaseInsensitiveContains(query) } }
 }
@@ -120,20 +142,4 @@ public func sessionAge(_ updatedAt: Date, now: Date) -> String {
     case ..<86400: return "\(seconds / 3600)h"
     default: return "\(seconds / 86400)d"
     }
-}
-
-/// The dev fixture: sample sessions in several workspaces, one of each state and archived ones, for `--fixture`.
-public func sampleSessions(now: Date) -> [SessionRow] {
-    func row(_ id: String, _ title: String, _ workspace: String, _ agent: String, _ state: SessionState, minutesAgo: Int, archived: Bool = false) -> SessionRow {
-        SessionRow(id: id, title: title, workspace: workspace, agent: agent, state: state, updatedAt: now.addingTimeInterval(Double(-60 * minutesAgo)), archived: archived)
-    }
-    return [
-        row("s1", "Add a retry to the sync worker", "carrier", "Claude", .working, minutesAgo: 2),
-        row("s2", "Which migration should go first?", "carrier", "Codex", .waiting, minutesAgo: 14),
-        row("s3", "Explore the pricing page layout", "web", "Claude", .idle, minutesAgo: 190),
-        row("s4", "Fix the flaky login test", "web", "Claude", .done, minutesAgo: 60 * 30),
-        row("s5", "A very long title that goes on and on about renaming every helper in the whole repository", "Dotfiles", "Antigravity", .idle, minutesAgo: 60 * 24 * 4),
-        row("s6", "Old spike on the cache", "web", "Codex", .done, minutesAgo: 60 * 24 * 20, archived: true),
-        row("s7", "Rename the config keys", "carrier", "Claude", .done, minutesAgo: 60 * 24 * 9, archived: true),
-    ]
 }

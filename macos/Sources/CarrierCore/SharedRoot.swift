@@ -28,11 +28,23 @@ public func activeConfigPath(saved: SetupSettings?, environment: [String: String
     return configFilePath(environment: environment, home: home)
 }
 
+/// The shared root, from the same config file for both sockets.
+private func activeRoot(saved: SetupSettings?, environment: [String: String], home: String) -> String {
+    configRoot(configPath: activeConfigPath(saved: saved, environment: environment, home: home), home: home)
+}
+
 /// Tests pass `saved: nil`; the app reads what the person saved, so a changed config file is followed at once.
 public func controlSocketPath(
     saved: SetupSettings? = SetupStore().load(),
     environment: [String: String] = ProcessInfo.processInfo.environment, home: String = NSHomeDirectory()
 ) -> String {
-    let configPath = activeConfigPath(saved: saved, environment: environment, home: home)
-    return configRoot(configPath: configPath, home: home) + "/orchestrator/control.sock"
+    activeRoot(saved: saved, environment: environment, home: home) + "/orchestrator/control.sock"
+}
+
+/// The chat host's socket, found the same way: `<root>/chat/chat.sock`.
+public func chatSocketPath(
+    saved: SetupSettings? = SetupStore().load(),
+    environment: [String: String] = ProcessInfo.processInfo.environment, home: String = NSHomeDirectory()
+) -> String {
+    activeRoot(saved: saved, environment: environment, home: home) + "/chat/chat.sock"
 }

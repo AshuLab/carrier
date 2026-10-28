@@ -1,0 +1,11 @@
+{
+  "sessionId": "8a2e4b6d-1c3f-4d57-8e9a-0b1c2d3e4f02",
+  "events": [
+    { "id": 1, "at": 1792001000000, "kind": "user", "text": "Which migration should go first? Run the checks before you say." },
+    { "id": 2, "at": 1792001001000, "kind": "tool_start", "callId": "x1", "tool": "Read", "arg": "db/migrations/0007_add_plans.sql" },
+    { "id": 3, "at": 1792001001300, "kind": "tool_end", "callId": "x1", "tool": "Read", "status": "ok", "output": ["ALTER TABLE plans ADD COLUMN yearly boolean;"] },
+    { "id": 4, "at": 1792001003000, "kind": "approval", "approvalId": "b1", "tool": "Bash", "arg": "pnpm db:check", "choices": [{ "id": "accept", "label": "Allow", "allow": true }, { "id": "acceptForSession", "label": "Allow for this session", "allow": true }, { "id": "decline", "label": "Decline", "allow": false }, { "id": "cancel", "label": "Decline and stop the turn", "allow": false }] }
+  ],
+  "cursor": 4,
+  "streaming": ""
+}

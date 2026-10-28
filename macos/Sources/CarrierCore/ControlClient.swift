@@ -60,9 +60,11 @@ public final class ControlClient {
         public let capabilities: Set<Capability>
     }
 
-    /// The optional requests an engine can answer. A name this app does not know is dropped, so a newer engine never breaks an older app.
+    /// The optional requests an engine can answer, and the chat host's own (`agents` onwards). A name this app does not know is dropped, so a newer engine never breaks an older app.
     public enum Capability: String {
         case sessions, events, epic, files, fileDiff, availableRepos, availableReposPaged, resumeEpic
+        case agents, list, open, resume, send, answer, interrupt, setOption, close, archive, delete, deletePreview, stop
+        case workspace, fetch, suggestName, checkName
     }
 
     /// What the last `hello()` said Carrier can do; empty until then.

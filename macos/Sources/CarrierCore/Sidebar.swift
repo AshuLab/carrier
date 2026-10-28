@@ -7,11 +7,12 @@ public enum GroupBy: String, CaseIterable {
     case status, repo
 }
 
-/// The grouping, the Sessions sort and the unfolded section, kept in user defaults so they survive a relaunch.
+/// The grouping, the Sessions and Archive sorts and the unfolded section, kept in user defaults so they survive a relaunch.
 public struct SidebarStore {
     private let defaults: UserDefaults
     private let key = "sidebar.groupBy"
     private let sortKey = "sidebar.sessionSort"
+    private let archiveSortKey = "sidebar.archiveSort"
     private let openKey = "sidebar.open"
     private let slotsTotalKey = "sidebar.slotsTotal"
 
@@ -25,6 +26,11 @@ public struct SidebarStore {
     public var sessionSort: SessionSort {
         get { defaults.string(forKey: sortKey).flatMap(SessionSort.init(rawValue:)) ?? .workspace }
         nonmutating set { defaults.set(newValue.rawValue, forKey: sortKey) }
+    }
+
+    public var archiveSort: ArchiveSort {
+        get { defaults.string(forKey: archiveSortKey).flatMap(ArchiveSort.init(rawValue:)) ?? .dateArchived }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: archiveSortKey) }
     }
 
     /// The slots total the engine last reported, for the bars of a stopped engine; nil until one was seen.

@@ -1,0 +1,5 @@
+{
+  "sessions": [
+    { "sessionId": "f6a7b8c9-5d4e-4f10-8b3c-4d5e6f7a8b06", "worktree": { "path": "/Users/dev/.carrier/worktrees/web/fix-login", "branch": "carrier/fix-login", "dirty": 2, "unpushed": 1 } }
+  ]
+}

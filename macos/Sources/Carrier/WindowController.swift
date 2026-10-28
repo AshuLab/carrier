@@ -9,9 +9,20 @@ import SwiftUI
     let shell = WindowShell(open: SidebarStore().open)
     let epics = EpicStore()
     var groupBy = SidebarStore().groupBy
+    var sessionSort = SidebarStore().sessionSort
+    var archiveSort = SidebarStore().archiveSort
+    /// Archive, restore and delete; `startMonitor` makes the lists read again after each.
+    let actions = SessionActions(host: SocketChatHost())
     var collapse = SidebarCollapse()
-    /// Empty until the sessions epic feeds it; the dev fixture's sample with `--fixture`.
-    var sessions = Sessions(rows: CommandLine.arguments.contains("--fixture") ? sampleSessions(now: Date()) : [])
+    /// The chat host's sessions (`ChatSessionsPoller`); the + follows the host (`ChatMonitor`).
+    var sessions = Sessions()
+    /// The draft of a new session; it starts the chat host when it is not running (#503) before it opens the session.
+    // built on the main thread, where the app creates its window
+    let newSession = MainActor.assumeIsolated {
+        NewSessionModel(host: SocketChatHost()) {
+            await withCheckedContinuation { continuation in ChatHostStarter.shared.ensureRunning { continuation.resume(returning: $0) } }
+        }
+    }
 }
 
 private extension ShortcutModifiers {
@@ -98,6 +109,58 @@ final class WindowController: NSObject, NSWindowDelegate {
         if let (repo, issue) = first { model.shell.selection = .epic(repo: repo, issue: issue) }
     }
 
+    /// For `--smoke-window`: selects the first session the chat host lists, so its conversation is on screen.
+    func selectFirstSession() {
+        if let first = model.sessions.rows.first(where: { $0.archived == false }) { model.shell.selection = .session(id: first.id) }
+    }
+
+    /// For `--smoke-window`: selects the Archive page.
+    func selectArchive() { model.shell.selection = .archive }
+
+    /// For `--smoke-window`, with the Archive selected: what the page lists and says, then the window's layout as it is with it on screen.
+    var archiveStructure: String {
+        let page = archivePage(model.sessions.rows, by: model.archiveSort)
+        let line = "archive: \(page.subtitle.isEmpty ? "no count" : page.subtitle), groups \(page.groups.map(\.title)), \(page.emptyState?.title ?? "listed"), clear \(page.canClear ? "enabled" : "disabled")"
+        return line + "\n" + structure
+    }
+
+    /// For `--smoke-window`, after `selectFirstSession`: how the conversation is laid out (read from the constants the view uses) and
+    /// what the model makes of the first session's events, which it asks the chat host for as the view does.
+    @MainActor func chatStructure() async -> String {
+        var lines = ["chat transcript: \(ConversationView.layout)"]
+        if case .session(let id) = model.shell.selection {
+            let conversation = ConversationModel(host: SocketChatHost(), sessionId: id)
+            let start = Date()
+            await conversation.poll()
+            let took = Int(Date().timeIntervalSince(start) * 1000)
+            let groups = conversation.rows.filter { if case .tools = $0 { true } else { false } }.count
+            lines.append("chat feed: \(conversation.rows.count) rows (\(groups) of tool calls) from \(conversation.cursor) events in \(took) ms, options: \(optionsPill(conversation.options) ?? "none")\(conversation.failure.map { ", failed: \($0)" } ?? "")")
+        } else {
+            lines.append("chat feed: no session to select")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// For `--smoke-window`: shows the draft of a new session and says what it offers, as the view reads it from the chat host.
+    @MainActor func newSessionStructure() async -> String {
+        model.shell.selection = .newSession
+        await model.newSession.load()
+        let draft = model.newSession
+        var lines = ["new session: \"\(draft.sentence)\", agents \(draft.agents.map { choice in choice.note.map { "\(choice.name) (\($0))" } ?? choice.name }), agent \(draft.agent ?? "none"), recent \(draft.recent.map(\.name))"]
+        // the worktree half, for the first recent folder: what the host says it is, then the sentence in a new worktree
+        if let folder = draft.recent.first?.path {
+            await draft.choose(folder: folder)
+            lines.append("new session folder: \"\(draft.sentence)\", warning \(draft.warning ?? "none"), worktree \(draft.offersWorktree ? "offered" : "not offered")")
+            await draft.useWorktree(true)
+            if draft.worktree {
+                let picker = draft.picker(query: "")
+                lines.append("new session worktree: \"\(draft.sentence)\", name \(draft.nameState), branches \(picker?.local.count ?? 0) local and \(picker?.remote.count ?? 0) remote, \(picker?.fetched ?? "no picker")")
+                await draft.useWorktree(false)
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// For `--smoke-window`: what the open window looks like, one line each: the minimum content size, the width of each
     /// column of the split view, the scroll pockets (the system's blur under a bar over a scroll view: the epic's pipeline
     /// makes one in the centre column), the toolbar's items, how the transcript is laid out and the time to merge 5,000 events.
@@ -119,6 +182,10 @@ final class WindowController: NSObject, NSWindowDelegate {
         }
         if let content = window.contentView { walk(content) }
         for item in window.toolbar?.items ?? [] { lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)") }
+        lines.append("sessions +: \(model.sessions.cannotStartReason ?? "enabled")")
+        lines.append("sessions: \(model.sessions.rows.count) rows, \(archivedCount(model.sessions.rows)) archived, groups \(sessionGroups(model.sessions.rows).map(\.title))")
+        let home = sessionsPage(model.sessions.rows, by: model.sessionSort)
+        lines.append("sessions home: \(home.subtitle.isEmpty ? "no count" : home.subtitle), \(home.emptyState?.title ?? "listed")")
         lines.append("transcript: \(SessionSectionsView.layout)")
         let events = longTranscriptEvents(rounds: 556)
         var transcript = Transcript()
@@ -146,6 +213,8 @@ final class WindowController: NSObject, NSWindowDelegate {
             guard let self, let window, window.isKeyWindow, event.window === window,
                 let action = shortcutAction(key: event.charactersIgnoringModifiers ?? "", modifiers: .init(event.modifierFlags))
             else { return event }
+            // the + is off, with its reason, when no session can start: ⌘N does what it does
+            if action == .select(.newSession), self.model.sessions.canStart == false { return nil }
             self.model.shell.perform(action)
             return nil
         }
@@ -165,6 +234,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         stop?.set()
         stop = nil
         model.state = nil
+        model.sessions = Sessions()
         model.shell.reset(open: SidebarStore().open)
     }
 
@@ -173,19 +243,34 @@ final class WindowController: NSObject, NSWindowDelegate {
         self.stop = stop
         let model = model
         let poller = model.epics.poller!
+        // sleeps in short steps so closing the window ends the thread within a tenth of a second
+        let sleep: (TimeInterval) -> Bool = { seconds in
+            let end = Date().addingTimeInterval(seconds)
+            while Date() < end && stop.isSet == false { Thread.sleep(forTimeInterval: 0.1) }
+            return stop.isSet == false
+        }
         let monitor = ControlMonitor(
             socketPath: { controlSocketPath() },
-            // sleeps in short steps so closing the window ends the thread within a tenth of a second
-            wait: { seconds in
-                let end = Date().addingTimeInterval(seconds)
-                while Date() < end && stop.isSet == false { Thread.sleep(forTimeInterval: 0.1) }
-                return stop.isSet == false
-            },
+            wait: sleep,
             tick: { try poller.poll($0) },
             onChange: { state in
                 DispatchQueue.main.async { if stop.isSet == false { model.state = state } }
             }
         )
         Thread.detachNewThread { monitor.run() }
+        let chat = ChatMonitor(wait: sleep) { host in
+            DispatchQueue.main.async { if stop.isSet == false { model.sessions.cannotStartReason = cannotStartReason(host: host) } }
+        }
+        Thread.detachNewThread { chat.run() }
+        let sessions = ChatSessionsPoller(host: SocketChatHost()) { rows in
+            DispatchQueue.main.async { if stop.isSet == false { model.sessions.rows = rows } }
+        }
+        DispatchQueue.main.async { model.actions.changed = { sessions.invalidateArchived() } }
+        Task.detached {
+            repeat {
+                await sessions.poll()
+                try? await Task.sleep(for: .seconds(1))
+            } while stop.isSet == false
+        }
     }
 }

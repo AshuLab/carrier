@@ -75,6 +75,8 @@ struct MarkdownView: View {
                         Text(line).lineSpacing(3)
                     }
                     .padding(.leading, CGFloat(level) * 16)
+                case .code(let language, let code):
+                    CodeBlockView(language: language, code: code)
                 case .gap:
                     Color.clear.frame(height: 5)
                 }
@@ -405,6 +407,7 @@ struct ToolStatusView: View {
 /// The console's footer button: copies what the block shows and says so for a moment.
 struct CopyButton: View {
     let text: String
+    var help = "Copy the command and its output"
     @State private var copied = false
 
     var body: some View {
@@ -425,7 +428,7 @@ struct CopyButton: View {
             .font(.system(size: 11)).foregroundStyle(.secondary).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("Copy the command and its output")
+        .help(help)
     }
 }
 

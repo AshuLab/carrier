@@ -120,6 +120,12 @@ _Avoid_: chat, thread.
 **Workspace** - The folder a user session works in: a plain folder, a GitHub clone, or a repository already in Carrier's list. The sidebar groups sessions by workspace. It is never the shared clone an epic runs in nor an epic's worktree.
 _Avoid_: project, epic checkout.
 
+**Base folder** - The workspace's own folder, as opposed to a worktree made from it. A session that works in the base folder edits the person's own checkout, with whatever branch and uncommitted changes it has.
+_Avoid_: main folder, original, source.
+
+**Session worktree** - A git worktree that Carrier creates for a user session, on a new branch named `carrier/<adjective>-<unit>-<place>` and cut from a branch the person picks, so the base folder stays untouched. It lives under Carrier's home, its name is generated (the person may type another after the `carrier/` prefix) and it is removed with the session ([0014](adr/0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md)). It is not an epic's worktree and not a lane.
+_Avoid_: workspace copy, sandbox, checkout, epic worktree.
+
 **Done** - The group of epics whose final PR was merged, shown for the finished window after the merge. Not Ready for test: nothing is waiting for a person any more. In the terminal panel it is a section of the same name.
 _Avoid_: finished (the window and the snapshot field use it, the group does not), closed, completed.
 

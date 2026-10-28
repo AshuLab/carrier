@@ -6,7 +6,8 @@ import Foundation
 /// How long the socket has to answer after the process starts.
 public let startTimeout: TimeInterval = 15
 
-/// What the shell spawns: `node <carrier> --config <config path>` with the engine's PATH, its output going to `logPath`.
+/// What the shell spawns: `node <carrier> ...` with the engine's PATH, its output going to `logPath`. `orchestratorDir` is the
+/// user-only folder the log's folder lives in (the engine's `orchestrator/`, the chat host's `chat/`).
 public struct StartCommand: Equatable {
     public let node: String
     public let arguments: [String]
@@ -57,10 +58,10 @@ public func startOutcome(exitCode: Int32?, socketAnswered: Bool, elapsed: TimeIn
     return elapsed >= startTimeout ? .failed(.noSocket) : nil
 }
 
-public func startFailureText(_ failure: StartFailure) -> String {
+public func startFailureText(_ failure: StartFailure, name: String = "Carrier") -> String {
     switch failure {
-    case .exited(let code): return "Carrier exited with code \(code) before it opened its control socket."
-    case .noSocket: return "Carrier did not open its control socket within \(Int(startTimeout)) seconds. It may still be running."
+    case .exited(let code): return "\(name) exited with code \(code) before it opened its control socket."
+    case .noSocket: return "\(name) did not open its control socket within \(Int(startTimeout)) seconds. It may still be running."
     }
 }
 

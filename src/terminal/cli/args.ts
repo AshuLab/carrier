@@ -13,6 +13,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier watch                     the live panel of the running Carrier; q leaves it running (exit 1: not running)
        carrier stop|pause|resume|check --config <path>   stop Carrier, pause or resume intake, look at GitHub now
        carrier chat --workspace <folder> [--agent <name>]   talk to an agent in a folder (starts the chat host if needed)
+       carrier chat --resume <id>        go on with a closed chat session, after the end of its transcript
        carrier chat --list|--stop        list chat sessions or stop the chat host
        carrier chat-host --config <path> run the chat host in the foreground
 
@@ -49,6 +50,7 @@ const options = {
   stop: { type: 'boolean' },
   workspace: { type: 'string' },
   agent: { type: 'string' },
+  resume: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
 } as const;
 

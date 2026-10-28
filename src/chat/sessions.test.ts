@@ -8,6 +8,7 @@ import { FakeClock } from '../orchestration/fake.ts';
 import { openChatDatabase } from './db.ts';
 import { FakeChatRunner } from './fake.ts';
 import { chatCaps } from './transcript.ts';
+import { sessions as schemaSessions } from './schema.ts';
 import { createSessions } from './sessions.ts';
 
 let dir: string;
@@ -234,4 +235,63 @@ test('close keeps the row, ends the conversation once, and closeAll closes every
   expect(s.claude.conversations.map((c) => c.closed)).toEqual([true, true]);
   expect(s.sessions.liveCount()).toBe(0);
   await expect(s.sessions.close({ sessionId: 'nope' })).rejects.toThrow('no such session');
+});
+
+test('resume opens a closed session again from its native id, folder and options, keeps its title, and the context goes on', async () => {
+  const { sessions, claude, conversation, id, clock } = await openOne(setup({ agents: { claude: { harness: 'claude', model: 'haiku' } } }));
+  conversation.reply = (_text, c) => {
+    c.nativeId = 'native-1';
+    c.emit({ kind: 'assistant', text: 'ok' }, { kind: 'turn_end', outcome: 'ok' });
+  };
+  sessions.send({ sessionId: id, text: 'remember pineapple' });
+  await sessions.close({ sessionId: id });
+  expect(sessions.list({}).sessions[0]).toMatchObject({ live: false });
+  clock.time = 5000;
+
+  const resumed = await sessions.resume({ sessionId: id });
+  expect(claude.opened[1]).toEqual({ folder: expect.stringContaining('work'), resume: 'native-1', options: { model: 'haiku' }, env: { SOME: 'env' } });
+  expect(resumed.session).toMatchObject({ id, title: 'remember pineapple', nativeId: 'native-1', state: 'idle' });
+  expect(sessions.list({}).sessions[0]).toMatchObject({ live: true });
+  sessions.send({ sessionId: id, text: 'again' });
+  expect(claude.conversations[1]!.sent).toEqual(['again']);
+  expect(sessions.events({ sessionId: id, limit: 50 }).events.map((e) => e.kind)).toEqual(['user', 'assistant', 'turn_end', 'user']); // the transcript goes on from where it was
+});
+
+test('resume of a live session just attaches: no second conversation', async () => {
+  const { sessions, claude, id } = await openOne();
+  const resumed = await sessions.resume({ sessionId: id });
+  expect(resumed.session.id).toBe(id);
+  expect(claude.opened).toHaveLength(1);
+});
+
+test('resume of a session that never got a native id starts it again as it was opened', async () => {
+  const { sessions, claude, id } = await openOne();
+  await sessions.close({ sessionId: id });
+  await sessions.resume({ sessionId: id });
+  expect(claude.opened[1]).not.toHaveProperty('resume');
+});
+
+test('resume refuses, in words, an unknown session, a provider that does not know the id any more, a folder that is gone and an agent no longer configured', async () => {
+  const { sessions, claude, id, db } = await openOne();
+  db.update(schemaSessions).set({ nativeId: 'gone' }).run();
+  await sessions.close({ sessionId: id });
+  await expect(sessions.resume({ sessionId: 'nope' })).rejects.toThrow('no such session');
+  claude.refuseWith = 'Claude could not resume that conversation';
+  await expect(sessions.resume({ sessionId: id })).rejects.toThrow('could not resume');
+  expect(claude.conversations).toHaveLength(1); // nothing was left live
+  expect(sessions.liveCount()).toBe(0);
+  claude.refuseWith = undefined;
+  rmSync(work, { recursive: true });
+  await expect(sessions.resume({ sessionId: id })).rejects.toThrow('does not exist');
+  mkdirSync(work);
+  db.update(schemaSessions).set({ agent: 'gone' }).run();
+  await expect(sessions.resume({ sessionId: id })).rejects.toThrow('not configured any more');
+});
+
+test('two resumes of one closed session leave one live conversation', async () => {
+  const { sessions, claude, id } = await openOne();
+  await sessions.close({ sessionId: id });
+  await Promise.all([sessions.resume({ sessionId: id }), sessions.resume({ sessionId: id })]);
+  expect(sessions.liveCount()).toBe(1);
+  expect(claude.conversations.map((c) => c.closed)).toEqual([true, false, true]); // the late one is closed
 });

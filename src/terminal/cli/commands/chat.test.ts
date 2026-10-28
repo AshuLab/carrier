@@ -3,11 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { FakeChatRunner } from '../../../chat/fake.ts';
+import { FakeChatRunner, type FakeConversation } from '../../../chat/fake.ts';
 import { startChatHost } from '../../../chat/host.ts';
 import type { Config } from '../../../config/schema.ts';
 import { FakeClock } from '../../../orchestration/fake.ts';
 import { CliError } from '../cli-error.ts';
+import { connectControl } from '../control-client.ts';
 import { chatCommand } from './chat.ts';
 
 let root: string;
@@ -114,4 +115,66 @@ test('--workspace starts the host when none answers', async () => {
   });
   expect(await chatCommand({ workspace: root }, config(), '/abs/config.json', { start, input: typed('/quit') })).toBe(0);
   expect(start).toHaveBeenCalledTimes(1);
+});
+
+const nativeReply = (conversation: FakeConversation) => {
+  conversation.nativeId = 'native-1';
+  conversation.reply = (text, c) => c.emit({ kind: 'assistant', text: `re: ${text}` }, { kind: 'turn_end', outcome: 'ok' });
+};
+
+test('--list prints each session as id, agent, state, age and folder, the most recently active first, and closed when its agent is not running', async () => {
+  const clock = new FakeClock();
+  const exit = vi.fn();
+  const runner = new FakeChatRunner();
+  const { stop } = await startChatHost(config(), { installLogging: () => {}, clock, exit, signals: false, runners: { claude: runner } });
+  stops.push(stop);
+  const older = join(root, 'older');
+  const newer = join(root, 'newer');
+  mkdirSync(older);
+  mkdirSync(newer);
+  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  const a = ((await client.request('open', { agent: 'claude', folder: older })) as any).session.id;
+  clock.time = 3 * 3600_000;
+  const b = ((await client.request('open', { agent: 'claude', folder: newer })) as any).session.id;
+  await client.request('close', { sessionId: a });
+  clock.time = 3 * 3600_000 + 5 * 60_000;
+  expect(await chatCommand({ list: true }, config(), '/abs/config.json', { now: () => clock.time })).toBe(0);
+  const lines = written.join('').trimEnd().split('\n');
+  expect(lines).toEqual([expect.stringMatching(new RegExp(`^${b}  claude  idle  5m ago  .*newer$`)), expect.stringMatching(new RegExp(`^${a}  claude  closed  3h ago  .*older$`))]);
+  client.close();
+});
+
+test('--resume prints the last 20 events of the transcript, then continues the conversation after the host was stopped and started again', async () => {
+  const work = join(root, 'work');
+  mkdirSync(work);
+  const first = new FakeChatRunner();
+  first.setup = nativeReply;
+  const one = await startChatHost(config(), { installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: first } });
+  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  const { session } = (await client.request('open', { agent: 'claude', folder: work })) as any;
+  for (let i = 1; i <= 15; i++) {
+    await client.request('send', { sessionId: session.id, text: `message ${i}` });
+  }
+  client.close();
+  await one.stop();
+
+  const second = new FakeChatRunner();
+  second.setup = nativeReply;
+  const next = await startChatHost(config(), { installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: second } });
+  stops.push(next.stop);
+  expect(await chatCommand({ resume: session.id }, config(), '/abs/config.json', { input: typed('and now', '/quit'), pollMs: 5 })).toBe(0);
+  const out = written.join('');
+  expect(second.opened[0]).toMatchObject({ resume: 'native-1' });
+  // 15 turns of user, assistant and turn_end make 45 events; the last 20 begin at the answer to message 9
+  expect(out).not.toContain('message 8');
+  expect(out).not.toContain('> message 9\n');
+  expect(out).toContain('re: message 9\n> message 10\n');
+  expect(out).toContain('> message 15\nre: message 15\n');
+  expect(out).toContain('> re: and now\n');
+  expect(second.conversations[0]!.sent).toEqual(['and now']);
+});
+
+test('--resume of an unknown session shows the refusal in words', async () => {
+  await host();
+  await expect(chatCommand({ resume: '00000000-0000-4000-8000-000000000000' }, config(), '/abs/config.json', { input: typed('/quit') })).rejects.toMatchObject({ code: 1, lines: ['There is no such session'] });
 });

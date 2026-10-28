@@ -36,12 +36,23 @@ async function hostClient(socketPath: string, config: Config, configPath: string
 
 type Reply = { events: Record<string, any>[]; cursor: number; streaming: string };
 
-/** Opens a conversation and runs it in plain lines: one line in, the answer out as it streams. `/quit` leaves and the session stays open. */
-async function converse(client: CarrierClient, { agent, folder, input, pollMs }: { agent: string; folder: string; input: Readable; pollMs: number }) {
+const HISTORY_EVENTS = 20;
+
+/** How long ago, in the largest whole unit. */
+const ageOf = (ms: number) => {
+  const minutes = Math.floor(Math.max(ms, 0) / 60_000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 24 * 60) return `${Math.floor(minutes / 60)}h ago`;
+  return `${Math.floor(minutes / (24 * 60))}d ago`;
+};
+
+/** Opens a conversation, or resumes a session, and runs it in plain lines: one line in, the answer out as it streams. `/quit` leaves and the session stays open. */
+async function converse(client: CarrierClient, { start, input, pollMs }: { start: { cmd: 'open'; agent: string; folder: string } | { cmd: 'resume'; sessionId: string }; input: Readable; pollMs: number }) {
   const write = (text: string) => void process.stdout.write(text);
   let opened;
   try {
-    opened = (await client.request('open', { agent, folder })) as { session: { id: string; agent: string; folder: string } };
+    opened = (await client.request(start.cmd, start.cmd === 'open' ? { agent: start.agent, folder: start.folder } : { sessionId: start.sessionId })) as { session: { id: string; agent: string; folder: string } };
   } catch (error) {
     throw new CliError(1, error instanceof Error ? error.message : String(error));
   }
@@ -64,6 +75,22 @@ async function converse(client: CarrierClient, { agent, folder, input, pollMs }:
   };
   const poll = async () => (await client.request('events', { sessionId, after: cursor, limit: 200 })) as Reply;
 
+  if (start.cmd === 'resume') {
+    // the socket pages forward by cursor only, so the end of the transcript is found by reading to its end
+    let tail: Reply['events'] = [];
+    for (let page = await poll(); ; page = await poll()) {
+      tail = [...tail, ...page.events].slice(-HISTORY_EVENTS);
+      cursor = page.cursor;
+      if (page.events.length < 200) break;
+    }
+    for (const event of tail) {
+      if (event.kind === 'user') write(`> ${event.text}\n`);
+      else if (event.kind === 'assistant') write(`${event.text}\n`);
+      else if (event.kind === 'tool_start') write(`  [${event.tool}${event.arg ? ` ${event.arg}` : ''}]\n`);
+      else if (event.kind === 'error') write(`error: ${event.text}\n`);
+    }
+  }
+
   const lines = createInterface({ input })[Symbol.asyncIterator]();
   for (;;) {
     write('> ');
@@ -83,14 +110,14 @@ async function converse(client: CarrierClient, { agent, folder, input, pollMs }:
 }
 
 /**
- * `carrier chat --workspace <folder> [--agent <name>]`, `--list` and `--stop`. A host is started on demand by --list and
+ * `carrier chat --workspace <folder> [--agent <name>]`, `--resume <id>`, `--list` and `--stop`. A host is started on demand by --list and
  * by a chat (`start` is replaceable in tests). `configPath` is absolute. Returns the exit code.
  */
 export async function chatCommand(
-  flags: { list?: boolean; stop?: boolean; workspace?: string; agent?: string },
+  flags: { list?: boolean; stop?: boolean; workspace?: string; agent?: string; resume?: string },
   config: Config,
   configPath: string,
-  { start = startDetached, input = process.stdin, pollMs = POLL_MS }: { start?: typeof startDetached; input?: Readable; pollMs?: number } = {},
+  { start = startDetached, input = process.stdin, pollMs = POLL_MS, now = Date.now }: { start?: typeof startDetached; input?: Readable; pollMs?: number; now?: () => number } = {},
 ): Promise<number> {
   const socketPath = chatSocketOf(config.root);
   if (flags.stop) {
@@ -107,20 +134,31 @@ export async function chatCommand(
   }
   if (flags.list) {
     const client = await hostClient(socketPath, config, configPath, start);
-    await client.request('list');
+    const { sessions } = (await client.request('list')) as { sessions: { id: string; agent: string; folder: string; state: string; live: boolean; lastActiveAt: number }[] };
     client.close();
-    process.stdout.write('No chat sessions.\n'); // the sessions slice prints what the reply holds
+    if (sessions.length === 0) process.stdout.write('No chat sessions.\n');
+    // a session whose agent is not running is closed, whatever state it was left in
+    for (const s of sessions) process.stdout.write(`${s.id}  ${s.agent}  ${s.live ? s.state : 'closed'}  ${ageOf(now() - s.lastActiveAt)}  ${s.folder}\n`);
+    return 0;
+  }
+  if (flags.resume !== undefined) {
+    const client = await hostClient(socketPath, config, configPath, start);
+    try {
+      await converse(client, { start: { cmd: 'resume', sessionId: flags.resume }, input, pollMs });
+    } finally {
+      client.close();
+    }
     return 0;
   }
   if (flags.workspace !== undefined) {
     const agent = flags.agent ?? chatAgents(config)[0]!.name;
     const client = await hostClient(socketPath, config, configPath, start);
     try {
-      await converse(client, { agent, folder: resolve(flags.workspace), input, pollMs });
+      await converse(client, { start: { cmd: 'open', agent, folder: resolve(flags.workspace) }, input, pollMs });
     } finally {
       client.close();
     }
     return 0;
   }
-  throw new CliError(2, 'Usage: carrier chat --workspace <folder> [--agent <name>] | --list | --stop [--config <path>]');
+  throw new CliError(2, 'Usage: carrier chat --workspace <folder> [--agent <name>] | --resume <id> | --list | --stop [--config <path>]');
 }

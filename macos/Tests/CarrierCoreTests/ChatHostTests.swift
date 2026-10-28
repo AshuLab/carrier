@@ -36,7 +36,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {
@@ -99,6 +99,26 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     #expect(try await host.cloneRepo("AshuLab/web") == ClonedRepo(folder: "/Users/dev/web", repo: "AshuLab/web", fetched: false))
     #expect(try await host.cloneRepo("AshuLab/carrier") == ClonedRepo(folder: "/Users/dev/carrier", repo: "AshuLab/carrier", fetched: true))
     await #expect(throws: ControlError.remote("AshuLab/nope was not found, or your GitHub login cannot see it")) { try await host.cloneRepo("AshuLab/nope") }
+}
+
+@Test func theFixtureHostAnswersCreateProjectFromTheGoldenFileAndRefusesAnotherName() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    #expect(try await host.capabilities().contains(.createProject))
+    #expect(try await host.createProject("my-idea") == "/Users/dev/projects/local/my-idea")
+    await #expect(throws: ControlError.remote("web is already a project; choose another name")) { try await host.createProject("web") }
+}
+
+@Test func aHostWithoutTheCreateProjectCapabilityIsNotAskedToCreate() async {
+    var asked = false
+    let server = TestServer { connection in
+        connection.send(hello("\"agents\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { server.stop() }
+    await #expect(throws: ControlError.remote("the chat host does not support createProject")) { try await SocketChatHost(socketPath: { server.path }).createProject("x") }
+    #expect(asked == false)
 }
 
 @Test func aHostWithoutTheCloneCapabilityIsNotAskedToClone() async {

@@ -27,7 +27,8 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var names = ["brave-marine-aiur", "keen-ghost-char"]
     var taken: [String: NameCheck] = [:]
     var opens: [WorktreeRequest?] = []
-    var capabilities: Set<ControlClient.Capability> = [.cloneRepo]
+    var capabilities: Set<ControlClient.Capability> = [.cloneRepo, .createProject]
+    var created: [String] = []
     /// What `cloneRepo` asked for, and whether it ended by being cancelled; while `holdClone` is set it waits for `release` or a cancel.
     var clones: [String] = []
     var cloneCancelled = false
@@ -82,6 +83,11 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         }
         if let error = refuse["cloneRepo"] { throw error }
         return ClonedRepo(folder: "/projects/\(repo)", repo: repo, fetched: false)
+    }
+    func createProject(_ name: String) async throws -> String {
+        created.append(name)
+        if let error = refuse["createProject"] { throw error }
+        return "/projects/local/\(name)"
     }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
 }
@@ -498,7 +504,11 @@ private func projectsRoot(_ names: [String]) throws -> String {
 
 @MainActor @Test func theMenuListsOpenLocalFolderAndGitHubURLOnlyForAHostThatClones() async {
     let host = FakeChat()
+    #expect(await popover(host).sources == [.localFolder, .githubURL, .newProject])
+    host.capabilities = [.cloneRepo]
     #expect(await popover(host).sources == [.localFolder, .githubURL])
+    host.capabilities = [.createProject]
+    #expect(await popover(host).sources == [.localFolder, .newProject])
     host.capabilities = [.fetch]
     #expect(await popover(host).sources == [.localFolder])
 }
@@ -586,6 +596,54 @@ private func projectsRoot(_ names: [String]) throws -> String {
     #expect(host.cloneCancelled && model.folder == nil && model.cloneProblem == nil)
 }
 
+@MainActor @Test func theNewProjectStepShowsThePathAndItsButtonStaysOffForANameTheHostWouldRefuse() async throws {
+    let root = try projectsRoot(["local/taken", "AshuLab/carrier"])
+    defer { try? FileManager.default.removeItem(atPath: root) }
+    let model = await popover(FakeChat(), projects: root)
+    model.openPicker()
+    model.show(.project)
+    #expect(model.step == .project && model.projectPath == root + "/local/<name>" && model.canCreateNow == false && model.projectNameWarning == nil)
+    for bad in [".", "..", ".hidden", "a/b", "../x", "a b", "-x", String(repeating: "a", count: 101)] {
+        model.projectName = bad
+        #expect(model.canCreateNow == false && model.projectNameWarning != nil, "\(bad)")
+    }
+    model.projectName = "Taken"
+    #expect(model.canCreateNow == false && model.projectNameWarning == "Taken is already a project; choose another name")
+    model.projectName = "my-idea.2"
+    #expect(model.canCreateNow && model.projectNameWarning == nil && model.projectPath == root + "/local/my-idea.2")
+    model.projectName = String(repeating: "a", count: 100)
+    #expect(model.canCreateNow)
+}
+
+@MainActor @Test func creatingAProjectChoosesItsFolderAndOffersNoWorktreeUntilItHasACommit() async {
+    let host = FakeChat()
+    host.workspaces["/projects/local/my-idea"] = WorkspaceInfo(folder: "/projects/local/my-idea", branch: "main")
+    let model = await popover(host)
+    model.show(.project)
+    model.projectName = "my-idea"
+    #expect(await model.createAndUse())
+    #expect(host.created == ["my-idea"] && model.projectName.isEmpty && model.createProblem == nil)
+    #expect(model.folder == "/projects/local/my-idea" && model.workspace?.branches.isEmpty == true)
+    #expect(model.sentence == "Work in my-idea in the folder (new project, no commits yet: no worktree)")
+    #expect(model.offersWorktree == false && model.warning == nil)
+    await model.useWorktree(true)
+    #expect(model.worktree == false)
+    #expect(model.watchNote == nil && model.watchFailed == false)
+}
+
+@MainActor @Test func aProjectTheHostRefusesIsSaidInWordsAndTheDraftKeepsItsWorkspace() async {
+    let host = FakeChat()
+    host.refuse["createProject"] = ControlError.remote("web is already a project; choose another name")
+    let model = await popover(host)
+    await model.choose(folder: "/w/api")
+    model.show(.project)
+    model.projectName = "web"
+    #expect(await model.createAndUse() == false)
+    #expect(model.createProblem == "web is already a project; choose another name" && model.folder == "/w/api" && model.step == .project && model.creating == false)
+    model.show(.menu)
+    #expect(model.createProblem == nil)
+}
+
 @Test func cancellingTheCloneRequestClosesItsConnection() async throws {
     let closed = ConnectionClosed()
     let server = TestServer { connection in
@@ -639,6 +697,7 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     func delete(_ id: String) async throws {}
     func capabilities() async throws -> Set<ControlClient.Capability> { [] }
     func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
+    func createProject(_ name: String) async throws -> String { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
 }
 

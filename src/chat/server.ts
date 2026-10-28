@@ -5,6 +5,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { repoNamePattern } from '../config/schema.ts';
 import { socketPathFits, version, type Hello, type Reply } from '../control/server.ts';
+import { projectNamePattern } from './projects.ts';
 import { ChatRefused } from './runner.ts';
 
 const log = createScopedLogger('chat');
@@ -13,8 +14,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'stop'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -38,6 +39,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('checkName'), folder: z.string().min(1), name: z.string().max(1000) }),
   z.strictObject({ id, cmd: z.literal('deletePreview'), sessionIds: z.array(sessionId).min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('cloneRepo'), repo: z.string().regex(repoNamePattern) }),
+  z.strictObject({ id, cmd: z.literal('createProject'), name: z.string().regex(projectNamePattern) }),
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
@@ -64,6 +66,7 @@ export type ChatControls = {
   deletePreview(args: Args<'deletePreview'>): Promise<unknown>;
   /** `gone` aborts when the client closes its connection. */
   cloneRepo(args: Args<'cloneRepo'>, gone: AbortSignal): Promise<unknown>;
+  createProject(args: Args<'createProject'>): Promise<unknown>;
 };
 
 async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls, gone: AbortSignal): Promise<unknown> {
@@ -104,6 +107,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.deletePreview({ sessionIds: request.sessionIds });
     case 'cloneRepo':
       return controls.cloneRepo({ repo: request.repo }, gone);
+    case 'createProject':
+      return controls.createProject({ name: request.name });
   }
 }
 

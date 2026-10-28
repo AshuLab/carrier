@@ -19,6 +19,17 @@ public func repoReference(_ text: String) -> String? {
     return rest.description
 }
 
+/// Why `name` is not a name the host takes for a new project, in words; nil when it is one plain folder name: letters, digits, `_`, `.`
+/// and `-`, at most a hundred, not starting with a dot or a dash (the host's own pattern, so a name it would refuse never goes out).
+public func projectNameProblem(_ name: String) -> String? {
+    func word(_ c: Character) -> Bool { c.isASCII && (c.isLetter || c.isNumber || c == "_") }
+    guard let first = name.first else { return "Write a name" }
+    if name.count > 100 { return "A name has at most 100 characters" }
+    if word(first) == false { return "A name starts with a letter, a digit or _" }
+    if name.allSatisfy({ word($0) || $0 == "." || $0 == "-" }) == false { return "Use only letters, digits, _, . and -" }
+    return nil
+}
+
 /// The chat host's projects folder: the config's `chat.projectsFolder` (`~/` expanded), else `<root>/chat/projects`.
 public func projectsFolder(configJSON: Data?, home: String) -> String {
     let object = configJSON.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]

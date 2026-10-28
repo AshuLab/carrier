@@ -31,6 +31,7 @@ public final class FixtureServer {
     private let chatWorkspaces: [String: [String: Any]]
     private let chatFetches: [String: [String: Any]]
     private let chatClones: [String: [String: Any]]
+    private let chatProjects: [String: [String: Any]]
     private let chatNames: [String: Any]
     private var suggested = 0
     /// `archive` and `delete` change it; the sockets' threads share it, so it is read and written with `lock`.
@@ -43,7 +44,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\"]}\n".utf8)
+    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\"]}\n".utf8)
     private let data: [String: Data]
     private let hello: Data
     private var stopped = false
@@ -104,6 +105,7 @@ public final class FixtureServer {
         chatWorkspaces = try golden("chat-workspace.json", as: [String: [String: Any]].self)
         chatFetches = try golden("chat-fetch.json", as: [String: [String: Any]].self)
         chatClones = try golden("chat-clone.json", as: [String: [String: Any]].self)
+        chatProjects = try golden("chat-project.json", as: [String: [String: Any]].self)
         chatNames = try golden("chat-names.json", as: [String: Any].self)
         guard let previews = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-delete-preview.json"))) as? [String: Any])?["sessions"] as? [[String: Any]]
         else { throw FixtureError.unreadable("\(fixtures)/chat-delete-preview.json") }
@@ -254,6 +256,9 @@ public final class FixtureServer {
         case "cloneRepo":
             guard let repo = request?["repo"] as? String else { break }
             return chatClones[repo].map { Self.answer(id, $0) } ?? Self.refused(id, "\(repo) was not found, or your GitHub login cannot see it")
+        case "createProject":
+            guard let name = request?["name"] as? String else { break }
+            return chatProjects[name].map { Self.answer(id, $0) } ?? Self.refused(id, "\(name) is already a project; choose another name")
         case "suggestName":
             let names = chatNames["suggestions"] as? [String] ?? []
             guard request?["folder"] is String, names.isEmpty == false else { break }

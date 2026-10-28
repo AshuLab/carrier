@@ -28,5 +28,9 @@
     "folder": "/Users/dev/bare.git", "git": true, "bare": true, "linkedWorktree": false,
     "repo": null, "branch": null, "defaultBranch": "main", "dirty": 0,
     "branches": [ { "name": "main", "remote": false } ], "fetchedAt": null
+  },
+  "/Users/dev/projects/local/my-idea": {
+    "folder": "/Users/dev/projects/local/my-idea", "git": true, "bare": false, "linkedWorktree": false,
+    "repo": null, "branch": "main", "defaultBranch": null, "dirty": 0, "branches": [], "fetchedAt": null
   }
 }

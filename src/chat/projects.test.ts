@@ -222,3 +222,58 @@ test('a config file that cannot be read or is not valid is a refusal in words', 
   await expect(client.request('cloneRepo', { repo: 'acme/app' })).rejects.toThrow('chat.projectsFolder: must be an absolute path');
   client.close();
 });
+
+const localProject = (name: string) => join(projects(), 'local', name);
+
+test('the host lists createProject, and a free name makes <projects>/local/<name> with git init -b main', async () => {
+  const client = await connect();
+  expect(client.hello.capabilities).toContain('createProject');
+  expect(await client.request('createProject', { name: 'my-app' })).toEqual({ folder: localProject('my-app') });
+  expect(existsSync(localProject('my-app'))).toBe(true);
+  expect(git.calls).toEqual([{ folder: localProject('my-app'), args: ['init', '-b', 'main'], timeoutMs: undefined, env: undefined }]);
+  expect(git.repos.get(localProject('my-app'))).toMatchObject({ head: 'main' });
+  client.close();
+});
+
+test('a name that is taken, by a folder or a file, is refused with a reason and nothing is changed', async () => {
+  mkdirSync(localProject('mine'), { recursive: true });
+  writeFileSync(join(localProject('mine'), 'mine.txt'), 'mine');
+  writeFileSync(localProject('file'), 'a file');
+  const client = await connect();
+  await expect(client.request('createProject', { name: 'mine' })).rejects.toThrow('mine is already a project');
+  await expect(client.request('createProject', { name: 'file' })).rejects.toThrow('file is already a project');
+  expect(existsSync(join(localProject('mine'), 'mine.txt'))).toBe(true);
+  expect(existsSync(join(localProject('mine'), '.git'))).toBe(false);
+  expect(git.calls).toHaveLength(0);
+  client.close();
+});
+
+test('a git init that fails removes what the request made and says so without git\'s words', async () => {
+  git.failures.set('init -b main', { ok: false, code: 1, stderr: 'fatal: something with a https://x:tok@github.com url' });
+  const client = await connect();
+  await expect(client.request('createProject', { name: 'broken' })).rejects.toThrow(/^git could not start the project broken$/);
+  expect(existsSync(localProject('broken'))).toBe(false);
+  git.failures.clear();
+  expect(await client.request('createProject', { name: 'broken' })).toEqual({ folder: localProject('broken') }); // the name is free again
+  client.close();
+});
+
+test('a name that is empty, dotted or has a slash never makes a folder', async () => {
+  const client = await connect();
+  for (const name of ['', '.', '..', '.hidden', 'a/b', '../escape', '/abs', 'a'.repeat(101), 7, null]) await expect(client.request('createProject', { name } as never)).rejects.toThrow('invalid request');
+  expect(git.calls).toHaveLength(0);
+  expect(existsSync(join(projects(), 'local'))).toBe(false);
+  expect(existsSync(join(root, 'escape'))).toBe(false);
+  client.close();
+});
+
+test('createProject follows the projects folder of the config file and refuses one inside the engine folders', async () => {
+  const client = await connect();
+  const elsewhere = join(root, 'elsewhere');
+  writeConfig({ projectsFolder: elsewhere });
+  expect(await client.request('createProject', { name: 'x' })).toEqual({ folder: join(elsewhere, 'local', 'x') });
+  writeConfig({ projectsFolder: join(root, 'repos', 'mine') });
+  await expect(client.request('createProject', { name: 'y' })).rejects.toThrow("inside Carrier's own repos folder");
+  expect(existsSync(join(root, 'repos'))).toBe(false);
+  client.close();
+});

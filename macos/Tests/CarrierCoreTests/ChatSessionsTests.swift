@@ -110,6 +110,7 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     var previewed: [[String]] = []
     func capabilities() async throws -> Set<ControlClient.Capability> { [] }
     func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
+    func createProject(_ name: String) async throws -> String { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] {
         previewed.append(ids)
         if let previewError { throw previewError }

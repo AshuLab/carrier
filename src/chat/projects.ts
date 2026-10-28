@@ -12,6 +12,9 @@ import { parseOrigin } from './workspace.ts';
 
 const log = createScopedLogger('chat');
 
+/** A project's name: one plain folder name (no empty, `.`, `..`, leading dot or slash), at most a hundred characters. */
+export const projectNamePattern = /^\w[\w.-]{0,99}$/;
+
 /** Per git command, the engine's limit. */
 export const GIT_TIMEOUT_MS = 10 * 60_000;
 
@@ -61,6 +64,11 @@ export function createProjects({ git, token, config, configPath }: { git: Git; t
     return loaded.config;
   };
 
+  const projectsFolder = (): string => {
+    const fresh = current();
+    return checkProjectsFolder(fresh.chat?.projectsFolder ?? join(fresh.root, 'chat', 'projects'), fresh.root);
+  };
+
   // Not in argv, in a file or in a log: git reads the header from its environment, as `git-workspaces.ts` does.
   const authEnv = async (): Promise<NodeJS.ProcessEnv> => {
     const basic = Buffer.from(`x-access-token:${await token()}`).toString('base64');
@@ -94,11 +102,30 @@ export function createProjects({ git, token, config, configPath }: { git: Git; t
   }
 
   return {
+    /** Makes `<projects folder>/local/<name>` and runs `git init -b main` in it. A name that is taken is refused and nothing is changed; a `git init` that fails removes what this request made. */
+    async createProject({ name }: { name: string }): Promise<{ folder: string }> {
+      if (projectNamePattern.test(name) === false) throw new ChatRefused(`"${name}" is not a plain folder name`);
+      const dest = join(projectsFolder(), 'local', name);
+      await mkdir(dirname(dest), { recursive: true });
+      try {
+        await mkdir(dest); // not recursive: it fails when anything is there, and what is there is not ours to touch
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new ChatRefused(`${name} is already a project; choose another name`);
+        throw error;
+      }
+      const init = await git.run(dest, ['init', '-b', 'main']);
+      if (init.ok === false) {
+        log.error('git init failed', { name, code: init.code });
+        await rm(dest, { recursive: true, force: true });
+        throw new ChatRefused(`git could not start the project ${name}`);
+      }
+      return { folder: dest };
+    },
+
     /** Clones `repo` to `<projects folder>/<owner>/<name>`, or fetches it when it is already there. `signal` is the client's connection: when it closes, git is aborted and a destination this request made is removed. */
     async cloneRepo({ repo }: { repo: string }, signal: AbortSignal): Promise<CloneReply> {
       if (repoNamePattern.test(repo) === false) throw new ChatRefused(`"${repo}" is not a repository; write it as owner/name`);
-      const fresh = current();
-      const dest = join(checkProjectsFolder(fresh.chat?.projectsFolder ?? join(fresh.root, 'chat', 'projects'), fresh.root), repo);
+      const dest = join(projectsFolder(), repo);
       const key = dest.toLowerCase();
       // a clone being aborted finishes first, so a new one never meets its leftovers
       for (let old = running.get(key); old?.abort.signal.aborted === true; old = running.get(key)) await old.done.catch(() => {});

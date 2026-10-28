@@ -44,3 +44,8 @@ import Testing
     ])
     #expect(projectFolders(in: root + "/nowhere").isEmpty)
 }
+
+@Test func aProjectNameIsOnePlainFolderNameOfAtMostAHundredCharacters() {
+    for name in ["a", "my-app", "my_app.2", "A1", "_x", "a.", String(repeating: "a", count: 100)] { #expect(projectNameProblem(name) == nil, "\(name)") }
+    for name in ["", ".", "..", ".hidden", "-x", "a/b", "../x", "a b", "a\n", "é", "ñandú", String(repeating: "a", count: 101)] { #expect(projectNameProblem(name) != nil, "\(name)") }
+}

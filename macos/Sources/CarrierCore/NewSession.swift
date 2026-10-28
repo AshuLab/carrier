@@ -45,11 +45,12 @@ public struct FailedFirstSend: Equatable {
 public enum WorkspaceSource: String {
     case localFolder = "Open local folder…"
     case githubURL = "From a GitHub URL…"
+    case newProject = "New project…"
 }
 
 /// The step of the workspace popover that is showing.
 public enum WorkspaceStep: Equatable {
-    case menu, url
+    case menu, url, project
 }
 
 /// The draft: loads what it offers, and `send()` opens the session and then sends the message, in two steps.
@@ -80,6 +81,8 @@ public enum WorkspaceStep: Equatable {
 
     /// Whether the host can clone (its hello lists `cloneRepo`); an older one is not offered From a GitHub URL…
     public private(set) var hostClones = false
+    /// Whether the host can make a new project (its hello lists `createProject`).
+    public private(set) var hostCreates = false
     /// The `<owner>/<repo>` folders of the projects folder, read from disk each time the popover opens.
     public private(set) var projects: [ProjectFolder] = []
     public private(set) var step = WorkspaceStep.menu
@@ -89,6 +92,11 @@ public enum WorkspaceStep: Equatable {
     public private(set) var cloning: String?
     /// Why the last clone was refused, in the host's words; cleared when the next one starts.
     public private(set) var cloneProblem: String?
+    /// What the New project step was given: the part after `local/`.
+    public var projectName = ""
+    public private(set) var creating = false
+    /// Why the host refused the last project, in its words; cleared when the next one starts.
+    public private(set) var createProblem: String?
     /// "Let Carrier watch this repo": the person's choice, on by default; `watching` is what it comes to for the repository typed.
     public var watch = true
     /// The `repos` of the config file as of the last time the popover opened or showed a step; nil when the file cannot be read.
@@ -146,11 +154,13 @@ public enum WorkspaceStep: Equatable {
     private func read() async throws {
         agents = agentChoices(try await host.agents())
         recent = recentFolders(try await host.list(archived: false) + (try await host.list(archived: true)))
-        hostClones = try await host.capabilities().contains(.cloneRepo)
+        let capabilities = try await host.capabilities()
+        hostClones = capabilities.contains(.cloneRepo)
+        hostCreates = capabilities.contains(.createProject)
     }
 
     /// The sources the popover lists under the folders.
-    public var sources: [WorkspaceSource] { hostClones ? [.localFolder, .githubURL] : [.localFolder] }
+    public var sources: [WorkspaceSource] { [.localFolder] + (hostClones ? [.githubURL] : []) + (hostCreates ? [.newProject] : []) }
 
     /// Where the footer says the projects folder is.
     public var projectsPath: String { projectsFolder() }
@@ -162,13 +172,16 @@ public enum WorkspaceStep: Equatable {
         guard cloning == nil else { return }
         step = .menu
         cloneProblem = nil
+        createProblem = nil
     }
 
     public func show(_ next: WorkspaceStep) {
-        guard cloning == nil else { return }
+        guard cloning == nil, creating == false else { return }
+        projects = projectFolders(in: projectsFolder())
         watched = readConfig().flatMap { configRepoNames(json: $0) }
         step = next
         cloneProblem = nil
+        createProblem = nil
     }
 
     /// The repository being cloned without its owner: what the chip says while it runs.
@@ -217,6 +230,39 @@ public enum WorkspaceStep: Equatable {
             cloning = nil
             cloneTask = nil
             cloneProblem = report(error, "clone \(repo)")
+            return false
+        }
+    }
+
+    /// The path New project will make, shown before anything is made.
+    public var projectPath: String { "\(projectsPath)/local/\(projectName.isEmpty ? "<name>" : projectName)" }
+
+    /// Why the name typed cannot be used (not a plain folder name, or a project of that name is already there); nil when it can, and while nothing is typed.
+    public var projectNameWarning: String? {
+        guard projectName.isEmpty == false else { return nil }
+        if let problem = projectNameProblem(projectName) { return problem }
+        if projects.contains(where: { $0.name.lowercased() == "local/" + projectName.lowercased() }) { return "\(projectName) is already a project; choose another name" }
+        return nil
+    }
+
+    /// "Create and use" stays off for a name the host would refuse, and while a project is being made.
+    public var canCreateNow: Bool { projectName.isEmpty == false && projectNameWarning == nil && creating == false }
+
+    /// Makes the project on the host and chooses its folder as the workspace; true when it did. A refusal is in `createProblem` and the
+    /// draft keeps its workspace.
+    public func createAndUse() async -> Bool {
+        guard canCreateNow else { return false }
+        let name = projectName
+        creating = true
+        createProblem = nil
+        defer { creating = false }
+        do {
+            let created = try await host.createProject(name)
+            projectName = ""
+            await choose(folder: created)
+            return true
+        } catch {
+            createProblem = report(error, "create \(name)")
             return false
         }
     }

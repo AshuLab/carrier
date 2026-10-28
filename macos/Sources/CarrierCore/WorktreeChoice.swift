@@ -42,8 +42,8 @@ public struct WorkspaceInfo: Decodable, Equatable {
         self.fetchedAt = fetchedAt
     }
 
-    /// A worktree needs a repository with a working folder.
-    public var offersWorktree: Bool { git && bare == false }
+    /// A worktree needs a repository with a working folder and a commit to start from: with no branch at all there is none.
+    public var offersWorktree: Bool { git && bare == false && branches.isEmpty == false }
 }
 
 /// The reply of `checkName`: `reason` is the host's, in words, whenever the name is not valid or not free.
@@ -89,6 +89,7 @@ public func workSentence(folder: String?, workspace: WorkspaceInfo? = nil, workt
     guard let workspace else { return "Work in \(name) on the base folder" }
     guard workspace.git else { return "Work in \(name) in the folder (not a git repository: no worktree)" }
     guard workspace.bare == false else { return "Work in \(name) in the folder (bare repository: no worktree)" }
+    guard workspace.branches.isEmpty == false else { return "Work in \(name) in the folder (new project, no commits yet: no worktree)" }
     if let worktree { return "Work in \(name) in a new worktree \(worktreeBranchPrefix)\(worktree.name) from \(worktree.from ?? "…")" }
     return "Work in \(name) on the base folder (\(workspace.branch ?? "detached HEAD"))"
 }

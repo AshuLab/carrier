@@ -130,6 +130,9 @@ public protocol ChatHost {
     /// task closes the request's connection, which makes the host stop and remove the half-made clone. Refused in words (not found
     /// or not visible to the person's `gh` login, `gh` missing or signed out, no network, too slow).
     func cloneRepo(_ repo: String) async throws -> ClonedRepo
+    /// Makes `<projects folder>/local/<name>` with `git init -b main` and answers its path. Refused in words for a name that is taken
+    /// or not a plain folder name.
+    func createProject(_ name: String) async throws -> String
     /// The events of a session after the cursor, at most `limit` (the host takes 1 to 200).
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents
     /// Opens a closed session's agent again; the host refuses a `send` to one that is not live.
@@ -223,6 +226,14 @@ public struct SocketChatHost: ChatHost {
         return try await withTaskCancellationHandler {
             try await Task.detached { try chatRequest(path, "cloneRepo", requires: .cloneRepo, fields: fields, timeout: 11 * 60, abortable: connection) }.value
         } onCancel: { connection.abort() }
+    }
+
+    public func createProject(_ name: String) async throws -> String {
+        struct Created: Decodable { let folder: String }
+        let fields = ",\"name\":\(jsonString(name))"
+        let path = socketPath()
+        let reply: Created = try await Task.detached { try chatRequest(path, "createProject", requires: .createProject, fields: fields) }.value
+        return reply.folder
     }
 
     public func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {

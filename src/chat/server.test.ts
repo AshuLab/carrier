@@ -48,6 +48,7 @@ const controls = (): ChatControls => ({
     return { repo };
   },
   createProject: async ({ name }) => ({ folder: `/projects/local/${name}` }),
+  githubRepos: async ({ page }) => ({ page }),
 });
 const seen: AbortSignal[] = [];
 async function open({ stop = async () => {}, clients = noClients } = {}) {
@@ -84,7 +85,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'stop'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'stop'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -193,6 +194,17 @@ test('createProject takes one plain folder name and nothing else', async () => {
   expect(await c.ask('{"id":20,"cmd":"createProject"}')).toEqual({ id: 20, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":21,"cmd":"createProject","name":"a","force":true}')).toEqual({ id: 21, ok: false, error: 'invalid request' });
   expect(await c.ask(`{"id":22,"cmd":"createProject","name":"${'a'.repeat(100)}"}`)).toMatchObject({ ok: true });
+});
+
+test('githubRepos takes a page from 1 to 100 and nothing else', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"githubRepos","page":1}')).toEqual({ id: 1, ok: true, data: { page: 1 } });
+  expect(await c.ask('{"id":2,"cmd":"githubRepos","page":100}')).toEqual({ id: 2, ok: true, data: { page: 100 } });
+  const bad = ['0', '101', '-1', '1.5', '"2"', 'null', 'true'];
+  for (const [index, page] of bad.entries()) expect(await c.ask(`{"id":${index + 3},"cmd":"githubRepos","page":${page}}`)).toEqual({ id: index + 3, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":20,"cmd":"githubRepos"}')).toEqual({ id: 20, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":21,"cmd":"githubRepos","page":1,"filter":"push"}')).toEqual({ id: 21, ok: false, error: 'invalid request' });
 });
 
 test('a line that is not JSON is "invalid JSON" and the connection goes on', async () => {

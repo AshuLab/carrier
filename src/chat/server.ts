@@ -14,8 +14,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'stop'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -40,6 +40,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('deletePreview'), sessionIds: z.array(sessionId).min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('cloneRepo'), repo: z.string().regex(repoNamePattern) }),
   z.strictObject({ id, cmd: z.literal('createProject'), name: z.string().regex(projectNamePattern) }),
+  z.strictObject({ id, cmd: z.literal('githubRepos'), page: z.int().min(1).max(100) }),
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
@@ -67,6 +68,7 @@ export type ChatControls = {
   /** `gone` aborts when the client closes its connection. */
   cloneRepo(args: Args<'cloneRepo'>, gone: AbortSignal): Promise<unknown>;
   createProject(args: Args<'createProject'>): Promise<unknown>;
+  githubRepos(args: Args<'githubRepos'>): Promise<unknown>;
 };
 
 async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls, gone: AbortSignal): Promise<unknown> {
@@ -109,6 +111,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.cloneRepo({ repo: request.repo }, gone);
     case 'createProject':
       return controls.createProject({ name: request.name });
+    case 'githubRepos':
+      return controls.githubRepos({ page: request.page });
   }
 }
 

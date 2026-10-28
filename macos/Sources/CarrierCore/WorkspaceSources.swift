@@ -94,3 +94,23 @@ public func writeCurrentConfig(_ data: Data) throws { try data.write(to: current
 
 /// `projectsFolder` of the config file the app works with.
 public func currentProjectsFolder() -> String { projectsFolder(configJSON: currentConfig(), home: NSHomeDirectory()) }
+
+/// A row of My GitHub repositories: when it was last pushed, whether the config already watches it, and why the "watch" box would not
+/// apply to it when it is not watched but cannot be (a folder name another watched repo has).
+public struct GithubRepoRow: Equatable, Identifiable {
+    public var name: String
+    public var isPrivate: Bool
+    public var pushed: String
+    public var watched: Bool
+    public var cannotWatch: String?
+    public var id: String { name }
+}
+
+/// The loaded repositories that contain `query` (case-insensitive), in order, each with what the watch box would do for it.
+public func githubRepoRows(_ repos: [AvailableRepo], watched: [String], query: String, now: Date = Date()) -> [GithubRepoRow] {
+    let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
+    return repos.filter { needle.isEmpty || $0.name.lowercased().contains(needle) }.map { repo in
+        let isWatched = watched.contains { $0.lowercased() == repo.name.lowercased() }
+        return GithubRepoRow(name: repo.name, isPrivate: repo.isPrivate, pushed: pushedLine(repo.pushedAt, now: now), watched: isWatched, cannotWatch: isWatched ? nil : repoProblem(repo.name, joining: watched))
+    }
+}

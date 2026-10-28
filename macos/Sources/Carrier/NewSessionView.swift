@@ -238,6 +238,7 @@ struct NewSessionView: View {
         switch model.step {
         case .menu: menu
         case .url: urlStep
+        case .repos: reposStep
         case .project: projectStep
         }
     }
@@ -259,6 +260,8 @@ struct NewSessionView: View {
                     sourceRow(source.rawValue, "folder.badge.plus", drills: false) { openFolder() }
                 case .githubURL:
                     sourceRow(source.rawValue, "link", drills: true) { model.show(.url) }
+                case .githubRepos:
+                    sourceRow(source.rawValue, "list.bullet", drills: true) { Task { await model.showRepos() } }
                 case .newProject:
                     sourceRow(source.rawValue, "folder.badge.gearshape", drills: true) { model.show(.project) }
                 }
@@ -346,6 +349,92 @@ struct NewSessionView: View {
             }
         }
         .padding(12).frame(width: 340)
+    }
+
+    /// My GitHub repositories (frames 4a and 4b of the prototype): the login, a search over what is loaded, the rows, a notice while the
+    /// list is partial with Load more, and the watch box under the list; choosing a row clones it, and the clone shows here.
+    private var reposStep: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Button { model.show(.menu) } label: { Label("Back", systemImage: "chevron.left") }
+                    .buttonStyle(.plain).foregroundStyle(.secondary).disabled(model.cloning != nil)
+                Text("My GitHub repositories").fontWeight(.semibold)
+            }
+            if let login = model.login {
+                Text("Signed in to GitHub as \(Text(login).bold().foregroundStyle(.primary))").font(.callout).foregroundStyle(.secondary)
+            }
+            if model.repoList.blocked {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(model.reposReason ?? "GitHub did not answer").foregroundStyle(.red).textSelection(.enabled)
+                    Button("Try again") { Task { await model.loadRepos() } }.disabled(model.loadingRepos)
+                }
+                .font(.callout)
+            } else if model.repoList.repos.isEmpty && model.loadingRepos {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Loading your repositories…")
+                }
+                .font(.callout).foregroundStyle(.secondary)
+            } else {
+                TextField("Search the loaded repositories", text: $model.reposQuery).textFieldStyle(.roundedBorder).autocorrectionDisabled()
+                let rows = model.repoRows()
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(rows) { repoRow($0) }
+                        if rows.isEmpty { Text(model.reposQuery.isEmpty ? "No repositories" : "No loaded repository matches “\(model.reposQuery)”").foregroundStyle(.secondary).padding(8) }
+                    }
+                }
+                .frame(height: 220)
+                if model.repoList.hasMore {
+                    Text("Partial list · \(model.repoList.repos.count) of your repositories loaded. Search only looks at these; for another, use the URL.").font(.caption).foregroundStyle(.secondary)
+                }
+                if model.repoList.problem != nil, let reason = model.reposReason {
+                    Text(reason).font(.caption).foregroundStyle(.red).textSelection(.enabled)
+                }
+                if model.repoList.hasMore {
+                    Button(model.loadingRepos ? "Loading…" : model.repoList.problem != nil ? "Try again" : "Load more") { Task { await model.loadRepos() } }
+                        .disabled(model.loadingRepos)
+                }
+            }
+            Divider()
+            Toggle("Let Carrier watch the repo I choose", isOn: $model.watch).disabled(model.cloning != nil)
+            Text("Not for repos that are already watched.").font(.caption).foregroundStyle(.secondary)
+            if let repo = model.cloning {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Cloning \(repo)…")
+                    Spacer(minLength: 0)
+                    Button("Cancel") { model.cancelClone() }.keyboardShortcut(.cancelAction)
+                }
+                .font(.callout)
+            } else if let problem = model.cloneProblem {
+                Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled)
+            }
+        }
+        .padding(12).frame(width: 400)
+    }
+
+    private func repoRow(_ row: GithubRepoRow) -> some View {
+        Button { Task { if await model.cloneAndUse(repo: row.name) { foldersOpen = false } } } label: {
+            HStack(alignment: .top, spacing: 6) {
+                VStack(alignment: .leading, spacing: 1) {
+                    let parts = row.name.split(separator: "/", maxSplits: 1).map(String.init)
+                    Text("\(Text(parts[0] + "/").foregroundStyle(.secondary))\(Text(parts[1]).fontWeight(.semibold))").lineLimit(1).truncationMode(.middle)
+                    HStack(spacing: 4) {
+                        if row.isPrivate { Image(systemName: "lock.fill").accessibilityLabel("Private") }
+                        Text(row.pushed)
+                    }
+                    .font(.caption).foregroundStyle(.secondary)
+                    if let reason = row.cannotWatch {
+                        Text("Carrier will not watch it: \(reason)").font(.caption2).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
+                if row.watched { tag("watched") }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain).padding(.horizontal, 8).padding(.vertical, 4).disabled(model.cloning != nil)
     }
 
     /// New project: a name, the path it will make, and the button; no watch box, a new project has no GitHub repository.

@@ -60,6 +60,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     func capabilities() async throws -> Set<ControlClient.Capability> { [] }
     func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
     func createProject(_ name: String) async throws -> String { throw ControlError.closed }
+    func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
 }
 

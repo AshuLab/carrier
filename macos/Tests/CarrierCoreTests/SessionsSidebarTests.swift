@@ -197,3 +197,16 @@ private func found(_ rows: [SessionRow], _ query: String) -> [String] {
 @Test func theNoResultsLineSaysWhatWasTyped() {
     #expect(EmptyState.noResultsLine(for: "zzz") == "Nothing matches “zzz”")
 }
+
+@Test func sessionsWithNoRowsOrOnlyArchivedOnesIsEmptyAndHasNothingOpen() {
+    for rows in [[], [row("1", "web", archived: true)]] {
+        let sessions = Sessions(rows: rows)
+        #expect(sessions.open == 0)
+        #expect(SidebarListState(shown: sessionGroups(sessions.rows).count, of: sessions.open, query: "") == .empty)
+    }
+}
+
+@Test func sessionsWithAnOpenRowAreNotEmpty() {
+    let sessions = Sessions(rows: [row("1", "web")])
+    #expect(SidebarListState(shown: sessionGroups(sessions.rows).count, of: sessions.open, query: "") == .rows)
+}

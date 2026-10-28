@@ -21,6 +21,7 @@ struct SidebarView: View {
 
     var body: some View {
         let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
+        let epicCount = snapshot.map { sidebarGroups($0, by: groupBy).reduce(0) { $0 + $1.count } } ?? 0
         List(selection: list) {
             SidebarSectionRow(title: "Home", icon: "house", selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
             SessionsRows(
@@ -32,7 +33,10 @@ struct SidebarView: View {
             SidebarSectionRow(title: "Archive", icon: "archivebox", selected: selection == .archive, action: { selection = .archive }, actions: {
                 Text("\(archived)").font(.callout.monospacedDigit()).foregroundStyle(.secondary).accessibilityLabel("\(archived) archived")
             })
-            CarrierRow(state: state, selected: selection == .carrier, unfolded: open == .carrier, select: { selection = .carrier }, groupBy: $groupBy, searching: $searching)
+            CarrierRow(
+                state: state, selected: selection == .carrier, unfolded: open == .carrier, hasEpics: epicCount > 0,
+                select: { selection = .carrier }, groupBy: $groupBy, searching: $searching
+            )
             if let snapshot, open == .carrier {
                 // a row of its own, not selectable, so a click in the field does not select the card
                 if searching {
@@ -40,9 +44,10 @@ struct SidebarView: View {
                 }
                 let queried = query.trimmingCharacters(in: .whitespaces).isEmpty == false
                 let groups = sidebarGroups(snapshot, by: groupBy, query: query)
-                let total = sidebarGroups(snapshot, by: groupBy).reduce(0) { $0 + $1.count }
-                if case .noMatch(let typed) = SidebarListState(shown: groups.reduce(0) { $0 + $1.count }, of: total, query: query) {
-                    SidebarNoResults(query: typed, clear: { query = "" })
+                switch SidebarListState(shown: groups.reduce(0) { $0 + $1.count }, of: epicCount, query: query) {
+                case .empty: SidebarEmptyBlock(state: .noEpics)
+                case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
+                case .rows: EmptyView()
                 }
                 ForEach(groups.indices, id: \.self) { index in
                     let group = groups[index]
@@ -68,7 +73,7 @@ struct SidebarView: View {
         .listStyle(.sidebar)
         .onChange(of: searching) { if searching { searchFocused = true } else { query = "" } }
         .onChange(of: searchRequest) {
-            if searchRequest?.section == .carrier && snapshot != nil && open == .carrier {
+            if searchRequest?.section == .carrier && epicCount > 0 && open == .carrier {
                 searching = true
                 searchFocused = true
             }
@@ -92,6 +97,8 @@ private struct CarrierRow: View {
     let selected: Bool
     /// Folded, the row is its state and slots; unfolded, it also has the search and the grouping menu, and the epics follow.
     let unfolded: Bool
+    /// Without epics there is nothing to search, so the magnifier is dimmed.
+    let hasEpics: Bool
     let select: () -> Void
     @Binding var groupBy: GroupBy
     /// Whether the search field is open under the row; the list owns the field.
@@ -110,7 +117,10 @@ private struct CarrierRow: View {
                 .background(Capsule().fill(Self.tint(card.kind).opacity(0.18)))
             // the epics exist only while Carrier answers, so there is nothing to search or group before
             if snapshot != nil && unfolded {
-                IconButton(icon: "magnifyingglass", name: searching ? "Close epic search" : "Search epics", shortcut: "⌘F", pressed: searching) {
+                IconButton(
+                    icon: "magnifyingglass", name: searching ? "Close epic search" : "Search epics", enabled: hasEpics, why: "No epics to search",
+                    shortcut: "⌘F", pressed: searching
+                ) {
                     searching.toggle()
                 }
                 IconButton(icon: "ellipsis", name: "Group epics by") { groupMenu = true }

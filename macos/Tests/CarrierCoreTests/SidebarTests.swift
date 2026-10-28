@@ -107,6 +107,15 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(sidebarGroups(snapshot(), by: .status).allSatisfy { $0.rows.isEmpty })
 }
 
+@Test func carrierWithNoEpicsIsEmptyInEitherGrouping() {
+    for by in [GroupBy.status, .repo] {
+        let total = sidebarGroups(snapshot(), by: by).reduce(0) { $0 + $1.count }
+        #expect(SidebarListState(shown: total, of: total, query: "") == .empty)
+    }
+    let one = sidebarGroups(snapshot([epic("acme/web", 1)]), by: .status).reduce(0) { $0 + $1.count }
+    #expect(SidebarListState(shown: one, of: one, query: "") == .rows)
+}
+
 @Test func theCardStateFollowsTheConnection() {
     func card(_ snapshot: PanelSnapshot) -> CarrierCardState { carrierCardState(.running(snapshot)) }
     var paused = snapshot(busy: 1)
@@ -127,16 +136,35 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
         == ["Running", "Paused", "Problem", "Stopped", "Connecting"])
 }
 
-@Test func theCountersLeaveOutTheFinishedEpics() {
+@Test func aStoppedEngineKeepsTheSlotsItLastReportedInGrey() {
+    #expect(carrierCardState(.stopped, lastTotal: 3) == CarrierCardState(kind: .stopped, slots: (0, 3)))
+    #expect(carrierCardState(.stopped, lastTotal: nil) == CarrierCardState(kind: .stopped, slots: nil))
+    #expect(carrierCardState(.stopped, lastTotal: 3).title == "Stopped")
+    // only a stopped engine uses the remembered total: connecting has no bars, a running one has its own
+    #expect(carrierCardState(nil, lastTotal: 3).slots == nil)
+    #expect(carrierCardState(.running(snapshot(busy: 1)), lastTotal: 9) == CarrierCardState(kind: .running, slots: (1, 3)))
+}
+
+@Test func theLastSlotsTotalSurvivesARelaunch() {
+    let name = "carrier-sidebar-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+    #expect(SidebarStore(defaults: defaults).slotsTotal == nil)
+    SidebarStore(defaults: defaults).slotsTotal = 4
+    #expect(SidebarStore(defaults: defaults).slotsTotal == 4)
+}
+
+@Test func eachGroupCountsItsRowsInBothGroupings() {
     let all = snapshot(
-        [epic("a/b", 1), epic("a/b", 2), epic("a/b", 3, .needsHuman)], queue: [queued("a/b", 4), queued("a/b", 5), queued("a/b", 6)],
-        done: [.init(repo: "a/b", issue: 7, prNumber: 9, finishedAt: 5_000, executionId: nil)]
+        [epic("a/b", 1), epic("a/b", 2), epic("c/d", 3, .needsHuman)], queue: [queued("a/b", 4)],
+        done: [.init(repo: "c/d", issue: 7, prNumber: 9, finishedAt: 5_000, executionId: nil)]
     )
-    #expect(carrierCounters(all) == CarrierCounters(needsYou: 1, running: 2, next: 3, ready: 1))
-    #expect(carrierCounters(snapshot()) == CarrierCounters(needsYou: 0, running: 0, next: 0, ready: 0))
-    var withFinished = all
-    withFinished.finished = [.init(repo: "a/b", issue: 8, title: nil, labels: [], prNumber: nil, finishedAt: 1, status: .merged, cancelReason: nil, executionId: nil), .init(repo: "a/b", issue: 9, title: nil, labels: [], prNumber: nil, finishedAt: 1, status: .cancelled, cancelReason: nil, executionId: nil)]
-    #expect(carrierCounters(withFinished) == carrierCounters(all))
+    let byStatus = sidebarGroups(all, by: .status)
+    #expect(byStatus.map(\.title) == ["Needs you", "Running", "Up next", "Ready for test"])
+    #expect(byStatus.map(\.count) == [1, 2, 1, 1])
+    let byRepo = sidebarGroups(all, by: .repo)
+    #expect(byRepo.map(\.title) == ["b", "d"])
+    #expect(byRepo.map(\.count) == [3, 2])
 }
 
 @Test func theGroupByChoiceSurvivesARelaunch() {
@@ -168,6 +196,8 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(SidebarStore(defaults: defaults).open == .sessions)
     SidebarStore(defaults: defaults).open = .carrier
     #expect(SidebarStore(defaults: defaults).open == .carrier)
+    SidebarStore(defaults: defaults).open = .archive
+    #expect(SidebarStore(defaults: defaults).open == .archive)
     SidebarStore(defaults: defaults).open = nil
     #expect(SidebarStore(defaults: defaults).open == nil)
     SidebarStore(defaults: defaults).open = .sessions

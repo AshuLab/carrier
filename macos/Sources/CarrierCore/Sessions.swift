@@ -67,62 +67,67 @@ public struct Sessions: Equatable {
 
     public var canStart: Bool { cannotStartReason == nil }
 
+    /// How many sessions are open, every one that is not archived: the badge on the Sessions row.
+    public var open: Int { rows.filter { $0.archived == false }.count }
+
+    /// The accessible name of that badge: "1 open session", "5 open sessions".
+    public var openLabel: String { open == 1 ? "1 open session" : "\(open) open sessions" }
+
     /// How many listed sessions wait for the person: archived ones are not counted.
     public var waiting: Int { rows.filter { $0.state == .waiting && $0.archived == false }.count }
-
-    /// The accessible name of the orange count on the folded Sessions row, nil when nothing waits.
-    public var waitingLabel: String? {
-        switch waiting {
-        case 0: nil
-        case 1: "1 session waiting"
-        default: "\(waiting) sessions waiting"
-        }
-    }
 }
 
 /// How the Sessions list is ordered.
 public enum SessionSort: String, CaseIterable { case workspace, age, status }
 
-/// The sessions in the order `by` gives, or, with a non-empty `query`, one group of the matches. By workspace: one group per
-/// workspace ordered by name ignoring case. By age: Today, Yesterday, Last 7 days and Older, counted from the start of today in
-/// `calendar`. By status: Waiting for you, Working, Idle and Done. Empty groups are left out, the rows of a group are newest first
-/// and no archived row is listed. A query matches the title, the workspace and the agent ignoring case; the active matches come
-/// newest first and then the archived ones newest first.
+/// The sessions in the order `by` gives. By workspace: one group per workspace ordered by name ignoring case. By age: Today,
+/// Yesterday, Last 7 days and Older, counted from the start of today in `calendar`. By status: Waiting for you, Working, Idle and
+/// Done. Empty groups are left out, the rows of a group are newest first and no archived row is listed, searching included. A
+/// non-empty `query` keeps the groups of that order, filtered to the rows whose title, workspace or agent contain it ignoring case.
 public func sessionGroups(
     _ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", now: Date = Date(), calendar: Calendar = .current
 ) -> [SessionGroup] {
-    let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    if query.isEmpty == false {
-        let hits = rows.filter {
-            [$0.title, $0.workspace, $0.agent].contains { $0.localizedCaseInsensitiveContains(query) }
-        }
-        let newest: (SessionRow, SessionRow) -> Bool = { $0.updatedAt > $1.updatedAt }
-        let found = hits.filter { $0.archived == false }.sorted(by: newest) + hits.filter(\.archived).sorted(by: newest)
-        return found.isEmpty ? [] : [SessionGroup(title: "Results", rows: found)]
-    }
-    let listed = rows.filter { $0.archived == false }
-    func group(_ title: String, _ rows: [SessionRow]) -> SessionGroup? {
-        rows.isEmpty ? nil : SessionGroup(title: title, rows: rows.sorted { $0.updatedAt > $1.updatedAt })
-    }
+    let listed = matching(rows.filter { $0.archived == false }, query)
     switch sort {
     case .workspace:
         return Dictionary(grouping: listed, by: \.workspace)
-            .compactMap { group($0.key, $0.value) }
+            .compactMap { newestFirst($0.key, $0.value) }
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
     case .age:
-        let today = calendar.startOfDay(for: now)
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
-        let week = calendar.date(byAdding: .day, value: -7, to: today) ?? yesterday
-        let buckets: [(String, (Date) -> Bool)] = [
-            ("Today", { $0 >= today }),
-            ("Yesterday", { $0 >= yesterday && $0 < today }),
-            ("Last 7 days", { $0 >= week && $0 < yesterday }),
-            ("Older", { $0 < week }),
-        ]
-        return buckets.compactMap { title, contains in group(title, listed.filter { contains($0.updatedAt) }) }
+        return ageGroups(listed, now: now, calendar: calendar)
     case .status:
-        return [SessionState.waiting, .working, .idle, .done].compactMap { state in group(state.title, listed.filter { $0.state == state }) }
+        return [SessionState.waiting, .working, .idle, .done].compactMap { state in newestFirst(state.title, listed.filter { $0.state == state }) }
     }
+}
+
+/// The archived sessions, and only those, in the age buckets of the Sessions list (Today, Yesterday, Last 7 days, Older), newest
+/// first, empty buckets left out. A non-empty `query` keeps the buckets, filtered to the rows whose title, workspace or agent contain
+/// it ignoring case.
+public func archivedGroups(_ rows: [SessionRow], query: String = "", now: Date = Date(), calendar: Calendar = .current) -> [SessionGroup] {
+    ageGroups(matching(rows.filter(\.archived), query), now: now, calendar: calendar)
+}
+
+func matching(_ rows: [SessionRow], _ query: String) -> [SessionRow] {
+    let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    return rows.filter { query.isEmpty || [$0.title, $0.workspace, $0.agent].contains { $0.localizedCaseInsensitiveContains(query) } }
+}
+
+private func newestFirst(_ title: String, _ rows: [SessionRow]) -> SessionGroup? {
+    rows.isEmpty ? nil : SessionGroup(title: title, rows: rows.sorted { $0.updatedAt > $1.updatedAt })
+}
+
+/// Today, Yesterday, Last 7 days and Older, counted from the start of today in `calendar`.
+private func ageGroups(_ rows: [SessionRow], now: Date, calendar: Calendar) -> [SessionGroup] {
+    let today = calendar.startOfDay(for: now)
+    let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+    let week = calendar.date(byAdding: .day, value: -7, to: today) ?? yesterday
+    let buckets: [(String, (Date) -> Bool)] = [
+        ("Today", { $0 >= today }),
+        ("Yesterday", { $0 >= yesterday && $0 < today }),
+        ("Last 7 days", { $0 >= week && $0 < yesterday }),
+        ("Older", { $0 < week }),
+    ]
+    return buckets.compactMap { title, contains in newestFirst(title, rows.filter { contains($0.updatedAt) }) }
 }
 
 /// How many of the sessions are archived, for the Archive row of the sidebar.

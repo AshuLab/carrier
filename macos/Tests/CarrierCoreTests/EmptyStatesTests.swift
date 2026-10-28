@@ -1,8 +1,8 @@
 import Testing
 @testable import CarrierCore
 
-@Test func thereAreThirteenEmptyStatesEachWithAnIconATitleAndOneLine() {
-    #expect(EmptyState.allCases.count == 13)
+@Test func thereAreFifteenEmptyStatesEachWithAnIconATitleAndOneLine() {
+    #expect(EmptyState.allCases.count == 15)
     for state in EmptyState.allCases {
         #expect(state.icon.isEmpty == false)
         #expect(state.title.isEmpty == false)
@@ -12,8 +12,8 @@ import Testing
 }
 
 @Test func noTwoEmptyStatesShareAnIconOrATitle() {
-    #expect(Set(EmptyState.allCases.map(\.icon)).count == 13)
-    #expect(Set(EmptyState.allCases.map(\.title)).count == 13)
+    #expect(Set(EmptyState.allCases.map(\.icon)).count == 15)
+    #expect(Set(EmptyState.allCases.map(\.title)).count == 15)
 }
 
 @Test func slicesUnavailableHasItsOwnIconTitleAndLine() {
@@ -25,4 +25,10 @@ import Testing
 @Test func theSessionsHomeHasAnEmptyStateForNoSessionsAndOneForNoMatches() {
     #expect((EmptyState.noSessions.title, EmptyState.noSessions.line) == ("No sessions yet", "Sessions you start are listed here."))
     #expect(EmptyState.noSessionsMatch.title == "No sessions match")
+}
+
+@Test func noEpicsHasItsOwnIconTitleAndALineThatNamesTheLabelThatStartsOne() {
+    #expect(EmptyState.noEpics.title == "No epics yet")
+    #expect(EmptyState.noEpics.line.contains("solve:epic:ready"))
+    #expect(EmptyState.allCases.filter { $0.icon == EmptyState.noEpics.icon }.count == 1)
 }

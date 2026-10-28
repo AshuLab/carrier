@@ -1,7 +1,7 @@
 import Foundation
 
 // The Sessions home as plain values (docs/specs/sessions-in-the-app.md, "Sessions home"): what the filter keeps, the chips that say
-// so, the line under the title and which empty state the page shows. The sort and the search are `sessionGroups`; the view draws these.
+// so, the line under the title and which empty state the page shows. The sort is `sessionGroups` and the search `searchResults`; the view draws these.
 
 /// What the filter popover can tick: the session's status and its agent. Nothing ticked in a kind shows every value of it.
 public struct SessionFilter: Equatable {
@@ -63,7 +63,8 @@ public func sessionsPage(
 ) -> SessionsPage {
     let searching = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     let active = rows.filter { $0.archived == false }
-    let groups = sessionGroups(rows.filter(filter.matches), by: sort, query: query, now: now, calendar: calendar)
+    let kept = rows.filter(filter.matches)
+    let groups = searching ? searchResults(kept, query) : sessionGroups(kept, by: sort, now: now, calendar: calendar)
     let shown = groups.reduce(0) { $0 + $1.rows.count }
     let waiting = active.filter { $0.state == .waiting }.count
     let subtitle: String
@@ -77,4 +78,12 @@ public func sessionsPage(
     }
     let empty: EmptyState? = groups.isEmpty ? (searching == false && active.isEmpty ? .noSessions : .noSessionsMatch) : nil
     return SessionsPage(subtitle: subtitle, groups: groups, emptyState: empty)
+}
+
+/// A search on the home is one group, "Results": the active matches newest first and then the archived ones newest first.
+private func searchResults(_ rows: [SessionRow], _ query: String) -> [SessionGroup] {
+    let hits = matching(rows, query)
+    let newest: (SessionRow, SessionRow) -> Bool = { $0.updatedAt > $1.updatedAt }
+    let found = hits.filter { $0.archived == false }.sorted(by: newest) + hits.filter(\.archived).sorted(by: newest)
+    return found.isEmpty ? [] : [SessionGroup(title: "Results", rows: found)]
 }

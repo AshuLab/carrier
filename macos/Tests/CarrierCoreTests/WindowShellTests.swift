@@ -43,16 +43,31 @@ import Testing
     for (next, opens) in [
         (Selection.carrier, OpenSection.carrier), (.sessions, .sessions), (.epic(repo: "acme/web", issue: 7), .carrier), (.session(id: "s1"), .sessions),
         (.newSession, .sessions),
+        (.archive, .archive),
     ] {
         shell.open = nil
         shell.selection = next
         #expect(shell.open == opens)
     }
-    for (kept, next) in [(OpenSection.carrier as OpenSection?, Selection.home), (.sessions, .archive), (nil, .settings), (.carrier, .settings)] {
+    for (kept, next) in [(OpenSection.carrier as OpenSection?, Selection.home), (nil, .settings), (.carrier, .settings), (.archive, .settings)] {
         shell.open = kept
         shell.selection = next
         #expect(shell.open == kept)
     }
+}
+
+@Test func aSessionChosenFromAnywhereOpensSessions() {
+    // the Archive list chooses through `chooseArchived`; any other way to a session unfolds Sessions
+    let shell = WindowShell(open: .archive)
+    shell.selection = .session(id: "s1")
+    #expect(shell.open == .sessions)
+}
+
+@Test func aSessionChosenFromTheArchiveListKeepsArchiveOpen() {
+    let shell = WindowShell(open: .archive)
+    shell.chooseArchived("s1")
+    #expect(shell.selection == .session(id: "s1"))
+    #expect(shell.open == .archive)
 }
 
 @Test func foldingTheOpenSectionLeavesBothFoldedAndOpeningOneFoldsTheOther() {
@@ -63,6 +78,10 @@ import Testing
     #expect(shell.open == .carrier)
     shell.selection = .sessions
     #expect(shell.open == .sessions)
+    shell.selection = .archive
+    #expect(shell.open == .archive)
+    shell.selection = .carrier
+    #expect(shell.open == .carrier)
 }
 
 @Test func resetOpensTheGivenSectionOrSessions() {

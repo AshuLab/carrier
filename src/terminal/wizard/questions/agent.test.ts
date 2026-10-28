@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { Ui } from '../../prompts/types.ts';
-import { fakeDeps, quietUi, roleOf, useTempDir } from '../testing.ts';
+import { fakeDeps, quietUi, roleOf, twoOptions, useTempDir } from '../testing.ts';
 import { runInit } from '../wizard.ts';
 
 const dir = useTempDir();
@@ -10,34 +10,34 @@ const running = { localModels: async (local: string) => (local === 'lmstudio' ? 
 
 test('the model is picked from what the CLI offers; Codex starts on the model it already runs with', async () => {
   const { deps, written } = fakeDeps({ codexModels: () => [{ value: 'gpt-a', label: 'gpt-a' }, { value: 'gpt-test', label: 'gpt-test' }] });
-  const { ui, asked } = quietUi();
+  const { ui, asked } = quietUi(twoOptions);
   const out = join(dir, 'm.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  expect(asked).toContain('Model for the author'); // a select, answered by its initial value
+  expect(asked.filter((q) => q === 'Model of this option')).toHaveLength(2); // a select each, answered by its initial value
   expect(roleOf(written[out]!, 'author')).toMatchObject({ model: 'sonnet' });
   expect(roleOf(written[out]!, 'reviewer')).toMatchObject({ model: 'gpt-test' });
 });
 
 test('"Other…" in the model list asks for the id', async () => {
   const { deps, written } = fakeDeps();
-  const { ui } = quietUi({ 'Model for the author': '\0other' });
-  // the text prompt then answers with its default (none for a claude alias list), so give it one
-  const withText: Ui = { ...ui, text: async (o) => (o.message === 'Model for the author' ? 'claude-x-1' : ui.text(o)) };
+  const { ui } = quietUi({ 'Model of this option': '\0other' });
+  const withText: Ui = { ...ui, text: async (o) => (o.message === 'Model of this option' ? 'claude-x-1' : ui.text(o)) };
   const out = join(dir, 'n.json');
   await runInit({ repo: ['A/b'], out }, withText, deps);
   expect(roleOf(written[out]!, 'author').model).toBe('claude-x-1');
 });
 
-test('three questions, each with one meaning: harness, then provider (only when there is a choice), then that provider\'s models', async () => {
-  const { deps, written } = fakeDeps(running);
+test('each question has one meaning: harness, then provider (only when there is a choice), then that provider\'s models, then the folder', async () => {
+  const { deps, written } = fakeDeps({ ...running, configFolders: (h) => (h === 'codex' ? ['/home/d/.codex'] : []) });
   const selects: Record<string, string[]> = {};
-  const { ui } = quietUi({ 'Which provider serves the reviewer\'s model?': 'lmstudio' });
+  const { ui } = quietUi({ ...twoOptions, 'Which provider serves the model of this option?': ['\0native', 'lmstudio'] });
   const spy: Ui = { ...ui, select: async (o) => ((selects[o.message] = o.options.map((x) => `${x.value}${x.disabled ? ' (disabled)' : ''}`)), ui.select(o)) };
   const out = join(dir, 'p.json');
   await runInit({ repo: ['A/b'], out }, spy, deps);
-  expect(selects['Which agent CLI runs the reviewer?']).toEqual(['claude', 'codex', 'agy']); // only harnesses
-  expect(selects['Which provider serves the reviewer\'s model?']).toEqual(['\0native', 'lmstudio', 'ollama (disabled)']); // Ollama is there, not running
-  expect(selects['Model for the reviewer']).toEqual(['google/gemma-4-12b', 'qwen/qwen3.8-27b', '\0other']); // only LM Studio's models, no cloud ones
+  expect(selects['Which agent CLI runs this option?']).toEqual(['claude', 'codex', 'agy']); // only harnesses
+  expect(selects['Which provider serves the model of this option?']).toEqual(['\0native', 'lmstudio', 'ollama (disabled)']); // Ollama is there, not running
+  expect(selects['Model of this option']).toEqual(['google/gemma-4-12b', 'qwen/qwen3.8-27b', '\0other']); // only LM Studio's models, no cloud ones (the last one asked)
+  expect(selects['Config folder of this Codex option']).toEqual(['/home/d/.codex', '\0inherit', '\0path']);
   expect(roleOf(written[out]!, 'reviewer')).toEqual({ profile: 'tassadar-agent', option: 'codex', harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio' });
   expect(roleOf(written[out]!, 'author')).not.toHaveProperty('provider');
 });
@@ -51,7 +51,7 @@ test('with no local server running there is no provider question', async () => {
 
 test('a local model id with a colon (Ollama) keeps it whole', async () => {
   const { deps, written } = fakeDeps({ localModels: async (local) => (local === 'ollama' ? ['qwen3:8b'] : Promise.reject(new Error('down'))) });
-  const { ui } = quietUi({ 'Which provider serves the author\'s model?': 'ollama', 'Model for the author': 'qwen3:8b' });
+  const { ui } = quietUi({ 'Which provider serves the model of this option?': 'ollama', 'Model of this option': 'qwen3:8b' });
   const out = join(dir, 'r.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
   expect(roleOf(written[out]!, 'author')).toMatchObject({ model: 'qwen3:8b', provider: 'ollama' });
@@ -65,12 +65,13 @@ test('--author-provider goes with the flag form and an unknown server is refused
   await expect(runInit({ repo: ['A/b'], author: 'codex:m', authorProvider: 'vllm', authorProfile: 'gh', reviewerProfile: 'forge:x', reviewer: 'claude:s', out }, quietUi().ui, deps)).rejects.toThrow('invalid provider');
 });
 
-test('Antigravity: its own models, and no provider question even with a local server running (it cannot use one)', async () => {
+test('Antigravity: its own models, no provider question even with a local server running, and never a folder', async () => {
   const { deps, written } = fakeDeps({ ...running, agyModels: () => [{ value: 'gemini-3.8-flash-low', label: 'gemini-3.8-flash-low', hint: 'Gemini 3.8 Flash (Low)' }] });
-  const { ui, asked } = quietUi({ 'Which agent CLI runs the author?': 'agy' });
+  const { ui, asked } = quietUi({ 'Which agent CLI runs this option?': 'agy' });
   const out = join(dir, 's.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  expect(asked).not.toContain("Which provider serves the author's model?");
+  expect(asked).not.toContain('Which provider serves the model of this option?');
+  expect(asked.some((q) => q.startsWith('Config folder'))).toBe(false);
   expect(roleOf(written[out]!, 'author')).toEqual({ profile: 'artanis-agent', option: 'agy', harness: 'agy', model: 'gemini-3.8-flash-low' });
 });
 

@@ -23,7 +23,13 @@ struct ConversationView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 if model.loaded {
-                    ForEach(model.rows) { FeedRowView(row: $0, opened: $opened) }
+                    let open = openOutcome(model.rows)
+                    ForEach(model.rows) { row in
+                        FeedRowView(
+                            row: row, opened: $opened, agent: model.agent, offersWayOut: row.id == open,
+                            continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } }
+                        )
+                    }
                 } else if model.failure == nil {
                     LoadingRow()
                 }
@@ -42,6 +48,9 @@ struct ConversationView: View {
     /// The message box (chat-ui-conv.html, section 3): the queued message above it, the box with its send or Stop button, and what the host refused under it.
     private var box: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if model.loaded, model.live == false {
+                Text(closedSessionNotice).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             if let queued = model.queued {
                 HStack(spacing: 8) {
                     Image(systemName: "clock").foregroundStyle(.secondary)
@@ -92,7 +101,13 @@ struct ConversationView: View {
                 .buttonStyle(.plain).help("The session's options").accessibilityLabel("Session options: \(pill)")
                 .popover(isPresented: $optionsOpen, arrowEdge: .top) { OptionsPanel(model: model) }
             }
-            if let refusal = model.refusal { Text(refusal).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
+            if let refusal = model.refusal {
+                if model.refusedText == nil {
+                    Text(refusal).font(.callout).foregroundStyle(.red).textSelection(.enabled)
+                } else {
+                    BannerView(banner: refusalBanner(agent: model.agent, reason: refusal), copyDetails: false, retry: { Task { await model.retry() } })
+                }
+            }
         }
         .padding(.horizontal, 40).padding(.vertical, 12)
         .frame(maxWidth: Self.column).frame(maxWidth: .infinity)
@@ -163,6 +178,11 @@ struct OpenMenu: View {
 private struct FeedRowView: View {
     let row: FeedRow
     @Binding var opened: Set<String>
+    let agent: String
+    /// Whether this is the stopped or failed turn the person can still act on: Continue and Try again show only there.
+    let offersWayOut: Bool
+    let continueTurn: () -> Void
+    let retry: () -> Void
 
     var body: some View {
         switch row {
@@ -184,8 +204,48 @@ private struct FeedRowView: View {
         case .line(_, let text):
             Text(text).font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         case .error(_, let text):
-            Text(text).font(.callout).foregroundStyle(.red).textSelection(.enabled)
+            BannerView(banner: failedTurnBanner(agent: agent, error: text), copyDetails: true, retry: offersWayOut ? retry : nil)
+        case .stopped:
+            HStack(spacing: 6) {
+                Text("\u{25A0} You stopped this turn").foregroundStyle(.secondary)
+                if offersWayOut { Button("Continue", action: continueTurn).buttonStyle(.link) }
+            }
+            .font(.system(size: 12))
         }
+    }
+}
+
+/// A banner of a failed turn or a refused send: red for a failure, orange when the provider is not signed in (chat-ui-conv.html, section 3).
+private struct BannerView: View {
+    let banner: FailureBanner
+    /// Copy details puts the provider's text on the pasteboard; a failed turn has it, a refusal says its reason in full already.
+    let copyDetails: Bool
+    /// Nil when the turn is no longer the last thing: the banner is then only a record.
+    let retry: (() -> Void)?
+
+    private var tint: Color { banner.hint == nil ? .red : .orange }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 11) {
+            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(tint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(banner.title).fontWeight(.semibold)
+                Text(banner.detail).font(.system(size: 12)).foregroundStyle(.secondary).textSelection(.enabled)
+                if let hint = banner.hint { Text(hint).font(.system(size: 12)).foregroundStyle(.secondary) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if let retry { Button("Try again", action: retry) }
+            if copyDetails {
+                Button("Copy details") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(banner.detail, forType: .string)
+                }
+            }
+        }
+        .font(.callout)
+        .padding(.horizontal, 13).padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 16).fill(tint.opacity(0.11)))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(tint.opacity(0.5), lineWidth: 1))
     }
 }
 

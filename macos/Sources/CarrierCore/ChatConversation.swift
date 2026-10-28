@@ -104,14 +104,58 @@ public enum FeedRow: Equatable, Identifiable {
     case tools(id: String, ToolGroup)
     /// An approval, for now as one plain line.
     case line(id: String, text: String)
-    /// An error event, in red.
+    /// An error event: the provider's text, in the banner of a failed turn.
     case error(id: String, text: String)
+    /// A turn the person stopped: the mark with Continue.
+    case stopped(id: String)
 
     public var id: String {
         switch self {
-        case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .tools(let id, _), .line(let id, _), .error(let id, _): id
+        case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .tools(let id, _), .line(let id, _), .error(let id, _), .stopped(let id): id
         }
     }
+}
+
+/// The row of the mark or banner that offers a way out (Continue, Try again): the last stopped or failed turn, and only while the
+/// person has not written since. Earlier ones are only a record.
+public func openOutcome(_ rows: [FeedRow]) -> String? {
+    for row in rows.reversed() {
+        switch row {
+        case .user: return nil
+        case .error(let id, _), .stopped(let id): return id
+        default: continue
+        }
+    }
+    return nil
+}
+
+/// A banner over the feed or the box: what the provider said (or the host's reason), and the hint under it when there is one.
+public struct FailureBanner: Equatable {
+    public let title: String
+    public let detail: String
+    public let hint: String?
+}
+
+private func capitalized(_ agent: String) -> String { agent.isEmpty ? "The agent" : agent.prefix(1).uppercased() + agent.dropFirst() }
+
+/// The banner of a turn that failed: "<Agent> couldn't continue" and the error's text.
+public func failedTurnBanner(agent: String, error: String) -> FailureBanner {
+    FailureBanner(title: "\(capitalized(agent)) couldn't continue", detail: error, hint: nil)
+}
+
+/// The banner of a refusal from `open`, `resume` or `send`: the host's own sentence, and for a provider that is not signed in the
+/// line that says where to sign in.
+public func refusalBanner(agent: String, reason: String) -> FailureBanner {
+    if let hint = signInLine(refusal: reason) { return FailureBanner(title: "\(capitalized(agent)) isn't signed in", detail: reason, hint: hint) }
+    return FailureBanner(title: "\(capitalized(agent)) couldn't continue", detail: reason, hint: nil)
+}
+
+/// Above the box of a session that is not live: sending to it resumes it.
+public let closedSessionNotice = "This session is closed. Send a message and it picks up where it left off."
+
+/// The line under a refusal when the provider is not signed in, nil for any other. The adapters say "<Agent> is not logged in; run … once to log in".
+public func signInLine(refusal reason: String) -> String? {
+    reason.localizedCaseInsensitiveContains("is not logged in") ? "Sign in from a terminal; Carrier never asks for your password" : nil
 }
 
 /// The rows the events make, in order, and then the message in progress when `streaming` has text. Consecutive calls are one row
@@ -156,6 +200,7 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "") -> [FeedRow]
             }
             going = [:]
             if let text = closingLine(event, turnStart: turnStart) { rows.append(.turnEnd(id: id, text: text)) }
+            if event.outcome == "interrupted" { rows.append(.stopped(id: "\(id)-stopped")) }
             turnStart = nil
         case "error":
             rows.append(.error(id: id, text: event.text ?? "Something went wrong"))
@@ -220,6 +265,12 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     public private(set) var busy = false
     /// The message typed while the agent answered: one at a time, sent when the turn ends.
     public private(set) var queued: String?
+    /// The session's agent, as the host's list names it; empty until the first answer.
+    public private(set) var agent = ""
+    /// Whether the session's agent process runs; a session that is not live shows the closed notice and resumes when a message is sent.
+    public private(set) var live = true
+    /// The message whose send or resume the host refused, for the banner's Try again; nil with no refusal or when it was not a send.
+    public private(set) var refusedText: String?
     /// Why the last send, resume or stop was refused, said under the box; nil when it worked.
     public private(set) var refusal: String?
     /// What the provider offers and the values it runs with, as the last `events` reply said: the pill follows this, never a request.
@@ -234,6 +285,8 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private var events: [ChatEvent] = []
     @ObservationIgnored private var streaming = ""
+    /// The person's last message, which Try again sends again.
+    @ObservationIgnored private var lastUserText: String?
 
     public init(
         host: ChatHost, sessionId: String, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
@@ -260,9 +313,16 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
                 reply = try await host.events(sessionId, after: cursor, limit: Self.page)
                 // kept as each page comes, so a later page that fails does not lose the cursor's progress
                 events += reply.events
+                if let last = reply.events.last(where: { $0.kind == "user" }) { lastUserText = last.text }
                 cursor = reply.cursor
                 changed = changed || reply.events.isEmpty == false
             } while reply.events.count >= Self.page
+            if let session = try await host.list(archived: false).first(where: { $0.id == sessionId }) {
+                agent = session.agent
+                live = session.live
+            } else {
+                live = false
+            }
             changed = changed || reply.streaming != streaming
             streaming = reply.streaming
             loaded = true
@@ -289,7 +349,7 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
         if busy {
             queued = text
             draft = ""
-            refusal = nil
+            clearRefusal()
         } else {
             await deliver(text)
         }
@@ -308,6 +368,14 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
         await poll()
     }
 
+    /// Continue on the mark of a stopped turn.
+    public func continueTurn() async { await deliver("Continue", refill: false) }
+
+    /// Try again on a banner: the refused message again, or the person's last message when the turn failed.
+    public func retry() async {
+        if let text = refusedText ?? lastUserText { await deliver(text, refill: false) }
+    }
+
     /// Drops the queued message.
     public func cancelQueued() { queued = nil }
 
@@ -315,29 +383,36 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     public func stop() async {
         do {
             try await host.interrupt(sessionId)
-            refusal = nil
+            clearRefusal()
         } catch {
+            refusedText = nil
             refusal = report(error, "stop the turn")
         }
     }
 
     /// Sends the text, resuming the session first when the host's list says it is not live. A refusal is shown and the text goes back
-    /// to the box when it came from there or from the queue; on success the box is emptied unless the person has typed something else.
-    private func deliver(_ text: String) async {
+    /// to the box when it came from there or from the queue (`refill`); on success the box is emptied unless the person has typed something else.
+    private func deliver(_ text: String, refill: Bool = true) async {
         sends += 1
         do {
             if try await host.list(archived: false).first(where: { $0.id == sessionId })?.live != true { try await host.resume(sessionId) }
             try await host.send(sessionId, text)
         } catch {
             refusal = report(error, "send the message")
-            if draft.isEmpty { draft = text }
+            refusedText = text
+            if refill, draft.isEmpty { draft = text }
             return
         }
-        refusal = nil
+        clearRefusal()
         if draft.trimmingCharacters(in: .whitespacesAndNewlines) == text { draft = "" }
         sends += 1
         busy = true
         await poll()
+    }
+
+    private func clearRefusal() {
+        refusal = nil
+        refusedText = nil
     }
 
     private func report(_ error: Error, _ doing: String) -> String {

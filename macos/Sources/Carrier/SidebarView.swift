@@ -14,6 +14,8 @@ struct SidebarView: View {
     @Binding var collapse: SidebarCollapse
     /// The last ⌘F, for the open section to show its search.
     let searchRequest: SearchRequest?
+    /// Choosing a session from the Archive list.
+    let chooseArchived: (String) -> Void
     /// Carrier's search: not remembered between launches.
     @State private var searching = false
     @State private var query = ""
@@ -78,7 +80,7 @@ struct SidebarView: View {
             // Archive above the divider and Settings alone under it; both stay while the list above scrolls
             VStack(spacing: 0) {
                 ArchiveSection(
-                    sessions: sessions, selection: $selection, open: open == .archive, keepOpen: { open = .archive }, searchRequest: searchRequest
+                    sessions: sessions, selection: $selection, open: open == .archive, choose: chooseArchived, searchRequest: searchRequest
                 )
                     .padding(.horizontal, 8).padding(.vertical, 8)
                 Divider()

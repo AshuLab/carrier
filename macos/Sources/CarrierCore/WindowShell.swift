@@ -55,7 +55,7 @@ public struct SearchRequest: Equatable {
 
 @Observable public final class WindowShell {
     /// Choosing the Sessions home or a session opens Sessions, an epic or the Carrier home opens the card, Archive opens its list; the
-    /// rest leave it. The Archive list puts itself back after choosing a session from it.
+    /// rest leave it. `chooseArchived` puts Archive back after choosing a session from its list.
     public var selection: Selection = .home {
         didSet {
             switch selection {
@@ -76,6 +76,12 @@ public struct SearchRequest: Equatable {
     public private(set) var searchRequest: SearchRequest?
 
     public init(open: OpenSection? = .sessions) { self.open = open }
+
+    /// Choosing a session from the Archive list: selecting it unfolds Sessions, so Archive is put back and the list chosen from stays.
+    public func chooseArchived(_ id: String) {
+        selection = .session(id: id)
+        open = .archive
+    }
 
     public func toggleSidebar() { sidebarShown.toggle() }
     public func toggleInspector() { inspectorShown.toggle() }

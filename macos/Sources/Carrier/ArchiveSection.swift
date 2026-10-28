@@ -8,8 +8,8 @@ struct ArchiveSection: View {
     let sessions: Sessions
     @Binding var selection: Selection
     let open: Bool
-    /// Choosing an archived session selects it, which opens Sessions; this puts Archive back, so the list the person chose from stays.
-    let keepOpen: () -> Void
+    /// Choosing an archived session; the shell keeps Archive open, so the list the person chose from stays.
+    let choose: (String) -> Void
     /// The last ⌘F: when it asks for Archive, the search field opens and takes the keyboard.
     let searchRequest: SearchRequest?
     /// The search field's text while it is open, nil while it is closed; not remembered between launches.
@@ -71,8 +71,7 @@ struct ArchiveSection: View {
                     ForEach(group.rows, id: \.id) { row in
                         let chosen = selection == .session(id: row.id)
                         Button {
-                            selection = .session(id: row.id)
-                            keepOpen()
+                            choose(row.id)
                         } label: {
                             SessionRowView(row: row, showsWorkspace: true)
                                 .padding(.horizontal, 8).padding(.vertical, 2)

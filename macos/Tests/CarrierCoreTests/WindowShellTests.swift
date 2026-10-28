@@ -56,10 +56,17 @@ import Testing
 }
 
 @Test func aSessionChosenFromAnywhereOpensSessions() {
-    // the Archive list puts itself back after its own choice (`ArchiveSection`); any other way to a session unfolds Sessions
+    // the Archive list chooses through `chooseArchived`; any other way to a session unfolds Sessions
     let shell = WindowShell(open: .archive)
     shell.selection = .session(id: "s1")
     #expect(shell.open == .sessions)
+}
+
+@Test func aSessionChosenFromTheArchiveListKeepsArchiveOpen() {
+    let shell = WindowShell(open: .archive)
+    shell.chooseArchived("s1")
+    #expect(shell.selection == .session(id: "s1"))
+    #expect(shell.open == .archive)
 }
 
 @Test func foldingTheOpenSectionLeavesBothFoldedAndOpeningOneFoldsTheOther() {

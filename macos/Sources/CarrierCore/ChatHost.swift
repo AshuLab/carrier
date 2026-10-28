@@ -31,8 +31,14 @@ public struct ChatSession: Decodable, Equatable {
     public let createdAt: Int
     public let lastActiveAt: Int
     public let archived: Bool
+    /// Set for a session in a worktree: `base` is the repository's folder, which is where the session is grouped.
+    public let workspace: Workspace?
     /// Whether the session's agent process runs: a closed one is resumed before a message is sent to it.
     public let live: Bool
+
+    public struct Workspace: Decodable, Equatable {
+        public let base: String
+    }
 }
 
 /// What the app needs from the chat host's socket; the real one speaks to the socket, tests use a fake.

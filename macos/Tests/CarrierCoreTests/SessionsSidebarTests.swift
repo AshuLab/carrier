@@ -83,15 +83,6 @@ private func byAge(_ rows: [SessionRow]) -> [SessionGroup] { sessionGroups(rows,
     #expect(sessionAge(now.addingTimeInterval(60), now: now) == "now")
 }
 
-@Test func theSampleHasEachStateSeveralWorkspacesAndArchivedRows() {
-    let sample = sampleSessions(now: now)
-    let listed = sample.filter { $0.archived == false }
-    #expect(Set(listed.map(\.state)).count == 4)
-    #expect(Set(listed.map(\.workspace)).count > 1)
-    #expect(sample.contains { $0.archived })
-    #expect(sessionGroups(sample).flatMap(\.rows).contains { $0.archived } == false)
-}
-
 private func found(_ rows: [SessionRow], _ query: String) -> [String] {
     sessionGroups(rows, query: query).flatMap(\.rows).map(\.id)
 }
@@ -155,5 +146,4 @@ private func found(_ rows: [SessionRow], _ query: String) -> [String] {
 
 @Test func theArchivedCountIsEveryRowWhenAllAreArchived() {
     #expect(archivedCount([row("1", "web", archived: true), row("2", "web", archived: true)]) == 2)
-    #expect(archivedCount(sampleSessions(now: now)) == 2)
 }

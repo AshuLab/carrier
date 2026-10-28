@@ -1,7 +1,7 @@
 import Foundation
 
 // The Sessions half of the sidebar as plain values (docs/specs/sidebar-home-sessions-carrier.md, Decisions). The sessions epic
-// feeds them; until then the list is empty, or a dev fixture with `--fixture`. The views map them one to one.
+// feeds them from the chat host (ChatSessions.swift). The views map them one to one.
 
 public enum SessionState: Hashable { case working, waiting, idle, done }
 
@@ -114,20 +114,4 @@ public func sessionAge(_ updatedAt: Date, now: Date) -> String {
     case ..<86400: return "\(seconds / 3600)h"
     default: return "\(seconds / 86400)d"
     }
-}
-
-/// The dev fixture: sample sessions in several workspaces, one of each state and archived ones, for `--fixture`.
-public func sampleSessions(now: Date) -> [SessionRow] {
-    func row(_ id: String, _ title: String, _ workspace: String, _ agent: String, _ state: SessionState, minutesAgo: Int, archived: Bool = false) -> SessionRow {
-        SessionRow(id: id, title: title, workspace: workspace, agent: agent, state: state, updatedAt: now.addingTimeInterval(Double(-60 * minutesAgo)), archived: archived)
-    }
-    return [
-        row("s1", "Add a retry to the sync worker", "carrier", "Claude", .working, minutesAgo: 2),
-        row("s2", "Which migration should go first?", "carrier", "Codex", .waiting, minutesAgo: 14),
-        row("s3", "Explore the pricing page layout", "web", "Claude", .idle, minutesAgo: 190),
-        row("s4", "Fix the flaky login test", "web", "Claude", .done, minutesAgo: 60 * 30),
-        row("s5", "A very long title that goes on and on about renaming every helper in the whole repository", "Dotfiles", "Antigravity", .idle, minutesAgo: 60 * 24 * 4),
-        row("s6", "Old spike on the cache", "web", "Codex", .done, minutesAgo: 60 * 24 * 20, archived: true),
-        row("s7", "Rename the config keys", "carrier", "Claude", .done, minutesAgo: 60 * 24 * 9, archived: true),
-    ]
 }

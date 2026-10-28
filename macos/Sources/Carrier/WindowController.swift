@@ -10,8 +10,8 @@ import SwiftUI
     let epics = EpicStore()
     var groupBy = SidebarStore().groupBy
     var collapse = SidebarCollapse()
-    /// The dev fixture's sample with `--fixture`; the + follows the chat host (`ChatMonitor`).
-    var sessions = Sessions(rows: CommandLine.arguments.contains("--fixture") ? sampleSessions(now: Date()) : [])
+    /// The chat host's sessions (`ChatSessionsPoller`); the + follows the host (`ChatMonitor`).
+    var sessions = Sessions()
 }
 
 private extension ShortcutModifiers {
@@ -120,6 +120,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         if let content = window.contentView { walk(content) }
         for item in window.toolbar?.items ?? [] { lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)") }
         lines.append("sessions +: \(model.sessions.cannotStartReason ?? "enabled")")
+        lines.append("sessions: \(model.sessions.rows.count) rows, \(archivedCount(model.sessions.rows)) archived, groups \(sessionGroups(model.sessions.rows).map(\.title))")
         lines.append("transcript: \(SessionSectionsView.layout)")
         let events = longTranscriptEvents(rounds: 556)
         var transcript = Transcript()
@@ -166,7 +167,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         stop?.set()
         stop = nil
         model.state = nil
-        model.sessions.cannotStartReason = hostNotRunning
+        model.sessions = Sessions()
         model.shell.reset(open: SidebarStore().open)
     }
 
@@ -194,5 +195,14 @@ final class WindowController: NSObject, NSWindowDelegate {
             DispatchQueue.main.async { if stop.isSet == false { model.sessions.cannotStartReason = cannotStartReason(host: host) } }
         }
         Thread.detachNewThread { chat.run() }
+        let sessions = ChatSessionsPoller(host: SocketChatHost()) { rows in
+            DispatchQueue.main.async { if stop.isSet == false { model.sessions.rows = rows } }
+        }
+        Task.detached {
+            repeat {
+                await sessions.poll()
+                try? await Task.sleep(for: .seconds(1))
+            } while stop.isSet == false
+        }
     }
 }

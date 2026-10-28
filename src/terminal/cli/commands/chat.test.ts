@@ -145,6 +145,37 @@ test('--list prints each session as id, agent, state, age and folder, the most r
   client.close();
 });
 
+test('--archive, --unarchive and --delete do what they say, --list --archived lists the archived ones, and a refusal is shown in words', async () => {
+  await host();
+  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  const { session } = (await client.request('open', { agent: 'claude', folder: root })) as any;
+  const run = (flags: Parameters<typeof chatCommand>[0]) => chatCommand(flags, config(), '/abs/config.json');
+  const out = () => written.splice(0).join('');
+
+  expect(await run({ archive: session.id })).toBe(0);
+  expect(out()).toBe(`Session ${session.id} archived\n`);
+  await run({ list: true });
+  expect(out()).toBe('No chat sessions.\n');
+  await run({ list: true, archived: true });
+  expect(out()).toContain(session.id);
+  expect(await run({ unarchive: session.id })).toBe(0);
+  expect(out()).toBe(`Session ${session.id} unarchived\n`);
+  await run({ list: true, archived: true });
+  expect(out()).toBe('No archived chat sessions.\n');
+
+  await client.request('resume', { sessionId: session.id }); // archiving closed the idle session
+  claude.conversations.at(-1)!.reply = () => {}; // the turn never ends
+  await client.request('send', { sessionId: session.id, text: 'go' });
+  await expect(run({ delete: session.id })).rejects.toMatchObject({ code: 1, lines: [expect.stringContaining('interrupt or close it first')] });
+  await client.request('interrupt', { sessionId: session.id });
+  expect(await run({ delete: session.id })).toBe(0);
+  expect(out()).toBe(`Session ${session.id} deleted\n`);
+  await run({ list: true });
+  expect(out()).toBe('No chat sessions.\n');
+  await expect(run({ delete: session.id })).rejects.toMatchObject({ lines: ['There is no such session'] });
+  client.close();
+});
+
 test('--resume prints the last 20 events of the transcript, then continues the conversation after the host was stopped and started again', async () => {
   const work = join(root, 'work');
   mkdirSync(work);

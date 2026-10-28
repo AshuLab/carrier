@@ -12,8 +12,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'interrupt' | 'setOption' | 'events' | 'close' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'interrupt', 'setOption', 'events', 'close', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'stop'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -28,6 +28,8 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('setOption'), sessionId, option: z.string().min(1), value: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('events'), sessionId, after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200) }),
   z.strictObject({ id, cmd: z.literal('close'), sessionId }),
+  z.strictObject({ id, cmd: z.literal('archive'), sessionId, archived: z.boolean() }),
+  z.strictObject({ id, cmd: z.literal('delete'), sessionId }),
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
@@ -44,6 +46,8 @@ export type ChatControls = {
   setOption(args: Args<'setOption'>): Promise<unknown>;
   events(args: Args<'events'>): unknown;
   close(args: Args<'close'>): Promise<unknown>;
+  archive(args: Args<'archive'>): Promise<unknown>;
+  delete(args: Args<'delete'>): Promise<unknown>;
 };
 
 async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls): Promise<unknown> {
@@ -66,6 +70,10 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.events({ sessionId: request.sessionId, after: request.after, limit: request.limit });
     case 'close':
       return controls.close({ sessionId: request.sessionId });
+    case 'archive':
+      return controls.archive({ sessionId: request.sessionId, archived: request.archived });
+    case 'delete':
+      return controls.delete({ sessionId: request.sessionId });
   }
 }
 

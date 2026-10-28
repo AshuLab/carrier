@@ -14,7 +14,9 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier stop|pause|resume|check --config <path>   stop Carrier, pause or resume intake, look at GitHub now
        carrier chat --workspace <folder> [--agent <name>]   talk to an agent in a folder (starts the chat host if needed)
        carrier chat --resume <id>        go on with a closed chat session, after the end of its transcript
-       carrier chat --list|--stop        list chat sessions or stop the chat host
+       carrier chat --list [--archived]  list chat sessions (the archived ones with --archived)
+       carrier chat --archive|--unarchive|--delete <id>   archive, unarchive or delete a chat session
+       carrier chat --stop               stop the chat host
        carrier chat-host --config <path> run the chat host in the foreground
 
 --config defaults to ${defaultConfigPath()} (where init writes it) when that file exists.
@@ -51,6 +53,10 @@ const options = {
   workspace: { type: 'string' },
   agent: { type: 'string' },
   resume: { type: 'string' },
+  archived: { type: 'boolean' },
+  archive: { type: 'string' },
+  unarchive: { type: 'string' },
+  delete: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
 } as const;
 

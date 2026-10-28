@@ -122,6 +122,16 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
     return {};
   }
 
+  /** Readies a session to be archived or deleted: refuses an unknown one, and one working or waiting for an approval; closes an idle live one. */
+  async function settle(sessionId: string, verb: 'archive' | 'delete') {
+    row(sessionId);
+    const live = lives.get(sessionId);
+    if (live === undefined) return;
+    if (live.state !== 'idle') throw new ChatRefused(`This session is ${live.state === 'working' ? 'working' : 'waiting for an approval'}; interrupt or close it first, then ${verb} it`);
+    await close({ sessionId });
+    if (lives.has(sessionId)) throw new ChatRefused('This session was resumed meanwhile; close it first'); // a resume that finished during the close
+  }
+
   async function openConversation(chosen: ReturnType<typeof chatAgents>[number], runner: ChatRunner, args: { folder: string; options: Record<string, string>; resume?: string }) {
     try {
       return await runner.open({ ...args, command: chosen.command, env });
@@ -274,6 +284,25 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
     },
 
     close,
+
+    /** Sets or clears the archived mark. A live idle session is closed first; a working or waiting one is refused. */
+    async archive({ sessionId, archived }: { sessionId: string; archived: boolean }) {
+      if (archived) await settle(sessionId, 'archive');
+      else row(sessionId);
+      db.update(sessions).set({ archived }).where(eq(sessions.id, sessionId)).run();
+      return {};
+    },
+
+    /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */
+    async delete({ sessionId }: { sessionId: string }) {
+      await settle(sessionId, 'delete');
+      db.transaction((tx) => {
+        tx.delete(chatEvents).where(eq(chatEvents.sessionId, sessionId)).run();
+        tx.delete(chatTurns).where(eq(chatTurns.sessionId, sessionId)).run();
+        tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
+      });
+      return {};
+    },
 
     /** Closes every live session: the host's stop. */
     async closeAll() {

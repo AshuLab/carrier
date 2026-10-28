@@ -154,11 +154,11 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
 }
 
 /**
- * `carrier chat --workspace <folder> [--agent <name>]`, `--resume <id>`, `--list` and `--stop`. A host is started on demand by --list and
+ * `carrier chat --workspace <folder> [--agent <name>]`, `--resume <id>`, `--list [--archived]`, `--archive|--unarchive|--delete <id>` and `--stop`. A host is started on demand by --list and
  * by a chat (`start` is replaceable in tests). `configPath` is absolute. Returns the exit code.
  */
 export async function chatCommand(
-  flags: { list?: boolean; stop?: boolean; workspace?: string; agent?: string; resume?: string },
+  flags: { list?: boolean; archived?: boolean; stop?: boolean; workspace?: string; agent?: string; resume?: string; archive?: string; unarchive?: string; delete?: string },
   config: Config,
   configPath: string,
   { start = startDetached, input = process.stdin, pollMs = POLL_MS, now = Date.now, sigint = process }: { start?: typeof startDetached; input?: Readable; pollMs?: number; now?: () => number; sigint?: EventEmitter } = {},
@@ -178,11 +178,29 @@ export async function chatCommand(
   }
   if (flags.list) {
     const client = await hostClient(socketPath, config, configPath, start);
-    const { sessions } = (await client.request('list')) as { sessions: { id: string; agent: string; folder: string; state: string; live: boolean; lastActiveAt: number }[] };
+    const { sessions } = (await client.request('list', flags.archived ? { archived: true } : {})) as { sessions: { id: string; agent: string; folder: string; state: string; live: boolean; lastActiveAt: number }[] };
     client.close();
-    if (sessions.length === 0) process.stdout.write('No chat sessions.\n');
+    if (sessions.length === 0) process.stdout.write(flags.archived ? 'No archived chat sessions.\n' : 'No chat sessions.\n');
     // a session whose agent is not running is closed, whatever state it was left in
     for (const s of sessions) process.stdout.write(`${s.id}  ${s.agent}  ${s.live ? s.state : 'closed'}  ${ageOf(now() - s.lastActiveAt)}  ${s.folder}\n`);
+    return 0;
+  }
+  const change =
+    flags.archive !== undefined ? ([flags.archive, 'archive', { archived: true }, 'archived'] as const)
+    : flags.unarchive !== undefined ? ([flags.unarchive, 'archive', { archived: false }, 'unarchived'] as const)
+    : flags.delete !== undefined ? ([flags.delete, 'delete', {}, 'deleted'] as const)
+    : undefined;
+  if (change !== undefined) {
+    const [sessionId, cmd, extra, done] = change;
+    const client = await hostClient(socketPath, config, configPath, start);
+    try {
+      await client.request(cmd, { sessionId, ...extra });
+    } catch (error) {
+      throw new CliError(1, error instanceof Error ? error.message : String(error));
+    } finally {
+      client.close();
+    }
+    process.stdout.write(`Session ${sessionId} ${done}\n`);
     return 0;
   }
   if (flags.resume !== undefined) {
@@ -204,5 +222,5 @@ export async function chatCommand(
     }
     return 0;
   }
-  throw new CliError(2, 'Usage: carrier chat --workspace <folder> [--agent <name>] | --resume <id> | --list | --stop [--config <path>]');
+  throw new CliError(2, 'Usage: carrier chat --workspace <folder> [--agent <name>] | --resume <id> | --list [--archived] | --archive|--unarchive|--delete <id> | --stop [--config <path>]');
 }

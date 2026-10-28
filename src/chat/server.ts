@@ -12,8 +12,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'stop'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -21,7 +21,7 @@ const sessionId = z.uuid();
 export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('agents') }),
   z.strictObject({ id, cmd: z.literal('list'), archived: z.boolean().optional() }),
-  z.strictObject({ id, cmd: z.literal('open'), agent: z.string().min(1), folder: z.string().min(1), options: z.record(z.string(), z.string()).optional() }),
+  z.strictObject({ id, cmd: z.literal('open'), agent: z.string().min(1), folder: z.string().min(1), options: z.record(z.string(), z.string()).optional(), worktree: z.strictObject({ from: z.string().min(1).max(1000), name: z.string().max(1000).optional() }).optional() }),
   z.strictObject({ id, cmd: z.literal('resume'), sessionId }),
   z.strictObject({ id, cmd: z.literal('send'), sessionId, text: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('answer'), sessionId, approvalId: z.string().min(1), choiceId: z.string().min(1) }),
@@ -31,6 +31,11 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('close'), sessionId }),
   z.strictObject({ id, cmd: z.literal('archive'), sessionId, archived: z.boolean() }),
   z.strictObject({ id, cmd: z.literal('delete'), sessionId }),
+  z.strictObject({ id, cmd: z.literal('workspace'), folder: z.string().min(1) }),
+  z.strictObject({ id, cmd: z.literal('fetch'), folder: z.string().min(1) }),
+  z.strictObject({ id, cmd: z.literal('suggestName'), folder: z.string().min(1) }),
+  z.strictObject({ id, cmd: z.literal('checkName'), folder: z.string().min(1), name: z.string().max(1000) }),
+  z.strictObject({ id, cmd: z.literal('deletePreview'), sessionIds: z.array(sessionId).min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
@@ -50,6 +55,11 @@ export type ChatControls = {
   close(args: Args<'close'>): Promise<unknown>;
   archive(args: Args<'archive'>): Promise<unknown>;
   delete(args: Args<'delete'>): Promise<unknown>;
+  workspace(args: Args<'workspace'>): Promise<unknown>;
+  fetch(args: Args<'fetch'>): Promise<unknown>;
+  suggestName(args: Args<'suggestName'>): Promise<unknown>;
+  checkName(args: Args<'checkName'>): Promise<unknown>;
+  deletePreview(args: Args<'deletePreview'>): Promise<unknown>;
 };
 
 async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls): Promise<unknown> {
@@ -59,7 +69,7 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
     case 'list':
       return controls.list({ archived: request.archived });
     case 'open':
-      return controls.open({ agent: request.agent, folder: request.folder, options: request.options });
+      return controls.open({ agent: request.agent, folder: request.folder, options: request.options, worktree: request.worktree });
     case 'resume':
       return controls.resume({ sessionId: request.sessionId });
     case 'send':
@@ -78,6 +88,16 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.archive({ sessionId: request.sessionId, archived: request.archived });
     case 'delete':
       return controls.delete({ sessionId: request.sessionId });
+    case 'workspace':
+      return controls.workspace({ folder: request.folder });
+    case 'fetch':
+      return controls.fetch({ folder: request.folder });
+    case 'suggestName':
+      return controls.suggestName({ folder: request.folder });
+    case 'checkName':
+      return controls.checkName({ folder: request.folder, name: request.name });
+    case 'deletePreview':
+      return controls.deletePreview({ sessionIds: request.sessionIds });
   }
 }
 

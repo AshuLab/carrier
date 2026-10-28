@@ -60,7 +60,7 @@ public struct SearchRequest: Equatable {
         didSet {
             switch selection {
             case .sessions, .session: open = .sessions
-                        case .carrier, .epic: open = .carrier
+            case .carrier, .epic: open = .carrier
             case .archive: open = .archive
             case .home, .settings: break
             }

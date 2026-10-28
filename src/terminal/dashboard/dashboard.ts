@@ -115,7 +115,8 @@ export function renderDashboard(s: PanelSnapshot, { columns = 80, color = true, 
   const card = (e: PanelEpic, first: boolean) => {
     const chosen = selected(e.repo, e.issue);
     const bar = chosen ? paint('▌', 'bold', 'cyan') : paint('┃', 'dim');
-    const chain = e.stage === null ? paint('starting', 'dim') : stages.map((st) => (st === e.stage ? paint(`[${st}]`, 'bold', 'cyan') : paint(st, 'dim'))).join(paint(' ▸ ', 'dim'));
+    const choice = e.options?.choiceDeadline;
+    const chain = choice != null ? paint(`waiting for its choice · ${formatDuration(choice - s.now)} left · author ${e.options!.author} · reviewer ${e.options!.reviewer}`, 'dim') : e.stage === null ? paint('starting', 'dim') : stages.map((st) => (st === e.stage ? paint(`[${st}]`, 'bold', 'cyan') : paint(st, 'dim'))).join(paint(' ▸ ', 'dim'));
     const round = e.round === null ? '' : ` · round ${Array.from({ length: e.maxReviews }, (_, i) => (i < e.round! ? '●' : '○')).join('')}`;
     if (!first) add();
     add(chosen ? ` ${pointer}${paint(` ${e.repo} #${e.issue} `, 'bold', 'inverse')}${titled(e.title)}` : ` ${bar} ${paint(`${e.repo} #${e.issue}`, 'bold')}${titled(e.title)}`); // the selected card's title is a highlighted label

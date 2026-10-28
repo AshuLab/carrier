@@ -49,6 +49,11 @@ test('idle: it says what it is doing and what to do, instead of a bare header', 
   `);
 });
 
+test('an epic waiting for its choice shows the countdown and the option of each role where the chain would be', () => {
+  const out = plain(snap({ slots: { busy: 1, total: 3 }, epics: [epic({ stage: null, options: { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', choiceDeadline: now + 42_000 } })] }));
+  expect(out).toContain('┃ waiting for its choice · 42s left · author claude · reviewer codex');
+});
+
 test('a running epic shows its stage in the chain, rounds as dots, blockers, times and the PR link', () => {
   const out = plain(snap({ slots: { busy: 2, total: 3 }, epics: [epic(), epic({ repo: 'AshuLab/api', issue: 7, stage: 'review', round: 2, blockers: 1, prUrl: 'https://github.com/AshuLab/api/pull/9', stageSince: now - 182_000, lastActivityAt: now - 21_000 })] }));
   expect(out).toContain('Slots  ●●○   2 of 3 busy');

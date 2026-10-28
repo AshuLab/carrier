@@ -45,6 +45,7 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
+| `limits.optionChoiceSeconds` | no | `60` | With two or more `agentOptions`, how long a reserved epic holds its slot waiting for the option of each role to be chosen. When it passes, or nobody answers, the epic starts on the options of `agents`. With one option nothing waits. |
 
 ## Agent options
 
@@ -71,6 +72,10 @@ An agent option is a named way to run an agent. The config declares them once in
 | `configDir` | no | The harness's config folder, which holds its login: `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. It must be an absolute path once a leading `~` is expanded. Without it the agent inherits the environment of the process that started Carrier. Not for `agy`, which has no setting for it. |
 
 A repo's `agents.<role>` can override `profile`, `option` and `persona`; the option is looked up in the same `agentOptions`. `harness`, `model` and `provider` used to be written inside `agents.<role>`: a config that still does so is refused, with a message that says they moved here. There is no migration; move the three fields into an option and point the role at it.
+
+### Choosing the option of an epic
+
+With one option nothing is asked. With two or more, a reserved epic does not start its author at once: it holds its slot for `limits.optionChoiceSeconds` (default 60) while the option of each role can be chosen over the control socket (`chooseOptions`, listed in the hello's `capabilities` as `agentOptions`). `carrier status` shows the epic as waiting for its choice, with the seconds left. A role that is not chosen runs on the option `agents.<role>.option` names, and so does every role when the time passes, when nobody answers, or when Carrier starts again after the deadline. The definitions of the options are saved with the epic when it is reserved: editing the config later changes no epic that is waiting or running.
 
 ## Personas
 

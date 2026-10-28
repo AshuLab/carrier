@@ -50,7 +50,7 @@ describe('resolveRepoConfig', () => {
     });
     expect(JSON.parse(JSON.stringify(effective))).toEqual(effective);
     expect(JSON.stringify(effective)).not.toContain('secret');
-    expect(Object.keys(effective)).toEqual(['name', 'sharedIdentity', 'agents']);
+    expect(Object.keys(effective)).toEqual(['name', 'sharedIdentity', 'options', 'agents']);
   });
 });
 

@@ -48,6 +48,12 @@ public protocol ChatHost {
     func list(archived: Bool) async throws -> [ChatSession]
     /// The events of a session after the cursor, at most `limit` (the host takes 1 to 200).
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents
+    /// Opens a closed session's agent again; the host refuses a `send` to one that is not live.
+    func resume(_ id: String) async throws
+    /// The host refuses it while the agent is answering ("The agent is still answering") and when it is over its character limit.
+    func send(_ id: String, _ text: String) async throws
+    /// Ends the turn that is in progress.
+    func interrupt(_ id: String) async throws
 }
 
 /// The chat host over its socket: one connection per call (a host with no client attached may end itself), with the blocking
@@ -68,13 +74,40 @@ public struct SocketChatHost: ChatHost {
         return reply.sessions
     }
 
-    /// Only a UUID goes on the wire as the session id, as the host accepts nothing else.
     public func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
-        guard let id = UUID(uuidString: id)?.uuidString.lowercased() else { throw ControlError.remote("not a valid session id") }
+        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"after\":\(after),\"limit\":\(limit)"
         let path = socketPath()
-        return try await Task.detached { try chatRequest(path, "events", requires: .events, fields: ",\"sessionId\":\"\(id)\",\"after\":\(after),\"limit\":\(limit)") }.value
+        return try await Task.detached { try chatRequest(path, "events", requires: .events, fields: fields) }.value
+    }
+
+    public func resume(_ id: String) async throws {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\""
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "resume", requires: .resume, fields: fields) }.value
+    }
+
+    /// The text goes on the wire JSON-encoded, so quotes, newlines and anything else in it stay inside the string.
+    public func send(_ id: String, _ text: String) async throws {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"text\":" + String(decoding: try JSONEncoder().encode(text), as: UTF8.self)
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "send", requires: .send, fields: fields) }.value
+    }
+
+    public func interrupt(_ id: String) async throws {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\""
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "interrupt", requires: .interrupt, fields: fields) }.value
     }
 }
+
+/// Only a UUID goes on the wire as the session id, as the host accepts nothing else.
+private func wireId(_ id: String) throws -> String {
+    guard let id = UUID(uuidString: id)?.uuidString.lowercased() else { throw ControlError.remote("not a valid session id") }
+    return id
+}
+
+/// A reply whose content the app does not read: any JSON will do.
+private struct AnyReply: Decodable { init(from decoder: Decoder) throws {} }
 
 private struct ChatSessionsReply: Decodable { let sessions: [ChatSession] }
 

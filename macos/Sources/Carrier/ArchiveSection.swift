@@ -46,8 +46,12 @@ struct ArchiveSection: View {
             })
             .help("Archive")
             if open {
-                if let text = Binding($query) {
-                    SidebarSearchField(placeholder: "Search archive", text: text, focus: $searching, close: { query = nil })
+                if query != nil {
+                    // not `Binding($query)`: its getter force-unwraps and crashes once the query is nil
+                    SidebarSearchField(
+                        placeholder: "Search archive", text: Binding(get: { query ?? "" }, set: { query = $0 }), focus: $searching,
+                        close: { query = nil }
+                    )
                 }
                 let groups = archivedGroups(sessions.rows, query: query ?? "")
                 switch SidebarListState(shown: groups.count, of: archived, query: query ?? "") {
@@ -67,16 +71,16 @@ struct ArchiveSection: View {
             LazyVStack(alignment: .leading, spacing: 1) {
                 ForEach(groups, id: \.title) { group in
                     Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
-                        .padding(.horizontal, 10).padding(.top, 4)
+                        .padding(.horizontal, SidebarMetrics.inset).padding(.top, 4)
                     ForEach(group.rows, id: \.id) { row in
                         let chosen = selection == .session(id: row.id)
                         Button {
                             choose(row.id)
                         } label: {
                             SessionRowView(row: row, showsWorkspace: true)
-                                .padding(.horizontal, 8).padding(.vertical, 2)
+                                .padding(.vertical, 2)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(.primary.opacity(chosen ? 0.1 : 0)))
+                                .background(RoundedRectangle(cornerRadius: 8).fill(chosen ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.45) : .clear))
                                 .contentShape(RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)

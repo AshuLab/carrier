@@ -36,6 +36,8 @@ const controls = (): ChatControls => ({
   setOption: async ({ option, value }) => ({ option, value }),
   events: ({ after = 0 }) => ({ after }),
   close: async () => ({}),
+  archive: async ({ archived }) => ({ archived }),
+  delete: async () => ({}),
 });
 async function open({ stop = async () => {}, clients = noClients } = {}) {
   const server = await startChatServer({ chatDir: dir, startedAt: 1234, controls: controls(), stop, clients });
@@ -71,7 +73,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'stop'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'stop'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -103,6 +105,15 @@ test('setOption is a strict request with a session, an option and a value', asyn
   const c = await client();
   expect(await c.ask(`{"id":1,"cmd":"setOption","sessionId":"${uuid}","option":"model","value":"haiku"}`)).toEqual({ id: 1, ok: true, data: { option: 'model', value: 'haiku' } });
   expect(await c.ask(`{"id":2,"cmd":"setOption","sessionId":"${uuid}","option":"model"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
+});
+
+test('archive takes a session and a boolean, delete a session, both strict', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask(`{"id":1,"cmd":"archive","sessionId":"${uuid}","archived":true}`)).toEqual({ id: 1, ok: true, data: { archived: true } });
+  expect(await c.ask(`{"id":2,"cmd":"archive","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":3,"cmd":"delete","sessionId":"${uuid}"}`)).toEqual({ id: 3, ok: true, data: {} });
+  expect(await c.ask(`{"id":4,"cmd":"delete","sessionId":"${uuid}","archived":true}`)).toEqual({ id: 4, ok: false, error: 'invalid request' });
 });
 
 test('a line that is not JSON is "invalid JSON" and the connection goes on', async () => {

@@ -12,8 +12,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'stop'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -35,6 +35,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('fetch'), folder: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('suggestName'), folder: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('checkName'), folder: z.string().min(1), name: z.string().max(1000) }),
+  z.strictObject({ id, cmd: z.literal('deletePreview'), sessionIds: z.array(sessionId).min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
@@ -58,6 +59,7 @@ export type ChatControls = {
   fetch(args: Args<'fetch'>): Promise<unknown>;
   suggestName(args: Args<'suggestName'>): Promise<unknown>;
   checkName(args: Args<'checkName'>): Promise<unknown>;
+  deletePreview(args: Args<'deletePreview'>): Promise<unknown>;
 };
 
 async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls): Promise<unknown> {
@@ -94,6 +96,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.suggestName({ folder: request.folder });
     case 'checkName':
       return controls.checkName({ folder: request.folder, name: request.name });
+    case 'deletePreview':
+      return controls.deletePreview({ sessionIds: request.sessionIds });
   }
 }
 

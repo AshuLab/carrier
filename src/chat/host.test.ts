@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -406,4 +406,162 @@ test('a session that cannot be created after the worktree exists takes the workt
   expect(() => statSync(join(worktrees, 'acme', 'app', 'delta'))).toThrow();
   expect(base.branches).toEqual(['main', 'feat/x']);
   client.close();
+});
+
+/** Opens a session in a worktree, and tells the fake what git would find in that folder. */
+async function inWorktree(h: Awaited<ReturnType<typeof worktreeHost>>, name: string, found: { status?: string[]; unpushed?: number } = {}) {
+  const { session } = (await h.client.request('open', { agent: 'claude', folder: h.repo, worktree: { from: 'main', name } })) as { session: { id: string; workspace: { path: string; branch: string } } };
+  const { path, branch } = session.workspace;
+  h.git.repos.set(path, { head: branch, branches: [branch], status: found.status, unpushed: { [branch]: found.unpushed ?? 0 } });
+  return { id: session.id, path, branch };
+}
+const sessionRows = () => {
+  const db = new Database(join(root, 'chat', 'chat.db'), { readonly: true });
+  const found = db.prepare('select id from sessions').all() as { id: string }[];
+  db.close();
+  return found.map((row) => row.id);
+};
+
+test('deletePreview says null for a session in the base folder and the path, branch, dirty and unpushed for each worktree, for several at once', async () => {
+  const h = await worktreeHost();
+  const plain = (await h.client.request('open', { agent: 'claude', folder: h.repo })) as { session: { id: string } };
+  const created = await inWorktree(h, 'only-created');
+  const dirty = await inWorktree(h, 'dirty', { status: [' M a.ts', '?? b.ts'] });
+  const ahead = await inWorktree(h, 'ahead', { unpushed: 3 });
+  const preview = (...ids: string[]) => h.client.request('deletePreview', { sessionIds: ids });
+  expect(await preview(plain.session.id)).toEqual({ sessions: [{ sessionId: plain.session.id, worktree: null }] });
+  expect(await preview(created.id)).toEqual({ sessions: [{ sessionId: created.id, worktree: { path: created.path, branch: 'carrier/only-created', dirty: 0, unpushed: 0 } }] });
+  expect(await preview(plain.session.id, dirty.id, ahead.id)).toEqual({
+    sessions: [
+      { sessionId: plain.session.id, worktree: null },
+      { sessionId: dirty.id, worktree: { path: dirty.path, branch: 'carrier/dirty', dirty: 2, unpushed: 0 } },
+      { sessionId: ahead.id, worktree: { path: ahead.path, branch: 'carrier/ahead', dirty: 0, unpushed: 3 } },
+    ],
+  });
+  // it only reads: the branch is a full ref and the exclusion one value
+  expect(h.git.calls.find((call) => call.args[0] === 'rev-list')!.args).toEqual(['rev-list', '--count', 'refs/heads/carrier/only-created', '--not', '--exclude=carrier/only-created', '--branches', '--remotes']);
+  expect(h.git.calls.filter((call) => call.args[0] === 'worktree' && call.args[1] === 'remove')).toEqual([]);
+  h.client.close();
+});
+
+test('deletePreview refuses the whole request when one id is unknown, and reads nothing', async () => {
+  const h = await worktreeHost();
+  const one = await inWorktree(h, 'known');
+  const before = h.git.calls.length;
+  await expect(h.client.request('deletePreview', { sessionIds: [one.id, '3f2b6a52-8f5e-4a63-9d5b-0a1d2c3e4f50'] })).rejects.toThrow('There is no such session');
+  expect(h.git.calls).toHaveLength(before);
+  h.client.close();
+});
+
+test('deletePreview of a worktree whose folder is gone counts 0 instead of failing', async () => {
+  const h = await worktreeHost();
+  const lost = await inWorktree(h, 'lost');
+  rmSync(lost.path, { recursive: true });
+  expect(await h.client.request('deletePreview', { sessionIds: [lost.id] })).toEqual({ sessions: [{ sessionId: lost.id, worktree: { path: lost.path, branch: 'carrier/lost', dirty: 0, unpushed: 0 } }] });
+  h.client.close();
+});
+
+test('delete removes the worktree, then its branch, then the session with its events, and leaves the base folder and other branches alone', async () => {
+  const h = await worktreeHost();
+  const doomed = await inWorktree(h, 'doomed');
+  const kept = await inWorktree(h, 'kept');
+  const mark = h.git.calls.length;
+  await h.client.request('delete', { sessionId: doomed.id });
+  expect(h.git.calls.slice(mark).map((call) => ({ folder: call.folder, args: call.args }))).toEqual([
+    { folder: h.repo, args: ['worktree', 'remove', '--force', doomed.path] },
+    { folder: h.repo, args: ['rev-parse', '--verify', '--quiet', 'refs/heads/carrier/doomed'] },
+    { folder: h.repo, args: ['branch', '-D', 'carrier/doomed'] },
+  ]);
+  expect(() => statSync(doomed.path)).toThrow();
+  expect(h.base.branches).toEqual(['main', 'feat/x', 'carrier/kept']);
+  expect(h.base.head).toBe('feat/x');
+  expect(h.base.status).toEqual([' M a.ts']);
+  expect(statSync(kept.path).isDirectory()).toBe(true);
+  expect(sessionRows()).toEqual([kept.id]);
+  h.client.close();
+});
+
+test('delete of a session in the base folder runs no git and removes only the session', async () => {
+  const h = await worktreeHost();
+  const plain = (await h.client.request('open', { agent: 'claude', folder: h.repo })) as { session: { id: string } };
+  const mark = h.git.calls.length;
+  await h.client.request('delete', { sessionId: plain.session.id });
+  expect(h.git.calls.slice(mark)).toEqual([]);
+  expect(sessionRows()).toEqual([]);
+  h.client.close();
+});
+
+test('a worktree that cannot be removed stops the deletion with a reason in words, and the session stays; a branch that cannot be deleted does too', async () => {
+  const h = await worktreeHost();
+  const stuck = await inWorktree(h, 'stuck');
+  h.git.failures.set(['worktree', 'remove', '--force', stuck.path].join(' '), { ok: false, code: 128, stderr: 'fatal: https://user:ghp_secret@github.com/acme/app.git' });
+  const refusal = await h.client.request('delete', { sessionId: stuck.id }).catch((error: Error) => error.message);
+  expect(refusal).toBe('Git could not remove the worktree, so the session was kept');
+  expect(h.git.calls.some((call) => call.args[0] === 'branch' && call.args[1] === '-D')).toBe(false); // the order: no branch before the folder
+  expect(sessionRows()).toEqual([stuck.id]);
+  expect(h.base.branches).toContain('carrier/stuck');
+  expect(statSync(stuck.path).isDirectory()).toBe(true);
+
+  h.git.failures.clear();
+  h.git.failures.set('branch -D carrier/stuck', { ok: false, code: 1, stderr: 'error' });
+  await expect(h.client.request('delete', { sessionId: stuck.id })).rejects.toThrow('Git could not delete the branch of the worktree, so the session was kept');
+  expect(sessionRows()).toEqual([stuck.id]);
+  h.git.failures.clear();
+  await h.client.request('delete', { sessionId: stuck.id }); // the folder is already gone: git only forgets it, and the branch goes
+  expect(h.base.branches).not.toContain('carrier/stuck');
+  expect(sessionRows()).toEqual([]);
+  h.client.close();
+});
+
+test('when the base folder is gone the worktree folder is removed directly, the branch is left and the session goes', async () => {
+  const h = await worktreeHost();
+  const orphan = await inWorktree(h, 'orphan');
+  rmSync(h.repo, { recursive: true });
+  const mark = h.git.calls.length;
+  await h.client.request('delete', { sessionId: orphan.id });
+  expect(h.git.calls.slice(mark)).toEqual([]);
+  expect(() => statSync(orphan.path)).toThrow();
+  expect(h.base.branches).toContain('carrier/orphan');
+  expect(sessionRows()).toEqual([]);
+  h.client.close();
+});
+
+test('a record whose path lies outside the worktrees folder, or whose branch is not a carrier one, is refused and nothing is removed', async () => {
+  const h = await worktreeHost();
+  const victim = join(root, 'precious');
+  mkdirSync(victim);
+  writeFileSync(join(victim, 'file'), 'keep');
+  const outside = await inWorktree(h, 'outside');
+  const sneaky = await inWorktree(h, 'sneaky');
+  const raw = new Database(join(root, 'chat', 'chat.db'));
+  raw.prepare('update sessions set worktreePath = ? where id = ?').run(victim, outside.id);
+  raw.prepare('update sessions set worktreePath = ? where id = ?').run(join(h.worktrees, '..', '..', 'precious'), sneaky.id);
+  const dashed = await inWorktree(h, 'dashed');
+  raw.prepare('update sessions set worktreeBranch = ? where id = ?').run('main', dashed.id);
+  raw.close();
+  const mark = h.git.calls.length;
+  for (const id of [outside.id, sneaky.id, dashed.id]) await expect(h.client.request('delete', { sessionId: id })).rejects.toThrow('not one Carrier made, so nothing was removed');
+  expect(h.git.calls.slice(mark)).toEqual([]);
+  expect(readFileSync(join(victim, 'file'), 'utf8')).toBe('keep');
+  expect(h.base.branches).toContain('main');
+  expect(statSync(dashed.path).isDirectory()).toBe(true);
+  expect(sessionRows()).toHaveLength(3);
+  // the base folder gone does not turn a tampered record into a direct removal
+  rmSync(h.repo, { recursive: true });
+  await expect(h.client.request('delete', { sessionId: outside.id })).rejects.toThrow('not one Carrier made');
+  expect(readFileSync(join(victim, 'file'), 'utf8')).toBe('keep');
+  h.client.close();
+});
+
+test('archive and unarchive keep the worktree, its folder and its branch', async () => {
+  const h = await worktreeHost();
+  const kept = await inWorktree(h, 'archived');
+  const mark = h.git.calls.length;
+  await h.client.request('archive', { sessionId: kept.id, archived: true });
+  await h.client.request('archive', { sessionId: kept.id, archived: false });
+  expect(h.git.calls.slice(mark)).toEqual([]);
+  expect(statSync(kept.path).isDirectory()).toBe(true);
+  expect(h.base.branches).toContain('carrier/archived');
+  expect(sessionRows()).toEqual([kept.id]);
+  h.client.close();
 });

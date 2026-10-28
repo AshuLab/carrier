@@ -96,6 +96,8 @@ export type FakeRepo = {
   fetchHead?: string;
   /** The folders of the linked worktrees git made here, with their branches: `worktree add` fills it and `worktree remove` empties it. */
   worktrees?: { path: string; branch: string }[];
+  /** The commits of each branch that no other branch contains, for `rev-list --count`; 0 when absent. */
+  unpushed?: Record<string, number>;
 };
 
 /** A git with a table of folders and the repositories in them, which answers the commands the host sends, and plays scripted failures. */
@@ -142,6 +144,7 @@ export class FakeGit implements Git {
     if (verb === 'symbolic-ref' && rest.includes('refs/remotes/origin/HEAD')) return repo.originHead === undefined ? no : out(`refs/remotes/origin/${repo.originHead}`);
     if (verb === 'symbolic-ref') return repo.head === null ? no : out(repo.head);
     if (verb === 'for-each-ref') return out(...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`), ...(repo.originHead === undefined ? [] : ['refs/remotes/origin/HEAD']));
+    if (verb === 'rev-list') return out(String(repo.unpushed?.[rest[1]!.replace('refs/heads/', '')] ?? 0));
     if (verb === 'fetch') return out();
     if (verb === 'status') return out(...(repo.status ?? []));
     return { ok: false, code: 129, stderr: `the fake git does not know ${verb}` };

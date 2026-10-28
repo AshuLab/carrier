@@ -389,3 +389,11 @@ test('the logs screen names the execution of a finished row', () => {
   const out = renderDashboard(snap({ finished: [fin(1)] }), { color: false, ui: { ...keysUi, mode: 'logs', selected: 'AshuLab/carrier#1' }, logLines: ['hi'] }).join('\n');
   expect(out).toContain('AGENT OUTPUT · AshuLab/carrier#1 · exec-1');
 });
+
+test('a read-only dashboard (a watch that is not interactive) shows the waiting state and offers no keys', () => {
+  const s = snap({ epics: [epic({ stage: null, options: { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', choiceDeadline: now + 42_000 } })] });
+  const out = renderDashboard(s, { color: false, canChoose: true }).join('\n');
+  expect(out).toContain('waiting for its choice · 42s left · author claude · reviewer codex');
+  expect(out).toContain('Ctrl+C stops it');
+  expect(out).not.toContain('o options');
+});

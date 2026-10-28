@@ -38,6 +38,8 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         state = .idle
     }
     func setOption(_ id: String, option: String, value: String) async throws {}
+    func archive(_ id: String, _ archived: Bool) async throws {}
+    func delete(_ id: String) async throws {}
 }
 
 @MainActor private func model(_ host: FakeChat, log: @escaping (String) -> Void = { _ in }) -> ConversationModel {

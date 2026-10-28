@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 // The chat host's sessions as the sidebar's values (docs/specs/sessions-in-the-app.md, "Sessions home" and "How it talks to the host"):
 // the mapping to `SessionRow`, and the poller that keeps the list and the archived list current.
@@ -64,6 +65,8 @@ public final class ChatSessionsPoller {
     private let onChange: ([SessionRow]) -> Void
     private var archived: [ChatSession] = []
     private var archivedAt: Date?
+    /// Set from any thread by `invalidateArchived`.
+    private let stale = Mutex(false)
 
     public init(host: ChatHost, archivedEvery: TimeInterval = 5, now: @escaping () -> Date = Date.init, onChange: @escaping ([SessionRow]) -> Void) {
         self.host = host
@@ -72,13 +75,20 @@ public final class ChatSessionsPoller {
         self.onChange = onChange
     }
 
+    /// The archived list is read again at the next `poll`, whatever its age: after an archive, a restore or a delete.
+    public func invalidateArchived() { stale.withLock { $0 = true } }
+
     public func poll() async {
         guard let active = try? await host.list(archived: false) else {
             archived = []
             archivedAt = nil
             return onChange([])
         }
-        if archivedAt.map({ now().timeIntervalSince($0) >= archivedEvery }) ?? true, let listed = try? await host.list(archived: true) {
+        let invalidated = stale.withLock { flag in
+            defer { flag = false }
+            return flag
+        }
+        if invalidated || (archivedAt.map({ now().timeIntervalSince($0) >= archivedEvery }) ?? true), let listed = try? await host.list(archived: true) {
             archived = listed
             archivedAt = now()
         }

@@ -88,6 +88,16 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     func send(_ id: String, _ text: String) async throws {}
     func interrupt(_ id: String) async throws {}
     func setOption(_ id: String, option: String, value: String) async throws {}
+    var changes: [String] = []
+    var refuse: [String: Error] = [:]
+    func archive(_ id: String, _ archived: Bool) async throws {
+        changes.append("\(archived ? "archive" : "restore") \(id)")
+        if let error = refuse[id] { throw error }
+    }
+    func delete(_ id: String) async throws {
+        changes.append("delete \(id)")
+        if let error = refuse[id] { throw error }
+    }
 }
 
 private final class Clock { var now = Date(timeIntervalSince1970: 1_800_000_000) }
@@ -271,4 +281,189 @@ private func worktreeSession() throws -> ChatSession {
 
 @Test func aSessionWithoutATitleIsANewSessionInTheTitleBar() throws {
     #expect(conversationTitle(sessionRows([try session("n", title: nil)])[0]) == "New session")
+}
+
+// The Archive page: the archived rows, searched and sorted, counted, with its empty states.
+
+private let activeSample = sample.filter { $0.archived == false }
+
+private let archived = [
+    row("x", "Rate limit v1", workspace: "api", ago: 86400 * 12, archived: true),
+    row("y", "Old spike", workspace: "web", agent: "codex", ago: 86400 * 45, archived: true),
+    row("z", "Billing notes", workspace: "api", agent: "codex", ago: 86400 * 2, archived: true),
+    row("w", "Pricing copy", workspace: "Web2", ago: 86400 * 40, archived: true),
+]
+
+@Test func theArchiveListsOnlyArchivedSessionsByDateArchivedNewestFirst() {
+    let page = archivePage(activeSample + archived, now: now)
+    #expect(page.groups.map(\.title) == ["Last 30 days", "Older"])
+    #expect(page.groups.map { $0.rows.map(\.id) } == [["z", "x"], ["w", "y"]])
+    #expect(page.subtitle == "4 sessions" && page.emptyState == nil && page.canClear)
+}
+
+@Test func theArchiveSortsByProjectIgnoringCaseAndANonEmptyGroupOnly() {
+    let page = archivePage(archived, by: .project, now: now)
+    #expect(page.groups.map(\.title) == ["api", "web", "Web2"])
+    #expect(page.groups.map { $0.rows.map(\.id) } == [["z", "x"], ["y"], ["w"]])
+    #expect(archivePage([archived[0]], now: now).groups.map(\.title) == ["Last 30 days"])
+}
+
+@Test func archiveSearchFindsByTitleWorkspaceOrAgentAndNeverListsActiveSessions() {
+    #expect(archivePage(activeSample + archived, query: "rate", now: now).groups.flatMap(\.rows).map(\.id) == ["x"])
+    #expect(archivePage(activeSample + archived, query: "API", now: now).groups.flatMap(\.rows).map(\.id) == ["z", "x"])
+    let codex = archivePage(activeSample + archived, query: "codex", now: now)
+    #expect(codex.groups.flatMap(\.rows).map(\.id) == ["z", "y"] && codex.subtitle == "2 results")
+    #expect(archivePage(archived, query: "billing", now: now).subtitle == "1 result")
+}
+
+@Test func anArchiveWithNothingIsNothingArchivedAndASearchWithNoResultIsNoSessionsMatch() {
+    let empty = archivePage(sample.filter { $0.archived == false }, now: now)
+    #expect(empty.emptyState == .nothingArchived && empty.subtitle == "" && empty.canClear == false)
+    #expect(EmptyState.nothingArchived.title == "Nothing archived" && EmptyState.nothingArchived.line == "Archived sessions are kept here.")
+    #expect(archivePage(archived, query: "zzz", now: now).emptyState == .noSessionsMatch)
+    #expect(archivePage(archived, query: "zzz", now: now).canClear)
+    #expect(archivePage([], query: "zzz", now: now).emptyState == .nothingArchived)
+}
+
+@Test func theCountIsOfTheArchivedSessionsAndFollowsAnArchiveOrARestore() {
+    var rows = sample
+    #expect(archivedCount(rows) == 1)
+    rows[0].archived = true
+    #expect(archivedCount(rows) == 2 && archivePage(rows, now: now).subtitle == "2 sessions")
+    rows[0].archived = false
+    rows[4].archived = false
+    #expect(archivedCount(rows) == 0)
+}
+
+@Test func theArchiveSortIsRememberedAndDefaultsToDateArchived() {
+    let defaults = UserDefaults(suiteName: "archive-sort-\(UUID().uuidString)")!
+    let store = SidebarStore(defaults: defaults)
+    #expect(store.archiveSort == .dateArchived)
+    store.archiveSort = .project
+    #expect(SidebarStore(defaults: defaults).archiveSort == .project)
+}
+
+@Test func clearSessionsNamesTheCountAndDeleteNamesTheSession() {
+    #expect(clearSessionsQuestion(count: 5).title == "Delete all 5 archived sessions?")
+    #expect(clearSessionsQuestion(count: 5).confirm == "Delete all")
+    #expect(clearSessionsQuestion(count: 1).title == "Delete the archived session?")
+    #expect(deleteSessionQuestion(row("x", "Old spike")).title == "Delete \u{201C}Old spike\u{201D}?")
+}
+
+@Test func aSessionRowMenuHasArchiveRevealAndCopyIdAndRestoreForAnArchivedOne() {
+    let live = SessionRow(id: "id-1", title: "t", workspace: "web", agent: "claude", state: .idle, updatedAt: now, folder: "/Users/dev/web")
+    #expect(sessionMenu(live) == [
+        SessionMenuItem(title: "Archive", action: .archive), SessionMenuItem(title: "Reveal in Finder", action: .reveal(path: "/Users/dev/web")),
+        SessionMenuItem(title: "Copy session id", action: .copy("id-1")),
+    ])
+    var gone = live
+    gone.archived = true
+    #expect(sessionMenu(gone).map(\.title) == ["Restore", "Reveal in Finder", "Copy session id"])
+}
+
+// Archive, restore, delete and clear through a fake host.
+
+@MainActor @Test func archivingRestoringAndDeletingAskTheHostAndSayThatTheListsChanged() async {
+    let host = FakeHost()
+    let actions = SessionActions(host: host, log: { _ in })
+    var changed = 0
+    actions.changed = { changed += 1 }
+    #expect(await actions.archive("a") == nil)
+    #expect(await actions.restore("a") == nil)
+    #expect(await actions.delete("b") == nil)
+    #expect(host.changes == ["archive a", "restore a", "delete b"] && changed == 3)
+}
+
+@MainActor @Test func aRefusalIsReturnedInWordsAndNothingChanges() async {
+    let host = FakeHost()
+    host.refuse["a"] = ControlError.remote("This session is working; interrupt or close it first, then archive it")
+    let actions = SessionActions(host: host, log: { _ in })
+    var changed = 0
+    actions.changed = { changed += 1 }
+    #expect(await actions.archive("a") == "This session is working; interrupt or close it first, then archive it")
+    #expect(changed == 0)
+}
+
+@MainActor @Test func aHostThatDoesNotAnswerIsLoggedAndSaidAndARefusalIsNotLogged() async {
+    let host = FakeHost()
+    host.refuse["a"] = ControlError.closed
+    host.refuse["b"] = ControlError.remote("unknown session")
+    var logged: [String] = []
+    let actions = SessionActions(host: host, log: { logged.append($0) })
+    #expect(await actions.delete("a") == "The chat host is not answering")
+    #expect(await actions.delete("b") == "unknown session")
+    #expect(logged.count == 1 && logged[0].contains("could not delete"))
+}
+
+@MainActor @Test func clearDeletesEverySessionAndAnswersNothingWhenAllWentThrough() async {
+    let host = FakeHost()
+    let actions = SessionActions(host: host, log: { _ in })
+    #expect(await actions.clear(["a", "b", "c"]) == nil)
+    #expect(host.changes == ["delete a", "delete b", "delete c"])
+}
+
+@MainActor @Test func clearKeepsGoingPastARefusalAndSaysHowManyWentAndWhy() async {
+    let host = FakeHost()
+    host.refuse["b"] = ControlError.remote("This session was resumed meanwhile; close it first")
+    let actions = SessionActions(host: host, log: { _ in })
+    let said = await actions.clear(["a", "b", "c"])
+    #expect(host.changes == ["delete a", "delete b", "delete c"])
+    #expect(said == "Deleted 2 of 3 archived sessions. This session was resumed meanwhile; close it first")
+}
+
+@MainActor @Test func clearStopsWhenTheHostStopsAnswering() async {
+    let host = FakeHost()
+    host.refuse["a"] = ControlError.closed
+    let actions = SessionActions(host: host, log: { _ in })
+    #expect(await actions.clear(["a", "b"]) == "Deleted 0 of 2 archived sessions. The chat host is not answering")
+    #expect(host.changes == ["delete a"])
+}
+
+@Test func anInvalidatedArchivedListIsReadAtTheNextPollWhateverItsAge() async throws {
+    let host = FakeHost()
+    host.active = [try session("a")]
+    host.archived = [try session("x", archived: true)]
+    let (poller, _, rows) = rig(host)
+    await poller.poll()
+    host.archived = []
+    await poller.poll()
+    #expect(archivedCount(rows()) == 1)
+    poller.invalidateArchived()
+    await poller.poll()
+    #expect(archivedCount(rows()) == 0)
+    #expect(host.calls == [false, true, false, false, true])
+}
+
+// The real client against the fixture host.
+
+@Test func theClientArchivesRestoresAndDeletesOnTheFixtureHostAndItRefusesAWorkingSession() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let idle = "c3d4e5f6-2a1b-4c8d-9e0f-1a2b3c4d5e03"
+    let working = "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01"
+    try await host.archive(idle, true)
+    #expect(try await host.list(archived: true).count == 3)
+    #expect(try await host.list(archived: false).count == 3)
+    try await host.archive(idle, false)
+    #expect(try await host.list(archived: true).count == 2)
+    await #expect(throws: ControlError.remote("This session is working; interrupt or close it first, then archive it")) { try await host.archive(working, true) }
+    let old = "d4e5f6a7-3b2c-4d9e-8f1a-2b3c4d5e6f04"
+    try await host.delete(old)
+    #expect(try await host.list(archived: true).map(\.id) == ["e5f6a7b8-4c3d-4e0f-9a2b-3c4d5e6f7a05"])
+    await #expect(throws: ControlError.remote("unknown session")) { try await host.delete(old) }
+    await #expect(throws: ControlError.remote("not a valid session id")) { try await host.delete("../x") }
+}
+
+@MainActor @Test func aConversationOfAnArchivedSessionIsReadOnlyAndGetsItsBoxBackWhenRestored() async throws {
+    let host = FakeHost()
+    host.archived = [try session("a", live: false, archived: true)]
+    let model = ConversationModel(host: host, sessionId: "a", log: { _ in })
+    #expect(model.archived == false)
+    await model.poll()
+    #expect(model.archived && model.live == false && model.agent == "codex" && model.loaded)
+    host.archived = []
+    host.active = [try session("a")]
+    await model.poll()
+    #expect(model.archived == false)
 }

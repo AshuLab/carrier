@@ -72,7 +72,6 @@ struct PanelView: View {
     private var emptyPage: EmptyState? {
         switch model.shell.selection {
         case .home: .welcome
-        case .archive: .nothingArchived
         default: nil
         }
     }
@@ -82,6 +81,7 @@ struct PanelView: View {
         @Bindable var epics = model.epics
         let groupBy = Binding(get: { model.groupBy }, set: { model.groupBy = $0; SidebarStore().groupBy = $0 })
         let collapse = Binding(get: { model.collapse }, set: { model.collapse = $0 })
+        let archiveSort = Binding(get: { model.archiveSort }, set: { model.archiveSort = $0; SidebarStore().archiveSort = $0 })
         let sessionSort = Binding(get: { model.sessionSort }, set: { model.sessionSort = $0; SidebarStore().sessionSort = $0 })
         let columns = Binding<NavigationSplitViewVisibility>(
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
@@ -110,6 +110,8 @@ struct PanelView: View {
                         SettingsScreen(state: model.state)
                     } else if shell.selection == .sessions {
                         SessionsHomeView(sessions: model.sessions, sort: sessionSort) { shell.selection = .session(id: $0) }
+                    } else if shell.selection == .archive {
+                        ArchiveView(rows: model.sessions.rows, sort: archiveSort) { shell.selection = .session(id: $0) }
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
                     } else if case .session(let id) = shell.selection {
@@ -203,6 +205,7 @@ struct PanelView: View {
             }
         }
         .frame(minWidth: 1100, minHeight: 600)
+        .environment(model.actions)
         .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
         .onChange(of: snapshot) { if let snapshot { model.epics.settleResuming(snapshot) } }
     }

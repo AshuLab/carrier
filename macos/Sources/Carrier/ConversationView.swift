@@ -10,6 +10,7 @@ struct ConversationView: View {
     private static let column: CGFloat = 760
 
     @State private var model: ConversationModel
+    @Environment(SessionActions.self) private var actions
     /// The tool groups and calls the person opened, by id; here and not in each row, which the lazy stack may recreate.
     @State private var opened: Set<String> = []
     @FocusState private var boxFocused: Bool
@@ -41,8 +42,23 @@ struct ConversationView: View {
         }
         // the end of the conversation is what shows, and stays in view as it grows
         .defaultScrollAnchor(.bottom)
-        .safeAreaInset(edge: .bottom, spacing: 0) { box }
+        .safeAreaInset(edge: .bottom, spacing: 0) { if model.archived { archivedBox } else { box } }
         .task { await model.run() }
+    }
+
+    /// An archived session is read only: a notice with Resume, which takes it out of the archive (the next poll gives the box back).
+    private var archivedBox: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "archivebox").foregroundStyle(.secondary)
+            Text(archivedSessionNotice).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button("Resume") { Task { if let refusal = await actions.restore(model.sessionId) { tell(refusal) } } }
+                .buttonStyle(.glassProminent).buttonBorderShape(.capsule)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 18).fill(Color.secondary.opacity(0.10)))
+        .padding(.horizontal, 40).padding(.vertical, 12)
+        .frame(maxWidth: Self.column).frame(maxWidth: .infinity)
     }
 
     /// The message box (chat-ui-conv.html, section 3): the queued message above it, the box with its send or Stop button, and what the host refused under it.

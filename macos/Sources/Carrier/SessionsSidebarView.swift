@@ -153,6 +153,7 @@ private struct SessionRowView: View {
         }
         .opacity(row.archived ? 0.55 : 1)
         .padding(.vertical, 2)
+        .contextMenu { SessionMenuItems(row: row) }
         .help(row.title)
     }
 }

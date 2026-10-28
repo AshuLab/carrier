@@ -56,6 +56,10 @@ public protocol ChatHost {
     func interrupt(_ id: String) async throws
     /// Changes one of the session's options; the host refuses a value the provider does not list and an option that can only change between turns.
     func setOption(_ id: String, option: String, value: String) async throws
+    /// Sets or clears the archived mark; the host refuses a session that is working or waiting for an approval.
+    func archive(_ id: String, _ archived: Bool) async throws
+    /// Removes the session and its transcript; refused like `archive` for a working or waiting one.
+    func delete(_ id: String) async throws
 }
 
 /// The chat host over its socket: one connection per call (a host with no client attached may end itself), with the blocking
@@ -107,6 +111,18 @@ public struct SocketChatHost: ChatHost {
             + ",\"value\":" + String(decoding: try encoder.encode(value), as: UTF8.self)
         let path = socketPath()
         let _: AnyReply = try await Task.detached { try chatRequest(path, "setOption", requires: .setOption, fields: fields) }.value
+    }
+
+    public func archive(_ id: String, _ archived: Bool) async throws {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"archived\":\(archived)"
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "archive", requires: .archive, fields: fields) }.value
+    }
+
+    public func delete(_ id: String) async throws {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\""
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "delete", requires: .delete, fields: fields) }.value
     }
 }
 

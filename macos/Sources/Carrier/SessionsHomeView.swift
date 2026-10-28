@@ -239,6 +239,7 @@ private struct SessionHomeRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
+        .contextMenu { SessionMenuItems(row: row) }
         .help(row.title)
     }
 

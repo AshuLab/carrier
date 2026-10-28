@@ -6,7 +6,8 @@ type Agent = Config['agents']['author'] & Config['agentOptions'][string];
 // Only profile names, never credentials: Agent Forge resolves those from the profile at run time.
 // `sharedIdentity` is saved with the epic so a later config change does not move it; absent on epics saved before it existed.
 // `options` is the directory of options as it was when the epic was reserved, what a choice picks from; absent on an epic saved before the choice existed.
-export type EffectiveRepoConfig = { name: string; sharedIdentity?: boolean; options?: Config['agentOptions']; agents: { author: Agent; reviewer: Agent } };
+// `failover` is saved too, for the same reason: a config edit moves no running epic.
+export type EffectiveRepoConfig = { name: string; sharedIdentity?: boolean; options?: Config['agentOptions']; failover?: Config['failover']; agents: { author: Agent; reviewer: Agent } };
 
 // Two names can point at the same bot or at the same `gh` login: what matters is the account that posts.
 export const sameAccount = (a: Config['profiles'][string], b: Config['profiles'][string]) => a.kind === b.kind && (a.kind === 'gh' || a.agent === (b as typeof a).agent);
@@ -21,5 +22,5 @@ export function resolveRepoConfig(config: Config, repo: Config['repos'][number])
   const agents = { author: roleOf('author'), reviewer: roleOf('reviewer') };
   // Validation resolves repos before it has checked that every profile is declared.
   const [author, reviewer] = [config.profiles[agents.author.profile], config.profiles[agents.reviewer.profile]];
-  return { name: repo.name, sharedIdentity: author !== undefined && reviewer !== undefined && sameAccount(author, reviewer), options: config.agentOptions, agents };
+  return { name: repo.name, sharedIdentity: author !== undefined && reviewer !== undefined && sameAccount(author, reviewer), options: config.agentOptions, ...(config.failover && { failover: config.failover }), agents };
 }

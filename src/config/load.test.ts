@@ -259,6 +259,30 @@ describe('agent options', () => {
   });
 });
 
+describe('failover', () => {
+  const failover = (order: string[], enabled = true) => ({ failover: { enabled, order } });
+
+  test('absent means off, and a declared order loads as written', () => {
+    const absent = load({});
+    expect(absent.ok && absent.config.failover).toBeUndefined();
+    expect(load(failover(['codex', 'claude']))).toMatchObject({ ok: true, config: { failover: { enabled: true, order: ['codex', 'claude'] } } });
+    expect(load(failover([], false)).ok).toBe(true);
+  });
+
+  test('a name that is not declared in agentOptions is refused, naming the field', () => {
+    expect(errorsOf(failover(['codex', 'ghost']))).toEqual([{ path: 'failover.order.1', message: 'failover.order: option "ghost" is not declared in agentOptions' }]);
+  });
+
+  test('a duplicate name is refused, naming the field', () => {
+    expect(errorsOf(failover(['codex', 'claude', 'codex']))).toEqual([{ path: 'failover.order.2', message: 'failover.order: option "codex" appears twice' }]);
+  });
+
+  test('`enabled` is required, and an unknown field is refused', () => {
+    expect(errorsOf({ failover: { order: ['codex'] } }).map((e) => e.path)).toEqual(['failover.enabled']);
+    expect(errorsOf({ failover: { enabled: true, order: ['codex'], retries: 2 } }).map((e) => e.path)).toEqual(['failover']);
+  });
+});
+
 describe('persona', () => {
   const author = valid.agents.author;
   const withPersona = (persona: unknown) => ({ agents: { ...valid.agents, author: { ...author, persona } } });

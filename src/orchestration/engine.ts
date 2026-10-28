@@ -190,9 +190,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     if (!config) return false;
     const roleOn = (role: 'author' | 'reviewer') => {
       const name = chosen[role];
-      if (name === undefined) return config.agents[role];
-      const { profile, persona } = config.agents[role];
-      return { profile, ...(persona && { persona }), ...config.options![name]!, option: name };
+      return name === undefined ? config.agents[role] : onOption(config, role, name);
     };
     const agents = { author: roleOn('author'), reviewer: roleOn('reviewer') };
     const claimed = db
@@ -204,6 +202,33 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     if (!claimed) return false;
     await launch(claimed, 'ship');
     return true;
+  }
+
+  // The role of the epic's saved config pointed at another of its saved options: same profile and persona.
+  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string) => {
+    const { profile, persona } = config.agents[role];
+    return { profile, ...(persona && { persona }), ...config.options![name]!, option: name };
+  };
+
+  // With failover on, the role that ran out moves to the first option of `order` that has not run out in this epic and its stage runs
+  // again as a rebuilt session, no retry spent. Returns why it could not move, null once the stage was relaunched.
+  async function failOver(epicId: number, stage: AgentTask['stage'], failedExecution: Execution): Promise<string | null> {
+    const epic = fresh(epicId);
+    const { config } = epic;
+    if (!config?.failover?.enabled) return '';
+    const ranOut = [...new Set(db.select({ option: executions.option }).from(executions).where(and(eq(executions.epicId, epicId), eq(executions.failureKind, 'usage_limit'))).orderBy(asc(sql`rowid`)).all().flatMap(({ option }) => option ?? []))];
+    const next = config.failover.order.find((name) => !ranOut.includes(name));
+    if (next === undefined) return `; no option left in failover.order, ran out: ${ranOut.join(', ')}`;
+    if (stopping || epic.status !== 'running') return null;
+    const role = stage === 'review' ? 'reviewer' : 'author';
+    // Read only; GitHub being down is not a reason to stop: the agent verifies the state first anyway.
+    const found = await github.findPullRequest(epic.repo, epic.issue).catch((e) => (failed(e), null));
+    db.transaction((tx) => {
+      tx.update(epics).set({ config: { ...config, agents: { ...config.agents, [role]: onOption(config, role, next) } }, ...(role === 'author' ? { authorOption: next } : { reviewerOption: next }) }).where(eq(epics.id, epicId)).run();
+      tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'option_switched', data: { role, from: config.agents[role].option ?? null, to: next, stage } }).run();
+    });
+    await execute(fresh(epicId), stage, failedExecution, { pr: found && { number: found.number, headSha: found.headSha } });
+    return null;
   }
 
   // Launches the author (ship, fix) or the reviewer (review) for the epic's current stage.
@@ -324,9 +349,12 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         if (failure) db.update(epics).set({ lastError: failure }).where(eq(epics.id, epic.id)).run();
         if (exit === 'ok') await settle(db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         else if (outOfCredits) {
-          // Retrying the same option only burns the retries; a person decides how to go on.
-          toNeedsHuman(db, epic.id, 'usage_limit', `the ${stage} execution ran out of usage on option ${task.option ?? task.harness}${processFailure.detail ? `: ${processFailure.detail}` : ''}`);
-          await freeSlot();
+          // Retrying the same option only burns the retries: another option of the failover list, or a person decides how to go on.
+          const stopped = await failOver(epic.id, stage, db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
+          if (stopped !== null) {
+            toNeedsHuman(db, epic.id, 'usage_limit', `the ${stage} execution ran out of usage on option ${task.option ?? task.harness}${processFailure.detail ? `: ${processFailure.detail}` : ''}${stopped}`);
+            await freeSlot();
+          }
         }
         else if (exit === 'failed' || exit === 'session_unavailable') await retry(epic.id);
         else if (exit === 'auth_failed') await stopProfile(task.profile);

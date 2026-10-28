@@ -35,6 +35,7 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `agentOptions` | yes | | The ways to run an agent, by name. See [Agent options](#agent-options). |
 | `agents.author` / `agents.reviewer` | yes | | `{ profile, option, persona? }` for each role: the GitHub identity it acts as and the name of the agent option it runs on. |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
+| `failover` | no | off | `{ enabled, order }`: moves a role to the next agent option when its credits run out. See [Failover](#failover). |
 | `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `finishedWindowDays` | no | `15` | Days a merged or cancelled epic stays in the snapshot after it ends, a whole number from 1 to 30 (30 is the retention purge). |
@@ -77,6 +78,18 @@ A repo's `agents.<role>` can override `profile`, `option` and `persona`; the opt
 
 With one option nothing is asked. With two or more, a reserved epic does not start its author at once: it holds its slot for `limits.optionChoiceSeconds` (default 60) while the option of each role can be chosen over the control socket (`chooseOptions`, listed in the hello's `capabilities` as `agentOptions`). `carrier status` shows the epic as waiting for its choice, with the seconds left. A role that is not chosen runs on the option `agents.<role>.option` names, and so does every role when the time passes, when nobody answers, or when Carrier starts again after the deadline. The definitions of the options are saved with the epic when it is reserved: editing the config later changes no epic that is waiting or running.
 
+### Failover
+
+Off unless the config has a `failover` block with `enabled: true`. `order` is the list of option names a role may move to, and it is an allowlist: switching can send the code of a private repo to another provider and spend another account, so a role never moves to an option that is not in it, even if it is the other role's option.
+
+```jsonc
+"failover": { "enabled": true, "order": ["claude-personal", "codex"] }
+```
+
+When an execution of a role ends because its option ran out of credits (`usage_limit`), the role moves to the first name in `order` that has not already run out in this epic, and the stage runs again as a new session in the epic's worktree and pull request, with its context rebuilt from SQLite and GitHub (the conversation of the agent is lost, the work is not). It spends no retry and records an `option_switched` event with the role, the two options and the stage. Only the role that ran out moves; the other keeps its option. When no name in `order` is left, the epic stops in `needs-human` with kind `usage_limit` and a reason that names every option that ran out. With `enabled: false`, or without the block, a `usage_limit` stops the epic at once, as before. Nothing is remembered across epics: the next epic starts on its own choice, and pays one failed attempt if that option is still out.
+
+Every name in `order` must be declared in `agentOptions`, and none may appear twice.
+
 ## Personas
 
 A role, author or reviewer, can have a persona: a name and a prompt that say who the agent is and how it behaves. Carrier adds them to that agent's prompt, right after the line that says which role it is and before what the stage asks. The persona belongs to the role, not to a stage: the author's is used in `ship` and `fix`, the reviewer's in `review`. Either field can be left out, and without a persona the prompt is the one it always was.
@@ -113,6 +126,7 @@ Profile names used in an override must exist in `profiles`, and option names in 
 ## Things that are checked
 
 - Every profile named anywhere is declared in `profiles`, and every option named anywhere in `agentOptions`.
+- Every name in `failover.order` is declared in `agentOptions` and appears once.
 - Option names are lowercase words, a `configDir` is absolute after `~` is expanded, and an option has no field this page does not list.
 - Repo names are `owner/name`, and no two repos share the same folder name (Solve's worktree paths have no owner).
 - A `provider` is only accepted for a harness that can use it (Claude Code and Codex; not Antigravity), and so is a `configDir`.

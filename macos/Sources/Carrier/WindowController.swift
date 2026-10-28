@@ -113,7 +113,8 @@ final class WindowController: NSObject, NSWindowDelegate {
             let start = Date()
             await conversation.poll()
             let took = Int(Date().timeIntervalSince(start) * 1000)
-            lines.append("chat feed: \(conversation.rows.count) rows from \(conversation.cursor) events in \(took) ms\(conversation.failure.map { ", failed: \($0)" } ?? "")")
+            let groups = conversation.rows.filter { if case .tools = $0 { true } else { false } }.count
+            lines.append("chat feed: \(conversation.rows.count) rows (\(groups) of tool calls) from \(conversation.cursor) events in \(took) ms\(conversation.failure.map { ", failed: \($0)" } ?? "")")
         } else {
             lines.append("chat feed: no session to select")
         }

@@ -26,8 +26,9 @@ public enum ToolKind: Hashable {
         switch tool {
         case "Read": self = .read
         case "Grep", "Glob": self = .search
-        case "Edit", "MultiEdit", "Write", "NotebookEdit": self = .edit
-        case "Bash", "shell", "exec_command": self = .shell
+        case "Edit", "MultiEdit", "Write", "NotebookEdit", "apply_patch": self = .edit
+        // "command" is the Codex chat adapter's own name for a command it ran
+        case "Bash", "shell", "exec_command", "command": self = .shell
         default: self = .other
         }
     }

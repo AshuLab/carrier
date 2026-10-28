@@ -16,22 +16,27 @@ private func texts(_ rows: [FeedRow]) -> [String] {
         case .user(_, let text): "user: \(text)"
         case .agent(_, let text, let inProgress): "agent\(inProgress ? "…" : ""): \(text.prefix(24))"
         case .turnEnd(_, let text): "end: \(text)"
+        case .tools(_, let group): "tools: \(group.title) | \(group.summary)"
         case .line(_, let text): "line: \(text)"
         case .error(_, let text): "error: \(text)"
         }
     }
 }
 
+/// The one group of a feed.
+private func group(_ rows: [FeedRow]) -> ToolGroup {
+    rows.compactMap { if case .tools(_, let group) = $0 { group } else { nil } }[0]
+}
+
 // MARK: the feed
 
-@Test func aFinishedTurnIsMessagesPlainLinesAndAClosingLine() throws {
+@Test func aFinishedTurnIsMessagesGroupedCallsAndAClosingLine() throws {
     let rows = chatFeed(try golden("finished").events)
     #expect(texts(rows) == [
         "user: Explore the pricing page layout and tell me what to change.",
-        "line: Glob src/pricing/**/*.tsx · src/pricing/Page.tsx",
-        "line: Read src/pricing/Plans.tsx · export function Plans() {",
+        "tools: Explored | 1 file read · 1 search",
         "line: Approval for Bash pnpm lint: Allow once",
-        "line: Bash pnpm lint · failed: src/pricing/Plans.tsx",
+        "tools: Worked | 1 command",
         "agent: The page is two componen",
         "end: claude-sonnet-5-5 · 12s · 1.8k in · 436 out",
         "user: Now run the tests.",
@@ -40,14 +45,14 @@ private func texts(_ rows: [FeedRow]) -> [String] {
     ])
 }
 
-@Test func aCallIsOneRowAtItsStartCompletedByItsEndAndAnApprovalByItsAnswer() {
+@Test func anApprovalIsOneRowAtItsPlaceCompletedByItsAnswerAndEndsTheRunBeforeIt() {
     let start = ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "c", tool: "Read", arg: "a.ts")
     let ask = ChatEvent(id: 2, at: 0, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [.init(id: "y", label: "Yes", allow: true)])
-    #expect(texts(chatFeed([start, ask])) == ["line: Read a.ts", "line: Approval for Bash ls: waiting for you"])
+    #expect(texts(chatFeed([start, ask])) == ["tools: Working | 1 file read", "line: Approval for Bash ls: waiting for you"])
     let end = ChatEvent(id: 3, at: 0, kind: "tool_end", callId: "c", tool: "Read", output: ["", "  one", "two"], status: "ok")
     let answer = ChatEvent(id: 4, at: 0, kind: "approval_answered", approvalId: "p", choiceId: "y")
     let rows = chatFeed([start, ask, end, answer])
-    #expect(texts(rows) == ["line: Read a.ts · one", "line: Approval for Bash ls: Yes"])
+    #expect(texts(rows) == ["tools: Explored | 1 file read", "line: Approval for Bash ls: Yes"])
     // the rows keep the id of the event that opened them
     #expect(rows.map { $0.id } == ["e1", "e2"])
 }
@@ -55,7 +60,8 @@ private func texts(_ rows: [FeedRow]) -> [String] {
 @Test func anEndWithNoStartAndAnAnswerWithNoQuestionAreHandledWhereACursorCanStartMidTurn() {
     let end = ChatEvent(id: 7, at: 0, kind: "tool_end", callId: "x", tool: "Bash", arg: "ls", status: "err")
     let answer = ChatEvent(id: 8, at: 0, kind: "approval_answered", approvalId: "gone", choiceId: "y")
-    #expect(texts(chatFeed([end, answer])) == ["line: Bash ls · failed"])
+    #expect(texts(chatFeed([end, answer])) == ["tools: Worked | 1 command"])
+    #expect(group(chatFeed([end])).failed == 1)
 }
 
 @Test func theMessageInProgressIsTheLastRowAndOptionsAreNotDrawn() throws {
@@ -83,6 +89,108 @@ private func texts(_ rows: [FeedRow]) -> [String] {
     // a page that starts after the turn began has no start to measure from
     #expect(line(end(model: "m", usage: ["input_tokens": 5]), from: nil) == "m · 5 in")
     #expect(line(end(), from: nil) == nil)
+}
+
+// MARK: tools, grouped
+
+private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String]? = nil, status: String = "ok", at: Int = 0, took: Int = 100) -> [ChatEvent] {
+    [ChatEvent(id: id * 2, at: at, kind: "tool_start", callId: "c\(id)", tool: tool, arg: arg),
+     ChatEvent(id: id * 2 + 1, at: at + took, kind: "tool_end", callId: "c\(id)", tool: tool, output: output, status: status)]
+}
+
+@Test func theClassificationIsATableByTheProvidersToolName() {
+    let kinds = ["Read", "Grep", "Glob", "Edit", "Write", "MultiEdit", "apply_patch", "Bash", "shell", "command", "WebFetch", "read", ""].map { ToolKind(tool: $0) }
+    #expect(kinds == [.read, .search, .search, .edit, .edit, .edit, .edit, .shell, .shell, .shell, .other, .other, .other])
+}
+
+@Test func aGoldenRunOfCallsIsOneRowWithItsSummaryTitleAndTotals() throws {
+    let rows = chatFeed(try golden("tools").events)
+    #expect(texts(rows) == [
+        "user: The login test is flaky. Find out why and fix it.",
+        "tools: Explored | 2 files read · 1 search",
+        "agent: The test does not wait f",
+        "tools: Changed | 2 files changed · 1 command",
+        "agent: One test still fails. Le",
+        "tools: Worked | 1 other tool",
+        "agent: The server is fine, so t",
+        "end: claude-sonnet-5-5 · 16s · 2.1k in · 310 out",
+    ])
+    let explored = group(rows)
+    #expect(explored.calls.map(\.result) == ["3 lines", "3 lines", "2 matches"] && explored.durationMs == 1600 && explored.failed == 0)
+    let changed = rows.compactMap { if case .tools(_, let group) = $0 { group } else { nil } }[1]
+    // three edits of two paths; only the output shaped like a diff has lines to total
+    #expect(changed.calls.count == 4 && changed.added == 3 && changed.removed == 1 && changed.durationMs == 7_000)
+    #expect(changed.calls.map(\.result) == ["done", "+2 −1", "+1 −0", "failed"])
+    #expect(changed.calls[1].diff.map(\.sign) == [.hunk, .hunk, .hunk, .context, .removed, .added, .added, .context])
+    #expect(changed.calls[1].diff[4].text == "  await open()")
+    // a call that failed turns the group's count, not its title
+    #expect(changed.failed == 1 && changed.title == "Changed")
+}
+
+@Test func theSummaryIsTheNonZeroCountsInOrderSingularWhenOneAndFilesChangedCountDistinctPaths() {
+    func summary(_ calls: [[ChatEvent]]) -> String { group(chatFeed(calls.flatMap { $0 })).summary }
+    #expect(summary([call(1, "Read", "a"), call(2, "Read", "b")]) == "2 files read")
+    #expect(summary([call(1, "Read", "a")]) == "1 file read")
+    #expect(summary([call(1, "Grep", "x"), call(2, "Glob", "*.ts")]) == "2 searches")
+    #expect(summary([call(1, "Grep", "x")]) == "1 search")
+    #expect(summary([call(1, "Bash", "a"), call(2, "shell", "b")]) == "2 commands")
+    #expect(summary([call(1, "WebFetch", "u")]) == "1 other tool")
+    #expect(summary([call(1, "Mystery"), call(2, "Another")]) == "2 other tools")
+    // distinct paths: the same file edited, written and patched is one file changed
+    #expect(summary([call(1, "Edit", "a.ts"), call(2, "Write", "a.ts"), call(3, "apply_patch", "a.ts")]) == "1 file changed")
+    #expect(summary([call(1, "Edit", "a.ts"), call(2, "MultiEdit", "b.ts")]) == "2 files changed")
+    // all five, in the order reads, searches, changes, commands, other
+    #expect(summary([call(1, "Bash", "x"), call(2, "WebFetch", "u"), call(3, "Edit", "a"), call(4, "Edit", "b"), call(5, "Grep", "q"), call(6, "Read", "a"), call(7, "Read", "b")])
+        == "2 files read · 1 search · 2 files changed · 1 command · 1 other tool")
+}
+
+@Test func theTitleIsExploredForReadsAndSearchesChangedForAChangeAndWorkedOtherwise() {
+    func title(_ calls: [[ChatEvent]]) -> String { group(chatFeed(calls.flatMap { $0 })).title }
+    #expect(title([call(1, "Read", "a"), call(2, "Grep", "b")]) == "Explored")
+    #expect(title([call(1, "Read", "a"), call(2, "Edit", "a")]) == "Changed")
+    #expect(title([call(1, "Bash", "ls")]) == "Worked")
+    #expect(title([call(1, "Read", "a"), call(2, "Bash", "ls")]) == "Worked")
+    #expect(title([call(1, "Mystery")]) == "Worked")
+    #expect(title([call(1, "Mystery"), call(2, "Write", "a")]) == "Changed")
+}
+
+@Test func theCallsOfAFailedGroupAreMarkedAndTheRowCountsThem() {
+    let events = call(1, "Read", "a") + call(2, "Bash", "pnpm test", output: ["boom"], status: "err") + call(3, "Bash", "pnpm lint", status: "err")
+    let tools = group(chatFeed(events))
+    #expect(tools.failed == 2 && tools.calls.map(\.status) == [.ok, .failed, .failed])
+    #expect(tools.calls[1].result == "failed" && tools.calls[1].output == ["boom"])
+}
+
+@Test func aRunStillGoingIsWorkingAndSaysWhatTheAgentIsDoingUntilItsCallEnds() {
+    let done = call(1, "Read", "src/a.ts", output: ["x"], at: 1000)
+    let running = ChatEvent(id: 10, at: 3000, kind: "tool_start", callId: "c9", tool: "Bash", arg: "pnpm test webhook")
+    var tools = group(chatFeed(done + [running]))
+    #expect(tools.isWorking && tools.title == "Working" && tools.doing == "Running pnpm test webhook" && tools.durationMs == nil)
+    #expect(tools.summary == "1 file read · 1 command")
+    // the next event that arrives completes it in place
+    let end = ChatEvent(id: 11, at: 9000, kind: "tool_end", callId: "c9", tool: "Bash", output: ["ok"], status: "ok")
+    tools = group(chatFeed(done + [running, end]))
+    #expect(tools.isWorking == false && tools.doing == nil && tools.title == "Worked" && tools.durationMs == 8000)
+    // a turn that ends with a call still going (stopped, or failed) does not leave the row working
+    let stopped = group(chatFeed(done + [running, ChatEvent(id: 12, at: 4000, kind: "turn_end", outcome: "aborted")]))
+    #expect(stopped.isWorking == false && stopped.calls.map(\.status) == [.ok, .stopped])
+    #expect(["Reading a", "Searching b", "Editing c", "Using Mystery d"] == [("Read", "a"), ("Grep", "b"), ("Edit", "c"), ("Mystery", "d")].map {
+        group(chatFeed([ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "x", tool: $0.0, arg: $0.1)])).doing!
+    })
+}
+
+@Test func textBetweenCallsOpensANewRowAndTheCallsOfOneRunStayTogetherWhateverOrderTheyEnd() {
+    let a = call(1, "Read", "a"), b = call(2, "Read", "b")
+    // the second call starts before the first ends: still one run, the results land on their own call
+    let events = [a[0], b[0], b[1], a[1], ChatEvent(id: 20, at: 0, kind: "assistant", text: "ok")] + call(3, "Read", "c")
+    let rows = chatFeed(events)
+    #expect(texts(rows) == ["tools: Explored | 2 files read", "agent: ok", "tools: Explored | 1 file read"])
+    #expect(group(rows).calls.map(\.arg) == ["a", "b"] && group(rows).calls.allSatisfy { $0.status == .ok })
+}
+
+@Test func theTimeOfAGroupIsFromItsFirstStartToItsLastEnd() {
+    let rows = chatFeed(call(1, "Read", "a", at: 1000, took: 500) + call(2, "Bash", "b", at: 2000, took: 4000))
+    #expect(group(rows).durationMs == 5000)
 }
 
 // MARK: the markdown the agent writes
@@ -144,8 +252,8 @@ private func texts(_ rows: [FeedRow]) -> [String] {
     let model = await ConversationModel(host: SocketChatHost(socketPath: { server.chatSocketPath }), sessionId: "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01")
     await model.poll()
     #expect(await model.cursor == 3500)
-    // a message, two calls as one line each, an answer and the turn's end: five rows a round
-    #expect(await model.rows.count == 2500)
+    // a message, the two calls as one row, an answer and the turn's end: four rows a round
+    #expect(await model.rows.count == 2000)
 }
 
 // MARK: the model

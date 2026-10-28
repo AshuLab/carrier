@@ -10,6 +10,8 @@ struct ConversationView: View {
     private static let column: CGFloat = 760
 
     @State private var model: ConversationModel
+    /// The tool groups and calls the person opened, by id; here and not in each row, which the lazy stack may recreate.
+    @State private var opened: Set<String> = []
     @FocusState private var boxFocused: Bool
 
     init(sessionId: String) {
@@ -20,7 +22,7 @@ struct ConversationView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 if model.loaded {
-                    ForEach(model.rows) { FeedRowView(row: $0) }
+                    ForEach(model.rows) { FeedRowView(row: $0, opened: $opened) }
                 } else if model.failure == nil {
                     LoadingRow()
                 }
@@ -119,6 +121,7 @@ struct OpenMenu: View {
 
 private struct FeedRowView: View {
     let row: FeedRow
+    @Binding var opened: Set<String>
 
     var body: some View {
         switch row {
@@ -135,6 +138,8 @@ private struct FeedRowView: View {
             }
         case .turnEnd(_, let text):
             Text(text).font(.system(size: 11)).foregroundStyle(.tertiary).textSelection(.enabled)
+        case .tools(let id, let group):
+            ChatToolGroupView(id: id, group: group, opened: $opened)
         case .line(_, let text):
             Text(text).font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         case .error(_, let text):

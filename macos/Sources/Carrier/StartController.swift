@@ -57,7 +57,7 @@ final class StartController: ObservableObject {
     }
 
     /// Spawns Carrier and waits for its socket; nil when it came up, else what to tell the person.
-    private static func launch(_ command: StartCommand) -> (reason: String, tail: String)? {
+    static func launch(_ command: StartCommand, name: String = "Carrier") -> (reason: String, tail: String)? {
         let log = URL(fileURLWithPath: command.logPath)
         do {
             try prepareLogFolder(command)
@@ -70,13 +70,13 @@ final class StartController: ObservableObject {
                 let answered = ControlClient.connect(path: command.socketPath) != nil
                 switch startOutcome(exitCode: exit.value, socketAnswered: answered, elapsed: Date().timeIntervalSince(began)) {
                 case .running?: return nil
-                case .failed(let failure)?: return (startFailureText(failure), tail(of: log))
+                case .failed(let failure)?: return (startFailureText(failure, name: name), tail(of: log))
                 case nil: Thread.sleep(forTimeInterval: 0.25)
                 }
             }
         } catch {
-            FileHandle.standardError.write(Data("carrier: start failed: \(error)\n".utf8))
-            return ("Carrier could not be started: \(error.localizedDescription)", tail(of: log))
+            FileHandle.standardError.write(Data("carrier: \(name) start failed: \(error)\n".utf8))
+            return ("\(name) could not be started: \(error.localizedDescription)", tail(of: log))
         }
     }
 
@@ -138,10 +138,10 @@ final class StartController: ObservableObject {
     }
 
     /// Alert with the reason and the end of the start log, readable and selectable.
-    private static func showAlert(reason: String, tail: String) {
+    static func showAlert(title: String = "Carrier did not start", reason: String, tail: String) {
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "Carrier did not start"
+        alert.messageText = title
         alert.informativeText = reason + " The end of app-start.log:"
         let scroll = NSTextView.scrollableTextView()
         scroll.frame = NSRect(x: 0, y: 0, width: 520, height: 220)

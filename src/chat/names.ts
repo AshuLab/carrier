@@ -43,14 +43,12 @@ export function worktreePath(info: WorkspaceInfo, name: string): string {
   return path;
 }
 
-/** Whether something is at `path`. Only a path that cannot exist answers false; any other error is not a free name. */
 const exists = (path: string) => {
   try {
     lstatSync(path);
     return true;
-  } catch (error) {
-    if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? '')) return false;
-    throw error;
+  } catch {
+    return false;
   }
 };
 

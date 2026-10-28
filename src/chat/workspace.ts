@@ -79,12 +79,8 @@ export async function inspectFolder(git: Git, folder: string): Promise<Workspace
   const plain: WorkspaceInfo = { folder, git: false, bare: false, linkedWorktree: false, repo: null, branch: null, defaultBranch: null, dirty: 0, branches: [], fetchedAt: null };
   const probe = await git.run(folder, ['rev-parse', '--is-bare-repository', '--git-dir', '--git-common-dir', '--git-path', 'FETCH_HEAD']);
   if (probe.ok === false && probe.code === 128) return plain; // "not a git repository"
-  const printed = lines(mustRun(probe, 'rev-parse'));
-  const [bare, gitDir, commonDir, fetchHead] = printed;
-  if (fetchHead === undefined) {
-    log.error('git rev-parse printed no FETCH_HEAD path', { printed: printed.length });
-    throw refused();
-  }
+  const [bare, gitDir, commonDir, fetchHead] = lines(mustRun(probe, 'rev-parse'));
+  if (fetchHead === undefined) throw refused();
   const isBare = bare === 'true';
   const [url, branch, originHead, refs, status] = await Promise.all([
     git.run(folder, ['config', '--get', 'remote.origin.url']),

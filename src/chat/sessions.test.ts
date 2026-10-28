@@ -343,6 +343,17 @@ test('resume opens a closed session again from its native id, folder and options
   expect(sessions.events({ sessionId: id, limit: 50 }).events.map((e) => e.kind)).toEqual(['user', 'assistant', 'turn_end', 'user']); // the transcript goes on from where it was
 });
 
+test('a resume that comes while a session is being deleted is refused, and the session is gone after', async () => {
+  const s = setup();
+  const { sessions, claude, id } = await openOne(s);
+  await sessions.close({ sessionId: id });
+  const deleting = sessions.delete({ sessionId: id }); // the first step of the delete runs before it yields
+  await expect(sessions.resume({ sessionId: id })).rejects.toThrow('being deleted');
+  await deleting;
+  expect(claude.opened).toHaveLength(1);
+  expect(sessions.list({}).sessions).toEqual([]);
+});
+
 test('an agent that ends on its own ends the live session: idle, or mid-turn with the turn recorded as an error; resume then reopens from the native id', async () => {
   const s = setup();
   s.claude.setup = (conversation) => void (conversation.process = { pid: 4242, pgid: 4242, command: '/bin/claude' });

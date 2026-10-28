@@ -77,6 +77,8 @@ export function binaryFound(command: string): boolean {
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
 export function createSessions({ db, config, clock, runners, env, git, binaryFound, onLiveChange }: ChatSessionsDeps) {
   const lives = new Map<string, Live>();
+  // Sessions being deleted: no agent may open in their folder while it is removed.
+  const deleting = new Set<string>();
   let clients = 0;
 
   const row = (sessionId: string) => {
@@ -257,6 +259,7 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
       const current = row(sessionId);
       const present = lives.get(sessionId);
       if (present !== undefined) return { session: summary(current), options: present.conversation.options };
+      if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
       const chosen = chatAgents(config).find((candidate) => candidate.name === current.agent);
       if (chosen === undefined) throw new ChatRefused(`The agent "${current.agent}" of this session is not configured any more`);
       const runner = runners[chosen.harness];
@@ -268,6 +271,11 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
         // another client resumed it while this one waited for the provider
         await conversation.close();
         return { session: summary(row(sessionId)), options: lives.get(sessionId)!.conversation.options };
+      }
+      if (deleting.has(sessionId)) {
+        // the session was deleted while this one waited for the provider: nothing may stay attached to its folder
+        await conversation.close();
+        throw new ChatRefused('This session is being deleted');
       }
       attach(sessionId, conversation);
       return { session: summary(current), options: conversation.options };
@@ -370,15 +378,21 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
 
     /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */
     async delete({ sessionId }: { sessionId: string }) {
-      await settle(sessionId, 'delete');
-      const { workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath } = row(sessionId);
-      // The worktree goes first: one that cannot be removed stops the deletion and the session stays.
-      if (workspaceKind === 'worktree') await deleteWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! });
-      db.transaction((tx) => {
-        tx.delete(chatEvents).where(eq(chatEvents.sessionId, sessionId)).run();
-        tx.delete(chatTurns).where(eq(chatTurns.sessionId, sessionId)).run();
-        tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
-      });
+      // marked before the first await, so a resume that comes in meanwhile is refused
+      deleting.add(sessionId);
+      try {
+        await settle(sessionId, 'delete');
+        const { workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath } = row(sessionId);
+        // The worktree goes first: one that cannot be removed stops the deletion and the session stays.
+        if (workspaceKind === 'worktree') await deleteWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! });
+        db.transaction((tx) => {
+          tx.delete(chatEvents).where(eq(chatEvents.sessionId, sessionId)).run();
+          tx.delete(chatTurns).where(eq(chatTurns.sessionId, sessionId)).run();
+          tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
+        });
+      } finally {
+        deleting.delete(sessionId);
+      }
       return {};
     },
 

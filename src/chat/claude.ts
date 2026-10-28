@@ -1,8 +1,7 @@
 import { execFile, spawn } from 'node:child_process';
-import { accessSync, constants } from 'node:fs';
 import { query as sdkQuery, type ModelInfo, type PermissionResult, type PermissionUpdate, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { resolveBinary } from '../harnesses/common.ts';
+import { endGroup, resolveAgentBinary } from './group.ts';
 import { ChatRefused, type ChatChoice, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner, type ChatUsage } from './runner.ts';
 
 // The Claude adapter of the chat runner: the Agent SDK pointed at the user's own `claude` binary, which runs as the
@@ -29,10 +28,7 @@ export type ClaudeChatDeps = {
   spawn?: NonNullable<Parameters<typeof sdkQuery>[0]['options']>['spawnClaudeCodeProcess'];
 };
 
-const resolveClaude = (command: string | undefined, env: NodeJS.ProcessEnv) => {
-  if (command?.includes('/')) return accessSync(command, constants.X_OK), command;
-  return resolveBinary(command ?? 'claude', env.PATH);
-};
+const resolveClaude = (command: string | undefined, env: NodeJS.ProcessEnv) => resolveAgentBinary('claude', command, env);
 
 const claudeLoggedIn = (binary: string, env: NodeJS.ProcessEnv) =>
   new Promise<boolean>((done) => {
@@ -324,24 +320,6 @@ function inputQueue() {
       }
     })(),
   };
-}
-
-/** SIGTERM to the agent's whole group (the claude process and the MCP servers it started), SIGKILL if it is still there after a few seconds. */
-async function endGroup(pid: number) {
-  const send = (signal: NodeJS.Signals) => {
-    try {
-      process.kill(-pid, signal);
-      return true;
-    } catch {
-      return false; // the group is gone
-    }
-  };
-  if (!send('SIGTERM')) return;
-  for (let i = 0; i < 30; i++) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    if (!send(0 as never)) return;
-  }
-  send('SIGKILL');
 }
 
 const textOf = (content: unknown): string =>

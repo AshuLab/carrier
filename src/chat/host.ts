@@ -5,6 +5,7 @@ import { installFileLogging } from '../logging/logger.ts';
 import { realClock, type Clock } from '../orchestration/clock.ts';
 import { acquireLock } from '../storage/lock.ts';
 import { claudeChatRunner } from './claude.ts';
+import { codexChatRunner } from './codex.ts';
 import { openChatDatabase } from './db.ts';
 import { idleExit } from './idle.ts';
 import { chatDirOf, startChatServer } from './server.ts';
@@ -22,7 +23,7 @@ export interface ChatHostDeps {
   idleMs?: number;
   /** Whether SIGINT, SIGTERM and SIGHUP end the host. */
   signals: boolean;
-  /** The runner of each harness. Codex's comes with its own slice. */
+  /** The runner of each harness. */
   runners: ChatSessionsDeps['runners'];
   env: NodeJS.ProcessEnv;
   binaryFound: ChatSessionsDeps['binaryFound'];
@@ -30,7 +31,7 @@ export interface ChatHostDeps {
   processes: Processes;
 }
 
-const realDeps = (): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner() }, env: process.env, binaryFound, processes: realProcesses });
+const realDeps = (): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, binaryFound, processes: realProcesses });
 
 /**
  * Runs the chat host: its own lock, log, database and socket under `<root>/chat/`, sharing nothing with the engine's

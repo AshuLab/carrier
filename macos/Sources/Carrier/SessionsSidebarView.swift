@@ -2,12 +2,13 @@ import CarrierCore
 import SwiftUI
 
 /// The Sessions section and, while `open`, the sessions under it in the chosen order (or its empty state). Rows of the sidebar's
-/// list: each session is tagged with a `Selection` and the section is drawn and selected by its own row; the buttons in them do not select. The magnifier opens a search
+/// list: each session draws its own selection and the section is drawn and selected by its own row; the buttons in them do not select. The magnifier opens a search
 /// field under the row.
 struct SessionsRows: View {
     let sessions: Sessions
     /// The order, shared with the Sessions home and remembered by the model.
     @Binding var sort: SessionSort
+    @Binding var selection: Selection
     let selected: Bool
     /// Chooses Sessions, which unfolds it.
     let select: () -> Void
@@ -56,8 +57,12 @@ struct SessionsRows: View {
         .onChange(of: open) { if open == false { query = nil } }
         .onChange(of: searchRequest) { if searchRequest?.section == .sessions { openSearch() } }
         if open {
-            if let text = Binding($query) {
-                SidebarSearchField(placeholder: "Search sessions", text: text, focus: $searching, close: { query = nil })
+            if query != nil {
+                // not `Binding($query)`: its getter force-unwraps, and the field reads it once more after the query is nil
+                SidebarSearchField(
+                    placeholder: "Search sessions", text: Binding(get: { query ?? "" }, set: { query = $0 }), focus: $searching,
+                    close: { query = nil }
+                )
             }
             let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", now: Date(), calendar: .current)
             switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
@@ -73,10 +78,11 @@ struct SessionsRows: View {
                 if sort == .workspace {
                     WorkspaceHeader(title: group.title, cannotStartReason: sessions.cannotStartReason)
                 } else {
-                    Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).selectionDisabled().flatSidebarRow()
+                    Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).padding(.horizontal, SidebarMetrics.inset)
                 }
-                ForEach(group.rows, id: \.id) {
-                    SessionRowView(row: $0, showsWorkspace: sort != .workspace).tag(Selection.session(id: $0.id)).flatSidebarRow()
+                ForEach(group.rows, id: \.id) { row in
+                    SessionRowView(row: row, showsWorkspace: sort != .workspace)
+                        .selectableSidebarRow(selected: selection == .session(id: row.id)) { selection = .session(id: row.id) }
                 }
             }
         }
@@ -106,9 +112,8 @@ private struct WorkspaceHeader: View {
             IconButton(icon: "plus", name: "New session in \(title)", enabled: cannotStartReason == nil, why: cannotStartReason) {}
                 .opacity(hovered ? 1 : 0)
         }
+        .padding(.horizontal, SidebarMetrics.inset)
         .onHover { hovered = $0 }
-        .selectionDisabled()
-        .flatSidebarRow()
     }
 }
 
@@ -134,7 +139,7 @@ struct SessionRowView: View {
             Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
                 .accessibilityLabel(Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date()))
         }
-        .padding(.horizontal, 2).padding(.vertical, 2)
+        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, 2)
         .contextMenu { SessionMenuItems(row: row) }
         .help(row.title)
     }

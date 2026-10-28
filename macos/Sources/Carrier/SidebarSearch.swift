@@ -30,8 +30,6 @@ struct SidebarSearchField: View {
                     .accessibilityLabel("Clear")
                 }
             }
-            .selectionDisabled()
-            .flatSidebarRow()
     }
 }
 
@@ -52,8 +50,6 @@ struct SidebarEmptyBlock<Action: View>: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 18)
         .accessibilityElement(children: .contain)
-        .selectionDisabled()
-        .flatSidebarRow()
     }
 }
 

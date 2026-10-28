@@ -1,8 +1,15 @@
 import CarrierCore
 import SwiftUI
 
-/// The sidebar's list: the Home row, Sessions, then Carrier with the epics in groups under it; Archive and Settings are fixed in the foot.
-/// The five are sidebar sections: the view draws their fill, so the list's own selection only ever marks a session or an epic.
+/// The two numbers every sidebar row is laid out with. The scroll area and the foot keep `edge` on both sides, so nothing inside has a
+/// side margin of its own; a row draws its fill edge to edge of that and keeps its content `inset` inside the fill.
+enum SidebarMetrics {
+    static let edge: CGFloat = 8
+    static let inset: CGFloat = 10
+}
+
+/// The sidebar: the Home row, Sessions, then Carrier with the epics in groups under it, in a scroll area; Archive and Settings are fixed
+/// in the foot. The rows draw their own fill, selected or hovered, so what is under a section is plain rows and not a `List`.
 struct SidebarView: View {
     let snapshot: PanelSnapshot?
     let state: ConnectionState?
@@ -23,53 +30,61 @@ struct SidebarView: View {
     @FocusState private var searchFocused: Bool
 
     var body: some View {
-        let list = Binding<Selection?>(get: { selection }, set: { if let next = $0 { selection = next } })
         let epicCount = snapshot.map { sidebarGroups($0, by: groupBy).reduce(0) { $0 + $1.count } } ?? 0
-        List(selection: list) {
-            SidebarSectionRow(title: "Home", icon: "house", selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
-            SessionsRows(
-                sessions: sessions, sort: $sessionSort, selected: selection == .sessions, select: { selection = .sessions },
-                open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }), searchRequest: searchRequest,
-                newSession: { selection = .newSession }
-            )
-            CarrierRow(
-                state: state, selected: selection == .carrier, unfolded: open == .carrier, hasEpics: epicCount > 0,
-                select: { selection = .carrier }, groupBy: $groupBy, searching: $searching
-            )
-            if let snapshot, open == .carrier {
-                // a row of its own, not selectable, so a click in the field does not select the card
-                if searching {
-                    SidebarSearchField(placeholder: "Search epics", text: $query, focus: $searchFocused, close: { searching = false })
-                }
-                let queried = query.trimmingCharacters(in: .whitespaces).isEmpty == false
-                let groups = sidebarGroups(snapshot, by: groupBy, query: query)
-                switch SidebarListState(shown: groups.reduce(0) { $0 + $1.count }, of: epicCount, query: query) {
-                case .empty: SidebarEmptyBlock(state: .noEpics)
-                case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
-                case .rows: EmptyView()
-                }
-                ForEach(groups.indices, id: \.self) { index in
-                    let group = groups[index]
-                    let expanded = Binding(
-                        get: { !collapse.isCollapsed(group, by: groupBy, query: query) },
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 2) {
+                SidebarSectionRow(title: "Home", icon: "house", selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
+                SessionsRows(
+                    sessions: sessions, sort: $sessionSort, selection: $selection, selected: selection == .sessions,
+                    select: { selection = .sessions }, open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }),
+                    searchRequest: searchRequest, newSession: { selection = .newSession }
+                )
+                CarrierRow(
+                    state: state, selected: selection == .carrier, unfolded: open == .carrier, hasEpics: epicCount > 0,
+                    select: { selection = .carrier }, groupBy: $groupBy, searching: $searching
+                )
+                if let snapshot, open == .carrier {
+                    if searching {
+                        SidebarSearchField(placeholder: "Search epics", text: $query, focus: $searchFocused, close: { searching = false })
+                    }
+                    let queried = query.trimmingCharacters(in: .whitespaces).isEmpty == false
+                    let groups = sidebarGroups(snapshot, by: groupBy, query: query)
+                    switch SidebarListState(shown: groups.reduce(0) { $0 + $1.count }, of: epicCount, query: query) {
+                    case .empty: SidebarEmptyBlock(state: .noEpics)
+                    case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
+                    case .rows: EmptyView()
+                    }
+                    ForEach(groups.indices, id: \.self) { index in
+                        let group = groups[index]
                         // while a query is typed every group is open, so there is nothing to toggle
-                        set: { _ in if queried == false { collapse.toggle(group, by: groupBy) } }
-                    )
-                    Section(isExpanded: expanded) {
-                        ForEach(group.rows, id: \.selection) { SidebarRowView(row: $0).tag($0.selection).flatSidebarRow() }
-                    } header: {
-                        HStack {
-                            Text(group.title).textCase(.uppercase)
-                            Spacer(minLength: 0)
-                            Text("\(group.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        let expanded = queried || !collapse.isCollapsed(group, by: groupBy, query: query)
+                        Button {
+                            if queried == false { collapse.toggle(group, by: groupBy) }
+                        } label: {
+                            HStack {
+                                Text(group.title).textCase(.uppercase)
+                                Spacer(minLength: 0)
+                                Text("\(group.count)").monospacedDigit()
+                                Image(systemName: "chevron.right").imageScale(.small).rotationEffect(.degrees(expanded ? 90 : 0))
+                                    .opacity(queried ? 0 : 1)
+                            }
+                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                            .padding(.horizontal, SidebarMetrics.inset).padding(.top, 8).padding(.bottom, 2)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                         .accessibilityElement(children: .combine)
-                        .flatSidebarRow()
+                        .accessibilityHint(expanded ? "Folds the group" : "Unfolds the group")
+                        if expanded {
+                            ForEach(group.rows, id: \.selection) { row in
+                                SidebarRowView(row: row).selectableSidebarRow(selected: selection == row.selection) { selection = row.selection }
+                            }
+                        }
                     }
                 }
             }
+            .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
         }
-        .listStyle(.sidebar)
         .onChange(of: searching) { if searching { searchFocused = true } else { query = "" } }
         .onChange(of: searchRequest) {
             if searchRequest?.section == .carrier && epicCount > 0 && open == .carrier {
@@ -78,19 +93,17 @@ struct SidebarView: View {
             }
         }
         .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 320)
-        .safeAreaInset(edge: .bottom) {
-            // Archive above the divider and Settings alone under it; both stay while the list above scrolls
+        .safeAreaBar(edge: .bottom, spacing: 0) {
+            // Archive above the divider and Settings alone under it; both stay while the list above scrolls, over the system's scroll pocket
             VStack(spacing: 0) {
                 ArchiveSection(
                     sessions: sessions, selection: $selection, open: open == .archive, choose: chooseArchived, searchRequest: searchRequest
                 )
-                    .padding(.horizontal, 8).padding(.vertical, 8)
+                .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
                 Divider()
                 SidebarSectionRow(title: "Settings", icon: "gearshape", selected: selection == .settings, action: { selection = .settings })
-                    .padding(.horizontal, 8).padding(.vertical, 8)
+                    .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
             }
-            // opaque enough that the list scrolls under it without showing through
-            .background(.regularMaterial)
         }
     }
 }
@@ -119,8 +132,9 @@ private struct CarrierRow: View {
         SidebarSectionRow(title: "Carrier", icon: "paperplane", selected: selected, action: select, actions: {
             Text(card.title)
                 .font(.caption.weight(.semibold))
+                .foregroundStyle(Self.tint(card.kind))
                 .padding(.horizontal, 8).padding(.vertical, 2)
-                .background(Capsule().fill(Self.tint(card.kind).opacity(0.18)))
+                .background(Capsule().fill(Self.tint(card.kind).opacity(0.28)))
             // the epics exist only while Carrier answers, so there is nothing to search or group before
             if snapshot != nil && unfolded {
                 IconButton(
@@ -224,11 +238,12 @@ struct ChoiceMenu<Value: Hashable>: View {
 }
 
 extension View {
-    /// A row of the sidebar's list with the same small margin on both sides, so the fills of the section rows and of the rows under
-    /// them line up and the list under a section has no margin of its own.
-    func flatSidebarRow() -> some View {
-        listRowInsets(EdgeInsets(top: 1, leading: 8, bottom: 1, trailing: 8))
+    /// An epic or a session under a section: the fill is drawn here, like the section rows', so it keeps the list's margin and does not
+    /// reach the edges as the list's own highlight does.
+    func selectableSidebarRow(selected: Bool, action: @escaping () -> Void) -> some View {
+        modifier(SelectableSidebarRow(selected: selected, action: action))
     }
+
 }
 
 /// A sidebar section ([glossary](../../docs/glossary.md)): an icon of 15 points, a title and its actions, and under them whatever the
@@ -257,7 +272,7 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
     }
 
     var body: some View {
-        // the greys of the exploration: 10% (12% dark) selected, 3% (5% dark) hovered
+        // the system's selection colour at 45% when selected, a faint grey (5%, 7% dark) when hovered
         let dark = scheme == .dark
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
@@ -280,15 +295,13 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
             .frame(minHeight: 20)
             below
         }
-        .padding(.horizontal, 10).padding(.vertical, 6)
+        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(.primary.opacity(selected ? (dark ? 0.12 : 0.1) : hovered ? (dark ? 0.05 : 0.03) : 0)))
+        .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
         .contentShape(RoundedRectangle(cornerRadius: 8))
         .onTapGesture(perform: action)
         .onHover { hovered = $0 }
         .accessibilityElement(children: .contain)
-        .listRowBackground(Color.clear)
-        .flatSidebarRow()
     }
 }
 
@@ -315,7 +328,7 @@ struct SidebarRowView: View {
                 }
             }
         }
-        .padding(.horizontal, 2).padding(.vertical, 4)
+        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, 4)
         .help(row.tooltip)
     }
 }
@@ -341,5 +354,24 @@ private struct StateAndRepo: Layout {
         repo.place(
             at: CGPoint(x: bounds.maxX - repoWidth, y: bounds.minY), proposal: ProposedViewSize(width: repoWidth, height: bounds.height)
         )
+    }
+}
+
+private struct SelectableSidebarRow: ViewModifier {
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovered = false
+    @Environment(\.colorScheme) private var scheme
+
+    func body(content: Content) -> some View {
+        let dark = scheme == .dark
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
+            .onTapGesture(perform: action)
+            .onHover { hovered = $0 }
+            .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction(.default, action)
     }
 }

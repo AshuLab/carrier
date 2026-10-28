@@ -61,7 +61,13 @@ struct SidebarView: View {
                     Section(isExpanded: expanded) {
                         ForEach(group.rows, id: \.selection) { SidebarRowView(row: $0).tag($0.selection).flatSidebarRow() }
                     } header: {
-                        Text(group.title).textCase(.uppercase).flatSidebarRow()
+                        HStack {
+                            Text(group.title).textCase(.uppercase)
+                            Spacer(minLength: 0)
+                            Text("\(group.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .flatSidebarRow()
                     }
                 }
             }
@@ -85,13 +91,13 @@ struct SidebarView: View {
     }
 }
 
-/// The Carrier section: its name and the engine's state as a pill with the search and the grouping menu, its slots as bars and what
-/// is waiting as counters under them; the epics follow it. Choosing it shows the Carrier home. Hovering it shows when the next check
+/// The Carrier section: its name and the engine's state as a pill with the search and the grouping menu, and its slots as bars under
+/// them, nothing else; the epics follow it. Choosing it shows the Carrier home. Hovering it shows when the next check
 /// is, the uptime and the rate limit.
 private struct CarrierRow: View {
     let state: ConnectionState?
     let selected: Bool
-    /// Folded, the row is its state, slots and counters; unfolded, it also has the search and the grouping menu, and the epics follow.
+    /// Folded, the row is its state and slots; unfolded, it also has the search and the grouping menu, and the epics follow.
     let unfolded: Bool
     let select: () -> Void
     @Binding var groupBy: GroupBy
@@ -100,7 +106,7 @@ private struct CarrierRow: View {
     @State private var groupMenu = false
 
     var body: some View {
-        let card = carrierCardState(state)
+        let card = carrierCardState(state, lastTotal: SidebarStore().slotsTotal)
         let snapshot: PanelSnapshot? = if case .running(let snapshot)? = state { snapshot } else { nil }
         // the hover: running says when the next check is, uptime and rate limit; an incompatible engine says why
         let detail: String? = if let snapshot { Self.hover(snapshot) } else if case .incompatible? = state { state?.menuLine } else { nil }
@@ -124,26 +130,14 @@ private struct CarrierRow: View {
             }
         }, below: {
             if let slots = card.slots {
-                VStack(alignment: .leading, spacing: 4) {
-                    SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
-                    Text("\(slots.busy) of \(slots.total) slots busy").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(slots.busy) of \(slots.total) slots busy")
-            }
-            if card.kind == .stopped {
-                Text("Start Carrier to run epics").font(.caption).foregroundStyle(.secondary)
-            } else if let snapshot {
-                let counters = carrierCounters(snapshot)
-                FlowLayout(spacing: 10) {
-                    if counters.needsYou > 0 { Counter(count: counters.needsYou, word: "needs you", color: .orange) }
-                    Counter(count: counters.running, word: "running", color: .green)
-                    Counter(count: counters.next, word: "next", color: .gray)
-                    Counter(count: counters.ready, word: "ready", color: .blue)
-                }
+                SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(slots.busy) of \(slots.total) slots busy")
             }
         })
         .help(([detail, "Carrier (⌘3)"].compactMap { $0 }).joined(separator: "\n"))
+        // remembered so a stopped engine, even after a relaunch, still draws its slots
+        .onChange(of: snapshot?.slots.total, initial: true) { if let total = snapshot?.slots.total { SidebarStore().slotsTotal = total } }
     }
 
     private static func tint(_ kind: CarrierCardState.Kind) -> Color {
@@ -157,20 +151,6 @@ private struct CarrierRow: View {
     private static func hover(_ snapshot: PanelSnapshot) -> String {
         let box = carrierBox(snapshot)
         return ([box.uptime] + box.rows.map { "\($0.label): \($0.value)" }).joined(separator: " · ")
-    }
-
-    /// A dot and a word; the number is part of the word, so it reads aloud as "2 running".
-    private struct Counter: View {
-        let count: Int
-        let word: String
-        let color: Color
-
-        var body: some View {
-            HStack(spacing: 4) {
-                Circle().fill(color).frame(width: 6, height: 6).accessibilityHidden(true)
-                Text("\(count) \(word)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-            }
-        }
     }
 }
 

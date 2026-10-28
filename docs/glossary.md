@@ -98,21 +98,24 @@ _Avoid_: inbox, notifications, to-do.
 **Running epic card** - The Carrier home's card for an epic that is running: its progress and one row for each agent working on it. A dashed card after the running ones stands for free room and names the next queued epic.
 _Avoid_: slot tile, agent list.
 
-**Sidebar group** - A section of the Carrier card's list in the app's sidebar that collects epics by state (Needs you, Running, Up next, Ready for test, Done, Cancelled) or, when asked, by repository. Every group collapses; Done and Cancelled start collapsed.
+**Sidebar group** - A section of the Carrier section's list in the app's sidebar that collects epics by state (Needs you, Running, Up next, Ready for test, Done, Cancelled) or, when asked, by repository. Every group collapses; Done and Cancelled start collapsed.
 _Avoid_: category, folder.
 
 **Home** - The app's first page: a welcome with no status. The app opens on it and the sidebar's Home row selects it. Status lives elsewhere: the engine's on the Carrier card, a user session's on its own row.
 _Avoid_: overview, dashboard, start page.
 
-**Carrier home** - The page of the Carrier world, opened by selecting the Carrier card: what the Overview was (Your turn, the running epic cards, up next, the watched repositories) and the engine's controls (Check now, Pause, Stop). The Sessions world has its own, the Sessions home.
+**Carrier home** - The page of the Carrier world, opened by selecting the Carrier section: what the Overview was (Your turn, the running epic cards, up next, the watched repositories) and the engine's controls (Check now, Pause, Stop). The Sessions world has its own, the Sessions home.
 _Avoid_: Overview (its old name), dashboard.
 
 **Sessions home** - The page of the Sessions world, opened by selecting the Sessions row. An empty state ("No sessions yet") until user sessions exist. The Carrier world has its own, the Carrier home.
 
 **Archive page** - The page opened by the sidebar's Archive row, which stands on its own outside Sessions and shows the count of archived user sessions. An empty state until user sessions can be archived.
 
-**Carrier card** - The sidebar's card for the automation: grey, with the engine's state (Running, Paused, Stopped or Problem, or Connecting in grey while it has not answered yet), its slots and counters for what needs the person, is running, is next and is ready. Selected, it opens into the sidebar groups with a search and the choice of grouping, and the Carrier home shows in the centre. Only one of the Sessions section and the Carrier card is open at a time.
-_Avoid_: status bar, footer, pill (the pill is the engine's state inside the card).
+**Carrier section** - The sidebar section for the automation, drawn like every other: an icon, the title Carrier, the engine's state (Running, Paused, Stopped or Problem, or Connecting in grey while it has not answered yet), the search and group-by actions, and its slots as bars at full width, grey while nothing runs. It shows no counters: the groups under it carry their own counts. Selected, it unfolds into the sidebar groups and the Carrier home shows in the centre. Only one of the Sessions, Carrier and Archive sections is open at a time.
+_Avoid_: Carrier card (its old name, when it was a filled card with counters), status bar, footer, pill (the pill is the engine's state inside the section).
+
+**Sidebar section** - A destination of the sidebar that is drawn as an icon, a title and its actions, with no fill at rest and a light grey fill, never the system blue, only on that row when it is selected. Home, Sessions, Carrier, Archive and Settings are sidebar sections; Sessions, Carrier and Archive unfold a list under the row that has no fill of its own, a search field under the row, and an empty state when there is nothing to list or nothing matches.
+_Avoid_: card, tab, panel.
 
 **User session** - A conversation the person starts inside the app with the agent of their choice, in a workspace. It belongs to no epic ([0012](adr/0012-sessions-and-epics-are-two-separate-worlds.md)), is disposable once its job is done, and can be archived. It is a Session in the sense above, when that conversation is not an epic's execution.
 _Avoid_: chat, thread.

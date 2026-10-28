@@ -1,0 +1,144 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Carrier sidebar: final</title>
+<style>
+:root{--bg:#f3f2f1;--ink:#1d1d1f;--mute:#6e6e73;--line:#0000001a;--sel:#0000001a;--hov:#00000008;--page:#e5e4e2;--o:#d98a00;--g:#1f9d45}
+.dark{--bg:#262628;--ink:#f2f2f4;--mute:#9a9aa0;--line:#ffffff1f;--sel:#ffffff1f;--hov:#ffffff0d;--page:#151516;--o:#f5a524;--g:#5fd97f}
+*{box-sizing:border-box}
+body{margin:0;padding:24px;background:var(--page);font:13px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink)}
+h1{font-size:16px;margin:0 0 4px}.sub{color:var(--mute);margin:0 0 14px;max-width:560px}
+button.t{padding:4px 10px;border-radius:6px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;margin-bottom:18px}
+.sb{width:268px;height:680px;background:var(--bg);border-radius:12px;border:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden}
+.scroll{flex:1;overflow:auto;padding:10px 8px;display:flex;flex-direction:column;gap:2px}
+.pinned{padding:0 8px 8px}
+/* Archive stays where it is; its list opens below the header and pushes the row up, capped at about five sessions */
+.pinned .body{max-height:290px;overflow:auto}
+.pinned .sec-wrap.open>.top{margin-bottom:2px}
+.item .age{margin-left:auto}.foot{padding:8px;border-top:1px solid var(--line)}
+.sec-wrap{cursor:pointer}
+/* the highlight: icon, title, actions and slots; never the list below */
+.top{border-radius:8px}.top:hover{background:var(--hov)}.sec-wrap.sel>.top{background:var(--sel)}
+.hd{display:flex;align-items:center;gap:8px;padding:6px 10px;min-height:32px;font-weight:500}
+.ic{width:15px;height:15px;stroke:var(--mute);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.sel>.top .ic{stroke:var(--ink)}
+.sp{flex:1}.cnt{color:var(--mute);font-size:12px;font-weight:400;font-variant-numeric:tabular-nums}
+.badge{background:#8e8e9330;color:var(--mute);font-size:11px;font-weight:600;padding:0 6px;border-radius:99px;font-variant-numeric:tabular-nums}
+.dark .badge{color:#c4c4ca}
+.pill{font-size:11px;font-weight:600;padding:1px 8px;border-radius:99px;background:#34c75930;color:var(--g)}
+.tools{display:flex;gap:2px}.tools span{width:20px;height:20px;border-radius:5px;display:grid;place-items:center;color:var(--mute);font-size:12px}.tools span:hover{background:var(--sel)}
+.slots{padding:0 10px 10px}.bar{display:flex;gap:3px}.bar i{flex:1;height:5px;border-radius:3px;background:var(--line)}.bar i.on{background:#34c759}
+.body{display:none;padding-bottom:6px}.open>.body{display:block}
+.sec{display:flex;font-size:10.5px;font-weight:600;letter-spacing:.06em;color:var(--mute);padding:8px 10px 3px;text-transform:uppercase}
+.sec span{margin-left:auto;letter-spacing:0}
+.item{display:flex;gap:8px;padding:5px 10px;border-radius:8px;cursor:pointer}.item:hover{background:var(--hov)}.item.sel{background:var(--sel)}
+.t1{font-size:12px;line-height:15px}.t2{font-size:11px;color:var(--mute)}.age{font-size:11px;color:var(--mute);margin-left:auto;font-variant-numeric:tabular-nums}
+.dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex:none}.g{background:#34c759}.o{background:#f5a524}.b{background:#0a84ff}.x{background:#8e8e93}
+.ring{width:8px;height:8px;border-radius:50%;margin-top:4px;flex:none;border:1.5px solid #8e8e93}
+.search,.nores{display:none}.searching>.body>.search{display:block;padding:6px 2px 4px}
+.search input{width:100%;font:inherit;font-size:12px;color:var(--ink);background:var(--hov);border:1px solid var(--line);border-radius:7px;padding:5px 8px;outline:none}
+.search input:focus{border-color:var(--mute)}
+.searching.none>.body>.nores{display:flex}
+.nores,.blank{flex-direction:column;align-items:center;text-align:center;gap:4px;padding:22px 16px 18px}
+.nores svg,.blank svg{width:30px;height:30px;stroke:var(--mute);fill:none;stroke-width:1.5;stroke-linecap:round;opacity:.7;margin-bottom:4px}
+.nt{font-weight:600;font-size:12.5px}.blank .nd{max-width:210px}.nd{font-size:11.5px;color:var(--mute);max-width:200px;overflow-wrap:anywhere}.nd b{color:var(--ink);font-weight:500}
+.nclear,.nbtn{margin-top:8px;font:inherit;font-size:11.5px;color:var(--ink);background:var(--hov);border:1px solid var(--line);border-radius:6px;padding:3px 10px;cursor:pointer}.nclear:hover,.nbtn:hover{background:var(--sel)}
+.search{position:relative}.search input{padding-right:24px}
+.search .x{display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);margin-top:1px;border:0;background:var(--line);color:var(--mute);width:15px;height:15px;border-radius:50%;font-size:11px;line-height:15px;padding:0;cursor:pointer}
+.search.has .x{display:block}
+.tools span.on{background:var(--sel);color:var(--ink)}
+.blank{display:none}
+.empty-mode .body>.sec,.empty-mode .body>.item,.empty-mode .body>.search,.empty-mode .body>.nores{display:none!important}
+.empty-mode .body>.blank{display:flex}
+.empty-mode .badge,.empty-mode .cnt{display:none}
+.empty-mode [data-act=search]{opacity:.35;pointer-events:none}
+.demo{display:flex;align-items:center;gap:6px;margin:0 0 14px;color:var(--mute);font-size:12px}
+.empty{font-size:11px;color:var(--mute);padding:4px 10px}
+</style><body>
+<h1>Carrier sidebar: final</h1>
+<p class="sub">Click ⌕ on Sessions or Carrier to open the search field below the header (Esc closes it). Click a section to unfold it (one open at a time) and an item inside to select it. Highlight is light gray and covers only icon, title, actions and slots. The Sessions badge is the count of open conversations (archived excluded).</p>
+<label class="demo"><input type="checkbox" id="emptyToggle"> Preview empty states (no sessions, no epics)</label>
+<button class="t" onclick="document.body.classList.toggle('dark');document.documentElement.classList.toggle('dark')">Toggle light / dark</button>
+
+<div class="sb"><div class="scroll">
+
+  <div class="sec-wrap sel"><div class="top"><div class="hd"><svg class="ic" viewBox="0 0 16 16"><path d="M2 7l6-5 6 5v7H2z"/></svg>Home</div></div></div>
+
+  <div class="sec-wrap" data-open>
+    <div class="top"><div class="hd"><svg class="ic" viewBox="0 0 16 16"><path d="M2 3h9v6H6l-3 3V9H2z"/><path d="M12 6h2v6l-2-2h-3"/></svg>Sessions<span class="sp"></span><span class="badge">5</span><div class="tools"><span title="Search sessions (⌘F)" data-act="search">⌕</span><span title="Sort">⋯</span><span title="New session">＋</span></div></div></div>
+    <div class="body">
+      <div class="search"><input type="text" placeholder="Search sessions" aria-label="Search sessions"><button class="x" type="button" aria-label="Clear">×</button></div><div class="nores"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M8 8l5 5M13 8l-5 5"/></svg><div class="nt">No results</div><div class="nd">Nothing matches <b></b></div><button class="nclear" type="button">Clear search</button></div>
+      <div class="blank"><svg viewBox="0 0 24 24"><path d="M4 5h11v8H8l-4 4V5z"/><path d="M17 9h3v9l-3-3h-6"/></svg><div class="nt">No sessions yet</div><div class="nd">Start a conversation with an agent and it will show up here.</div><button class="nbtn" type="button">New session</button></div>
+      
+      <div class="sec">Waiting for you<span style="color:var(--o)">1</span></div>
+      <div class="item"><i class="dot o"></i><div><div class="t1">Refactor storage</div><div class="t2">carrier · codex</div></div><span class="age">1h</span></div>
+      <div class="sec">Working<span>2</span></div>
+      <div class="item"><i class="dot b"></i><div><div class="t1">Fix login redirect</div><div class="t2">carrier · claude</div></div><span class="age">5m</span></div>
+      <div class="item"><i class="dot b"></i><div><div class="t1">Write migration docs</div><div class="t2">ashu-web · claude</div></div><span class="age">12m</span></div>
+      <div class="sec">Idle<span>1</span></div>
+      <div class="item"><i class="ring"></i><div><div class="t1">Explore chat adapter</div><div class="t2">carrier · antigravity</div></div><span class="age">2d</span></div>
+      <div class="sec">Done<span>1</span></div>
+      <div class="item"><i class="dot g"></i><div><div class="t1">Rename config keys</div><div class="t2">carrier · claude</div></div><span class="age">3d</span></div>
+    </div>
+  </div>
+
+
+  <div class="sec-wrap" data-open>
+    <div class="top"><div class="hd"><svg class="ic" viewBox="0 0 16 16"><path d="M2 10l6-7 6 7-6 3z"/></svg>Carrier<span class="sp"></span><span class="pill">Running</span><div class="tools"><span title="Search epics (⌘F)" data-act="search">⌕</span><span title="Group by">⋯</span></div></div>
+      <div class="slots"><div class="bar"><i class="on"></i><i class="on"></i><i></i></div></div></div>
+    <div class="body">
+      <div class="search"><input type="text" placeholder="Search epics" aria-label="Search epics"><button class="x" type="button" aria-label="Clear">×</button></div><div class="nores"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M8 8l5 5M13 8l-5 5"/></svg><div class="nt">No results</div><div class="nd">Nothing matches <b></b></div><button class="nclear" type="button">Clear search</button></div>
+      <div class="blank"><svg viewBox="0 0 24 24"><path d="M3 15l9-10 9 10-9 4z"/></svg><div class="nt">No epics yet</div><div class="nd">Label an issue <b>solve:epic:ready</b> and Carrier will pick it up.</div></div>
+      
+      <div class="sec">Needs you<span style="color:var(--o)">1</span></div>
+      <div class="item"><i class="dot o"></i><div><div class="t1">Migrate chat sessions</div><div class="t2">#47 · needs human</div></div></div>
+      <div class="sec">Running<span>2</span></div>
+      <div class="item"><i class="dot g"></i><div><div class="t1">Add dark mode to settings</div><div class="t2">#42 · shipping</div></div></div>
+      <div class="item"><i class="dot g"></i><div><div class="t1">Chat host idle close</div><div class="t2">#51 · reviewing</div></div></div>
+      <div class="sec">Next<span>3</span></div>
+      <div class="item"><i class="dot x"></i><div><div class="t1">Drop legacy config</div><div class="t2">#55 · queued</div></div></div>
+      <div class="sec">Ready<span>4</span></div>
+      <div class="item"><i class="dot b"></i><div><div class="t1">Dashboard filters</div><div class="t2">#58 · ready</div></div></div>
+    </div>
+  </div>
+
+</div><div class="pinned"><div class="sec-wrap" data-open data-archive><div class="top"><div class="hd"><svg class="ic" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="3"/><path d="M3 6v7h10V6M6.5 9h3"/></svg>Archive<span class="sp"></span><span class="cnt">4</span><div class="tools"><span title="Search archive (⌘F)" data-act="search">⌕</span></div></div></div><div class="body"><div class="search"><input type="text" placeholder="Search archive" aria-label="Search archive"><button class="x" type="button" aria-label="Clear">×</button></div><div class="nores"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M8 8l5 5M13 8l-5 5"/></svg><div class="nt">No results</div><div class="nd">Nothing matches <b></b></div><button class="nclear" type="button">Clear search</button></div><div class="blank"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4"/><path d="M5 8v11h14V8M10 12.5h4"/></svg><div class="nt">Nothing archived</div><div class="nd">Sessions you archive will be kept here.</div></div><div class="sec">Last 7 days<span>2</span></div><div class="item"><i class="dot x"></i><div><div class="t1">Spike: OAuth flow</div><div class="t2">carrier · claude</div></div><span class="age">2d</span></div><div class="item"><i class="dot x"></i><div><div class="t1">Rename config keys</div><div class="t2">carrier · claude</div></div><span class="age">5d</span></div><div class="sec">Earlier<span>2</span></div><div class="item"><i class="dot x"></i><div><div class="t1">Landing copy v1</div><div class="t2">ashu-web · codex</div></div><span class="age">3w</span></div><div class="item"><i class="dot x"></i><div><div class="t1">Explore SQLite WAL</div><div class="t2">carrier · antigravity</div></div><span class="age">2mo</span></div></div></div></div>
+<div class="foot"><div class="sec-wrap"><div class="top"><div class="hd"><svg class="ic" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>Settings</div></div></div></div></div>
+
+<script>
+const sb=document.querySelector('.sb');
+// start with Home selected, Sessions and Carrier both unfolded would hide the point: fold them
+sb.querySelectorAll('[data-open]').forEach(x=>x.classList.remove('open'));
+function applyFilter(sec){
+  const q=sec.querySelector('input').value.trim().toLowerCase();let shown=0;
+  sec.querySelectorAll('.body > .item').forEach(i=>{const m=!q||i.textContent.toLowerCase().includes(q);i.style.display=m?'':'none';if(m)shown++});
+  // a group header stays only if one of its items does
+  sec.querySelectorAll('.body > .sec').forEach(h=>{let n=h.nextElementSibling,any=false;
+    while(n&&n.classList.contains('item')){if(n.style.display!=='none')any=true;n=n.nextElementSibling}
+    h.style.display=any||!q?'':'none'});
+  sec.classList.toggle('none',!!q&&shown===0);sec.querySelector('.nd b').textContent='“'+sec.querySelector('input').value.trim()+'”';sec.querySelector('.search').classList.toggle('has',sec.querySelector('input').value!=='');
+}
+function closeSearch(sec){sec.classList.remove('searching','none');sec.querySelector('input').value='';applyFilter(sec);
+  sec.querySelector('[data-act=search]').classList.remove('on')}
+sb.addEventListener('click',e=>{
+  const sec=e.target.closest('.sec-wrap');if(!sec)return;
+  if(e.target.closest('.x,.nclear')){const i=sec.querySelector('input');i.value='';applyFilter(sec);i.focus();return}
+  if(e.target.closest('.search,.nores'))return;
+  const item=e.target.closest('.item');
+  const isSearch=e.target.closest('[data-act=search]');
+  if(isSearch){
+    const wasOpen=sec.classList.contains('open');
+    sb.querySelectorAll('.sec-wrap.open').forEach(x=>{if(x!==sec){x.classList.remove('open');closeSearch(x)}});
+    sb.querySelectorAll('.sel').forEach(x=>x.classList.remove('sel'));
+    sec.classList.add('sel','open');
+    if(wasOpen&&sec.classList.contains('searching'))closeSearch(sec);
+    else{sec.classList.add('searching');isSearch.classList.add('on');sec.querySelector('input').focus()}
+    return;
+  }
+  sb.querySelectorAll('.sel').forEach(x=>x.classList.remove('sel'));
+  if(item){item.classList.add('sel');return}
+  sb.querySelectorAll('.open').forEach(x=>{if(x!==sec){x.classList.remove('open');if(x.querySelector('input'))closeSearch(x)}});
+  sec.classList.add('sel');if(sec.hasAttribute('data-open'))sec.classList.add('open');
+});
+sb.addEventListener('input',e=>{const sec=e.target.closest('.sec-wrap');if(sec&&e.target.matches('input'))applyFilter(sec)});
+sb.addEventListener('keydown',e=>{if(e.key==='Escape'&&e.target.matches('input'))closeSearch(e.target.closest('.sec-wrap'))});
+document.getElementById('emptyToggle').addEventListener('change',e=>{sb.classList.toggle('empty-mode',e.target.checked);sb.querySelectorAll('.sec-wrap.searching').forEach(closeSearch)});
+document.querySelector('[data-open]').click();  // open Sessions on load
+</script></body></html>

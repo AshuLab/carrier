@@ -89,10 +89,11 @@ export const configSchema = z
       )
       .min(1),
     profiles: z.record(z.string(), profile),
-    /** The agents a chat can start with; without the block, `claude` and `codex` (see `chatAgents`). */
+    /** The agents a chat can start with (without them, `claude` and `codex`, see `chatAgents`) and the folder it brings projects into (without it, `<root>/chat/projects`). */
     chat: z
       .strictObject({
-        agents: z.record(z.string().regex(chatAgentName, 'a chat agent name is lowercase letters, digits and hyphens, starting with a letter'), chatAgent),
+        agents: z.record(z.string().regex(chatAgentName, 'a chat agent name is lowercase letters, digits and hyphens, starting with a letter'), chatAgent).optional(),
+        projectsFolder: z.string().min(1).transform(expandHome).refine(isAbsolute, 'must be an absolute path, or start with ~/').optional(),
       })
       .optional(),
     orchestratorProfile: z.string().min(1),

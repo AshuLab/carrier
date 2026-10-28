@@ -60,7 +60,7 @@ else if (cli.flags.help) {
         break;
       case 'chat-host':
         if (configPath === undefined) throw noConfig('Usage: carrier chat-host --config <path>');
-        await (await import('./commands/chat-host.ts')).chatHostCommand(loadConfigFile(configPath)); // runs until stopped
+        await (await import('./commands/chat-host.ts')).chatHostCommand(loadConfigFile(configPath), resolve(configPath)); // runs until stopped
         break;
       default:
         if (configPath === undefined) throw noConfig(usage(), '');

@@ -382,6 +382,10 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     func setOption(_ id: String, option: String, value: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
+    func capabilities() async throws -> Set<ControlClient.Capability> { [] }
+    func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
+    func createProject(_ name: String) async throws -> String { throw ControlError.closed }
+    func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         asked.append((after, limit))

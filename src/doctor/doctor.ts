@@ -18,10 +18,27 @@ export interface DoctorDeps {
   listLabels: (config: Config, repo: string) => Promise<string[]>;
   /** What a local model server has; throws when it does not answer. */
   localModels: (local: LocalProvider) => Promise<string[]>;
+  /** Whether a Claude or Codex login works, with the option's config folder (the process environment when none); throws when the CLI cannot run. */
+  loggedIn: (harness: 'claude' | 'codex', configDir: string | undefined) => Promise<boolean>;
+}
+
+// Reads only the verdict: the output holds an email and an organisation, which never leave this function.
+function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | undefined) {
+  const env = configDir ? { ...process.env, [harness === 'claude' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME']: configDir } : process.env;
+  const [command, args] = harness === 'claude' ? ['claude', ['auth', 'status']] : ['codex', ['login', 'status']];
+  const result = spawnSync(command!, args as string[], { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 20_000 });
+  if (result.error) throw result.error;
+  if (harness === 'codex') return Promise.resolve(result.status === 0);
+  try {
+    return Promise.resolve((JSON.parse(result.stdout) as { loggedIn?: unknown }).loggedIn === true);
+  } catch {
+    return Promise.resolve(false);
+  }
 }
 
 const realDeps: DoctorDeps = {
   localModels: (local) => listLocalModels(local),
+  loggedIn: cliLoggedIn,
   which: (command) => spawnSync('which', [command]).status === 0,
   mint: (profile, repo) => profileToken(profile)(repo),
   listLabels: (config, repo) =>
@@ -45,10 +62,13 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
     onCheck(check);
     return check.status === 'ok';
   };
+  const missing = new Set<string>();
   const installed = (command: string) => {
     const name = `${command} installed`;
     onStart(name);
-    return report(deps.which(command) ? { name, status: 'ok' } : { name, status: 'fail', detail: 'not found on PATH', fix: installFix[command] });
+    const found = deps.which(command);
+    if (!found) missing.add(command);
+    return report(found ? { name, status: 'ok' } : { name, status: 'fail', detail: 'not found on PATH', fix: installFix[command] });
   };
 
   const repos = config.repos.map((repo) => resolveRepoConfig(config, repo));
@@ -77,6 +97,22 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
       report(have.includes(model) ? { name, status: 'ok' } : { name, status: 'fail', detail: `not downloaded there (it has: ${have.join(', ') || 'nothing'})`, fix: fixes.modelMissing(model) });
     } catch {
       report({ name, status: 'fail', detail: `${localLabel[provider]} is not answering at ${localUrl[provider]}; start its server`, fix: fixes.serverDown });
+    }
+  }
+
+  // Every Claude and Codex option, whether a role uses it or not: a login that has run out shows here before an epic needs it.
+  // A role's option that is not logged in fails; any other only warns. Antigravity has its own check.
+  const roleOptions = new Set(repos.flatMap((repo) => rolesOf(repo).map((agent) => agent.option)));
+  for (const [option, { harness, configDir }] of Object.entries(config.agentOptions)) {
+    if ((harness !== 'claude' && harness !== 'codex') || missing.has(harness)) continue;
+    const name = `${harness} option ${option} is logged in`;
+    const status = roleOptions.has(option) ? 'fail' : 'warn';
+    const where = configDir ? `at ${configDir}` : 'in the environment Carrier runs in';
+    onStart(name);
+    try {
+      report((await deps.loggedIn(harness, configDir)) ? { name, status: 'ok' } : { name, status, detail: `not logged in ${where}`, fix: fixes.login(harness, configDir) });
+    } catch {
+      report({ name, status, detail: `could not run ${harness} to check the login ${where}`, fix: installFix[harness] });
     }
   }
 

@@ -28,3 +28,18 @@ copied unchanged from the npm package `@lobehub/icons-static-svg` 1.98.0 of
 ships inside the app, next to the icons. The licence covers the artwork files, not the marks, which are trademarks of
 Anthropic, OpenAI and Google. The pinned release and its integrity hash are in
 `macos/Sources/CarrierCore/Resources/ProviderIcons/SOURCE.txt`.
+
+## Claude Agent SDK
+
+The Claude adapter of the chat host (`src/chat/claude.ts`) depends on the npm package
+[`@anthropic-ai/claude-agent-sdk`](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk), pinned to 0.3.311. It
+is not open source and not covered by this repository's MIT licence. Its `package.json` declares the licence as
+"SEE LICENSE IN README.md", and the `LICENSE.md` it ships says, in full:
+
+```
+© Anthropic PBC. All rights reserved. Use is subject to the Legal Agreements outlined here: https://code.claude.com/docs/en/legal-and-compliance.
+```
+
+Carrier does not copy or modify the package; it is installed from npm as a dependency. The package also lists the
+platform builds of Claude Code (`@anthropic-ai/claude-agent-sdk-<os>-<cpu>`) as optional dependencies, under the same
+terms; Carrier always points the SDK at the user's own `claude` binary and does not use them.

@@ -32,7 +32,7 @@ export interface ChatConversation {
 
 export interface ChatRunner {
   /** Rejects with a `ChatRefused` when the provider is not installed, not logged in, or does not know the id to resume. */
-  open(args: { folder: string; resume?: string; options?: Record<string, string>; env: NodeJS.ProcessEnv }): Promise<ChatConversation>;
+  open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; env: NodeJS.ProcessEnv }): Promise<ChatConversation>;
 }
 
 /** A failure whose message is for the person, in words: it travels to the client as it is. Any other error is logged and reaches the client as "internal error". */

@@ -131,6 +131,8 @@ carrier init --yes --repo AshuLab/my-repo \
   --reviewer-profile forge:<agent-2> --reviewer codex:<model>
 ```
 
+Without `--author` and `--reviewer`, `--yes` writes one `claude` option that runs both roles; the flags above give each role its own option.
+
 Check a config (yours or a hand-written one) at any time:
 
 ```bash

@@ -186,7 +186,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     choiceTimers.get(id)?.();
     choiceTimers.delete(id);
     if (stopping) return false;
-    const { config } = fresh(id);
+    const { config, choiceDeadline } = fresh(id);
     if (!config) return false;
     const roleOn = (role: 'author' | 'reviewer') => {
       const name = chosen[role];
@@ -200,8 +200,21 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       .returning()
       .get();
     if (!claimed) return false;
-    await launch(claimed, 'ship');
+    try {
+      await launch(claimed, 'ship');
+    } catch (e) {
+      // launch reads GitHub before it takes the stage: failing there leaves no agent and no wait. The wait is put back (the options
+      // chosen stay saved in the config), and resumeChoices starts the epic again on a later poll.
+      if (fresh(id).stage === null) db.update(epics).set({ choiceDeadline }).where(eq(epics.id, id)).run();
+      throw e;
+    }
     return true;
+  }
+
+  // Running epics whose wait for a choice has no timer: the start failed (GitHub was down) or a timer was lost. Past its deadline, each starts now.
+  async function resumeChoices() {
+    if (stopping || suspended) return;
+    for (const epic of db.select().from(epics).where(and(eq(epics.status, 'running'), isNull(epics.stage), isNotNull(epics.choiceDeadline))).orderBy(asc(epics.id)).all()) await awaitChoice(epic);
   }
 
   // The role of the epic's saved config pointed at another of its saved options: same profile and persona.
@@ -237,7 +250,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     let rebuild: Parameters<typeof execute>[3];
     if (stage === 'ship') {
       // An author on another option than the one that wrote the epic's session cannot continue it: a new session, rebuilt like a lost one.
-      // Read before the claim: GitHub being down leaves the epic reserved for the next poll.
+      // Read before the claim: if GitHub is down this throws with the stage still free (startChosen puts the wait back).
       const before = lastAuthor(epic.id);
       const optionNow = epic.config!.agents.author.option ?? null;
       if (before && (before.option ?? null) !== optionNow) {
@@ -803,6 +816,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       await stopEnded();
       await settlePending();
       await retryPending();
+      await resumeChoices();
       await reconcileLabels();
       await fillSlots();
       error = null;
@@ -911,7 +925,10 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       let again = false;
       const deadline = clock.now() + resumeWaitMs;
       while (fresh(epic.id).status === 'needs_human') {
-        if (clock.now() >= deadline) throw new ResumeRefused('did not restart');
+        if (clock.now() >= deadline) {
+          restarts.delete(epic.id);
+          throw new ResumeRefused('did not restart');
+        }
         if (settled && !again) {
           again = true;
           void check();

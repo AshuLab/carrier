@@ -34,7 +34,7 @@ init flags (each one skips its question; --yes never asks):
   --author-persona-name <text>   --reviewer-persona-name <text>   who the role says it is: one line, up to 40 characters
   --author-persona-prompt <text> --reviewer-persona-prompt <text> how the role behaves: up to 4000 characters
   --out <path>                   default is the --config default above
-  --yes                          no questions; overwrite the output file`;
+  --yes                          no questions; overwrite the output file (without --author and --reviewer, one claude option runs both roles)`;
 
 const options = {
   config: { type: 'string' },

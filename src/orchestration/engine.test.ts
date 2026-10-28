@@ -2697,6 +2697,42 @@ test('resumeEpic with another author option launches it with no resumeSession, i
   expect(eventTypes(engine.db)).toEqual(['session_rebuilt']);
 });
 
+test('a GitHub error reading the pull request while restarting on another option leaves the wait, and the poll starts the epic on the chosen option once GitHub answers', async () => {
+  const engine = await stoppedOnCodex();
+  const find = github.findPullRequest.bind(github);
+  let failures = 1;
+  github.findPullRequest = async (...args) => {
+    if (failures-- > 0) throw new GitHubUnavailable('network', 'down');
+    return find(...args);
+  };
+  await restartWith(engine, { author: 'claude' });
+  expect(runner.tasks).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: null, authorOption: 'claude' });
+  expect(rows(engine.db)[0]!.choiceDeadline).not.toBeNull();
+
+  await clock.advance(5 * MIN);
+  expect(runner.tasks).toHaveLength(2);
+  expect(runner.tasks[1]).toMatchObject({ stage: 'ship', option: 'claude', context: { pr: { number: 50, headSha: SHA } } });
+  expect(runner.tasks[1]!.resumeSession).toBeUndefined();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', choiceDeadline: null, authorOption: 'claude' });
+  expect(eventTypes(engine.db)).toEqual(['session_rebuilt']);
+});
+
+test('a resumeEpic that ends as did not restart forgets its choice: the epic restarted by a later check waits for a choice again', async () => {
+  const engine = await stoppedOnCodex();
+  github.unavailable = new GitHubUnavailable('network', 'down'); // the label goes on, the check cannot read
+  const resumed = refusal(engine.resumeEpic('AshuLab/a', 1, { author: 'claude' }));
+  await flush();
+  await clock.advance(30_000);
+  expect(await resumed).toBe('did not restart');
+
+  github.unavailable = null;
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: null, authorOption: 'claude' });
+  expect(rows(engine.db)[0]!.choiceDeadline).not.toBeNull();
+  expect(runner.tasks).toHaveLength(1);
+});
+
 test('resumeEpic with another reviewer option keeps the author on its session and stores the reviewer option', async () => {
   const engine = await stoppedOnCodex();
   await restartWith(engine, { reviewer: 'claude' });

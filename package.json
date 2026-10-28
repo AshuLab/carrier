@@ -25,12 +25,12 @@
     "access": "public"
   },
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -r src/storage/migrations dist/storage/migrations && chmod +x dist/terminal/cli/main.js",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && cp -r src/storage/migrations dist/storage/migrations && cp -r src/chat/migrations dist/chat/migrations && chmod +x dist/terminal/cli/main.js",
     "prepublishOnly": "pnpm typecheck && pnpm test",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
-    "db:generate": "drizzle-kit generate",
+    "db:generate": "drizzle-kit generate && drizzle-kit generate --config drizzle.chat.config.ts",
     "replay:events": "node src/harnesses/replay-events.ts",
     "prepack": "pnpm build"
   },

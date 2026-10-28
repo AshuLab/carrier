@@ -13,6 +13,7 @@ struct ConversationView: View {
     /// The tool groups and calls the person opened, by id; here and not in each row, which the lazy stack may recreate.
     @State private var opened: Set<String> = []
     @FocusState private var boxFocused: Bool
+    @State private var optionsOpen = false
 
     init(sessionId: String) {
         _model = State(initialValue: ConversationModel(host: SocketChatHost(), sessionId: sessionId))
@@ -87,6 +88,19 @@ struct ConversationView: View {
             .padding(.horizontal, 14).padding(.vertical, 10)
             .background(RoundedRectangle(cornerRadius: 18).fill(Color.secondary.opacity(0.10)))
             .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5))
+            if let pill = optionsPill(model.options) {
+                Button { optionsOpen.toggle() } label: {
+                    HStack(spacing: 4) {
+                        Text(pill).lineLimit(1)
+                        Image(systemName: "chevron.up").font(.system(size: 8, weight: .bold))
+                    }
+                    .font(.system(size: 11.5)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                }
+                .buttonStyle(.plain).help("The session's options").accessibilityLabel("Session options: \(pill)")
+                .popover(isPresented: $optionsOpen, arrowEdge: .top) { OptionsPanel(model: model) }
+            }
             if let refusal = model.refusal {
                 if model.refusedText == nil {
                     Text(refusal).font(.callout).foregroundStyle(.red).textSelection(.enabled)
@@ -98,6 +112,33 @@ struct ConversationView: View {
         .padding(.horizontal, 40).padding(.vertical, 12)
         .frame(maxWidth: Self.column).frame(maxWidth: .infinity)
         .onAppear { boxFocused = true }
+    }
+}
+
+/// The panel the options pill opens: a row per option the provider lists, with a menu of its values and the current one ticked.
+/// What the host refused is said at the bottom, in words.
+private struct OptionsPanel: View {
+    let model: ConversationModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(optionRows(model.options)) { row in
+                HStack(spacing: 16) {
+                    Text(row.label)
+                    Spacer(minLength: 12)
+                    Menu {
+                        ForEach(row.choices) { choice in
+                            Toggle(choice.label, isOn: Binding(get: { choice.ticked }, set: { _ in Task { await model.setOption(row.id, choice.id) } }))
+                        }
+                    } label: {
+                        Text(row.choices.first { $0.ticked }?.label ?? "")
+                    }
+                    .menuStyle(.borderlessButton).fixedSize()
+                }
+            }
+            if let refusal = model.optionRefusal { Text(refusal).font(.callout).foregroundStyle(.red).textSelection(.enabled).frame(maxWidth: 260, alignment: .leading) }
+        }
+        .padding(14).frame(minWidth: 280)
     }
 }
 

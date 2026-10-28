@@ -68,15 +68,18 @@ public struct ChatEvents: Decodable, Equatable {
     public let cursor: Int
     public let streaming: String
     public let state: ChatSession.State?
+    /// What the provider offers for this session, with the current values; empty for a closed session.
+    public let options: [ChatOption]
 
-    public init(events: [ChatEvent], cursor: Int, streaming: String = "", state: ChatSession.State? = nil) {
+    public init(events: [ChatEvent], cursor: Int, streaming: String = "", state: ChatSession.State? = nil, options: [ChatOption] = []) {
         self.events = events
         self.cursor = cursor
         self.streaming = streaming
         self.state = state
+        self.options = options
     }
 
-    private enum CodingKeys: String, CodingKey { case events, cursor, streaming, session }
+    private enum CodingKeys: String, CodingKey { case events, cursor, streaming, session, options }
     private struct Summary: Decodable { let state: ChatSession.State }
 
     public init(from decoder: Decoder) throws {
@@ -85,6 +88,7 @@ public struct ChatEvents: Decodable, Equatable {
         cursor = try values.decode(Int.self, forKey: .cursor)
         streaming = try values.decode(String.self, forKey: .streaming)
         state = try values.decodeIfPresent(Summary.self, forKey: .session)?.state
+        options = try values.decodeIfPresent([ChatOption].self, forKey: .options) ?? []
     }
 }
 
@@ -269,6 +273,10 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     public private(set) var refusedText: String?
     /// Why the last send, resume or stop was refused, said under the box; nil when it worked.
     public private(set) var refusal: String?
+    /// What the provider offers and the values it runs with, as the last `events` reply said: the pill follows this, never a request.
+    public private(set) var options: [ChatOption] = []
+    /// Why the last change of an option was refused, said in the panel; nil when it worked.
+    public private(set) var optionRefusal: String?
     /// Counts the sends, so a poll that began before one does not tell the model the agent is idle when it is not.
     @ObservationIgnored private var sends = 0
 
@@ -319,6 +327,7 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
             streaming = reply.streaming
             loaded = true
             failure = nil
+            options = reply.options
             if sends == sendsBefore, let state = reply.state { busy = state != .idle }
         } catch {
             let message = Self.words(error)
@@ -344,6 +353,19 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
         } else {
             await deliver(text)
         }
+    }
+
+    /// Chooses a value in the options panel: asks the host and reads the session again, so the pill shows what the host says. A
+    /// refusal is kept in words for the panel and nothing changes here.
+    public func setOption(_ option: String, _ value: String) async {
+        do {
+            try await host.setOption(sessionId, option: option, value: value)
+        } catch {
+            optionRefusal = report(error, "change the option")
+            return
+        }
+        optionRefusal = nil
+        await poll()
     }
 
     /// Continue on the mark of a stopped turn.

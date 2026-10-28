@@ -6,5 +6,10 @@
     { "id": 3, "at": 1792003001300, "kind": "tool_end", "callId": "c1", "tool": "Read", "status": "ok", "output": ["export async function runSync() {", "  await push()", "}"] }
   ],
   "cursor": 3,
-  "streaming": "The worker calls `push()` once and gives up on the first failure. I will wrap it in a loop with a backoff:\n\n- up to 5 tries\n- 200 ms, doubled each time\n\n```ts\nfor (let attempt = 0; attempt < 5; attempt++) {\n  try { return await push() } catch"
+  "streaming": "The worker calls `push()` once and gives up on the first failure. I will wrap it in a loop with a backoff:\n\n- up to 5 tries\n- 200 ms, doubled each time\n\n```ts\nfor (let attempt = 0; attempt < 5; attempt++) {\n  try { return await push() } catch",
+  "options": [
+    { "id": "model", "label": "Model", "values": [{ "id": "sonnet", "label": "Sonnet" }, { "id": "opus", "label": "Opus" }], "current": "sonnet" },
+    { "id": "effort", "label": "Effort", "values": [{ "id": "medium", "label": "Medium" }, { "id": "high", "label": "High" }], "current": "high" },
+    { "id": "permissionMode", "label": "Permissions", "values": [{ "id": "default", "label": "Ask first" }, { "id": "acceptEdits", "label": "Accept edits" }], "current": "default" }
+  ]
 }

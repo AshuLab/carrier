@@ -54,6 +54,8 @@ public protocol ChatHost {
     func send(_ id: String, _ text: String) async throws
     /// Ends the turn that is in progress.
     func interrupt(_ id: String) async throws
+    /// Changes one of the session's options; the host refuses a value the provider does not list and an option that can only change between turns.
+    func setOption(_ id: String, option: String, value: String) async throws
 }
 
 /// The chat host over its socket: one connection per call (a host with no client attached may end itself), with the blocking
@@ -97,6 +99,14 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
         let _: AnyReply = try await Task.detached { try chatRequest(path, "interrupt", requires: .interrupt, fields: fields) }.value
+    }
+
+    public func setOption(_ id: String, option: String, value: String) async throws {
+        let encoder = JSONEncoder()
+        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"option\":" + String(decoding: try encoder.encode(option), as: UTF8.self)
+            + ",\"value\":" + String(decoding: try encoder.encode(value), as: UTF8.self)
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "setOption", requires: .setOption, fields: fields) }.value
     }
 }
 

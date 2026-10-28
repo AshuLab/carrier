@@ -17,5 +17,10 @@
     { "id": 14, "at": 1791945001200, "kind": "turn_end", "outcome": "error", "model": "claude-sonnet-5-5", "usage": {} }
   ],
   "cursor": 14,
-  "streaming": ""
+  "streaming": "",
+  "options": [
+    { "id": "model", "label": "Model", "values": [{ "id": "sonnet", "label": "Sonnet" }, { "id": "opus", "label": "Opus" }], "current": "sonnet" },
+    { "id": "effort", "label": "Effort", "values": [{ "id": "medium", "label": "Medium" }, { "id": "high", "label": "High" }], "current": "high" },
+    { "id": "permissionMode", "label": "Permissions", "values": [{ "id": "default", "label": "Ask first" }, { "id": "acceptEdits", "label": "Accept edits" }], "current": "default" }
+  ]
 }

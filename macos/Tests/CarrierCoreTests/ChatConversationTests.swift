@@ -21,6 +21,7 @@ private func texts(_ rows: [FeedRow]) -> [String] {
         case .decided(_, let text, let allow): "\(allow ? "allowed" : "declined"): \(text)"
         case .line(_, let text): "line: \(text)"
         case .error(_, let text): "error: \(text)"
+        case .stopped: "stopped"
         }
     }
 }
@@ -45,6 +46,41 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
         "error: The turn failed",
         "end: claude-sonnet-5-5 · 1s",
     ])
+}
+
+@Test func aStoppedTurnLeavesTheMarkAfterItsClosingLineAndOnlyTheLastOneOffersAWayOut() throws {
+    let rows = chatFeed(try golden("stopped").events)
+    #expect(texts(rows) == ["user: Rename the config keys to snake_case.", "agent: I will start with the ke", "end: claude-sonnet-5-5 · 4s", "stopped"])
+    #expect(openOutcome(rows) == rows.last?.id)
+    // the person wrote again: the mark is a record
+    #expect(openOutcome(rows + [.user(id: "u", text: "go on")]) == nil)
+    // the failed turn of the finished golden is the last thing there, so its banner is the one that offers Try again
+    let failed = chatFeed(try golden("finished").events)
+    #expect(openOutcome(failed) == failed.first { if case .error = $0 { true } else { false } }?.id)
+    #expect(openOutcome(Array(failed.prefix(6))) == nil)
+}
+
+@Test func theBannersSayWhoCouldNotContinueAndWhatTheHostSaid() {
+    #expect(failedTurnBanner(agent: "claude", error: "Usage limit reached") == FailureBanner(title: "Claude couldn't continue", detail: "Usage limit reached", hint: nil))
+    #expect(failedTurnBanner(agent: "", error: "x").title == "The agent couldn't continue")
+    let refused = refusalBanner(agent: "codex", reason: "The agent is still answering")
+    #expect(refused == FailureBanner(title: "Codex couldn't continue", detail: "The agent is still answering", hint: nil))
+    let signedOut = refusalBanner(agent: "claude", reason: "Claude is not logged in; run \"claude\" once to log in")
+    #expect(signedOut.title == "Claude isn't signed in" && signedOut.detail == "Claude is not logged in; run \"claude\" once to log in")
+    #expect(signedOut.hint == "Sign in from a terminal; Carrier never asks for your password")
+}
+
+@Test func theSignInLineIsForTheSentencesOfTheAdaptersThatSayNotLoggedIn() {
+    let signIn = "Sign in from a terminal; Carrier never asks for your password"
+    // from the Claude and Codex adapters and the host's sessions
+    for reason in [
+        "Claude is not logged in; run \"claude\" once to log in", "Codex is not logged in; run \"codex login\" once to log in",
+        "claude is not logged in", "CODEX IS NOT LOGGED IN",
+    ] { #expect(signInLine(refusal: reason) == signIn, "\(reason)") }
+    for reason in [
+        "Claude is not installed", "The agent is still answering", "unknown session", "The chat host is not answering",
+        "Codex does not know the native id to resume", "",
+    ] { #expect(signInLine(refusal: reason) == nil, "\(reason)") }
 }
 
 @Test func anApprovalIsOneRowAtItsPlaceCompletedByItsAnswerAndEndsTheRunBeforeIt() {
@@ -87,7 +123,7 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
 
 @Test func anApprovalThatIsNeitherPendingNorAnsweredIsAPlainLineNotACard() {
     let ask = ChatEvent(id: 1, at: 0, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [.init(id: "y", label: "Yes", allow: true)])
-    #expect(texts(chatFeed([ask, ChatEvent(id: 2, at: 0, kind: "turn_end", outcome: "interrupted")])) == ["line: Bash ls · no longer waiting for an answer"])
+    #expect(texts(chatFeed([ask, ChatEvent(id: 2, at: 0, kind: "turn_end", outcome: "interrupted")])) == ["line: Bash ls · no longer waiting for an answer", "stopped"])
 }
 
 @Test func theHostsPendingApprovalsAreReadFromTheEventsReply() throws {
@@ -276,10 +312,16 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     let rest = try await host.events(finished, after: first.cursor, limit: 200)
     #expect(rest.events.count == 9 && rest.cursor == 14)
     // nothing new: the cursor stays where it was
-    #expect(try await host.events(finished, after: 14, limit: 200) == ChatEvents(events: [], cursor: 14, state: .idle))
+    let nothing = try await host.events(finished, after: 14, limit: 200)
+    #expect(nothing.events.isEmpty && nothing.cursor == 14 && nothing.state == .idle)
+    // the golden conversation lists what the provider offers, and the fixture host changes one and refuses a value it does not list
+    #expect(optionsPill(nothing.options) == "Sonnet · High · Ask first")
+    try await host.setOption(finished, option: "effort", value: "medium")
+    #expect(optionsPill(try await host.events(finished, after: 14, limit: 200).options) == "Sonnet · Medium · Ask first")
+    await #expect(throws: ControlError.self) { try await host.setOption(finished, option: "effort", value: "max") }
     #expect(try await host.events("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01", after: 0, limit: 200).streaming.hasPrefix("The worker calls"))
     // a listed session with no golden file has no events; one that is not listed, or not a UUID, is refused
-    #expect(try await host.events("e5f6a7b8-4c3d-4e0f-9a2b-3c4d5e6f7a05", after: 0, limit: 200).events.isEmpty)
+    #expect(try await host.events("d4e5f6a7-3b2c-4d9e-8f1a-2b3c4d5e6f04", after: 0, limit: 200).events.isEmpty)
     // the Codex session is waiting: its approval is pending
     #expect(try await host.events("8a2e4b6d-1c3f-4d57-8e9a-0b1c2d3e4f02", after: 0, limit: 200).pending == ["b1"])
     await #expect(throws: ControlError.remote("unknown session")) { try await host.events(UUID().uuidString, after: 0, limit: 200) }
@@ -315,13 +357,24 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var streaming = ""
     var failing: Error?
     var asked: [(after: Int, limit: Int)] = []
+    var live = true
+    var refusing: ControlError?
+    var sent: [String] = []
+    var resumed = 0
 
     func agents() async throws -> [ChatAgent] { [] }
-    func list(archived: Bool) async throws -> [ChatSession] { [] }
-    func resume(_ id: String) async throws {}
-    func send(_ id: String, _ text: String) async throws {}
+    func list(archived: Bool) async throws -> [ChatSession] {
+        let json = #"{"id":"s","agent":"claude","harness":"claude","folder":"/x","state":"idle","createdAt":1,"lastActiveAt":1,"archived":false,"live":\#(live)}"#
+        return [try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))]
+    }
+    func resume(_ id: String) async throws {
+        resumed += 1
+        if let refusing { throw refusing }
+    }
+    func send(_ id: String, _ text: String) async throws { sent.append(text) }
     func interrupt(_ id: String) async throws {}
     func answer(_ id: String, approval: String, choice: String) async throws {}
+    func setOption(_ id: String, option: String, value: String) async throws {}
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         asked.append((after, limit))
         if let failing { throw failing }
@@ -390,4 +443,39 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     let model = ConversationModel(host: host, sessionId: "s", sleep: { waits.append($0); if waits.count == 3 { throw CancellationError() } }, log: { _ in })
     await model.run()
     #expect(host.asked.count == 3 && waits == Array(repeating: .milliseconds(250), count: 3))
+}
+
+@MainActor @Test func aSessionThatIsNotLiveIsClosedAndASendResumesItAndContinueSendsContinue() async throws {
+    let host = ScriptedHost()
+    host.live = false
+    host.events = try golden("stopped").events
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.live == false && model.agent == "claude")
+    await model.continueTurn()
+    #expect(host.resumed == 1 && host.sent == ["Continue"] && model.refusal == nil)
+    host.live = true
+    await model.poll()
+    #expect(model.live)
+}
+
+@MainActor @Test func aRefusedSendKeepsTheMessageForTryAgainAndTryAgainSendsTheLastMessageWhenTheTurnFailed() async throws {
+    let host = ScriptedHost()
+    host.live = false
+    host.refusing = .remote("Claude is not logged in; run \"claude\" once to log in")
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "hello")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    model.draft = "hello again"
+    await model.submit()
+    #expect(model.refusal == "Claude is not logged in; run \"claude\" once to log in" && model.refusedText == "hello again" && model.draft == "hello again")
+    // signed in now: Try again sends the refused message, not the box's
+    host.refusing = nil
+    await model.retry()
+    #expect(host.sent == ["hello again"] && model.refusal == nil && model.refusedText == nil)
+    // a failed turn has no refused message: Try again sends the person's last one
+    host.events += [ChatEvent(id: 2, at: 2, kind: "error", text: "boom"), ChatEvent(id: 3, at: 3, kind: "turn_end", outcome: "error")]
+    await model.poll()
+    await model.retry()
+    #expect(host.sent == ["hello again", "hello"])
 }

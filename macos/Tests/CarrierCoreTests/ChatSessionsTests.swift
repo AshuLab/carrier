@@ -88,6 +88,7 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     func send(_ id: String, _ text: String) async throws {}
     func interrupt(_ id: String) async throws {}
     func answer(_ id: String, approval: String, choice: String) async throws {}
+    func setOption(_ id: String, option: String, value: String) async throws {}
 }
 
 private final class Clock { var now = Date(timeIntervalSince1970: 1_800_000_000) }

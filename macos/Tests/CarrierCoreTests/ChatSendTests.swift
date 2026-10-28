@@ -49,6 +49,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         events.append(ChatEvent(id: events.count + 1, at: 0, kind: "approval_answered", approvalId: approval, choiceId: choice))
         state = .working
     }
+    func setOption(_ id: String, option: String, value: String) async throws {}
 }
 
 @MainActor private func model(_ host: FakeChat, log: @escaping (String) -> Void = { _ in }) -> ConversationModel {

@@ -110,14 +110,27 @@ private func found(_ rows: [SessionRow], _ query: String) -> [String] {
     #expect(found(rows, "CARRIER") == ["1"])
 }
 
-@Test func aQueryGivesOneFlatGroupWithTheActiveFirstAndTheArchivedAfterNewestFirst() {
+@Test func aQueryNeverListsAnArchivedSession() {
+    let rows = [row("arch", "web", minutesAgo: 1, archived: true), row("old", "web", minutesAgo: 50), row("new", "carrier", minutesAgo: 5)]
+    #expect(found(rows, "t") == ["new", "old"])
+    #expect(found(rows, "tarch").isEmpty)
+}
+
+@Test func aQueryKeepsTheGroupsOfEachOrderAndHidesTheOnesWithNoMatch() {
     let rows = [
-        row("arch-new", "web", minutesAgo: 1, archived: true), row("old", "web", minutesAgo: 50), row("new", "carrier", minutesAgo: 5),
-        row("arch-old", "web", minutesAgo: 900, archived: true),
+        at("a", noon, state: .waiting, archived: false), at("b", noon.addingTimeInterval(-60), state: .working),
+        at("c", noon.addingTimeInterval(-86400), state: .working), at("x", noon.addingTimeInterval(-2 * 86400), state: .working, archived: true),
     ]
-    let groups = sessionGroups(rows, query: "t")
-    #expect(groups.count == 1)
-    #expect(groups[0].rows.map(\.id) == ["new", "old", "arch-new", "arch-old"])
+    func titles(_ sort: SessionSort, _ query: String) -> [[String]] {
+        sessionGroups(rows, by: sort, query: query, now: noon, calendar: utc).map { $0.rows.map(\.id) }
+    }
+    #expect(titles(.workspace, "t") == [["a", "b", "c"]])
+    #expect(titles(.age, "t") == [["a", "b"], ["c"]])
+    #expect(titles(.age, "tc") == [["c"]])
+    #expect(sessionGroups(rows, by: .age, query: "tc", now: noon, calendar: utc).map(\.title) == ["Yesterday"])
+    #expect(titles(.status, "t") == [["a"], ["b", "c"]])
+    #expect(sessionGroups(rows, by: .status, query: "tb", now: noon, calendar: utc).map(\.title) == ["Working"])
+    #expect(titles(.status, "tx").isEmpty)
 }
 
 @Test func aQueryWithNoMatchGivesNoGroups() { #expect(sessionGroups([row("1", "web")], query: "zzz").isEmpty) }
@@ -134,14 +147,19 @@ private func found(_ rows: [SessionRow], _ query: String) -> [String] {
     #expect(found(rows, "dotf") == ["1", "2"])
 }
 
-@Test func theWaitingCountIsTheListedSessionsThatWaitAndItsNameSaysSo() {
+@Test func theOpenCountIsTheSessionsThatAreNotArchivedAndItsNameSaysSo() {
     func sessions(_ rows: [SessionRow]) -> Sessions { Sessions(rows: rows) }
-    #expect(sessions([]).waiting == 0 && sessions([]).waitingLabel == nil)
-    #expect(sessions([at("a", noon, state: .working), at("b", noon, state: .idle)]).waitingLabel == nil)
-    let one = sessions([at("a", noon, state: .waiting), at("b", noon, state: .done)])
-    #expect(one.waiting == 1 && one.waitingLabel == "1 session waiting")
-    let two = sessions([at("a", noon, state: .waiting), at("b", noon, state: .waiting), at("c", noon, state: .waiting, archived: true)])
-    #expect(two.waiting == 2 && two.waitingLabel == "2 sessions waiting")
+    #expect(sessions([]).open == 0)
+    #expect(sessions([at("a", noon, archived: true)]).open == 0)
+    let one = sessions([at("a", noon, state: .waiting), at("b", noon, archived: true)])
+    #expect(one.open == 1 && one.openLabel == "1 open session")
+    let five = sessions((1...5).map { at("\($0)", noon, state: .working) } + [at("z", noon, archived: true)])
+    #expect(five.open == 5 && five.openLabel == "5 open sessions")
+}
+
+@Test func theWaitingCountIsStillTheListedSessionsThatWait() {
+    let rows = [at("a", noon, state: .waiting), at("b", noon, state: .waiting, archived: true), at("c", noon, state: .done)]
+    #expect(Sessions(rows: rows).waiting == 1)
 }
 
 @Test func theArchivedCountIsZeroWithNoRowsOrNoneArchived() {

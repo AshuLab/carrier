@@ -48,6 +48,7 @@ struct PanelView: View {
         if let epic { return "\(epic.subject.repo.split(separator: "/").last ?? "") #\(epic.subject.issue)" }
         switch model.shell.selection {
         case .settings: return "Settings"
+        case .sessions: return "Sessions"
         case .session: return openSession.map(conversationTitle) ?? "Session"
         case .newSession: return "New session"
         default: return "Carrier"
@@ -64,6 +65,7 @@ struct PanelView: View {
         switch model.shell.selection {
         case .carrier: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
         case .settings: "what the app starts Carrier with"
+        case .sessions: sessionsPage(model.sessions.rows, by: model.sessionSort).subtitle
         case .session: openSession.map(conversationSubtitle) ?? ""
         default: ""
         }

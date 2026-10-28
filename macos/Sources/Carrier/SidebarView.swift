@@ -93,8 +93,8 @@ struct SidebarView: View {
             }
         }
         .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 320)
-        .safeAreaInset(edge: .bottom) {
-            // Archive above the divider and Settings alone under it; both stay while the list above scrolls
+        .safeAreaBar(edge: .bottom, spacing: 0) {
+            // Archive above the divider and Settings alone under it; both stay while the list above scrolls, over the system's scroll pocket
             VStack(spacing: 0) {
                 ArchiveSection(
                     sessions: sessions, selection: $selection, open: open == .archive, choose: chooseArchived, searchRequest: searchRequest
@@ -104,8 +104,6 @@ struct SidebarView: View {
                 SidebarSectionRow(title: "Settings", icon: "gearshape", selected: selection == .settings, action: { selection = .settings })
                     .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
             }
-            // opaque enough that the list scrolls under it without showing through
-            .background(.regularMaterial)
         }
     }
 }

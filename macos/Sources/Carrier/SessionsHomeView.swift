@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-/// The centre when the Sessions row is selected: the title and count, one glass group with Search and Filter, New session, the chips
+/// The centre when the Sessions row is selected: the toolbar's Search and Filter group and New session, the chips
 /// of the applied filters and the sessions grouped as the sort says (docs/specs/sessions-in-the-app.md, "Sessions home"). What it shows
 /// is `sessionsPage`; the search and the filter are not remembered between visits, the sort is (it is the sidebar's).
 struct SessionsHomeView: View {
@@ -18,14 +18,17 @@ struct SessionsHomeView: View {
     var body: some View {
         let page = sessionsPage(sessions.rows, by: sort, query: query ?? "", filter: filter)
         let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        VStack(alignment: .leading, spacing: 0) {
-            header(page)
-            if filter.chips.isEmpty == false { chips.padding(.horizontal, 20).padding(.bottom, 8) }
+        Group {
             if let empty = page.emptyState {
-                EmptyStateView(state: empty, action: empty == .noSessionsMatch ? ("Clear filters", clear) : nil)
+                VStack(alignment: .leading, spacing: 0) {
+                    if filter.chips.isEmpty == false { chips.padding(.horizontal, 20).padding(.vertical, 8) }
+                    EmptyStateView(state: empty, action: empty == .noSessionsMatch ? ("Clear filters", clear) : nil)
+                }
             } else {
+                // the scroll view is the page, so the list runs up under the toolbar as Carrier's does and the bar is the system's
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 2) {
+                        if filter.chips.isEmpty == false { chips.padding(.horizontal, 8).padding(.bottom, 8) }
                         ForEach(page.groups, id: \.title) { group in
                             if searched == false { groupHeader(group) }
                             ForEach(group.rows, id: \.id) { row in
@@ -33,11 +36,12 @@ struct SessionsHomeView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 12).padding(.bottom, 16)
+                    .padding(.horizontal, 12).padding(.vertical, 8)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .toolbar { toolbar }
     }
 
     /// Search and the filters back to nothing.
@@ -46,33 +50,28 @@ struct SessionsHomeView: View {
         filter = SessionFilter()
     }
 
-    private func header(_ page: SessionsPage) -> some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Sessions").font(.title2.weight(.semibold))
-                if page.subtitle.isEmpty == false { Text(page.subtitle).font(.caption).foregroundStyle(.secondary) }
-            }
-            .fixedSize()
-            HStack(spacing: 0) {
-                searchHalf
-                Divider().frame(height: 16)
-                filterHalf
-            }
-            .glassEffect(.regular, in: .capsule)
-            Spacer(minLength: 0)
-            Button(action: newSession) { Label("New session", systemImage: "plus") }
-                .buttonStyle(.glassProminent).buttonBorderShape(.capsule)
+    /// What the toolbar carries (the window's title and count are `PanelView`'s): Search and Filter in one pill, New session apart,
+    /// as the primary action.
+    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            searchItem
+            filterItem
+        }
+        ToolbarSpacer(.fixed, placement: .primaryAction)
+        ToolbarItem(placement: .primaryAction) {
+            Button(action: newSession) { Label("New session", systemImage: "plus").labelStyle(.titleAndIcon) }
+                .buttonStyle(.glassProminent)
                 .disabled(sessions.canStart == false)
                 .help(sessions.cannotStartReason ?? "New session")
         }
-        .padding(.horizontal, 20).padding(.vertical, 12)
     }
 
-    @ViewBuilder private var searchHalf: some View {
-        if let text = Binding($query) {
+    @ViewBuilder private var searchItem: some View {
+        if query != nil {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Search sessions", text: text)
+                // not `Binding($query)`: its getter force-unwraps and crashes once the query is nil
+                TextField("Search sessions", text: Binding(get: { query ?? "" }, set: { query = $0 }))
                     .textFieldStyle(.plain)
                     .focused($searching)
                     .onKeyPress(.escape) {
@@ -82,29 +81,26 @@ struct SessionsHomeView: View {
                 Button { query = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
                     .buttonStyle(.plain).help("Close search (Esc)").accessibilityLabel("Close search")
             }
-            .padding(.horizontal, 12).padding(.vertical, 6).frame(width: 220)
+            .frame(width: 200)
         } else {
             Button {
                 query = ""
                 searching = true
-            } label: { Label("Search", systemImage: "magnifyingglass").padding(.horizontal, 12).padding(.vertical, 6).contentShape(Rectangle()) }
-                .buttonStyle(.plain)
+            } label: { Label("Search", systemImage: "magnifyingglass").labelStyle(.titleAndIcon) }
         }
     }
 
-    private var filterHalf: some View {
+    private var filterItem: some View {
         Button { filterOpen.toggle() } label: {
             HStack(spacing: 6) {
-                Label("Filter", systemImage: "line.3.horizontal.decrease")
+                Label("Filter", systemImage: "line.3.horizontal.decrease").labelStyle(.titleAndIcon)
                 if filter.count > 0 {
                     Text("\(filter.count)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.white)
                         .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.accentColor))
                         .accessibilityLabel("\(filter.count) filters applied")
                 }
             }
-            .padding(.horizontal, 12).padding(.vertical, 6).contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
         .popover(isPresented: $filterOpen, arrowEdge: .bottom) {
             SessionFilterPopover(sort: $sort, filter: $filter, agents: Set(sessions.rows.map(\.agent)).sorted())
         }

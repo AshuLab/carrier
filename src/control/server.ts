@@ -37,7 +37,7 @@ export const request = z.union([
   z.strictObject({ id, cmd: z.literal('files'), repo, issue, executionId: z.uuid().optional() }),
   z.strictObject({ id, cmd: z.literal('fileDiff'), repo, issue, section: z.string().min(1).max(100), path: z.string().min(1).max(500) }),
   z.strictObject({ id, cmd: z.literal('availableRepos'), page: z.int().min(1).max(100).optional() }),
-  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue }),
+  z.strictObject({ id, cmd: z.literal('resumeEpic'), repo, issue, author: optionName.optional(), reviewer: optionName.optional() }),
   z.strictObject({ id, cmd: z.literal('chooseOptions'), repo, issue, author: optionName.optional(), reviewer: optionName.optional() }),
 ]);
 
@@ -67,7 +67,7 @@ export type Controls = {
   /** One page of the repos the gh login can push to, and whether there is a next one; rejects when GitHub cannot be read. */
   availableRepos(page: number): Promise<{ repos: AvailableRepo[]; hasMore: boolean }>;
   /** Puts a stopped epic back in motion and resolves once it started; rejects with ResumeRefused when it could not. */
-  resumeEpic(repo: string, issue: number): Promise<void>;
+  resumeEpic(repo: string, issue: number, chosen: { author?: string; reviewer?: string }): Promise<void>;
   /** Ends the wait of an epic that is waiting for its choice and resolves once it started; rejects with ResumeRefused when it could not. A role left out takes its default. */
   chooseOptions(repo: string, issue: number, chosen: { author?: string; reviewer?: string }): Promise<void>;
 };
@@ -152,9 +152,9 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
       );
   }
   if (parsed.data.cmd === 'resumeEpic') {
-    const { id: replyId, repo, issue } = parsed.data;
+    const { id: replyId, repo, issue, author, reviewer } = parsed.data;
     return Promise.resolve()
-      .then(() => controls.resumeEpic(repo, issue))
+      .then(() => controls.resumeEpic(repo, issue, { author, reviewer }))
       .then(
         (): Reply => ({ id: replyId, ok: true }),
         (error): Reply => {

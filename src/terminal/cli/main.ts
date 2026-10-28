@@ -50,6 +50,10 @@ else if (cli.flags.help) {
         if (configPath === undefined) throw noConfig(`Usage: carrier ${cli.command} --config <path>`);
         exit = await (await import('./commands/control.ts')).controlCommand(cli.command, loadConfigFile(configPath));
         break;
+      case 'restart':
+        if (configPath === undefined) throw noConfig('Usage: carrier restart <owner/name>#<issue> --config <path>');
+        exit = await (await import('./commands/restart.ts')).restartCommand(loadConfigFile(configPath), cli.target!, { author: cli.flags.author, reviewer: cli.flags.reviewer });
+        break;
       default:
         if (configPath === undefined) throw noConfig(usage(), '');
         await (await import('./commands/run.ts')).runCommand(loadConfigFile(configPath)); // runs until Ctrl+C

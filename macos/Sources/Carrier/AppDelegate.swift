@@ -49,8 +49,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Task { @MainActor in
                     print(await WindowController.shared.chatStructure())
                     print(await WindowController.shared.newSessionStructure())
-                    exit(0)
+                    WindowController.shared.selectArchive()
                 }
+            }
+            // the Archive page on screen: its line and the layout again
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.5) {
+                print(WindowController.shared.archiveStructure)
+                exit(0)
             }
         }
         if let path = Self.selfTestPath() {

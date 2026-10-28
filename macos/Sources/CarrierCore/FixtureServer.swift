@@ -9,7 +9,8 @@ public enum FixtureError: Error, Equatable {
 /// requests from the golden files (macos/Tests/Fixtures), and `availableRepos` with a made-up list, so the app is exercised through its real client path with no engine.
 /// A second socket, `<home>/chat/chat.sock`, is a fake chat host: `agents` and `list` from `chat-agents.json` and `chat-list.json`,
 /// `events` from the `chat-events-*.json` files (each names its session; a listed session with none has no events) with the approvals
-/// asked and not answered as pending, and `answer`, which records the answer as an event; anything else is an error.
+/// asked and not answered as pending, `answer`, which records the answer as an event, `archive` and `delete` on the listed sessions
+/// (kept in memory, refused for a working or waiting one as the host does); anything else is an error.
 /// It owns a temporary home (`home`) holding a `config.json` whose `root` is the home itself, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 public final class FixtureServer {
@@ -20,14 +21,15 @@ public final class FixtureServer {
     private let listener: Int32
     private let chatListener: Int32
     private let chatAgents: Data
-    private let chatSessions: [[String: Any]]
+    /// `archive` and `delete` change it; the sockets' threads share it, so it is read and written with `lock`.
+    private var chatSessions: [[String: Any]]
     /// Each session's golden conversation: its events and the message being written.
     private var chatConversations: [String: (events: [[String: Any]], streaming: String)] = [:]
     /// What the provider offers in each golden conversation that lists options; `setOption` changes the current value here.
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"events\",\"answer\",\"setOption\"]}\n".utf8)
+    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\"]}\n".utf8)
     private let data: [String: Data]
     private let hello: Data
     private var stopped = false
@@ -194,11 +196,11 @@ public final class FixtureServer {
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: chatAgents, as: UTF8.self) + "}")
         case "list":
             let archived = request?["archived"] as? Bool ?? false
-            let sessions = chatSessions.filter { ($0["archived"] as? Bool) == archived }
+            let sessions = locked { chatSessions.filter { ($0["archived"] as? Bool) == archived } }
             guard let body = try? JSONSerialization.data(withJSONObject: ["sessions": sessions], options: .sortedKeys) else { break }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
         case "events":
-            guard let session = request?["sessionId"] as? String, chatSessions.contains(where: { $0["id"] as? String == session }) else {
+            guard let session = request?["sessionId"] as? String, locked({ chatSessions.contains(where: { $0["id"] as? String == session }) }) else {
                 return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown session\"}")
             }
             let after = request?["after"] as? Int ?? 0
@@ -210,7 +212,7 @@ public final class FixtureServer {
             let reply: [String: Any] = [
                 "events": page, "cursor": page.last?["id"] as? Int ?? after, "streaming": conversation.1,
                 "approvals": Self.pending(conversation.0), "options": chatOptions[session] ?? [],
-                "session": ["state": chatSessions.first { $0["id"] as? String == session }?["state"] as? String ?? "idle"],
+                "session": ["state": locked { chatSessions.first { $0["id"] as? String == session }?["state"] as? String } ?? "idle"],
             ]
             guard let body = try? JSONSerialization.data(withJSONObject: reply, options: .sortedKeys) else { break }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
@@ -236,9 +238,30 @@ public final class FixtureServer {
             guard listed else { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"The agent does not offer that value for \(option)\"}") }
             chatOptions[session]?[at]["current"] = value
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
+        case "archive", "delete":
+            let verb = request?["cmd"] as? String ?? ""
+            guard let session = request?["sessionId"] as? String, let archived = verb == "delete" ? false : request?["archived"] as? Bool else { break }
+            let refusal: String? = locked {
+                guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return "unknown session" }
+                // as the host does: a session that is working or waiting for an approval is not archived or deleted
+                let state = chatSessions[at]["state"] as? String
+                if verb == "delete" || archived, state != "idle" {
+                    return "This session is \(state == "working" ? "working" : "waiting for an approval"); interrupt or close it first, then \(verb) it"
+                }
+                if verb == "delete" { chatSessions.remove(at: at) } else { chatSessions[at]["archived"] = archived }
+                return nil
+            }
+            if let refusal { return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"\(refusal)\"}") }
+            return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
         default: break
         }
         return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"unknown request\"}")
+    }
+
+    private func locked<Value>(_ body: () -> Value) -> Value {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
     }
 
     /// The approvals asked and not answered yet, as the host lists them in `events`.

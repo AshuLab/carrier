@@ -376,6 +376,8 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     func interrupt(_ id: String) async throws {}
     func answer(_ id: String, approval: String, choice: String) async throws {}
     func setOption(_ id: String, option: String, value: String) async throws {}
+    func archive(_ id: String, _ archived: Bool) async throws {}
+    func delete(_ id: String) async throws {}
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         asked.append((after, limit))
         if let failing { throw failing }

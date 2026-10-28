@@ -298,6 +298,8 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     public private(set) var agent = ""
     /// Whether the session's agent process runs; a session that is not live shows the closed notice and resumes when a message is sent.
     public private(set) var live = true
+    /// Whether the session is in the archive: its transcript is read only and the box gives way to a notice with Resume.
+    public private(set) var archived = false
     /// The message whose send or resume the host refused, for the banner's Try again; nil with no refusal or when it was not a send.
     public private(set) var refusedText: String?
     /// Why the last send, resume, stop or answer was refused, said under the box; nil when it worked.
@@ -351,8 +353,14 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
             if let session = try await host.list(archived: false).first(where: { $0.id == sessionId }) {
                 agent = session.agent
                 live = session.live
+                archived = false
+            } else if let session = try await host.list(archived: true).first(where: { $0.id == sessionId }) {
+                agent = session.agent
+                live = false
+                archived = true
             } else {
                 live = false
+                archived = false
             }
             changed = changed || reply.streaming != streaming
             streaming = reply.streaming
@@ -476,7 +484,7 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
         return message
     }
 
-    static func words(_ error: Error) -> String {
+    nonisolated static func words(_ error: Error) -> String {
         switch error {
         case ControlError.closed: "The chat host is not answering"
         case ControlError.remote(let reason): reason

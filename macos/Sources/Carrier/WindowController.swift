@@ -10,6 +10,9 @@ import SwiftUI
     let epics = EpicStore()
     var groupBy = SidebarStore().groupBy
     var sessionSort = SidebarStore().sessionSort
+    var archiveSort = SidebarStore().archiveSort
+    /// Archive, restore and delete; `startMonitor` makes the lists read again after each.
+    let actions = SessionActions(host: SocketChatHost())
     var collapse = SidebarCollapse()
     /// The chat host's sessions (`ChatSessionsPoller`); the + follows the host (`ChatMonitor`).
     var sessions = Sessions()
@@ -109,6 +112,16 @@ final class WindowController: NSObject, NSWindowDelegate {
     /// For `--smoke-window`: selects the first session the chat host lists, so its conversation is on screen.
     func selectFirstSession() {
         if let first = model.sessions.rows.first(where: { $0.archived == false }) { model.shell.selection = .session(id: first.id) }
+    }
+
+    /// For `--smoke-window`: selects the Archive page.
+    func selectArchive() { model.shell.selection = .archive }
+
+    /// For `--smoke-window`, with the Archive selected: what the page lists and says, then the window's layout as it is with it on screen.
+    var archiveStructure: String {
+        let page = archivePage(model.sessions.rows, by: model.archiveSort)
+        let line = "archive: \(page.subtitle.isEmpty ? "no count" : page.subtitle), groups \(page.groups.map(\.title)), \(page.emptyState?.title ?? "listed"), clear \(page.canClear ? "enabled" : "disabled")"
+        return line + "\n" + structure
     }
 
     /// For `--smoke-window`, after `selectFirstSession`: how the conversation is laid out (read from the constants the view uses) and
@@ -240,6 +253,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         let sessions = ChatSessionsPoller(host: SocketChatHost()) { rows in
             DispatchQueue.main.async { if stop.isSet == false { model.sessions.rows = rows } }
         }
+        DispatchQueue.main.async { model.actions.changed = { sessions.invalidateArchived() } }
         Task.detached {
             repeat {
                 await sessions.poll()

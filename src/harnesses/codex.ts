@@ -29,7 +29,7 @@ export function buildCodexCommand(task: AgentTask, ctx: CommandContext): AgentCo
       `carrier_marker="${markerFor(task.executionId)}"`,
     ],
     cwd: task.workspace,
-    env: { ...childEnv(ctx), CARRIER_RESULT_PATH: task.resultPath },
+    env: { ...childEnv(ctx), ...(task.configDir && { CODEX_HOME: task.configDir }), CARRIER_RESULT_PATH: task.resultPath },
   };
 }
 

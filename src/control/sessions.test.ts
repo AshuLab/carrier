@@ -22,7 +22,7 @@ beforeEach(async () => {
     poll: () => {},
     setPaused: () => {},
     logs: () => [],
-    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, { claude: '/cfg/claude' }),
+    sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue),
     epic: () => null,
     events: () => null,
     files: () => null, fileDiff: () => null,
@@ -42,7 +42,7 @@ const epic = (issue: number, status: (typeof epics.$inferInsert)['status']) =>
   db.insert(epics).values({ repo: 'AshuLab/a', issue, status, config }).returning({ id: epics.id }).get().id;
 const execution = (epicId: number, n: number, extra: Partial<typeof executions.$inferInsert>) =>
   db.insert(executions).values({ executionId: `00000000-0000-4000-8000-00000000000${n}`, epicId, stage: 'ship', resultPath: '/r.json', startedAt: n * 1000, ...extra }).run();
-const ran = { harness: 'claude', model: 'opus', provider: null, workspace: '/work/clone', sessionId: 'sess-1' };
+const ran = { harness: 'claude', model: 'opus', provider: null, workspace: '/work/clone', sessionId: 'sess-1', configDir: '/cfg/claude' };
 
 async function ask(issue: number) {
   const socket = connect(join(dir, 'control.sock'));
@@ -99,9 +99,9 @@ test('a stopped epic: the interrupted and failed sessions carry a descriptor wit
   expect(sessions[0]).toMatchObject({ stage: 'fix', role: 'author', round: 2, resume: { sessionId: 'sess-3' } });
 });
 
-test('a finished epic lists the descriptors; a harness with no configuration folder omits it, and a session without an id or folder has none', async () => {
+test('a finished epic lists the descriptors; an execution that had no configuration folder omits it, and a session without an id or folder has none', async () => {
   const id = epic(4, 'ready_for_test');
-  execution(id, 1, { ...ran, harness: 'codex', status: 'finished', finishedAt: 1500 });
+  execution(id, 1, { ...ran, harness: 'codex', configDir: null, status: 'finished', finishedAt: 1500 });
   execution(id, 2, { ...ran, status: 'finished', finishedAt: 2500, sessionId: null });
   execution(id, 3, { ...ran, status: 'finished', finishedAt: 3500, workspace: null });
   const { sessions } = (await ask(4)).reply.data;

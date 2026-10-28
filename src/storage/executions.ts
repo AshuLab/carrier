@@ -24,6 +24,8 @@ export const executions = sqliteTable('executions', {
   harness: text(),
   model: text(),
   provider: text(),
+  option: text(), // the agent option the role ran on
+  configDir: text(), // that option's config folder, absolute; null when it had none
   workspace: text(), // the cwd of the session: what resuming it needs
   round: integer(), // the review round, null for ship
   resultPath: text().notNull(),

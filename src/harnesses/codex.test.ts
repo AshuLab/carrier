@@ -39,6 +39,12 @@ test('resumeSession uses `exec resume <id>` with the same fixed options', () => 
   expect(args).toEqual(['exec', 'resume', 'thread-9', buildPrompt({ ...task, resumeSession: 'thread-9' }), ...fixed]);
 });
 
+test('a configDir sets CODEX_HOME; without one the inherited environment stays untouched', () => {
+  expect(buildCodexCommand({ ...task, configDir: '/cfg/codex' }, { ...ctx, baseEnv: { ...ctx.baseEnv, CODEX_HOME: '/cfg/mine' } }).env.CODEX_HOME).toBe('/cfg/codex');
+  expect(buildCodexCommand(task, { ...ctx, baseEnv: { ...ctx.baseEnv, CODEX_HOME: '/cfg/mine' } }).env.CODEX_HOME).toBe('/cfg/mine');
+  expect(buildCodexCommand(task, ctx).env).not.toHaveProperty('CODEX_HOME');
+});
+
 test('the GitHub token goes only in the child env, replacing an inherited one', () => {
   const command = buildCodexCommand(task, ctx);
   expect(command.env).toMatchObject({ PATH: '/bin', HOME: '/h', GH_TOKEN: 'ghs_secret', GITHUB_TOKEN: 'ghs_secret', CARRIER_RESULT_PATH: task.resultPath });

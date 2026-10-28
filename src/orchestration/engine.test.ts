@@ -399,6 +399,23 @@ test('an epic reserved before options existed, whose saved config has no option,
   expect(executionsOf(engine.db)[0]).toMatchObject({ harness: 'codex', model: 'x', provider: 'ollama' });
 });
 
+test('every execution row records the option and the config folder it ran with, null when the option had none', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const withFolder = { ...agents.author, option: 'claude-ashu', configDir: '/cfg/ashu' };
+  const withoutFolder = { ...agents.reviewer, option: 'codex-main' };
+  pull(50, { headRef: 'feat/demo/epic' });
+  runner.behavior = (task) =>
+    task.stage === 'ship' ? { sessionId: 's-ship', write: completed(task) } : { exit: 'stopped' };
+  const engine = await start(1, [{ name: 'AshuLab/a', agents: { author: withFolder, reviewer: withoutFolder } }]);
+  await clock.advance(5 * MIN);
+  await engine.idle();
+  expect(runner.tasks[0]).toMatchObject({ option: 'claude-ashu', configDir: '/cfg/ashu' });
+  expect(executionsOf(engine.db).map((e) => [e.stage, e.option, e.configDir])).toEqual([
+    ['ship', 'claude-ashu', '/cfg/ashu'],
+    ['review', 'codex-main', null],
+  ]);
+});
+
 test('unlimited means no timeout', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   await start(1, repos, 'unlimited');

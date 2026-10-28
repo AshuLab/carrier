@@ -50,6 +50,12 @@ test('resumeSession adds --resume', () => {
   expect(buildClaudeCommand(task, ctx).args).not.toContain('--resume');
 });
 
+test('a configDir sets CLAUDE_CONFIG_DIR; without one the inherited environment stays untouched', () => {
+  expect(buildClaudeCommand({ ...task, configDir: '/cfg/ashu' }, { ...ctx, baseEnv: { ...ctx.baseEnv, CLAUDE_CONFIG_DIR: '/cfg/mine' } }).env.CLAUDE_CONFIG_DIR).toBe('/cfg/ashu');
+  expect(buildClaudeCommand(task, { ...ctx, baseEnv: { ...ctx.baseEnv, CLAUDE_CONFIG_DIR: '/cfg/mine' } }).env.CLAUDE_CONFIG_DIR).toBe('/cfg/mine');
+  expect(buildClaudeCommand(task, ctx).env).not.toHaveProperty('CLAUDE_CONFIG_DIR');
+});
+
 test('the GitHub token goes only in the child env, replacing an inherited one', () => {
   const command = buildClaudeCommand(task, ctx);
   expect(command.env).toMatchObject({ PATH: '/bin', HOME: '/h', GH_TOKEN: 'ghs_secret', GITHUB_TOKEN: 'ghs_secret', CARRIER_RESULT_PATH: task.resultPath });

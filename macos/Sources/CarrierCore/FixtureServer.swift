@@ -201,7 +201,10 @@ public final class FixtureServer {
             let limit = min(max(request?["limit"] as? Int ?? 200, 1), 200)
             let conversation = longChat.map { ($0, "") } ?? chatConversations[session] ?? ([], "")
             let page = Array(conversation.0.filter { ($0["id"] as? Int ?? 0) > after }.prefix(limit))
-            let reply: [String: Any] = ["events": page, "cursor": page.last?["id"] as? Int ?? after, "streaming": conversation.1, "approvals": [], "options": []]
+            let reply: [String: Any] = [
+                "events": page, "cursor": page.last?["id"] as? Int ?? after, "streaming": conversation.1, "approvals": [], "options": [],
+                "session": ["state": chatSessions.first { $0["id"] as? String == session }?["state"] as? String ?? "idle"],
+            ]
             guard let body = try? JSONSerialization.data(withJSONObject: reply, options: .sortedKeys) else { break }
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":" + String(decoding: body, as: UTF8.self) + "}")
         default: break

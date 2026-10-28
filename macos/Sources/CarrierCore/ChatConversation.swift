@@ -61,16 +61,30 @@ public struct ChatEvent: Codable, Equatable {
 }
 
 /// The reply of `events`: the page after the cursor, the cursor to ask from next and the text of the message being written.
-/// The session's summary, the pending approvals and the options come with it too; the slices that draw them read them.
+/// The session's state (from its summary) comes with it, as the model needs to know whether the agent is answering; the pending
+/// approvals and the options come too, and the slices that draw them read them.
 public struct ChatEvents: Decodable, Equatable {
     public let events: [ChatEvent]
     public let cursor: Int
     public let streaming: String
+    public let state: ChatSession.State?
 
-    public init(events: [ChatEvent], cursor: Int, streaming: String = "") {
+    public init(events: [ChatEvent], cursor: Int, streaming: String = "", state: ChatSession.State? = nil) {
         self.events = events
         self.cursor = cursor
         self.streaming = streaming
+        self.state = state
+    }
+
+    private enum CodingKeys: String, CodingKey { case events, cursor, streaming, session }
+    private struct Summary: Decodable { let state: ChatSession.State }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        events = try values.decode([ChatEvent].self, forKey: .events)
+        cursor = try values.decode(Int.self, forKey: .cursor)
+        streaming = try values.decode(String.self, forKey: .streaming)
+        state = try values.decodeIfPresent(Summary.self, forKey: .session)?.state
     }
 }
 
@@ -196,6 +210,16 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     public private(set) var failure: String?
     /// The `after` of the next request.
     public private(set) var cursor = 0
+    /// What is typed in the box.
+    public var draft = ""
+    /// Whether the agent is answering (or waiting for an approval): the host refuses a message then, so the box queues it and the send button is Stop.
+    public private(set) var busy = false
+    /// The message typed while the agent answered: one at a time, sent when the turn ends.
+    public private(set) var queued: String?
+    /// Why the last send, resume or stop was refused, said under the box; nil when it worked.
+    public private(set) var refusal: String?
+    /// Counts the sends, so a poll that began before one does not tell the model the agent is idle when it is not.
+    @ObservationIgnored private var sends = 0
 
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
@@ -221,6 +245,7 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     /// One round: reads pages until one is not full, then rebuilds the feed when something changed.
     public func poll() async {
         var changed = loaded == false
+        let sendsBefore = sends
         do {
             var reply: ChatEvents
             repeat {
@@ -234,12 +259,71 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
             streaming = reply.streaming
             loaded = true
             failure = nil
+            if sends == sendsBefore, let state = reply.state { busy = state != .idle }
         } catch {
             let message = Self.words(error)
             if failure != message { log("session \(sessionId): \(message)") }
             failure = message
         }
         if changed { rows = chatFeed(events, streaming: streaming) }
+        if busy == false, let next = queued {
+            queued = nil
+            await deliver(next)
+        }
+    }
+
+    /// Enter or the send button: sends what is typed, or holds it as the queued message when the agent is answering (replacing
+    /// the one that was held).
+    public func submit() async {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.isEmpty == false else { return }
+        if busy {
+            queued = text
+            draft = ""
+            refusal = nil
+        } else {
+            await deliver(text)
+        }
+    }
+
+    /// Drops the queued message.
+    public func cancelQueued() { queued = nil }
+
+    /// The Stop button: ends the turn; the queued message, if any, goes when the poll sees the agent idle.
+    public func stop() async {
+        do {
+            try await host.interrupt(sessionId)
+            refusal = nil
+        } catch {
+            refusal = report(error, "stop the turn")
+        }
+    }
+
+    /// Sends the text, resuming the session first when the host's list says it is not live. A refusal is shown and the text goes back
+    /// to the box when it came from there or from the queue; on success the box is emptied unless the person has typed something else.
+    private func deliver(_ text: String) async {
+        sends += 1
+        do {
+            if try await host.list(archived: false).first(where: { $0.id == sessionId })?.live != true { try await host.resume(sessionId) }
+            try await host.send(sessionId, text)
+        } catch {
+            refusal = report(error, "send the message")
+            if draft.isEmpty { draft = text }
+            return
+        }
+        refusal = nil
+        if draft.trimmingCharacters(in: .whitespacesAndNewlines) == text { draft = "" }
+        sends += 1
+        busy = true
+        await poll()
+    }
+
+    private func report(_ error: Error, _ doing: String) -> String {
+        let message = Self.words(error)
+        // a refusal is the host answering as it should; anything else is a failure to talk to it
+        if case ControlError.remote = error { return message }
+        log("session \(sessionId): could not \(doing): \(message)")
+        return message
     }
 
     private static func words(_ error: Error) -> String {

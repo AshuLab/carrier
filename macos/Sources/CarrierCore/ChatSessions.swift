@@ -22,9 +22,36 @@ public func sessionRows(_ sessions: [ChatSession]) -> [SessionRow] {
         return SessionRow(
             id: session.id, title: session.title ?? "Untitled session", workspace: title(base(session)), agent: session.agent, state: state,
             updatedAt: Date(timeIntervalSince1970: Double(session.lastActiveAt) / 1000), archived: session.archived,
-            branch: session.workspace?.branch
+            branch: session.workspace?.branch, folder: session.folder, titled: session.title != nil
         )
     }
+}
+
+/// What the Open menu of a conversation's title bar does.
+public enum OpenAction: Equatable {
+    case reveal(path: String)
+    case copy(String)
+}
+
+public struct OpenItem: Equatable {
+    public let title: String
+    public let action: OpenAction
+}
+
+/// The title bar's name for a conversation: the session's title, "New session" while it has none.
+public func conversationTitle(_ row: SessionRow) -> String { row.titled ? row.title : "New session" }
+
+/// The line under the title: the workspace and where the session works, "· ⑂ branch" in a worktree and "· base folder" in a folder
+/// (the branch of a plain folder is not known to the app, so it is not shown).
+public func conversationSubtitle(_ row: SessionRow) -> String {
+    "\(row.workspace) · \(row.branch.map { "⑂ \($0)" } ?? "base folder")"
+}
+
+/// The Open menu: reveal the session's folder, copy its path and, for a worktree, copy its branch name.
+public func openMenuItems(_ row: SessionRow) -> [OpenItem] {
+    var items = [OpenItem(title: "Reveal in Finder", action: .reveal(path: row.folder)), OpenItem(title: "Copy path", action: .copy(row.folder))]
+    if let branch = row.branch { items.append(OpenItem(title: "Copy branch name", action: .copy(branch))) }
+    return items
 }
 
 /// Asks the host for the sessions: `poll()` is called once a second and lists the active ones every time and the archived ones

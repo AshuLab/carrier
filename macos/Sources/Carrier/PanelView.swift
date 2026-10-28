@@ -48,15 +48,22 @@ struct PanelView: View {
         if let epic { return "\(epic.subject.repo.split(separator: "/").last ?? "") #\(epic.subject.issue)" }
         switch model.shell.selection {
         case .settings: return "Settings"
-        case .session(let id): return model.sessions.rows.first { $0.id == id }?.title ?? "Session"
+        case .session: return openSession.map(conversationTitle) ?? "Session"
         default: return "Carrier"
         }
+    }
+
+    /// The row of the session whose conversation is open.
+    private var openSession: SessionRow? {
+        guard case .session(let id) = model.shell.selection else { return nil }
+        return model.sessions.rows.first { $0.id == id }
     }
 
     private var subtitle: String {
         switch model.shell.selection {
         case .carrier: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
         case .settings: "what the app starts Carrier with"
+        case .session: openSession.map(conversationSubtitle) ?? ""
         default: ""
         }
     }
@@ -157,6 +164,9 @@ struct PanelView: View {
                     ToolbarItem(placement: .primaryAction) { Color.clear.frame(width: Self.inspectorWidth, height: 1) }
                         .sharedBackgroundVisibility(.hidden)
                 }
+            }
+            if let session = openSession {
+                ToolbarItem(placement: .primaryAction) { OpenMenu(items: openMenuItems(session)).id(session.id) }
             }
             if let snapshot, shell.selection == .carrier {
                 // two pills: the check against GitHub, then what governs Carrier itself (intake and stopping)

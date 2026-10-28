@@ -33,7 +33,7 @@ struct SessionMenuItems: View {
     alert.informativeText = question.message
     alert.addButton(withTitle: "Cancel")
     alert.addButton(withTitle: question.confirm).hasDestructiveAction = true
-    NSApp.activate(ignoringOtherApps: true)
+    NSApp.activate()
     return alert.runModal() == .alertSecondButtonReturn
 }
 
@@ -41,6 +41,6 @@ struct SessionMenuItems: View {
 @MainActor func tell(_ refusal: String) {
     let alert = NSAlert()
     alert.messageText = refusal
-    NSApp.activate(ignoringOtherApps: true)
+    NSApp.activate()
     alert.runModal()
 }

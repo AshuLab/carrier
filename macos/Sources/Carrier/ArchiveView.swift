@@ -164,6 +164,8 @@ private struct ArchiveRow: View {
     let resume: () -> Void
     let delete: () -> Void
     @State private var hovered = false
+    /// Whether the keyboard is on one of the actions, which shows them as the pointer does.
+    @FocusState private var actionsFocused: Bool
     private static let spokenAge: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .full
@@ -172,32 +174,39 @@ private struct ArchiveRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(row.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.tail)
-                    Text(row.workspace).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
-                        .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().strokeBorder(Color.secondary.opacity(0.5)))
+            // a button, so the keyboard and VoiceOver can open the session like a pointer does
+            Button(action: open) {
+                HStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(row.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                            Text(row.workspace).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                                .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().strokeBorder(Color.secondary.opacity(0.5)))
+                        }
+                        HStack(spacing: 6) {
+                            Text(row.agent)
+                            if let branch = row.branch { Text(branch).foregroundStyle(.blue) }
+                        }
+                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
                 }
-                HStack(spacing: 6) {
-                    Text(row.agent)
-                    if let branch = row.branch { Text(branch).foregroundStyle(.blue) }
-                }
-                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 8)
+            .buttonStyle(.plain)
+            // faded out, not removed or made untouchable, so they stay in the keyboard's and VoiceOver's reach
             HStack(spacing: 4) {
                 action("Open", "doc.text", open)
                 action("Resume", "arrow.uturn.backward", resume)
                 action("Delete", "trash", delete)
             }
-            .opacity(hovered ? 1 : 0).allowsHitTesting(hovered)
+            .focused($actionsFocused)
+            .opacity(hovered || actionsFocused ? 1 : 0)
             Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 .accessibilityLabel(Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date()))
         }
         .padding(.horizontal, 8).padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 10).fill(hovered ? Color.primary.opacity(0.07) : .clear))
-        .contentShape(Rectangle())
-        .onTapGesture(perform: open)
         .onHover { hovered = $0 }
         .contextMenu { SessionMenuItems(row: row) }
         .help(row.title)

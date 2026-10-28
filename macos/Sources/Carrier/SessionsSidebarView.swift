@@ -110,7 +110,7 @@ private struct WorkspaceHeader: View {
     }
 }
 
-private struct SessionRowView: View {
+struct SessionRowView: View {
     let row: SessionRow
     /// Outside the workspace order the group is not the workspace, so the second line says it.
     let showsWorkspace: Bool

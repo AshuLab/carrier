@@ -31,6 +31,7 @@ const controls = (): ChatControls => ({
   send: () => {
     throw new Error('the disk says secret things');
   },
+  answer: ({ approvalId, choiceId }) => ({ approvalId, choiceId }),
   interrupt: async () => ({}),
   setOption: async ({ option, value }) => ({ option, value }),
   events: ({ after = 0 }) => ({ after }),
@@ -70,7 +71,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'interrupt', 'setOption', 'events', 'close', 'stop'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'stop'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -81,7 +82,7 @@ test.each([
   ['a session id that is not one', '{"id":4,"cmd":"close","sessionId":"../x"}', 4],
   ['a limit over 200', `{"id":5,"cmd":"events","sessionId":"${uuid}","limit":201}`, 5],
   ['an empty message', `{"id":6,"cmd":"send","sessionId":"${uuid}","text":""}`, 6],
-  ['a command the host does not have yet', `{"id":7,"cmd":"answer","sessionId":"${uuid}","approvalId":"a","choiceId":"b"}`, 7],
+  ['an answer with no choice', `{"id":7,"cmd":"answer","sessionId":"${uuid}","approvalId":"a"}`, 7],
   ['a missing id', '{"cmd":"list"}', null],
   ['a bad id', '{"id":-1,"cmd":"list"}', null],
 ])('%s is "invalid request", with the id only when it is valid', async (_name, line, id) => {
@@ -89,6 +90,12 @@ test.each([
   const c = await client();
   expect(await c.ask(line)).toEqual({ id, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":9,"cmd":"list"}')).toMatchObject({ id: 9, ok: true });
+});
+
+test('answer is a strict request with a session, an approval and a choice', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask(`{"id":1,"cmd":"answer","sessionId":"${uuid}","approvalId":"a","choiceId":"deny"}`)).toEqual({ id: 1, ok: true, data: { approvalId: 'a', choiceId: 'deny' } });
 });
 
 test('setOption is a strict request with a session, an option and a value', async () => {

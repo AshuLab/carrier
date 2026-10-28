@@ -8,7 +8,7 @@ import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
 import { checkFolder } from './folder.ts';
-import { ChatRefused, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
+import { ChatRefused, type ChatChoice, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
 
@@ -21,12 +21,16 @@ type State = (typeof sessions.$inferSelect)['state'];
 
 export type SessionSummary = Omit<typeof sessions.$inferSelect, 'options' | 'pid' | 'pgid'>;
 
+export type PendingApproval = { approvalId: string; tool: string; arg?: string; choices: ChatChoice[] };
+
 /** A session whose agent process runs: what is only true while it does. */
 type Live = {
   conversation: ChatConversation;
   state: State;
   /** The text of the message being written, not stored until it ends. */
   streaming: string;
+  /** The approvals asked and not yet answered, as they are stored (redacted and bounded). */
+  approvals: Map<string, PendingApproval>;
   turn?: { startedAt: number; toolCalls: number };
   cancelIdle?: () => void;
 };
@@ -93,6 +97,9 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
     if (event.kind === 'turn_end' && live.turn === undefined) return; // a turn already recorded (an interrupt, then the adapter's own end)
     if (event.kind === 'assistant' || event.kind === 'turn_end') live.streaming = '';
     store(sessionId, event);
+    if (event.kind === 'approval') live.approvals.set(event.approvalId, boundEvent(event) as PendingApproval);
+    if (event.kind === 'approval_answered') live.approvals.delete(event.approvalId);
+    if (event.kind === 'turn_end') live.approvals.clear(); // an interrupted turn drops what it was waiting for
     if (event.kind === 'option') {
       const { options } = row(sessionId);
       db.update(sessions).set({ options: { ...options, [event.id]: event.value } }).where(eq(sessions.id, sessionId)).run();
@@ -134,7 +141,7 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
 
   /** Makes a conversation the live one of a session. */
   const attach = (sessionId: string, conversation: ChatConversation) => {
-    const live: Live = { conversation, state: 'idle', streaming: '' };
+    const live: Live = { conversation, state: 'idle', streaming: '', approvals: new Map() };
     lives.set(sessionId, live);
     conversation.onEvent((event) => {
       try {
@@ -230,6 +237,26 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
       return {};
     },
 
+    /** Passes the person's choice for a pending approval to the agent; the adapter says it was answered and the host records that. */
+    answer({ sessionId, approvalId, choiceId }: { sessionId: string; approvalId: string; choiceId: string }) {
+      row(sessionId);
+      const live = lives.get(sessionId);
+      if (live === undefined) throw new ChatRefused('This session is closed');
+      const approval = live.approvals.get(approvalId);
+      if (approval === undefined) throw new ChatRefused('That approval is not pending: it is unknown or was already answered');
+      if (approval.choices.some((choice) => choice.id === choiceId) === false) throw new ChatRefused(`"${choiceId}" is not one of the choices: ${approval.choices.map((choice) => choice.id).join(', ')}`);
+      live.approvals.delete(approvalId); // before the agent hears it, so a second answer finds nothing
+      try {
+        live.conversation.answer(approvalId, choiceId);
+      } catch (error) {
+        live.approvals.set(approvalId, approval);
+        if (error instanceof ChatRefused) throw error;
+        log.error('an answer could not be delivered to the agent', error);
+        throw new ChatRefused('The answer could not be delivered to the agent');
+      }
+      return {};
+    },
+
     /** Ends the turn that is running, if any, and leaves the session idle for the next message. With no turn running it changes nothing. */
     async interrupt({ sessionId }: { sessionId: string }) {
       row(sessionId);
@@ -269,6 +296,7 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
         cursor: rows.at(-1)?.id ?? after,
         session: summary(current),
         streaming: live?.streaming ?? '',
+        approvals: [...(live?.approvals.values() ?? [])],
         options: live?.conversation.options ?? [],
       };
     },

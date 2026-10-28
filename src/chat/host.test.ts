@@ -147,3 +147,40 @@ test('a new host over the same chat.db resumes a session of the one that ended, 
   expect(reply.events.map((e: any) => e.kind)).toEqual(['user', 'assistant', 'turn_end']);
   again.close();
 });
+
+test('an approval is asked with the provider choices, survives the client leaving, and is answered by a client that comes back; refused ids and a second answer change nothing', async () => {
+  const work = join(root, 'w');
+  mkdirSync(work);
+  const claude = new FakeChatRunner();
+  claude.setup = (c) => {
+    c.reply = () => c.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', arg: 'touch x', choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }] });
+  };
+  const { clock } = await host(new FakeClock(), claude);
+  const path = join(root, 'chat', 'chat.sock');
+  const first = await connectControl(path);
+  expect(first.hello.capabilities).toContain('answer');
+  const { session } = (await first.request('open', { agent: 'claude', folder: work })) as { session: { id: string } };
+  await first.request('send', { sessionId: session.id, text: 'touch x' });
+  first.close(); // the person leaves while it waits
+  await clock.advance(10 * 60_000);
+  expect(claude.conversations[0]!.closed).toBe(false);
+
+  const again = await connectControl(path);
+  await again.request('resume', { sessionId: session.id });
+  const pending = (await again.request('events', { sessionId: session.id, limit: 50 })) as any;
+  expect(pending.session.state).toBe('waiting_approval');
+  expect(pending.approvals).toEqual([{ approvalId: 'a1', tool: 'Bash', arg: 'touch x', choices: expect.any(Array) }]);
+  const answer = (approvalId: string, choiceId: string) => again.request('answer', { sessionId: session.id, approvalId, choiceId });
+  await expect(answer('nope', 'deny')).rejects.toThrow('not pending');
+  await expect(answer('a1', 'maybe')).rejects.toThrow('not one of the choices: allow, deny');
+  expect(claude.conversations[0]!.answers).toEqual([]);
+  await expect(answer('a1', 'deny')).resolves.toEqual({});
+  await expect(answer('a1', 'deny')).rejects.toThrow('not pending');
+  expect(claude.conversations[0]!.answers).toEqual([{ approvalId: 'a1', choiceId: 'deny' }]);
+  const done = (await again.request('events', { sessionId: session.id, limit: 50 })) as any;
+  expect(done.approvals).toEqual([]);
+  expect(done.session.state).toBe('working');
+  expect(done.events.map((e: any) => e.kind)).toEqual(['user', 'approval', 'approval_answered']);
+  expect(done.events.at(-1)).toMatchObject({ approvalId: 'a1', choiceId: 'deny' });
+  again.close();
+});

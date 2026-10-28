@@ -249,6 +249,23 @@ test('an approval holds the session waiting, and it is not idle-closed while it 
   expect(conversation.closed).toBe(false);
 });
 
+test('answer passes a listed choice to the agent once; an interrupted turn drops its pending approval; a closed session refuses', async () => {
+  const { sessions, conversation, id } = await openOne();
+  const choices = [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }];
+  sessions.send({ sessionId: id, text: 'go' });
+  conversation.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', arg: `echo ${token}`, choices });
+  expect(sessions.events({ sessionId: id, limit: 10 }).approvals).toEqual([{ approvalId: 'a1', tool: 'Bash', arg: expect.not.stringContaining(token), choices }]);
+  expect(sessions.answer({ sessionId: id, approvalId: 'a1', choiceId: 'allow' })).toEqual({});
+  expect(conversation.answers).toEqual([{ approvalId: 'a1', choiceId: 'allow' }]);
+  expect(sessions.events({ sessionId: id, limit: 10 })).toMatchObject({ approvals: [], session: { state: 'working' } });
+  conversation.emit({ kind: 'approval', approvalId: 'a2', tool: 'Bash', choices });
+  conversation.emit({ kind: 'turn_end', outcome: 'interrupted' });
+  expect(sessions.events({ sessionId: id, limit: 10 }).approvals).toEqual([]);
+  expect(() => sessions.answer({ sessionId: id, approvalId: 'a2', choiceId: 'deny' })).toThrow('not pending');
+  await sessions.close({ sessionId: id });
+  expect(() => sessions.answer({ sessionId: id, approvalId: 'a2', choiceId: 'deny' })).toThrow('closed');
+});
+
 test('a live session that is idle with no client is closed after a minute: the runner closes it and the row stays; a working one is kept', async () => {
   const s = setup();
   const idleOne = await openOne(s);

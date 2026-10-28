@@ -35,6 +35,32 @@ struct SidebarSearchField: View {
     }
 }
 
+/// What a section's list says when it has nothing to show: the state's icon and title, a line and, when there is one, a button under them.
+struct SidebarEmptyBlock<Action: View>: View {
+    let icon: String
+    let title: String
+    let line: String
+    @ViewBuilder let action: Action
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 26)).foregroundStyle(.secondary).padding(.bottom, 4)
+            Text(title).font(.headline)
+            Text(line).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).lineLimit(3)
+            action.padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+        .accessibilityElement(children: .contain)
+        .selectionDisabled()
+        .flatSidebarRow()
+    }
+}
+
+extension SidebarEmptyBlock where Action == EmptyView {
+    init(state: EmptyState) { self.init(icon: state.icon, title: state.title, line: state.line) { EmptyView() } }
+}
+
 /// What a section's list says when a search matches nothing: the struck magnifier, `No results`, what was typed and a button that
 /// empties the field.
 struct SidebarNoResults: View {
@@ -42,17 +68,8 @@ struct SidebarNoResults: View {
     let clear: () -> Void
 
     var body: some View {
-        VStack(spacing: 4) {
-            Image(systemName: EmptyState.noResults.icon).font(.system(size: 26)).foregroundStyle(.secondary).padding(.bottom, 4)
-            Text(EmptyState.noResults.title).font(.headline)
-            Text(EmptyState.noResultsLine(for: query)).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                .lineLimit(3)
-            Button("Clear search", action: clear).padding(.top, 4)
+        SidebarEmptyBlock(icon: EmptyState.noResults.icon, title: EmptyState.noResults.title, line: EmptyState.noResultsLine(for: query)) {
+            Button("Clear search", action: clear)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 18)
-        .accessibilityElement(children: .contain)
-        .selectionDisabled()
-        .flatSidebarRow()
     }
 }

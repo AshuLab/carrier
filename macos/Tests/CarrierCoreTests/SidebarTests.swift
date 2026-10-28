@@ -107,6 +107,15 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(sidebarGroups(snapshot(), by: .status).allSatisfy { $0.rows.isEmpty })
 }
 
+@Test func carrierWithNoEpicsIsEmptyInEitherGrouping() {
+    for by in [GroupBy.status, .repo] {
+        let total = sidebarGroups(snapshot(), by: by).reduce(0) { $0 + $1.count }
+        #expect(SidebarListState(shown: total, of: total, query: "") == .empty)
+    }
+    let one = sidebarGroups(snapshot([epic("acme/web", 1)]), by: .status).reduce(0) { $0 + $1.count }
+    #expect(SidebarListState(shown: one, of: one, query: "") == .rows)
+}
+
 @Test func theCardStateFollowsTheConnection() {
     func card(_ snapshot: PanelSnapshot) -> CarrierCardState { carrierCardState(.running(snapshot)) }
     var paused = snapshot(busy: 1)

@@ -1,7 +1,7 @@
 import CarrierCore
 import SwiftUI
 
-/// The Sessions section and, while `open`, the sessions under it in the chosen order (or "No sessions yet"). Rows of the sidebar's
+/// The Sessions section and, while `open`, the sessions under it in the chosen order (or its empty state). Rows of the sidebar's
 /// list: each session is tagged with a `Selection` and the section is drawn and selected by its own row; the buttons in them do not select. The magnifier opens a search
 /// field under the row.
 struct SessionsRows: View {
@@ -19,6 +19,8 @@ struct SessionsRows: View {
     @FocusState private var searching: Bool
 
     private func openSearch() {
+        // nothing to search while there are no open sessions
+        guard sessions.open > 0 else { return }
         open = true
         if query == nil { query = "" }
         searching = true
@@ -32,7 +34,10 @@ struct SessionsRows: View {
                     .background(Capsule().fill(Color.secondary.opacity(0.15)))
                     .accessibilityLabel(sessions.openLabel)
             }
-            IconButton(icon: "magnifyingglass", name: "Search sessions", shortcut: "⌘F", pressed: query != nil) {
+            IconButton(
+                icon: "magnifyingglass", name: "Search sessions", enabled: sessions.open > 0, why: "No sessions to search", shortcut: "⌘F",
+                pressed: query != nil
+            ) {
                 if query == nil { openSearch() } else { query = nil }
             }
             IconButton(icon: "ellipsis", name: "Sort sessions") { sortOpen.toggle() }
@@ -54,7 +59,11 @@ struct SessionsRows: View {
             }
             let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", now: Date(), calendar: .current)
             switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
-            case .empty: Text("No sessions yet").foregroundStyle(.secondary).selectionDisabled().flatSidebarRow()
+            case .empty:
+                let empty = EmptyState.noSessions
+                SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
+                    Button("New session") {}.disabled(sessions.canStart == false).help(sessions.canStart ? "New session" : Sessions.cannotStartReason)
+                }
             case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
             case .rows: EmptyView()
             }

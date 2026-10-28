@@ -24,8 +24,8 @@ import { epicSlices } from '../storage/epic-slices.ts';
 
 const MIN = 60_000;
 const agents = {
-  author: { profile: 'a', harness: 'claude' as const, model: 'm' },
-  reviewer: { profile: 'b', harness: 'codex' as const, model: 'm' },
+  author: { profile: 'a', option: 'o', harness: 'claude' as const, model: 'm' },
+  reviewer: { profile: 'b', option: 'o', harness: 'codex' as const, model: 'm' },
 };
 const repos: EffectiveRepoConfig[] = ['AshuLab/a', 'AshuLab/b'].map((name) => ({ name, agents }));
 
@@ -374,7 +374,7 @@ const executionsOf = (db: Db) => db.select().from(executions).all();
 
 test('a reserved epic launches the author with its effective config, a unique result path and the time limit', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
-  const config = [{ name: 'AshuLab/a', agents: { ...agents, author: { profile: 'p', harness: 'codex' as const, model: 'x' } } }];
+  const config = [{ name: 'AshuLab/a', agents: { ...agents, author: { profile: 'p', option: 'o', harness: 'codex' as const, model: 'x' } } }];
   const engine = await start(2, config, 2);
   await clock.advance(5 * MIN);
 
@@ -388,6 +388,15 @@ test('a reserved epic launches the author with its effective config, a unique re
   expect(new Set([task.executionId, other.executionId, task.resultPath, other.resultPath]).size).toBe(4);
   expect(executionsOf(engine.db).map((e) => [e.epicId, e.stage, e.status])).toEqual([[1, 'ship', 'running'], [2, 'ship', 'running']]);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' });
+});
+
+test('an epic reserved before options existed, whose saved config has no option, runs with the harness, model and provider it saved', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const legacy = { profile: 'p', harness: 'codex', model: 'x', provider: 'ollama' };
+  const engine = await start(1, [{ name: 'AshuLab/a', agents: { author: legacy, reviewer: legacy } } as unknown as EffectiveRepoConfig]);
+  await clock.advance(5 * MIN);
+  expect(runner.tasks[0]).toMatchObject({ stage: 'ship', harness: 'codex', model: 'x', provider: 'ollama' });
+  expect(executionsOf(engine.db)[0]).toMatchObject({ harness: 'codex', model: 'x', provider: 'ollama' });
 });
 
 test('unlimited means no timeout', async () => {
@@ -840,7 +849,7 @@ async function reviewing(review: (task: AgentTask) => Behavior, count = 1) {
 const reviewerTask = () => runner.tasks.find((t) => t.stage === 'review')!;
 
 test('after ship the reviewer runs with its own profile, a separate workspace, the PR, the round and no previous summaries', async () => {
-  const config = [{ name: 'AshuLab/a', agents: { ...agents, reviewer: { profile: 'rev', harness: 'codex' as const, model: 'r' } } }];
+  const config = [{ name: 'AshuLab/a', agents: { ...agents, reviewer: { profile: 'rev', option: 'o', harness: 'codex' as const, model: 'r' } } }];
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
   runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });

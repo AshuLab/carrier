@@ -22,7 +22,8 @@ const existing = {
   repos: [{ name: 'X/y' }, { name: 'X/z' }],
   profiles: { 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' }, gh: { kind: 'gh' } },
   orchestratorProfile: 'tassadar-agent',
-  agents: { author: { profile: 'tassadar-agent', harness: 'claude', model: 'opus' }, reviewer: { profile: 'gh', harness: 'codex', model: 'gpt-test' } },
+  agentOptions: { claude: { harness: 'claude', model: 'opus' }, codex: { harness: 'codex', model: 'gpt-test' } },
+  agents: { author: { profile: 'tassadar-agent', option: 'claude' }, reviewer: { profile: 'gh', option: 'codex' } },
 };
 
 test('the questions fill a config that has only what defaults lack, and the doctor runs on it', async () => {
@@ -36,9 +37,10 @@ test('the questions fill a config that has only what defaults lack, and the doct
     repos: [{ name: 'AshuLab/a' }, { name: 'AshuLab/b' }],
     profiles: { 'artanis-agent': { kind: 'forge', agent: 'artanis-agent' }, 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' } },
     orchestratorProfile: 'artanis-agent',
+    agentOptions: { claude: { harness: 'claude', model: 'sonnet' }, codex: { harness: 'codex', model: 'gpt-test' } },
     agents: {
-      author: { profile: 'artanis-agent', harness: 'claude', model: 'sonnet' },
-      reviewer: { profile: 'tassadar-agent', harness: 'codex', model: 'gpt-test' }, // author's bot is not offered again; codex default from ~/.codex
+      author: { profile: 'artanis-agent', option: 'claude' },
+      reviewer: { profile: 'tassadar-agent', option: 'codex' }, // author's bot is not offered again; codex default from ~/.codex
     },
   });
   expect(doctored).toMatchObject({ pollIntervalMinutes: 5 }); // the doctor gets the merged config
@@ -52,10 +54,10 @@ test('every flag skips its question', async () => {
   const out = join(dir, 'b.json');
   await runInit({ repo: ['AshuLab/x'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'codex:m1', reviewer: 'claude:m2', out, yes: true }, ui, deps);
   expect(asked.filter((a) => !a.startsWith('outro') && !a.startsWith('checks:'))).toEqual([]);
-  expect(JSON.parse(written[out]!).agents).toEqual({
-    author: { profile: 'artanis-agent', harness: 'codex', model: 'm1' },
-    reviewer: { profile: 'gh', harness: 'claude', model: 'm2' },
-  });
+  const config = JSON.parse(written[out]!);
+  expect(config.agentOptions).toEqual({ codex: { harness: 'codex', model: 'm1' }, claude: { harness: 'claude', model: 'm2' } });
+  expect(config.agents).toEqual({ author: { profile: 'artanis-agent', option: 'codex' }, reviewer: { profile: 'gh', option: 'claude' } });
+  expect(loadConfig(defaults, config).ok).toBe(true);
 });
 
 test('failed checks are reported in the closing line', async () => {
@@ -114,7 +116,8 @@ test('an existing config can be edited: its answers are the starting points and 
     repos: [{ name: 'X/y' }, { name: 'X/z' }],
     profiles: { 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' }, gh: { kind: 'gh' } },
     orchestratorProfile: 'tassadar-agent',
-    agents: { author: { profile: 'tassadar-agent', harness: 'claude', model: 'opus' }, reviewer: { profile: 'gh', harness: 'codex', model: 'gpt-test' } },
+    agentOptions: { claude: { harness: 'claude', model: 'opus' }, codex: { harness: 'codex', model: 'gpt-test' } },
+    agents: { author: { profile: 'tassadar-agent', option: 'claude' }, reviewer: { profile: 'gh', option: 'codex' } },
   });
   expect(asked).not.toContain('Where should the config be saved?');
   expect(asked.some((q) => q.endsWith('exists. Overwrite it?'))).toBe(false);
@@ -192,7 +195,8 @@ test('choosing shared by answer asks no identity, never touches Forge, and write
     identities: 'shared',
     profiles: { gh: { kind: 'gh' } },
     orchestratorProfile: 'gh',
-    agents: { author: { profile: 'gh', harness: 'claude', model: 'sonnet' }, reviewer: { profile: 'gh', harness: 'codex', model: 'gpt-test' } },
+    agentOptions: { claude: { harness: 'claude', model: 'sonnet' }, codex: { harness: 'codex', model: 'gpt-test' } },
+    agents: { author: { profile: 'gh', option: 'claude' }, reviewer: { profile: 'gh', option: 'codex' } },
   });
   expect(loadConfig(defaults, written1).ok).toBe(true);
   expect(asked.some((q) => q.startsWith('GitHub identity for'))).toBe(false);
@@ -250,7 +254,8 @@ test('editing a shared config starts with shared selected, and the recap shows t
     identities: 'shared',
     profiles: { gh: { kind: 'gh' } },
     orchestratorProfile: 'gh',
-    agents: { author: { profile: 'gh', harness: 'claude', model: 'opus' }, reviewer: { profile: 'gh', harness: 'codex', model: 'gpt-test' } },
+    agentOptions: { claude: { harness: 'claude', model: 'opus' }, codex: { harness: 'codex', model: 'gpt-test' } },
+    agents: { author: { profile: 'gh', option: 'claude' }, reviewer: { profile: 'gh', option: 'codex' } },
   };
   const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => shared, forgeAgents: touchesForge });
   const { ui } = quietUi({ 'Use your gh login for both roles?': true });

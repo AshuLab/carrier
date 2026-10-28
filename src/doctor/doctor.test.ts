@@ -8,9 +8,10 @@ const base = {
   repos: [{ name: 'AshuLab/carrier' }],
   profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'forge', agent: 'tassadar-agent' } },
   orchestratorProfile: 'a',
+  agentOptions: { claude: { harness: 'claude', model: 'm' }, codex: { harness: 'codex', model: 'm' } },
   agents: {
-    author: { profile: 'a', harness: 'claude', model: 'm' },
-    reviewer: { profile: 'b', harness: 'codex', model: 'm' },
+    author: { profile: 'a', option: 'claude' },
+    reviewer: { profile: 'b', option: 'codex' },
   },
 };
 
@@ -69,7 +70,7 @@ test('a missing harness CLI fails once, by name', async () => {
 
 test('only the harnesses in use are required', async () => {
   const which = vi.fn(() => true);
-  await runDoctor(config({ agents: { author: { profile: 'a', harness: 'claude', model: 'm' }, reviewer: { profile: 'b', harness: 'claude', model: 'm' } } }), deps({ which }));
+  await runDoctor(config({ agents: { author: { profile: 'a', option: 'claude' }, reviewer: { profile: 'b', option: 'claude' } } }), deps({ which }));
   expect(which).not.toHaveBeenCalledWith('codex');
 });
 
@@ -164,7 +165,7 @@ test('onCheck sees every check as it finishes, in the order of the result', asyn
   expect(seen).toEqual(checks);
 });
 
-const local = (over: Record<string, unknown> = {}) => config({ agents: { ...base.agents, reviewer: { ...base.agents.reviewer, model: 'google/gemma-4-12b', provider: 'lmstudio', ...over } } });
+const local = (over: Record<string, unknown> = {}) => config({ agentOptions: { ...base.agentOptions, local: { harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio', ...over } }, agents: { ...base.agents, reviewer: { ...base.agents.reviewer, option: 'local' } } });
 
 test('a local model passes when its server has it', async () => {
   const checks = await runDoctor(local(), deps({ localModels: async () => ['google/gemma-4-12b'] }));
@@ -190,7 +191,7 @@ test.each([
   ['no installation', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: has no installations')) }), 'install the GitHub App of that agent on AshuLab'],
   ['an unreadable key', () => fixOf(config(), { mint: async () => Promise.reject(new Error('could not mint a token for artanis-agent: Private key for x not found or unreadable')) }), 'check privateKeyPath of that agent in your Forge registry'],
   ['any other mint error', () => fixOf(config(), { mint: async () => Promise.reject(new Error('boom')) }), 'run: agent-forge token --agent artanis-agent from a clone of the repo to see the full error'],
-  ['a gh login that cannot mint', () => fixOf(config({ profiles: gh, orchestratorProfile: 'b', agents: { author: { profile: 'a', harness: 'claude', model: 'm' }, reviewer: { profile: 'b', harness: 'codex', model: 'm' } } }), { mint: async (p) => (p.kind === 'gh' ? Promise.reject(new Error('x')) : 't') }), 'run: gh auth login'],
+  ['a gh login that cannot mint', () => fixOf(config({ profiles: gh, orchestratorProfile: 'b', agents: { author: { profile: 'a', option: 'claude' }, reviewer: { profile: 'b', option: 'codex' } } }), { mint: async (p) => (p.kind === 'gh' ? Promise.reject(new Error('x')) : 't') }), 'run: gh auth login'],
   ['a 404 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 404: Not Found')) }), 'the repo does not exist or this identity cannot see it: install the App on AshuLab and give it access to AshuLab/carrier'],
   ['a 401 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 401: Bad credentials')) }), "the identity's credentials were rejected: for gh run gh auth login, for a bot check its App in Forge"],
   ['the same identity twice', () => fixOf(config({ profiles: { a: { kind: 'forge', agent: 'bot' }, b: { kind: 'forge', agent: 'bot' } } }), {}), 'use two different bots (agent-forge add) or one bot and your gh login, or set identities to "shared" to use one account for both'],

@@ -15,6 +15,13 @@ export function useTempDir() {
   return dir;
 }
 
+/** A role of a written config with the option it points at spread in, to assert on harness, model and provider. */
+export function roleOf(written: string, role: 'author' | 'reviewer') {
+  const config = JSON.parse(written);
+  const agent = config.agents[role];
+  return { ...agent, ...config.agentOptions[agent.option] };
+}
+
 export const quietUi = (answers: Record<string, string | boolean> = {}) => {
   const asked: string[] = [];
   const listed: string[][] = [];

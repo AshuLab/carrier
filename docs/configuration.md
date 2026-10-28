@@ -14,9 +14,13 @@ The file is a JSON object merged over the defaults: objects merge field by field
     "reviewer-bot": { "kind": "forge", "agent": "<forge-agent-2>" }
   },
   "orchestratorProfile": "author-bot",
+  "agentOptions": {
+    "claude": { "harness": "claude", "model": "<model>" },
+    "codex": { "harness": "codex", "model": "<model>" }
+  },
   "agents": {
-    "author": { "profile": "author-bot", "harness": "claude", "model": "<model>" },
-    "reviewer": { "profile": "reviewer-bot", "harness": "codex", "model": "<model>" }
+    "author": { "profile": "author-bot", "option": "claude" },
+    "reviewer": { "profile": "reviewer-bot", "option": "codex" }
   }
 }
 ```
@@ -28,8 +32,8 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `repos` | yes, at least one | | Repos to watch. Each is `{ "name": "owner/name", "agents"?: ... }`. |
 | `profiles` | yes | | The GitHub identities you can use, by name (below). |
 | `orchestratorProfile` | yes | | Profile used to read issues and PRs and to change labels. It may be the author's. |
-| `agents.author` / `agents.reviewer` | yes | | `{ profile, harness, model, provider? }` for each role. `harness` is the agent CLI that runs it: `claude` (Claude Code), `codex` or `agy` (Antigravity). For Claude prefer an alias (`sonnet`, `opus`, ...): the CLI resolves it to the latest model, so it does not go stale. Codex has no aliases: use an id from `codex`'s own list; for Antigravity, one from `agy models` (`carrier init` offers all of them). |
-| `agents.<role>.provider` | no | the harness's own cloud | Who serves the model: `lmstudio` or `ollama` for a local server. See [Local models](#local-models). |
+| `agentOptions` | yes | | The ways to run an agent, by name. See [Agent options](#agent-options). |
+| `agents.author` / `agents.reviewer` | yes | | `{ profile, option, persona? }` for each role: the GitHub identity it acts as and the name of the agent option it runs on. |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
 | `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
@@ -42,13 +46,39 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
 
+## Agent options
+
+An agent option is a named way to run an agent. The config declares them once in `agentOptions`, and each role points at one by name in `agents.<role>.option`, the way it points at a profile.
+
+```json
+"agentOptions": {
+  "claude-ashu": { "harness": "claude", "model": "opus", "configDir": "~/.claude-ashu-lab" },
+  "claude-personal": { "harness": "claude", "model": "opus", "configDir": "~/.claude" },
+  "codex": { "harness": "codex", "model": "<model>" }
+},
+"agents": {
+  "author": { "profile": "author-bot", "option": "claude-ashu" },
+  "reviewer": { "profile": "reviewer-bot", "option": "codex" }
+}
+```
+
+| Field of an option | Required | Meaning |
+|--------------------|----------|---------|
+| (the key) | | The option's name: a lowercase word, with letters, digits and hyphens, starting with a letter, up to 40 characters. |
+| `harness` | yes | The agent CLI that runs it: `claude` (Claude Code), `codex` or `agy` (Antigravity). |
+| `model` | yes | For Claude prefer an alias (`sonnet`, `opus`, ...): the CLI resolves it to the latest model, so it does not go stale. Codex has no aliases: use an id from `codex`'s own list; for Antigravity, one from `agy models` (`carrier init` offers all of them). |
+| `provider` | no | Who serves the model: `lmstudio` or `ollama` for a local server; without it, the harness's own cloud. See [Local models](#local-models). Not for `agy`. |
+| `configDir` | no | The harness's config folder, which holds its login: `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. It must be an absolute path once a leading `~` is expanded. Without it the agent inherits the environment of the process that started Carrier. Not for `agy`, which has no setting for it. |
+
+A repo's `agents.<role>` can override `profile`, `option` and `persona`; the option is looked up in the same `agentOptions`. `harness`, `model` and `provider` used to be written inside `agents.<role>`: a config that still does so is refused, with a message that says they moved here. There is no migration; move the three fields into an option and point the role at it.
+
 ## Personas
 
 A role, author or reviewer, can have a persona: a name and a prompt that say who the agent is and how it behaves. Carrier adds them to that agent's prompt, right after the line that says which role it is and before what the stage asks. The persona belongs to the role, not to a stage: the author's is used in `ship` and `fix`, the reviewer's in `review`. Either field can be left out, and without a persona the prompt is the one it always was.
 
 ```json
 "agents": {
-  "reviewer": { "profile": "reviewer-bot", "harness": "codex", "model": "<model>", "persona": { "name": "Rex", "prompt": "Be strict about migrations." } }
+  "reviewer": { "profile": "reviewer-bot", "option": "codex", "persona": { "name": "Rex", "prompt": "Be strict about migrations." } }
 }
 ```
 
@@ -70,28 +100,30 @@ With `identities: "shared"` the author and the reviewer may use the same profile
 A repo inherits every value from the global `agents` and replaces only what it names:
 
 ```json
-{ "name": "AshuLab/big-repo", "agents": { "reviewer": { "model": "<other-model>" }, "author": { "profile": "other-bot" } } }
+{ "name": "AshuLab/big-repo", "agents": { "reviewer": { "option": "claude-personal" }, "author": { "profile": "other-bot" } } }
 ```
 
-Profile names used in an override must exist in `profiles`. Under `identities: "separate"` the author and the reviewer must still differ after the override.
+Profile names used in an override must exist in `profiles`, and option names in `agentOptions`. Under `identities: "separate"` the author and the reviewer must still differ after the override.
 
 ## Things that are checked
 
-- Every profile named anywhere is declared in `profiles`.
+- Every profile named anywhere is declared in `profiles`, and every option named anywhere in `agentOptions`.
+- Option names are lowercase words, a `configDir` is absolute after `~` is expanded, and an option has no field this page does not list.
 - Repo names are `owner/name`, and no two repos share the same folder name (Solve's worktree paths have no owner).
-- A `provider` is only accepted for a harness that can use it (Claude Code and Codex; not Antigravity), globally and in a per-repo override.
+- A `provider` is only accepted for a harness that can use it (Claude Code and Codex; not Antigravity), and so is a `configDir`.
 - The effective configuration of an epic is saved, without credentials, when it starts and kept when it resumes, even if you change the file in between.
 
 ## Local models
 
-An agent is three separate things: the **harness** (the CLI that runs the loop and the tools), the **provider** that serves the model, and the **model**. By default the provider is the harness's own cloud; it can also be a local server. An agent can use a model served by [LM Studio](https://lmstudio.ai) or [Ollama](https://ollama.com) on this machine instead of a cloud model. The harness is still Claude Code or Codex, which talk to the local server:
+An agent option is three separate things: the **harness** (the CLI that runs the loop and the tools), the **provider** that serves the model, and the **model**. By default the provider is the harness's own cloud; it can also be a local server. An agent can use a model served by [LM Studio](https://lmstudio.ai) or [Ollama](https://ollama.com) on this machine instead of a cloud model. The harness is still Claude Code or Codex, which talk to the local server:
 
 ```json
-"reviewer": { "profile": "reviewer-bot", "harness": "codex", "model": "google/gemma-4-12b", "provider": "lmstudio" }
+"agentOptions": { "local": { "harness": "codex", "model": "google/gemma-4-12b", "provider": "lmstudio" } },
+"agents": { "reviewer": { "profile": "reviewer-bot", "option": "local" } }
 ```
 
 - **Codex** gets `-c model_provider="lmstudio"` (or `ollama`); **Claude Code** gets `ANTHROPIC_BASE_URL` pointing at the server (and a placeholder token, never your real API key).
 - The servers are expected on their default ports (LM Studio `1234`, Ollama `11434`). Start the server and download the model first; `carrier doctor` checks both, and `carrier init` lists the models the running server has.
-- Antigravity (`agy`) cannot be pointed at a local server: `provider` with `harness: "agy"` is rejected. Its models come from `agy models`, which `carrier init` lists.
-- A per-repo override cannot unset `provider`: to go back to a cloud model in one repo, override `harness`, `model` and `provider` together.
+- Antigravity (`agy`) cannot be pointed at a local server: `provider` on an option with `harness: "agy"` is rejected. Its models come from `agy models`, which `carrier init` lists.
+- A per-repo override points a role at another option, so to go back to a cloud model in one repo, override `option` with one that has no `provider`.
 - Expect it to be **slow** (a trivial prompt took 15 to 140 s on a laptop, mostly loading the model and the CLI's long system prompt) and **weaker** on long agentic work. `ship` and a full review make hundreds of tool calls; small local models often lose the thread. A local reviewer is the realistic use; test it on a throwaway epic before trusting it.

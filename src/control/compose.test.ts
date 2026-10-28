@@ -52,7 +52,8 @@ const config = () => {
     repos: [{ name: 'AshuLab/a' }],
     profiles: { orchestrator: { kind: 'gh' }, author: { kind: 'forge', agent: 'artanis-agent' }, reviewer: { kind: 'forge', agent: 'tassadar-agent' } },
     orchestratorProfile: 'orchestrator',
-    agents: { author: { profile: 'author', harness: 'claude', model: 'm' }, reviewer: { profile: 'reviewer', harness: 'codex', model: 'm' } },
+    agentOptions: { claude: { harness: 'claude', model: 'm' }, codex: { harness: 'codex', model: 'm' } },
+    agents: { author: { profile: 'author', option: 'claude' }, reviewer: { profile: 'reviewer', option: 'codex' } },
   });
   if (!result.ok) throw new Error(JSON.stringify(result.errors));
   return result.config;

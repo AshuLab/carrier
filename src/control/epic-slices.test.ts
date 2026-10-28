@@ -15,7 +15,7 @@ import { startControlServer } from './server.ts';
 
 // The slices a poll cached, served by the epic request over a real socket from a real (temp) SQLite, with the engine and a fake GitHub.
 const MIN = 60_000;
-const agent = { profile: 'p', harness: 'claude' as const, model: 'm' };
+const agent = { profile: 'p', option: 'o', harness: 'claude' as const, model: 'm' };
 const repos: EffectiveRepoConfig[] = [{ name: 'AshuLab/a', agents: { author: agent, reviewer: agent } }];
 
 let dir: string;

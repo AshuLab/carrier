@@ -1,5 +1,5 @@
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { LogLevel } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { harnessNames, localProvidersOf } from '../harnesses/names.ts';
@@ -17,13 +17,24 @@ export const persona = z.strictObject({
   prompt: z.string().trim().min(1).max(4000).optional(),
 });
 
+/** A way to run an agent. The harness's config folder holds its login, so `configDir` is what picks the account; without one the agent inherits the environment. */
+const agentOption = z.strictObject({
+  harness: z.enum(harnessNames),
+  model: z.string().min(1),
+  /** Run `model` on a local server through the harness's CLI instead of the cloud. */
+  provider: z.enum(['lmstudio', 'ollama']).optional(),
+  /** `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. Absolute once `~` is expanded. */
+  configDir: z.string().min(1).transform(expandHome).optional(),
+});
+
+/** The key of an option: stored and shown as is. */
+const optionNamePattern = /^[a-z][a-z0-9-]{0,39}$/;
+
+// A role keeps its GitHub identity and persona, and points at an option by name, the way it points at a profile.
 const agent = z.strictObject({
   persona: persona.optional(),
   profile: z.string().min(1),
-  harness: z.enum(harnessNames),
-  model: z.string().min(1),
-  /** Run `model` on a local server through the harness's CLI instead of the cloud. A repo override cannot unset it: override the model and harness together. */
-  provider: z.enum(['lmstudio', 'ollama']).optional(),
+  option: z.string().min(1),
 });
 
 // The two shapes the spike fixed (docs/research/agent-forge.md): a bot through Agent Forge, or the user's own `gh` login. No secrets here.
@@ -50,6 +61,7 @@ export const configSchema = z
       .min(1),
     profiles: z.record(z.string(), profile),
     orchestratorProfile: z.string().min(1),
+    agentOptions: z.record(z.string(), agentOption),
     agents: z.strictObject({ author: agent, reviewer: agent }),
     limits: z.strictObject({
       maxConcurrentEpics: z.int().positive(),
@@ -77,18 +89,37 @@ export const configSchema = z
       }
     }
 
-    // A local provider only for a harness that can be pointed at one, globally and per repo once overrides are applied.
-    const providerCheck = (path: (string | number)[], where: string, agent: { harness: keyof typeof localProvidersOf; provider?: string }) => {
-      if (agent.provider !== undefined && !(localProvidersOf[agent.harness] as readonly string[]).includes(agent.provider)) {
-        ctx.addIssue({ code: 'custom', path, message: `${where}${agent.harness} cannot use the provider "${agent.provider}"` });
-      }
-    };
-    for (const role of ['author', 'reviewer'] as const) providerCheck(['agents', role, 'provider'], '', config.agents[role]);
+    const optionRefs: [(string | number)[], string][] = [
+      [['agents', 'author', 'option'], config.agents.author.option],
+      [['agents', 'reviewer', 'option'], config.agents.reviewer.option],
+    ];
     config.repos.forEach((repo, i) => {
       for (const role of ['author', 'reviewer'] as const) {
-        if (repo.agents?.[role]?.provider !== undefined || repo.agents?.[role]?.harness !== undefined) providerCheck(['repos', i, 'agents', role], `repo "${repo.name}": `, resolveRepoConfig(config, repo).agents[role]);
+        const option = repo.agents?.[role]?.option;
+        if (option !== undefined) optionRefs.push([['repos', i, 'agents', role, 'option'], option]);
       }
     });
+    for (const [path, name] of optionRefs) {
+      if (!(name in config.agentOptions)) {
+        ctx.addIssue({ code: 'custom', path, message: `option "${name}" is not declared in agentOptions` });
+      }
+    }
+
+    // What an option can have depends on its harness: a local provider and a config folder only where the CLI has a setting for them.
+    for (const [name, option] of Object.entries(config.agentOptions)) {
+      const where = `agentOptions.${name}`;
+      if (!optionNamePattern.test(name)) {
+        ctx.addIssue({ code: 'custom', path: ['agentOptions', name], message: `${where}: an option name is a lowercase word: letters, digits and hyphens, starting with a letter, up to 40 characters` });
+      }
+      if (option.provider !== undefined && !(localProvidersOf[option.harness] as readonly string[]).includes(option.provider)) {
+        ctx.addIssue({ code: 'custom', path: ['agentOptions', name, 'provider'], message: `${where}: ${option.harness} cannot use the provider "${option.provider}"` });
+      }
+      if (option.configDir !== undefined && option.harness === 'agy') {
+        ctx.addIssue({ code: 'custom', path: ['agentOptions', name, 'configDir'], message: `${where}: agy has no config folder setting, so it cannot have a configDir` });
+      } else if (option.configDir !== undefined && option.configDir !== '' && !isAbsolute(option.configDir)) {
+        ctx.addIssue({ code: 'custom', path: ['agentOptions', name, 'configDir'], message: `${where}: configDir must be an absolute path, or start with ~/ (got "${option.configDir}")` });
+      }
+    }
 
     // Solve's worktrees are `worktrees/<repo>/<feature>`, with no owner: same-name repos would share paths.
     const seen = new Map<string, string>();

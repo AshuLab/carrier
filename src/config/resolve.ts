@@ -1,6 +1,7 @@
 import type { Config } from './schema.ts';
 
-type Agent = Config['agents']['author'];
+// What an agent runs with: the role (profile, persona) and the option it points at. `option` and `configDir` are absent from the config of an epic reserved before options existed; harness, model and provider are what it saved.
+type Agent = Config['agents']['author'] & Config['agentOptions'][string];
 
 // Only profile names, never credentials: Agent Forge resolves those from the profile at run time.
 // `sharedIdentity` is saved with the epic so a later config change does not move it; absent on epics saved before it existed.
@@ -11,10 +12,12 @@ export const sameAccount = (a: Config['profiles'][string], b: Config['profiles']
 
 // Each repo inherits the global value of every field it does not override.
 export function resolveRepoConfig(config: Config, repo: Config['repos'][number]): EffectiveRepoConfig {
-  const agents = {
-    author: { ...config.agents.author, ...repo.agents?.author },
-    reviewer: { ...config.agents.reviewer, ...repo.agents?.reviewer },
+  // Validation resolves repos before it has checked that every option is declared.
+  const roleOf = (role: 'author' | 'reviewer') => {
+    const agent = { ...config.agents[role], ...repo.agents?.[role] };
+    return { ...agent, ...config.agentOptions[agent.option] } as Agent;
   };
+  const agents = { author: roleOf('author'), reviewer: roleOf('reviewer') };
   // Validation resolves repos before it has checked that every profile is declared.
   const [author, reviewer] = [config.profiles[agents.author.profile], config.profiles[agents.reviewer.profile]];
   return { name: repo.name, sharedIdentity: author !== undefined && reviewer !== undefined && sameAccount(author, reviewer), agents };

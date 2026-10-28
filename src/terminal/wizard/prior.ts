@@ -11,6 +11,9 @@ export function priorFrom(raw: unknown): Prior | undefined {
   const loaded = loadConfig(defaults, raw);
   if (!loaded.ok) return undefined;
   const { config } = loaded;
-  const role = (r: Config['agents']['author']): Answered => ({ identity: config.profiles[r.profile]!, harness: r.harness, model: r.model, ...(r.provider && { provider: r.provider }), ...(r.persona && { persona: r.persona }) });
+  const role = (r: Config['agents']['author']): Answered => {
+    const { harness, model, provider } = config.agentOptions[r.option]!;
+    return { identity: config.profiles[r.profile]!, harness, model, ...(provider && { provider }), ...(r.persona && { persona: r.persona }) };
+  };
   return { repos: config.repos.map((r) => r.name), identities: config.identities, author: role(config.agents.author), reviewer: role(config.agents.reviewer) };
 }

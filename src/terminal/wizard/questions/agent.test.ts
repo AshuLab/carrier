@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import type { Ui } from '../../prompts/types.ts';
-import { fakeDeps, quietUi, useTempDir } from '../testing.ts';
+import { fakeDeps, quietUi, roleOf, useTempDir } from '../testing.ts';
 import { runInit } from '../wizard.ts';
 
 const dir = useTempDir();
@@ -14,7 +14,8 @@ test('the model is picked from what the CLI offers; Codex starts on the model it
   const out = join(dir, 'm.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
   expect(asked).toContain('Model for the author'); // a select, answered by its initial value
-  expect(JSON.parse(written[out]!).agents).toMatchObject({ author: { model: 'sonnet' }, reviewer: { model: 'gpt-test' } });
+  expect(roleOf(written[out]!, 'author')).toMatchObject({ model: 'sonnet' });
+  expect(roleOf(written[out]!, 'reviewer')).toMatchObject({ model: 'gpt-test' });
 });
 
 test('"Other…" in the model list asks for the id', async () => {
@@ -24,7 +25,7 @@ test('"Other…" in the model list asks for the id', async () => {
   const withText: Ui = { ...ui, text: async (o) => (o.message === 'Model for the author' ? 'claude-x-1' : ui.text(o)) };
   const out = join(dir, 'n.json');
   await runInit({ repo: ['A/b'], out }, withText, deps);
-  expect(JSON.parse(written[out]!).agents.author.model).toBe('claude-x-1');
+  expect(roleOf(written[out]!, 'author').model).toBe('claude-x-1');
 });
 
 test('three questions, each with one meaning: harness, then provider (only when there is a choice), then that provider\'s models', async () => {
@@ -37,8 +38,8 @@ test('three questions, each with one meaning: harness, then provider (only when 
   expect(selects['Which agent CLI runs the reviewer?']).toEqual(['claude', 'codex', 'agy']); // only harnesses
   expect(selects['Which provider serves the reviewer\'s model?']).toEqual(['\0native', 'lmstudio', 'ollama (disabled)']); // Ollama is there, not running
   expect(selects['Model for the reviewer']).toEqual(['google/gemma-4-12b', 'qwen/qwen3.8-27b', '\0other']); // only LM Studio's models, no cloud ones
-  expect(JSON.parse(written[out]!).agents.reviewer).toEqual({ profile: 'tassadar-agent', harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio' });
-  expect(JSON.parse(written[out]!).agents.author).not.toHaveProperty('provider');
+  expect(roleOf(written[out]!, 'reviewer')).toEqual({ profile: 'tassadar-agent', option: 'codex', harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio' });
+  expect(roleOf(written[out]!, 'author')).not.toHaveProperty('provider');
 });
 
 test('with no local server running there is no provider question', async () => {
@@ -53,14 +54,14 @@ test('a local model id with a colon (Ollama) keeps it whole', async () => {
   const { ui } = quietUi({ 'Which provider serves the author\'s model?': 'ollama', 'Model for the author': 'qwen3:8b' });
   const out = join(dir, 'r.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  expect(JSON.parse(written[out]!).agents.author).toMatchObject({ model: 'qwen3:8b', provider: 'ollama' });
+  expect(roleOf(written[out]!, 'author')).toMatchObject({ model: 'qwen3:8b', provider: 'ollama' });
 });
 
 test('--author-provider goes with the flag form and an unknown server is refused', async () => {
   const { deps, written } = fakeDeps();
   const out = join(dir, 'q.json');
   await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'codex:qwen3:8b', authorProvider: 'ollama', reviewer: 'claude:sonnet', out }, quietUi().ui, deps);
-  expect(JSON.parse(written[out]!).agents.author).toEqual({ profile: 'artanis-agent', harness: 'codex', model: 'qwen3:8b', provider: 'ollama' });
+  expect(roleOf(written[out]!, 'author')).toEqual({ profile: 'artanis-agent', option: 'codex', harness: 'codex', model: 'qwen3:8b', provider: 'ollama' });
   await expect(runInit({ repo: ['A/b'], author: 'codex:m', authorProvider: 'vllm', authorProfile: 'gh', reviewerProfile: 'forge:x', reviewer: 'claude:s', out }, quietUi().ui, deps)).rejects.toThrow('invalid provider');
 });
 
@@ -70,13 +71,13 @@ test('Antigravity: its own models, and no provider question even with a local se
   const out = join(dir, 's.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
   expect(asked).not.toContain("Which provider serves the author's model?");
-  expect(JSON.parse(written[out]!).agents.author).toEqual({ profile: 'artanis-agent', harness: 'agy', model: 'gemini-3.8-flash-low' });
+  expect(roleOf(written[out]!, 'author')).toEqual({ profile: 'artanis-agent', option: 'agy', harness: 'agy', model: 'gemini-3.8-flash-low' });
 });
 
 test('--author agy:<model> is a valid flag form, and a provider on it is refused by the config', async () => {
   const { deps, written } = fakeDeps();
   const out = join(dir, 't.json');
   await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'agy:gemini-3.8-flash-low', reviewer: 'claude:sonnet', out }, quietUi().ui, deps);
-  expect(JSON.parse(written[out]!).agents.author.harness).toBe('agy');
+  expect(roleOf(written[out]!, 'author').harness).toBe('agy');
   await expect(runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'agy:m', authorProvider: 'lmstudio', reviewer: 'claude:sonnet', out }, quietUi().ui, deps)).rejects.toThrow('agy cannot use the provider "lmstudio"');
 });

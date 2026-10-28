@@ -1,7 +1,8 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Readable } from 'node:stream';
+import { EventEmitter } from 'node:events';
+import { PassThrough, Readable } from 'node:stream';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FakeChatRunner } from '../../../chat/fake.ts';
 import { startChatHost } from '../../../chat/host.ts';
@@ -114,6 +115,34 @@ test('--workspace starts the host when none answers', async () => {
   });
   expect(await chatCommand({ workspace: root }, config(), '/abs/config.json', { start, input: typed('/quit') })).toBe(0);
   expect(start).toHaveBeenCalledTimes(1);
+});
+
+test('Ctrl+C while a turn runs interrupts it and returns to the prompt, where the next message is answered; Ctrl+C at the prompt leaves with the session open', async () => {
+  await host();
+  claude.conversations.length = 0;
+  claude.setup = (conversation) => {
+    conversation.reply = (text, c) => {
+      if (text === 'long') c.emit({ kind: 'delta', text: 'one two ' }); // never ends by itself
+      else c.emit({ kind: 'assistant', text: 'second answer' }, { kind: 'turn_end', outcome: 'ok' });
+    };
+    conversation.onInterrupt = (c) => c.emit({ kind: 'turn_end', outcome: 'interrupted' });
+  };
+  const input = new PassThrough();
+  const sigint = new EventEmitter();
+  const running = chatCommand({ workspace: root }, config(), '/abs/config.json', { input, sigint, pollMs: 5 });
+  input.write('long\n');
+  await vi.waitFor(() => expect(written.join('')).toContain('one two '));
+  sigint.emit('SIGINT');
+  await vi.waitFor(() => expect(written.join('')).toContain('[interrupted]'));
+  input.write('again\n');
+  await vi.waitFor(() => expect(written.join('')).toContain('second answer'));
+  await vi.waitFor(() => expect(written.join('').endsWith('> ')).toBe(true));
+  sigint.emit('SIGINT'); // at the prompt
+  expect(await running).toBe(0);
+  expect(claude.conversations[0]!.sent).toEqual(['long', 'again']);
+  expect(claude.conversations[0]!.interrupts).toBe(1);
+  expect(claude.conversations[0]!.closed).toBe(false);
+  expect(sigint.listenerCount('SIGINT')).toBe(0);
 });
 
 test('/options prints each option with its current value and what it offers, /option changes one and prints it, and a refusal is shown in words', async () => {

@@ -90,6 +90,7 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
 
   const onEvent = (sessionId: string, live: Live, event: ChatEvent) => {
     if (event.kind === 'delta') return void (live.streaming += event.text);
+    if (event.kind === 'turn_end' && live.turn === undefined) return; // a turn already recorded (an interrupt, then the adapter's own end)
     if (event.kind === 'assistant' || event.kind === 'turn_end') live.streaming = '';
     store(sessionId, event);
     if (event.kind === 'option') {
@@ -197,6 +198,21 @@ export function createSessions({ db, config, clock, runners, env, binaryFound, o
         touch(sessionId, live, 'idle');
         throw new ChatRefused('The message could not be delivered to the agent');
       }
+      return {};
+    },
+
+    /** Ends the turn that is running, if any, and leaves the session idle for the next message. With no turn running it changes nothing. */
+    async interrupt({ sessionId }: { sessionId: string }) {
+      row(sessionId);
+      const live = lives.get(sessionId);
+      if (live?.turn === undefined) return {};
+      try {
+        await live.conversation.interrupt();
+      } catch (error) {
+        log.error('interrupting a conversation failed', error);
+      }
+      // The adapter says the turn ended; if it did not, the interrupt still did, so the host records it.
+      if (live.turn !== undefined) onEvent(sessionId, live, { kind: 'turn_end', outcome: 'interrupted' });
       return {};
     },
 

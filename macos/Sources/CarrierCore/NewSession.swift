@@ -104,6 +104,10 @@ public enum WorkspaceStep: Equatable {
     /// What the draft says about Carrier's list after a clone that was to add the repository, in words; `watchFailed` when it did not.
     public private(set) var watchNote: String?
     public private(set) var watchFailed = false
+    /// Where the footer says the projects folder is.
+    public private(set) var projectsPath: String
+    /// Why the last Change… was refused, in words; the old folder stands. Cleared when the popover opens.
+    public private(set) var projectsFolderProblem: String?
 
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let projectsFolder: () -> String
@@ -130,6 +134,7 @@ public enum WorkspaceStep: Equatable {
     ) {
         self.host = host
         self.projectsFolder = projectsFolder
+        projectsPath = projectsFolder()
         self.readConfig = readConfig
         self.writeConfig = writeConfig
         self.ensureHost = ensureHost
@@ -162,23 +167,40 @@ public enum WorkspaceStep: Equatable {
     /// The sources the popover lists under the folders.
     public var sources: [WorkspaceSource] { [.localFolder] + (hostClones ? [.githubURL] : []) + (hostCreates ? [.newProject] : []) }
 
-    /// Where the footer says the projects folder is.
-    public var projectsPath: String { projectsFolder() }
-
     /// The popover opens on the menu with the projects folder read again; one that is cloning stays on the step that shows it.
     public func openPicker() {
-        projects = projectFolders(in: projectsFolder())
-        watched = readConfig().flatMap { configRepoNames(json: $0) }
+        refreshFolders()
+        projectsFolderProblem = nil
         guard cloning == nil else { return }
         step = .menu
         cloneProblem = nil
         createProblem = nil
     }
 
+    private func refreshFolders() {
+        projectsPath = projectsFolder()
+        projects = projectFolders(in: projectsPath)
+        watched = readConfig().flatMap { configRepoNames(json: $0) }
+    }
+
+    /// The footer's Change…: writes `folder` as `chat.projectsFolder`, the file read again just now. A folder the host would refuse, or a
+    /// config that cannot be read or written, leaves the old one and says why in `projectsFolderProblem`. What was in the old folder is not moved.
+    public func changeProjectsFolder(to folder: String) {
+        projectsFolderProblem = nil
+        func refused(_ reason: String) { projectsFolderProblem = "\(reason). The projects folder stays \(projectsPath)." }
+        guard let json = readConfig() else { return refused("The config file could not be read") }
+        if let problem = projectsFolderRefusal(folder, configJSON: json, home: NSHomeDirectory()) { return refused(problem) }
+        guard let updated = applyingProjectsFolder(folder, to: json) else { return refused("The config file is not a JSON object") }
+        do { try writeConfig(updated) } catch {
+            log("new session: could not write the config: \(error)")
+            return refused("The config file is not writable")
+        }
+        refreshFolders()
+    }
+
     public func show(_ next: WorkspaceStep) {
         guard cloning == nil, creating == false else { return }
-        projects = projectFolders(in: projectsFolder())
-        watched = readConfig().flatMap { configRepoNames(json: $0) }
+        refreshFolders()
         step = next
         cloneProblem = nil
         createProblem = nil

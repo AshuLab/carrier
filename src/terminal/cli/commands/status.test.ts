@@ -59,7 +59,7 @@ test('status draws the kind of a failed stage in the history, and a failed stage
   const controls = {
     poll: () => {}, setPaused: () => {}, logs: () => [],
     sessions: (_repo: string, issue: number) => ({ sessions: [issue === 1 ? killed : failed] }),
-    events: () => null, epic: () => null, files: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), chooseOptions: () => Promise.resolve(),
+    events: () => null, epic: () => null, files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), chooseOptions: () => Promise.resolve(),
   };
   closers.push((await startControlServer({ orchestratorDir: join(root, 'orchestrator'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
   const { text } = await printed();

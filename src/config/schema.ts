@@ -63,6 +63,8 @@ export const configSchema = z
     orchestratorProfile: z.string().min(1),
     agentOptions: z.record(z.string(), agentOption),
     agents: z.strictObject({ author: agent, reviewer: agent }),
+    /** Off unless present and enabled. `order` is an allowlist: a role that runs out of credits only ever moves to a name in it. */
+    failover: z.strictObject({ enabled: z.boolean(), order: z.array(z.string()) }).optional(),
     limits: z.strictObject({
       maxConcurrentEpics: z.int().positive(),
       maxReviews: z.int().positive(),
@@ -106,6 +108,13 @@ export const configSchema = z
         ctx.addIssue({ code: 'custom', path, message: `option "${name}" is not declared in agentOptions` });
       }
     }
+
+    const named = new Set<string>();
+    config.failover?.order.forEach((name, i) => {
+      if (!(name in config.agentOptions)) ctx.addIssue({ code: 'custom', path: ['failover', 'order', i], message: `failover.order: option "${name}" is not declared in agentOptions` });
+      else if (named.has(name)) ctx.addIssue({ code: 'custom', path: ['failover', 'order', i], message: `failover.order: option "${name}" appears twice` });
+      named.add(name);
+    });
 
     // What an option can have depends on its harness: a local provider and a config folder only where the CLI has a setting for them.
     for (const [name, option] of Object.entries(config.agentOptions)) {

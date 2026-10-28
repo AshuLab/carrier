@@ -14,7 +14,7 @@ import SwiftUI
     /// Archive, restore and delete; `startMonitor` makes the lists read again after each.
     let actions = SessionActions(host: SocketChatHost())
     var collapse = SidebarCollapse()
-    /// The chat host's sessions (`ChatSessionsPoller`); the + follows the host (`ChatMonitor`).
+    /// The chat host's sessions (`ChatSessionsPoller`).
     var sessions = Sessions()
     /// The draft of a new session; it starts the chat host when it is not running (#503) before it opens the session.
     // built on the main thread, where the app creates its window
@@ -182,7 +182,6 @@ final class WindowController: NSObject, NSWindowDelegate {
         }
         if let content = window.contentView { walk(content) }
         for item in window.toolbar?.items ?? [] { lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)") }
-        lines.append("sessions +: \(model.sessions.cannotStartReason ?? "enabled")")
         lines.append("sessions: \(model.sessions.rows.count) rows, \(archivedCount(model.sessions.rows)) archived, groups \(sessionGroups(model.sessions.rows).map(\.title))")
         let home = sessionsPage(model.sessions.rows, by: model.sessionSort)
         lines.append("sessions home: \(home.subtitle.isEmpty ? "no count" : home.subtitle), \(home.emptyState?.title ?? "listed")")
@@ -213,8 +212,6 @@ final class WindowController: NSObject, NSWindowDelegate {
             guard let self, let window, window.isKeyWindow, event.window === window,
                 let action = shortcutAction(key: event.charactersIgnoringModifiers ?? "", modifiers: .init(event.modifierFlags))
             else { return event }
-            // the + is off, with its reason, when no session can start: ⌘N does what it does
-            if action == .select(.newSession), self.model.sessions.canStart == false { return nil }
             self.model.shell.perform(action)
             return nil
         }
@@ -258,10 +255,6 @@ final class WindowController: NSObject, NSWindowDelegate {
             }
         )
         Thread.detachNewThread { monitor.run() }
-        let chat = ChatMonitor(wait: sleep) { host in
-            DispatchQueue.main.async { if stop.isSet == false { model.sessions.cannotStartReason = cannotStartReason(host: host) } }
-        }
-        Thread.detachNewThread { chat.run() }
         let sessions = ChatSessionsPoller(host: SocketChatHost()) { rows in
             DispatchQueue.main.async { if stop.isSet == false { model.sessions.rows = rows } }
         }

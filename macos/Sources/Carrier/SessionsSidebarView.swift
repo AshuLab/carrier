@@ -50,7 +50,7 @@ struct SessionsRows: View {
                         selection: $sort, close: { sortOpen = false }
                     )
                 }
-            IconButton(icon: "plus", name: "New session", enabled: sessions.canStart, why: sessions.cannotStartReason, action: newSession)
+            IconButton(icon: "plus", name: "New session", action: newSession)
         })
         .help("Sessions (⌘2)")
         // the field is only drawn while unfolded, so a query must not outlive it: the magnifier would look pressed with no field
@@ -69,14 +69,14 @@ struct SessionsRows: View {
             case .empty:
                 let empty = EmptyState.noSessions
                 SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
-                    Button("New session", action: newSession).disabled(sessions.canStart == false).help(sessions.cannotStartReason ?? "New session")
+                    Button("New session", action: newSession).help("New session")
                 }
             case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
             case .rows: EmptyView()
             }
             ForEach(groups, id: \.title) { group in
                 if sort == .workspace {
-                    WorkspaceHeader(title: group.title, cannotStartReason: sessions.cannotStartReason)
+                    WorkspaceHeader(title: group.title)
                 } else {
                     Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).padding(.horizontal, SidebarMetrics.inset)
                 }
@@ -102,14 +102,13 @@ private extension SessionSort {
 /// A workspace's name, with a + that appears on hover.
 private struct WorkspaceHeader: View {
     let title: String
-    let cannotStartReason: String?
     @State private var hovered = false
 
     var body: some View {
         HStack {
             Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 0)
-            IconButton(icon: "plus", name: "New session in \(title)", enabled: cannotStartReason == nil, why: cannotStartReason) {}
+            IconButton(icon: "plus", name: "New session in \(title)") {}
                 .opacity(hovered ? 1 : 0)
         }
         .padding(.horizontal, SidebarMetrics.inset)

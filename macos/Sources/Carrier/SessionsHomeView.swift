@@ -61,8 +61,7 @@ struct SessionsHomeView: View {
         ToolbarItem(placement: .primaryAction) {
             Button(action: newSession) { Label("New session", systemImage: "plus").labelStyle(.titleAndIcon) }
                 .buttonStyle(.glassProminent)
-                .disabled(sessions.canStart == false)
-                .help(sessions.cannotStartReason ?? "New session")
+                .help("New session")
         }
     }
 

@@ -39,6 +39,8 @@ struct EmptyStateView: View {
         }
         .padding(22)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // nothing scrolls under the toolbar here, so it takes the page's own colour and not the system's band
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
     }
 }
 

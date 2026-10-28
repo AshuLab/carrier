@@ -440,3 +440,42 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     """
     #expect(try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8)).workspace == nil)
 }
+
+/// A host that is not there until `ensureHost` runs: its agents are refused before and answered after.
+private final class LateChat: ChatHost, @unchecked Sendable {
+    var up = false
+    var agentCalls = 0
+    func agents() async throws -> [ChatAgent] {
+        agentCalls += 1
+        guard up else { throw ControlError.closed }
+        return [ChatAgent(name: "claude", harness: "claude", found: true)]
+    }
+    func list(archived: Bool) async throws -> [ChatSession] { [] }
+    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String { opened }
+    func workspace(_ folder: String) async throws -> WorkspaceInfo { cleanRepo(folder) }
+    func fetch(_ folder: String) async throws -> WorkspaceInfo { cleanRepo(folder) }
+    func suggestName(_ folder: String) async throws -> String { "x" }
+    func checkName(_ folder: String, _ name: String) async throws -> NameCheck { NameCheck(valid: true, free: true) }
+    func send(_ id: String, _ text: String) async throws {}
+    func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents { ChatEvents(events: [], cursor: after) }
+    func resume(_ id: String) async throws {}
+    func interrupt(_ id: String) async throws {}
+    func answer(_ id: String, approval: String, choice: String) async throws {}
+    func setOption(_ id: String, option: String, value: String) async throws {}
+    func archive(_ id: String, _ archived: Bool) async throws {}
+    func delete(_ id: String) async throws {}
+    func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
+}
+
+@MainActor @Test func openingTheDraftStartsAHostThatIsNotThereAndOffersItsAgents() async {
+    let host = LateChat()
+    let model = NewSessionModel(host: host, ensureHost: { host.up = true; return true }, log: { _ in }, sleep: { _ in })
+    await model.load()
+    #expect(host.agentCalls == 2 && model.agents.map(\.name) == ["claude"] && model.agent == "claude")
+
+    // one that does not come up is asked once, says nothing and leaves the draft empty
+    let dead = LateChat()
+    let none = NewSessionModel(host: dead, ensureHost: { false }, log: { _ in }, sleep: { _ in })
+    await none.load()
+    #expect(dead.agentCalls == 1 && none.agents.isEmpty)
+}

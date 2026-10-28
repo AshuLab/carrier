@@ -89,15 +89,23 @@ public struct FailedFirstSend: Equatable {
         self.sleep = sleep
     }
 
-    /// Reads the agents and the recent folders again, each time the draft opens; a host that does not answer leaves what was there.
+    /// Reads the agents and the recent folders again, each time the draft opens. A host that does not answer is started (the + is always
+    /// on, so this is where it comes up) and asked once more; one that still does not answer leaves what was there.
     public func load() async {
         do {
-            agents = agentChoices(try await host.agents())
-            recent = recentFolders(try await host.list(archived: false) + (try await host.list(archived: true)))
+            do { try await read() } catch {
+                guard await ensureHost() else { throw error }
+                try await read()
+            }
         } catch {
             log("new session: \(ConversationModel.words(error))")
         }
         if agents.contains(where: { $0.name == agent && $0.available }) == false { agent = agents.first(where: \.available)?.name }
+    }
+
+    private func read() async throws {
+        agents = agentChoices(try await host.agents())
+        recent = recentFolders(try await host.list(archived: false) + (try await host.list(archived: true)))
     }
 
     /// Chooses the workspace and asks the host what it is; the worktree choice starts over (a new folder has other branches and names).

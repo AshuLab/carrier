@@ -41,6 +41,19 @@ public struct FailedFirstSend: Equatable {
     public let reason: String
 }
 
+/// A way into the workspace popover besides the folders it lists. One that is not built, or that the host cannot do, is not in `sources`.
+public enum WorkspaceSource: String {
+    case localFolder = "Open local folder…"
+    case githubURL = "From a GitHub URL…"
+    case githubRepos = "My GitHub repositories…"
+    case newProject = "New project…"
+}
+
+/// The step of the workspace popover that is showing.
+public enum WorkspaceStep: Equatable {
+    case menu, url, repos, project
+}
+
 /// The draft: loads what it offers, and `send()` opens the session and then sends the message, in two steps.
 @MainActor @Observable public final class NewSessionModel {
     public private(set) var recent: [RecentFolder] = []
@@ -67,7 +80,53 @@ public struct FailedFirstSend: Equatable {
     /// Why the last Fetch now failed, in the host's words; cleared by the next one.
     public private(set) var fetchProblem: String?
 
+    /// Whether the host can clone (its hello lists `cloneRepo`); an older one is not offered From a GitHub URL…
+    public private(set) var hostClones = false
+    /// Whether the host can list the person's GitHub repositories (its hello lists `githubRepos`).
+    public private(set) var hostLists = false
+    /// Whether the host can make a new project (its hello lists `createProject`).
+    public private(set) var hostCreates = false
+    /// The `<owner>/<repo>` folders of the projects folder, read from disk each time the popover opens.
+    public private(set) var projects: [ProjectFolder] = []
+    public private(set) var step = WorkspaceStep.menu
+    /// What the URL step was given.
+    public var urlText = ""
+    /// The repository being cloned, nil when none is.
+    public private(set) var cloning: String?
+    /// Why the last clone was refused, in the host's words; cleared when the next one starts.
+    public private(set) var cloneProblem: String?
+    /// The pages of the person's repositories loaded so far (My GitHub repositories), the login they were read with (page 1 only),
+    /// and why the latest read failed, in the host's words; the list keeps what was loaded when a later page fails.
+    public private(set) var repoList = AvailableReposList()
+    public private(set) var login: String?
+    public private(set) var reposReason: String?
+    public private(set) var loadingRepos = false
+    /// The search over the loaded repositories.
+    public var reposQuery = ""
+    /// What the New project step was given: the part after `local/`.
+    public var projectName = ""
+    public private(set) var creating = false
+    /// Why the host refused the last project, in its words; cleared when the next one starts.
+    public private(set) var createProblem: String?
+    /// "Let Carrier watch this repo": the person's choice, on by default; `watching` is what it comes to for the repository typed.
+    public var watch = true
+    /// The `repos` of the config file as of the last time the popover opened or showed a step; nil when the file cannot be read.
+    public private(set) var watched: [String]?
+    /// What the draft says about Carrier's list after a clone that was to add the repository, in words; `watchFailed` when it did not.
+    public private(set) var watchNote: String?
+    public private(set) var watchFailed = false
+    /// Where the footer says the projects folder is.
+    public private(set) var projectsPath: String
+    /// Why the last Change… was refused, in words; the old folder stands. Cleared when the popover opens.
+    public private(set) var projectsFolderProblem: String?
+
     @ObservationIgnored private let host: ChatHost
+    @ObservationIgnored private let projectsFolder: () -> String
+    @ObservationIgnored private let readConfig: () -> Data?
+    @ObservationIgnored private let writeConfig: (Data) throws -> Void
+    /// Counts the times the list was started over, so a page that was asked for before is dropped when it comes back.
+    @ObservationIgnored private var reposRead = 0
+    @ObservationIgnored private var cloneTask: Task<ClonedRepo, Error>?
     @ObservationIgnored private let ensureHost: @MainActor () async -> Bool
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
@@ -77,13 +136,20 @@ public struct FailedFirstSend: Equatable {
     @ObservationIgnored private var failedFirstSends: [String: FailedFirstSend] = [:]
 
     /// `ensureHost` starts the chat host when it is not running (#503) and says whether it answers now.
-    /// `sleep` is the wait before a typed name is checked.
+    /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where the config says the projects folder is;
+    /// `readConfig` and `writeConfig` are the config file itself.
     public init(
         host: ChatHost, ensureHost: @escaping @MainActor () async -> Bool = { true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
-        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        projectsFolder: @escaping () -> String = currentProjectsFolder,
+        readConfig: @escaping () -> Data? = currentConfig, writeConfig: @escaping (Data) throws -> Void = writeCurrentConfig
     ) {
         self.host = host
+        self.projectsFolder = projectsFolder
+        projectsPath = projectsFolder()
+        self.readConfig = readConfig
+        self.writeConfig = writeConfig
         self.ensureHost = ensureHost
         self.log = log
         self.sleep = sleep
@@ -106,19 +172,215 @@ public struct FailedFirstSend: Equatable {
     private func read() async throws {
         agents = agentChoices(try await host.agents())
         recent = recentFolders(try await host.list(archived: false) + (try await host.list(archived: true)))
+        let capabilities = try await host.capabilities()
+        hostClones = capabilities.contains(.cloneRepo)
+        hostCreates = capabilities.contains(.createProject)
+        hostLists = capabilities.contains(.githubRepos)
+    }
+
+    /// The sources the popover lists under the folders.
+    public var sources: [WorkspaceSource] { [.localFolder] + (hostClones ? [.githubURL] : []) + (hostLists && hostClones ? [.githubRepos] : []) + (hostCreates ? [.newProject] : []) }
+
+    /// The popover opens on the menu with the projects folder read again; one that is cloning, or whose clone failed while it was closed,
+    /// stays on the step that shows it until the next action starts.
+    public func openPicker() {
+        refreshFolders()
+        projectsFolderProblem = nil
+        guard cloning == nil, cloneProblem == nil else { return }
+        step = .menu
+        createProblem = nil
+    }
+
+    private func refreshFolders() {
+        projectsPath = projectsFolder()
+        projects = projectFolders(in: projectsPath)
+        watched = readConfig().flatMap { configRepoNames(json: $0) }
+    }
+
+    /// The footer's Change…: writes `folder` as `chat.projectsFolder`, the file read again just now. A folder the host would refuse, or a
+    /// config that cannot be read or written, leaves the old one and says why in `projectsFolderProblem`. What was in the old folder is not moved.
+    public func changeProjectsFolder(to folder: String) {
+        projectsFolderProblem = nil
+        func refused(_ reason: String) { projectsFolderProblem = "\(reason). The projects folder stays \(projectsPath)." }
+        guard let json = readConfig() else { return refused("The config file could not be read") }
+        if let problem = projectsFolderRefusal(folder, configJSON: json, home: NSHomeDirectory()) { return refused(problem) }
+        guard let updated = applyingProjectsFolder(folder, to: json) else { return refused("The config file is not a JSON object") }
+        do { try writeConfig(updated) } catch {
+            log("new session: could not write the config: \(error)")
+            return refused("The config file is not writable")
+        }
+        refreshFolders()
+    }
+
+    public func show(_ next: WorkspaceStep) {
+        guard cloning == nil, creating == false else { return }
+        refreshFolders()
+        step = next
+        cloneProblem = nil
+        createProblem = nil
+    }
+
+    /// The repository being cloned without its owner: what the chip says while it runs.
+    public var cloningName: String? { cloning.flatMap { $0.split(separator: "/").last.map(String.init) } }
+
+    /// The repository the URL step's text names.
+    public var reference: String? { repoReference(urlText) }
+
+    /// A repository already among the projects folder's folders is fetched, not cloned again.
+    public var alreadyThere: Bool { reference.map { name in projects.contains { $0.name.lowercased() == name.lowercased() } } ?? false }
+
+    public var cloneButton: String { cloneProblem != nil ? "Try again" : alreadyThere ? "Update and use" : "Clone and use" }
+
+    /// Why the box cannot be on for the repository typed (already watched, or a folder name another watched repo has); nil when it can.
+    public var watchProblem: String? { reference.flatMap(watchProblem(for:)) }
+
+    /// The same for any repository: why the box cannot apply to it.
+    public func watchProblem(for repo: String) -> String? { watched.flatMap { repoProblem(repo, joining: $0) } }
+
+    public var watching: Bool { watch && watchProblem == nil }
+
+    /// "Clone and use" stays off until the text is one repository, and while a clone runs.
+    public var canCloneNow: Bool { reference != nil && cloning == nil }
+
+    /// Clones (or fetches) the repository of the URL step and chooses its folder as the workspace; true when it did. The draft has no
+    /// workspace while it runs and when it fails, so the chip stays orange; the refusal is in `cloneProblem`.
+    public func cloneAndUse() async -> Bool {
+        guard let repo = reference else { return false }
+        return await clone(repo, showing: .url)
+    }
+
+    /// The same for a repository chosen in My GitHub repositories, where the clone shows.
+    public func cloneAndUse(repo: String) async -> Bool { await clone(repo, showing: .repos) }
+
+    private func clone(_ repo: String, showing shown: WorkspaceStep) async -> Bool {
+        guard cloning == nil else { return false }
+        let adding = watch && watchProblem(for: repo) == nil
+        reset(folder: nil)
+        cloning = repo
+        cloneProblem = nil
+        step = shown
+        let task = Task { [host] in try await host.cloneRepo(repo) }
+        cloneTask = task
+        do {
+            let cloned = try await task.value
+            guard cloneTask == task else { return false }
+            cloning = nil
+            cloneTask = nil
+            if shown == .url { urlText = "" }
+            await choose(folder: cloned.folder)
+            // the clone stands whatever happens to the list
+            if adding, folder == cloned.folder { addToWatched(repo) }
+            return true
+        } catch {
+            // a clone that was cancelled has already been dropped by `cancelClone`
+            guard cloneTask == task else { return false }
+            cloning = nil
+            cloneTask = nil
+            cloneProblem = report(error, "clone \(repo)")
+            return false
+        }
+    }
+
+    /// My GitHub repositories: starts the list over and reads its first page. The step does not open while a clone or a new project is running.
+    public func showRepos() async {
+        show(.repos)
+        guard step == .repos else { return }
+        reposRead += 1
+        repoList = AvailableReposList()
+        login = nil
+        reposReason = nil
+        reposQuery = ""
+        loadingRepos = false
+        await loadRepos()
+    }
+
+    /// Reads the next page, the first one included: what is loaded stays, and a page that fails is `reposReason` and is asked again by the next call.
+    public func loadRepos() async {
+        guard loadingRepos == false else { return }
+        let read = reposRead
+        let page = repoList.nextPage
+        loadingRepos = true
+        defer { if read == reposRead { loadingRepos = false } }
+        do {
+            let loaded = try await host.githubRepos(page: page)
+            guard read == reposRead else { return }
+            if page == 1 { login = loaded.login }
+            repoList.apply(.repos(loaded.repos.filter { isRepoName($0.name) }, hasMore: loaded.hasMore))
+            reposReason = nil
+        } catch {
+            guard read == reposRead else { return }
+            repoList.apply(.githubError)
+            reposReason = report(error, "list repositories")
+        }
+    }
+
+    /// The loaded repositories that match the search, in the host's order.
+    public func repoRows(now: Date = Date()) -> [GithubRepoRow] { githubRepoRows(repoList.repos, watched: watched ?? [], query: reposQuery, now: now) }
+
+    /// The path New project will make, shown before anything is made.
+    public var projectPath: String { "\(projectsPath)/local/\(projectName.isEmpty ? "<name>" : projectName)" }
+
+    /// Why the name typed cannot be used (not a plain folder name, or a project of that name is already there); nil when it can, and while nothing is typed.
+    public var projectNameWarning: String? {
+        guard projectName.isEmpty == false else { return nil }
+        if let problem = projectNameProblem(projectName) { return problem }
+        if projects.contains(where: { $0.name.lowercased() == "local/" + projectName.lowercased() }) { return "\(projectName) is already a project; choose another name" }
+        return nil
+    }
+
+    /// "Create and use" stays off for a name the host would refuse, and while a project is being made.
+    public var canCreateNow: Bool { projectName.isEmpty == false && projectNameWarning == nil && creating == false }
+
+    /// Makes the project on the host and chooses its folder as the workspace; true when it did. A refusal is in `createProblem` and the
+    /// draft keeps its workspace.
+    public func createAndUse() async -> Bool {
+        guard canCreateNow else { return false }
+        let name = projectName
+        creating = true
+        createProblem = nil
+        defer { creating = false }
+        do {
+            let created = try await host.createProject(name)
+            projectName = ""
+            await choose(folder: created)
+            return true
+        } catch {
+            createProblem = report(error, "create \(name)")
+            return false
+        }
+    }
+
+    /// Adds `repo` to the config's `repos`, the file read again just now; the engine reads it when it starts, so nothing is restarted.
+    private func addToWatched(_ repo: String) {
+        func failed(_ reason: String) {
+            watchNote = "\(repo) could not be added to Carrier's list: \(reason)."
+            watchFailed = true
+        }
+        guard let json = readConfig(), let names = configRepoNames(json: json) else {
+            return failed("the config file could not be read or is not a JSON object")
+        }
+        if let problem = reposProblem(names + [repo]) { return failed(problem) }
+        guard let updated = applyingRepos(names + [repo], to: json) else { return failed("the config file could not be rewritten") }
+        do {
+            try writeConfig(updated)
+            watched = names + [repo]
+            watchNote = "Carrier will listen to \(repo) from its next start."
+        } catch {
+            log("new session: could not write the config: \(error)")
+            failed("the config file is not writable")
+        }
+    }
+
+    /// Cancel: closes the request's connection, which stops the clone on the host, and the draft goes on with no workspace.
+    public func cancelClone() {
+        cloneTask?.cancel()
+        cloneTask = nil
+        cloning = nil
     }
 
     /// Chooses the workspace and asks the host what it is; the worktree choice starts over (a new folder has other branches and names).
     public func choose(folder path: String) async {
-        folder = path
-        workspace = nil
-        workspaceProblem = nil
-        worktree = false
-        picked = nil
-        fetchProblem = nil
-        worktreeName = ""
-        verifiedName = nil
-        nameState = .suggesting
+        reset(folder: path)
         do {
             let info = try await host.workspace(path)
             guard folder == path else { return }
@@ -130,13 +392,29 @@ public struct FailedFirstSend: Equatable {
         }
     }
 
+    private func reset(folder path: String?) {
+        folder = path
+        workspace = nil
+        workspaceProblem = nil
+        cloneProblem = nil
+        worktree = false
+        picked = nil
+        fetchProblem = nil
+        worktreeName = ""
+        verifiedName = nil
+        nameState = .suggesting
+        watchNote = nil
+        watchFailed = false
+    }
+
     /// The branch the worktree starts from, nil when none is known and the person is asked.
     public var startBranch: String? { picked ?? workspace.flatMap(defaultStartBranch) }
 
     public func choose(startBranch branch: String) { picked = branch }
 
     public var sentence: String {
-        workSentence(folder: folder, workspace: workspace, worktree: worktree ? (worktreeName, startBranch) : nil)
+        if let cloning, let name = cloningName { return "Work in \(name) Cloning \(cloning)…" }
+        return workSentence(folder: folder, workspace: workspace, worktree: worktree ? (worktreeName, startBranch) : nil)
     }
 
     /// The line under the sentence: the uncommitted files of the base folder, which a worktree would keep out of the agent's way.

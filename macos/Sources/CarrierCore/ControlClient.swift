@@ -53,6 +53,13 @@ public final class ControlClient {
         Darwin.close(fd)
     }
 
+    /// Ends the conversation from another thread: the read that is waiting in this one gets EOF and throws `closed`. The descriptor
+    /// stays this client's until `close()`, which is still the owner's to call.
+    public func abort() {
+        guard isOpen else { return }
+        shutdown(fd, SHUT_RDWR)
+    }
+
     /// What Carrier says about itself on connect. An engine older than the version and capabilities has neither: `version` is nil and `capabilities` empty.
     public struct Hello: Equatable {
         public let protocolVersion: Int
@@ -64,7 +71,7 @@ public final class ControlClient {
     public enum Capability: String {
         case sessions, events, epic, files, fileDiff, availableRepos, availableReposPaged, resumeEpic
         case agents, list, open, resume, send, answer, interrupt, setOption, close, archive, delete, deletePreview, stop
-        case workspace, fetch, suggestName, checkName
+        case workspace, fetch, suggestName, checkName, cloneRepo, createProject, githubRepos
     }
 
     /// What the last `hello()` said Carrier can do; empty until then.

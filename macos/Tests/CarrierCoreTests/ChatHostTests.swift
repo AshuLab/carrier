@@ -36,7 +36,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {
@@ -89,4 +89,71 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     }
     defer { server.stop() }
     await #expect(throws: ControlError.badLine) { try await SocketChatHost(socketPath: { server.path }).agents() }
+}
+
+@Test func theFixtureHostAnswersCloneRepoFromTheGoldenFileAndRefusesWhatItDoesNotList() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    #expect(try await host.capabilities().contains(.cloneRepo))
+    #expect(try await host.cloneRepo("AshuLab/web") == ClonedRepo(folder: "/Users/dev/web", repo: "AshuLab/web", fetched: false))
+    #expect(try await host.cloneRepo("AshuLab/carrier") == ClonedRepo(folder: "/Users/dev/carrier", repo: "AshuLab/carrier", fetched: true))
+    await #expect(throws: ControlError.remote("AshuLab/nope was not found, or your GitHub login cannot see it")) { try await host.cloneRepo("AshuLab/nope") }
+}
+
+@Test func theFixtureHostAnswersCreateProjectFromTheGoldenFileAndRefusesAnotherName() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    #expect(try await host.capabilities().contains(.createProject))
+    #expect(try await host.createProject("my-idea") == "/Users/dev/projects/local/my-idea")
+    await #expect(throws: ControlError.remote("web is already a project; choose another name")) { try await host.createProject("web") }
+}
+
+@Test func aHostWithoutTheCreateProjectCapabilityIsNotAskedToCreate() async {
+    var asked = false
+    let server = TestServer { connection in
+        connection.send(hello("\"agents\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { server.stop() }
+    await #expect(throws: ControlError.remote("the chat host does not support createProject")) { try await SocketChatHost(socketPath: { server.path }).createProject("x") }
+    #expect(asked == false)
+}
+
+@Test func aHostWithoutTheCloneCapabilityIsNotAskedToClone() async {
+    var asked = false
+    let server = TestServer { connection in
+        connection.send(hello("\"agents\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    await #expect(throws: ControlError.remote("the chat host does not support cloneRepo")) { try await host.cloneRepo("AshuLab/carrier") }
+    #expect(asked == false)
+}
+
+@Test func theFixtureHostAnswersGithubReposByPageFromTheGoldenFileWithTheLoginOnPageOneOnly() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    #expect(try await host.capabilities().contains(.githubRepos))
+    let first = try await host.githubRepos(page: 1)
+    #expect(first.login == "vemec" && first.hasMore && first.repos.count == 6)
+    #expect(first.repos[0] == AvailableRepo(name: "AshuLab/carrier", isPrivate: true, pushedAt: "2026-10-28T15:40:00Z"))
+    #expect(first.repos[5] == AvailableRepo(name: "vemec/dotfiles", isPrivate: false, pushedAt: nil))
+    let second = try await host.githubRepos(page: 2)
+    #expect(second.login == nil && second.hasMore == false && second.repos.map(\.name) == ["optyra/docs", "vemec/old-experiments"])
+    await #expect(throws: ControlError.remote("GitHub did not answer; check \"gh auth status\"")) { try await host.githubRepos(page: 3) }
+}
+
+@Test func aHostWithoutTheGithubReposCapabilityIsNotAskedToList() async {
+    var asked = false
+    let server = TestServer { connection in
+        connection.send(hello("\"agents\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { server.stop() }
+    await #expect(throws: ControlError.remote("the chat host does not support githubRepos")) { try await SocketChatHost(socketPath: { server.path }).githubRepos(page: 1) }
+    #expect(asked == false)
 }

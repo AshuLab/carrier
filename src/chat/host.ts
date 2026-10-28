@@ -7,6 +7,7 @@ import { acquireLock } from '../storage/lock.ts';
 import { claudeChatRunner } from './claude.ts';
 import { codexChatRunner } from './codex.ts';
 import { realGit, type Git } from './git.ts';
+import { createProjects, ghLogin, ghRepos, ghToken, type GithubRepos } from './projects.ts';
 import { openChatDatabase } from './db.ts';
 import { idleExit } from './idle.ts';
 import { chatDirOf, startChatServer } from './server.ts';
@@ -28,12 +29,24 @@ export interface ChatHostDeps {
   runners: ChatSessionsDeps['runners'];
   env: NodeJS.ProcessEnv;
   git: Git;
+  /** The token of the person's `gh` login, for the clones. */
+  token: () => Promise<string>;
+  /** The person's GitHub repositories and login, for the list. */
+  github: GithubRepos;
+  /** The config file the host was started from: the projects folder is read from it at each request. Absent: the config the host started with. */
+  configPath?: string;
   binaryFound: ChatSessionsDeps['binaryFound'];
   /** The process table and the kill the start-up sweep uses. */
   processes: Processes;
 }
 
-const realDeps = (): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, binaryFound, processes: realProcesses });
+// The running config's limit, read at each call: the user's `limits.githubCallTimeoutSeconds`, not the default.
+const realGithub = (config: Config): GithubRepos => {
+  const timeoutMs = () => config.limits.githubCallTimeoutSeconds * 1000;
+  return { repos: (page) => ghRepos(page, timeoutMs()), login: () => ghLogin(timeoutMs()) };
+};
+
+const realDeps = (config: Config): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub(config), binaryFound, processes: realProcesses });
 
 /**
  * Runs the chat host: its own lock, log, database and socket under `<root>/chat/`, sharing nothing with the engine's
@@ -41,7 +54,7 @@ const realDeps = (): ChatHostDeps => ({ installLogging: installFileLogging, cloc
  * the returned `stop()` is the one shutdown (`stop` request, idle exit, signals).
  */
 export async function startChatHost(config: Config, overrides: Partial<ChatHostDeps> = {}) {
-  const deps = { ...realDeps(), ...overrides };
+  const deps = { ...realDeps(config), ...overrides };
   const chatDir = chatDirOf(config.root);
   const lock = acquireLock(chatDir);
   if (!lock.ok) throw new HostBusy(`Another chat host is already running on ${chatDir}`);
@@ -52,6 +65,7 @@ export async function startChatHost(config: Config, overrides: Partial<ChatHostD
   let closeServer = () => {};
   let idle: ReturnType<typeof idleExit> | undefined;
   const sessions = createSessions({ db, config, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, binaryFound: deps.binaryFound, onLiveChange: () => idle?.recheck() });
+  const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, config, configPath: deps.configPath });
   const close = () => {
     idle?.stop();
     closeServer();
@@ -72,7 +86,7 @@ export async function startChatHost(config: Config, overrides: Partial<ChatHostD
       joined: () => void (idle?.joined(), sessions.clientJoined()),
       left: () => void (idle?.left(), sessions.clientLeft()),
     };
-    closeServer = (await startChatServer({ chatDir, startedAt: deps.clock.now(), controls: sessions, stop, clients })).close;
+    closeServer = (await startChatServer({ chatDir, startedAt: deps.clock.now(), controls: { ...sessions, cloneRepo: projects.cloneRepo, createProject: projects.createProject, githubRepos: projects.githubRepos }, stop, clients })).close;
   } catch (error) {
     close();
     throw error;

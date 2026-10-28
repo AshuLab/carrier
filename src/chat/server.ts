@@ -3,7 +3,9 @@ import { createServer, type Socket } from 'node:net';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
+import { repoNamePattern } from '../config/schema.ts';
 import { socketPathFits, version, type Hello, type Reply } from '../control/server.ts';
+import { projectNamePattern } from './projects.ts';
 import { ChatRefused } from './runner.ts';
 
 const log = createScopedLogger('chat');
@@ -12,8 +14,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'stop'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -36,6 +38,9 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('suggestName'), folder: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('checkName'), folder: z.string().min(1), name: z.string().max(1000) }),
   z.strictObject({ id, cmd: z.literal('deletePreview'), sessionIds: z.array(sessionId).min(1).max(500) }),
+  z.strictObject({ id, cmd: z.literal('cloneRepo'), repo: z.string().regex(repoNamePattern) }),
+  z.strictObject({ id, cmd: z.literal('createProject'), name: z.string().regex(projectNamePattern) }),
+  z.strictObject({ id, cmd: z.literal('githubRepos'), page: z.int().min(1).max(100) }),
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
@@ -60,9 +65,13 @@ export type ChatControls = {
   suggestName(args: Args<'suggestName'>): Promise<unknown>;
   checkName(args: Args<'checkName'>): Promise<unknown>;
   deletePreview(args: Args<'deletePreview'>): Promise<unknown>;
+  /** `gone` aborts when the client closes its connection. */
+  cloneRepo(args: Args<'cloneRepo'>, gone: AbortSignal): Promise<unknown>;
+  createProject(args: Args<'createProject'>): Promise<unknown>;
+  githubRepos(args: Args<'githubRepos'>): Promise<unknown>;
 };
 
-async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls): Promise<unknown> {
+async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls, gone: AbortSignal): Promise<unknown> {
   switch (request.cmd) {
     case 'agents':
       return controls.agents();
@@ -98,10 +107,16 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.checkName({ folder: request.folder, name: request.name });
     case 'deletePreview':
       return controls.deletePreview({ sessionIds: request.sessionIds });
+    case 'cloneRepo':
+      return controls.cloneRepo({ repo: request.repo }, gone);
+    case 'createProject':
+      return controls.createProject({ name: request.name });
+    case 'githubRepos':
+      return controls.githubRepos({ page: request.page });
   }
 }
 
-async function answer(line: string, controls: ChatControls, stopAfterReply: () => void): Promise<Reply> {
+async function answer(line: string, controls: ChatControls, gone: AbortSignal, stopAfterReply: () => void): Promise<Reply> {
   let value: unknown;
   try {
     value = JSON.parse(line);
@@ -119,7 +134,7 @@ async function answer(line: string, controls: ChatControls, stopAfterReply: () =
     return { id: parsed.data.id, ok: true };
   }
   try {
-    return { id: parsed.data.id, ok: true, data: await run(parsed.data, controls) };
+    return { id: parsed.data.id, ok: true, data: await run(parsed.data, controls, gone) };
   } catch (error) {
     if (error instanceof ChatRefused) return { id: parsed.data.id, ok: false, error: error.message };
     log.error(`${parsed.data.cmd} failed`, error);
@@ -144,10 +159,12 @@ export async function startChatServer({ chatDir, startedAt, controls, stop, clie
   const server = createServer((socket) => {
     sockets.add(socket);
     clients.joined();
+    const gone = new AbortController();
     socket.setEncoding('utf8');
     // a client that goes away mid-write is routine, not a failure
     socket.on('error', (error) => log.debug('chat connection error', error));
     socket.on('close', () => {
+      gone.abort();
       sockets.delete(socket);
       clients.left();
     });
@@ -163,7 +180,7 @@ export async function startChatServer({ chatDir, startedAt, controls, stop, clie
         // `stop`: the reply is flushed first, then the shutdown runs
         replies = replies.then(async () => {
           let afterReply: (() => void) | undefined;
-          const reply = await answer(line, controls, () => void (afterReply = () => void stop().catch((error) => log.error('stop failed', error))));
+          const reply = await answer(line, controls, gone.signal, () => void (afterReply = () => void stop().catch((error) => log.error('stop failed', error))));
           send(socket, reply, afterReply);
         });
       }

@@ -40,6 +40,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     func setOption(_ id: String, option: String, value: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
+    func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
 }
 
 @MainActor private func draft(_ host: FakeChat, hostStarts: Bool = true, log: @escaping (String) -> Void = { _ in }) async -> NewSessionModel {

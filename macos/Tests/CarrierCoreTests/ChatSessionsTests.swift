@@ -100,6 +100,15 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
         changes.append("delete \(id)")
         if let error = refuse[id] { throw error }
     }
+    /// What `deletePreview` says per session; one with no entry is in a base folder. `previewError` makes the request fail.
+    var worktrees: [String: SessionDeletePreview.Worktree] = [:]
+    var previewError: Error?
+    var previewed: [[String]] = []
+    func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] {
+        previewed.append(ids)
+        if let previewError { throw previewError }
+        return ids.map { SessionDeletePreview(sessionId: $0, worktree: worktrees[$0]) }
+    }
 }
 
 private final class Clock { var now = Date(timeIntervalSince1970: 1_800_000_000) }
@@ -352,6 +361,52 @@ private let archived = [
     #expect(deleteSessionQuestion(row("x", "Old spike")).title == "Delete \u{201C}Old spike\u{201D}?")
 }
 
+private func worktree(dirty: Int, unpushed: Int) -> SessionDeletePreview.Worktree {
+    SessionDeletePreview.Worktree(path: "/home/.carrier/chat/worktrees/o/r/x", branch: "carrier/x", dirty: dirty, unpushed: unpushed)
+}
+
+private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -> SessionDeletePreview { SessionDeletePreview(sessionId: id, worktree: worktree) }
+
+@Test func deletingASessionInABaseFolderKeepsThePlainText() {
+    let plain = deleteSessionQuestion(row("x", "Old spike"))
+    #expect(plain.message == "Its transcript is removed and cannot be brought back.")
+    #expect(deleteSessionQuestion(row("x", "Old spike"), worktree: nil) == plain)
+}
+
+@Test func deletingASessionInAWorktreeSaysWhatWouldBeLost() {
+    let t = "Its transcript is removed and cannot be brought back."
+    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 3, unpushed: 2)).message
+        == "3 uncommitted files and 2 commits that exist nowhere else will be removed with its worktree. " + t)
+    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 1, unpushed: 0)).message == "1 uncommitted file will be removed with its worktree. " + t)
+    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 0, unpushed: 1)).message == "1 commit that exists nowhere else will be removed with its worktree. " + t)
+    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 0, unpushed: 4)).message == "4 commits that exist nowhere else will be removed with its worktree. " + t)
+}
+
+@Test func deletingASessionInAWorktreeThatHoldsNothingSaysOnlyThatTheWorktreeGoes() {
+    #expect(deleteSessionQuestion(row("x", "t"), worktree: worktree(dirty: 0, unpushed: 0)).message
+        == "Its worktree will be removed. Its transcript is removed and cannot be brought back.")
+}
+
+@Test func theClearAlertNamesTheTotalAndSaysWhatTheWorktreesWouldLose() {
+    let t = "Their transcripts are removed and cannot be brought back."
+    // none: base folders only, or no preview at all
+    #expect(clearSessionsQuestion(count: 3, previews: [preview("a", nil), preview("b", nil), preview("c", nil)]).message == t)
+    #expect(clearSessionsQuestion(count: 3).title == "Delete all 3 archived sessions?")
+    // worktrees that hold nothing
+    #expect(clearSessionsQuestion(count: 3, previews: [preview("a", worktree(dirty: 0, unpushed: 0)), preview("b", nil)]).message == t + " 1 of them works in a worktree, which will be removed too.")
+    #expect(clearSessionsQuestion(count: 3, previews: [preview("a", worktree(dirty: 0, unpushed: 0)), preview("b", worktree(dirty: 0, unpushed: 0))]).message
+        == t + " 2 of them work in worktrees, which will be removed too.")
+    // dirty only, unpushed only, both
+    #expect(clearSessionsQuestion(count: 2, previews: [preview("a", worktree(dirty: 2, unpushed: 0)), preview("b", nil)]).message
+        == t + " 1 of them works in a worktree that would lose work: 2 uncommitted files will be removed with it.")
+    #expect(clearSessionsQuestion(count: 2, previews: [preview("a", worktree(dirty: 0, unpushed: 1)), preview("b", nil)]).message
+        == t + " 1 of them works in a worktree that would lose work: 1 commit that exists nowhere else will be removed with it.")
+    // several: the totals add up, a worktree that loses nothing is not counted among them
+    #expect(clearSessionsQuestion(count: 5, previews: [
+        preview("a", worktree(dirty: 2, unpushed: 1)), preview("b", worktree(dirty: 1, unpushed: 3)), preview("c", worktree(dirty: 0, unpushed: 0)), preview("d", nil), preview("e", nil),
+    ]).message == t + " 2 of them work in worktrees that would lose work: 3 uncommitted files and 4 commits that exist nowhere else will be removed with them.")
+}
+
 @Test func aSessionRowMenuHasArchiveRevealAndCopyIdAndRestoreForAnArchivedOne() {
     let live = SessionRow(id: "id-1", title: "t", workspace: "web", agent: "claude", state: .idle, updatedAt: now, folder: "/Users/dev/web")
     #expect(sessionMenu(live) == [
@@ -468,4 +523,65 @@ private let archived = [
     host.active = [try session("a")]
     await model.poll()
     #expect(model.archived == false)
+}
+
+// Delete and Clear ask the host what would be lost first, and a refusal of `delete` is told with the session left alone.
+
+@MainActor @Test func confirmingADeleteAsksThePreviewOfThatSessionAndBuildsItsQuestion() async {
+    let host = FakeHost()
+    host.worktrees["a"] = worktree(dirty: 2, unpushed: 1)
+    let actions = SessionActions(host: host, log: { _ in })
+    #expect(await actions.confirmDelete(row("a", "Fix login")) == .ask(deleteSessionQuestion(row("a", "Fix login"), worktree: worktree(dirty: 2, unpushed: 1))))
+    #expect(await actions.confirmDelete(row("b", "Spike")) == .ask(deleteSessionQuestion(row("b", "Spike"))))
+    #expect(host.previewed == [["a"], ["b"]] && host.changes.isEmpty)
+}
+
+@MainActor @Test func confirmingClearAsksOnePreviewForAllTheSessions() async {
+    let host = FakeHost()
+    host.worktrees["b"] = worktree(dirty: 0, unpushed: 5)
+    let actions = SessionActions(host: host, log: { _ in })
+    let asked = await actions.confirmClear(["a", "b", "c"])
+    #expect(asked == .ask(clearSessionsQuestion(count: 3, previews: [preview("a", nil), preview("b", worktree(dirty: 0, unpushed: 5)), preview("c", nil)])))
+    #expect(host.previewed == [["a", "b", "c"]])
+}
+
+@MainActor @Test func aPreviewThatFailsIsToldInWordsAndLoggedUnlessTheHostRefusedIt() async {
+    let host = FakeHost()
+    var logged: [String] = []
+    let actions = SessionActions(host: host, log: { logged.append($0) })
+    host.previewError = ControlError.remote("There is no such session")
+    #expect(await actions.confirmDelete(row("a", "t")) == .refused("There is no such session"))
+    #expect(logged.isEmpty)
+    host.previewError = ControlError.closed
+    #expect(await actions.confirmClear(["a"]) == .refused("The chat host is not answering"))
+    #expect(logged.count == 1 && logged[0].contains("would discard"))
+}
+
+@MainActor @Test func aWorktreeThatCannotBeRemovedRefusesTheDeleteInWordsAndTheSessionStays() async {
+    let host = FakeHost()
+    host.refuse["a"] = ControlError.remote("The worktree could not be removed: it is in use by another process")
+    let actions = SessionActions(host: host, log: { _ in })
+    var changed = 0
+    actions.changed = { changed += 1 }
+    #expect(await actions.delete("a") == "The worktree could not be removed: it is in use by another process")
+    #expect(changed == 0)
+    // in Clear sessions it is the first refusal that is told, with how many went
+    host.refuse["b"] = ControlError.remote("The worktree could not be removed: it is in use by another process")
+    #expect(await actions.clear(["a", "b", "c"]) == "Deleted 1 of 3 archived sessions. The worktree could not be removed: it is in use by another process")
+    #expect(changed == 1)
+}
+
+@Test func theClientAsksTheFixtureHostWhatDeletingWouldDiscard() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    let worktreeSession = "f6a7b8c9-5d4e-4f10-8b3c-4d5e6f7a8b06"
+    let baseSession = "d4e5f6a7-3b2c-4d9e-8f1a-2b3c4d5e6f04"
+    let previews = try await host.deletePreview([worktreeSession, baseSession])
+    #expect(previews == [
+        SessionDeletePreview(sessionId: worktreeSession, worktree: .init(path: "/Users/dev/.carrier/worktrees/web/fix-login", branch: "carrier/fix-login", dirty: 2, unpushed: 1)),
+        SessionDeletePreview(sessionId: baseSession, worktree: nil),
+    ])
+    await #expect(throws: ControlError.remote("There is no such session")) { try await host.deletePreview([baseSession, "3f2b6a52-8f5e-4a63-9d5b-0a1d2c3e4f50"]) }
+    await #expect(throws: ControlError.remote("not a valid session id")) { try await host.deletePreview(["../x"]) }
 }

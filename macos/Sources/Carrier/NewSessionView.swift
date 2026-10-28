@@ -2,8 +2,8 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The draft of a new session in the centre (chat-ui-where2.html): the question, the sentence that says where it works, and the box
-/// with the workspace chip, the agent chip and Send. Sending opens the session and `opened` selects it.
+/// The draft of a new session in the centre (chat-ui-where2.html): the question, the sentence that says where it works (the workspace,
+/// then a new worktree or the current folder), and the box with the agent chip and Send. Sending opens the session and `opened` selects it.
 struct NewSessionView: View {
     @Bindable var model: NewSessionModel
     let opened: (String) -> Void
@@ -15,10 +15,19 @@ struct NewSessionView: View {
     var body: some View {
         VStack(spacing: 14) {
             Spacer(minLength: 0)
-            Text("What do you want to work on?").font(.title2.weight(.semibold))
+            NewSessionMark()
+            VStack(spacing: 4) {
+                Text("What do you want to work on?").font(.title2.weight(.semibold))
+                Text("Pick where it works, then write.").font(.callout).foregroundStyle(.secondary)
+            }
+            .padding(.bottom, 10)
             VStack(alignment: .leading, spacing: 8) {
                 sentence
                 box
+                if model.worktree, let branch = model.startBranch {
+                    Text("Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.")
+                        .font(.caption).foregroundStyle(.secondary).padding(.leading, 4)
+                }
                 if let refusal = model.refusal {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(refusal).foregroundStyle(.red).textSelection(.enabled)
@@ -33,30 +42,43 @@ struct NewSessionView: View {
         }
         .padding(.horizontal, 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // nothing scrolls under the toolbar here, so it takes the page's own colour and not the system's band
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .task { await model.load() }
         .onAppear { boxFocused = true }
     }
 
-    /// "Work in <workspace> on the base folder (main)": in a git repository "base folder" is a control that switches to
-    /// "in a new worktree carrier/<name> from <branch>"; the other cases are said in words, as `model.sentence` has them.
+    /// "Work in <workspace> on <Current folder | New worktree>": the workspace is a chip that opens the folders, and where it works
+    /// is another. A new worktree shows the name it will have (with ↻, and the name is typed over in place) and the branch it starts from;
+    /// the other cases (no git repository, a bare one, the host not answering yet) are said in words, as `model.sentence` has them.
     @ViewBuilder private var sentence: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if model.offersWorktree, let folder = model.folder {
-                FlowLayout(spacing: 4) {
-                    Text("Work in \(URL(fileURLWithPath: folder).lastPathComponent)")
-                    Menu(model.worktree ? "in a new worktree" : "on the base folder") {
-                        Button("On the base folder") { Task { await model.useWorktree(false) } }
-                        Button("In a new worktree") { Task { await model.useWorktree(true) } }
-                    }
-                    .menuStyle(.button).buttonStyle(.plain).foregroundStyle(Color.accentColor).fixedSize()
-                    .accessibilityLabel("Where it works")
-                    if model.worktree { worktreeControls } else { Text("(\(model.workspace?.branch ?? "detached HEAD"))") }
+        VStack(alignment: .leading, spacing: 6) {
+            FlowLayout(spacing: 6) {
+                Text("Work in")
+                Button { foldersOpen.toggle() } label: {
+                    chip(model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Choose a workspace…", tint: model.folder == nil ? .orange : .primary)
                 }
-                .font(.callout).foregroundStyle(.secondary).padding(.leading, 4)
-                .accessibilityElement(children: .contain)
-            } else {
-                Text(model.sentence).font(.callout).foregroundStyle(.secondary).padding(.leading, 4)
+                .buttonStyle(.plain).accessibilityLabel("Workspace")
+                .popover(isPresented: $foldersOpen, arrowEdge: .bottom) { folders }
+                if model.folder != nil {
+                    if model.offersWorktree {
+                        Text("on")
+                        Menu {
+                            Button { Task { await model.useWorktree(false) } } label: { Label("Current folder", systemImage: model.worktree ? "" : "checkmark") }
+                            Button { Task { await model.useWorktree(true) } } label: { Label("New worktree", systemImage: model.worktree ? "checkmark" : "") }
+                        } label: {
+                            chip(model.worktree ? "New worktree" : "Current folder")
+                        }
+                        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+                        .accessibilityLabel("Where it works")
+                        if model.worktree { worktreeControls } else { Text("(\(model.workspace?.branch ?? "detached HEAD"))") }
+                    } else {
+                        Text(rest)
+                    }
+                }
             }
+            .font(.callout).foregroundStyle(.secondary).padding(.leading, 4)
+            .accessibilityElement(children: .contain)
             if let warning = model.warning { Text(warning).font(.callout).foregroundStyle(.orange).padding(.leading, 4) }
             if case .problem(let reason) = model.nameState, model.worktree {
                 Text(reason).font(.callout).foregroundStyle(.red).padding(.leading, 4).textSelection(.enabled)
@@ -65,28 +87,52 @@ struct NewSessionView: View {
         }
     }
 
-    /// The fixed `carrier/` prefix, the editable rest of the name with ↻, and the branch it starts from.
+    /// What `model.sentence` says after "Work in <workspace> ".
+    private var rest: String {
+        let head = "Work in \(model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "") "
+        return model.sentence.hasPrefix(head) ? String(model.sentence.dropFirst(head.count)) : model.sentence
+    }
+
+    /// A control of the sentence: its value and a chevron, on a faint fill.
+    private func chip(_ title: String, tint: Color = .primary) -> some View {
+        HStack(spacing: 4) {
+            Text(title).fontWeight(.medium)
+            Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(.secondary)
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 8).padding(.vertical, 2)
+        .background(RoundedRectangle(cornerRadius: 6).fill(tint.opacity(0.14)))
+        .contentShape(Rectangle())
+    }
+
+    /// The fixed `carrier/` prefix, the name (typed over in place) with ↻, and the branch it starts from.
     @ViewBuilder private var worktreeControls: some View {
-        HStack(spacing: 2) {
-            Text(worktreeBranchPrefix)
+        HStack(spacing: 4) {
+            Text(worktreeBranchPrefix).foregroundStyle(.tertiary)
             TextField("name", text: $model.worktreeName)
-                .textFieldStyle(.plain).autocorrectionDisabled().frame(minWidth: 120)
+                .textFieldStyle(.plain).autocorrectionDisabled().fixedSize()
                 .foregroundStyle(nameColor).accessibilityLabel("Worktree name")
             Button { Task { await model.rollName() } } label: { Image(systemName: "arrow.clockwise") }
-                .buttonStyle(.plain).help("Suggest another name").accessibilityLabel("Suggest another name")
+                .buttonStyle(.plain).help("Pick another name").accessibilityLabel("Suggest another name")
         }
-        .padding(.horizontal, 6).padding(.vertical, 1)
+        .font(.callout.monospaced())
+        .padding(.horizontal, 8).padding(.vertical, 2)
         .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.12)))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(nameBorder, lineWidth: 1))
         // the name is checked a moment after typing; typing again cancels the check that was waiting
         .task(id: model.worktreeName) { await model.verifyName() }
         Text("from")
-        Button { branchesOpen.toggle() } label: { Label(model.startBranch ?? "Choose a branch…", systemImage: "arrow.triangle.branch") }
-            .buttonStyle(.plain).foregroundStyle(Color.accentColor)
+        Button { branchesOpen.toggle() } label: { chip(model.startBranch ?? "Choose a branch…") }
+            .buttonStyle(.plain)
             .popover(isPresented: $branchesOpen, arrowEdge: .bottom) { branches }
     }
 
     private var nameColor: Color {
         if case .problem = model.nameState { .red } else { .primary }
+    }
+
+    private var nameBorder: Color {
+        if case .problem = model.nameState { .red } else { .clear }
     }
 
     /// The branch picker: a search, the local and the remote branches in two sections, and Fetch now with when it last did.
@@ -140,7 +186,7 @@ struct NewSessionView: View {
 
     private var box: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TextField("Message the agent", text: $model.text, axis: .vertical)
+            TextField("Write the first message…", text: $model.text, axis: .vertical)
                 .textFieldStyle(.plain).lineLimit(2...8).focused($boxFocused)
                 // Enter sends and Shift+Enter adds a line
                 .onKeyPress(.return, phases: .down) { press in
@@ -148,11 +194,6 @@ struct NewSessionView: View {
                     return .handled
                 }
             HStack(spacing: 8) {
-                Button { foldersOpen.toggle() } label: {
-                    Label(model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Choose a workspace…", systemImage: "folder")
-                }
-                .buttonStyle(.bordered).buttonBorderShape(.capsule).controlSize(.small)
-                .popover(isPresented: $foldersOpen, arrowEdge: .bottom) { folders }
                 Menu {
                     ForEach(model.agents, id: \.name) { choice in
                         Button(choice.note.map { "\(choice.name) (\($0))" } ?? choice.name) { model.agent = choice.name }
@@ -175,6 +216,8 @@ struct NewSessionView: View {
         .padding(.horizontal, 14).padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: 18).fill(Color.secondary.opacity(0.10)))
         .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5))
+        // nothing to write to until a workspace is chosen
+        .opacity(model.folder == nil ? 0.5 : 1)
     }
 
     /// The recent folders with their paths, and Open folder… for the system's folder panel.
@@ -210,5 +253,16 @@ struct NewSessionView: View {
 
     private func send() {
         Task { if let id = await model.send() { opened(id) } }
+    }
+}
+
+/// The round mark over the question: a placeholder until the app has a logo to put in its place.
+private struct NewSessionMark: View {
+    var body: some View {
+        Image(systemName: "sparkles")
+            .font(.system(size: 22, weight: .medium)).foregroundStyle(.white)
+            .frame(width: 52, height: 52)
+            .background(Circle().fill(LinearGradient(colors: [.accentColor, .accentColor.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .accessibilityHidden(true)
     }
 }

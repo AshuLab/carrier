@@ -55,17 +55,13 @@ public struct SessionGroup: Equatable {
     public var rows: [SessionRow]
 }
 
-/// What the Sessions half reads. The + is disabled, with `cannotStartReason` as its tooltip, until the chat host's state says it can start.
+/// What the Sessions half reads. The + is always on: a draft that finds no chat host starts it.
 public struct Sessions: Equatable {
     public var rows: [SessionRow] = []
-    public var cannotStartReason: String? = hostNotRunning
 
-    public init(rows: [SessionRow] = [], cannotStartReason: String? = hostNotRunning) {
+    public init(rows: [SessionRow] = []) {
         self.rows = rows
-        self.cannotStartReason = cannotStartReason
     }
-
-    public var canStart: Bool { cannotStartReason == nil }
 
     /// How many sessions are open, every one that is not archived: the badge on the Sessions row.
     public var open: Int { rows.filter { $0.archived == false }.count }

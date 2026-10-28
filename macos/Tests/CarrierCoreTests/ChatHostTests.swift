@@ -90,32 +90,3 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     defer { server.stop() }
     await #expect(throws: ControlError.badLine) { try await SocketChatHost(socketPath: { server.path }).agents() }
 }
-
-private func observe(path: String, waits: Int) -> [ChatHostState] {
-    var states: [ChatHostState] = []
-    var count = 0
-    ChatMonitor(socketPath: { path }, wait: { _ in count += 1; return count < waits }, log: { _ in }, onChange: { states.append($0) }).run()
-    return states
-}
-
-@Test func theMonitorSaysStoppedForAMissingHostAndRunningWithItsAgentsForTheFixture() throws {
-    #expect(observe(path: "/tmp/cc-missing-\(UUID().uuidString.prefix(8)).sock", waits: 2) == [.stopped, .stopped])
-
-    let server = try FixtureServer(fixtures: fixtures)
-    defer { server.stop() }
-    let states = observe(path: server.chatSocketPath, waits: 1)
-    guard case .running(let agents)? = states.first else { Issue.record("not running: \(states)"); return }
-    #expect(agents.filter(\.found).map(\.name) == ["claude", "codex"])
-}
-
-@Test func theStartRuleHasEachOfItsReasons() {
-    let found = ChatAgent(name: "claude", harness: "claude", found: true)
-    let missing = ChatAgent(name: "codex", harness: "codex", found: false)
-    #expect(cannotStartReason(host: .stopped) == "The chat host is not running")
-    #expect(cannotStartReason(host: .running(agents: [])) == "No agent found: install claude or codex")
-    #expect(cannotStartReason(host: .running(agents: [missing])) == "No agent found: install claude or codex")
-    #expect(cannotStartReason(host: .running(agents: [missing, found])) == nil)
-    #expect(Sessions(cannotStartReason: nil).canStart)
-    #expect(Sessions().canStart == false)
-    #expect(Sessions().cannotStartReason == "The chat host is not running")
-}

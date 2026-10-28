@@ -167,7 +167,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     files: (repo: string, issue: number, executionId?: string) => filesOf(db, config.root, repo, issue, executionId),
     fileDiff: (repo: string, issue: number, section: string, path: string) => fileDiff(db, config.root, repo, issue, section, path),
     availableRepos: (page: number) => deps.listRepos(page, limits.githubCallTimeoutSeconds * 1000),
-    resumeEpic: (repo: string, issue: number) => engine.resumeEpic(repo, issue),
+    resumeEpic: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => engine.resumeEpic(repo, issue, chosen),
     chooseOptions: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => engine.chooseOptions(repo, issue, chosen),
   };
   stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop: shutdown })).close;

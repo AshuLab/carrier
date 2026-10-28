@@ -254,10 +254,20 @@ test('resumeEpic answers ok once the engine says the epic started, and asks it f
   const resumeEpic = vi.fn(() => Promise.resolve());
   await open(undefined, { ...fakeControls().controls, resumeEpic });
   expect(await (await client()).ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: true });
-  expect(resumeEpic).toHaveBeenCalledWith('AshuLab/carrier', 5);
+  expect(resumeEpic).toHaveBeenCalledWith('AshuLab/carrier', 5, { author: undefined, reviewer: undefined });
 });
 
-test.each(['unknown epic', 'not stopped', 'github unavailable', 'did not restart'] as const)('resumeEpic refused as "%s" is that reason in the reply', async (reason) => {
+test('resumeEpic passes the options named for each role, a role left out as undefined', async () => {
+  const resumeEpic = vi.fn(() => Promise.resolve());
+  await open(undefined, { ...fakeControls().controls, resumeEpic });
+  const c = await client();
+  expect(await c.ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"author":"codex"}')).toEqual({ id: 4, ok: true });
+  expect(resumeEpic).toHaveBeenLastCalledWith('AshuLab/carrier', 5, { author: 'codex', reviewer: undefined });
+  expect(await c.ask('{"id":5,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5,"reviewer":"claude"}')).toEqual({ id: 5, ok: true });
+  expect(resumeEpic).toHaveBeenLastCalledWith('AshuLab/carrier', 5, { author: undefined, reviewer: 'claude' });
+});
+
+test.each(['unknown epic', 'not stopped', 'github unavailable', 'did not restart', 'unknown option'] as const)('resumeEpic refused as "%s" is that reason in the reply', async (reason) => {
   await open(undefined, { ...fakeControls().controls, resumeEpic: () => Promise.reject(new ResumeRefused(reason)) });
   expect(await (await client()).ask('{"id":4,"cmd":"resumeEpic","repo":"AshuLab/carrier","issue":5}')).toEqual({ id: 4, ok: false, error: reason });
 });
@@ -301,7 +311,7 @@ const validFields = {
   epic: { repo: 'AshuLab/carrier', issue: 5 },
   files: { repo: 'AshuLab/carrier', issue: 5 },
   fileDiff: { repo: 'AshuLab/carrier', issue: 5, section: 'slice-12', path: 'src/a.ts' },
-  resumeEpic: { repo: 'AshuLab/carrier', issue: 5 },
+  resumeEpic: { repo: 'AshuLab/carrier', issue: 5, author: 'codex', reviewer: 'claude-ashu' },
   chooseOptions: { repo: 'AshuLab/carrier', issue: 5, author: 'codex', reviewer: 'claude-ashu' },
 } as const;
 const badRepos = ['', 'carrier', 'a/b/c', '../b', 'a/..', './b', 'a/.', '/b', 'a/', 'a b/c', 'a/b?x', `${'a'.repeat(200)}/b`, 7, null];
@@ -324,8 +334,10 @@ const invalidRequests: (readonly [string, Record<string, unknown>])[] = [
   ]),
   ['fileDiff with an oversize section', invalid('fileDiff', { section: 's'.repeat(101) })],
   ['fileDiff with an oversize path', invalid('fileDiff', { path: 'p'.repeat(501) })],
-  ...(['author', 'reviewer'] as const).flatMap((role) =>
-    ['', 'Codex', 'a b', '1abc', '-a', 'a'.repeat(41), '../x', 7, null].map((option) => [`chooseOptions with ${role} ${JSON.stringify(option)}`, invalid('chooseOptions', { [role]: option })] as const),
+  ...(['chooseOptions', 'resumeEpic'] as const).flatMap((cmd) =>
+    (['author', 'reviewer'] as const).flatMap((role) =>
+      ['', 'Codex', 'a b', '1abc', '-a', 'a'.repeat(41), '../x', 7, null].map((option) => [`${cmd} with ${role} ${JSON.stringify(option)}`, invalid(cmd, { [role]: option })] as const),
+    ),
   ),
   ['events with no execution id', invalid('events', { executionId: undefined })],
   ['events with no limit', invalid('events', { limit: undefined })],

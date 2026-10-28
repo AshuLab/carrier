@@ -2562,3 +2562,64 @@ test('an epic sent back to the queue forgets its choice and chooses again', asyn
   await clock.advance(5 * MIN);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: null, authorOption: 'claude', choiceDeadline: 10 * MIN + 60_000 });
 });
+
+// --- resumeEpic on the options chosen ---
+
+// An epic with two options that stopped in needs_human with its author on codex, which wrote session s-1; the next ship hangs.
+async function stoppedOnCodex() {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => ({ sessionId: 's-1', write: result(task, { outcome: 'needs_human', reason: 'the CI is red' }) });
+  const engine = await start(1, choosing());
+  await clock.advance(5 * MIN);
+  await engine.chooseOptions('AshuLab/a', 1, { author: 'codex' });
+  await engine.idle();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', authorOption: 'codex', reviewerOption: 'codex' });
+  runner.behavior = () => ({ exit: 'hang' });
+  return engine;
+}
+async function restartWith(engine: Awaited<ReturnType<typeof stoppedOnCodex>>, chosen: { author?: string; reviewer?: string }) {
+  const resumed = engine.resumeEpic('AshuLab/a', 1, chosen);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+}
+
+test('resumeEpic without options keeps each role on its current option, asks nothing and continues the author session with --resume', async () => {
+  const engine = await stoppedOnCodex();
+  await restartWith(engine, {});
+  expect(runner.tasks).toHaveLength(2);
+  expect(runner.tasks[1]).toMatchObject({ stage: 'ship', option: 'codex', harness: 'codex', resumeSession: 's-1', workspace: runner.tasks[0]!.workspace });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', choiceDeadline: null, authorOption: 'codex', reviewerOption: 'codex' });
+  expect(eventTypes(engine.db)).not.toContain('session_rebuilt');
+});
+
+test('resumeEpic with another author option launches it with no resumeSession, in the same worktree and with the pull request, and records the rebuild', async () => {
+  const engine = await stoppedOnCodex();
+  await restartWith(engine, { author: 'claude' });
+  expect(runner.tasks).toHaveLength(2);
+  expect(runner.tasks[1]).toMatchObject({ stage: 'ship', option: 'claude', harness: 'claude', provider: 'ollama', workspace: runner.tasks[0]!.workspace, context: { pr: { number: 50, headSha: SHA } } });
+  expect(runner.tasks[1]!.resumeSession).toBeUndefined();
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', choiceDeadline: null, authorOption: 'claude', reviewerOption: 'codex' });
+  expect(rows(engine.db)[0]!.config!.agents.author).toMatchObject({ option: 'claude', harness: 'claude' });
+  expect(executionsOf(engine.db).map((e) => e.option)).toEqual(['codex', 'claude']);
+  expect(eventTypes(engine.db)).toEqual(['session_rebuilt']);
+});
+
+test('resumeEpic with another reviewer option keeps the author on its session and stores the reviewer option', async () => {
+  const engine = await stoppedOnCodex();
+  await restartWith(engine, { reviewer: 'claude' });
+  expect(runner.tasks[1]).toMatchObject({ option: 'codex', resumeSession: 's-1' });
+  expect(rows(engine.db)[0]).toMatchObject({ authorOption: 'codex', reviewerOption: 'claude' });
+  expect(rows(engine.db)[0]!.config!.agents.reviewer).toMatchObject({ option: 'claude', harness: 'claude' });
+});
+
+test('resumeEpic with an option that is not declared is refused and changes nothing', async () => {
+  const engine = await stoppedOnCodex();
+  const before = rows(engine.db);
+  const labels = labelsOf(1).slice();
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { author: 'nope' }))).toBe('unknown option');
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { author: 'claude', reviewer: 'nope' }))).toBe('unknown option');
+  expect(rows(engine.db)).toEqual(before);
+  expect(labelsOf(1)).toEqual(labels);
+});

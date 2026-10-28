@@ -287,6 +287,110 @@ test('a Carrier that speaks another protocol makes the commands exit 2', async (
   }
 });
 
+// A stand-in for a running Carrier on `root`: says hello, records every request and answers `reply(request)`; `ok` is the answer, an Error refuses it.
+async function fakeCarrier(root: string, { capabilities = ['agentOptions', 'resumeEpic'], reply = (): unknown => undefined }: { capabilities?: string[]; reply?: (request: any) => unknown } = {}) {
+  mkdirSync(join(root, 'orchestrator'), { recursive: true });
+  const requests: any[] = [];
+  const server = createServer((connection) => {
+    connection.write(`${JSON.stringify({ event: 'hello', protocol: 1, pid: 1, startedAt: 0, version: 'x', capabilities })}\n`);
+    connection.on('data', (chunk) => {
+      for (const line of String(chunk).split('\n').filter(Boolean)) {
+        const request = JSON.parse(line);
+        requests.push(request);
+        const answer = reply(request);
+        connection.write(`${JSON.stringify(answer instanceof Error ? { id: request.id, ok: false, error: answer.message } : { id: request.id, ok: true, data: answer })}\n`);
+      }
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(join(root, 'orchestrator', 'control.sock'), resolve));
+  return { requests, close: () => server.close() };
+}
+// Not spawnSync: the fake Carrier answers from this process.
+const runAsync = (...args: string[]) =>
+  new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve) => {
+    const child = spawn(process.execPath, [main, ...args], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => (stdout += chunk));
+    child.stderr.on('data', (chunk) => (stderr += chunk));
+    child.on('close', (status) => resolve({ status, stdout, stderr }));
+  });
+
+test('restart asks a running Carrier to resume the epic on the options named, prints one line and exits 0', async () => {
+  const root = join(dir, 'r1');
+  const carrier = await fakeCarrier(root);
+  try {
+    const config = write('restart.json', { ...valid, root });
+    expect(await runAsync('restart', 'AshuLab/carrier#5', '--author', 'codex', '--config', config)).toEqual({ status: 0, stdout: 'Restarted AshuLab/carrier#5\n', stderr: '' });
+    expect(await runAsync('restart', 'AshuLab/carrier#6', '--reviewer', 'claude', '--author', 'claude', '--config', config)).toMatchObject({ status: 0, stdout: 'Restarted AshuLab/carrier#6\n' });
+    // without flags and without a terminal each role keeps its option: neither is sent
+    expect(await runAsync('restart', 'AshuLab/carrier#7', '--config', config)).toMatchObject({ status: 0, stdout: 'Restarted AshuLab/carrier#7\n' });
+    expect(carrier.requests.map(({ id, ...request }) => request)).toEqual([
+      { cmd: 'resumeEpic', repo: 'AshuLab/carrier', issue: 5, author: 'codex' },
+      { cmd: 'resumeEpic', repo: 'AshuLab/carrier', issue: 6, author: 'claude', reviewer: 'claude' },
+      { cmd: 'resumeEpic', repo: 'AshuLab/carrier', issue: 7 },
+    ]);
+  } finally {
+    carrier.close();
+  }
+});
+
+test.each(['unknown epic', 'not stopped', 'github unavailable', 'did not restart', 'unknown option'])('restart refused as "%s" prints that reason and exits 1', async (reason) => {
+  const root = join(dir, 'r2');
+  const carrier = await fakeCarrier(root, { reply: () => new Error(reason) });
+  try {
+    const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('refused.json', { ...valid, root }));
+    expect([result.status, result.stdout, result.stderr]).toEqual([1, '', `Carrier refused: ${reason}\n`]);
+  } finally {
+    carrier.close();
+  }
+});
+
+test('restart against an engine without the agentOptions capability says so and sends nothing', async () => {
+  const root = join(dir, 'r3');
+  const carrier = await fakeCarrier(root, { capabilities: ['resumeEpic'] });
+  try {
+    const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('old.json', { ...valid, root }));
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('agentOptions');
+    expect(carrier.requests).toEqual([]);
+  } finally {
+    carrier.close();
+  }
+});
+
+test('restart without a Carrier running says so and exits 1; against another protocol it exits 2', async () => {
+  const none = write('restart-none.json', { ...valid, root: join(dir, 'r4') });
+  expect(await runAsync('restart', 'AshuLab/carrier#5', '--config', none)).toEqual({ status: 1, stdout: '', stderr: 'Carrier is not running\n' });
+
+  const root = join(dir, 'r5');
+  mkdirSync(join(root, 'orchestrator'), { recursive: true });
+  const server = createServer((connection) => connection.write(`${JSON.stringify({ event: 'hello', protocol: 2 })}\n`));
+  await new Promise<void>((resolve) => server.listen(join(root, 'orchestrator', 'control.sock'), resolve));
+  try {
+    const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('restart-protocol.json', { ...valid, root }));
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('protocol');
+  } finally {
+    server.close();
+  }
+});
+
+test('restart with an argument that is not owner/name#N is a usage error and sends nothing to Carrier', async () => {
+  const root = join(dir, 'r6');
+  const carrier = await fakeCarrier(root);
+  try {
+    const config = write('restart-usage.json', { ...valid, root });
+    for (const args of [['restart', '--config', config], ['restart', 'AshuLab/carrier', '--config', config], ['restart', 'AshuLab/carrier#0', '--config', config], ['restart', 'carrier#5', '--config', config]]) {
+      const result = await runAsync(...args);
+      expect([result.status, result.stdout, result.stderr]).toEqual([2, '', expect.stringContaining('owner/name#N')]);
+    }
+    expect(carrier.requests).toEqual([]);
+  } finally {
+    carrier.close();
+  }
+});
+
 // `start` leaves a Carrier behind on purpose, so each test registers what it started and the afterAll below stops it.
 const started: number[] = [];
 const alive = (pid: number) => {

@@ -154,8 +154,7 @@ test('options are listed, change at once, and an interrupt ends the turn as inte
   const from = events.length;
   conversation.send(main[6]!.text);
   await vi.waitFor(() => expect(events.length).toBeGreaterThan(from)); // the turn is running
-  await conversation.interrupt();
-  await vi.waitFor(() => expect(events.some((e, i) => i >= from && e.kind === 'turn_end')).toBe(true));
+  await conversation.interrupt(); // resolves once the turn has ended
   expect(events.at(-1)).toMatchObject({ kind: 'turn_end', outcome: 'interrupted' });
   expect(events.slice(from).some((e) => e.kind === 'error')).toBe(false);
 

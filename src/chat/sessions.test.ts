@@ -6,7 +6,8 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { Config } from '../config/schema.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { openChatDatabase } from './db.ts';
-import { FakeChatRunner } from './fake.ts';
+import { FakeChatRunner, type FakeConversation } from './fake.ts';
+import { ChatRefused } from './runner.ts';
 import { chatCaps } from './transcript.ts';
 import { sessions as schemaSessions } from './schema.ts';
 import { createSessions } from './sessions.ts';
@@ -51,14 +52,42 @@ test('agents lists the configured agents with whether the binary is found', () =
   expect(sessions.agents()).toEqual([{ name: 'mine', harness: 'claude', model: 'haiku', found: true }]);
 });
 
+const offering = (...options: [id: string, values: string[], current: string][]) => (conversation: FakeConversation) => {
+  conversation.options = options.map(([id, values, current]) => ({ id, label: id.toUpperCase(), values: values.map((v) => ({ id: v, label: v })), current }));
+};
+
 test('open starts the agent in the real folder with the host environment and the chosen options, and lists the session', async () => {
   const { sessions, claude, onLiveChange } = setup({ agents: { claude: { harness: 'claude', model: 'haiku', options: { mode: 'plan' } } } });
+  claude.setup = offering(['model', ['haiku', 'sonnet'], 'haiku'], ['mode', ['plan', 'default'], 'plan']);
   const opened = await sessions.open({ agent: 'claude', folder: work, options: { mode: 'default' } });
   expect(claude.opened).toEqual([{ folder: expect.stringContaining('work'), options: { model: 'haiku', mode: 'default' }, env: { SOME: 'env' } }]);
   expect(opened.session).toMatchObject({ agent: 'claude', harness: 'claude', state: 'idle', title: null, nativeId: null, archived: false });
   expect(onLiveChange).toHaveBeenCalled();
   expect(sessions.list({}).sessions.map((s) => s.id)).toEqual([opened.session.id]);
   expect(sessions.list({ archived: true }).sessions).toEqual([]);
+});
+
+test('open applies the options in order: the agent model, the agent options, then those of the request', async () => {
+  const { sessions, claude } = setup({ agents: { claude: { harness: 'claude', model: 'haiku', options: { mode: 'plan', effort: 'low' } } } });
+  claude.setup = offering(['model', ['haiku'], 'haiku'], ['mode', ['plan', 'default'], 'plan'], ['effort', ['low', 'high'], 'low']);
+  const { session } = await sessions.open({ agent: 'claude', folder: work, options: { mode: 'default', effort: 'high' } });
+  expect(Object.entries(claude.opened[0]!.options!)).toEqual([['model', 'haiku'], ['mode', 'default'], ['effort', 'high']]);
+  expect(session.id).toBeDefined();
+});
+
+test('open refuses an option the adapter does not list and a value it does not offer, naming the option, and leaves nothing behind', async () => {
+  const { sessions, claude, onLiveChange } = setup({ agents: { claude: { harness: 'claude', options: { speed: 'fast' } } } });
+  claude.setup = offering(['model', ['haiku'], 'haiku']);
+  await expect(sessions.open({ agent: 'claude', folder: work })).rejects.toThrow('no option "speed"');
+  await expect(sessions.open({ agent: 'claude', folder: work, options: { speed: 'fast', model: 'gpt-5' } })).rejects.toThrow('no option "speed"');
+  const other = setup();
+  other.claude.setup = offering(['model', ['haiku'], 'haiku']);
+  await expect(other.sessions.open({ agent: 'claude', folder: work, options: { model: 'gpt-5' } })).rejects.toThrow('"gpt-5" is not a value of the option "model"; it offers: haiku');
+  expect(other.claude.conversations[0]!.closed).toBe(true); // the agent that was started is ended
+  expect(claude.conversations.every((c) => c.closed)).toBe(true);
+  expect(other.sessions.liveCount()).toBe(0);
+  expect(rows('sessions')).toEqual([]);
+  expect(onLiveChange).not.toHaveBeenCalled();
 });
 
 test('open refuses, in words, an unknown agent, a harness with no runner, a bad folder and a runner that refuses', async () => {
@@ -112,6 +141,35 @@ test('options are those of the live conversation', async () => {
   const { sessions, conversation, id } = await openOne();
   conversation.options = [{ id: 'model', label: 'Model', values: [{ id: 'haiku', label: 'Haiku' }], current: 'haiku' }];
   expect(sessions.events({ sessionId: id, limit: 1 }).options).toEqual(conversation.options);
+});
+
+test('setOption changes an option of a live session: the adapter applies it, an option event is stored, and the reply and the events list the current values', async () => {
+  const { sessions, conversation, id } = await openOne();
+  conversation.options = [
+    { id: 'mode', label: 'Mode', values: [{ id: 'plan', label: 'Plan' }, { id: 'default', label: 'Default' }], current: 'plan' },
+    { id: 'model', label: 'Model', values: [{ id: 'haiku', label: 'Haiku' }], current: 'haiku' },
+  ];
+  const reply = await sessions.setOption({ sessionId: id, option: 'mode', value: 'default' });
+  expect(reply.options.map((o) => [o.id, o.current])).toEqual([['mode', 'default'], ['model', 'haiku']]);
+  const events = sessions.events({ sessionId: id, limit: 10 });
+  expect(events.events).toMatchObject([{ kind: 'option', id: 'mode', value: 'default' }]);
+  expect(events.options.map((o) => o.current)).toEqual(['default', 'haiku']);
+  expect(rows('sessions')[0].options).toBe(JSON.stringify({ mode: 'default' })); // the session records the options it runs with
+});
+
+test('setOption refuses, with the reason and changing nothing, an unlisted option, a value not offered, a closed session and a missing one', async () => {
+  const { sessions, conversation, id } = await openOne();
+  conversation.options = [{ id: 'mode', label: 'Mode', values: [{ id: 'plan', label: 'Plan' }], current: 'plan' }];
+  await expect(sessions.setOption({ sessionId: id, option: 'speed', value: 'fast' })).rejects.toThrow('no option "speed"');
+  await expect(sessions.setOption({ sessionId: id, option: 'mode', value: 'yolo' })).rejects.toThrow('"yolo" is not a value of the option "mode"; it offers: plan');
+  conversation.setOption = async () => {
+    throw new ChatRefused('Only between turns');
+  };
+  await expect(sessions.setOption({ sessionId: id, option: 'mode', value: 'plan' })).rejects.toThrow('Only between turns');
+  expect(sessions.events({ sessionId: id, limit: 10 }).events).toEqual([]);
+  await sessions.close({ sessionId: id });
+  await expect(sessions.setOption({ sessionId: id, option: 'mode', value: 'plan' })).rejects.toThrow('closed');
+  await expect(sessions.setOption({ sessionId: '3f2b6a52-8f5e-4a63-9d5b-0a1d2c3e4f50', option: 'mode', value: 'plan' })).rejects.toThrow('no such session');
 });
 
 test('send refuses, with the reason, a message over 64,000 characters, a working session, a closed one and a missing one', async () => {
@@ -238,7 +296,9 @@ test('close keeps the row, ends the conversation once, and closeAll closes every
 });
 
 test('resume opens a closed session again from its native id, folder and options, keeps its title, and the context goes on', async () => {
-  const { sessions, claude, conversation, id, clock } = await openOne(setup({ agents: { claude: { harness: 'claude', model: 'haiku' } } }));
+  const s = setup({ agents: { claude: { harness: 'claude', model: 'haiku' } } });
+  s.claude.setup = offering(['model', ['haiku'], 'haiku']);
+  const { sessions, claude, conversation, id, clock } = await openOne(s);
   conversation.reply = (_text, c) => {
     c.nativeId = 'native-1';
     c.emit({ kind: 'assistant', text: 'ok' }, { kind: 'turn_end', outcome: 'ok' });
@@ -288,10 +348,62 @@ test('resume refuses, in words, an unknown session, a provider that does not kno
   await expect(sessions.resume({ sessionId: id })).rejects.toThrow('not configured any more');
 });
 
+test('an option changed during a session is the one a resume opens with', async () => {
+  const { sessions, claude, id } = await openOne();
+  claude.setup = offering(['mode', ['plan', 'default'], 'default']);
+  await sessions.close({ sessionId: id });
+  const reopened = await sessions.resume({ sessionId: id });
+  expect(reopened.options.map((o) => o.id)).toEqual(['mode']);
+  await sessions.setOption({ sessionId: id, option: 'mode', value: 'plan' });
+  await sessions.close({ sessionId: id });
+  await sessions.resume({ sessionId: id });
+  expect(claude.opened[2]).toMatchObject({ options: { mode: 'plan' } });
+});
+
 test('two resumes of one closed session leave one live conversation', async () => {
   const { sessions, claude, id } = await openOne();
   await sessions.close({ sessionId: id });
   await Promise.all([sessions.resume({ sessionId: id }), sessions.resume({ sessionId: id })]);
   expect(sessions.liveCount()).toBe(1);
   expect(claude.conversations.map((c) => c.closed)).toEqual([true, false, true]); // the late one is closed
+});
+
+test('an interrupt ends the running turn as interrupted and the session takes the next message; with no turn it changes nothing', async () => {
+  const { sessions, conversation, id, clock } = await openOne();
+  expect(await sessions.interrupt({ sessionId: id })).toEqual({});
+  expect(conversation.interrupts).toBe(0);
+  expect(rows('chat_turns')).toEqual([]);
+
+  clock.time = 100;
+  sessions.send({ sessionId: id, text: 'count to 400' });
+  clock.time = 700;
+  expect(await sessions.interrupt({ sessionId: id })).toEqual({}); // this adapter never says the turn ended: the host records it
+  expect(conversation.interrupts).toBe(1);
+  expect(sessions.events({ sessionId: id, limit: 10 }).session.state).toBe('idle');
+  expect(sessions.events({ sessionId: id, limit: 10 }).events.map((e) => [e.kind, (e as any).outcome])).toEqual([['user', undefined], ['turn_end', 'interrupted']]);
+  expect(rows('chat_turns')).toMatchObject([{ outcome: 'interrupted', durationMs: 600 }]);
+
+  sessions.send({ sessionId: id, text: 'next' });
+  conversation.emit({ kind: 'turn_end', outcome: 'ok' });
+  expect(rows('chat_turns').map((t) => t.outcome)).toEqual(['interrupted', 'ok']);
+});
+
+test('an adapter that ends the turn on interrupt is recorded once, and a waiting approval is interrupted too', async () => {
+  const { sessions, conversation, id } = await openOne();
+  conversation.onInterrupt = (c) => c.emit({ kind: 'turn_end', outcome: 'interrupted', model: 'sonnet' });
+  sessions.send({ sessionId: id, text: 'touch it' });
+  conversation.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', choices: [] });
+  expect(sessions.events({ sessionId: id, limit: 10 }).session.state).toBe('waiting_approval');
+  await sessions.interrupt({ sessionId: id });
+  conversation.emit({ kind: 'turn_end', outcome: 'interrupted' }); // a late duplicate
+  expect(rows('chat_turns')).toMatchObject([{ outcome: 'interrupted', model: 'sonnet' }]);
+  expect(sessions.events({ sessionId: id, limit: 10 }).session.state).toBe('idle');
+});
+
+test('an interrupt on a closed session is ok and changes nothing; on an unknown one it is refused', async () => {
+  const { sessions, conversation, id } = await openOne();
+  await sessions.close({ sessionId: id });
+  expect(await sessions.interrupt({ sessionId: id })).toEqual({});
+  expect(conversation.interrupts).toBe(0);
+  await expect(sessions.interrupt({ sessionId: '3b241101-e2bb-4255-8caf-4136c566a962' })).rejects.toThrow('no such session');
 });

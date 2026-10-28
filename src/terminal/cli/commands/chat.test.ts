@@ -1,7 +1,8 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Readable } from 'node:stream';
+import { EventEmitter } from 'node:events';
+import { PassThrough, Readable } from 'node:stream';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FakeChatRunner, type FakeConversation } from '../../../chat/fake.ts';
 import { startChatHost } from '../../../chat/host.ts';
@@ -177,4 +178,52 @@ test('--resume prints the last 20 events of the transcript, then continues the c
 test('--resume of an unknown session shows the refusal in words', async () => {
   await host();
   await expect(chatCommand({ resume: '00000000-0000-4000-8000-000000000000' }, config(), '/abs/config.json', { input: typed('/quit') })).rejects.toMatchObject({ code: 1, lines: ['There is no such session'] });
+});
+
+test('Ctrl+C while a turn runs interrupts it and returns to the prompt, where the next message is answered; Ctrl+C at the prompt leaves with the session open', async () => {
+  await host();
+  claude.conversations.length = 0;
+  claude.setup = (conversation) => {
+    conversation.reply = (text, c) => {
+      if (text === 'long') c.emit({ kind: 'delta', text: 'one two ' }); // never ends by itself
+      else c.emit({ kind: 'assistant', text: 'second answer' }, { kind: 'turn_end', outcome: 'ok' });
+    };
+    conversation.onInterrupt = (c) => c.emit({ kind: 'turn_end', outcome: 'interrupted' });
+  };
+  const input = new PassThrough();
+  const sigint = new EventEmitter();
+  const running = chatCommand({ workspace: root }, config(), '/abs/config.json', { input, sigint, pollMs: 5 });
+  input.write('long\n');
+  await vi.waitFor(() => expect(written.join('')).toContain('one two '));
+  sigint.emit('SIGINT');
+  await vi.waitFor(() => expect(written.join('')).toContain('[interrupted]'));
+  input.write('again\n');
+  await vi.waitFor(() => expect(written.join('')).toContain('second answer'));
+  await vi.waitFor(() => expect(written.join('').endsWith('> ')).toBe(true));
+  sigint.emit('SIGINT'); // at the prompt
+  expect(await running).toBe(0);
+  expect(claude.conversations[0]!.sent).toEqual(['long', 'again']);
+  expect(claude.conversations[0]!.interrupts).toBe(1);
+  expect(claude.conversations[0]!.closed).toBe(false);
+  expect(sigint.listenerCount('SIGINT')).toBe(0);
+});
+
+test('/options prints each option with its current value and what it offers, /option changes one and prints it, and a refusal is shown in words', async () => {
+  await host();
+  claude.conversations.length = 0;
+  claude.setup = (conversation) => {
+    conversation.options = [
+      { id: 'mode', label: 'Permission mode', values: [{ id: 'default', label: 'Default' }, { id: 'plan', label: 'Plan' }], current: 'default' },
+      { id: 'model', label: 'Model', values: [{ id: 'haiku', label: 'Haiku' }], current: 'haiku' },
+    ];
+  };
+  expect(await chatCommand({ workspace: root }, config(), '/abs/config.json', { input: typed('/options', '/option mode plan', '/option mode yolo', '/option nope x', '/option mode', '/options', '/quit'), pollMs: 5 })).toBe(0);
+  const out = written.join('');
+  expect(out).toContain('> Permission mode (mode): default\n    offers: default, plan\nModel (model): haiku\n    offers: haiku\n> ');
+  expect(out).toContain('> Permission mode (mode): plan\n    offers: default, plan\n> ');
+  expect(out).toContain('"yolo" is not a value of the option "mode"; it offers: default, plan\n');
+  expect(out).toContain('no option "nope"');
+  expect(out).toContain('Usage: /option <id> <value>\n');
+  expect(out.lastIndexOf('Permission mode (mode): plan')).toBeGreaterThan(out.indexOf('Usage:')); // the second /options sees the change
+  expect(claude.conversations[0]!.sent).toEqual([]); // none of this went to the agent
 });

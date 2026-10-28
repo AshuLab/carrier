@@ -1,6 +1,7 @@
 import { createInterface } from 'node:readline';
 import { join, resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import type { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
 import { chatAgents } from '../../../config/chat-agents.ts';
 import type { Config } from '../../../config/schema.ts';
@@ -34,7 +35,8 @@ async function hostClient(socketPath: string, config: Config, configPath: string
   return started;
 }
 
-type Reply = { events: Record<string, any>[]; cursor: number; streaming: string };
+type Option = { id: string; label: string; values: { id: string; label: string }[]; current: string };
+type Reply = { events: Record<string, any>[]; cursor: number; streaming: string; options: Option[] };
 
 const HISTORY_EVENTS = 20;
 
@@ -47,8 +49,13 @@ const ageOf = (ms: number) => {
   return `${Math.floor(minutes / (24 * 60))}d ago`;
 };
 
-/** Opens a conversation, or resumes a session, and runs it in plain lines: one line in, the answer out as it streams. `/quit` leaves and the session stays open. */
-async function converse(client: CarrierClient, { start, input, pollMs }: { start: { cmd: 'open'; agent: string; folder: string } | { cmd: 'resume'; sessionId: string }; input: Readable; pollMs: number }) {
+const describeOption = (o: Option) => `${o.label} (${o.id}): ${o.current}\n    offers: ${o.values.map((v) => v.id).join(', ')}\n`;
+
+/**
+ * Opens a conversation, or resumes a session, and runs it in plain lines: one line in, the answer out as it streams. `/quit` leaves and the
+ * session stays open. Ctrl+C (`sigint`) while a turn runs interrupts it and returns to the prompt; at the prompt it leaves.
+ */
+async function converse(client: CarrierClient, { start, input, pollMs, sigint }: { start: { cmd: 'open'; agent: string; folder: string } | { cmd: 'resume'; sessionId: string }; input: Readable; pollMs: number; sigint: EventEmitter }) {
   const write = (text: string) => void process.stdout.write(text);
   let opened;
   try {
@@ -57,7 +64,7 @@ async function converse(client: CarrierClient, { start, input, pollMs }: { start
     throw new CliError(1, error instanceof Error ? error.message : String(error));
   }
   const sessionId = opened.session.id;
-  write(`Chat ${sessionId} with ${opened.session.agent} in ${opened.session.folder}. /quit leaves it open.\n`);
+  write(`Chat ${sessionId} with ${opened.session.agent} in ${opened.session.folder}. /options, /option <id> <value>, /quit leaves it open.\n`);
 
   let cursor = 0;
   let printed = 0; // characters of the message being written that are already on screen
@@ -67,7 +74,11 @@ async function converse(client: CarrierClient, { start, input, pollMs }: { start
       if (event.kind === 'assistant') write(`${String(event.text).slice(printed)}\n`), (printed = 0);
       else if (event.kind === 'tool_start') write(`  [${event.tool}${event.arg ? ` ${event.arg}` : ''}]\n`);
       else if (event.kind === 'error') write(`error: ${event.text}\n`);
-      else if (event.kind === 'turn_end') ended = true;
+      else if (event.kind === 'turn_end') {
+        ended = true;
+        printed = 0;
+        if (event.outcome === 'interrupted') write('\n[interrupted]\n');
+      }
     }
     if (reply.streaming.length > printed) write(reply.streaming.slice(printed)), (printed = reply.streaming.length);
     cursor = reply.cursor;
@@ -91,20 +102,53 @@ async function converse(client: CarrierClient, { start, input, pollMs }: { start
     }
   }
 
-  const lines = createInterface({ input })[Symbol.asyncIterator]();
-  for (;;) {
-    write('> ');
-    const { value, done } = await lines.next();
-    const text = done ? '/quit' : String(value).trim();
-    if (text === '/quit') break;
-    if (text === '') continue;
-    try {
-      await client.request('send', { sessionId, text });
-    } catch (error) {
-      write(`${error instanceof Error ? error.message : String(error)}\n`);
-      continue;
+  const reader = createInterface({ input });
+  const lines = reader[Symbol.asyncIterator]();
+  let turning = false;
+  const onSigint = () => {
+    if (turning === false) return reader.close(); // at the prompt: leave, as /quit does
+    client.request('interrupt', { sessionId }).catch((error) => write(`${error instanceof Error ? error.message : String(error)}\n`));
+  };
+  sigint.on('SIGINT', onSigint);
+  try {
+    for (;;) {
+      write('> ');
+      const { value, done } = await lines.next();
+      const text = done ? '/quit' : String(value).trim();
+      if (text === '/quit') break;
+      if (text === '') continue;
+      if (text === '/options' || text.startsWith('/option ')) {
+        try {
+          if (text === '/options') {
+            // after the cursor, so what is waiting to be shown is not consumed
+            const { options } = (await client.request('events', { sessionId, after: cursor, limit: 1 })) as Reply;
+            write(options.map(describeOption).join('') || 'This agent lists no options.\n');
+          } else {
+            const [id, value, ...extra] = text.split(/\s+/).slice(1);
+            if (id === undefined || value === undefined || extra.length > 0) {
+              write('Usage: /option <id> <value>\n');
+              continue;
+            }
+            const { options } = (await client.request('setOption', { sessionId, option: id, value })) as Pick<Reply, 'options'>;
+            write(describeOption(options.find((o) => o.id === id)!));
+          }
+        } catch (error) {
+          write(`${error instanceof Error ? error.message : String(error)}\n`);
+        }
+        continue;
+      }
+      turning = true;
+      try {
+        await client.request('send', { sessionId, text });
+        while (show(await poll()) === false) await sleep(pollMs);
+      } catch (error) {
+        write(`${error instanceof Error ? error.message : String(error)}\n`);
+      } finally {
+        turning = false;
+      }
     }
-    while (show(await poll()) === false) await sleep(pollMs);
+  } finally {
+    sigint.off('SIGINT', onSigint);
   }
   write('\n');
 }
@@ -117,7 +161,7 @@ export async function chatCommand(
   flags: { list?: boolean; stop?: boolean; workspace?: string; agent?: string; resume?: string },
   config: Config,
   configPath: string,
-  { start = startDetached, input = process.stdin, pollMs = POLL_MS, now = Date.now }: { start?: typeof startDetached; input?: Readable; pollMs?: number; now?: () => number } = {},
+  { start = startDetached, input = process.stdin, pollMs = POLL_MS, now = Date.now, sigint = process }: { start?: typeof startDetached; input?: Readable; pollMs?: number; now?: () => number; sigint?: EventEmitter } = {},
 ): Promise<number> {
   const socketPath = chatSocketOf(config.root);
   if (flags.stop) {
@@ -144,7 +188,7 @@ export async function chatCommand(
   if (flags.resume !== undefined) {
     const client = await hostClient(socketPath, config, configPath, start);
     try {
-      await converse(client, { start: { cmd: 'resume', sessionId: flags.resume }, input, pollMs });
+      await converse(client, { start: { cmd: 'resume', sessionId: flags.resume }, input, pollMs, sigint });
     } finally {
       client.close();
     }
@@ -154,7 +198,7 @@ export async function chatCommand(
     const agent = flags.agent ?? chatAgents(config)[0]!.name;
     const client = await hostClient(socketPath, config, configPath, start);
     try {
-      await converse(client, { start: { cmd: 'open', agent, folder: resolve(flags.workspace) }, input, pollMs });
+      await converse(client, { start: { cmd: 'open', agent, folder: resolve(flags.workspace) }, input, pollMs, sigint });
     } finally {
       client.close();
     }

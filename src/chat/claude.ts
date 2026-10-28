@@ -157,6 +157,8 @@ class ClaudeConversation implements ChatConversation {
     this.interrupting = true;
     this.denyPending();
     await this.query.interrupt();
+    // The turn ends at its `result`; wait for it, so the host never sees the next turn start before this one's end.
+    for (let waited = 0; this.turning && waited < 5_000; waited += 50) await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
   async setOption(id: string, value: string) {

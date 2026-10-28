@@ -109,6 +109,7 @@ test('a client opens a conversation, sends, reads the events by cursor and close
   expect(reply.events.map((e: any) => [e.kind, e.text])).toEqual([['user', 'hi'], ['assistant', 're: hi'], ['turn_end', undefined]]);
   expect(reply.session).toMatchObject({ id: session.id, title: 'hi', state: 'idle' });
   expect(((await client.request('list')) as any).sessions).toHaveLength(2);
+  await expect(client.request('interrupt', { sessionId: session.id })).resolves.toEqual({}); // no turn is running
   await client.request('close', { sessionId: session.id });
   expect(claude.conversations.map((c) => c.closed)).toEqual([false, true]);
   await client.request('stop');

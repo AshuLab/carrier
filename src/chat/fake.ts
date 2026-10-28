@@ -22,8 +22,18 @@ export class FakeConversation implements ChatConversation {
     this.answers.push({ approvalId, choiceId });
     this.emit({ kind: 'approval_answered', approvalId, choiceId });
   }
-  async interrupt() {}
-  async setOption() {}
+  interrupts = 0;
+  /** Plays what the provider does on an interrupt; by default nothing, as an adapter that never says the turn ended. */
+  onInterrupt: (conversation: FakeConversation) => void = () => {};
+  async interrupt() {
+    this.interrupts++;
+    this.onInterrupt(this);
+  }
+  async setOption(id: string, value: string) {
+    const option = this.options.find((o) => o.id === id);
+    if (option) option.current = value;
+    this.emit({ kind: 'option', id, value });
+  }
   async close() {
     this.closed = true;
   }

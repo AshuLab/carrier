@@ -148,6 +148,54 @@ test('a folder named like a session id is only removed beside its transcript, an
   expect(existsSync(claudeSession('s-old'))).toBe(false);
 });
 
+// A session written under a folder other than the environment's: one file per layout, in that folder.
+function seedIn(configDir: string, name: string, harness: 'claude' | 'codex', status: (typeof epicStates)[number], finishedAt: number | null) {
+  const epic = db.insert(epics).values({ repo: 'AshuLab/a', issue: db.select().from(epics).all().length + 1, status, finishedAt }).returning().get();
+  db.insert(executions).values({ executionId: `x-${name}`, epicId: epic.id, stage: 'ship', harness, configDir, sessionId: `s-${name}`, resultPath: 'r', startedAt: 0 }).run();
+  mkdirSync(logs(`x-${name}`), { recursive: true });
+  const file = harness === 'claude'
+    ? join(configDir, 'projects', '-Users-me-demo', `s-${name}.jsonl`)
+    : join(configDir, 'sessions', '2026', '10', '15', `rollout-2026-10-15T20-35-49-s-${name}.jsonl`);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, '{}');
+  return file;
+}
+
+test('an epic with executions in two config folders loses its sessions from both, and its logs', () => {
+  const a = join(dir, 'login-a');
+  const b = join(dir, 'login-b');
+  const fileA = seedIn(a, 'a', 'claude', 'merged', 0);
+  const fileB = seedIn(b, 'b', 'codex', 'merged', 0);
+  db.update(executions).set({ epicId: db.select().from(executions).where(eq(executions.executionId, 'x-a')).get()!.epicId }).where(eq(executions.executionId, 'x-b')).run(); // one epic, two logins
+  const deleted = purgeExpired(db, dir, 100 * DAY, dirs);
+  expect(deleted).toEqual(expect.arrayContaining([fileA, fileB, logs('x-a'), logs('x-b')]));
+  expect([fileA, fileB, logs('x-a'), logs('x-b')].some(existsSync)).toBe(false);
+});
+
+test('the sessions of an unfinished epic in another config folder are not touched', () => {
+  const files = (['queued', 'running', 'needs_human', 'repo_removed'] as const).map((status) => seedIn(join(dir, 'login'), status, 'claude', status, 0));
+  purgeExpired(db, dir, 1000 * DAY, dirs);
+  expect(files.every(existsSync)).toBe(true);
+});
+
+test('a recorded config folder that is not absolute is ignored: nothing is deleted under it', () => {
+  seed('old', 'merged', 0);
+  const relative = join(dir, 'rel');
+  const file = join(relative, 'projects', '-p', 's-old.jsonl');
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, '{}');
+  db.update(executions).set({ configDir: 'rel' }).run();
+  const previous = process.cwd();
+  process.chdir(dir);
+  try {
+    purgeExpired(db, dir, 100 * DAY, dirs);
+  } finally {
+    process.chdir(previous);
+  }
+  expect(existsSync(file)).toBe(true);
+  expect(existsSync(claudeSession('s-old'))).toBe(true); // not redirected to the environment's folder either
+});
+
 test('CLAUDE_CONFIG_DIR and CODEX_HOME decide where the CLIs are looked up, with the CLIs\' own defaults', () => {
   expect(sessionDirsFrom({ CLAUDE_CONFIG_DIR: '/c', CODEX_HOME: '/x' })).toEqual({ claude: '/c', codex: '/x' });
   expect(sessionDirsFrom({})).toEqual({ claude: join(homedir(), '.claude'), codex: join(homedir(), '.codex') });

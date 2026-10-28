@@ -6,11 +6,14 @@ const base = {
   repos: [{ name: 'AshuLab/carrier' }],
   profiles: { a: { kind: 'gh' }, b: { kind: 'gh' }, c: { kind: 'gh' } },
   orchestratorProfile: 'a',
+  agentOptions: { claude: { harness: 'claude', model: 'm1' }, codex: { harness: 'codex', model: 'm2' }, local: { harness: 'codex', model: 'm3', provider: 'ollama', configDir: '/srv/codex' } },
   agents: {
-    author: { profile: 'a', harness: 'claude', model: 'm1' },
-    reviewer: { profile: 'b', harness: 'codex', model: 'm2' },
+    author: { profile: 'a', option: 'claude' },
+    reviewer: { profile: 'b', option: 'codex' },
   },
 };
+const resolvedAuthor = { profile: 'a', option: 'claude', harness: 'claude', model: 'm1' };
+const resolvedReviewer = { profile: 'b', option: 'codex', harness: 'codex', model: 'm2' };
 
 const load = (user: object) => loadConfig(defaults, { ...base, ...user });
 const errorsOf = (user: object) => {
@@ -25,27 +28,25 @@ const resolveFirst = (user: object) => {
 };
 
 describe('resolveRepoConfig', () => {
-  test('a repo without overrides gets the global values', () => {
-    expect(resolveFirst({}).agents).toEqual(base.agents);
+  test('a repo without overrides gets the option each role points at, with its name', () => {
+    expect(resolveFirst({}).agents).toEqual({ author: resolvedAuthor, reviewer: resolvedReviewer });
   });
 
-  test('a model-only override keeps the global profile and harness', () => {
-    const { agents } = resolveFirst({ repos: [{ name: 'x/y', agents: { reviewer: { model: 'other' } } }] });
-    expect(agents.reviewer).toEqual({ profile: 'b', harness: 'codex', model: 'other' });
-    expect(agents.author).toEqual(base.agents.author);
+  test('an option override is the one used for that repo, with its provider and configDir', () => {
+    const { agents } = resolveFirst({ repos: [{ name: 'x/y', agents: { reviewer: { option: 'local' } } }] });
+    expect(agents.reviewer).toEqual({ profile: 'b', option: 'local', harness: 'codex', model: 'm3', provider: 'ollama', configDir: '/srv/codex' });
+    expect(agents.author).toEqual(resolvedAuthor);
   });
 
   test('overrides replace every field they set', () => {
-    const { agents } = resolveFirst({
-      repos: [{ name: 'x/y', agents: { author: { profile: 'c', harness: 'codex', model: 'z' } } }],
-    });
-    expect(agents.author).toEqual({ profile: 'c', harness: 'codex', model: 'z' });
+    const { agents } = resolveFirst({ repos: [{ name: 'x/y', agents: { author: { profile: 'c', option: 'codex' } } }] });
+    expect(agents.author).toEqual({ profile: 'c', option: 'codex', harness: 'codex', model: 'm2' });
   });
 
   test('effective config round-trips through JSON and carries no extra data', () => {
     const effective = resolveFirst({
       profiles: { ...base.profiles, a: { kind: 'forge', agent: 'secret' } },
-      repos: [{ name: 'x/y', agents: { reviewer: { model: 'other' } } }],
+      repos: [{ name: 'x/y', agents: { reviewer: { option: 'local' } } }],
     });
     expect(JSON.parse(JSON.stringify(effective))).toEqual(effective);
     expect(JSON.stringify(effective)).not.toContain('secret');
@@ -96,10 +97,7 @@ describe('override validation', () => {
     ]);
   });
 
-  test('unknown override fields and bad harnesses are rejected', () => {
-    expect(errorsOf({ repos: [{ name: 'x/y', agents: { author: { harness: 'gpt' } } }] }).map((e) => e.path)).toEqual([
-      'repos.0.agents.author.harness',
-    ]);
+  test('unknown override fields are rejected', () => {
     expect(errorsOf({ repos: [{ name: 'x/y', agents: { judge: {} } }] })).toHaveLength(1);
   });
 });

@@ -14,7 +14,7 @@ import { fileDiff, filesOf, MAX_DIFF_ROWS, MAX_FILES_PER_SECTION, MAX_LINE } fro
 const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' }).trim();
 const lines = (count: number, tag = 'x') => Array.from({ length: count }, (_, i) => `${tag}${i}`).join('\n') + '\n';
 const BRANCH = 'feat/x/epic';
-const config = { name: 'AshuLab/a', agents: { author: { profile: 'a', harness: 'claude' as const, model: 'm' }, reviewer: { profile: 'b', harness: 'codex' as const, model: 'r' } } };
+const config = { name: 'AshuLab/a', agents: { author: { profile: 'a', option: 'o', harness: 'claude' as const, model: 'm' }, reviewer: { profile: 'b', option: 'o', harness: 'codex' as const, model: 'r' } } };
 
 let root: string;
 let db: Db;

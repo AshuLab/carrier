@@ -36,7 +36,7 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const agent = { profile: 'p', harness: 'claude' as const, model: 'm' };
+const agent = { profile: 'p', option: 'o', harness: 'claude' as const, model: 'm' };
 const config = { name: 'AshuLab/a', agents: { author: agent, reviewer: { ...agent, harness: 'codex' as const } } };
 const epic = (issue: number, status: (typeof epics.$inferInsert)['status']) =>
   db.insert(epics).values({ repo: 'AshuLab/a', issue, status, config }).returning({ id: epics.id }).get().id;

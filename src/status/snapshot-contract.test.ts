@@ -32,7 +32,7 @@ const add = (repo: string, issue: number, status: (typeof epicStates)[number], e
 const exec = (executionId: string, epicId: number, stage: 'ship' | 'review' | 'fix', startedAt: number) =>
   db.insert(executions).values({ executionId, epicId, stage, resultPath: '/r', startedAt }).run();
 
-const agent = (harness: 'claude' | 'codex' | 'agy', model: string, provider?: 'ollama') => ({ profile: `${harness}-profile`, harness, model, provider });
+const agent = (harness: 'claude' | 'codex' | 'agy', model: string, provider?: 'ollama') => ({ profile: `${harness}-profile`, option: 'o', harness, model, provider });
 const config = { name: 'acme', agents: { author: agent('claude', 'claude-sonnet-5-5'), reviewer: agent('codex', 'gpt-5', 'ollama') } };
 
 // Every field of the snapshot has a value somewhere in this sample, so the app can be built against it.

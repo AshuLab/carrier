@@ -19,7 +19,7 @@ import { epicOf, MAX_ROUNDS } from './epic.ts';
 const MIN = 60_000;
 const CLIENT_LINE_LIMIT = 8 * 1024 * 1024; // macos/Sources/CarrierCore/ControlClient.swift maxLineBytes
 const SHA = 'a'.repeat(40);
-const agents = { author: { profile: 'a', harness: 'claude' as const, model: 'm' }, reviewer: { profile: 'b', harness: 'codex' as const, model: 'r' } };
+const agents = { author: { profile: 'a', option: 'o', harness: 'claude' as const, model: 'm' }, reviewer: { profile: 'b', option: 'o', harness: 'codex' as const, model: 'r' } };
 const repos: EffectiveRepoConfig[] = [{ name: 'AshuLab/a', agents }];
 
 let dir: string;

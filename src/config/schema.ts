@@ -1,12 +1,9 @@
-import { homedir } from 'node:os';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute } from 'node:path';
 import { LogLevel } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { harnessNames, localProvidersOf } from '../harnesses/names.ts';
+import { expandHome } from './default-path.ts';
 import { resolveRepoConfig } from './resolve.ts';
-
-const expandHome = (path: string) =>
-  path === '~' || path.startsWith('~/') ? join(homedir(), path.slice(1)) : path;
 
 /** `owner/name`, each part a plain folder name: the managed clone lives in `repos/<owner>/<name>`. */
 export const repoNamePattern = /^(?!\.{1,2}\/)(?!.*\/\.{1,2}$)[\w.-]+\/[\w.-]+$/;
@@ -44,18 +41,6 @@ const profile = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('forge'), agent: z.string().min(1) }),
   z.strictObject({ kind: z.literal('gh') }),
 ]);
-
-/** An agent a chat can start with. Narrower than the engine's harnesses: Antigravity is not offered. */
-const chatAgent = z.strictObject({
-  harness: z.enum(['claude', 'codex']),
-  /** The binary, when it is not the one on the path. */
-  command: z.string().min(1).optional(),
-  model: z.string().min(1).optional(),
-  /** Default options of the provider, by the provider's own option id. */
-  options: z.record(z.string(), z.string()).optional(),
-});
-
-const chatAgentName = /^[a-z][a-z0-9-]*$/;
 
 export const failoverTriggers = ['usage_limit', 'rate_limit', 'service_down'] as const;
 export type FailoverTrigger = (typeof failoverTriggers)[number];
@@ -104,13 +89,6 @@ export const configSchema = z
       )
       .min(1),
     profiles: z.record(z.string(), profile),
-    /** The agents a chat can start with (without them, `claude` and `codex`, see `chatAgents`) and the folder it brings projects into (without it, `<root>/chat/projects`). */
-    chat: z
-      .strictObject({
-        agents: z.record(z.string().regex(chatAgentName, 'a chat agent name is lowercase letters, digits and hyphens, starting with a letter'), chatAgent).optional(),
-        projectsFolder: z.string().min(1).transform(expandHome).refine(isAbsolute, 'must be an absolute path, or start with ~/').optional(),
-      })
-      .optional(),
     orchestratorProfile: z.string().min(1),
     providers: z.record(z.string(), aiProvider),
     agents: z.strictObject({ author: agent, reviewer: agent, leadReviewer: agent.optional() }),

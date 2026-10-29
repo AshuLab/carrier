@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -477,28 +477,67 @@ test('a start that cannot come up prints the end of the log and exits 1 as soon 
   expect(result.stderr).toContain(join(root, 'orchestrator', 'logs', 'start.log'));
 });
 
-test('--help lists chat and chat-host', () => {
+test('--help lists chat and chat-host, and neither takes --config', () => {
   const out = run('--help').stdout;
   expect(out).toContain('carrier chat ');
   expect(out).toContain('carrier chat-host');
+  for (const line of out.split('\n').filter((l) => l.includes('carrier chat'))) expect(line).not.toContain('--config');
 });
 
-test('chat --list starts a real detached host, a second one starts no other, an engine on the same root keeps running, and chat --stop ends only the host', () => {
-  const root = join(dir, 'chat-run');
-  const config = write('chat.json', { ...valid, root });
-  const engine = acquireLock(join(root, 'orchestrator')); // an engine holding its lock on the same root
+test('--version prints the package version, the one the hello carries, with no config', () => {
+  const { version } = JSON.parse(readFileSync(join(import.meta.dirname, '../../../package.json'), 'utf8'));
+  const result = run('--version');
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe(`${version}\n`);
+  expect(result.stderr).toBe('');
+  expect(run('-v').stdout).toBe(`${version}\n`);
+  expect(run('--help').stdout).toContain('--version');
+});
+
+// The chat needs only the Carrier folder: no engine config exists in these, and the folder is short because a socket path holds 103 bytes on macOS.
+const chatRun = (folder: string, ...args: string[]) => spawnSync(process.execPath, [main, ...args], { cwd: dir, encoding: 'utf8', env: { ...process.env, CARRIER_HOME: folder } });
+
+test('chat --list starts a real detached host from the Carrier folder alone, a second one starts no other, an engine in the same folder keeps running, and chat --stop ends only the host', () => {
+  const folder = mkdtempSync(join(tmpdir(), 'cm-'));
+  const socket = join(folder, 'chat', 'state', 'chat.sock');
+  const engine = acquireLock(join(folder, 'engine', 'state')); // an engine holding its lock in the same folder
   expect(engine.ok).toBe(true);
   try {
-    const first = run('chat', '--list', '--config', config);
+    const first = chatRun(folder, 'chat', '--list');
     expect(first.stdout).toBe('No chat sessions.\n');
-    expect(run('chat', '--list', '--config', config).stdout).toBe('No chat sessions.\n');
-    expect(run('stop', '--config', config).stdout).toBe('Carrier is not running\n'); // the engine's stop does not reach the host
-    expect(existsSync(join(root, 'chat', 'chat.sock'))).toBe(true);
-    expect(run('chat', '--stop', '--config', config).stdout).toBe('Chat host stopped\n');
-    expect(existsSync(join(root, 'chat', 'chat.sock'))).toBe(false);
-    expect(run('chat', '--stop', '--config', config).stdout).toBe('No chat host is running\n');
+    expect(chatRun(folder, 'chat', '--list').stdout).toBe('No chat sessions.\n');
+    expect(existsSync(socket)).toBe(true);
+    expect(existsSync(join(folder, 'chat', 'logs', 'chat-host.log'))).toBe(true);
+    expect(chatRun(folder, 'chat', '--stop').stdout).toBe('Chat host stopped\n');
+    expect(existsSync(socket)).toBe(false);
+    expect(chatRun(folder, 'chat', '--stop').stdout).toBe('No chat host is running\n');
+    expect(readdirSync(folder).sort()).toEqual(['chat', 'engine']); // nothing outside the folder's own subfolders
   } finally {
-    run('chat', '--stop', '--config', config);
+    chatRun(folder, 'chat', '--stop');
     if (engine.ok) engine.release();
+    rmSync(folder, { recursive: true, force: true });
+  }
+}, 30_000);
+
+test('chat and chat-host take no --config, and a chat.json that is wrong stops chat-host with the file and the key, and no socket', () => {
+  const folder = mkdtempSync(join(tmpdir(), 'cm-'));
+  try {
+    for (const command of ['chat', 'chat-host']) {
+      const refused = chatRun(folder, command, '--list', '--config', join(dir, 'ok.json'));
+      expect(refused.status).toBe(2);
+      expect(refused.stderr).toContain('takes no --config');
+    }
+    mkdirSync(join(folder, 'chat'));
+    writeFileSync(join(folder, 'chat', 'chat.json'), JSON.stringify({ githubCallTimeoutSeconds: 0 }));
+    const bad = chatRun(folder, 'chat-host');
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toContain(join(folder, 'chat', 'chat.json'));
+    expect(bad.stderr).toContain('githubCallTimeoutSeconds');
+    expect(existsSync(join(folder, 'chat', 'state'))).toBe(false);
+    const listed = chatRun(folder, 'chat', '--list'); // a client that starts the host shows why it did not come up
+    expect(listed.status).toBe(1);
+    expect(listed.stderr).toContain('githubCallTimeoutSeconds');
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
   }
 }, 30_000);

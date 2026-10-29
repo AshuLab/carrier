@@ -67,6 +67,8 @@ struct SettingsScreen: View {
             .frame(maxWidth: 720, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .top)
         }
+        // what the person fixed here is what the chat host needs: look again when they leave, as the Settings window does when it closes
+        .onDisappear { ChatHostStarter.shared.checkAtOpen() }
     }
 }
 

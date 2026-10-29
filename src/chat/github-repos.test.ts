@@ -2,7 +2,6 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import type { Config } from '../config/schema.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { connectControl } from '../terminal/cli/control-client.ts';
@@ -22,6 +21,7 @@ const repo = (name: string, isPrivate = false): AvailableRepo => ({ name, privat
 
 beforeEach(async () => {
   root = mkdtempSync(join(tmpdir(), 'gr-')); // short: a socket path holds 103 bytes on macOS
+  vi.stubEnv('CARRIER_HOME', root);
   asked = [];
   logins = 0;
   failure = undefined;
@@ -37,14 +37,15 @@ beforeEach(async () => {
       return 'vemec';
     },
   };
-  const started = await startChatHost({ root, logLevel: 'info' } as Config, { installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: new FakeChatRunner() }, github, binaryFound: () => true });
+  const started = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: new FakeChatRunner() }, github, binaryFound: () => true });
   stop = started.stop;
 });
 afterEach(async () => {
   await stop?.();
   rmSync(root, { recursive: true, force: true });
+  vi.unstubAllEnvs();
 });
-const connect = () => connectControl(join(root, 'chat', 'chat.sock'));
+const connect = () => connectControl(join(root, 'chat', 'state', 'chat.sock'));
 
 test('the hello lists githubRepos, and page 1 answers the repositories, hasMore and the login', async () => {
   const client = await connect();

@@ -11,7 +11,6 @@ import { openChatDatabase } from './db.ts';
 import { FakeChatRunner } from './fake.ts';
 import { createSessions } from './sessions.ts';
 import { FakeClock } from '../orchestration/fake.ts';
-import type { Config } from '../config/schema.ts';
 import { fetchFolder, inspectFolder } from './workspace.ts';
 
 // What the host's `workspace` request finds in real repositories made in temporary folders, with the `git` on this
@@ -270,7 +269,7 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
   });
   afterEach(() => void vi.unstubAllEnvs());
 
-  const sessionsOf = () => createSessions({ db: openChatDatabase(join(home, 'chat.db')), config: { root: join(dir, 'root') } as Config, clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, binaryFound: () => true, onLiveChange: () => {} });
+  const sessionsOf = () => createSessions({ db: openChatDatabase(join(home, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, binaryFound: () => true, onLiveChange: () => {} });
   const stateOf = (folder: string) => ({ head: git(folder, 'rev-parse', 'HEAD').trim(), status: git(folder, 'status', '--porcelain'), branches: git(folder, 'branch', '--format=%(refname:short)').split('\n').filter((line) => line.startsWith('carrier/') === false).join('\n') });
   /** A session in a worktree with an uncommitted change, an untracked file and one commit nobody else has. */
   async function session(name: string) {
@@ -348,13 +347,18 @@ describe.skipIf(!enabled)('cloneRepo, with the real git', () => {
     writeFileSync(join(work, 'gitconfig'), `[url "${join(work, 'remote.git')}"]\n\tinsteadOf = https://github.com/acme/app.git\n[url "ext::sleep 5"]\n\tinsteadOf = https://github.com/acme/hang.git\n[protocol "ext"]\n\tallow = always\n`);
     previousGlobal = process.env.GIT_CONFIG_GLOBAL;
     process.env.GIT_CONFIG_GLOBAL = join(work, 'gitconfig');
+    // the projects folder is read from the chat's own config in the Carrier folder
+    vi.stubEnv('CARRIER_HOME', join(work, 'home'));
+    mkdirSync(join(work, 'home', 'chat'), { recursive: true });
+    writeFileSync(join(work, 'home', 'chat', 'chat.json'), JSON.stringify({ projectsFolder: join(work, 'projects') }));
   });
   afterAll(() => {
+    vi.unstubAllEnvs();
     if (previousGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL;
     else process.env.GIT_CONFIG_GLOBAL = previousGlobal;
     rmSync(work, { recursive: true, force: true });
   });
-  const projects = () => createProjects({ git: realGit, token: async () => 'unused', github: { repos: async () => ({ repos: [], hasMore: false }), login: async () => 'unused' }, config: { root: join(work, 'root'), chat: { projectsFolder: join(work, 'projects') } } as Config });
+  const projects = () => createProjects({ git: realGit, token: async () => 'unused', github: { repos: async () => ({ repos: [], hasMore: false }), login: async () => 'unused' } });
 
   test('a real clone lands in <projects>/<owner>/<repo>, and asking again fetches it', async () => {
     const dest = join(work, 'projects', 'acme', 'app');

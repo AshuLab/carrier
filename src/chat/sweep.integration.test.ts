@@ -1,10 +1,9 @@
 import { spawn } from 'node:child_process';
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { vi, afterAll, beforeAll, describe, expect, test } from 'vitest';
-import type { Config } from '../config/schema.ts';
 import { connectControl } from '../terminal/cli/control-client.ts';
 import { realClock } from '../orchestration/clock.ts';
 import { claudeChatRunner } from './claude.ts';
@@ -35,17 +34,19 @@ describe.skipIf(!enabled)('the sweep of a dead chat host, with the real Claude',
     folder = realpathSync(mkdtempSync(join(tmpdir(), 'carrier-sweep-')));
   });
   afterAll(() => {
+    vi.unstubAllEnvs();
     rmSync(root, { recursive: true, force: true });
     rmSync(folder, { recursive: true, force: true });
   });
 
   test('the next host ends the group the dead one left and the session resumes', { timeout: 240_000 }, async () => {
     const chat = { agents: { claude: { harness: 'claude', model: 'haiku', ...(process.env.CARRIER_IT_CLAUDE_COMMAND && { command: process.env.CARRIER_IT_CLAUDE_COMMAND }) } } };
-    const configFile = join(root, 'config.json');
-    writeFileSync(configFile, JSON.stringify({ root, logLevel: 'info', chat }));
+    vi.stubEnv('CARRIER_HOME', root);
+    mkdirSync(join(root, 'chat'), { recursive: true });
+    writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify(chat));
     const main = join(import.meta.dirname, '../terminal/cli/main.ts');
-    const child = spawn(process.execPath, [main, 'chat-host', '--config', configFile], { stdio: 'ignore' });
-    const socket = join(root, 'chat', 'chat.sock');
+    const child = spawn(process.execPath, [main, 'chat-host'], { stdio: 'ignore', env: { ...process.env, CARRIER_HOME: root } });
+    const socket = join(root, 'chat', 'state', 'chat.sock');
     let pgid: number | undefined;
     try {
       let client: Awaited<ReturnType<typeof connectControl>> | undefined;
@@ -56,7 +57,7 @@ describe.skipIf(!enabled)('the sweep of a dead chat host, with the real Claude',
       client!.close();
 
       const read = () => {
-        const raw = new Database(join(root, 'chat', 'chat.db'), { readonly: true });
+        const raw = new Database(join(root, 'chat', 'state', 'chat.db'), { readonly: true });
         const found = raw.prepare('select pid, pgid, command, nativeId from sessions where id = ?').get(session.id) as { pid: number | null; pgid: number | null; command: string | null; nativeId: string | null };
         raw.close();
         return found;
@@ -71,7 +72,7 @@ describe.skipIf(!enabled)('the sweep of a dead chat host, with the real Claude',
       expect(groupAlive(pgid)).toBe(true); // the agent outlived its host
 
       const exit = vi.fn();
-      const host = await startChatHost({ root, logLevel: 'info', chat } as unknown as Config, { installLogging: () => {}, clock: realClock, exit, signals: false, runners: { claude: claudeChatRunner() } });
+      const host = await startChatHost({ installLogging: () => {}, clock: realClock, exit, signals: false, runners: { claude: claudeChatRunner() } });
       try {
         expect(groupAlive(pgid)).toBe(false);
         expect(read()).toMatchObject({ pid: null, pgid: null, command: null, nativeId: before.nativeId });

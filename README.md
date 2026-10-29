@@ -40,7 +40,7 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 - **Run without a terminal** — `carrier start --config <path>` launches Carrier as a detached run (its own session, its output in `<root>/orchestrator/logs/start.log`) and returns once the control socket answers, within 15 seconds; on a root where Carrier already runs it says so, does nothing and exits 0, and if it does not come up it prints the end of the log and exits 1. `carrier stop`, `pause`, `resume` and `check` do from any terminal what the panel's `Ctrl+C`, `p` and `r` do (`check` looks at GitHub now) and confirm in one line: exit 0 on success (`stop` also when none runs), 1 when no Carrier runs (or answers), 2 when it speaks another protocol. See [ADR 0010](docs/adr/0010-carrier-runs-in-the-background-as-a-detached-process.md).
 - **Status** — `carrier status` prints the panel of the running Carrier once, from any terminal; exit 0 it runs, 1 it is not running, 2 it speaks another protocol. `carrier watch` attaches the live panel to it with the same keys as the foreground one, except `q` (and `Ctrl+C`) only leave: Carrier keeps running. It exits 1 when none runs or when the Carrier it watches stops. Both show each epic's stage history (running, needing you, or ready for test), asked over the socket; a Carrier that does not list `sessions` in its hello is drawn from the snapshot alone, and an epic whose request fails is drawn without it.
 - **Restart a stopped epic** — `carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose. In a terminal and without flags it asks for each role, with the current option preselected and the role that failed marked; without a terminal it keeps the current options. The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session. It prints one line and exits 0; a refusal prints the engine's reason and exits 1 (so does no Carrier running), a malformed argument or another protocol exits 2. It needs an engine that lists `agentOptions` in its hello.
-- **Chat host** — `carrier chat --workspace <folder> [--agent <name>]` opens a conversation (it prints the answer as it streams; `/quit` leaves and the session stays open), `carrier chat --list [--archived]`, `--archive`, `--unarchive` and `--delete <id>` (deleting leaves nothing of the session; a working one is refused) talk to the chat host, a process of its own under `<root>/chat/` (socket `chat.sock`, `chat.db`, `logs/`), and starts it detached when none answers; it ends by itself a minute after the last client leaves, or at once with `carrier chat --stop`. The engine and the host run side by side and neither's stop touches the other. `carrier chat-host --config <path>` runs it in the foreground. See [ADR 0013](docs/adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md) and [the spec](docs/specs/chat-host.md).
+- **Chat host** — `carrier chat --workspace <folder> [--agent <name>]` opens a conversation (it prints the answer as it streams; `/quit` leaves and the session stays open), `carrier chat --list [--archived]`, `--archive`, `--unarchive` and `--delete <id>` (deleting leaves nothing of the session; a working one is refused) talk to the chat host, a process of its own that keeps everything in `<folder>/chat/` (the Carrier folder, `~/.carrier` or `CARRIER_HOME`), and starts it detached when none answers. It needs no engine config: with nothing but the Carrier folder it starts, and its optional settings are in `<folder>/chat/chat.json` ([configuration](docs/configuration.md#chat-configuration)). It ends by itself a minute after the last client leaves, or at once with `carrier chat --stop`. The engine and the host run side by side and neither's stop touches the other. `carrier chat-host` runs it in the foreground. See [ADR 0013](docs/adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md) and [the spec](docs/specs/chat-host.md).
 - **Config** — a user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, agent option and persona; under separate identities (the default) author and reviewer must resolve to different profiles.
 - **Polling and queue** — FIFO across repos with pagination, rate-limit and outage handling; one instance per root folder (an exclusive SQLite lock released by the OS on death).
 - **Scheduler** — atomic reservation, configurable concurrency, label management (`running`, `ready-for-test`, `needs-human` are created in each repo if missing).
@@ -190,11 +190,35 @@ The gated tests use `CARRIER_IT_*` and `CARRIER_TEST_*` variables; each test fil
 
 ## Where it keeps things
 
-The config is `~/.carrier/config.json` (override the folder with `CARRIER_HOME`). Everything else is under `root` (default `~/.solve/`), shared with Solve:
+Carrier's folder is `~/.carrier/` (override it with `CARRIER_HOME`). The engine's config is `~/.carrier/config.json`, and the chat keeps everything it owns in `~/.carrier/chat/`:
+
+- `chat/state/` — the chat host's `chat.db`, `chat.sock` and lock; `chat/logs/` — its logs; `chat/projects/` — the repositories it clones; `chat/worktrees/` — the worktrees of the sessions that ask for one; `chat/chat.json` — its optional settings ([configuration](docs/configuration.md#chat-configuration)).
+
+The engine's files are under `root` (default `~/.solve/`), shared with Solve:
 
 - `repos/<org>/<repo>/` — managed clones.
 - `worktrees/<repo>/<feature>/` — workspaces created by Solve; `reviews/<repo>/<epic>/` — the reviewer's separate checkout.
 - `orchestrator/` — `carrier.db` (SQLite), `logs/orchestrator.log` and `logs/executions/<id>/` with each agent's full output. Logs and sessions of a finished or cancelled epic are deleted after 30 days; SQLite and workspaces are never touched.
+
+## Developing against a throwaway folder
+
+Everything the chat owns is in the Carrier folder, so a development run can use a scratch one and never touch your real `~/.carrier`. Keep the path short: a Unix socket path is limited to about 100 bytes and the host refuses a longer one.
+
+```bash
+export CARRIER_HOME=$(mktemp -d /tmp/carrier.XXXXXX)   # the scratch folder
+node src/terminal/cli/main.ts chat-host                # the host in the foreground; Ctrl+C or `chat --stop` ends it
+node src/terminal/cli/main.ts chat --list              # from another terminal with the same CARRIER_HOME: "No chat sessions."
+node src/terminal/cli/main.ts chat --stop              # ends the host
+```
+
+The host creates `$CARRIER_HOME/chat/` (`state/`, `logs/`) on its own and uses the defaults of `chat.json`; to try other settings, write `$CARRIER_HOME/chat/chat.json` before starting it (a wrong file stops the host and names the key). To run the app against it, build it (see [`macos/README.md`](macos/README.md)) and start its binary from the same terminal, so it inherits `CARRIER_HOME`:
+
+```bash
+(cd macos && ./build-app.sh)
+macos/Carrier.app/Contents/MacOS/Carrier               # opens the window; with node and carrier found, starts the host in $CARRIER_HOME/chat/ if none answers
+```
+
+The app finds `node` and `carrier` the way [`macos/README.md`](macos/README.md) says, and says in the Sessions section what it lacks; to test your clone's `carrier`, run `pnpm build` and put `dist/terminal/cli/main.js` as the `carrier` path in the app's Settings (those paths are the app's preferences, not part of the folder). The app replaces a running host only when the installed `carrier` has a newer version, and a build under development keeps the same one, so stop the host with `carrier chat --stop` after changing the code. When you are done, `carrier chat --stop` and delete the folder.
 
 ## Security
 

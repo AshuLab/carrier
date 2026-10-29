@@ -5,57 +5,61 @@ import { afterEach, beforeEach, expect, test } from 'vitest';
 import { checkFolder, checkProjectsFolder } from './folder.ts';
 
 let base: string;
-let root: string;
+let home: string;
 let work: string;
 beforeEach(() => {
   base = mkdtempSync(join(tmpdir(), 'fo-'));
-  root = join(base, 'root');
+  home = join(base, 'home');
   work = join(base, 'work');
-  for (const dir of ['repos/acme/app', 'worktrees/acme', 'orchestrator', 'chat']) mkdirSync(join(root, dir), { recursive: true });
+  for (const dir of ['engine/repos/acme/app', 'chat/state', 'chat/logs', 'chat/worktrees/acme']) mkdirSync(join(home, dir), { recursive: true });
   mkdirSync(work);
 });
 afterEach(() => rmSync(base, { recursive: true, force: true }));
 
 test('an existing folder is accepted and comes back as its real path', () => {
-  expect(checkFolder(work, root)).toBe(realpathSync(work));
-  expect(checkFolder(join(root, 'chat'), root)).toBe(realpathSync(join(root, 'chat'))); // the root itself is not forbidden
+  expect(checkFolder(work, home)).toBe(realpathSync(work));
+  // the chat's own folders are the chat's to work in (its worktrees are session folders), and so is the Carrier folder itself
+  for (const inside of ['', 'chat', 'chat/worktrees/acme']) expect(checkFolder(join(home, inside), home)).toBe(realpathSync(join(home, inside)));
 });
 
 test('a folder that does not exist, a file and a relative path are refused with a reason', () => {
   writeFileSync(join(work, 'file.txt'), '');
-  expect(() => checkFolder(join(work, 'missing'), root)).toThrow('does not exist');
-  expect(() => checkFolder(join(work, 'file.txt'), root)).toThrow('not a folder');
-  expect(() => checkFolder('work', root)).toThrow('absolute');
+  expect(() => checkFolder(join(work, 'missing'), home)).toThrow('does not exist');
+  expect(() => checkFolder(join(work, 'file.txt'), home)).toThrow('not a folder');
+  expect(() => checkFolder('work', home)).toThrow('absolute');
 });
 
-test.each(['repos', 'repos/acme/app', 'worktrees/acme', 'orchestrator'])('%s of the root is refused', (inside) => {
-  expect(() => checkFolder(join(root, inside), root)).toThrow(/inside Carrier's own/);
+test.each(['engine', 'engine/repos/acme/app'])('%s of the Carrier folder is refused', (inside) => {
+  expect(() => checkFolder(join(home, inside), home)).toThrow(/inside Carrier's own engine folder/);
 });
 
-test('a symlink into the engine folders is refused too', () => {
-  symlinkSync(join(root, 'repos', 'acme', 'app'), join(work, 'link'));
-  expect(() => checkFolder(join(work, 'link'), root)).toThrow(/inside Carrier's own repos folder/);
+test('a symlink into the engine folder is refused too', () => {
+  symlinkSync(join(home, 'engine', 'repos', 'acme', 'app'), join(work, 'link'));
+  expect(() => checkFolder(join(work, 'link'), home)).toThrow(/inside Carrier's own engine folder/);
 });
 
-test('a root that is itself reached through a symlink is still protected', () => {
-  symlinkSync(root, join(base, 'alias'));
-  expect(() => checkFolder(join(root, 'worktrees'), join(base, 'alias'))).toThrow(/worktrees/);
-  expect(() => checkFolder(join(base, 'alias', 'repos'), root)).toThrow(/repos/);
+test('a Carrier folder that is itself reached through a symlink is still protected', () => {
+  symlinkSync(home, join(base, 'alias'));
+  expect(() => checkFolder(join(home, 'engine'), join(base, 'alias'))).toThrow(/engine/);
+  expect(() => checkFolder(join(base, 'alias', 'engine'), home)).toThrow(/engine/);
 });
 
-test('a folder that only starts with the name of an engine folder is fine', () => {
-  mkdirSync(join(root, 'repos-old'));
-  expect(checkFolder(join(root, 'repos-old'), root)).toBe(realpathSync(join(root, 'repos-old')));
+test('a folder that only starts with the name of the engine folder is fine', () => {
+  mkdirSync(join(home, 'engine-old'));
+  expect(checkFolder(join(home, 'engine-old'), home)).toBe(realpathSync(join(home, 'engine-old')));
 });
 
-test('a projects folder may not exist yet, but not be relative nor lie in the engine\'s repos, worktrees or orchestrator, even through a symlink', () => {
-  expect(checkProjectsFolder(join(root, 'chat', 'projects'), root)).toBe(join(root, 'chat', 'projects'));
-  expect(checkProjectsFolder(join(work, 'a', 'b'), root)).toBe(join(work, 'a', 'b'));
-  expect(() => checkProjectsFolder('projects', root)).toThrow('absolute');
-  for (const name of ['repos', 'worktrees', 'orchestrator']) {
-    expect(() => checkProjectsFolder(join(root, name), root)).toThrow(`inside Carrier's own ${name} folder`);
-    expect(() => checkProjectsFolder(join(root, name, 'new', 'deeper'), root)).toThrow(`inside Carrier's own ${name} folder`);
+test("a projects folder may not exist yet, but not be relative nor lie in the engine's folder or the chat's own state, logs and worktrees, even through a symlink", () => {
+  expect(checkProjectsFolder(join(home, 'chat', 'projects'), home)).toBe(join(home, 'chat', 'projects'));
+  expect(checkProjectsFolder(home, home)).toBe(home); // the Carrier folder itself is checked again below, per project
+  expect(checkProjectsFolder(join(work, 'a', 'b'), home)).toBe(join(work, 'a', 'b'));
+  expect(() => checkProjectsFolder('projects', home)).toThrow('absolute');
+  for (const name of ['engine', join('chat', 'state'), join('chat', 'logs'), join('chat', 'worktrees')]) {
+    expect(() => checkProjectsFolder(join(home, name), home)).toThrow(`inside Carrier's own ${name} folder`);
+    expect(() => checkProjectsFolder(join(home, name, 'new', 'deeper'), home)).toThrow(`inside Carrier's own ${name} folder`);
   }
-  symlinkSync(join(root, 'repos'), join(work, 'link'));
-  expect(() => checkProjectsFolder(join(work, 'link', 'x'), root)).toThrow("inside Carrier's own repos folder");
+  symlinkSync(join(home, 'engine'), join(work, 'link'));
+  expect(() => checkProjectsFolder(join(work, 'link', 'x'), home)).toThrow("inside Carrier's own engine folder");
+  symlinkSync(join(home, 'chat', 'state'), join(work, 'state-link'));
+  expect(() => checkProjectsFolder(join(work, 'state-link', 'x'), home)).toThrow(/chat.state folder/);
 });

@@ -40,8 +40,6 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `finishedWindowDays` | no | `15` | Days a merged or cancelled epic stays in the snapshot after it ends, a whole number from 1 to 30 (30 is the retention purge). |
-| `chat.agents` | no | `claude` and `codex` | The agents a chat can start with, by name. See [Chat agents](#chat-agents). |
-| `chat.projectsFolder` | no | `<root>/chat/projects` | The folder where the chat host puts the repositories it clones (`<owner>/<repo>` inside it). An absolute path, or one starting with `~/`. It may not lie inside `repos`, `worktrees` or `orchestrator` of the shared `root`. The host reads it at each request, so a change applies to the next clone with no restart. See [Projects folder](#projects-folder). |
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |
 | `identities` | no | `separate` | `separate` or `shared`. Under `separate` the author and the reviewer must be different identities. Under `shared` they may use the same profile, normally your `gh` login. See [Profiles](#profiles). |
 | `limits.maxConcurrentEpics` | no | `3` | Epics running at the same time. |
@@ -176,19 +174,35 @@ A repo inherits every value from the global `agents` and replaces only what it n
 
 Profile names used in an override must exist in `profiles`, and provider names in `providers`. Under `identities: "separate"` the author and the reviewer must still differ after the override.
 
-## Chat agents
+## Chat configuration
 
-A chat (`carrier chat`) starts with one of the agents listed in `chat.agents`. Without the block there are two, `claude` and `codex`, each running its own harness with the binary on the path and the provider's defaults. With the block there are the agents it lists and only those, in the order written.
+The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrier`, or `CARRIER_HOME`) and read no engine config. Everything the chat owns is in `<folder>/chat/` (`state/`, `logs/`, `projects/`, `worktrees/`), and its settings are in the optional `<folder>/chat/chat.json`. Every key is optional and so is the file; with neither, the chat uses the defaults below. Unknown keys are errors. A file that is not valid JSON or does not match makes `carrier chat-host` exit with a message that names the file and the key, and the host does not start.
 
 ```json
-"chat": {
+{
   "agents": {
     "claude": { "harness": "claude" },
     "claude-opus": { "harness": "claude", "model": "opus", "options": { "permissionMode": "plan" } },
     "codex": { "harness": "codex", "command": "/opt/homebrew/bin/codex" }
-  }
+  },
+  "projectsFolder": "~/Projects/carrier",
+  "githubCallTimeoutSeconds": 30,
+  "logLevel": "info"
 }
 ```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `agents` | `claude` and `codex` | The agents a chat can start with, by name, in the order written, and only those (`{}` means none). `carrier chat` without `--agent` uses the first. See [Chat agents](#chat-agents). Read when the host starts. |
+| `projectsFolder` | `<folder>/chat/projects` | Where the host puts the repositories it clones (`<owner>/<repo>` inside it). An absolute path, or one starting with `~/`. It may not lie inside `<folder>/engine/` or the chat's own `state/`, `logs/` or `worktrees/`. Read at each request, so a change applies to the next clone with no restart. See [Projects folder](#projects-folder). |
+| `githubCallTimeoutSeconds` | `30` | A positive whole number: how long a call to GitHub (the repository list, the login) may take. Read when the host starts. |
+| `logLevel` | `info` | `debug`, `info`, `warn` or `error`. Read when the host starts. |
+
+A session never works inside `<folder>/engine/`, nor through a symlink into it. The engine's config has no `chat` section: it rejects one like any unknown key.
+
+## Chat agents
+
+A chat (`carrier chat`) starts with one of the agents in `agents`, each running its own harness with the binary on the path and the provider's defaults unless it says otherwise.
 
 | Field | Required | Meaning |
 |-------|----------|---------|
@@ -202,12 +216,6 @@ A chat (`carrier chat`) starts with one of the agents listed in `chat.agents`. W
 
 The chat host can clone a GitHub repository for a session (the `cloneRepo` request). It goes to `<projects folder>/<owner>/<repo>`; one already there (a `.git` whose `origin` is that repository) is fetched instead, and anything else at that path stops the request and is left untouched. The clone and the fetch use the token of your active `gh` login, handed to git in its environment, so `gh` must be installed and signed in. Each git command has ten minutes. A new project (the `createProject` request) is a folder at `<projects folder>/local/<name>` with `git init -b main`; the name is a plain folder name (letters, digits, `_`, `.` and `-`, at most a hundred, not starting with a dot or a dash), one that is taken is refused and nothing is changed. The same host lists your repositories for the app's "My GitHub repositories" step (the `githubRepos` request, thirty a page, with the same `gh` login): every repository that login can read, as owner, collaborator or organisation member, archived and disabled ones left out; it needs no config. Carrier never deletes anything in the folder, except the half-made clone or project of a request that failed or was cancelled.
 
-```json
-"chat": { "projectsFolder": "~/Projects/carrier" }
-```
-
-`chat` can hold `agents`, `projectsFolder`, both or neither.
-
 ## Things that are checked
 
 - Every profile named anywhere is declared in `profiles`, and every provider named anywhere in `providers`.
@@ -215,8 +223,6 @@ The chat host can clone a GitHub repository for a session (the `cloneRepo` reque
 - Provider names are lowercase words, a `configDir` is absolute after `~` is expanded, and a provider has no field this page does not list.
 - Repo names are `owner/name`, and no two repos share the same folder name (Solve's worktree paths have no owner).
 - A `provider` (local model server) is only accepted for a harness that can use it (Claude Code and Codex; not Antigravity), and so is a `configDir`.
-- `chat.projectsFolder` is an absolute path once `~/` is expanded.
-- Each chat agent has a lowercase name, a harness of `claude` or `codex`, and a `command` and `model` that are not empty when present.
 - The effective configuration of an epic is saved, without credentials, when it starts and kept when it resumes, even if you change the file in between.
 
 ## Local models

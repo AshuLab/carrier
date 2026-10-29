@@ -2,9 +2,13 @@ import Foundation
 
 // Where Carrier's control socket lives: the engine's own rule (src/config/default-path.ts and schema.ts), read from the config file's content.
 
+/// The Carrier folder: `CARRIER_HOME` in the app's own environment, else `~/.carrier`.
+public func carrierFolder(environment: [String: String], home: String) -> String {
+    environment["CARRIER_HOME"].flatMap { $0.isEmpty ? nil : $0 } ?? home + "/.carrier"
+}
+
 public func configFilePath(environment: [String: String], home: String) -> String {
-    let carrierHome = environment["CARRIER_HOME"].flatMap { $0.isEmpty ? nil : $0 } ?? home + "/.carrier"
-    return carrierHome + "/config.json"
+    carrierFolder(environment: environment, home: home) + "/config.json"
 }
 
 /// The `root` of the config file with `~` expanded; `~/.solve` when the file is missing, is not JSON or has no usable `root`.
@@ -28,7 +32,7 @@ public func activeConfigPath(saved: SetupSettings?, environment: [String: String
     return configFilePath(environment: environment, home: home)
 }
 
-/// The shared root, from the same config file for both sockets.
+/// The shared root, from the config file.
 private func activeRoot(saved: SetupSettings?, environment: [String: String], home: String) -> String {
     configRoot(configPath: activeConfigPath(saved: saved, environment: environment, home: home), home: home)
 }
@@ -41,10 +45,9 @@ public func controlSocketPath(
     activeRoot(saved: saved, environment: environment, home: home) + "/orchestrator/control.sock"
 }
 
-/// The chat host's socket, found the same way: `<root>/chat/chat.sock`.
+/// The chat host's socket: `<folder>/chat/state/chat.sock`. It does not read the engine's config.
 public func chatSocketPath(
-    saved: SetupSettings? = SetupStore().load(),
     environment: [String: String] = ProcessInfo.processInfo.environment, home: String = NSHomeDirectory()
 ) -> String {
-    activeRoot(saved: saved, environment: environment, home: home) + "/chat/chat.sock"
+    carrierFolder(environment: environment, home: home) + "/chat/state/chat.sock"
 }

@@ -53,7 +53,7 @@ const controls = (): ChatControls => ({
 });
 const seen: AbortSignal[] = [];
 async function open({ stop = async () => {}, clients = noClients } = {}) {
-  const server = await startChatServer({ chatDir: dir, startedAt: 1234, controls: controls(), stop, clients });
+  const server = await startChatServer({ stateDir: dir, startedAt: 1234, controls: controls(), stop, clients });
   closers.push(server.close);
 }
 

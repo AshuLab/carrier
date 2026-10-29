@@ -75,14 +75,14 @@ test('the usage names restart and its flags', () => {
   expect(usage()).toContain('--author <option>');
 });
 
-test('chat takes --list or --stop, and chat-host the config', () => {
+test('chat takes --list or --stop, and chat-host nothing', () => {
   expect(parseCli(['chat', '--list'])).toMatchObject({ ok: true, command: 'chat', flags: { list: true } });
-  expect(parseCli(['chat', '--stop', '--config', 'x.json'])).toMatchObject({ ok: true, command: 'chat', flags: { stop: true, config: 'x.json' } });
+  expect(parseCli(['chat', '--stop'])).toMatchObject({ ok: true, command: 'chat', flags: { stop: true } });
   expect(parseCli(['chat', '--workspace', '/w', '--agent', 'codex'])).toMatchObject({ ok: true, command: 'chat', flags: { workspace: '/w', agent: 'codex' } });
   expect(parseCli(['chat', '--resume', 'abc'])).toMatchObject({ ok: true, command: 'chat', flags: { resume: 'abc' } });
   expect(parseCli(['chat', '--list', '--archived'])).toMatchObject({ ok: true, flags: { list: true, archived: true } });
   expect(parseCli(['chat', '--archive', 'a'])).toMatchObject({ ok: true, flags: { archive: 'a' } });
   expect(parseCli(['chat', '--unarchive', 'a'])).toMatchObject({ ok: true, flags: { unarchive: 'a' } });
   expect(parseCli(['chat', '--delete', 'a'])).toMatchObject({ ok: true, flags: { delete: 'a' } });
-  expect(parseCli(['chat-host', '--config', 'x.json'])).toMatchObject({ ok: true, command: 'chat-host', flags: { config: 'x.json' } });
+  expect(parseCli(['chat-host'])).toMatchObject({ ok: true, command: 'chat-host' });
 });

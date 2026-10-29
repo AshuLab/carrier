@@ -858,22 +858,25 @@ private final class LateChat: ChatHost, @unchecked Sendable {
 
 // The footer's Change…: the config write, the refusals, and the next request using the new folder.
 
-@MainActor @Test func changingTheProjectsFolderWritesItAndTheNextCloneAndNewProjectGoThereWithTheOldFolderUntouched() async throws {
+@MainActor @Test func changingTheProjectsFolderWritesChatJsonAndTheNextCloneAndNewProjectGoThereWithTheOldFolderUntouchedAndTheEngineConfigAlone() async throws {
     let old = try projectsRoot(["AshuLab/carrier"])
     let new = try projectsRoot([])
     defer { for path in [old, new] { try? FileManager.default.removeItem(atPath: path) } }
-    let config = FakeConfig("{\"chat\": {\"projectsFolder\": \"\(old)\"}, \"repos\": [{\"name\": \"acme/web\"}]}")
+    let engine = FakeConfig("{\"repos\": [{\"name\": \"acme/web\"}]}")
+    let chat = FakeConfig("{\"projectsFolder\": \"\(old)\", \"logLevel\": \"debug\"}")
     let host = FakeChat()
-    host.projects = { projectsFolder(configJSON: config.json, home: NSHomeDirectory()) }
+    host.projects = { projectsFolder(chatJSON: chat.json, carrierFolder: "/Users/x/.carrier", home: NSHomeDirectory()) }
     let model = NewSessionModel(
         host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: host.projects,
-        readConfig: { config.json }, writeConfig: { try config.write($0) }
+        readConfig: { engine.json }, writeConfig: { try engine.write($0) },
+        readChatConfig: { chat.json }, writeChatConfig: { try chat.write($0) }, carrierFolder: "/Users/x/.carrier"
     )
     await model.load()
     model.openPicker()
     #expect(model.projectsPath == old && model.projects.map(\.name) == ["AshuLab/carrier"])
     model.changeProjectsFolder(to: new)
-    #expect(model.projectsFolderProblem == nil && model.projectsPath == new && model.projects.isEmpty && config.writes == 1)
+    #expect(model.projectsFolderProblem == nil && model.projectsPath == new && model.projects.isEmpty && chat.writes == 1 && engine.writes == 0)
+    #expect(String(decoding: chat.json ?? Data(), as: UTF8.self).contains("logLevel"))
     #expect(FileManager.default.fileExists(atPath: old + "/AshuLab/carrier"))
     model.show(.url)
     model.urlText = "acme/web"
@@ -885,36 +888,45 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     #expect(model.folder == new + "/local/idea")
 }
 
-@MainActor @Test func aFolderInsideTheEnginesOwnFoldersIsRefusedBeforeAnythingIsWrittenAndTheOldOneStands() async throws {
-    let config = FakeConfig("{\"root\": \"/data/solve\", \"chat\": {\"projectsFolder\": \"/srv/p\"}}")
-    let model = NewSessionModel(
+@MainActor private func chatPopover(_ chat: FakeConfig, engine: FakeConfig? = nil, folder: String = "/data/carrier") -> NewSessionModel {
+    let engine = engine ?? FakeConfig()
+    return NewSessionModel(
         host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in },
-        projectsFolder: { projectsFolder(configJSON: config.json, home: NSHomeDirectory()) }, readConfig: { config.json }, writeConfig: { try config.write($0) }
+        projectsFolder: { projectsFolder(chatJSON: chat.json, carrierFolder: folder, home: NSHomeDirectory()) },
+        readConfig: { engine.json }, writeConfig: { try engine.write($0) },
+        readChatConfig: { chat.json }, writeChatConfig: { try chat.write($0) }, carrierFolder: folder
     )
-    for folder in ["/data/solve/repos", "/data/solve/worktrees/x/y", "/data/solve/orchestrator", "relative/path"] {
+}
+
+@MainActor @Test func aFolderInsideTheEngineOrTheChatsOwnFoldersIsRefusedBeforeAnythingIsWrittenAndTheOldOneStands() async throws {
+    let chat = FakeConfig("{\"projectsFolder\": \"/srv/p\"}")
+    let model = chatPopover(chat)
+    for folder in ["/data/carrier/engine", "/data/carrier/engine/worktrees/x", "/data/carrier/chat/state", "/data/carrier/chat/worktrees/a", "relative/path"] {
         model.changeProjectsFolder(to: folder)
         #expect(model.projectsFolderProblem?.hasSuffix("The projects folder stays /srv/p.") == true, "\(folder)")
-        #expect(config.writes == 0 && model.projectsPath == "/srv/p")
+        #expect(chat.writes == 0 && model.projectsPath == "/srv/p")
     }
     #expect(model.projectsFolderProblem == "The projects folder must be an absolute path. The projects folder stays /srv/p.")
-    model.changeProjectsFolder(to: "/data/solve/repos")
-    #expect(model.projectsFolderProblem?.contains("Carrier's own repos folder") == true)
+    model.changeProjectsFolder(to: "/data/carrier/engine")
+    #expect(model.projectsFolderProblem?.contains("Carrier's own engine folder") == true)
     model.openPicker()
     #expect(model.projectsFolderProblem == nil)
 }
 
-@MainActor @Test func aConfigThatCannotBeReadOrWrittenLeavesTheOldFolderAndSaysSo() async {
-    let unwritable = FakeConfig("{\"chat\": {\"projectsFolder\": \"/srv/p\"}}")
+@MainActor @Test func aChatJsonThatCannotBeReadOrWrittenLeavesTheOldFolderAndSaysSoAndOneThatIsNotThereIsMade() async {
+    let unwritable = FakeConfig("{\"projectsFolder\": \"/srv/p\"}")
     unwritable.unwritable = true
-    for config in [FakeConfig(nil), FakeConfig("[1]"), unwritable] {
-        let model = NewSessionModel(
-            host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in },
-            projectsFolder: { projectsFolder(configJSON: config.json, home: NSHomeDirectory()) }, readConfig: { config.json }, writeConfig: { try config.write($0) }
-        )
+    for chat in [FakeConfig("[1]"), unwritable] {
+        let model = chatPopover(chat)
         let before = model.projectsPath
         model.changeProjectsFolder(to: "/srv/other")
-        #expect(model.projectsFolderProblem?.hasSuffix("The projects folder stays \(before).") == true && model.projectsPath == before && config.writes == 0)
+        #expect(model.projectsFolderProblem?.hasSuffix("The projects folder stays \(before).") == true && model.projectsPath == before && chat.writes == 0)
     }
+    let absent = FakeConfig(nil)
+    let engine = FakeConfig()
+    let model = chatPopover(absent, engine: engine)
+    model.changeProjectsFolder(to: "/srv/other")
+    #expect(model.projectsFolderProblem == nil && model.projectsPath == "/srv/other" && absent.writes == 1 && engine.writes == 0)
 }
 
 // My GitHub repositories: the paged list over `AvailableReposList`, the search, the tag and the watch box, the clone of a row.

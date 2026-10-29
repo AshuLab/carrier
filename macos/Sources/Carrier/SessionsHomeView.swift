@@ -18,8 +18,27 @@ struct SessionsHomeView: View {
     var body: some View {
         let page = sessionsPage(sessions.rows, by: sort, query: query ?? "", filter: filter)
         let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        VStack(spacing: 0) {
+            if ChatHostStarter.shared.restartAdvised {
+                Label {
+                    VStack(alignment: .leading) {
+                        Text(chatHostRestartNotice.title).bold()
+                        Text(chatHostRestartNotice.line).foregroundStyle(.secondary)
+                    }
+                } icon: { Image(systemName: "arrow.clockwise") }
+                    .padding(.horizontal, 20).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            sessionsContent(page: page, searched: searched)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .toolbar { toolbar }
+    }
+
+    @ViewBuilder private func sessionsContent(page: SessionsPage, searched: Bool) -> some View {
         Group {
-            if let empty = page.emptyState {
+            if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
+                EmptyStateView(icon: "exclamationmark.triangle", title: notice.title, line: notice.line)
+            } else if let empty = page.emptyState {
                 VStack(alignment: .leading, spacing: 0) {
                     if filter.chips.isEmpty == false { chips.padding(.horizontal, 20).padding(.vertical, 8) }
                     EmptyStateView(state: empty, action: empty == .noSessionsMatch ? ("Clear filters", clear) : nil)
@@ -41,7 +60,6 @@ struct SessionsHomeView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .toolbar { toolbar }
     }
 
     /// Search and the filters back to nothing.

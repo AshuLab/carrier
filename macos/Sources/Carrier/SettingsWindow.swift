@@ -35,6 +35,10 @@ final class SettingsWindowController: NSObject {
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
+        // what the person fixed here is what the chat host needs: look again when they are done
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { _ in
+            ChatHostStarter.shared.checkAtOpen()
+        }
         return window
     }
 }

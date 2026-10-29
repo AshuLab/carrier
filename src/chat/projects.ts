@@ -1,12 +1,13 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { defaults, loadConfig } from '../config/load.ts';
+import { carrierHome } from '../config/default-path.ts';
 import { listAvailableRepos, type AvailableRepo } from '../integrations/available-repos.ts';
-import { repoNamePattern, type Config } from '../config/schema.ts';
+import { repoNamePattern } from '../config/schema.ts';
+import { readChatConfig } from './config.ts';
 import { checkProjectsFolder } from './folder.ts';
 import type { Git, GitResult } from './git.ts';
 import { ChatRefused } from './runner.ts';
@@ -77,30 +78,18 @@ type CloneReply = { folder: string; repo: string; fetched: boolean };
 type Job = { done: Promise<CloneReply>; waiters: number; abort: AbortController };
 
 /**
- * Brings GitHub repositories into the projects folder with the person's own `gh` login (ADR 0015). `configPath`
- * is the file the host was started from: the folder is read from it at each request, so a change applies to the next one.
+ * Brings GitHub repositories into the projects folder with the person's own `gh` login (ADR 0015). The folder is read
+ * from `chat.json` at each request, so a change applies to the next one.
  */
-export function createProjects({ git, token, github, config, configPath }: { git: Git; token: () => Promise<string>; github: GithubRepos; config: Config; configPath?: string }) {
+export function createProjects({ git, token, github }: { git: Git; token: () => Promise<string>; github: GithubRepos }) {
   const running = new Map<string, Job>();
 
-  const current = (): Config => {
-    if (configPath === undefined) return config;
-    let user: unknown;
-    try {
-      user = JSON.parse(readFileSync(configPath, 'utf8'));
-    } catch {
-      throw new ChatRefused('The config file cannot be read');
-    }
-    const loaded = loadConfig(defaults, user);
-    if (loaded.ok === false) throw new ChatRefused(`The config file is not valid: ${loaded.errors[0]!.path}: ${loaded.errors[0]!.message}`);
-    return loaded.config;
-  };
-
-  // `inside` is a path below the folder that is checked again: a projects folder that is the shared root would put `repos/x` in the engine's own clones.
+  // `inside` is a path below the folder that is checked again: a projects folder that is the Carrier folder itself would put `engine/x` in the engine's own folder.
   const projectsFolder = (inside?: string): string => {
-    const fresh = current();
-    const folder = checkProjectsFolder(fresh.chat?.projectsFolder ?? join(fresh.root, 'chat', 'projects'), fresh.root);
-    return inside === undefined ? folder : checkProjectsFolder(join(folder, inside), fresh.root);
+    const loaded = readChatConfig();
+    if (loaded.ok === false) throw new ChatRefused(`chat.json is not valid: ${loaded.errors[0]!.path}: ${loaded.errors[0]!.message}`);
+    const folder = checkProjectsFolder(loaded.settings.projectsFolder, carrierHome());
+    return inside === undefined ? folder : checkProjectsFolder(join(folder, inside), carrierHome());
   };
 
   // Not in argv, in a file or in a log: git reads the header from its environment, as `git-workspaces.ts` does.

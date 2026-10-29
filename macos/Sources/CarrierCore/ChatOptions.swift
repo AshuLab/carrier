@@ -119,10 +119,22 @@ public func choiceIcon(option: String, value: String) -> String? {
 public struct OptionsMemory: Sendable {
     public var load: @Sendable (String) -> [ChatOption]
     public var save: @Sendable (String, [ChatOption]) -> Void
+    public var loadCommands: @Sendable (String) -> [ChatCommand]
+    public var saveCommands: @Sendable (String, [ChatCommand]) -> Void
+    public var loadAgent: @Sendable (String) -> String
+    public var saveAgent: @Sendable (String, String) -> Void
 
-    public init(load: @escaping @Sendable (String) -> [ChatOption], save: @escaping @Sendable (String, [ChatOption]) -> Void) {
+    public init(
+        load: @escaping @Sendable (String) -> [ChatOption], save: @escaping @Sendable (String, [ChatOption]) -> Void,
+        loadCommands: @escaping @Sendable (String) -> [ChatCommand] = { _ in [] }, saveCommands: @escaping @Sendable (String, [ChatCommand]) -> Void = { _, _ in },
+        loadAgent: @escaping @Sendable (String) -> String = { _ in "" }, saveAgent: @escaping @Sendable (String, String) -> Void = { _, _ in }
+    ) {
         self.load = load
         self.save = save
+        self.loadCommands = loadCommands
+        self.saveCommands = saveCommands
+        self.loadAgent = loadAgent
+        self.saveAgent = saveAgent
     }
 
     /// Remembers nothing: for the tests.
@@ -131,6 +143,10 @@ public struct OptionsMemory: Sendable {
     /// The app's own: user defaults, one entry per session.
     public static let userDefaults = OptionsMemory(
         load: { id in UserDefaults.standard.data(forKey: "chat.options.\(id)").flatMap { try? JSONDecoder().decode([ChatOption].self, from: $0) } ?? [] },
-        save: { id, options in UserDefaults.standard.set(try? JSONEncoder().encode(options), forKey: "chat.options.\(id)") }
+        save: { id, options in UserDefaults.standard.set(try? JSONEncoder().encode(options), forKey: "chat.options.\(id)") },
+        loadCommands: { id in UserDefaults.standard.data(forKey: "chat.commands.\(id)").flatMap { try? JSONDecoder().decode([ChatCommand].self, from: $0) } ?? [] },
+        saveCommands: { id, commands in UserDefaults.standard.set(try? JSONEncoder().encode(commands), forKey: "chat.commands.\(id)") },
+        loadAgent: { id in UserDefaults.standard.string(forKey: "chat.agent.\(id)") ?? "" },
+        saveAgent: { id, agent in UserDefaults.standard.set(agent, forKey: "chat.agent.\(id)") }
     )
 }

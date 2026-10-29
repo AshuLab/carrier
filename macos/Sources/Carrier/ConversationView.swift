@@ -13,7 +13,7 @@ struct ConversationView: View {
     @Environment(SessionActions.self) private var actions
     /// The tool groups and calls the person opened, by id; here and not in each row, which the lazy stack may recreate.
     @State private var opened: Set<String> = []
-    @FocusState private var boxFocused: Bool
+    @State private var boxFocused = false
     /// Whether rows are animated in: not the ones the first answer brings, which are the history.
     @State private var animatesRows = false
 
@@ -32,7 +32,7 @@ struct ConversationView: View {
                     let open = openOutcome(model.rows)
                     ForEach(model.rows) { row in
                         FeedRowView(
-                            row: row, opened: $opened, agent: model.agent, offersWayOut: row.id == open,
+                            row: row, opened: $opened, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
                             continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
                             answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
                         )
@@ -85,7 +85,7 @@ struct ConversationView: View {
     /// session's provider and the options the provider lists as selects, and what the host refused under it.
     private var box: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if model.loaded, model.live == false { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false) }
+            if model.loaded, model.live == false { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
             if let queued = model.queued {
                 HStack(spacing: 8) {
                     Image(systemName: "clock").foregroundStyle(.secondary)
@@ -103,7 +103,7 @@ struct ConversationView: View {
             MessageBox(
                 text: $model.draft, placeholder: "Message the agent", minLines: 2,
                 canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, busy: model.busy,
-                focus: $boxFocused, halo: true, send: { Task { await model.submit() } }, stop: { Task { await model.stop() } }
+                focus: $boxFocused, commands: model.shownCommands, halo: true, send: { Task { await model.submit() } }, stop: { Task { await model.stop() } }
             ) {
                 if model.agent.isEmpty == false {
                     ComposerSelect(title: "Provider", icon: "sparkle", selected: model.agent, showsValue: true, locked: true, choices: [SelectChoice(id: model.agent, label: model.agent)])
@@ -127,6 +127,7 @@ struct ConversationView: View {
             }
         }
         .animation(.smooth(duration: 0.25), value: model.queued)
+        .animation(.smooth(duration: 0.25), value: model.live)
         // the window asks the box for its smallest size with no width at all, and a notice that wraps would answer with a word a line:
         // taller than the window (a closed session's notice made it ask for 450 points more than it had)
         .frame(minWidth: 320)
@@ -173,6 +174,8 @@ private struct FeedRowView: View {
     let row: FeedRow
     @Binding var opened: Set<String>
     let agent: String
+    /// What the session lists, to show the commands a message names as pills.
+    let commands: [ChatCommand]
     /// Whether this is the stopped or failed turn the person can still act on: Continue and Try again show only there.
     let offersWayOut: Bool
     let continueTurn: () -> Void
@@ -182,7 +185,7 @@ private struct FeedRowView: View {
     var body: some View {
         switch row {
         case .user(_, let text):
-            Text(text).textSelection(.enabled)
+            messageText(text, commands: commands).textSelection(.enabled)
                 .padding(.horizontal, 13).padding(.vertical, 8)
                 .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.14)))
                 .frame(maxWidth: .infinity, alignment: .trailing)

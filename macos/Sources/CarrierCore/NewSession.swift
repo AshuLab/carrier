@@ -64,6 +64,8 @@ public enum WorkspaceStep: Equatable {
     /// What the chosen agent offers (models, reasoning, access), as the host listed it before any session; empty while it is being asked,
     /// when the host cannot say, or when it failed: the selects then say what they will hold.
     public private(set) var agentOptions: [ChatOption] = []
+    /// What the chosen agent lets the person invoke (skills and its own commands), listed with the options; empty when the host cannot say.
+    public private(set) var agentCommands: [ChatCommand] = []
     public private(set) var loadingOptions = false
     /// What the person changed from the agent's own values: an option and a value each, sent when the session opens.
     public private(set) var chosenOptions: [String: String] = [:]
@@ -191,12 +193,14 @@ public enum WorkspaceStep: Equatable {
         guard let name = agent, optionsAgent != name else { return }
         optionsAgent = name
         agentOptions = []
+        agentCommands = []
         chosenOptions = [:]
         loadingOptions = true
         do {
             let listed = try await host.agentOptions(name)
             guard optionsAgent == name else { return }
-            agentOptions = listed
+            agentOptions = listed.options
+            agentCommands = listed.commands
         } catch {
             guard optionsAgent == name else { return }
             log("new session: could not list the options of \(name): \(ConversationModel.words(error))")
@@ -557,7 +561,12 @@ public enum WorkspaceStep: Equatable {
             return nil
         }
         do {
-            try await host.send(id, message)
+            // a first message that starts with the name of a command the agent lists invokes it
+            if let invoked = invokedCommand(in: message, among: agentCommands) {
+                try await host.send(id, invoked.arguments, command: invoked.command.id)
+            } else {
+                try await host.send(id, message)
+            }
         } catch {
             failedFirstSends[id] = FailedFirstSend(text: message, reason: report(error, "send the first message"))
         }

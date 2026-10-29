@@ -30,6 +30,9 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     /// What `agentOptions` lists for each agent (one not listed fails), how often it was asked, and the options each `open` carried.
     var offered: [String: [ChatOption]] = [:]
     var optionAsks: [String] = []
+    /// What `agentOptions` lists to invoke, and the commands each `send` invoked.
+    var commandsOffered: [String: [ChatCommand]] = [:]
+    var sentCommands: [String?] = []
     var openedWith: [[String: String]] = []
     var capabilities: Set<ControlClient.Capability> = [.cloneRepo, .createProject, .githubRepos]
     /// What `githubRepos` answers by page (one not listed is an empty last page) and the pages it was asked for.
@@ -46,10 +49,14 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
 
     func agents() async throws -> [ChatAgent] { agents }
     func list(archived wanted: Bool) async throws -> [ChatSession] { wanted ? archived : active }
-    func agentOptions(_ agent: String) async throws -> [ChatOption] {
+    func agentOptions(_ agent: String) async throws -> AgentOffer {
         optionAsks.append(agent)
         guard let listed = offered[agent] else { throw ControlError.remote("the chat host does not support agentOptions") }
-        return listed
+        return AgentOffer(options: listed, commands: commandsOffered[agent] ?? [])
+    }
+    func send(_ id: String, _ text: String, command: String?) async throws {
+        sentCommands.append(command)
+        try await send(id, text)
     }
     func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String {
         openedWith.append(options)
@@ -1060,4 +1067,22 @@ private let claudeOptions = [
     // asking for the same agent again is not another request
     await model.loadOptions()
     #expect(host.optionAsks.count == 2)
+}
+
+@MainActor @Test func aFirstMessageThatStartsWithTheNameOfAListedCommandInvokesIt() async {
+    let host = FakeChat()
+    host.offered["claude"] = claudeOptions
+    host.commandsOffered["claude"] = [ChatCommand(id: "review", name: "review", description: "Review a change", argumentHint: "<pr>")]
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.loadOptions()
+    #expect(model.agentCommands.map(\.name) == ["review"])
+    model.text = "/review 42"
+    _ = await model.send()
+    #expect(host.sentCommands == ["review"] && host.calls.last == "send \(opened) 42")
+    // a slash that names none is a message like any other
+    host.calls = []
+    model.text = "/nope here"
+    _ = await model.send()
+    #expect(host.sentCommands == ["review"] && host.calls.last == "send \(opened) /nope here")
 }

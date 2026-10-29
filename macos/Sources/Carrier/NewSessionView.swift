@@ -11,7 +11,7 @@ struct NewSessionView: View {
     @State private var branchesOpen = false
     @State private var currentBranchOpen = false
     @State private var whereOpen = false
-    @FocusState private var boxFocused: Bool
+    @State private var boxFocused = false
 
     var body: some View {
         VStack(spacing: 14) {
@@ -168,7 +168,7 @@ struct NewSessionView: View {
         MessageBox(
             text: $model.text, placeholder: model.folder == nil ? "Choose a workspace to start…" : "Write the first message…",
             canSend: model.canSend, sendHelp: model.canSend ? "Send" : "Choose a workspace and write a message",
-            focus: $boxFocused, send: send
+            focus: $boxFocused, commands: model.agentCommands, send: send
         ) {
             providerSelect
             if model.shownOptions.isEmpty {

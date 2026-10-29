@@ -71,9 +71,12 @@ public struct ChatEvents: Decodable, Equatable {
     public let pending: Set<String>
     /// What the provider offers for this session, with the current values; empty for a closed session.
     public let options: [ChatOption]
+    /// What the provider lets the person invoke; empty for a closed session.
+    public let commands: [ChatCommand]
 
     public init(
-        events: [ChatEvent], cursor: Int, streaming: String = "", state: ChatSession.State? = nil, pending: Set<String> = [], options: [ChatOption] = []
+        events: [ChatEvent], cursor: Int, streaming: String = "", state: ChatSession.State? = nil, pending: Set<String> = [], options: [ChatOption] = [],
+        commands: [ChatCommand] = []
     ) {
         self.events = events
         self.cursor = cursor
@@ -81,9 +84,10 @@ public struct ChatEvents: Decodable, Equatable {
         self.state = state
         self.pending = pending
         self.options = options
+        self.commands = commands
     }
 
-    private enum CodingKeys: String, CodingKey { case events, cursor, streaming, session, approvals, options }
+    private enum CodingKeys: String, CodingKey { case events, cursor, streaming, session, approvals, options, commands }
     private struct Summary: Decodable { let state: ChatSession.State }
     private struct Approval: Decodable { let approvalId: String }
 
@@ -95,6 +99,7 @@ public struct ChatEvents: Decodable, Equatable {
         state = try values.decodeIfPresent(Summary.self, forKey: .session)?.state
         pending = Set(try values.decodeIfPresent([Approval].self, forKey: .approvals)?.map(\.approvalId) ?? [])
         options = try values.decodeIfPresent([ChatOption].self, forKey: .options) ?? []
+        commands = try values.decodeIfPresent([ChatCommand].self, forKey: .commands) ?? []
     }
 }
 
@@ -298,7 +303,7 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     public private(set) var busy = false
     /// The message typed while the agent answered: one at a time, sent when the turn ends.
     public private(set) var queued: String?
-    /// The session's agent, as the host's list names it; empty until the first answer.
+    /// The session's agent, as the host's list names it; what the app saw last until the first answer, empty for a session it never saw.
     public private(set) var agent = ""
     /// Whether the session's agent process runs; a session that is not live shows the closed notice and resumes when a message is sent.
     public private(set) var live = true
@@ -312,14 +317,22 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     public private(set) var options: [ChatOption] = []
     /// Why the last change of an option was refused, said in the panel; nil when it worked.
     public private(set) var optionRefusal: String?
+    /// What the provider lets the person invoke in this session, as the last `events` reply said; empty for a closed session.
+    public private(set) var commands: [ChatCommand] = []
+    /// What a closed session could invoke the last time it was seen running, kept like `remembered`.
+    public private(set) var rememberedCommands: [ChatCommand] = []
+    /// What the box lists to invoke: the running agent's, else what it listed when it last ran; that too until the first answer, so the box
+    /// does not fill in after the view appears.
+    public var shownCommands: [ChatCommand] { commands.isEmpty ? rememberedCommands : commands }
     /// What a closed session offered the last time it was seen running, kept between runs of the app.
     public private(set) var remembered: [ChatOption] = []
     /// The values chosen while the session is closed: the host cannot change them until its agent runs, so they wait and are applied
     /// when a message wakes the session.
     public private(set) var wakeOptions: [String: String] = [:]
-    /// What the box lists: what the provider offers while the agent runs, else what it offered last with the choices made since.
+    /// What the box lists: what the provider offers while the agent runs, else what it offered last with the choices made since; that too
+    /// until the first answer, so the selects are there from the first frame of a session the app has seen.
     public var shownOptions: [ChatOption] {
-        if options.isEmpty == false || loaded == false { return options }
+        if options.isEmpty == false { return options }
         return remembered.map { option in
             guard let chosen = wakeOptions[option.id] else { return option }
             return ChatOption(id: option.id, label: option.label, values: option.values, current: chosen)
@@ -350,6 +363,8 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
         self.log = log
         self.memory = memory
         remembered = memory.load(sessionId)
+        rememberedCommands = memory.loadCommands(sessionId)
+        agent = memory.loadAgent(sessionId)
     }
 
     /// Polls until the task is cancelled or `sleep` throws.
@@ -390,6 +405,12 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
             loaded = true
             failure = nil
             options = reply.options
+            commands = reply.commands
+            if agent.isEmpty == false { memory.saveAgent(sessionId, agent) }
+            if reply.commands.isEmpty == false, reply.commands != rememberedCommands {
+                rememberedCommands = reply.commands
+                memory.saveCommands(sessionId, reply.commands)
+            }
             if reply.options.isEmpty == false, reply.options != remembered {
                 remembered = reply.options
                 memory.save(sessionId, reply.options)
@@ -493,7 +514,12 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
                 try await host.resume(sessionId)
                 await applyWakeOptions()
             }
-            try await host.send(sessionId, text)
+            // a message that starts with the name of a command the session lists invokes it; the host composes what the provider is told
+            if let invoked = invokedCommand(in: text, among: shownCommands) {
+                try await host.send(sessionId, invoked.arguments, command: invoked.command.id)
+            } else {
+                try await host.send(sessionId, text)
+            }
         } catch {
             refusal = report(error, "send the message")
             refusedText = text

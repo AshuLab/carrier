@@ -5,30 +5,48 @@ private let complete = SetupSettings(
     carrier: "/n/bin/carrier", node: "/n/bin/node", path: "/usr/bin:/n/bin:/bin", configPath: "/h/.carrier/config.json"
 )
 
-@Test func theHostsCommandLineIsNodeCarrierChatHostAndTheConfig() throws {
-    let command = try #require(startChatHostCommand(settings: complete, root: "/h/.solve", environment: ["HOME": "/h", "PATH": "/usr/bin"]))
+@Test func theHostsCommandLineIsNodeCarrierChatHostWithNoConfig() throws {
+    let command = try #require(startChatHostCommand(settings: complete, environment: ["HOME": "/h", "PATH": "/usr/bin"], home: "/h"))
     #expect(command.node == "/n/bin/node")
-    #expect(command.arguments == ["/n/bin/carrier", "chat-host", "--config", "/h/.carrier/config.json"])
+    #expect(command.arguments == ["/n/bin/carrier", "chat-host"])
 }
 
-@Test func theHostGetsTheEnginePathAndKeepsTheRestOfTheEnvironment() throws {
-    let command = try #require(startChatHostCommand(settings: complete, root: "/h/.solve", environment: ["HOME": "/h", "PATH": "/usr/bin"]))
+@Test func theHostGetsTheEnginePathTheFolderAndKeepsTheRestOfTheEnvironment() throws {
+    let command = try #require(startChatHostCommand(settings: complete, environment: ["HOME": "/h", "PATH": "/usr/bin"], home: "/h"))
     #expect(command.environment["PATH"] == "/n/bin:/usr/bin:/bin")
     #expect(command.environment["HOME"] == "/h")
+    #expect(command.environment["CARRIER_HOME"] == "/h/.carrier")
 }
 
-@Test func theHostsLogAndSocketLiveUnderTheRootsChatFolder() throws {
-    let command = try #require(startChatHostCommand(settings: complete, root: "/h/.solve", environment: [:]))
-    #expect(command.orchestratorDir == "/h/.solve/chat")
-    #expect(command.logsDir == "/h/.solve/chat/logs")
-    #expect(command.logPath == "/h/.solve/chat/logs/app-start.log")
-    #expect(command.socketPath == "/h/.solve/chat/chat.sock")
+@Test func theHostsLogAndSocketLiveUnderTheFoldersChatFolder() throws {
+    let command = try #require(startChatHostCommand(settings: complete, environment: [:], home: "/h"))
+    #expect(command.orchestratorDir == "/h/.carrier/chat")
+    #expect(command.logsDir == "/h/.carrier/chat/logs")
+    #expect(command.logPath == "/h/.carrier/chat/logs/app-start.log")
+    #expect(command.socketPath == "/h/.carrier/chat/state/chat.sock")
 }
 
-@Test func withoutNodeCarrierOrAConfigPathThereIsNoHostCommand() {
+@Test func carrierHomeInTheEnvironmentMovesTheFolder() throws {
+    let command = try #require(startChatHostCommand(settings: complete, environment: ["CARRIER_HOME": "/scratch"], home: "/h"))
+    #expect(command.environment["CARRIER_HOME"] == "/scratch")
+    #expect(command.logPath == "/scratch/chat/logs/app-start.log")
+    #expect(command.socketPath == "/scratch/chat/state/chat.sock")
+}
+
+@Test func withoutNodeOrCarrierThereIsNoHostCommandAndOnlyTheyAreNamed() {
     var settings = complete
     settings.node = ""
-    #expect(startChatHostCommand(settings: settings, root: "/h/.solve", environment: [:]) == nil)
+    #expect(startChatHostCommand(settings: settings, environment: [:], home: "/h") == nil)
+    settings.carrier = ""
+    settings.configPath = ""
+    #expect(chatHostMissing(settings) == ["node", "carrier"])
+}
+
+@Test func anEmptyConfigPathNoLongerStopsTheHost() {
+    var settings = complete
+    settings.configPath = ""
+    #expect(chatHostMissing(settings).isEmpty)
+    #expect(startChatHostCommand(settings: settings, environment: [:], home: "/h") != nil)
 }
 
 @Test func theHostStartsOnlyWhenASessionIsStartingAndNothingAnswersOrRuns() {

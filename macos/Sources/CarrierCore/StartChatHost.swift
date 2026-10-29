@@ -3,13 +3,23 @@ import Foundation
 // Starting the chat host from the app, the way `StartCarrier.swift` starts the engine: same command shape, same `PATH`, same
 // outcome and alert. Only a session being started asks for it, never the app opening. The spawn lives in the shell.
 
-/// `node <carrier> chat-host --config <config path>`, its log in `<root>/chat/logs/app-start.log`. nil when `startMissing` is not empty.
-public func startChatHostCommand(settings: SetupSettings, root: String, environment: [String: String]) -> StartCommand? {
-    guard let engine = startCommand(settings: settings, root: root, environment: environment) else { return nil }
-    let chat = root + "/chat"
+/// What the settings lack to start the chat host: it needs no config path.
+public func chatHostMissing(_ settings: SetupSettings) -> [String] {
+    [("node", settings.node), ("carrier", settings.carrier)].filter { $0.1.isEmpty }.map(\.0)
+}
+
+/// `node <carrier> chat-host` with `CARRIER_HOME` set to the Carrier folder, its log in `<folder>/chat/logs/app-start.log`.
+/// nil when `chatHostMissing` is not empty.
+public func startChatHostCommand(settings: SetupSettings, environment: [String: String], home: String = NSHomeDirectory()) -> StartCommand? {
+    guard chatHostMissing(settings).isEmpty else { return nil }
+    let folder = carrierFolder(environment: environment, home: home)
+    var environment = environment
+    environment["PATH"] = enginePath(detected: settings.path, node: settings.node)
+    environment["CARRIER_HOME"] = folder
+    let chat = folder + "/chat"
     return StartCommand(
-        node: engine.node, arguments: [settings.carrier, "chat-host", "--config", settings.configPath], environment: engine.environment,
-        orchestratorDir: chat, logPath: chat + "/logs/app-start.log", socketPath: chat + "/chat.sock"
+        node: settings.node, arguments: [settings.carrier, "chat-host"], environment: environment,
+        orchestratorDir: chat, logPath: chat + "/logs/app-start.log", socketPath: chat + "/state/chat.sock"
     )
 }
 

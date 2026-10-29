@@ -20,7 +20,7 @@ private let complete = SetupSettings(
 
 @Test func theHostsLogAndSocketLiveUnderTheFoldersChatFolder() throws {
     let command = try #require(startChatHostCommand(settings: complete, environment: [:], home: "/h"))
-    #expect(command.orchestratorDir == "/h/.carrier/chat")
+    #expect(command.processDir == "/h/.carrier/chat")
     #expect(command.logsDir == "/h/.carrier/chat/logs")
     #expect(command.logPath == "/h/.carrier/chat/logs/app-start.log")
     #expect(command.socketPath == "/h/.carrier/chat/state/chat.sock")

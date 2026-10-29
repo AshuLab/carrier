@@ -30,7 +30,7 @@ private let complete = SetupSettings(
 
 @Test func theLogAndTheSocketLiveUnderTheEnginesFolder() throws {
     let command = try #require(startCommand(settings: complete, environment: [:], home: "/h"))
-    #expect(command.orchestratorDir == "/h/.carrier/engine")
+    #expect(command.processDir == "/h/.carrier/engine")
     #expect(command.logsDir == "/h/.carrier/engine/logs")
     #expect(command.logPath == "/h/.carrier/engine/logs/app-start.log")
     #expect(command.socketPath == "/h/.carrier/engine/state/control.sock")

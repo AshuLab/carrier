@@ -19,7 +19,7 @@ public func startChatHostCommand(settings: SetupSettings, environment: [String: 
     let chat = folder + "/chat"
     return StartCommand(
         node: settings.node, arguments: [settings.carrier, "chat-host"], environment: environment,
-        orchestratorDir: chat, logPath: chat + "/logs/app-start.log", socketPath: chat + "/state/chat.sock"
+        processDir: chat, logPath: chat + "/logs/app-start.log", socketPath: chat + "/state/chat.sock"
     )
 }
 

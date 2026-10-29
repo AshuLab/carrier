@@ -1,4 +1,3 @@
-import { join } from 'node:path';
 import { enginePlacesOf } from '../../../config/engine-places.ts';
 import type { PanelSnapshot } from '../../../status/types.ts';
 import type { SessionsReply } from '../../../control/replies.ts';

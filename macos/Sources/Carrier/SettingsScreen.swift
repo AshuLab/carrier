@@ -28,6 +28,9 @@ struct SettingsScreen: View {
                 UnderlineTabs(items: Tab.allCases.map { UnderlineTabs.Item(id: $0, title: $0.rawValue) }, selection: $tab)
                 if tab == .engine {
                     if enginePathsShown(model.banner, opened: pathsOpen) {
+                        if let notConfigured {
+                            Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+                        }
                         if model.banner.state == .ready {
                             Button("Hide paths ▴") { pathsOpen = false }.buttonStyle(.borderless).frame(maxWidth: .infinity, alignment: .trailing)
                         }
@@ -38,14 +41,17 @@ struct SettingsScreen: View {
                         .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
                     } else {
                         HStack(spacing: 12) {
-                            StatusDot(found: notConfigured == nil)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(notConfigured == nil ? "Carrier is ready to start" : "Carrier cannot start yet").fontWeight(.semibold)
-                                Text(notConfigured ?? "carrier and node were found").font(.caption).foregroundStyle(.secondary)
+                            HStack(spacing: 12) {
+                                StatusDot(found: notConfigured == nil)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(notConfigured == nil ? "Carrier is ready to start" : "Carrier cannot start yet").fontWeight(.semibold)
+                                    Text(notConfigured ?? "carrier and node were found").font(.caption).foregroundStyle(.secondary)
+                                }
                             }
+                            .accessibilityElement(children: .combine)
                             Spacer(minLength: 8)
                             Button("Show paths ▾") { pathsOpen = true }.buttonStyle(.borderless)
-                            Button("Detect again") { setup.detect() }.buttonStyle(.glass).buttonBorderShape(.capsule)
+                            Button("Detect again") { setup.detect(); start.refreshConfig() }.buttonStyle(.glass).buttonBorderShape(.capsule)
                         }
                         .padding(.horizontal, 14).padding(.vertical, 12)
                         .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))

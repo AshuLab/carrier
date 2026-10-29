@@ -40,9 +40,11 @@ struct ReposTabView: View {
                     .font(.callout).foregroundStyle(.orange)
             }
             if let note { SavedNote(text: note) }
-            SettingsTabCard {
-                ForEach(Array(repoRows(draft: draft, saved: saved, snapshot: snapshot).enumerated()), id: \.element.id) { index, row in
-                    RepoRowView(row: row, first: index == 0, onlyOne: draft.count == 1, engine: engine) { removing = row.name }
+            if draft.isEmpty == false {
+                SettingsTabCard {
+                    ForEach(Array(repoRows(draft: draft, saved: saved, snapshot: snapshot).enumerated()), id: \.element.id) { index, row in
+                        RepoRowView(row: row, first: index == 0, onlyOne: draft.count == 1, engine: engine) { removing = row.name }
+                    }
                 }
             }
             if let problem, unreadable == false { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
@@ -71,6 +73,8 @@ struct ReposTabView: View {
         .disabled(unreadable)
         .onAppear(perform: load)
         .onChange(of: start.configExists) { load() }
+        // a file that is there but unreadable may be fixed in another app: look again when Carrier is back in front (only then, so no edit is lost)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if unreadable { load() } }
         .onChange(of: draft) { note = nil }
         .alert(
             "Stop watching \(removing ?? "")?",
@@ -95,6 +99,10 @@ struct ReposTabView: View {
     private func load() {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)), let names = configRepoNames(json: data) else {
             unreadable = true
+            saved = []
+            draft = []
+            note = nil
+            failure = nil
             return
         }
         unreadable = false

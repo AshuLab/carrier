@@ -96,8 +96,8 @@ final class StartController: ObservableObject {
     /// The orchestrator folder is for the user only, as the engine makes it; the logs folder is inside it.
     private static func prepareLogFolder(_ command: StartCommand) throws {
         let files = FileManager.default
-        try files.createDirectory(atPath: command.orchestratorDir, withIntermediateDirectories: true)
-        try files.setAttributes([.posixPermissions: 0o700], ofItemAtPath: command.orchestratorDir)
+        try files.createDirectory(atPath: command.processDir, withIntermediateDirectories: true)
+        try files.setAttributes([.posixPermissions: 0o700], ofItemAtPath: command.processDir)
         try files.createDirectory(atPath: command.logsDir, withIntermediateDirectories: true)
     }
 

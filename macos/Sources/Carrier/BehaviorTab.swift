@@ -1,3 +1,4 @@
+import AppKit
 import CarrierCore
 import SwiftUI
 
@@ -97,6 +98,8 @@ struct BehaviorTabView: View {
         .disabled(unreadable)
         .onAppear(perform: load)
         .onChange(of: start.configExists) { load() }
+        // a file that is there but unreadable may be fixed in another app: look again when Carrier is back in front (only then, so no edit is lost)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if unreadable { load() } }
         .onChange(of: draft) { note = nil }
     }
 
@@ -126,6 +129,9 @@ struct BehaviorTabView: View {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
               (try? JSONSerialization.jsonObject(with: data)) is [String: Any] else {
             unreadable = true
+            note = nil
+            failure = nil
+            unparsable = []
             return
         }
         unreadable = false

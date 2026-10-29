@@ -1,5 +1,5 @@
-import { resolve } from 'node:path';
-import { carrierHome, defaultConfigPath } from '../../config/default-path.ts';
+import { join, resolve } from 'node:path';
+import { carrierHome } from '../../config/default-path.ts';
 import { defaults, loadConfig } from '../../config/load.ts';
 import { installFix } from '../../doctor/fixes.ts';
 import { localKinds, type LocalProvider } from '../../harnesses/local.ts';
@@ -49,7 +49,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   if (login === undefined) ui.warn('gh is not logged in (run: gh auth login): your repos cannot be listed, and a "my own gh login" identity will not work.');
 
   // A config that is already there: edit it (its answers become the starting points), start over, or leave it.
-  const fallback = defaultConfigPath();
+  const fallback = join(folder, 'config.json');
   let out = flags.out === undefined ? undefined : resolve(flags.out);
   let settled = false; // the question below settled where the config goes, and that it may be replaced
   let prior: Prior | undefined;

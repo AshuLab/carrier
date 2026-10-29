@@ -6,13 +6,13 @@ import Foundation
 /// How long the socket has to answer after the process starts.
 public let startTimeout: TimeInterval = 15
 
-/// What the shell spawns: `node <carrier> ...` with the engine's PATH and `CARRIER_HOME`, its output going to `logPath`. `orchestratorDir` is the
+/// What the shell spawns: `node <carrier> ...` with the engine's PATH and `CARRIER_HOME`, its output going to `logPath`. `processDir` is the
 /// user-only folder the log's folder lives in (the engine's `engine/`, the chat host's `chat/`).
 public struct StartCommand: Equatable {
     public let node: String
     public let arguments: [String]
     public let environment: [String: String]
-    public let orchestratorDir: String
+    public let processDir: String
     public let logPath: String
     public let socketPath: String
 
@@ -36,7 +36,7 @@ public func startCommand(settings: SetupSettings, environment: [String: String],
     let engine = engineFolder(environment: environment, home: home)
     return StartCommand(
         node: settings.node, arguments: [settings.carrier], environment: environment,
-        orchestratorDir: engine, logPath: engine + "/logs/app-start.log", socketPath: controlSocketPath(environment: environment, home: home)
+        processDir: engine, logPath: engine + "/logs/app-start.log", socketPath: controlSocketPath(environment: environment, home: home)
     )
 }
 

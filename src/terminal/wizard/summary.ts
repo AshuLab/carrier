@@ -9,9 +9,6 @@ export const tilde = (path: string) => (path.startsWith(`${homedir()}/`) ? `~${p
 /** What an AI provider runs: the CLI, where a local one is served and the config folder when it has one. */
 export const providerLine = (p: AIProvider) => [harnessLabel[p.harness], ...(p.provider ? [`${localLabel[p.provider]} (local)`] : []), ...(p.configDir ? [tilde(p.configDir)] : [])].join(' · ');
 
-/** What an agent option runs: the CLI, the model, where a local one is served and the config folder when it has one. */
-export const optionLine = (o: { harness: HarnessName; model: string; provider?: string; configDir?: string }) => [harnessLabel[o.harness], `${o.model}${o.provider ? ` (${localLabel[o.provider as LocalProvider]})` : ''}`, ...(o.configDir ? [tilde(o.configDir)] : [])].join(' · ');
-
 const personaLine = ({ persona }: Role) => (persona ? [`${persona.name ?? '(no name)'}${persona.prompt ? ` · ${persona.prompt.length > 60 ? `${persona.prompt.slice(0, 59)}…` : persona.prompt}` : ''}`] : []);
 const roleLine = (r: Role, providers: Record<string, AIProvider>) => {
   const p = providers[r.provider];

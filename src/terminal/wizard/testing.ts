@@ -33,19 +33,6 @@ export function roleOf(written: string, role: 'author' | 'reviewer' | 'leadRevie
 /** An answer by question; a list answers the same question again and again, in order, and what is left unanswered takes the default. */
 type Answers = Record<string, string | boolean | (string | boolean)[]>;
 
-const questionAliases: Record<string, string[]> = {
-  'Add another AI provider?': ['Add another agent option?'],
-  'Which agent CLI runs this provider?': ['Which agent CLI runs this option?'],
-  'Where does this provider run?': ['Which provider serves the model of this option?'],
-  'Config folder of this Claude Code provider': ['Config folder of this Claude Code option'],
-  'Config folder of this Codex provider': ['Config folder of this Codex option'],
-  'Name of this provider': ['Name of this option'],
-  'Which AI provider runs the author?': ['Which option runs the author?'],
-  'Which AI provider runs the reviewer?': ['Which option runs the reviewer?'],
-  'Model for the author': ['Model of this option'],
-  'Model for the reviewer': ['Model of this option'],
-};
-
 export const quietUi = (scripted: Answers = {}) => {
   const lists: Record<string, (string | boolean)[]> = {};
   const values: Record<string, string | boolean> = {};
@@ -57,15 +44,7 @@ export const quietUi = (scripted: Answers = {}) => {
     if (lists[k] && lists[k].length > 0) return lists[k].shift();
     return values[k];
   };
-  const getAnswer = (message: string) => {
-    const direct = take(message);
-    if (direct !== undefined) return direct;
-    for (const alias of questionAliases[message] ?? []) {
-      const fromAlias = take(alias);
-      if (fromAlias !== undefined) return fromAlias;
-    }
-    return undefined;
-  };
+  const getAnswer = (message: string) => take(message);
   const asked: string[] = [];
   const listed: string[][] = [];
   const ui: Ui = {
@@ -104,8 +83,8 @@ export const quietUi = (scripted: Answers = {}) => {
   return { ui, asked, listed };
 };
 
-/** Adds a second option (the machine's other CLI, on its defaults) to the first, then stops: Claude on sonnet and Codex on the model it runs with. */
-export const twoOptions = { 'Add another agent option?': [true, false] };
+/** Adds a second provider (the machine's other CLI, on its defaults) to the first, then stops: Claude and Codex. */
+export const twoOptions = { 'Add another AI provider?': [true, false] };
 
 export const okCheck: Check = { name: 'x', status: 'ok' };
 export const fakeDeps = (over: Partial<InitDeps> = {}) => {

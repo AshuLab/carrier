@@ -34,7 +34,7 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `orchestratorProfile` | yes | | Profile used to read issues and PRs and to change labels. It may be the author's. |
 | `providers` | yes | | Configured AI accounts/logins (`harness`, `configDir?`, `provider?`). See [AI providers](#ai-providers). |
 | `agents.author` / `agents.reviewer` | yes | | `{ profile, provider, model, persona? }` for each role: the GitHub identity it acts as, the AI provider it connects through, and the model it uses. |
-| `agents.leadReviewer` | no | none | Optional technical lead role `{ profile, provider, model, persona? }` that evaluates overall architecture and production readiness after the author and reviewer agree. |
+| `agents.leadReviewer` | no | none | Optional technical lead role `{ profile, provider, model, persona? }` (configuration setup; reserved for upcoming lead reviewer gating in the Carrier flow). |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
 | `failover` | no | off | `{ enabled, triggers?, default?, roles? }`: moves a role to the next AI provider when its credits run out or service fails. See [Failover](#failover). |
 | `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |

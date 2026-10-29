@@ -2,7 +2,6 @@ import { isAbsolute } from 'node:path';
 import { localKinds, localLabel, type LocalProvider } from '../../../harnesses/local.ts';
 import { harnessLabel, localProvidersOf, nativeProvider, type HarnessName } from '../../../harnesses/names.ts';
 import type { Option, Ui } from '../../prompts/types.ts';
-import type { AgentOption } from '../build-config.ts';
 import type { InitDeps } from '../deps.ts';
 import { tilde } from '../summary.ts';
 
@@ -77,39 +76,4 @@ export async function askAIProvider(
 
   const configDir = harness === 'agy' ? undefined : await askConfigDir(ui, harness, deps, 'provider');
   return { harness, ...(provider && { provider }), ...(configDir && { configDir }) };
-}
-
-// What one option is, each question with one meaning: the harness (the CLI that runs the loop and the tools), the provider
-// that serves the model (the harness's own cloud, or a local server), the model and, for Claude and Codex, the config folder
-// that holds the login. The provider question only appears when there is a choice.
-export async function askAgentOption(ui: Ui, installed: readonly HarnessName[], used: readonly HarnessName[], locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps): Promise<AgentOption> {
-  const harness: HarnessName = installed.length === 1 ? installed[0]! : await ui.select<HarnessName>({ message: 'Which agent CLI runs this option?', options: installed.map((p) => ({ value: p, label: harnessLabel[p] })), initialValue: installed.find((h) => !used.includes(h)) ?? installed[0]! }); // another CLI than the options so far, when there is one
-
-  let provider: LocalProvider | undefined;
-  const servers = localKinds.filter((kind) => localProvidersOf[harness].includes(kind)); // Antigravity has none
-  if (servers.some((kind) => locals[kind])) {
-    const choice = await ui.select({
-      message: 'Which provider serves the model of this option?',
-      options: [
-        { value: native, label: nativeProvider[harness], hint: 'cloud' },
-        ...servers.map((kind) => ({ value: kind as string, label: `${localLabel[kind]} (local)`, hint: locals[kind] ? `${locals[kind].length} models, runs on this machine` : 'not running: start its server to use it', disabled: !locals[kind] })),
-      ],
-      initialValue: native,
-    });
-    if (choice !== native) provider = servers.find((kind) => kind === choice);
-  }
-
-  const typed = async (suggestion?: string) => (await ui.text({ message: 'Model of this option', placeholder: suggestion ?? 'model name', defaultValue: suggestion, validate: (v) => (v.trim() ? undefined : 'Required') })).trim();
-  const known: Option<string>[] = provider ? locals[provider]!.map((value) => ({ value, label: value })) : harness === 'claude' ? claudeModels : harness === 'codex' ? deps.codexModels() : deps.agyModels();
-  const configured = !provider && harness === 'codex' ? deps.codexModel() : undefined; // what the user already runs Codex with
-  let model: string;
-  if (known.length === 0) model = await typed(configured);
-  else {
-    const initial = [configured, 'sonnet'].find((m) => m !== undefined && known.some((k) => k.value === m)) ?? known[0]!.value;
-    const choice = await ui.select({ message: 'Model of this option', options: [...known, { value: otherModel, label: 'Other…', hint: 'type a model id' }], initialValue: initial });
-    model = choice === otherModel ? await typed() : choice;
-  }
-
-  const configDir = harness === 'agy' ? undefined : await askConfigDir(ui, harness, deps); // Antigravity has no setting for it
-  return { harness, model, ...(provider && { provider }), ...(configDir && { configDir }) };
 }

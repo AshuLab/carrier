@@ -780,6 +780,19 @@ test('failover skips the options that already ran out in this epic, and the one 
   expect(eventsOf(engine.db).map((e) => [e.data.from, e.data.to])).toEqual([['claude', 'spare'], ['spare', 'codex']]);
 });
 
+test('failover across harnesses without a model on the provider uses that harness default model rather than leaking the previous model', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => outOf('claude')(task, task.stage === 'ship' ? { sessionId: 's-codex', write: completed(task) } : { exit: 'hang' });
+  const repos = choosing({ claude: claudeOption, codexBare: { harness: 'codex' as const } }).map((repo) => ({
+    ...repo,
+    failover: { enabled: true, default: ['codexBare'] },
+  }));
+  const engine = await startWith(repos);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+  expect(runner.tasks[1]).toMatchObject({ harness: 'codex', model: 'gpt-5.3-codex', option: 'codexBare' });
+});
+
 test('when no option in the list is left the epic stops with usage_limit and names every option that ran out, and never uses one outside the list', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   runner.behavior = (task) => (task.epic === 1 ? outOf('claude', 'spare')(task, { exit: 'hang' }) : { exit: 'hang' });
@@ -2535,7 +2548,7 @@ test('resumeEpic while a check is already running does not start a second one an
 const claudeOption = { harness: 'claude' as const, model: 'opus', provider: 'ollama' as const };
 const codexOption = { harness: 'codex' as const, model: 'gpt', configDir: '/cfg/codex' };
 const choosing = (options: NonNullable<EffectiveRepoConfig['options']> = { claude: claudeOption, codex: codexOption }): EffectiveRepoConfig[] => [
-  { name: 'AshuLab/a', options, agents: { author: { profile: 'a', option: 'claude', ...claudeOption }, reviewer: { profile: 'b', option: 'codex', ...codexOption } } },
+  { name: 'AshuLab/a', options, providers: options as any, agents: { author: { profile: 'a', option: 'claude', ...claudeOption }, reviewer: { profile: 'b', option: 'codex', ...codexOption } } },
 ];
 const choiceRefusal = (promise: Promise<void>) => promise.then(() => null, (e: ResumeRefused) => e.reason);
 

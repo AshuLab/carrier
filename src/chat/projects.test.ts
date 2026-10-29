@@ -19,8 +19,8 @@ const valid = {
   repos: [{ name: 'AshuLab/carrier' }],
   profiles: { bot: { kind: 'gh' } },
   orchestratorProfile: 'bot',
-  agentOptions: { claude: { harness: 'claude', model: 'm' } },
-  agents: { author: { profile: 'bot', option: 'claude' }, reviewer: { profile: 'bot', option: 'claude' } },
+  providers: { claude: { harness: 'claude', model: 'm' } },
+  agents: { author: { profile: 'bot', provider: 'claude', model: 'm' }, reviewer: { profile: 'bot', provider: 'claude', model: 'm' } },
   identities: 'shared',
 };
 const writeConfig = (chat?: object) => writeFileSync(configPath, JSON.stringify({ ...valid, root, ...(chat === undefined ? {} : { chat }) }));

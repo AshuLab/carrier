@@ -111,20 +111,20 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   const authorPersona = await askPersona(ui, 'author', { name: flags.authorPersonaName, prompt: flags.authorPersonaPrompt }, interactive, prior?.author.persona);
   const author: Role = { identity: authorIdentity, provider: authorProvider, model: authorModel, ...(authorPersona && { persona: authorPersona }) };
 
-  if (!(flags.reviewerProfile && flags.reviewer)) ui.note(`Reviews the final PR. ${shared ? 'Acts as the same gh login.' : 'Needs a different GitHub identity from the author.'}\nOptionally it gets a persona at the end: a name and how it behaves.`, 'Reviewer');
+  if (!(flags.reviewerProfile && flags.reviewer)) ui.note('Reviews the final PR.\nOptionally it gets a persona at the end: a name and how it behaves.', 'Reviewer');
   const reviewerProvider = flaggedReviewer?.provider ?? (await askRoleProvider(ui, 'reviewer', providers, prior?.reviewer.provider, authorProvider));
   const reviewerModel = flaggedReviewer?.model ?? (await askModel(ui, providers[reviewerProvider]!.harness, providers[reviewerProvider]!.provider, locals, deps, 'reviewer', prior?.reviewer.model));
   const reviewerPersona = await askPersona(ui, 'reviewer', { name: flags.reviewerPersonaName, prompt: flags.reviewerPersonaPrompt }, interactive, prior?.reviewer.persona);
   const reviewer: Role = { identity: reviewerIdentity, provider: reviewerProvider, model: reviewerModel, ...(reviewerPersona && { persona: reviewerPersona }) };
 
-  // 4. Optional Lead Reviewer (Tech Lead gate after author and reviewer agree)
+  // 4. Optional Lead Reviewer (Tech Lead role setup)
   let leadReviewer: Role | undefined;
   const wantLead = flags.leadReviewer !== undefined
     ? true
     : interactive
       ? await (async () => {
           ui.note(
-            'An optional technical lead gate that reviews the PR after the author and reviewer agree.\nIt evaluates overall architecture, systemic impact, and production readiness.',
+            'An optional technical lead role (configuration setup).\nIt configures an evaluation role for architecture and production readiness.',
             'Lead Reviewer',
           );
           return ui.confirm('Add a Lead Reviewer to the workflow?');
@@ -137,6 +137,9 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       : flags.leadReviewerProfile
         ? parseIdentity(flags.leadReviewerProfile)
         : await askIdentity(ui, 'lead reviewer', forge, readForge, login, [authorIdentity], deps, interactive, prior?.leadReviewer?.identity ?? reviewerIdentity);
+    if (!shared && identityText(authorIdentity) === identityText(leadIdentity)) {
+      throw new Error('Author and lead reviewer identities must differ');
+    }
 
     const leadProvider = flaggedLeadReviewer?.provider ?? (await askRoleProvider(ui, 'lead reviewer', providers, prior?.leadReviewer?.provider, reviewerProvider));
     const leadModel = flaggedLeadReviewer?.model ?? (await askModel(ui, providers[leadProvider]!.harness, providers[leadProvider]!.provider, locals, deps, 'lead reviewer', prior?.leadReviewer?.model));

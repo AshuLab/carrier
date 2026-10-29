@@ -20,6 +20,8 @@ export const persona = z.strictObject({
 /** An AI provider account / connection without a model. */
 export const aiProvider = z.strictObject({
   harness: z.enum(harnessNames),
+  /** Optional default model for this provider connection. */
+  model: z.string().min(1).optional(),
   /** Run on a local server through the harness's CLI instead of the cloud. */
   provider: z.enum(['lmstudio', 'ollama']).optional(),
   /** `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. Absolute once `~` is expanded. */
@@ -201,6 +203,18 @@ export const configSchema = z
       const first = seen.get(folder);
       if (first === undefined) seen.set(folder, repo.name);
       else ctx.addIssue({ code: 'custom', path: ['repos', i, 'name'], message: `repo "${repo.name}" has the same folder name as "${first}"; Solve's worktree paths have no owner` });
+
+      if (repo.agents?.leadReviewer && !config.agents.leadReviewer) {
+        for (const field of ['provider', 'profile', 'model'] as const) {
+          if (!repo.agents.leadReviewer[field]) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['repos', i, 'agents', 'leadReviewer', field],
+              message: `repo "${repo.name}": agents.leadReviewer.${field} is required when no top-level agents.leadReviewer is configured`,
+            });
+          }
+        }
+      }
     });
 
     // Under separate identities, author and reviewer must differ, globally and for each repo once its overrides are applied.

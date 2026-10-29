@@ -4,7 +4,6 @@ import { harnessNames, type HarnessName } from '../../harnesses/names.ts';
 
 export type Identity = { kind: 'forge'; agent: string } | { kind: 'gh' };
 export type Persona = NonNullable<Config['agents']['author']['persona']>;
-export type AgentOption = { harness: HarnessName; model: string; provider?: LocalProvider; configDir?: string };
 export type AIProvider = Config['providers'][string];
 export type Failover = NonNullable<Config['failover']>;
 export type Role = { identity: Identity; provider: string; model: string; persona?: Persona };

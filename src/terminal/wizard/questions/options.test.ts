@@ -101,13 +101,13 @@ test('with one option the roles are not asked, and neither is failover', async (
 test('with two or more options failover is asked, and "yes" asks the order until the person is done', async () => {
   const three = { 'Add another AI provider?': [true, true, false], 'Which agent CLI runs this provider?': ['claude', 'claude', 'codex'], 'Config folder of this Claude Code provider': ['/h/.claude', '/h/.claude-ashu-lab'] };
   const { deps, written } = fakeDeps(folders);
-  const { ui } = quietUi({ ...three, 'Turn failover on? A role that runs out of credits then moves to the next option you list, so its code can reach another provider.': true, 'Failover order: which option goes first?': 'codex', 'Failover order: which option goes next?': ['claude', '\0done'] });
+  const { ui } = quietUi({ ...three, 'Turn failover on? A role that runs out of credits then moves to the next provider you list, so its code can reach another provider.': true, 'Failover order: which provider goes first?': 'codex', 'Failover order: which provider goes next?': ['claude', '\0done'] });
   const picks: Record<string, string[]> = {};
   const spy: Ui = { ...ui, select: async (o) => ((picks[o.message] = o.options.map((x) => x.value)), ui.select(o)) };
   const out = join(dir, 'fo1.json');
   await runInit({ repo: ['A/b'], out }, spy, deps);
-  expect(picks['Failover order: which option goes first?']).toEqual(['claude', 'claude-ashu-lab', 'codex']);
-  expect(picks['Failover order: which option goes next?']).toEqual(['claude-ashu-lab', '\0done']); // codex and claude are already in; the person ends it here
+  expect(picks['Failover order: which provider goes first?']).toEqual(['claude', 'claude-ashu-lab', 'codex']);
+  expect(picks['Failover order: which provider goes next?']).toEqual(['claude-ashu-lab', '\0done']); // codex and claude are already in; the person ends it here
   expect(load(written[out]!).failover).toEqual({
     enabled: true,
     default: ['codex', 'claude'],

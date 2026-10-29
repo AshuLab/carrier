@@ -51,7 +51,7 @@ test('with no local server running there is no provider question', async () => {
 
 test('a local model id with a colon (Ollama) keeps it whole', async () => {
   const { deps, written } = fakeDeps({ localModels: async (local) => (local === 'ollama' ? ['qwen3:8b'] : Promise.reject(new Error('down'))) });
-  const { ui } = quietUi({ 'Which provider serves the model of this option?': 'ollama', 'Model of this option': 'qwen3:8b' });
+  const { ui } = quietUi({ 'Where does this provider run?': 'ollama', 'Model for the author': 'qwen3:8b' });
   const out = join(dir, 'r.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
   expect(roleOf(written[out]!, 'author')).toMatchObject({ model: 'qwen3:8b', provider: 'ollama' });
@@ -67,10 +67,10 @@ test('--author-provider goes with the flag form and an unknown server is refused
 
 test('Antigravity: its own models, no provider question even with a local server running, and never a folder', async () => {
   const { deps, written } = fakeDeps({ ...running, agyModels: () => [{ value: 'gemini-3.8-flash-low', label: 'gemini-3.8-flash-low', hint: 'Gemini 3.8 Flash (Low)' }] });
-  const { ui, asked } = quietUi({ 'Which agent CLI runs this option?': 'agy' });
+  const { ui, asked } = quietUi({ 'Which agent CLI runs this provider?': 'agy' });
   const out = join(dir, 's.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  expect(asked).not.toContain('Which provider serves the model of this option?');
+  expect(asked).not.toContain('Where does this provider run?');
   expect(asked.some((q) => q.startsWith('Config folder'))).toBe(false);
   expect(roleOf(written[out]!, 'author')).toEqual({ profile: 'artanis-agent', harness: 'agy', model: 'gemini-3.8-flash-low' });
 });

@@ -42,15 +42,14 @@ export function resolveRepoConfig(config: Config, repo: Config['repos'][number])
     const repoAgent = repo.agents?.[role];
     if (!base && !repoAgent) return undefined;
     const merged = { ...(base ?? {}), ...(repoAgent ?? {}) };
-    if (!merged.provider || !merged.profile || !merged.model) return undefined;
-    const providerConfig = config.providers[merged.provider];
-    if (!providerConfig) return undefined;
+    if (!merged.profile) return undefined;
+    const providerConfig = merged.provider ? config.providers[merged.provider] : undefined;
     return {
       profile: merged.profile,
-      harness: providerConfig.harness,
-      model: merged.model,
-      ...(providerConfig.provider && { provider: providerConfig.provider }),
-      ...(providerConfig.configDir && { configDir: providerConfig.configDir }),
+      harness: providerConfig?.harness ?? ('claude' as HarnessName),
+      model: merged.model ?? '',
+      ...(providerConfig?.provider && { provider: providerConfig.provider }),
+      ...(providerConfig?.configDir && { configDir: providerConfig.configDir }),
       ...(merged.persona && { persona: merged.persona }),
       option: merged.provider,
       providerName: merged.provider,

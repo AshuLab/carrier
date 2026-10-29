@@ -10,6 +10,7 @@ export function boundEvent(event: ChatEvent): Record<string, unknown> | undefine
     case 'delta':
       return undefined;
     case 'user':
+      return { text: clean(event.text, chatCaps.message), ...(event.command !== undefined && { command: event.command }) };
     case 'assistant':
       return { text: clean(event.text, chatCaps.message) };
     case 'error':

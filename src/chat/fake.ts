@@ -1,7 +1,7 @@
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Git, GitResult } from './git.ts';
-import { ChatRefused, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
+import { ChatRefused, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 
 /**
  * A conversation that plays what a test tells it: `reply` runs on each message sent, `emit` plays an event any time
@@ -19,7 +19,11 @@ export class FakeConversation implements ChatConversation {
   private listeners: ((event: ChatEvent) => void)[] = [];
   private endListeners: (() => void)[] = [];
 
-  send(text: string) {
+  /** What the fake lists for the person to invoke; the commands each message invoked go to `invoked`. */
+  commands: ChatCommand[] = [];
+  invoked: (string | undefined)[] = [];
+  send(text: string, command?: ChatCommand) {
+    this.invoked.push(command?.id);
     this.sent.push(text);
     this.reply(text, this);
   }

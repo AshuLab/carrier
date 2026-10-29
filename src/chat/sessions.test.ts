@@ -172,6 +172,7 @@ test('agentOptions starts the agent, reads what it offers, ends it, and asks aga
   claude.setup = offering(['model', ['haiku', 'opus'], 'haiku']);
   const first = await sessions.agentOptions({ agent: 'claude' });
   expect(first.options).toMatchObject([{ id: 'model', current: 'haiku' }]);
+  expect(first.commands).toEqual([]);
   expect(claude.conversations.map((c) => c.closed)).toEqual([true]);
   expect(rows('sessions')).toEqual([]); // no session is made for it
   await sessions.agentOptions({ agent: 'claude' });
@@ -188,6 +189,27 @@ test('a failure of agentOptions is not kept: the next ask tries again', async ()
   await expect(sessions.agentOptions({ agent: 'claude' })).rejects.toThrow('claude is not logged in');
   claude.refuseWith = undefined;
   await expect(sessions.agentOptions({ agent: 'claude' })).resolves.toBeDefined();
+});
+
+test('a command the session lists is invoked by its id: the person sees a slash and its name, the adapter gets the command, and the events list the commands', async () => {
+  const { sessions, conversation, id } = await openOne();
+  conversation.commands = [{ id: '/skills/pdf/SKILL.md', name: 'pdf', description: 'PDFs', kind: 'skill' }];
+  expect(sessions.events({ sessionId: id, limit: 10 }).commands).toEqual(conversation.commands);
+  sessions.send({ sessionId: id, text: 'the invoice', command: '/skills/pdf/SKILL.md' });
+  expect(conversation.sent).toEqual(['the invoice']);
+  expect(conversation.invoked).toEqual(['/skills/pdf/SKILL.md']);
+  const stored = sessions.events({ sessionId: id, limit: 10 }).events;
+  expect(stored).toMatchObject([{ kind: 'user', text: '/pdf the invoice', command: 'pdf' }]);
+  expect(rows('sessions')[0]).toMatchObject({ title: '/pdf the invoice' });
+});
+
+test('a command that is not listed is refused and nothing is sent; a command with nothing after it is a message', async () => {
+  const { sessions, conversation, id } = await openOne();
+  conversation.commands = [{ id: 'review', name: 'review', description: 'Review', kind: 'skill' }];
+  expect(() => sessions.send({ sessionId: id, text: 'x', command: 'nope' })).toThrow('does not list that command');
+  expect(conversation.sent).toEqual([]);
+  sessions.send({ sessionId: id, text: '', command: 'review' });
+  expect(sessions.events({ sessionId: id, limit: 10 }).events).toMatchObject([{ kind: 'user', text: '/review', command: 'review' }]);
 });
 
 test('setOption refuses, with the reason and changing nothing, an unlisted option, a value not offered, a closed session and a missing one', async () => {

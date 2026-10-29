@@ -113,6 +113,18 @@ test('answer is a strict request with a session, an approval and a choice', asyn
   expect(await c.ask(`{"id":1,"cmd":"answer","sessionId":"${uuid}","approvalId":"a","choiceId":"deny"}`)).toEqual({ id: 1, ok: true, data: { approvalId: 'a', choiceId: 'deny' } });
 });
 
+test('send takes a message, or a command with or without a message, and nothing empty', async () => {
+  await open();
+  const c = await client();
+  // the controls of this file fail every send: a valid request gets that failure and an invalid one is refused before it
+  const refused = async (request: string) => (await c.ask(request)).error === 'invalid request';
+  expect(await refused(`{"id":1,"cmd":"send","sessionId":"${uuid}","text":"hi"}`)).toBe(false);
+  expect(await refused(`{"id":2,"cmd":"send","sessionId":"${uuid}","text":"hi","command":"review"}`)).toBe(false);
+  expect(await refused(`{"id":3,"cmd":"send","sessionId":"${uuid}","text":"","command":"review"}`)).toBe(false);
+  expect(await refused(`{"id":4,"cmd":"send","sessionId":"${uuid}","text":""}`)).toBe(true);
+  expect(await refused(`{"id":5,"cmd":"send","sessionId":"${uuid}","text":"hi","command":""}`)).toBe(true);
+});
+
 test('agentOptions takes the name of an agent and nothing else', async () => {
   await open();
   const c = await client();

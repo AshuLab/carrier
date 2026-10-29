@@ -25,7 +25,8 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('list'), archived: z.boolean().optional() }),
   z.strictObject({ id, cmd: z.literal('open'), agent: z.string().min(1), folder: z.string().min(1), options: z.record(z.string(), z.string()).optional(), worktree: z.strictObject({ from: z.string().min(1).max(1000), name: z.string().max(1000).optional() }).optional() }),
   z.strictObject({ id, cmd: z.literal('resume'), sessionId }),
-  z.strictObject({ id, cmd: z.literal('send'), sessionId, text: z.string().min(1) }),
+  // a message has text, unless it invokes a command, which may take nothing after its name
+  z.strictObject({ id, cmd: z.literal('send'), sessionId, text: z.string(), command: z.string().min(1).max(1000).optional() }).refine((r) => r.text.length > 0 || r.command !== undefined),
   z.strictObject({ id, cmd: z.literal('answer'), sessionId, approvalId: z.string().min(1), choiceId: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('interrupt'), sessionId }),
   z.strictObject({ id, cmd: z.literal('agentOptions'), agent: z.string().min(1) }),
@@ -84,7 +85,7 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
     case 'resume':
       return controls.resume({ sessionId: request.sessionId });
     case 'send':
-      return controls.send({ sessionId: request.sessionId, text: request.text });
+      return controls.send({ sessionId: request.sessionId, text: request.text, command: request.command });
     case 'answer':
       return controls.answer({ sessionId: request.sessionId, approvalId: request.approvalId, choiceId: request.choiceId });
     case 'interrupt':

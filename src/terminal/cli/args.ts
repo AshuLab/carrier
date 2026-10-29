@@ -19,6 +19,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier chat --archive|--unarchive|--delete <id>   archive, unarchive or delete a chat session
        carrier chat --stop               stop the chat host
        carrier chat-host                 run the chat host in the foreground
+       carrier --version                 print the installed version
 
 --config defaults to ${defaultConfigPath()} (where init writes it) when that file exists.
 
@@ -67,6 +68,7 @@ const options = {
   unarchive: { type: 'string' },
   delete: { type: 'string' },
   help: { type: 'boolean', short: 'h' },
+  version: { type: 'boolean', short: 'v' },
 } as const;
 
 export type Flags = ReturnType<typeof parseArgs<{ options: typeof options; allowPositionals: true }>>['values'];

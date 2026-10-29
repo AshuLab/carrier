@@ -484,6 +484,16 @@ test('--help lists chat and chat-host, and neither takes --config', () => {
   for (const line of out.split('\n').filter((l) => l.includes('carrier chat'))) expect(line).not.toContain('--config');
 });
 
+test('--version prints the package version, the one the hello carries, with no config', () => {
+  const { version } = JSON.parse(readFileSync(join(import.meta.dirname, '../../../package.json'), 'utf8'));
+  const result = run('--version');
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe(`${version}\n`);
+  expect(result.stderr).toBe('');
+  expect(run('-v').stdout).toBe(`${version}\n`);
+  expect(run('--help').stdout).toContain('--version');
+});
+
 // The chat needs only the Carrier folder: no engine config exists in these, and the folder is short because a socket path holds 103 bytes on macOS.
 const chatRun = (folder: string, ...args: string[]) => spawnSync(process.execPath, [main, ...args], { cwd: dir, encoding: 'utf8', env: { ...process.env, CARRIER_HOME: folder } });
 

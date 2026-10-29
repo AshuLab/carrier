@@ -147,24 +147,24 @@ A JSON file merged over the defaults (objects merge by field, simple values repl
 
 ```json
 {
-  "repos": [{ "name": "AshuLab/my-repo", "agents": { "reviewer": { "option": "claude" } } }],
+  "repos": [{ "name": "AshuLab/my-repo", "agents": { "reviewer": { "provider": "claude", "model": "<model>" } } }],
   "profiles": {
     "author-bot": { "kind": "forge", "agent": "<forge-agent-1>" },
     "reviewer-bot": { "kind": "forge", "agent": "<forge-agent-2>" }
   },
   "orchestratorProfile": "author-bot",
-  "agentOptions": {
-    "claude": { "harness": "claude", "model": "<model>" },
-    "codex": { "harness": "codex", "model": "<model>" }
+  "providers": {
+    "claude": { "harness": "claude" },
+    "codex": { "harness": "codex" }
   },
   "agents": {
-    "author": { "profile": "author-bot", "option": "claude" },
-    "reviewer": { "profile": "reviewer-bot", "option": "codex" }
+    "author": { "profile": "author-bot", "provider": "claude", "model": "<model>" },
+    "reviewer": { "profile": "reviewer-bot", "provider": "codex", "model": "<model>" }
   }
 }
 ```
 
-Defaults: `root` `~/.solve`, `pollIntervalMinutes` 5, `logLevel` `info`, and `limits` of `maxConcurrentEpics` 3, `maxReviews` 5, `maxExecutionRetries` 3, `maxExecutionHours` 4 (or `"unlimited"`), `githubCallTimeoutSeconds` 30. Identity, agent option and persona for author and reviewer can be overridden per repo; an agent option (`agentOptions`) is a harness, model, optional provider and optional config folder. The file holds no secrets: a profile is `{ "kind": "forge", "agent": ... }` or `{ "kind": "gh" }`.
+Defaults: `root` `~/.solve`, `pollIntervalMinutes` 5, `logLevel` `info`, and `limits` of `maxConcurrentEpics` 3, `maxReviews` 5, `maxExecutionRetries` 3, `maxExecutionHours` 4 (or `"unlimited"`), `githubCallTimeoutSeconds` 30. Identity, provider, model and persona for author and reviewer can be overridden per repo; an AI provider (`providers`) is a harness, optional local server provider and optional config folder. The file holds no secrets: a profile is `{ "kind": "forge", "agent": ... }` or `{ "kind": "gh" }`.
 
 ### 4. Run it
 

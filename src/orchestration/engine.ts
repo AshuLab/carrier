@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
-import type { EffectiveRepoConfig } from '../config/resolve.ts';
+import { failoverOrderFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
+import { failoverTriggers, matchesFailoverTrigger } from '../config/schema.ts';
+import type { HarnessName } from '../harnesses/names.ts';
 import type { AgentExit, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
 import { failureDetail } from '../execution/failure.ts';
 import { parseCallerResult } from '../execution/caller-result.ts';
@@ -163,7 +165,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   const declaredOnly = ({ id, config }: Epic, chosen: Partial<Record<'author' | 'reviewer', string>>) =>
     Object.fromEntries(
       Object.entries(chosen).filter(([role, name]) => {
-        const declared = Object.hasOwn(config?.options ?? {}, name);
+        const declared = Object.hasOwn((config?.providers ?? config?.options) ?? {}, name);
         if (!declared) log.warn('the option chosen at the restart is not declared any more, the role starts on its default', { epicId: id, role, option: name });
         return declared;
       }),
@@ -223,10 +225,29 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     for (const epic of db.select().from(epics).where(and(eq(epics.status, 'running'), isNull(epics.stage), isNotNull(epics.choiceDeadline))).orderBy(asc(epics.id)).all()) await awaitChoice(epic);
   }
 
-  // The role of the epic's saved config pointed at another of its saved options: same profile and persona.
-  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string) => {
-    const { profile, persona } = config.agents[role];
-    return { profile, ...(persona && { persona }), ...config.options![name]!, option: name };
+  const defaultHarnessModels: Record<HarnessName, string> = {
+    claude: 'sonnet',
+    codex: 'gpt-5.3-codex',
+    agy: 'gemini-3.8-flash-low',
+  };
+
+  // The role of the epic's saved config pointed at another of its saved options or providers: same profile and persona.
+  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string): Agent => {
+    const roleAgent = config.agents[role];
+    const { profile, persona, model } = roleAgent;
+    const provider = (config.providers ?? config.options)?.[name];
+    if (!provider) throw new Error(`provider "${name}" is not declared in config.providers`);
+    const modelStr: string = provider.model ?? (provider.harness === roleAgent.harness ? model : defaultHarnessModels[provider.harness] ?? model);
+    return {
+      profile,
+      model: modelStr,
+      harness: provider.harness,
+      ...(provider.provider && { provider: provider.provider }),
+      ...(provider.configDir && { configDir: provider.configDir }),
+      ...(persona && { persona }),
+      option: name,
+      providerName: name,
+    };
   };
 
   // With failover on, the role that ran out moves to the first option of `order` that has not run out in this epic and its stage runs
@@ -235,11 +256,18 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     const epic = fresh(epicId);
     const { config } = epic;
     if (!config?.failover?.enabled) return { relaunched: false, why: '' };
-    const ranOut = [...new Set(db.select({ option: executions.option }).from(executions).where(and(eq(executions.epicId, epicId), eq(executions.failureKind, 'usage_limit'))).orderBy(asc(sql`rowid`)).all().flatMap(({ option }) => option ?? []))];
-    const next = config.failover.order.find((name) => !ranOut.includes(name));
-    if (next === undefined) return { relaunched: false, why: `; no option left in failover.order, ran out: ${ranOut.join(', ')}` };
-    if (stopping || epic.status !== 'running') return { relaunched: true };
+    const triggers = config.failover.triggers ?? failoverTriggers;
+    if (!matchesFailoverTrigger(triggers, failedExecution.failureKind, failedExecution.failureDetail)) return { relaunched: false, why: '' };
+    const failoverKinds = [
+      ...(triggers.includes('usage_limit') ? (['usage_limit'] as const) : []),
+      ...((triggers.includes('service_down') || triggers.includes('rate_limit')) ? (['api_error', 'spawn_error'] as const) : []),
+    ];
+    const ranOut = [...new Set(db.select({ option: executions.option }).from(executions).where(and(eq(executions.epicId, epicId), inArray(executions.failureKind, failoverKinds))).orderBy(asc(sql`rowid`)).all().flatMap(({ option }) => option ?? []))];
     const role = stage === 'review' ? 'reviewer' : 'author';
+    const order = failoverOrderFor(config.failover, role) ?? config.failover.default ?? [];
+    const next = order.find((name) => !ranOut.includes(name));
+    if (next === undefined) return { relaunched: false, why: `; no provider left in failover, ran out: ${ranOut.join(', ')}` };
+    if (stopping || epic.status !== 'running') return { relaunched: true };
     // Read only; GitHub being down is not a reason to stop: the agent verifies the state first anyway.
     const found = await github.findPullRequest(epic.repo, epic.issue).catch((e) => (failed(e), null));
     db.transaction((tx) => {
@@ -363,9 +391,12 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         active.delete(executionId);
         output.flush();
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
+        const failoverConfig = epic.config?.failover;
+        const triggers = failoverConfig?.enabled ? (failoverConfig.triggers ?? failoverTriggers) : [];
+        const isFailoverFailure = exit === 'failed' && processFailure?.kind !== undefined && matchesFailoverTrigger(triggers, processFailure.kind, processFailure.detail);
         const outOfCredits = exit === 'failed' && processFailure?.kind === 'usage_limit';
-        // Like a timeout, a usage limit leaves no error on the execution: it is not a retryable failure and ends the streak.
-        const failure = outOfCredits ? undefined : { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}${processFailure?.detail ? `: ${processFailure.detail}` : ''})`, auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
+        // Like a timeout, failover leaves no error on the execution: it is not a retryable failure and ends the streak.
+        const failure = (outOfCredits || isFailoverFailure) ? undefined : { failed: `the agent process ended with an error (${processFailure?.kind ?? 'unknown'}${processFailure?.detail ? `: ${processFailure.detail}` : ''})`, auth_failed: `authentication error for profile ${task.profile}`, session_unavailable: sessionLost }[exit as 'failed'];
         // The ends with their own handling carry no failure from the runner: their kind follows from the exit.
         const endFailure: Partial<Record<AgentExit, Pick<AgentFailure, 'kind' | 'detail'>>> = {
           failed: { kind: 'unknown', detail: '' },
@@ -379,7 +410,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
           .run();
         if (failure) db.update(epics).set({ lastError: failure }).where(eq(epics.id, epic.id)).run();
         if (exit === 'ok') await settle(db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
-        else if (outOfCredits) {
+        else if (isFailoverFailure || outOfCredits) {
           // Retrying the same option only burns the retries.
           await onUsageLimit(epic.id, db.select().from(executions).where(eq(executions.executionId, executionId)).get()!);
         }
@@ -676,7 +707,13 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
           db.update(executions).set({ status: 'finished' }).where(eq(executions.executionId, last.executionId)).run();
           await settle({ ...last, status: 'finished' });
         } else await execute(epic, last.stage, last);
-      } else if (epic.stage !== null && last.status === 'failed' && last.failureKind === 'usage_limit') {
+      } else if (
+        epic.stage !== null &&
+        last.status === 'failed' &&
+        (last.failureKind === 'usage_limit' ||
+          (epic.config?.failover?.enabled &&
+            matchesFailoverTrigger(epic.config.failover.triggers ?? failoverTriggers, last.failureKind, last.failureDetail)))
+      ) {
         // Stopped before the epic moved on: no agent is running and none would be launched. A requeued epic (no stage yet) keeps its old
         // executions: that history is not this stop, the restart's own launch (begin, resumeChoices) takes it from here.
         await onUsageLimit(id, last);
@@ -924,7 +961,8 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       if (!epic) throw new ResumeRefused('unknown epic');
       if (epic.status !== 'needs_human') throw new ResumeRefused('not stopped');
       // The requeue freezes the epic's options again from the configuration the engine runs with, so that is what the names are checked against.
-      const declared = repos.find((r) => r.name === repo)?.options ?? {};
+      const repoConfig = repos.find((r) => r.name === repo);
+      const declared = (repoConfig?.providers ?? repoConfig?.options) ?? {};
       if ([chosen.author, chosen.reviewer].some((name) => name !== undefined && !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
       // A role left out keeps the option it has: the epic is not asked again.
       const author = chosen.author ?? epic.authorOption;
@@ -964,7 +1002,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
       if (!epic) throw new ResumeRefused('unknown epic');
       if (epic.status !== 'running' || epic.choiceDeadline === null) throw new ResumeRefused('not waiting');
-      const declared = epic.config?.options ?? {};
+      const declared = (epic.config?.providers ?? epic.config?.options) ?? {};
       if ([chosen.author, chosen.reviewer].some((name) => name !== undefined && !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
       if (!(await startChosen(epic.id, chosen))) throw new ResumeRefused('not waiting');
     },

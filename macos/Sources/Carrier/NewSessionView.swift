@@ -110,15 +110,6 @@ struct NewSessionView: View {
         return model.sentence.hasPrefix(head) ? String(model.sentence.dropFirst(head.count)) : model.sentence
     }
 
-    /// Every control of the sentence is this tall, with this corner, fill and edge, so they sit on one line and read as one family (the
-    /// sheets' radius is the same). The fill and the edge are the text's own colour, faint, so they follow the appearance.
-    private let controlHeight: CGFloat = 28
-
-    private func control(tint: Color = .primary) -> some View {
-        RoundedRectangle(cornerRadius: 8).fill(tint.opacity(tint == .primary ? 0.07 : 0.14))
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(tint.opacity(tint == .primary ? 0.14 : 0.4), lineWidth: 1))
-    }
-
     /// A control of the sentence: its value and a chevron. The icon and the chevron are drawn over the text and not beside it: a `Menu`
     /// takes a label that is a text and an image apart and puts the image first, which sent the chevron to the left.
     private func chip(_ title: String, tint: Color = .primary, icon: String? = nil) -> some View {
@@ -130,7 +121,7 @@ struct NewSessionView: View {
             .overlay(alignment: .trailing) { Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary) }
             .foregroundStyle(tint)
             .padding(.horizontal, 10).frame(height: controlHeight)
-            .background(control(tint: tint))
+            .controlSurface(tint: tint)
             .contentShape(RoundedRectangle(cornerRadius: 8))
     }
 
@@ -149,7 +140,7 @@ struct NewSessionView: View {
         }
         .font(.callout.monospaced())
         .padding(.horizontal, 10).frame(height: controlHeight)
-        .background(control())
+        .controlSurface()
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(nameBorder, lineWidth: 1))
         // the name is checked a moment after typing; typing again cancels the check that was waiting
         .task(id: model.worktreeName) { await model.verifyName() }
@@ -167,40 +158,53 @@ struct NewSessionView: View {
         if case .problem = model.nameState { .red } else { .clear }
     }
 
+    /// The first message and what it runs with: a roomy text area, then the selects (provider, model, reasoning, access) and Send.
     private var box: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextField("Write the first message…", text: $model.text, axis: .vertical)
-                .textFieldStyle(.plain).lineLimit(2...8).focused($boxFocused)
+        VStack(alignment: .leading, spacing: 12) {
+            TextField(model.folder == nil ? "Choose a workspace to start…" : "Write the first message…", text: $model.text, axis: .vertical)
+                .textFieldStyle(.plain).font(.system(size: 14)).lineLimit(3...10).focused($boxFocused)
                 // Enter sends and Shift+Enter adds a line
                 .onKeyPress(.return, phases: .down) { press in
                     if press.modifiers.contains(.shift) { model.text += "\n" } else { send() }
                     return .handled
                 }
-            HStack(spacing: 8) {
-                Menu {
-                    ForEach(model.agents, id: \.name) { choice in
-                        Button(choice.note.map { "\(choice.name) (\($0))" } ?? choice.name) { model.agent = choice.name }
-                            .disabled(choice.available == false)
-                    }
-                } label: {
-                    Label(model.agent ?? "Agent", systemImage: "sparkle")
+            HStack(spacing: 6) {
+                providerSelect
+                ComposerSelect(title: "Model", icon: "cpu", note: "Each provider's models will be listed here.")
+                ComposerSelect(title: "Reasoning", icon: "brain", note: "How much the agent thinks before it answers.")
+                ComposerSelect(title: "Access", icon: "lock.shield", note: "What the agent may do without asking you.")
+                Spacer(minLength: 12)
+                if model.text.isEmpty == false {
+                    Text("↩ send   ⇧↩ new line").font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 }
-                .menuStyle(.button).buttonStyle(.bordered).buttonBorderShape(.capsule).controlSize(.small).fixedSize()
-                Spacer(minLength: 0)
-                Button(action: send) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
-                        .frame(width: 26, height: 26).background(Circle().fill(Color.accentColor.opacity(model.canSend ? 1 : 0.35)))
-                }
-                .buttonStyle(.plain).disabled(model.canSend == false).help(model.canSend ? "Send" : "Choose a workspace and write a message")
-                .accessibilityLabel("Send")
+                sendButton
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 18).fill(Color.secondary.opacity(0.10)))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5))
+        .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.primary.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(boxFocused ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.14), lineWidth: boxFocused ? 1.5 : 1))
         // nothing to write to until a workspace is chosen
-        .opacity(model.folder == nil ? 0.5 : 1)
+        .opacity(model.folder == nil ? 0.55 : 1)
+    }
+
+    /// The agent the session starts with, from the host's list; one that is not installed is shown and cannot be chosen.
+    private var providerSelect: some View {
+        ComposerSelect(
+            title: "Provider", icon: "sparkle", selected: model.agent, showsValue: true,
+            choices: model.agents.map { SelectChoice(id: $0.name, label: $0.name, detail: $0.note, enabled: $0.available) },
+            choose: { model.agent = $0 }
+        )
+    }
+
+    private var sendButton: some View {
+        Button(action: send) {
+            Image(systemName: "arrow.up")
+                .font(.system(size: 14, weight: .bold)).foregroundStyle(model.canSend ? .white : .secondary)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(model.canSend ? Color.accentColor : Color.primary.opacity(0.12)))
+        }
+        .buttonStyle(.plain).disabled(model.canSend == false)
+        .help(model.canSend ? "Send" : "Choose a workspace and write a message").accessibilityLabel("Send")
     }
 
     private func send() {

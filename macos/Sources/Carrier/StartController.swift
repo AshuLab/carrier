@@ -12,9 +12,12 @@ final class StartController: ObservableObject {
 
     var missing: [String] { startMissing(SetupController.shared.settings) }
 
+    /// Whether the Carrier folder has its `config.json`; without it the engine does not start.
+    var configExists: Bool { FileManager.default.fileExists(atPath: configFilePath()) }
+
     /// `done` is called on the main thread with whether Carrier came up (also false when nothing was started).
     func start(done: ((Bool) -> Void)? = nil) {
-        guard starting == false else { done?(false); return }
+        guard starting == false, configExists else { done?(false); return }
         guard let command = startCommand(settings: SetupController.shared.settings, environment: ProcessInfo.processInfo.environment) else { done?(false); return }
         starting = true
         DispatchQueue.global().async {
@@ -47,7 +50,7 @@ final class StartController: ObservableObject {
 
     /// For the self-test: what a press would do, without doing it (it would start the real Carrier).
     func selfTest(state: ConnectionState) -> String {
-        let item = startMenuState(state: state, starting: starting, missing: missing)
+        let item = startMenuState(state: state, starting: starting, missing: missing, configExists: configExists)
         guard item.enabled, let command = startCommand(settings: SetupController.shared.settings, environment: [:]) else {
             return "start disabled: \(item.title)"
         }
@@ -163,7 +166,8 @@ private final class ExitCode {
     func set(_ code: Int32) { lock.lock(); self.code = code; lock.unlock() }
 }
 
-/// The window's Start Carrier button, shown while Carrier is stopped; disabled while the settings lack something (the stopped view says what).
+/// The window's Start Carrier button, shown while Carrier is stopped; disabled while there is no config or the settings lack something
+/// (the stopped view says what).
 struct StartCarrierButton: View {
     @ObservedObject private var start = StartController.shared
     @ObservedObject private var setup = SetupController.shared
@@ -174,7 +178,7 @@ struct StartCarrierButton: View {
             HStack {
                 Button { start.start() } label: { Label("Start Carrier", systemImage: "play.fill") }
                     .buttonStyle(PrimaryCapsuleButtonStyle(large: true))
-                    .disabled(missing.isEmpty == false || start.starting)
+                    .disabled(missing.isEmpty == false || start.configExists == false || start.starting)
                 if start.starting {
                     ProgressView().controlSize(.small)
                     Text("Starting…").foregroundStyle(.secondary)

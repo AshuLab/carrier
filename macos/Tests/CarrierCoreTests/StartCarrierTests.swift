@@ -92,12 +92,22 @@ private let complete = SetupSettings(
     #expect(logTail(Data()) == "(the start log is empty)")
 }
 
-@Test func theMenuItemIsEnabledOnlyWhenStoppedAndCompleteAndNotStarting() {
-    #expect(startMenuState(state: .stopped, starting: false, missing: []) == ("Start Carrier", true))
-    #expect(startMenuState(state: .stopped, starting: true, missing: []).enabled == false)
-    #expect(startMenuState(state: .incompatible, starting: false, missing: []).enabled == false)
-    #expect(startMenuState(state: .stopped, starting: false, missing: ["node", "carrier"])
-        == ("Start Carrier (missing: node, carrier)", false))
+@Test func theMenuItemIsEnabledOnlyWhenStoppedAndConfiguredAndCompleteAndNotStarting() {
+    func item(_ state: ConnectionState = .stopped, starting: Bool = false, missing: [String] = [], configExists: Bool = true) -> (title: String, enabled: Bool) {
+        startMenuState(state: state, starting: starting, missing: missing, configExists: configExists)
+    }
+    #expect(item() == ("Start Carrier", true))
+    #expect(item(starting: true).enabled == false)
+    #expect(item(.incompatible).enabled == false)
+    #expect(item(missing: ["node", "carrier"]) == ("Start Carrier (missing: node, carrier)", false))
+    #expect(item(configExists: false) == ("Start Carrier (engine not configured)", false))
+    #expect(item(missing: ["node"], configExists: false).enabled == false)
+}
+
+@Test func noConfigMeansANoticeWithNoActionAndItsAbsenceMeansNone() throws {
+    let notice = try #require(engineNotConfiguredNotice(configExists: false))
+    #expect(notice.contains("not configured"))
+    #expect(engineNotConfiguredNotice(configExists: true) == nil)
 }
 
 @Test func openingTheAppStartsCarrierOnlyWhenEveryConditionHolds() throws {

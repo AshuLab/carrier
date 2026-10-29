@@ -2,7 +2,7 @@ import CarrierCore
 import SwiftUI
 
 /// The Carrier home while Carrier is not running (or not answered yet): what happened and the button that starts it. When the setup
-/// lacks something the button is off and one line says what, with the way to Settings.
+/// lacks something the button is off and one line says what, with the way to Settings; with no config it says the engine is not configured.
 struct StoppedView: View {
     let state: ConnectionState?
     @Binding var selection: Selection
@@ -44,10 +44,13 @@ struct StoppedView: View {
         }
     }
 
-    /// Why the button is off, when it is: the Engine tab's banner text and the way to the tab.
+    /// Why the button is off, when it is: no config (nothing to do about it here), else the Engine tab's banner text and the way to the tab.
     @ViewBuilder private var missing: some View {
         let banner = engineTab(setup.settings, detecting: setup.detecting).banner
-        if banner.state != .ready {
+        if let notice = engineNotConfiguredNotice(configExists: StartController.shared.configExists) {
+            Label(notice, systemImage: "exclamationmark.triangle.fill")
+                .font(.callout).foregroundStyle(.orange).multilineTextAlignment(.center).frame(maxWidth: 340)
+        } else if banner.state != .ready {
             VStack(spacing: 8) {
                 Label(banner.title, systemImage: banner.state == .detecting ? "magnifyingglass" : "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange)

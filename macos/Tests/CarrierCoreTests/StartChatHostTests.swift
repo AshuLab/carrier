@@ -49,15 +49,29 @@ private let complete = SetupSettings(
     #expect(startChatHostCommand(settings: settings, environment: [:], home: "/h") != nil)
 }
 
-@Test func theHostStartsOnlyWhenASessionIsStartingAndNothingAnswersOrRuns() {
-    func decide(session: Bool = true, answers: Bool = false, running: Bool = false, fixture: Bool = false) -> Bool {
-        shouldStartChatHost(startingSession: session, hostAnswers: answers, startRunning: running, fixture: fixture)
+@Test func opening_startsTheHostOnlyWhenNothingAnswersOrRunsAndTheSettingsAreKnown() {
+    func decide(answers: Bool = false, running: Bool = false, fixture: Bool = false, settings: SetupSettings = complete) -> ChatHostAtOpen {
+        chatHostAtOpen(settings: settings, hostAnswers: answers, startRunning: running, fixture: fixture)
     }
-    #expect(decide())
-    #expect(decide(session: false) == false)
-    #expect(decide(answers: true) == false)
-    #expect(decide(running: true) == false)
-    #expect(decide(fixture: true) == false)
+    #expect(decide() == .start)
+    #expect(decide(answers: true) == .leave)
+    #expect(decide(running: true) == .leave)
+    #expect(decide(fixture: true) == .leave)
+}
+
+@Test func opening_namesWhatTheSettingsLackInsteadOfStarting() {
+    var settings = complete
+    settings.carrier = ""
+    #expect(chatHostAtOpen(settings: settings, hostAnswers: false, startRunning: false, fixture: false) == .missing(["carrier"]))
+    settings.node = ""
+    #expect(chatHostAtOpen(settings: settings, hostAnswers: false, startRunning: false, fixture: false) == .missing(["node", "carrier"]))
+}
+
+@Test func opening_saysNothingAboutWhatIsMissingWhenThereIsNothingToStart() {
+    var settings = complete
+    settings.carrier = ""
+    #expect(chatHostAtOpen(settings: settings, hostAnswers: true, startRunning: false, fixture: false) == .leave)
+    #expect(chatHostAtOpen(settings: settings, hostAnswers: false, startRunning: false, fixture: true) == .leave)
 }
 
 @Test func theFailureTextNamesTheHost() {

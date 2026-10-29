@@ -29,9 +29,9 @@ final class SetupController: ObservableObject {
         settings = saved ?? SetupSettings(detection: nil, environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
     }
 
-    /// Asks the shell only when nothing was saved.
-    func detectIfFirstLaunch() {
-        if isFirstLaunch { detect() }
+    /// Asks the shell only when nothing was saved. `done` runs once the settings are known: at once, or when the shell answered.
+    func detectIfFirstLaunch(then done: @escaping () -> Void) {
+        if isFirstLaunch { detect(then: done) } else { done() }
     }
 
     /// Runs the shell off the main thread and puts what it found in the three values it can find. Edits to the config path

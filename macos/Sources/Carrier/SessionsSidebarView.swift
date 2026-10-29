@@ -65,14 +65,17 @@ struct SessionsRows: View {
                 )
             }
             let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", now: Date(), calendar: .current)
+            if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
+                SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
+            }
             switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
-            case .empty:
+            case .empty where ChatHostStarter.shared.missing.isEmpty:
                 let empty = EmptyState.noSessions
                 SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
                     Button("New session", action: newSession).help("New session")
                 }
             case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
-            case .rows: EmptyView()
+            case .rows, .empty: EmptyView()
             }
             ForEach(groups, id: \.title) { group in
                 if sort == .workspace {

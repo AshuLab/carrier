@@ -6,7 +6,7 @@ private func object(_ data: Data?) -> [String: Any] {
     (try? JSONSerialization.jsonObject(with: data ?? Data())) as? [String: Any] ?? [:]
 }
 
-private let file = Data(#"{"root":"~/work","repos":[{"name":"a/b"}],"limits":{"maxReviews":7}}"#.utf8)
+private let file = Data(#"{"keep":"~/work","repos":[{"name":"a/b"}],"limits":{"maxReviews":7}}"#.utf8)
 
 @Test func aFileWithoutTheValuesReadsAsTheEnginesDefaults() {
     #expect(EngineConfig(json: Data("{}".utf8)) == EngineConfig())
@@ -42,7 +42,7 @@ private let file = Data(#"{"root":"~/work","repos":[{"name":"a/b"}],"limits":{"m
     config.maxReviews = 5  // back to the default: leaves the file
     config.maxExecutionHours = nil
     let written = object(config.applied(to: file))
-    #expect(written["root"] as? String == "~/work" && (written["repos"] as? [Any])?.count == 1)
+    #expect(written["keep"] as? String == "~/work" && (written["repos"] as? [Any])?.count == 1)
     #expect(written["pollIntervalMinutes"] == nil && written["logLevel"] == nil)
     let limits = try #require(written["limits"] as? [String: Any])
     #expect(limits["maxConcurrentEpics"] as? Int == 6 && limits["maxExecutionHours"] as? String == "unlimited" && limits["maxReviews"] == nil)
@@ -51,7 +51,7 @@ private let file = Data(#"{"root":"~/work","repos":[{"name":"a/b"}],"limits":{"m
 
 @Test func theLimitsObjectGoesWhenNothingIsLeftInIt() {
     let written = object(EngineConfig().applied(to: file))
-    #expect(written["limits"] == nil && written["root"] as? String == "~/work")
+    #expect(written["limits"] == nil && written["keep"] as? String == "~/work")
 }
 
 @Test func theAppNeverMakesAConfigFileNorWritesBadValues() {
@@ -86,7 +86,7 @@ private let file = Data(#"{"root":"~/work","repos":[{"name":"a/b"}],"limits":{"m
     config.finishedWindowDays = 7
     let written = object(config.applied(to: file))
     #expect(written["finishedWindowDays"] as? Int == 7)
-    #expect(written["root"] as? String == "~/work" && (written["repos"] as? [Any])?.count == 1)
+    #expect(written["keep"] as? String == "~/work" && (written["repos"] as? [Any])?.count == 1)
     #expect((written["limits"] as? [String: Any])?["maxReviews"] as? Int == 7)
     #expect(EngineConfig(json: try #require(config.applied(to: file))) == config)
     config.finishedWindowDays = 15  // back to the default: leaves the file

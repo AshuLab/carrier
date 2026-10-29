@@ -1,5 +1,4 @@
-import { join } from 'node:path';
-import type { Config } from '../../../config/schema.ts';
+import { enginePlacesOf } from '../../../config/engine-places.ts';
 import { CliError } from '../cli-error.ts';
 import { connectControl, ControlUnreachable, type CarrierClient } from '../control-client.ts';
 
@@ -23,9 +22,9 @@ export async function socketGone(path: string): Promise<boolean> {
   return false;
 }
 
-/** `stop`, `pause`, `resume` and `check` over the control socket of the Carrier running on this config's root. Returns the exit code. */
-export async function controlCommand(name: ControlName, config: Config): Promise<number> {
-  const path = join(config.root, 'orchestrator', 'control.sock');
+/** `stop`, `pause`, `resume` and `check` over the control socket of the Carrier running in this Carrier folder. Returns the exit code. */
+export async function controlCommand(name: ControlName, folder: string): Promise<number> {
+  const path = enginePlacesOf(folder).socket;
   let client: CarrierClient;
   try {
     client = await connectControl(path);

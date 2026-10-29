@@ -51,7 +51,6 @@ struct SettingsView: View {
             Field(title: "carrier", hint: "Path of the carrier binary", value: $setup.settings.carrier)
             Field(title: "node", hint: "Path of node", value: $setup.settings.node)
             Field(title: "PATH", hint: "PATH to find the tools with", value: $setup.settings.path)
-            Field(title: "Config path", hint: "Path of config.json", value: $setup.settings.configPath)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("PATH Carrier will run with").font(.caption).foregroundStyle(.secondary)

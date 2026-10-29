@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterAll, expect, test, vi } from 'vitest';
 import { acquireLock } from '../../storage/lock.ts';
 import { connectControl } from './control-client.ts';
@@ -13,7 +13,6 @@ const dir = mkdtempSync(join(tmpdir(), 'carrier-cli-'));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 const valid = {
-  root: dir,
   repos: [{ name: 'AshuLab/carrier' }],
   profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } },
   orchestratorProfile: 'a',
@@ -26,7 +25,7 @@ const valid = {
 
 // Runs from another working directory on purpose: nothing may depend on cwd.
 // CARRIER_HOME keeps the tests away from the real ~/.carrier.
-const home = join(dir, 'carrier-home');
+let home = join(dir, 'carrier-home'); // each test that starts or reaches an engine gets its own
 const run = (...args: string[]) => spawnSync(process.execPath, [main, ...args], { cwd: dir, encoding: 'utf8', env: { ...process.env, CARRIER_HOME: home } });
 const write = (name: string, content: unknown) => {
   const file = join(dir, name);
@@ -46,20 +45,20 @@ writeFileSync(
 );
 
 test('a valid config starts the engine over Forge, shows the panel as plain lines, and Ctrl+C stops it cleanly', async () => {
-  const root = join(dir, 'run');
-  const config = write('ok.json', { ...valid, root, pollIntervalMinutes: 0.001, logLevel: 'debug', profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
-  const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: ['ignore', 'pipe', 'pipe'] });
+  home = join(dir, 'run');
+  const config = write('ok.json', { ...valid, pollIntervalMinutes: 0.001, logLevel: 'debug', profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home, PATH: `${bin}:${process.env.PATH}` }, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   let stderr = '';
   child.stdout.on('data', (chunk) => (stdout += chunk));
   child.stderr.on('data', (chunk) => (stderr += chunk));
   const closed = once(child, 'close');
   try {
-    // The engine reached GitHub as the orchestrator's profile, from a repo-shaped folder under the root.
+    // The engine reached GitHub as the orchestrator's profile, from a repo-shaped folder under the Carrier folder's engine/state.
     await vi.waitFor(() => expect(readFileSync(calls, 'utf8')).toContain('/issues?'), { timeout: 15_000 });
     const [first] = readFileSync(calls, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
     expect(first.args.slice(0, 4)).toEqual(['gh', 'artanis-agent', 'api', '-i']);
-    expect(realpathSync(first.cwd)).toBe(realpathSync(join(root, 'orchestrator', 'forge-cwd', 'AshuLab', 'carrier')));
+    expect(realpathSync(first.cwd)).toBe(realpathSync(join(home, 'engine', 'state', 'forge-cwd', 'AshuLab', 'carrier')));
     expect(stdout).toContain('slots 0/3');
     expect(stdout).not.toContain('\x1b['); // not a terminal: plain lines
   } finally {
@@ -67,8 +66,8 @@ test('a valid config starts the engine over Forge, shows the panel as plain line
   }
   const [code] = await closed;
   expect([code, stderr]).toEqual([0, '']);
-  expect(readFileSync(join(root, 'orchestrator', 'logs', 'orchestrator.log'), 'utf8')).toContain('[info] {"message":"[cli] carrier started"');
-  const lock = acquireLock(join(root, 'orchestrator'));
+  expect(readFileSync(join(home, 'engine', 'logs', 'orchestrator.log'), 'utf8')).toContain('[info] {"message":"[cli] carrier started"');
+  const lock = acquireLock(join(home, 'engine', 'state'));
   expect(lock.ok).toBe(true);
   if (lock.ok) lock.release();
 });
@@ -92,9 +91,10 @@ test('invalid config lists every error and exits non-zero', () => {
   expect(result.stderr).toContain('orchestratorProfile');
 });
 
-test('a second carrier on the same root reports it and exits non-zero without printing config', async () => {
+test('a second carrier on the same Carrier folder reports it and exits non-zero without printing config', async () => {
+  home = join(dir, 'busy');
   const config = write('busy.json', valid);
-  const holder = spawn(process.execPath, [join(import.meta.dirname, '../../storage/lock-holder.fixture.ts'), join(dir, 'orchestrator')]);
+  const holder = spawn(process.execPath, [join(import.meta.dirname, '../../storage/lock-holder.fixture.ts'), join(home, 'engine', 'state')]);
   try {
     await once(holder.stdout, 'data');
     const result = run('--config', config);
@@ -104,6 +104,21 @@ test('a second carrier on the same root reports it and exits non-zero without pr
   } finally {
     holder.kill();
   }
+});
+
+test('--config chooses the file and not the engine\'s folder', async () => {
+  home = join(dir, 'elsewhere');
+  const config = write('elsewhere.json', { ...valid, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
+  const closed = once(child, 'close');
+  try {
+    await vi.waitFor(() => expect(existsSync(join(home, 'engine', 'state', 'carrier.db'))).toBe(true), { timeout: 15_000 });
+    expect(existsSync(join(dirname(config), 'engine'))).toBe(false); // the file's folder is not the engine's
+  } finally {
+    child.kill('SIGINT');
+  }
+  await closed;
+  expect(readdirSync(home).sort()).toEqual(['engine']); // the config sits outside the Carrier folder and nothing else appeared in it
 });
 
 test('missing file exits non-zero', () => {
@@ -116,7 +131,7 @@ test('schema prints the JSON Schema of the config as the user writes it', () => 
   const schema = JSON.parse(result.stdout);
   expect(schema.properties.repos.minItems).toBe(1);
   expect(schema.required).toEqual(expect.arrayContaining(['repos', 'profiles', 'agents']));
-  expect(schema.required).not.toContain('root'); // has a default
+  expect(schema.properties).not.toHaveProperty('root');
   expect(schema.properties.limits.required ?? []).toEqual([]);
 });
 
@@ -168,6 +183,7 @@ test('doctor refuses an invalid config like the run command does', () => {
 });
 
 test('without --config the global file is used when it exists, and init is suggested when it does not', () => {
+  home = join(dir, 'global');
   const missing = run('doctor');
   expect([missing.status, missing.stderr]).toEqual([2, expect.stringContaining(`No config at ${join(home, 'config.json')}: run "carrier init"`)]);
   mkdirSync(home);
@@ -177,12 +193,12 @@ test('without --config the global file is used when it exists, and init is sugge
 });
 
 test('status prints the panel of the running carrier, plain when piped, and exits 0; with none running it says so and exits 1', async () => {
-  const root = join(dir, 'st');
-  const config = write('status.json', { ...valid, root, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  home = join(dir, 'st');
+  const config = write('status.json', { ...valid, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
   const none = run('status', '--config', config);
   expect([none.status, none.stdout, none.stderr]).toEqual([1, '', expect.stringMatching(/not running.*carrier start/)]);
 
-  const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
+  const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
   const closed = once(child, 'close');
   try {
     await vi.waitFor(() => expect(run('status', '--config', config).status).toBe(0), { timeout: 15_000 });
@@ -197,14 +213,14 @@ test('status prints the panel of the running carrier, plain when piped, and exit
 });
 
 test('watch prints plain lines when piped and leaves on Ctrl+C with Carrier still running; with none running it says so and exits 1; when the Carrier stops it says so and exits 1', async () => {
-  const root = join(dir, 'w');
-  const config = write('watch.json', { ...valid, root, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  home = join(dir, 'w');
+  const config = write('watch.json', { ...valid, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
   const began = Date.now();
   const none = run('watch', '--config', config);
   expect([none.status, none.stdout, none.stderr]).toEqual([1, '', expect.stringMatching(/not running.*carrier start/)]);
   expect(Date.now() - began).toBeLessThan(5000);
 
-  const carrier = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
+  const carrier = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
   const carrierClosed = once(carrier, 'close');
   const watch = () => {
     const child = spawn(process.execPath, [main, 'watch', '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -235,13 +251,13 @@ test('watch prints plain lines when piped and leaves on Ctrl+C with Carrier stil
 });
 
 test('status against a carrier that speaks another protocol exits 2 naming both', async () => {
-  const root = join(dir, 'sp');
-  mkdirSync(join(root, 'orchestrator'), { recursive: true });
+  home = join(dir, 'sp');
+  mkdirSync(join(home, 'engine', 'state'), { recursive: true });
   const server = createServer((socket) => socket.end(`${JSON.stringify({ event: 'hello', protocol: 2, pid: 1, startedAt: 1, version: '9.0.0', capabilities: [] })}\n`));
-  await new Promise<void>((resolve) => server.listen(join(root, 'orchestrator', 'control.sock'), resolve));
+  await new Promise<void>((resolve) => server.listen(join(home, 'engine', 'state', 'control.sock'), resolve));
   try {
     const result = await new Promise<{ status: number | null; stderr: string }>((resolve) => {
-      const child = spawn(process.execPath, [main, 'status', '--config', write('proto.json', { ...valid, root })], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
+      const child = spawn(process.execPath, [main, 'status', '--config', write('proto.json', valid)], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
       let stderr = '';
       child.stderr.on('data', (chunk) => (stderr += chunk));
       child.on('close', (status) => resolve({ status, stderr }));
@@ -254,9 +270,9 @@ test('status against a carrier that speaks another protocol exits 2 naming both'
 });
 
 test('pause, resume, check and stop act on a running Carrier; a second stop and the others without one say so', async () => {
-  const root = join(dir, 's'); // short: a socket path holds 103 bytes on macOS
-  const config = write('control.json', { ...valid, root, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
-  const socket = join(root, 'orchestrator', 'control.sock');
+  home = join(dir, 's'); // short: a socket path holds 103 bytes on macOS
+  const config = write('control.json', { ...valid, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  const socket = join(home, 'engine', 'state', 'control.sock');
   const control = (command: string) => run(command, '--config', config);
 
   // none running yet
@@ -265,7 +281,7 @@ test('pause, resume, check and stop act on a running Carrier; a second stop and 
     expect([result.status, result.stdout, result.stderr]).toEqual([1, '', 'Carrier is not running\n']);
   }
 
-  const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
+  const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
   const closed = once(child, 'close');
   try {
     await vi.waitFor(() => expect(existsSync(socket)).toBe(true), { timeout: 15_000 });
@@ -294,12 +310,12 @@ test('pause, resume, check and stop act on a running Carrier; a second stop and 
 });
 
 test('a Carrier that speaks another protocol makes the commands exit 2', async () => {
-  const root = join(dir, 'p');
-  mkdirSync(join(root, 'orchestrator'), { recursive: true });
+  home = join(dir, 'p');
+  mkdirSync(join(home, 'engine', 'state'), { recursive: true });
   const server = createServer((connection) => connection.write(`${JSON.stringify({ event: 'hello', protocol: 2 })}\n`));
-  await new Promise<void>((resolve) => server.listen(join(root, 'orchestrator', 'control.sock'), resolve));
+  await new Promise<void>((resolve) => server.listen(join(home, 'engine', 'state', 'control.sock'), resolve));
   try {
-    const config = write('protocol.json', { ...valid, root });
+    const config = write('protocol.json', valid);
     const result = await new Promise<{ status: number | null; stderr: string }>((resolve) => {
       const child = spawn(process.execPath, [main, 'pause', '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
       let stderr = '';
@@ -313,9 +329,9 @@ test('a Carrier that speaks another protocol makes the commands exit 2', async (
   }
 });
 
-// A stand-in for a running Carrier on `root`: says hello, records every request and answers `reply(request)`; `ok` is the answer, an Error refuses it.
-async function fakeCarrier(root: string, { capabilities = ['agentOptions', 'resumeEpic'], reply = (): unknown => undefined }: { capabilities?: string[]; reply?: (request: any) => unknown } = {}) {
-  mkdirSync(join(root, 'orchestrator'), { recursive: true });
+// A stand-in for a running Carrier in the folder `home`: says hello, records every request and answers `reply(request)`; `ok` is the answer, an Error refuses it.
+async function fakeCarrier(home: string, { capabilities = ['agentOptions', 'resumeEpic'], reply = (): unknown => undefined }: { capabilities?: string[]; reply?: (request: any) => unknown } = {}) {
+  mkdirSync(join(home, 'engine', 'state'), { recursive: true });
   const requests: any[] = [];
   const server = createServer((connection) => {
     connection.write(`${JSON.stringify({ event: 'hello', protocol: 1, pid: 1, startedAt: 0, version: 'x', capabilities })}\n`);
@@ -328,7 +344,7 @@ async function fakeCarrier(root: string, { capabilities = ['agentOptions', 'resu
       }
     });
   });
-  await new Promise<void>((resolve) => server.listen(join(root, 'orchestrator', 'control.sock'), resolve));
+  await new Promise<void>((resolve) => server.listen(join(home, 'engine', 'state', 'control.sock'), resolve));
   return { requests, close: () => server.close() };
 }
 // Not spawnSync: the fake Carrier answers from this process.
@@ -343,10 +359,10 @@ const runAsync = (...args: string[]) =>
   });
 
 test('restart asks a running Carrier to resume the epic on the options named, prints one line and exits 0', async () => {
-  const root = join(dir, 'r1');
-  const carrier = await fakeCarrier(root);
+  home = join(dir, 'r1');
+  const carrier = await fakeCarrier(home);
   try {
-    const config = write('restart.json', { ...valid, root });
+    const config = write('restart.json', valid);
     expect(await runAsync('restart', 'AshuLab/carrier#5', '--author', 'codex', '--config', config)).toEqual({ status: 0, stdout: 'Restarting AshuLab/carrier#5…\nRestarted AshuLab/carrier#5\n', stderr: '' });
     expect(await runAsync('restart', 'AshuLab/carrier#6', '--reviewer', 'claude', '--author', 'claude', '--config', config)).toMatchObject({ status: 0, stdout: 'Restarting AshuLab/carrier#6…\nRestarted AshuLab/carrier#6\n' });
     // without flags and without a terminal each role keeps its option: neither is sent
@@ -369,10 +385,10 @@ test.each([
   ['unknown option', 'That option is not in agentOptions of the configuration. Use a name declared there.'],
   ['internal error', 'Carrier refused: internal error'],
 ])('restart refused as "%s" says what it means and exits 1', async (reason, words) => {
-  const root = join(dir, 'r2');
-  const carrier = await fakeCarrier(root, { reply: () => new Error(reason) });
+  home = join(dir, 'r2');
+  const carrier = await fakeCarrier(home, { reply: () => new Error(reason) });
   try {
-    const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('refused.json', { ...valid, root }));
+    const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('refused.json', valid));
     expect([result.status, result.stdout, result.stderr]).toEqual([1, 'Restarting AshuLab/carrier#5…\n', `${words}\n`]);
   } finally {
     carrier.close();
@@ -380,10 +396,10 @@ test.each([
 });
 
 test('restart against an engine without the agentOptions capability says so and sends nothing', async () => {
-  const root = join(dir, 'r3');
-  const carrier = await fakeCarrier(root, { capabilities: ['resumeEpic'] });
+  home = join(dir, 'r3');
+  const carrier = await fakeCarrier(home, { capabilities: ['resumeEpic'] });
   try {
-    const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('old.json', { ...valid, root }));
+    const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('old.json', valid));
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('agentOptions');
     expect(carrier.requests).toEqual([]);
@@ -393,15 +409,16 @@ test('restart against an engine without the agentOptions capability says so and 
 });
 
 test('restart without a Carrier running says so and exits 1; against another protocol it exits 2', async () => {
-  const none = write('restart-none.json', { ...valid, root: join(dir, 'r4') });
+  home = join(dir, 'r4');
+  const none = write('restart-none.json', valid);
   expect(await runAsync('restart', 'AshuLab/carrier#5', '--config', none)).toEqual({ status: 1, stdout: '', stderr: 'Carrier is not running\n' });
 
-  const root = join(dir, 'r5');
-  mkdirSync(join(root, 'orchestrator'), { recursive: true });
+  home = join(dir, 'r5');
+  mkdirSync(join(home, 'engine', 'state'), { recursive: true });
   const server = createServer((connection) => connection.write(`${JSON.stringify({ event: 'hello', protocol: 2 })}\n`));
-  await new Promise<void>((resolve) => server.listen(join(root, 'orchestrator', 'control.sock'), resolve));
+  await new Promise<void>((resolve) => server.listen(join(home, 'engine', 'state', 'control.sock'), resolve));
   try {
-    const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('restart-protocol.json', { ...valid, root }));
+    const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('restart-protocol.json', valid));
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('protocol');
   } finally {
@@ -410,10 +427,10 @@ test('restart without a Carrier running says so and exits 1; against another pro
 });
 
 test('restart with an argument that is not owner/name#N is a usage error and sends nothing to Carrier', async () => {
-  const root = join(dir, 'r6');
-  const carrier = await fakeCarrier(root);
+  home = join(dir, 'r6');
+  const carrier = await fakeCarrier(home);
   try {
-    const config = write('restart-usage.json', { ...valid, root });
+    const config = write('restart-usage.json', valid);
     for (const args of [['restart', '--config', config], ['restart', 'AshuLab/carrier', '--config', config], ['restart', 'AshuLab/carrier#0', '--config', config], ['restart', 'carrier#5', '--config', config]]) {
       const result = await runAsync(...args);
       expect([result.status, result.stdout, result.stderr]).toEqual([2, '', expect.stringContaining('owner/name#N')]);
@@ -441,18 +458,18 @@ const start = (config: string) => spawnSync(process.execPath, [main, 'start', '-
 const pidOf = (stdout: string) => Number(/pid (\d+)/.exec(stdout)?.[1]);
 
 test('start returns once Carrier answers on its socket and leaves it running without the terminal', async () => {
-  const root = join(dir, 's1');
-  const config = write('start.json', { ...valid, root, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  home = join(dir, 's1');
+  const config = write('start.json', { ...valid, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
   const began = Date.now();
   const first = start(config);
   const pid = pidOf(first.stdout);
   started.push(pid);
-  const log = join(root, 'orchestrator', 'logs', 'start.log');
+  const log = join(home, 'engine', 'logs', 'start.log');
   expect([first.status, first.stderr]).toEqual([0, '']);
   expect(Date.now() - began).toBeLessThan(15_000);
   expect(first.stdout).toContain(log);
   expect(alive(pid)).toBe(true); // `start` has returned and its own process is gone
-  const client = await connectControl(join(root, 'orchestrator', 'control.sock'));
+  const client = await connectControl(join(home, 'engine', 'state', 'control.sock'));
   expect(client.hello.pid).toBe(pid);
   client.close();
   await vi.waitFor(() => expect(readFileSync(log, 'utf8')).toContain('slots 0/3'), { timeout: 15_000 }); // what the engine wrote
@@ -466,15 +483,15 @@ test('start returns once Carrier answers on its socket and leaves it running wit
 });
 
 test('a start that cannot come up prints the end of the log and exits 1 as soon as the child is gone', () => {
-  const root = join(dir, 's2');
-  mkdirSync(join(root, 'orchestrator', 'carrier.db'), { recursive: true }); // the engine cannot open a database that is a folder
+  home = join(dir, 's2');
+  mkdirSync(join(home, 'engine', 'state', 'carrier.db'), { recursive: true }); // the engine cannot open a database that is a folder
   const began = Date.now();
-  const result = start(write('start-bad.json', { ...valid, root }));
+  const result = start(write('start-bad.json', valid));
   expect(result.status).toBe(1);
   expect(Date.now() - began).toBeLessThan(10_000);
   expect(result.stderr).toContain('Carrier exited before it was ready');
   expect(result.stderr).toContain('carrier failed to start');
-  expect(result.stderr).toContain(join(root, 'orchestrator', 'logs', 'start.log'));
+  expect(result.stderr).toContain(join(home, 'engine', 'logs', 'start.log'));
 });
 
 test('--help lists chat and chat-host, and neither takes --config', () => {

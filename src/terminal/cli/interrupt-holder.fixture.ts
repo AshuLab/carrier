@@ -32,7 +32,6 @@ class RecordingGitHub extends FakeGitHub {
 }
 
 const loaded = loadConfig(defaults, {
-  root,
   pollIntervalMinutes: 20 / 60_000, // 20 ms
   repos: [{ name: 'AshuLab/a' }],
   profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } },
@@ -58,7 +57,7 @@ runner.behavior = (task) => {
   return { sessionId: `s-${task.epic}`, exit: 'hang' };
 };
 
-const app = await startCarrier(loaded.config, {
+const app = await startCarrier(loaded.config, root, {
   makeGitHub: () => github,
   makeWorkspaces: () => new FakeWorkspaces(),
   makeRunner: () => runner,

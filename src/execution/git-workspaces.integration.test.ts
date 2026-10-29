@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import { GitWorkspaces, profileToken } from './git-workspaces.ts';
+import { enginePlacesOf } from '../config/engine-places.ts';
 
 const git = (cwd: string, ...args: string[]) =>
   execFileSync('git', args, {
@@ -39,13 +40,13 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(tmp, { recursive: true, force: true }));
 
-const workspaces = (token?: () => Promise<string>) => new GitWorkspaces({ root, remoteUrl: () => bare, token });
+const workspaces = (token?: () => Promise<string>) => new GitWorkspaces({ places: enginePlacesOf(root), remoteUrl: () => bare, token });
 
 describe('GitWorkspaces against a local bare remote', () => {
   test('prepareAuthor clones, then only fetches, and is idempotent', async () => {
     const ws = workspaces();
     const path = await ws.prepareAuthor(repo, 3);
-    expect(path).toBe(join(root, 'repos', 'AshuLab', 'demo'));
+    expect(path).toBe(join(root, 'engine', 'repos', 'AshuLab', 'demo'));
     expect(git(path, 'rev-parse', 'origin/main')).toBe(git(work, 'rev-parse', 'HEAD'));
 
     const next = commit('two');
@@ -63,7 +64,7 @@ describe('GitWorkspaces against a local bare remote', () => {
     openPr(7, first);
 
     const path = await ws.prepareReviewer(repo, 3, 7);
-    expect(path).toBe(join(root, 'reviews', 'demo', '3'));
+    expect(path).toBe(join(root, 'engine', 'reviews', 'demo', '3'));
     expect(git(path, 'rev-parse', 'HEAD')).toBe(first);
     expect(git(path, 'branch', '--show-current')).toBe('');
 
@@ -111,7 +112,7 @@ describe('GitWorkspaces against a local bare remote', () => {
   test('findWorktree reads where a branch is really checked out, from `git worktree list`', async () => {
     const ws = workspaces();
     const clone = await ws.prepareAuthor(repo, 3);
-    // What Solve's ship does: the epic branch and a lane get their own worktrees under the shared root.
+    // What Solve's ship does: the epic branch and a lane get their own worktrees outside the engine folder.
     const epicPath = join(root, 'worktrees', 'demo', 'feature');
     git(clone, 'worktree', 'add', '-q', '-b', 'feat/feature/epic', epicPath, 'origin/main');
     git(clone, 'worktree', 'add', '-q', '-b', 'feat/feature/001-x', join(root, 'worktrees', 'demo', 'feature--lane-1'), 'origin/main');
@@ -134,7 +135,7 @@ describe('GitWorkspaces against a local bare remote', () => {
     expect(readFileSync(join(review, '.git'), 'utf8')).not.toContain('SECRET');
     expect(git(clone, 'remote', 'get-url', 'origin')).toBe(bare);
 
-    await expect(new GitWorkspaces({ root, remoteUrl: () => bare, token: async () => Promise.reject(new Error('no token')) }).prepareAuthor(repo, 3)).rejects.toThrow('no token');
+    await expect(new GitWorkspaces({ places: enginePlacesOf(root), remoteUrl: () => bare, token: async () => Promise.reject(new Error('no token')) }).prepareAuthor(repo, 3)).rejects.toThrow('no token');
   });
 
   test('rejects malformed input before touching the disk', async () => {
@@ -161,7 +162,7 @@ describe.skipIf(!enabled)('GitWorkspaces against GitHub through Forge', () => {
       try {
         let sha = '';
         const ws = new GitWorkspaces({
-          root: real,
+          places: enginePlacesOf(real),
           token: profileToken({ kind: 'forge', agent: agent! }),
           reviewRef: () => sha,
           timeoutMs: 120_000,

@@ -103,8 +103,8 @@ public struct RepoRow: Equatable, Identifiable {
     public var owner: String { String(name.split(separator: "/").first ?? "") }
     public var repo: String { String(name.split(separator: "/").last ?? "") }
     public var gitHubURL: URL? { URL(string: "https://github.com/\(name)") }
-    /// Where Carrier keeps its clone: `<root>/repos/owner/name`.
-    public func clonePath(root: String) -> String { "\(root)/repos/\(name)" }
+    /// Where Carrier keeps its clone: `<folder>/engine/repos/owner/name`; `engine` is the engine's folder.
+    public func clonePath(engine: String) -> String { "\(engine)/repos/\(name)" }
 }
 
 /// `path` with the home folder as `~`.

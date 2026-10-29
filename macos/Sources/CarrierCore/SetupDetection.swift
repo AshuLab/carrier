@@ -60,31 +60,21 @@ public func enginePath(detected: String, node: String) -> String {
     return entries.joined(separator: ":")
 }
 
-/// The four values of the settings pane; an empty one is a value not found.
+/// The three values of the settings pane; an empty one is a value not found.
 public struct SetupSettings: Equatable {
     public var carrier = ""
     public var node = ""
     public var path = ""
-    public var configPath = ""
 
-    public init(carrier: String = "", node: String = "", path: String = "", configPath: String = "") {
+    public init(carrier: String = "", node: String = "", path: String = "") {
         self.carrier = carrier
         self.node = node
         self.path = path
-        self.configPath = configPath
-    }
-
-    /// The shell's answer (nil: it gave none) with the config path from where Carrier keeps it, not from the shell.
-    public init(detection: Detection?, environment: [String: String], home: String) {
-        self.init(
-            carrier: detection?.carrier ?? "", node: detection?.node ?? "", path: detection?.path ?? "",
-            configPath: configFilePath(environment: environment, home: home)
-        )
     }
 
     /// The values the person has to look at: the ones that were not found.
     public var missing: [String] {
-        [("carrier", carrier), ("node", node), ("PATH", path), ("config path", configPath)]
+        [("carrier", carrier), ("node", node), ("PATH", path)]
             .filter { $0.1.isEmpty }.map(\.0)
     }
 }
@@ -98,16 +88,10 @@ public struct SetupStore {
 
     public func load() -> SetupSettings? {
         guard let saved = defaults.dictionary(forKey: key) as? [String: String] else { return nil }
-        return SetupSettings(
-            carrier: saved["carrier"] ?? "", node: saved["node"] ?? "", path: saved["path"] ?? "",
-            configPath: saved["configPath"] ?? ""
-        )
+        return SetupSettings(carrier: saved["carrier"] ?? "", node: saved["node"] ?? "", path: saved["path"] ?? "")
     }
 
     public func save(_ settings: SetupSettings) {
-        defaults.set([
-            "carrier": settings.carrier, "node": settings.node, "path": settings.path,
-            "configPath": settings.configPath,
-        ], forKey: key)
+        defaults.set(["carrier": settings.carrier, "node": settings.node, "path": settings.path], forKey: key)
     }
 }

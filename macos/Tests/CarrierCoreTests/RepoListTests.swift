@@ -14,7 +14,7 @@ private func object(_ data: Data?) -> [String: Any] {
 }
 
 private let file = Data(#"""
-{"root":"~/work","pollIntervalMinutes":2,"limits":{"maxReviews":7},"profiles":{"a":{"kind":"gh"}},
+{"keep":"~/work","pollIntervalMinutes":2,"limits":{"maxReviews":7},"profiles":{"a":{"kind":"gh"}},
  "repos":[{"name":"AshuLab/carrier"},{"name":"acme/web","agents":{"author":{"profile":"other-bot"}}},{"name":"vemec/encaja"}]}
 """#.utf8)
 
@@ -50,7 +50,7 @@ func anythingElseIsNot(name: String) { #expect(isRepoName(name) == false) }
     // the override of acme/web is untouched, and a new repo is only its name
     #expect((repos[0]["agents"] as? [String: Any])?["author"] as? [String: String] == ["profile": "other-bot"])
     #expect(repos[1].keys.sorted() == ["name"] && repos[2].keys.sorted() == ["name"])
-    #expect(written["root"] as? String == "~/work" && written["pollIntervalMinutes"] as? Int == 2)
+    #expect(written["keep"] as? String == "~/work" && written["pollIntervalMinutes"] as? Int == 2)
     #expect((written["limits"] as? [String: Any])?["maxReviews"] as? Int == 7 && written["profiles"] != nil)
 }
 
@@ -106,6 +106,6 @@ func anythingElseIsNot(name: String) { #expect(isRepoName(name) == false) }
     let stopped = repoRows(draft: ["a/b"], saved: ["a/b"], snapshot: nil)
     #expect(stopped == [RepoRow(name: "a/b", health: .unknown, line: "Carrier is stopped", epics: nil, isNew: false)])
     #expect(stopped[0].owner == "a" && stopped[0].repo == "b" && stopped[0].gitHubURL?.absoluteString == "https://github.com/a/b")
-    #expect(stopped[0].clonePath(root: "/data/solve") == "/data/solve/repos/a/b")
-    #expect(tildePath("/Users/ana/.solve/repos/a/b", home: "/Users/ana") == "~/.solve/repos/a/b" && tildePath("/srv/x", home: "/Users/ana") == "/srv/x")
+    #expect(stopped[0].clonePath(engine: "/data/carrier/engine") == "/data/carrier/engine/repos/a/b")
+    #expect(tildePath("/Users/ana/.carrier/engine/repos/a/b", home: "/Users/ana") == "~/.carrier/engine/repos/a/b" && tildePath("/srv/x", home: "/Users/ana") == "/srv/x")
 }

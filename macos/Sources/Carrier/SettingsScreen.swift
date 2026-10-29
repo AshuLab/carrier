@@ -6,6 +6,7 @@ import SwiftUI
 struct SettingsScreen: View {
     let state: ConnectionState?
     @ObservedObject var setup: SetupController = .shared
+    @ObservedObject private var start = StartController.shared
     @State private var tab = Tab.engine
     /// the Engine tab's paths, opened by the person while everything is found; not remembered
     @State private var pathsOpen = false
@@ -15,6 +16,7 @@ struct SettingsScreen: View {
 
     var body: some View {
         let model = engineTab(setup.settings, detecting: setup.detecting)
+        let notConfigured = engineNotConfiguredNotice(configExists: start.configExists)
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 if model.banner.state != .ready {
@@ -26,6 +28,9 @@ struct SettingsScreen: View {
                 UnderlineTabs(items: Tab.allCases.map { UnderlineTabs.Item(id: $0, title: $0.rawValue) }, selection: $tab)
                 if tab == .engine {
                     if enginePathsShown(model.banner, opened: pathsOpen) {
+                        if let notConfigured {
+                            Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+                        }
                         if model.banner.state == .ready {
                             Button("Hide paths ▴") { pathsOpen = false }.buttonStyle(.borderless).frame(maxWidth: .infinity, alignment: .trailing)
                         }
@@ -36,21 +41,24 @@ struct SettingsScreen: View {
                         .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
                     } else {
                         HStack(spacing: 12) {
-                            StatusDot(found: true)
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text("Carrier is ready to start").fontWeight(.semibold)
-                                Text("carrier, node and the config file were found").font(.caption).foregroundStyle(.secondary)
+                            HStack(spacing: 12) {
+                                StatusDot(found: notConfigured == nil)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(notConfigured == nil ? "Carrier is ready to start" : "Carrier cannot start yet").fontWeight(.semibold)
+                                    Text(notConfigured ?? "carrier and node were found").font(.caption).foregroundStyle(.secondary)
+                                }
                             }
+                            .accessibilityElement(children: .combine)
                             Spacer(minLength: 8)
                             Button("Show paths ▾") { pathsOpen = true }.buttonStyle(.borderless)
-                            Button("Detect again") { setup.detect() }.buttonStyle(.glass).buttonBorderShape(.capsule)
+                            Button("Detect again") { setup.detect(); start.refreshConfig() }.buttonStyle(.glass).buttonBorderShape(.capsule)
                         }
                         .padding(.horizontal, 14).padding(.vertical, 12)
                         .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
                     }
                     if model.banner.state == .ready {
-                        SettingsTabRow(title: "Start Carrier when the app opens", detail: "Carrier starts working on ready epics as soon as the app opens", first: true) {
-                            Toggle("Start Carrier when the app opens", isOn: $startOnOpen).labelsHidden().toggleStyle(.switch)
+                        SettingsTabRow(title: "Start Carrier when the app opens", detail: notConfigured == nil ? "Carrier starts working on ready epics as soon as the app opens" : "Does nothing until the engine is configured", first: true) {
+                            Toggle("Start Carrier when the app opens", isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
                         }
                         .padding(.horizontal, 14)
                         .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))

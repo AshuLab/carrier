@@ -7,7 +7,7 @@
 
 A user session can work in a new git worktree instead of the person's own folder, so that an agent can edit freely while the base folder keeps its branch and its uncommitted changes. That makes Carrier create folders full of the person's work, and three things about them are hard to change once people rely on them: where they are, what they are called, and when they go.
 
-The engine already has worktrees of its own for epics, under `root` today and in `<folder>/engine/worktrees` once the engine moves into the Carrier folder ([0016](0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)), and the chat host refuses any folder inside the engine's folder. The Carrier folder (`CARRIER_HOME`, `~/.carrier` by default, [0016](0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)) holds a folder for the chat beside the engine's, and the chat's worktrees live there.
+The engine already has worktrees of its own for epics, in `<folder>/engine/worktrees` ([0016](0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)), and the chat host refuses any folder inside the engine's folder. The Carrier folder (`CARRIER_HOME`, `~/.carrier` by default, [0016](0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)) holds a folder for the chat beside the engine's, and the chat's worktrees live there.
 
 ## Decision
 

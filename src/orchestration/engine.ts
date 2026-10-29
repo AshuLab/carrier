@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
+import type { EnginePlaces } from '../config/engine-places.ts';
 import { failoverOrderFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
 import { failoverTriggers, matchesFailoverTrigger } from '../config/schema.ts';
 import type { HarnessName } from '../harnesses/names.ts';
@@ -45,8 +46,8 @@ export type EngineOptions = {
   optionChoiceSeconds: number;
   runner: AgentRunner;
   workspaces: Workspaces;
-  /** Shared root: execution results go under `orchestrator/results/`. */
-  root: string;
+  /** The engine's places: execution results go under `<state>/results/`, their output under `<logs>/executions/`. */
+  places: Pick<EnginePlaces, 'state' | 'logs'>;
   /** Where the CLIs keep sessions, for the 30-day cleanup; the CLIs' own folders by default. */
   sessionDirs?: SessionDirs;
 };
@@ -82,7 +83,7 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
   session_unavailable: 'failed',
 };
 
-export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, optionChoiceSeconds, runner, workspaces, root, sessionDirs }: EngineOptions) {
+export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, optionChoiceSeconds, runner, workspaces, places, sessionDirs }: EngineOptions) {
   let error: GitHubUnavailable | AuthError | null = null;
   let nextPollAt: number | null = null;
   let paused = false; // intake only: nothing new is reserved, what is running goes on
@@ -330,7 +331,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       return applyLabels(fresh(epic.id));
     }
     const executionId = randomUUID();
-    const resultPath = join(root, 'orchestrator', 'results', `${executionId}.json`);
+    const resultPath = join(places.state, 'results', `${executionId}.json`);
     // A fix right after a review that completed is the observations pass; after one that asked for changes, it answers the blockers.
     const observations = stage === 'fix' ? latestObservations(db, epic.id) : null;
     const task: AgentTask = {
@@ -360,7 +361,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     log.info('execution started', context);
     const run = runner.run(task);
     active.set(executionId, run);
-    const output = executionOutput(root, executionId);
+    const output = executionOutput(places.logs, executionId);
     // The panel's "last activity": a SQLite write at most every 10 s, not one per chunk.
     let activityAt: number | null = null;
     run.onOutput((stream, chunk) => {
@@ -668,7 +669,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   let recovered = false;
   async function recover() {
     // Orphans first: no second agent may start on a workspace while the first still acts on it. An orphan is an execution
-    // this root's SQLite launched: the process list is the machine's, and a live agent of another carrier is not ours to stop.
+    // this engine folder's SQLite launched: the process list is the machine's, and a live agent of another carrier is not ours to stop.
     const ownExecution = (id: string) => db.select({ id: executions.executionId }).from(executions).where(eq(executions.executionId, id)).get() !== undefined;
     for (const id of await runner.listActive()) if (!active.has(id) && ownExecution(id)) {
       log.warn('stopping orphan execution', { executionId: id });
@@ -906,7 +907,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   return {
     async start() {
-      stopRetention = startRetention(db, root, clock, sessionDirs);
+      stopRetention = startRetention(db, places.logs, clock, sessionDirs);
       // GitHub down: retried every cycle until it works.
       for (const step of [ensureLabels, recover]) {
         try {

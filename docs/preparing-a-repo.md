@@ -13,9 +13,9 @@ Carrier runs the [Solve](https://github.com/AshuLab/skills) skills (`ship`, `cod
 - If the author cannot find what the epic refers to, it stops the epic with `needs-human` and says what is missing. It does not search your disk.
 - Slices are real sub-issues of the epic with their dependencies (`--parent`, `--blocked-by`), as Solve creates them.
 
-## Paths match the shared root
+## Where an epic's worktree lives
 
-Solve does not receive Carrier's `root`: it reads where to put worktrees from the Worktrees line of the repo's `docs/agents/solve.md` (by default `~/.solve/worktrees/<repo>/<feature>/`). With the default `root: "~/.solve"` everything matches. With another root, set that `path` to the same folder.
+By default Carrier keeps an epic's worktree in `~/.carrier/engine/worktrees/<repo>/<feature>/` (under `CARRIER_HOME` when you set it). Any other place works too: Carrier does not derive the path, it finds an epic's worktree with `git worktree list` of its own clone, so the Worktrees line of the repo's `docs/agents/solve.md` can name any folder.
 
 ## Identities
 

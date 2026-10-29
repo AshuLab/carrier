@@ -17,11 +17,11 @@ public enum FixtureError: Error, Equatable {
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; anything else is an error.
-/// It owns a temporary home (`home`) holding a `config.json` whose `root` is the home itself, so pointing `CARRIER_HOME` at it
+/// It owns a temporary home (`home`) holding an empty `config.json` and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 public final class FixtureServer {
     public let home: String
-    public var socketPath: String { home + "/orchestrator/control.sock" }
+    public var socketPath: String { home + "/engine/state/control.sock" }
     public var chatSocketPath: String { home + "/chat/state/chat.sock" }
 
     private let listener: Int32
@@ -133,11 +133,11 @@ public final class FixtureServer {
         let home = String(cString: template)
         self.home = home
         do {
-            let orchestrator = home + "/orchestrator"
-            try FileManager.default.createDirectory(atPath: orchestrator, withIntermediateDirectories: true)
-            try JSONSerialization.data(withJSONObject: ["root": home]).write(to: URL(fileURLWithPath: home + "/config.json"))
+            let state = home + "/engine/state"
+            try FileManager.default.createDirectory(atPath: state, withIntermediateDirectories: true)
+            try Data("{}".utf8).write(to: URL(fileURLWithPath: home + "/config.json"))
             try FileManager.default.createDirectory(atPath: home + "/chat/state", withIntermediateDirectories: true)
-            listener = try Self.listen(path: orchestrator + "/control.sock")
+            listener = try Self.listen(path: state + "/control.sock")
             do { chatListener = try Self.listen(path: home + "/chat/state/chat.sock") } catch {
                 Darwin.close(listener)
                 throw error

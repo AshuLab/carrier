@@ -21,11 +21,9 @@ struct ReposTabView: View {
     @State private var restarting = false
     @State private var adding = false
 
-    private var path: String {
-        activeConfigPath(saved: SetupStore().load(), environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
-    }
+    private var path: String { configFilePath() }
 
-    private var root: String { configRoot(configPath: path, home: NSHomeDirectory()) }
+    private var engine: String { engineFolder() }
 
     private var snapshot: PanelSnapshot? {
         if case .running(let snapshot)? = state { return snapshot }
@@ -38,13 +36,15 @@ struct ReposTabView: View {
         let footer = behaviorFooter(state: state, dirty: dirty, valid: problem == nil, startMissing: startMissing(setup.settings), noun: "list")
         VStack(alignment: .leading, spacing: 12) {
             if unreadable {
-                Label("The config file is missing or is not a JSON object. Run `carrier init` to make one.", systemImage: "exclamationmark.triangle.fill")
+                Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange)
             }
             if let note { SavedNote(text: note) }
-            SettingsTabCard {
-                ForEach(Array(repoRows(draft: draft, saved: saved, snapshot: snapshot).enumerated()), id: \.element.id) { index, row in
-                    RepoRowView(row: row, first: index == 0, onlyOne: draft.count == 1, root: root) { removing = row.name }
+            if draft.isEmpty == false {
+                SettingsTabCard {
+                    ForEach(Array(repoRows(draft: draft, saved: saved, snapshot: snapshot).enumerated()), id: \.element.id) { index, row in
+                        RepoRowView(row: row, first: index == 0, onlyOne: draft.count == 1, engine: engine) { removing = row.name }
+                    }
                 }
             }
             if let problem, unreadable == false { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
@@ -69,7 +69,12 @@ struct ReposTabView: View {
             if let failure { Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
         }
         .buttonStyle(.glass).buttonBorderShape(.capsule)
+        // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
+        .disabled(unreadable)
         .onAppear(perform: load)
+        .onChange(of: start.configExists) { load() }
+        // a file that is there but unreadable may be fixed in another app: look again when Carrier is back in front (only then, so no edit is lost)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if unreadable { load() } }
         .onChange(of: draft) { note = nil }
         .alert(
             "Stop watching \(removing ?? "")?",
@@ -94,6 +99,10 @@ struct ReposTabView: View {
     private func load() {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)), let names = configRepoNames(json: data) else {
             unreadable = true
+            saved = []
+            draft = []
+            note = nil
+            failure = nil
             return
         }
         unreadable = false
@@ -141,12 +150,12 @@ private struct RepoRowView: View {
     let row: RepoRow
     let first: Bool
     let onlyOne: Bool
-    let root: String
+    let engine: String
     let remove: () -> Void
     @State private var hovering = false
 
     var body: some View {
-        let clone = row.clonePath(root: root)
+        let clone = row.clonePath(engine: engine)
         let cloned = FileManager.default.fileExists(atPath: clone)
         HStack(alignment: .top, spacing: 12) {
             tile

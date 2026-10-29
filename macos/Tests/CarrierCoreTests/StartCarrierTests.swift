@@ -3,38 +3,46 @@ import Testing
 @testable import CarrierCore
 
 private let complete = SetupSettings(
-    carrier: "/n/bin/carrier", node: "/n/bin/node", path: "/usr/bin:/n/bin:/bin", configPath: "/h/.carrier/config.json"
+    carrier: "/n/bin/carrier", node: "/n/bin/node", path: "/usr/bin:/n/bin:/bin"
 )
 
-@Test func theCommandLineIsNodeCarrierAndTheConfig() throws {
-    let command = try #require(startCommand(settings: complete, root: "/h/.solve", environment: ["HOME": "/h", "PATH": "/usr/bin"]))
+@Test func theCommandLineIsNodeAndCarrierWithNoConfig() throws {
+    let command = try #require(startCommand(settings: complete, environment: ["HOME": "/h", "PATH": "/usr/bin"], home: "/h"))
     #expect(command.node == "/n/bin/node")
-    #expect(command.arguments == ["/n/bin/carrier", "--config", "/h/.carrier/config.json"])
+    #expect(command.arguments == ["/n/bin/carrier"])
+}
+
+@Test func theEnvironmentCarriesTheCarrierFolder() throws {
+    let home = try #require(startCommand(settings: complete, environment: [:], home: "/h"))
+    #expect(home.environment["CARRIER_HOME"] == "/h/.carrier")
+    let scratch = try #require(startCommand(settings: complete, environment: ["CARRIER_HOME": "/scratch"], home: "/h"))
+    #expect(scratch.environment["CARRIER_HOME"] == "/scratch")
+    #expect(scratch.logPath == "/scratch/engine/logs/app-start.log")
+    #expect(scratch.socketPath == "/scratch/engine/state/control.sock")
 }
 
 @Test func theEnvironmentGetsTheEnginePathAndKeepsTheRest() throws {
-    let command = try #require(startCommand(settings: complete, root: "/h/.solve", environment: ["HOME": "/h", "PATH": "/usr/bin"]))
+    let command = try #require(startCommand(settings: complete, environment: ["HOME": "/h", "PATH": "/usr/bin"], home: "/h"))
     // node's directory first, then the rest of the detected one without repeating it
     #expect(command.environment["PATH"] == "/n/bin:/usr/bin:/bin")
     #expect(command.environment["HOME"] == "/h")
 }
 
-@Test func theLogAndTheSocketLiveUnderTheRootsOrchestratorFolder() throws {
-    let command = try #require(startCommand(settings: complete, root: "/h/.solve", environment: [:]))
-    #expect(command.orchestratorDir == "/h/.solve/orchestrator")
-    #expect(command.logsDir == "/h/.solve/orchestrator/logs")
-    #expect(command.logPath == "/h/.solve/orchestrator/logs/app-start.log")
-    #expect(command.socketPath == "/h/.solve/orchestrator/control.sock")
+@Test func theLogAndTheSocketLiveUnderTheEnginesFolder() throws {
+    let command = try #require(startCommand(settings: complete, environment: [:], home: "/h"))
+    #expect(command.processDir == "/h/.carrier/engine")
+    #expect(command.logsDir == "/h/.carrier/engine/logs")
+    #expect(command.logPath == "/h/.carrier/engine/logs/app-start.log")
+    #expect(command.socketPath == "/h/.carrier/engine/state/control.sock")
 }
 
-@Test func withoutNodeCarrierOrAConfigPathThereIsNoCommandAndTheMissingOnesAreNamed() {
+@Test func withoutNodeOrCarrierThereIsNoCommandAndTheMissingOnesAreNamed() {
     var settings = complete
     settings.node = ""
-    settings.configPath = ""
-    #expect(startMissing(settings) == ["node", "config path"])
-    #expect(startCommand(settings: settings, root: "/h/.solve", environment: [:]) == nil)
+    #expect(startMissing(settings) == ["node"])
+    #expect(startCommand(settings: settings, environment: [:], home: "/h") == nil)
     settings.carrier = ""
-    #expect(startMissing(settings) == ["node", "carrier", "config path"])
+    #expect(startMissing(settings) == ["node", "carrier"])
     #expect(startMissing(complete).isEmpty)
 }
 
@@ -84,12 +92,22 @@ private let complete = SetupSettings(
     #expect(logTail(Data()) == "(the start log is empty)")
 }
 
-@Test func theMenuItemIsEnabledOnlyWhenStoppedAndCompleteAndNotStarting() {
-    #expect(startMenuState(state: .stopped, starting: false, missing: []) == ("Start Carrier", true))
-    #expect(startMenuState(state: .stopped, starting: true, missing: []).enabled == false)
-    #expect(startMenuState(state: .incompatible, starting: false, missing: []).enabled == false)
-    #expect(startMenuState(state: .stopped, starting: false, missing: ["node", "config path"])
-        == ("Start Carrier (missing: node, config path)", false))
+@Test func theMenuItemIsEnabledOnlyWhenStoppedAndConfiguredAndCompleteAndNotStarting() {
+    func item(_ state: ConnectionState = .stopped, starting: Bool = false, missing: [String] = [], configExists: Bool = true) -> (title: String, enabled: Bool) {
+        startMenuState(state: state, starting: starting, missing: missing, configExists: configExists)
+    }
+    #expect(item() == ("Start Carrier", true))
+    #expect(item(starting: true).enabled == false)
+    #expect(item(.incompatible).enabled == false)
+    #expect(item(missing: ["node", "carrier"]) == ("Start Carrier (missing: node, carrier)", false))
+    #expect(item(configExists: false) == ("Start Carrier (engine not configured)", false))
+    #expect(item(missing: ["node"], configExists: false).enabled == false)
+}
+
+@Test func noConfigMeansANoticeWithNoActionAndItsAbsenceMeansNone() throws {
+    let notice = try #require(engineNotConfiguredNotice(configExists: false))
+    #expect(notice.contains("not configured"))
+    #expect(engineNotConfiguredNotice(configExists: true) == nil)
 }
 
 @Test func openingTheAppStartsCarrierOnlyWhenEveryConditionHolds() throws {

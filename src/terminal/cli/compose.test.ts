@@ -27,7 +27,6 @@ afterEach(async () => {
 
 const config = (user: object = {}): Config => {
   const result = loadConfig(defaults, {
-    root,
     pollIntervalMinutes: 1,
     logLevel: 'debug',
     repos: [{ name: 'AshuLab/a', agents: { reviewer: { provider: 'override', model: 'override' } } }, { name: 'AshuLab/b' }],
@@ -70,12 +69,12 @@ function fakes() {
 test('builds the engine with the config\'s limits, effective repos and the real seams, and starts it', async () => {
   const { seen, github, runner, clock, deps } = fakes();
   github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }, { issue: 2, title: '' }, { issue: 3, title: '' }] };
-  const app = await startCarrier(config(), deps);
+  const app = await startCarrier(config(), root, deps);
   closers.push(async () => (await app.engine.shutdown(), app.close()));
 
   // Logging goes to the orchestrator log at the configured level, and the instance lock is held.
-  expect(seen.logging).toEqual([[join(root, 'orchestrator', 'logs', 'orchestrator.log'), 'debug']]);
-  expect(acquireLock(join(root, 'orchestrator'))).toEqual({ ok: false });
+  expect(seen.logging).toEqual([[join(root, 'engine', 'logs', 'orchestrator.log'), 'debug']]);
+  expect(acquireLock(join(root, 'engine', 'state'))).toEqual({ ok: false });
   expect(seen.sigint).toBe(1);
   // It started: the labels of every configured repo were checked.
   expect(github.created).toHaveLength(6);
@@ -89,27 +88,28 @@ test('builds the engine with the config\'s limits, effective repos and the real 
   expect(app.db.$client.prepare('select config from epics order by id').pluck().get()).toContain('"model":"override"');
 });
 
-test('GitHub acts as the orchestrator\'s profile from inside a clone-shaped folder under the root, with the configured timeout', async () => {
+test('GitHub acts as the orchestrator\'s profile from inside a clone-shaped folder under the Carrier folder, with the configured timeout', async () => {
   const { seen, deps } = fakes();
-  const app = await startCarrier(config(), deps);
+  const app = await startCarrier(config(), root, deps);
   closers.push(async () => (await app.engine.shutdown(), app.close()));
 
   expect(seen.github).toMatchObject({ profile: { kind: 'gh' }, timeoutMs: 7000 });
   // Before the clone exists: a stub whose origin is the repo (what Forge reads). Once cloned: the clone.
   const stub = seen.github!.cwd('AshuLab/a');
+  expect(stub).toBe(join(root, 'engine', 'state', 'forge-cwd', 'AshuLab', 'a'));
   expect(execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: stub, encoding: 'utf8' }).trim()).toBe('https://github.com/AshuLab/a.git');
-  const clone = join(root, 'repos', 'AshuLab', 'a');
+  const clone = join(root, 'engine', 'repos', 'AshuLab', 'a');
   mkdirSync(clone, { recursive: true });
   execFileSync('git', ['init', '-q'], { cwd: clone });
   expect(seen.github!.cwd('AshuLab/a')).toBe(clone);
 });
 
-test('workspaces use the root and mint the repo\'s author profile; the runner mints the execution\'s own profile', async () => {
+test('workspaces use the engine\'s repos and reviews folders and mint the repo\'s author profile; the runner mints the execution\'s own profile', async () => {
   const { seen, deps } = fakes();
-  const app = await startCarrier(config({ repos: [{ name: 'AshuLab/a', agents: { author: { profile: 'reviewer-bot' }, reviewer: { profile: 'author-bot' } } }, { name: 'AshuLab/b' }] }), deps);
+  const app = await startCarrier(config({ repos: [{ name: 'AshuLab/a', agents: { author: { profile: 'reviewer-bot' }, reviewer: { profile: 'author-bot' } } }, { name: 'AshuLab/b' }] }), root, deps);
   closers.push(async () => (await app.engine.shutdown(), app.close()));
 
-  expect(seen.workspaces!.root).toBe(root);
+  expect(seen.workspaces!.places).toMatchObject({ repos: join(root, 'engine', 'repos'), reviews: join(root, 'engine', 'reviews') });
   expect(await seen.workspaces!.token!('AshuLab/a')).toBe('ghs_fake');
   expect(await seen.workspaces!.token!('AshuLab/b')).toBe('ghs_fake');
   expect(seen.minted).toEqual(['tassadar-agent@AshuLab/a', 'artanis-agent@AshuLab/b']);
@@ -121,7 +121,7 @@ test('workspaces use the root and mint the repo\'s author profile; the runner mi
 test('the panel is drawn from SQLite: slots and the running epic show up', async () => {
   const { seen, github, clock, deps } = fakes();
   github.ready = { 'AshuLab/a': [{ issue: 5, title: '' }] };
-  const app = await startCarrier(config(), deps);
+  const app = await startCarrier(config(), root, deps);
   closers.push(async () => (await app.engine.shutdown(), app.close()));
 
   expect(seen.panel.join('')).toContain('slots 0/2');
@@ -133,7 +133,7 @@ test('the panel is drawn from SQLite: slots and the running epic show up', async
 test('the foreground panel is fed the control snapshot: an epic shows its title', async () => {
   const { seen, github, clock, deps } = fakes();
   github.ready = { 'AshuLab/a': [{ issue: 5, title: 'Menu bar' }] };
-  const app = await startCarrier(config(), { ...deps, panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 10 });
+  const app = await startCarrier(config(), root, { ...deps, panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 10 });
   closers.push(async () => (await app.engine.shutdown(), app.close()));
   await clock.advance(MIN);
   await vi.waitFor(() => expect(seen.panel.join('').replace(/\x1b\[[0-9;]*m/g, '')).toContain('AshuLab/a #5  Menu bar'));
@@ -142,19 +142,19 @@ test('the foreground panel is fed the control snapshot: an epic shows its title'
 test('the foreground panel is given the in-process provider: a running epic lists its stages', async () => {
   const { seen, github, clock, deps } = fakes();
   github.ready = { 'AshuLab/a': [{ issue: 5, title: 'Menu bar' }] };
-  const app = await startCarrier(config(), { ...deps, panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 10 });
+  const app = await startCarrier(config(), root, { ...deps, panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 10 });
   closers.push(async () => (await app.engine.shutdown(), app.close()));
   await clock.advance(MIN + 1000);
   await vi.waitFor(() => expect(seen.panel.join('').replace(/\x1b\[[0-9;]*m/g, '')).toMatch(/┃ \[ship\] \d+s\n/));
 });
 
-test('a second instance on the same root gets InstanceBusy before anything else happens', async () => {
+test('a second instance on the same Carrier folder gets InstanceBusy before anything else happens', async () => {
   const { seen, deps } = fakes();
-  const lock = acquireLock(join(root, 'orchestrator'));
+  const lock = acquireLock(join(root, 'engine', 'state'));
   expect(lock.ok).toBe(true);
-  await expect(startCarrier(config(), deps)).rejects.toThrow(InstanceBusy);
+  await expect(startCarrier(config(), root, deps)).rejects.toThrow(InstanceBusy);
   expect(seen.logging).toEqual([]);
-  expect(existsSync(join(root, 'orchestrator', 'carrier.db'))).toBe(false);
+  expect(existsSync(join(root, 'engine', 'state', 'carrier.db'))).toBe(false);
   if (lock.ok) lock.release();
 });
 
@@ -163,8 +163,8 @@ test('a startup failure releases the lock', async () => {
   github.listLabels = async () => {
     throw new Error('boom');
   };
-  await expect(startCarrier(config(), deps)).rejects.toThrow('boom');
-  const again = acquireLock(join(root, 'orchestrator'));
+  await expect(startCarrier(config(), root, deps)).rejects.toThrow('boom');
+  const again = acquireLock(join(root, 'engine', 'state'));
   expect(again.ok).toBe(true);
   if (again.ok) again.release();
 });
@@ -172,7 +172,7 @@ test('a startup failure releases the lock', async () => {
 test('onArrived fires once the engine is up and before the panel draws; a startup failure never announces it', async () => {
   const order: string[] = [];
   const { seen, deps } = fakes();
-  const app = await startCarrier(config(), { ...deps, onArrived: () => order.push(`arrived (panel drawn: ${seen.panel.length > 0})`) });
+  const app = await startCarrier(config(), root, { ...deps, onArrived: () => order.push(`arrived (panel drawn: ${seen.panel.length > 0})`) });
   closers.push(async () => (await app.engine.shutdown(), app.close()));
   expect(order).toEqual(['arrived (panel drawn: false)']);
   await vi.waitFor(() => expect(seen.panel.length).toBeGreaterThan(0)); // and the panel does start
@@ -182,7 +182,7 @@ test('onArrived fires once the engine is up and before the panel draws; a startu
     throw new Error('boom');
   };
   const announced = vi.fn();
-  await expect(startCarrier(config({ root: mkdtempSync(join(tmpdir(), 'carrier-compose2-')) }), { ...failing.deps, onArrived: announced })).rejects.toThrow('boom');
+  await expect(startCarrier(config(), mkdtempSync(join(tmpdir(), 'carrier-compose2-')), { ...failing.deps, onArrived: announced })).rejects.toThrow('boom');
   expect(announced).not.toHaveBeenCalled();
 });
 
@@ -191,7 +191,7 @@ test('with a terminal on both sides the panel takes keys: r polls now, p pauses 
   const { EventEmitter } = await import('node:events');
   const stdin = Object.assign(new EventEmitter(), { isTTY: true, setRawMode: vi.fn(), resume: vi.fn(), pause: vi.fn() });
   const quit = vi.fn();
-  const app = await startCarrier(config(), { ...deps, stdin: stdin as never, quit, openUrl: vi.fn(), panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 3_600_000 });
+  const app = await startCarrier(config(), root, { ...deps, stdin: stdin as never, quit, openUrl: vi.fn(), panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 3_600_000 });
   closers.push(async () => (await app.engine.shutdown(), app.close()));
   expect(stdin.setRawMode).toHaveBeenLastCalledWith(true);
 
@@ -209,7 +209,7 @@ test('with a terminal on both sides the panel takes keys: r polls now, p pauses 
 
   const plain = fakes();
   const stdin2 = Object.assign(new EventEmitter(), { isTTY: true, setRawMode: vi.fn(), resume: vi.fn(), pause: vi.fn() });
-  const app2 = await startCarrier(config({ root: mkdtempSync(join(tmpdir(), 'carrier-compose3-')) }), { ...plain.deps, stdin: stdin2 as never }); // its panel output is not a terminal
+  const app2 = await startCarrier(config(), mkdtempSync(join(tmpdir(), 'carrier-compose3-')), { ...plain.deps, stdin: stdin2 as never }); // its panel output is not a terminal
   closers.push(async () => (await app2.engine.shutdown(), app2.close()));
   expect(stdin2.setRawMode).not.toHaveBeenCalled();
 });

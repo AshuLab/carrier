@@ -47,7 +47,8 @@ final class MenuControls: NSObject, NSMenuItemValidation {
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item === startMenuItem {
             // the settings can change while the menu is closed, so the title is worked out each time it opens
-            let start = startMenuState(state: state, starting: StartController.shared.starting, missing: StartController.shared.missing)
+            let start = startMenuState(state: state, starting: StartController.shared.starting, missing: StartController.shared.missing,
+                configExists: StartController.shared.refreshConfig())
             item.title = start.title
             return start.enabled
         }

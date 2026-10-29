@@ -72,8 +72,8 @@ test('after SIGINT the file holds everything emitted so far, whole lines and no 
 
 test('an execution output redacts a token split across two chunks and keeps the unfinished line until flush', () => {
   const root = mkdtempSync(join(tmpdir(), 'carrier-out-'));
-  const output = executionOutput(root, 'e1');
-  const out = join(root, 'orchestrator', 'logs', 'executions', 'e1', 'stdout.log');
+  const output = executionOutput(join(root, 'logs'), 'e1');
+  const out = join(root, 'logs', 'executions', 'e1', 'stdout.log');
   output.write('stdout', 'before ghp_abcdef');
   output.write('stdout', '123456 after\nnext ghp_tail');
   expect(readFileSync(out, 'utf8')).toBe('before [redacted] after\n');

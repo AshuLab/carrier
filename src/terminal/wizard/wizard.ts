@@ -1,5 +1,5 @@
-import { resolve } from 'node:path';
-import { defaultConfigPath } from '../../config/default-path.ts';
+import { join, resolve } from 'node:path';
+import { carrierHome } from '../../config/default-path.ts';
 import { defaults, loadConfig } from '../../config/load.ts';
 import { installFix } from '../../doctor/fixes.ts';
 import { localKinds, type LocalProvider } from '../../harnesses/local.ts';
@@ -22,7 +22,7 @@ import { summary, tilde } from './summary.ts';
 const ghIdentity = { kind: 'gh' } as const;
 
 /** The setup flow: look at the machine, ask what is missing, recap, save, check, offer to start. */
-export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDeps) {
+export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDeps, folder = carrierHome()) {
   ui.intro('Carrier setup');
   const interactive = ui.interactive && !flags.yes; // --yes never asks, whatever the terminal
 
@@ -49,7 +49,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   if (login === undefined) ui.warn('gh is not logged in (run: gh auth login): your repos cannot be listed, and a "my own gh login" identity will not work.');
 
   // A config that is already there: edit it (its answers become the starting points), start over, or leave it.
-  const fallback = defaultConfigPath();
+  const fallback = join(folder, 'config.json');
   let out = flags.out === undefined ? undefined : resolve(flags.out);
   let settled = false; // the question below settled where the config goes, and that it may be replaced
   let prior: Prior | undefined;
@@ -161,7 +161,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   deps.write(out, `${JSON.stringify(user, null, 2)}\n`);
   ui.note(tilde(out), 'Config written');
 
-  const checks = await deps.doctor(loaded.config, {}, ui.check, ui.checkStart);
+  const checks = await deps.doctor(loaded.config, folder, {}, ui.check, ui.checkStart);
   const use = out === fallback ? '' : ` --config ${out}`; // the default location needs no flag
   const failed = checks.filter((c) => c.status === 'fail').length;
   ui.checksEnd(checks.length, failed);
@@ -170,7 +170,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
     return { path: out, checks, config: loaded.config, start: false };
   }
 
-  const ready = await deps.readyEpics(loaded.config);
+  const ready = await deps.readyEpics(loaded.config, folder);
   const waiting = Object.entries(ready).map(([repo, count]) => `${repo}: ${count === undefined ? 'could not read' : `${count} epic${count === 1 ? '' : 's'} marked ready`}`);
   ui.note(waiting.join('\n'), 'Waiting for Carrier');
   const start = interactive && (await ui.confirm('Start Carrier now? (Ctrl+C stops it)'));

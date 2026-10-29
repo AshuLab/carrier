@@ -1,6 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import { defaultConfigPath } from './default-path.ts';
 import { defaults, loadConfig } from './load.ts';
 
 const valid = {
@@ -176,9 +177,24 @@ describe('identities', () => {
 });
 
 describe('root', () => {
-  test('expands ~', () => {
-    expect(load({ root: '~/work' })).toMatchObject({ ok: true, config: { root: join(homedir(), 'work') } });
-    expect(load({})).toMatchObject({ ok: true, config: { root: join(homedir(), '.solve') } });
+  test('is an unknown key like any other, and the same config without it loads', () => {
+    expect(errorsOf({ root: '~/work' })).toEqual([{ path: '(root)', message: 'Unrecognized key: "root"' }]);
+    expect(load({})).toMatchObject({ ok: true });
+  });
+});
+
+describe('the config\'s place', () => {
+  test('is config.json in the Carrier folder, wherever that is', () => {
+    const before = process.env.CARRIER_HOME;
+    try {
+      process.env.CARRIER_HOME = '/tmp/some-home';
+      expect(defaultConfigPath()).toBe('/tmp/some-home/config.json');
+      delete process.env.CARRIER_HOME;
+      expect(defaultConfigPath()).toBe(join(homedir(), '.carrier', 'config.json'));
+    } finally {
+      if (before === undefined) delete process.env.CARRIER_HOME;
+      else process.env.CARRIER_HOME = before;
+    }
   });
 });
 

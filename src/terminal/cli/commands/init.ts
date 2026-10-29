@@ -6,7 +6,7 @@ import { CliError } from '../cli-error.ts';
 import { runCommand } from './run.ts';
 
 /** The guided setup. Returns the exit code, or undefined when "Start Carrier now?" was answered yes and it is running. */
-export async function initCommand(flags: Flags): Promise<number | undefined> {
+export async function initCommand(flags: Flags, folder: string): Promise<number | undefined> {
   const ui = flags.yes || !process.stdin.isTTY ? noPromptUi : makeClackUi({ compact: true });
   let started;
   try {
@@ -33,6 +33,8 @@ export async function initCommand(flags: Flags): Promise<number | undefined> {
         yes: flags.yes,
       },
       ui,
+      undefined,
+      folder,
     );
   } catch (error) {
     if (error instanceof Cancelled) {
@@ -41,6 +43,6 @@ export async function initCommand(flags: Flags): Promise<number | undefined> {
     }
     throw new CliError(1, error instanceof Error ? error.message : String(error));
   }
-  if (started.start) return void (await runCommand(started.config, { framed: true })); // the same process, until Ctrl+C
+  if (started.start) return void (await runCommand(started.config, folder, { framed: true })); // the same process, until Ctrl+C
   return started.checks.some((c) => c.status === 'fail') ? 1 : 0;
 }

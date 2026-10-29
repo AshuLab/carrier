@@ -83,10 +83,7 @@ public func projectFolders(in root: String) -> [ProjectFolder] {
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 }
 
-/// The config file the app works with: the one the setup chose, else the default.
-private func currentConfigURL() -> URL {
-    URL(fileURLWithPath: activeConfigPath(saved: SetupStore().load(), environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()))
-}
+private func currentConfigURL() -> URL { URL(fileURLWithPath: configFilePath()) }
 
 /// The config file's bytes, read each time so a change in the file is followed; nil when it cannot be read.
 public func currentConfig() -> Data? { try? Data(contentsOf: currentConfigURL()) }

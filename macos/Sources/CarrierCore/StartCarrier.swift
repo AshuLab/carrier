@@ -6,13 +6,13 @@ import Foundation
 /// How long the socket has to answer after the process starts.
 public let startTimeout: TimeInterval = 15
 
-/// What the shell spawns: `node <carrier> ...` with the engine's PATH, its output going to `logPath`. `orchestratorDir` is the
-/// user-only folder the log's folder lives in (the engine's `orchestrator/`, the chat host's `chat/`).
+/// What the shell spawns: `node <carrier> ...` with the engine's PATH and `CARRIER_HOME`, its output going to `logPath`. `processDir` is the
+/// user-only folder the log's folder lives in (the engine's `engine/`, the chat host's `chat/`).
 public struct StartCommand: Equatable {
     public let node: String
     public let arguments: [String]
     public let environment: [String: String]
-    public let orchestratorDir: String
+    public let processDir: String
     public let logPath: String
     public let socketPath: String
 
@@ -21,20 +21,22 @@ public struct StartCommand: Equatable {
 
 /// What the settings lack to start Carrier.
 public func startMissing(_ settings: SetupSettings) -> [String] {
-    [("node", settings.node), ("carrier", settings.carrier), ("config path", settings.configPath)]
-        .filter { $0.1.isEmpty }.map(\.0)
+    [("node", settings.node), ("carrier", settings.carrier)].filter { $0.1.isEmpty }.map(\.0)
 }
 
-/// nil when `startMissing` is not empty. `root` is the config file's, where the log and the socket live. `environment` is the
-/// app's own; only its PATH is replaced.
-public func startCommand(settings: SetupSettings, root: String, environment: [String: String]) -> StartCommand? {
+/// nil when `startMissing` is not empty. The engine finds its config, logs and socket from `CARRIER_HOME`, which is set to the
+/// Carrier folder (the app's own environment's, else `~/.carrier`); the log and the socket are in the folder's `engine/`.
+/// `environment` is the app's own; its PATH is replaced.
+public func startCommand(settings: SetupSettings, environment: [String: String], home: String = NSHomeDirectory()) -> StartCommand? {
     guard startMissing(settings).isEmpty else { return nil }
+    let folder = carrierFolder(environment: environment, home: home)
     var environment = environment
     environment["PATH"] = enginePath(detected: settings.path, node: settings.node)
-    let orchestrator = root + "/orchestrator"
+    environment["CARRIER_HOME"] = folder
+    let engine = engineFolder(environment: environment, home: home)
     return StartCommand(
-        node: settings.node, arguments: [settings.carrier, "--config", settings.configPath], environment: environment,
-        orchestratorDir: orchestrator, logPath: orchestrator + "/logs/app-start.log", socketPath: orchestrator + "/control.sock"
+        node: settings.node, arguments: [settings.carrier], environment: environment,
+        processDir: engine, logPath: engine + "/logs/app-start.log", socketPath: controlSocketPath(environment: environment, home: home)
     )
 }
 
@@ -72,11 +74,18 @@ public func logTail(_ log: Data, lines: Int = 30) -> String {
     return text.isEmpty ? "(the start log is empty)" : tail.joined(separator: "\n")
 }
 
-/// The Start Carrier menu item: it can be pressed only while Carrier is stopped, the settings are complete and no start is
-/// under way; otherwise the title says what is missing or that it is starting.
-public func startMenuState(state: ConnectionState, starting: Bool, missing: [String]) -> (title: String, enabled: Bool) {
+/// What the Carrier home and the Carrier section of the sidebar say while `<folder>/config.json` does not exist; nil once it does.
+/// It has no action: the config is made by the native setup wizard, which is its own epic.
+public func engineNotConfiguredNotice(configExists: Bool) -> String? {
+    configExists ? nil : "The engine is not configured: there is no config.json in the Carrier folder."
+}
+
+/// The Start Carrier menu item: it can be pressed only while Carrier is stopped, the engine is configured, the settings are
+/// complete and no start is under way; otherwise the title says what is missing or that it is starting.
+public func startMenuState(state: ConnectionState, starting: Bool, missing: [String], configExists: Bool) -> (title: String, enabled: Bool) {
     if starting { return ("Starting Carrier…", false) }
     guard state == .stopped else { return ("Start Carrier", false) }
+    if configExists == false { return ("Start Carrier (engine not configured)", false) }
     if missing.isEmpty { return ("Start Carrier", true) }
     return ("Start Carrier (missing: \(missing.joined(separator: ", ")))", false)
 }

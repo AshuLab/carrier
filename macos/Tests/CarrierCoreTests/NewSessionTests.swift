@@ -780,7 +780,7 @@ private final class LateChat: ChatHost, @unchecked Sendable {
 
 @MainActor @Test func cloningWithTheBoxOnAddsTheRepoToTheConfigKeepingEverythingElseAndSaysItListensFromTheNextStart() async throws {
     let config = FakeConfig("""
-    {"root": "~/work", "limits": {"maxReviews": 7}, "repos": [{"name": "acme/web", "agents": {"author": {"profile": "p"}}}]}
+    {"note": "kept", "limits": {"maxReviews": 7}, "repos": [{"name": "acme/web", "agents": {"author": {"profile": "p"}}}]}
     """)
     let model = await popover(FakeChat(), config: config)
     model.show(.url)
@@ -790,7 +790,7 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     let file = try #require(try JSONSerialization.jsonObject(with: saved) as? [String: Any])
     let repos = try #require(file["repos"] as? [[String: Any]])
     #expect(repos.map { $0["name"] as? String } == ["acme/web", "AshuLab/carrier"] && repos[0]["agents"] != nil && repos[1].keys.sorted() == ["name"])
-    #expect(file["root"] as? String == "~/work" && (file["limits"] as? [String: Any])?["maxReviews"] as? Int == 7)
+    #expect(file["note"] as? String == "kept" && (file["limits"] as? [String: Any])?["maxReviews"] as? Int == 7)
     #expect(model.watchNote == "Carrier will listen to AshuLab/carrier from its next start." && model.watchFailed == false)
     #expect(model.folder == "/projects/AshuLab/carrier")
 }

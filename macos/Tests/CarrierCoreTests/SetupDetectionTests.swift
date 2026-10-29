@@ -77,19 +77,19 @@ private let answer = """
     #expect(enginePath(detected: "", node: "") == "")
 }
 
-@Test func theConfigPathComesFromCarrierNotFromTheShell() {
-    let settings = SetupSettings(
-        detection: Detection(carrier: "/bin/carrier", node: "/bin/node", path: "/bin"),
-        environment: ["CARRIER_HOME": "/tmp/c"], home: "/Users/ana"
-    )
-    #expect(settings == SetupSettings(carrier: "/bin/carrier", node: "/bin/node", path: "/bin", configPath: "/tmp/c/config.json"))
-    #expect(settings.missing.isEmpty)
+@Test func theSettingsHaveNoConfigPathAndEmptyOnesAreListedAsMissing() {
+    #expect(SetupSettings().missing == ["carrier", "node", "PATH"])
+    #expect(SetupSettings(carrier: "/bin/carrier", node: "/bin/node", path: "/bin").missing.isEmpty)
 }
 
-@Test func whenTheShellGaveNoAnswerThePaneListsWhatIsMissing() {
-    let settings = SetupSettings(detection: nil, environment: [:], home: "/Users/ana")
-    #expect(settings.configPath == "/Users/ana/.carrier/config.json")
-    #expect(settings.missing == ["carrier", "node", "PATH"])
+@Test func aConfigPathSavedByAnOlderAppIsIgnoredAndDroppedOnTheNextSave() {
+    let (defaults, name) = freshDefaults()
+    defer { defaults.removePersistentDomain(forName: name) }
+    defaults.set(["carrier": "/c", "node": "/n", "path": "/p", "configPath": "/old/config.json"], forKey: "setup")
+    let store = SetupStore(defaults: defaults)
+    #expect(store.load() == SetupSettings(carrier: "/c", node: "/n", path: "/p"))
+    store.save(store.load()!)
+    #expect(defaults.dictionary(forKey: "setup")?.keys.sorted() == ["carrier", "node", "path"])
 }
 
 private func freshDefaults() -> (UserDefaults, String) {
@@ -104,10 +104,10 @@ private func freshDefaults() -> (UserDefaults, String) {
     #expect(store.load() == nil)
 
     // a detection that found nothing is saved too: the shell is not asked again by itself
-    store.save(SetupSettings(configPath: "/a/config.json"))
-    #expect(SetupStore(defaults: defaults).load() == SetupSettings(configPath: "/a/config.json"))
+    store.save(SetupSettings())
+    #expect(SetupStore(defaults: defaults).load() == SetupSettings())
 
-    let edited = SetupSettings(carrier: "/c", node: "/n", path: "/p", configPath: "/a/config.json")
+    let edited = SetupSettings(carrier: "/c", node: "/n", path: "/p")
     store.save(edited)
     #expect(store.load() == edited)
 }

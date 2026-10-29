@@ -35,7 +35,7 @@ One renderer draws the foreground panel and `watch`; they differ only in where t
 
 ## Scope
 
-1. `carrier start` launches Carrier detached, waits up to 15 seconds for the control socket and returns, printing where the log is. If a Carrier already runs for that root it says so and does nothing. If it does not come up, it prints the end of the log and exits with an error.
+1. `carrier start` launches Carrier detached, waits up to 15 seconds for the control socket and returns, printing where the log is. If a Carrier already runs for that Carrier folder it says so and does nothing. If it does not come up, it prints the end of the log and exits with an error.
 2. `carrier stop` stops a running Carrier through the socket and returns when it is gone. With none running it says so and exits successfully.
 3. `carrier status` prints the panel once and exits 0 when Carrier runs; when it does not, it says so and exits 1. Colour only when the output is a terminal.
 4. `carrier watch` shows the live panel of a running Carrier with the foreground panel's keys; `q` or Ctrl+C leaves it and Carrier keeps running. With none running it says so and exits 1 without waiting.
@@ -52,7 +52,7 @@ One renderer draws the foreground panel and `watch`; they differ only in where t
 
 **The socket client is one small module** in the CLI (connect, read the hello, send one request with its id, read the matching reply, close), used by every command; its replies are typed with the types the engine already exports for them (`src/control/replies.ts`, `src/status/types.ts`), so it cannot drift from the server.
 
-**`start` re-runs the same program.** It spawns the same Node and script with `--config`, detached into its own session with its output going to `<root>/orchestrator/logs/start.log` (replaced at each start, as the app's `app-start.log` is) and `unref`ed, and inherits the caller's environment, so the `PATH` is the user's own. The child takes the existing foreground path; with no terminal that path already writes plain lines, so there is no second way to start the engine. The parent then asks the socket (connect and hello) every quarter of a second for up to 15 seconds, the same limit as the app, and gives up early if the child exited. The instance lock is what refuses a second Carrier.
+**`start` re-runs the same program.** It spawns the same Node and script with `--config`, detached into its own session with its output going to `<folder>/engine/logs/start.log` (replaced at each start, as the app's `app-start.log` is) and `unref`ed, and inherits the caller's environment, so the `PATH` is the user's own. The child takes the existing foreground path; with no terminal that path already writes plain lines, so there is no second way to start the engine. The parent then asks the socket (connect and hello) every quarter of a second for up to 15 seconds, the same limit as the app, and gives up early if the child exited. The instance lock is what refuses a second Carrier.
 
 **Exit codes.** `status`, `watch`, `pause`, `resume`, `check`: 0 on success, 1 when Carrier is not running or does not answer, 2 for a Carrier whose protocol this CLI does not speak. `stop`: 0 also when none runs, since stopping what is stopped has nothing to fail. `start`: 0 when it is running afterwards, including when it already was; 1 otherwise.
 
@@ -64,7 +64,7 @@ One renderer draws the foreground panel and `watch`; they differ only in where t
 
 Testing seams, per story:
 
-- Stories 1 to 5: the end-to-end style of `src/terminal/cli/main.test.ts`, which runs the real process with a fake `agent-forge` and a temporary root, so `start`, `status`, `pause`, `resume`, `check` and `stop` run against a real engine without GitHub or an agent. The socket client is also tested against `startControlServer` with fake controls, as `server.test.ts` does, including a server that answers late, errors, or is not there. `parseCli` in `args.test.ts` covers the command line.
+- Stories 1 to 5: the end-to-end style of `src/terminal/cli/main.test.ts`, which runs the real process with a fake `agent-forge` and a temporary Carrier folder, so `start`, `status`, `pause`, `resume`, `check` and `stop` run against a real engine without GitHub or an agent. The socket client is also tested against `startControlServer` with fake controls, as `server.test.ts` does, including a server that answers late, errors, or is not there. `parseCli` in `args.test.ts` covers the command line.
 - Stories 6 to 9: `renderDashboard` in `dashboard.test.ts`, the broadest pure seam, with a snapshot and a fake detail provider. It already checks colour is only styling and that no line is wider than the terminal; the new lines are held to the same two rules, with long titles and reasons.
 - The refresh rule (story 7): the same seam with a provider that counts its calls across repeated renders of an unchanged and a changed snapshot.
 - Story 10: `interactive.test.ts` with a fake output, keys and controls, plus one assertion in `compose.test.ts` that the foreground panel is fed the stage detail.

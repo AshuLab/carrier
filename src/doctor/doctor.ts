@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { socketPathFits } from '../control/server.ts';
+import { enginePlacesOf } from '../config/engine-places.ts';
 import { resolveRepoConfig, sameAccount } from '../config/resolve.ts';
 import type { Config } from '../config/schema.ts';
 import { profileToken } from '../execution/git-workspaces.ts';
@@ -27,7 +28,7 @@ export interface AgyProcess {
 export interface DoctorDeps {
   which: (command: string) => boolean;
   mint: (profile: GitHubProfile, repo: string) => Promise<string>;
-  listLabels: (config: Config, repo: string) => Promise<string[]>;
+  listLabels: (config: Config, repo: string, folder: string) => Promise<string[]>;
   /** What a local model server has; throws when it does not answer. */
   localModels: (local: LocalProvider) => Promise<string[]>;
   /** Whether a Claude or Codex login works, with the option's config folder (the process environment when none); throws when the CLI cannot run. */
@@ -125,10 +126,10 @@ const realDeps: DoctorDeps = {
   startAgy,
   which: (command) => spawnSync('which', [command]).status === 0,
   mint: (profile, repo) => profileToken(profile)(repo),
-  listLabels: (config, repo) =>
+  listLabels: (config, repo, folder) =>
     new GhGitHub({
       profile: config.profiles[config.orchestratorProfile]!,
-      cwd: forgeCwd(config.root),
+      cwd: forgeCwd(enginePlacesOf(folder)),
       timeoutMs: config.limits.githubCallTimeoutSeconds * 1000,
     }).listLabels(repo),
 };
@@ -137,7 +138,7 @@ const identity = (profile: GitHubProfile) => (profile.kind === 'forge' ? `forge 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** What the machine has to be able to do, and whether each identity can act on each repo. Reads only; creates nothing on GitHub. */
-export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> = {}, onCheck: (check: Check) => void = () => {}, onStart: (name: string) => void = () => {}): Promise<Check[]> {
+export async function runDoctor(config: Config, folder: string, overrides: Partial<DoctorDeps> = {}, onCheck: (check: Check) => void = () => {}, onStart: (name: string) => void = () => {}): Promise<Check[]> {
   const deps = { ...realDeps, ...overrides };
   const checks: Check[] = [];
   const report = (check: Check) => {
@@ -161,7 +162,7 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
   const profiles = [orchestrator, ...repos.flatMap((repo) => rolesOf(repo).map((agent) => config.profiles[agent.profile]!))];
 
   // Only a path that does not fit is reported: Carrier works without the socket, it just has none for the app to use.
-  const socket = join(config.root, 'orchestrator', 'control.sock');
+  const socket = enginePlacesOf(folder).socket;
   const { fits, bytes } = socketPathFits(socket);
   if (fits === false) report({ name: 'control socket path fits', status: 'warn', detail: `${socket} is ${bytes} bytes and a socket path holds 103, so Carrier starts without its control socket`, fix: fixes.socketPath });
 
@@ -254,7 +255,7 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
     const name = `${identity(orchestrator)} can read ${repo.name}`;
     onStart(name);
     try {
-      await deps.listLabels(config, repo.name);
+      await deps.listLabels(config, repo.name, folder);
       report({ name, status: 'ok' });
     } catch (error) {
       report({ name, status: 'fail', detail: message(error), fix: fixes.read(repo.name, message(error)) });

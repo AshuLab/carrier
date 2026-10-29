@@ -793,6 +793,42 @@ test('failover across harnesses without a model on the provider uses that harnes
   expect(runner.tasks[1]).toMatchObject({ harness: 'codex', model: 'gpt-5.3-codex', option: 'codexBare' });
 });
 
+test('failover on service_down failure suppresses execution error and does not burn retry streak', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  const serviceDownFailure: AgentFailure = { kind: 'api_error', detail: 'ECONNREFUSED 127.0.0.1:1234', exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null };
+  runner.behavior = (task) =>
+    task.option === 'claude'
+      ? { sessionId: 's-claude', exit: 'failed', failure: serviceDownFailure }
+      : task.stage === 'ship'
+        ? { sessionId: 's-spare', write: completed(task) }
+        : { exit: 'hang' };
+  const engine = await startFailover(['spare']);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+
+  expect(runner.tasks.map((t) => [t.stage, t.option])).toEqual([['ship', 'claude'], ['ship', 'spare'], ['review', 'codex']]);
+  const execs = executionsOf(engine.db);
+  expect(execs[0]).toMatchObject({ option: 'claude', status: 'failed', error: null, failureKind: 'api_error' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', lastError: null });
+});
+
+test('failover on rate_limit failure switches provider', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  const rateLimitFailure: AgentFailure = { kind: 'api_error', detail: 'HTTP 429: Rate limit exceeded', exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null };
+  runner.behavior = (task) =>
+    task.option === 'claude'
+      ? { sessionId: 's-claude', exit: 'failed', failure: rateLimitFailure }
+      : task.stage === 'ship'
+        ? { sessionId: 's-spare', write: completed(task) }
+        : { exit: 'hang' };
+  const engine = await startFailover(['spare']);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+
+  expect(runner.tasks.map((t) => [t.stage, t.option])).toEqual([['ship', 'claude'], ['ship', 'spare'], ['review', 'codex']]);
+  expect(executionsOf(engine.db)[0]).toMatchObject({ option: 'claude', status: 'failed', error: null, failureKind: 'api_error' });
+});
+
 test('when no option in the list is left the epic stops with usage_limit and names every option that ran out, and never uses one outside the list', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   runner.behavior = (task) => (task.epic === 1 ? outOf('claude', 'spare')(task, { exit: 'hang' }) : { exit: 'hang' });
@@ -1769,6 +1805,19 @@ test('an epic whose last execution ended on a usage limit before it moved on is 
   await vi.waitFor(() => expect(rows(engine.db)[0]!.status).toBe('needs_human'));
   expect(rows(engine.db)[0]).toMatchObject({ needsHumanKind: 'usage_limit', needsHumanReason: 'the ship execution ran out of usage on option claude · carrier restart AshuLab/a#1 --author <option> · resets 12:40pm' });
   expect(runner.tasks).toHaveLength(0);
+});
+
+test('an epic stopped after service_down failure with failover enabled recovers and failsover on start', async () => {
+  const db = open();
+  const repoWithFailover = failoverRepos({ enabled: true, default: ['spare'] });
+  seedEpic(db, 1, { config: repoWithFailover[0] });
+  seedExecution(db, 'e0', 1, { status: 'failed', option: 'claude', failureKind: 'api_error', failureDetail: 'ECONNREFUSED' });
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1, repoWithFailover);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(1));
+  expect(runner.tasks[0]).toMatchObject({ stage: 'ship', option: 'spare' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', authorOption: 'spare' });
 });
 
 test('a requeued epic that has not launched yet is not stopped again by the usage limit of its old history', async () => {

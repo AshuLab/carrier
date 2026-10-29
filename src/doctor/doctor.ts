@@ -221,8 +221,13 @@ export async function runDoctor(config: Config, overrides: Partial<DoctorDeps> =
   if (config.identities === 'separate') {
     onStart('author and reviewer are different identities');
     const clashes = repos.flatMap((repo) => {
-      const [author, reviewer] = rolesOf(repo).map((agent) => config.profiles[agent.profile]!);
-      return sameAccount(author!, reviewer!) ? [`${repo.name}: author and reviewer both use ${identity(author!)}`] : [];
+      const author = config.profiles[repo.agents.author.profile]!;
+      const reviewer = config.profiles[repo.agents.reviewer.profile]!;
+      const lead = repo.agents.leadReviewer ? config.profiles[repo.agents.leadReviewer.profile] : undefined;
+      const issues: string[] = [];
+      if (sameAccount(author, reviewer)) issues.push(`${repo.name}: author and reviewer both use ${identity(author)}`);
+      if (lead && sameAccount(author, lead)) issues.push(`${repo.name}: author and lead reviewer both use ${identity(author)}`);
+      return issues;
     });
     report(clashes.length === 0 ? { name: 'author and reviewer are different identities', status: 'ok' } : { name: 'author and reviewer are different identities', status: 'fail', detail: clashes.join('; '), fix: fixes.clash });
   }

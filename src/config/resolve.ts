@@ -47,7 +47,7 @@ export function resolveRepoConfig(config: Config, repo: Config['repos'][number])
     return {
       profile: merged.profile,
       harness: providerConfig?.harness ?? ('claude' as HarnessName),
-      model: merged.model ?? '',
+      model: merged.model ?? providerConfig?.model ?? '',
       ...(providerConfig?.provider && { provider: providerConfig.provider }),
       ...(providerConfig?.configDir && { configDir: providerConfig.configDir }),
       ...(merged.persona && { persona: merged.persona }),

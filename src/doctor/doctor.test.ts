@@ -122,6 +122,21 @@ test('two gh profiles are one identity', async () => {
   expect(failed(checks).map((c) => c.name)).toEqual(['author and reviewer are different identities']);
 });
 
+test('lead reviewer sharing account with author fails the clash check under separate identities', async () => {
+  const cfg = config({
+    profiles: { a: { kind: 'gh' }, b: { kind: 'forge', agent: 'rev' }, c: { kind: 'gh' } },
+    agents: {
+      author: { profile: 'a', provider: 'claude', model: 'sonnet' },
+      reviewer: { profile: 'b', provider: 'codex', model: 'm' },
+      leadReviewer: { profile: 'c', provider: 'claude', model: 'sonnet' },
+    },
+  });
+  const checks = await runDoctor(cfg, deps());
+  expect(failed(checks)).toMatchObject([
+    { name: 'author and reviewer are different identities', status: 'fail', detail: expect.stringContaining('author and lead reviewer both use your gh login') },
+  ]);
+});
+
 const sharedGh = { identities: 'shared', profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } } };
 const noForge = (command: string) => command !== 'agent-forge';
 

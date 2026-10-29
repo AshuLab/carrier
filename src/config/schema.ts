@@ -17,7 +17,7 @@ export const persona = z.strictObject({
   prompt: z.string().trim().min(1).max(4000).optional(),
 });
 
-/** An AI provider account / connection without a model. */
+/** An AI provider account / connection. */
 export const aiProvider = z.strictObject({
   harness: z.enum(harnessNames),
   /** Optional default model for this provider connection. */
@@ -59,6 +59,19 @@ const chatAgentName = /^[a-z][a-z0-9-]*$/;
 
 export const failoverTriggers = ['usage_limit', 'rate_limit', 'service_down'] as const;
 export type FailoverTrigger = (typeof failoverTriggers)[number];
+
+export function matchesFailoverTrigger(
+  triggers: readonly FailoverTrigger[],
+  failureKind: string | null | undefined,
+  failureDetail?: string | null,
+): boolean {
+  if (!failureKind) return false;
+  if (triggers.includes('usage_limit') && failureKind === 'usage_limit') return true;
+  const isRateLimit = failureKind === 'api_error' && (failureDetail?.includes('429') || /rate[-_ ]?limit|overloaded/i.test(failureDetail ?? ''));
+  if (triggers.includes('rate_limit') && isRateLimit) return true;
+  if (triggers.includes('service_down') && (failureKind === 'spawn_error' || (failureKind === 'api_error' && !isRateLimit))) return true;
+  return false;
+}
 
 const failoverSchema = z.strictObject({
   enabled: z.boolean(),

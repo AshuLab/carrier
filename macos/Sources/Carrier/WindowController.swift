@@ -75,10 +75,28 @@ final class WindowController: NSObject, NSWindowDelegate {
     /// For the self-test: Escape on the About sheet, so the next choice of the item starts from no sheet.
     func dismissAbout() { model.shell.aboutInput(.escape) }
 
-    @objc private func aboutFromMenu() {
+    @objc private func aboutFromMenu() { showAbout() }
+
+    func showAbout() {
         open()
         model.shell.showAbout()
     }
+
+    // For the main menu: each opens the window (or brings it forward) first.
+
+    func show(_ selection: Selection) {
+        open()
+        model.shell.selection = selection
+    }
+
+    func search() {
+        open()
+        model.shell.perform(.search)
+    }
+
+    func toggleSidebar() { model.shell.toggleSidebar() }
+
+    func toggleInspector() { model.shell.toggleInspector() }
 
     func open(selecting epic: EpicMenuItem? = nil) { open(epic: epic.map { EpicRef(repo: $0.repo, issue: $0.issue) }) }
 
@@ -193,6 +211,7 @@ final class WindowController: NSObject, NSWindowDelegate {
     var structure: String {
         guard let window else { return "no window" }
         var lines = ["min content size: \(Int(Self.minContent.width)) x \(Int(Self.minContent.height))"]
+        lines.append("app: \(NSApp.activationPolicy() == .regular ? "in the Dock" : "no Dock icon"), menus \(NSApp.mainMenu?.items.map(\.title) ?? [])")
         func walk(_ view: NSView) {
             if let split = view as? NSSplitView {
                 // the sidebar and the detail, then the detail and the inspector: the inspector is a split of its own inside the detail
@@ -280,8 +299,17 @@ final class WindowController: NSObject, NSWindowDelegate {
             self.model.shell.perform(action)
             return nil
         }
-        window.setContentSize(NSSize(width: 1100, height: 700))
-        window.center()
+        // where it was and how big, as a Mac app keeps its window; the smoke check starts from the default so it measures the same every time
+        let restored = CommandLine.arguments.contains("--smoke-window") == false && window.setFrameAutosaveName("CarrierMainWindow")
+        // a kept frame that is smaller than the window may be, or on no screen any more (a display that went away), is not used: the window
+        // would be there and nobody could see it
+        let kept = window.contentRect(forFrameRect: window.frame).size
+        let usable = kept.width >= Self.minContent.width && kept.height >= Self.minContent.height
+            && NSScreen.screens.contains { $0.visibleFrame.intersects(window.frame) }
+        if restored == false || usable == false {
+            window.setContentSize(NSSize(width: 1100, height: 700))
+            window.center()
+        }
         NotificationCenter.default.addObserver(self, selector: #selector(windowClosed), name: NSWindow.willCloseNotification, object: window)
         return window
     }
@@ -292,7 +320,7 @@ final class WindowController: NSObject, NSWindowDelegate {
     }
 
     @objc private func windowClosed() {
-        NSApp.setActivationPolicy(.accessory)
+        // the app stays in the Dock and the menu bar: a closed window is a closed window, and the Dock icon opens it again
         stop?.set()
         stop = nil
         model.state = nil

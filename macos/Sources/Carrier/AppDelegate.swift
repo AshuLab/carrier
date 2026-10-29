@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var triedStartOnOpen = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        installMainMenu()
         // before anything reads the socket path: the fake engine's home becomes CARRIER_HOME
         if let fixtures = Self.fixturesPath() { startFixtureMode(fixtures) }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -63,8 +64,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if let path = Self.selfTestPath() {
             selfTest(logPath: path)
+        } else if CommandLine.arguments.contains("--smoke-window") == false {
+            // an app opens on its window
+            WindowController.shared.open()
         }
     }
+
+    /// A click on the Dock icon with no window open opens it.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if flag == false { WindowController.shared.open() }
+        return true
+    }
+
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? { dockMenu() }
 
     /// Keeps the menu line current from a thread of its own; the title is set on the main queue, which also runs while the menu is open.
     private func watchCarrier(_ line: NSMenuItem) {

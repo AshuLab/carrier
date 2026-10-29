@@ -1,4 +1,5 @@
 import { accessSync, constants } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, gt } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
@@ -198,6 +199,9 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
     onLiveChange();
   };
 
+  /** What each agent offered when it was last asked (a draft lists the models before a session exists), kept ten minutes. */
+  const offered = new Map<string, { at: number; options: Promise<ChatOption[]> }>();
+
   return {
     liveCount: () => lives.size,
     clientJoined() {
@@ -252,6 +256,34 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
       }
       attach(created.id, conversation);
       return { session: summary(created), options: conversation.options };
+    },
+
+    /**
+     * The options an agent offers, with the values it would start with, before any session exists: it starts the agent in a folder of
+     * nobody's, reads what it lists and ends it. Kept ten minutes, and a failure is not kept.
+     */
+    async agentOptions({ agent }: { agent: string }) {
+      const chosen = chatAgents(config).find((candidate) => candidate.name === agent);
+      if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
+      const runner = runners[chosen.harness];
+      if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
+      const known = offered.get(agent);
+      if (known !== undefined && clock.now() - known.at < 10 * 60_000) return { options: await known.options };
+      const options = (async () => {
+        const conversation = await openConversation(chosen, runner, { folder: tmpdir(), options: { ...(chosen.model && { model: chosen.model }), ...chosen.options } });
+        try {
+          return [...conversation.options];
+        } finally {
+          await conversation.close().catch((error) => log.error('closing the agent that listed its options failed', error));
+        }
+      })();
+      offered.set(agent, { at: clock.now(), options });
+      try {
+        return { options: await options };
+      } catch (error) {
+        offered.delete(agent);
+        throw error;
+      }
     },
 
     /** Opens a closed session again from its stored native id, folder and options; a live one is just attached to. */

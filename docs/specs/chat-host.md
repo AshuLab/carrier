@@ -50,6 +50,7 @@ Text is redacted first and then cut, as in [0006](../adr/0006-agent-events-store
 { cmd: 'answer'; sessionId: string; approvalId: string; choiceId: string }
 { cmd: 'interrupt'; sessionId: string }
 { cmd: 'setOption'; sessionId: string; option: string; value: string }
+{ cmd: 'agentOptions'; agent: string }   // what an agent offers before a session exists: it is started in a folder of nobody's, read and ended; kept ten minutes
 { cmd: 'close'; sessionId: string }
 { cmd: 'archive'; sessionId: string; archived: boolean }
 { cmd: 'delete'; sessionId: string }

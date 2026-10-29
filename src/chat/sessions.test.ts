@@ -167,6 +167,29 @@ test('setOption changes an option of a live session: the adapter applies it, an 
   expect(rows('sessions')[0].options).toBe(JSON.stringify({ mode: 'default' })); // the session records the options it runs with
 });
 
+test('agentOptions starts the agent, reads what it offers, ends it, and asks again only after ten minutes', async () => {
+  const { sessions, claude, clock } = setup();
+  claude.setup = offering(['model', ['haiku', 'opus'], 'haiku']);
+  const first = await sessions.agentOptions({ agent: 'claude' });
+  expect(first.options).toMatchObject([{ id: 'model', current: 'haiku' }]);
+  expect(claude.conversations.map((c) => c.closed)).toEqual([true]);
+  expect(rows('sessions')).toEqual([]); // no session is made for it
+  await sessions.agentOptions({ agent: 'claude' });
+  expect(claude.opened.length).toBe(1); // the answer is kept
+  clock.time += 11 * 60_000;
+  await sessions.agentOptions({ agent: 'claude' });
+  expect(claude.opened.length).toBe(2);
+  await expect(sessions.agentOptions({ agent: 'nope' })).rejects.toThrow('no chat agent named "nope"');
+});
+
+test('a failure of agentOptions is not kept: the next ask tries again', async () => {
+  const { sessions, claude } = setup();
+  claude.refuseWith = 'claude is not logged in';
+  await expect(sessions.agentOptions({ agent: 'claude' })).rejects.toThrow('claude is not logged in');
+  claude.refuseWith = undefined;
+  await expect(sessions.agentOptions({ agent: 'claude' })).resolves.toBeDefined();
+});
+
 test('setOption refuses, with the reason and changing nothing, an unlisted option, a value not offered, a closed session and a missing one', async () => {
   const { sessions, conversation, id } = await openOne();
   conversation.options = [{ id: 'mode', label: 'Mode', values: [{ id: 'plan', label: 'Plan' }], current: 'plan' }];

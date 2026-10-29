@@ -34,6 +34,7 @@ const controls = (): ChatControls => ({
   answer: ({ approvalId, choiceId }) => ({ approvalId, choiceId }),
   interrupt: async () => ({}),
   setOption: async ({ option, value }) => ({ option, value }),
+  agentOptions: async ({ agent }) => ({ agent }),
   events: ({ after = 0 }) => ({ after }),
   close: async () => ({}),
   archive: async ({ archived }) => ({ archived }),
@@ -85,7 +86,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'stop'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'stop'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -110,6 +111,15 @@ test('answer is a strict request with a session, an approval and a choice', asyn
   await open();
   const c = await client();
   expect(await c.ask(`{"id":1,"cmd":"answer","sessionId":"${uuid}","approvalId":"a","choiceId":"deny"}`)).toEqual({ id: 1, ok: true, data: { approvalId: 'a', choiceId: 'deny' } });
+});
+
+test('agentOptions takes the name of an agent and nothing else', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask('{"id":1,"cmd":"agentOptions","agent":"claude"}')).toEqual({ id: 1, ok: true, data: { agent: 'claude' } });
+  expect(await c.ask('{"id":2,"cmd":"agentOptions"}')).toEqual({ id: 2, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":3,"cmd":"agentOptions","agent":""}')).toEqual({ id: 3, ok: false, error: 'invalid request' });
+  expect(await c.ask('{"id":4,"cmd":"agentOptions","agent":"claude","folder":"/"}')).toEqual({ id: 4, ok: false, error: 'invalid request' });
 });
 
 test('setOption is a strict request with a session, an option and a value', async () => {

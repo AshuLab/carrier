@@ -170,7 +170,7 @@ struct WorkspaceSheet: View {
                     Text((path as NSString).abbreviatingWithTildeInPath).font(.subheadline).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
                 }
                 Spacer(minLength: 8)
-                if hovering { hint("Work here", "arrow.right.circle") }
+                RowHint(text: "Open", shown: hovering)
             }
             .padding(.horizontal, 10).padding(.vertical, 7)
         }
@@ -297,7 +297,7 @@ struct WorkspaceSheet: View {
                 }
                 Spacer(minLength: 8)
                 if row.watched { badge("Watched", "eye.fill", .green) }
-                if hovering && model.cloning == nil { hint("Clone", "arrow.down.circle") }
+                RowHint(text: "Clone", shown: hovering && model.cloning == nil)
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
         }
@@ -430,16 +430,7 @@ struct WorkspaceSheet: View {
         Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.bottom, 2)
     }
 
-    /// What a state of a repository is, in a word and an icon, in its colour: indigo is private, green is watched.
-    private func badge(_ text: String, _ icon: String, _ tint: Color) -> some View {
-        Label(text, systemImage: icon).font(.caption.weight(.medium)).foregroundStyle(tint)
-            .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(tint.opacity(0.14)))
-    }
-
-    /// What a click on the row under the pointer does.
-    private func hint(_ text: String, _ icon: String) -> some View {
-        Label(text, systemImage: icon).font(.subheadline.weight(.medium)).foregroundStyle(Color.accentColor)
-    }
+    private func badge(_ text: String, _ icon: String, _ tint: Color) -> some View { Badge(text: text, icon: icon, tint: tint) }
 
     // MARK: Actions
 
@@ -472,23 +463,5 @@ struct WorkspaceSheet: View {
         panel.allowsMultipleSelection = false
         panel.prompt = "Choose"
         if panel.runModal() == .OK, let url = panel.url { dismiss(); Task { await model.choose(folder: url.path) } }
-    }
-}
-
-/// A row that is a button: it takes a faint fill under the pointer, or `fill` when it is the chosen one.
-private struct HoverRow<Content: View>: View {
-    let action: () -> Void
-    var fill: Color?
-    @ViewBuilder let content: (Bool) -> Content
-    @State private var hovering = false
-    @Environment(\.isEnabled) private var enabled
-
-    var body: some View {
-        Button(action: action) {
-            content(hovering && enabled).frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .background(RoundedRectangle(cornerRadius: 8).fill(fill ?? (hovering && enabled ? Color.secondary.opacity(0.14) : .clear)))
-        .onHover { hovering = $0 }
     }
 }

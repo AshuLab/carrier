@@ -9,7 +9,6 @@ struct NewSessionView: View {
     let opened: (String) -> Void
     @State private var foldersOpen = false
     @State private var branchesOpen = false
-    @State private var branchQuery = ""
     @FocusState private var boxFocused: Bool
 
     var body: some View {
@@ -36,7 +35,7 @@ struct NewSessionView: View {
                     .font(.callout).padding(.leading, 4)
                 }
             }
-            .frame(maxWidth: 640)
+            .frame(maxWidth: 820)
             Spacer(minLength: 0)
             Spacer(minLength: 0)
         }
@@ -138,7 +137,7 @@ struct NewSessionView: View {
         Text("from")
         Button { branchesOpen.toggle() } label: { chip(model.startBranch ?? "Choose a branch…") }
             .buttonStyle(.plain)
-            .popover(isPresented: $branchesOpen, arrowEdge: .bottom) { branches }
+            .sheet(isPresented: $branchesOpen) { BranchSheet(model: model) }
     }
 
     private var nameColor: Color {
@@ -147,55 +146,6 @@ struct NewSessionView: View {
 
     private var nameBorder: Color {
         if case .problem = model.nameState { .red } else { .clear }
-    }
-
-    /// The branch picker: a search, the local and the remote branches in two sections, and Fetch now with when it last did.
-    private var branches: some View {
-        let picker = model.picker(query: branchQuery)
-        return VStack(alignment: .leading, spacing: 6) {
-            TextField("Search branches", text: $branchQuery).textFieldStyle(.roundedBorder)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    branchSection("Local", picker?.local ?? [])
-                    branchSection("Remote", picker?.remote ?? [])
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(height: 220)
-            Divider()
-            HStack {
-                Text(picker?.fetched ?? "").font(.caption).foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                Button(model.fetching ? "Fetching…" : "Fetch now") { Task { await model.fetchNow() } }
-                    .controlSize(.small).disabled(model.fetching)
-            }
-            if let problem = model.fetchProblem { Text(problem).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
-        }
-        .padding(10).frame(width: 300)
-    }
-
-    @ViewBuilder private func branchSection(_ title: String, _ rows: [BranchRow]) -> some View {
-        if rows.isEmpty == false {
-            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.vertical, 4)
-            ForEach(rows, id: \.name) { row in
-                Button { model.choose(startBranch: row.name); branchesOpen = false } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark").opacity(model.startBranch == row.name ? 1 : 0).font(.caption)
-                        Text(row.name).lineLimit(1).truncationMode(.middle)
-                        if row.checkedOut { tag("checked out") }
-                        if row.isDefault { tag("default") }
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).padding(.horizontal, 8).padding(.vertical, 3)
-            }
-        }
-    }
-
-    private func tag(_ text: String) -> some View {
-        Text(text).font(.caption2).foregroundStyle(.secondary)
-            .padding(.horizontal, 5).padding(.vertical, 1).background(Capsule().fill(Color.secondary.opacity(0.15)))
     }
 
     private var box: some View {

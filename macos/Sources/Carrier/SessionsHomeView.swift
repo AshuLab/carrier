@@ -19,7 +19,9 @@ struct SessionsHomeView: View {
         let page = sessionsPage(sessions.rows, by: sort, query: query ?? "", filter: filter)
         let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         Group {
-            if let empty = page.emptyState {
+            if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
+                EmptyStateView(icon: "exclamationmark.triangle", title: notice.title, line: notice.line)
+            } else if let empty = page.emptyState {
                 VStack(alignment: .leading, spacing: 0) {
                     if filter.chips.isEmpty == false { chips.padding(.horizontal, 20).padding(.vertical, 8) }
                     EmptyStateView(state: empty, action: empty == .noSessionsMatch ? ("Clear filters", clear) : nil)

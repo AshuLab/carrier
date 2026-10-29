@@ -36,7 +36,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
         watchCarrier(stateLine)
         SystemNotificationCentre.shared.attachDelegate()
-        SetupController.shared.detectIfFirstLaunch()
+        // the host starts when the app opens, once the settings are known; the self-test only checks what would run
+        let underSelfTest = CommandLine.arguments.contains("--selftest")
+        SetupController.shared.detectIfFirstLaunch { if underSelfTest == false { ChatHostStarter.shared.checkAtOpen() } }
 
         if CommandLine.arguments.contains("--smoke-window") {
             WindowController.shared.open()

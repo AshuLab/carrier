@@ -37,17 +37,17 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 ## What's included
 
 - **Setup** — `carrier init` (guided, or all flags) writes the config; `carrier doctor` checks it and the machine; `carrier schema` prints the config's JSON Schema.
-- **Run without a terminal** — `carrier start --config <path>` launches Carrier as a detached run (its own session, its output in `<root>/orchestrator/logs/start.log`) and returns once the control socket answers, within 15 seconds; on a root where Carrier already runs it says so, does nothing and exits 0, and if it does not come up it prints the end of the log and exits 1. `carrier stop`, `pause`, `resume` and `check` do from any terminal what the panel's `Ctrl+C`, `p` and `r` do (`check` looks at GitHub now) and confirm in one line: exit 0 on success (`stop` also when none runs), 1 when no Carrier runs (or answers), 2 when it speaks another protocol. See [ADR 0010](docs/adr/0010-carrier-runs-in-the-background-as-a-detached-process.md).
+- **Run without a terminal** — `carrier start --config <path>` launches Carrier as a detached run (its own session, its output in `<folder>/engine/logs/start.log`) and returns once the control socket answers, within 15 seconds; in a Carrier folder where Carrier already runs it says so, does nothing and exits 0, and if it does not come up it prints the end of the log and exits 1. `carrier stop`, `pause`, `resume` and `check` do from any terminal what the panel's `Ctrl+C`, `p` and `r` do (`check` looks at GitHub now) and confirm in one line: exit 0 on success (`stop` also when none runs), 1 when no Carrier runs (or answers), 2 when it speaks another protocol. See [ADR 0010](docs/adr/0010-carrier-runs-in-the-background-as-a-detached-process.md).
 - **Status** — `carrier status` prints the panel of the running Carrier once, from any terminal; exit 0 it runs, 1 it is not running, 2 it speaks another protocol. `carrier watch` attaches the live panel to it with the same keys as the foreground one, except `q` (and `Ctrl+C`) only leave: Carrier keeps running. It exits 1 when none runs or when the Carrier it watches stops. Both show each epic's stage history (running, needing you, or ready for test), asked over the socket; a Carrier that does not list `sessions` in its hello is drawn from the snapshot alone, and an epic whose request fails is drawn without it.
 - **Restart a stopped epic** — `carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>]` resumes an epic in needs-human from the terminal (the `resumeEpic` request of the socket), on the agent option of each role you choose. In a terminal and without flags it asks for each role, with the current option preselected and the role that failed marked; without a terminal it keeps the current options. The same option continues the agent's session with `--resume`; another one starts a new session in the epic's worktree and pull request, rebuilt from SQLite and GitHub like a lost session. It prints one line and exits 0; a refusal prints the engine's reason and exits 1 (so does no Carrier running), a malformed argument or another protocol exits 2. It needs an engine that lists `agentOptions` in its hello.
 - **Chat host** — `carrier chat --workspace <folder> [--agent <name>]` opens a conversation (it prints the answer as it streams; `/quit` leaves and the session stays open), `carrier chat --list [--archived]`, `--archive`, `--unarchive` and `--delete <id>` (deleting leaves nothing of the session; a working one is refused) talk to the chat host, a process of its own that keeps everything in `<folder>/chat/` (the Carrier folder, `~/.carrier` or `CARRIER_HOME`), and starts it detached when none answers. It needs no engine config: with nothing but the Carrier folder it starts, and its optional settings are in `<folder>/chat/chat.json` ([configuration](docs/configuration.md#chat-configuration)). It ends by itself a minute after the last client leaves, or at once with `carrier chat --stop`. The engine and the host run side by side and neither's stop touches the other. `carrier chat-host` runs it in the foreground. See [ADR 0013](docs/adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md) and [the spec](docs/specs/chat-host.md).
 - **Config** — a user JSON file merged over defaults, validated with Zod at startup with one error per field; per-repo overrides for identity, agent option and persona; under separate identities (the default) author and reviewer must resolve to different profiles.
-- **Polling and queue** — FIFO across repos with pagination, rate-limit and outage handling; one instance per root folder (an exclusive SQLite lock released by the OS on death).
+- **Polling and queue** — FIFO across repos with pagination, rate-limit and outage handling; one instance per Carrier folder (an exclusive SQLite lock released by the OS on death).
 - **Scheduler** — atomic reservation, configurable concurrency, label management (`running`, `ready-for-test`, `needs-human` are created in each repo if missing).
 - **Stages** — ship, review and fix loops with a typed caller result (`completed`, `changes_requested`, `needs_human`) imported idempotently in a single transaction.
 - **Failure handling** — execution retries with session resume, per-execution timeouts (or `unlimited`), Forge authentication errors that stop only the affected profile, repos removed from config, and a stop rule when the final PR is merged or the epic is closed.
 - **Agent runners** — real adapters for the Claude, Codex and Antigravity (`agy`) CLIs (cloud models, or local ones from LM Studio or Ollama through Claude and Codex) as child processes (session id, resume, output capture, stop, orphan detection), with per-execution credentials and the bot's git identity.
-- **Workspaces** — managed clones under a shared root, and a separate detached checkout for the reviewer.
+- **Workspaces** — managed clones in `<folder>/engine/repos/`, and a separate detached checkout for the reviewer in `<folder>/engine/reviews/`; an epic's worktree is found with git, wherever it is.
 - **Terminal panel** — a dependency-free ANSI dashboard: uptime, repos watched and the next check, slots, a card per running epic (stage chain, review round, blockers, time in stage, last activity, links, errors), the queue, epics that need you and the ones ready for test, a hint when it is idle, and below it the epics that ended inside the finished window: DONE (merged) and CANCELLED (closed without a merge, with the stored reason), ten each and a `+N more` line; plain lines when there is no TTY. On a terminal it reads keys; a row is always selected (highlighted), each running card shows a `now` line of what its agent is doing (three lines when selected), and the footer lists only the keys that apply: `↑`/`↓` (or `j`/`k`) select, `enter` opens the PR or issue, `l` shows the agent's output, `r` checks GitHub now, `p` pauses or resumes taking new epics, `?` lists them, `q` quits like `Ctrl+C` (stops Carrier; in `watch` it only leaves).
 - **Logging** — [`@ashulab/universal-logger`](https://github.com/AshuLab/universal-logger) to files, with token redaction, and 30-day retention of logs and sessions.
 - **Tests** — unit tests with fakes and a temp SQLite; gated integration tests with real tools.
@@ -75,7 +75,7 @@ It is built to survive interruptions: SQLite is the source of truth and labels a
 carrier/
 ├── src/
 │   ├── terminal/       # everything a terminal user sees; a web UI would be a sibling of this folder
-│   │   ├── cli/        #   the command line: args, commands/ (run, start, stop/pause/resume/check, status, watch, init, doctor, schema), the control-socket client, config file, composition root, Ctrl+C
+│   │   ├── cli/        #   the command line: args, commands/ (run, start, stop/pause/resume/check, status, watch, init, doctor, schema), the control-socket client, config file, the wiring of the real engine, Ctrl+C
 │   │   ├── prompts/    #   the terminal contract (`Ui`) and its clack implementation: prompts, spinners, check lines
 │   │   ├── wizard/     #   `carrier init`: the flow, what it asks (questions/), what it needs from the machine (deps), the recap
 │   │   └── dashboard/  #   the panel: renderers (dashboard, plain), keys and their state, agent-output tail, each epic's stage history
@@ -164,7 +164,7 @@ A JSON file merged over the defaults (objects merge by field, simple values repl
 }
 ```
 
-Defaults: `root` `~/.solve`, `pollIntervalMinutes` 5, `logLevel` `info`, and `limits` of `maxConcurrentEpics` 3, `maxReviews` 5, `maxExecutionRetries` 3, `maxExecutionHours` 4 (or `"unlimited"`), `githubCallTimeoutSeconds` 30. Identity, provider, model and persona for author and reviewer can be overridden per repo; an AI provider (`providers`) is a harness, optional local server provider and optional config folder. The file holds no secrets: a profile is `{ "kind": "forge", "agent": ... }` or `{ "kind": "gh" }`.
+Defaults: `pollIntervalMinutes` 5, `logLevel` `info`, and `limits` of `maxConcurrentEpics` 3, `maxReviews` 5, `maxExecutionRetries` 3, `maxExecutionHours` 4 (or `"unlimited"`), `githubCallTimeoutSeconds` 30. Identity, provider, model and persona for author and reviewer can be overridden per repo; an AI provider (`providers`) is a harness, optional local server provider and optional config folder. The file holds no secrets: a profile is `{ "kind": "forge", "agent": ... }` or `{ "kind": "gh" }`.
 
 ### 4. Run it
 
@@ -172,7 +172,7 @@ Defaults: `root` `~/.solve`, `pollIntervalMinutes` 5, `logLevel` `info`, and `li
 carrier
 ```
 
-`carrier` reads `~/.carrier/config.json`; pass `--config <path>` to use another file. It holds the terminal and runs until `Ctrl+C`; to leave it running with the terminal closed, use `carrier start` instead (see [What's included](#whats-included)). Only one instance can run per root folder. From a clone, run `pnpm build` and then `node dist/terminal/cli/main.js`, or `node src/terminal/cli/main.ts --config ...` (Node 26 runs the TypeScript directly).
+`carrier` reads `~/.carrier/config.json`; pass `--config <path>` to use another file. It holds the terminal and runs until `Ctrl+C`; to leave it running with the terminal closed, use `carrier start` instead (see [What's included](#whats-included)). Only one instance can run per Carrier folder. From a clone, run `pnpm build` and then `node dist/terminal/cli/main.js`, or `node src/terminal/cli/main.ts --config ...` (Node 26 runs the TypeScript directly).
 
 Mark an epic `solve:epic:ready` in a configured repo and watch the panel.
 
@@ -194,11 +194,12 @@ Carrier's folder is `~/.carrier/` (override it with `CARRIER_HOME`). The engine'
 
 - `chat/state/` — the chat host's `chat.db`, `chat.sock` and lock; `chat/logs/` — its logs; `chat/projects/` — the repositories it clones; `chat/worktrees/` — the worktrees of the sessions that ask for one; `chat/chat.json` — its optional settings ([configuration](docs/configuration.md#chat-configuration)).
 
-The engine's files are under `root` (default `~/.solve/`), shared with Solve:
+The engine keeps its files in `~/.carrier/engine/`, in the same Carrier folder; only Carrier writes there, and `--config` changes which config file is read, never this folder:
 
-- `repos/<org>/<repo>/` — managed clones.
-- `worktrees/<repo>/<feature>/` — workspaces created by Solve; `reviews/<repo>/<epic>/` — the reviewer's separate checkout.
-- `orchestrator/` — `carrier.db` (SQLite), `logs/orchestrator.log` and `logs/executions/<id>/` with each agent's full output. Logs and sessions of a finished or cancelled epic are deleted after 30 days; SQLite and workspaces are never touched.
+- `engine/state/` — `carrier.db` (SQLite), `control.sock` and `carrier.lock`.
+- `engine/logs/` — `orchestrator.log`, `executions/<id>/` with each agent's full output, and `start.log`. Logs and sessions of a finished or cancelled epic are deleted after 30 days; SQLite and worktrees are never touched.
+- `engine/repos/<org>/<repo>/` — managed clones; `engine/reviews/<repo>/<epic>/` — the reviewer's separate checkout.
+- `engine/worktrees/<repo>/<feature>/` — where Carrier keeps an epic's worktree by default; any other place works, since Carrier finds a worktree with git.
 
 ## Developing against a throwaway folder
 
@@ -229,7 +230,7 @@ Unattended agents run with **your** permissions: Claude with permissions bypasse
 - Using it: [configuration](docs/configuration.md), [preparing a repo](docs/preparing-a-repo.md) and [troubleshooting](docs/troubleshooting.md).
 - [Specs](docs/specs/) (the orchestrator's is [autonomous-orchestrator](docs/specs/autonomous-orchestrator.md)), [glossary](docs/glossary.md) and the [macOS app](macos/README.md).
 - [ADRs](docs/adr/) — coordination vs. evaluation, SQLite as the authority, agents on the host (which replaces the container ADR 0003), the engine independent of the macOS app, and Carrier running detached on demand, not as a login service.
-- [Research](docs/research/) — headless agents, Antigravity, Agent Forge, logging and panel, shared root, containers (dropped, kept as reference).
+- [Research](docs/research/) — headless agents, Antigravity, Agent Forge, logging and panel, containers (dropped, kept as reference).
 - [`AGENTS.md`](AGENTS.md) — entry point for coding agents working in this repo.
 
 ## License

@@ -4,6 +4,29 @@
 
 The file is a JSON object merged over the defaults: objects merge field by field, simple values replace the default, lists replace it whole. A value of the wrong type is an error, never converted. An invalid config prints every error with its field and exits without starting anything.
 
+## The Carrier folder
+
+Carrier keeps everything it owns in one folder: `~/.carrier/`, or the one in `CARRIER_HOME`. The folder is only that: no key of the config and no `--config` changes it. `--config <file>` only chooses which config file to read (by default `<folder>/config.json`); to run a second Carrier, give it a second `CARRIER_HOME`.
+
+```
+<folder>/
+  config.json   the engine's config, this page
+  engine/       the engine's own folder; only Carrier writes in it
+  chat/         the chat host's own folder (see Chat configuration)
+```
+
+What each part of `engine/` holds:
+
+| Folder | Holds |
+|--------|-------|
+| `state/` | `carrier.db` (SQLite, the authority), `control.sock` (the control socket the CLI and the app use), `carrier.lock` (one engine per folder), the results of each execution, and `forge-cwd/<owner>/<name>` (the stub folder Forge runs in before a repo's first clone). |
+| `logs/` | `orchestrator.log`, `executions/<id>/` (each agent run's full output), and `start.log` (what a detached Carrier prints; the macOS app's start writes `app-start.log`). |
+| `repos/` | Carrier's clones, `<owner>/<repo>`. |
+| `reviews/` | The reviewer's separate checkouts. |
+| `worktrees/` | `<repo>/<feature>/`, Carrier's own place for an epic's worktree by default. Any other place works: Carrier finds an epic's worktree with `git worktree list`. |
+
+The socket path has a length limit (about 100 bytes), so keep a `CARRIER_HOME` short; `carrier doctor` warns when `engine/state/control.sock` does not fit.
+
 ## Minimal file
 
 ```json

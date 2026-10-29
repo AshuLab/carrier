@@ -17,10 +17,10 @@ const valid = {
   repos: [{ name: 'AshuLab/carrier' }],
   profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } },
   orchestratorProfile: 'a',
-  agentOptions: { claude: { harness: 'claude', model: 'm' }, codex: { harness: 'codex', model: 'm' } },
+  providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } },
   agents: {
-    author: { profile: 'a', option: 'claude' },
-    reviewer: { profile: 'b', option: 'codex' },
+    author: { profile: 'a', provider: 'claude', model: 'm' },
+    reviewer: { profile: 'b', provider: 'codex', model: 'm' },
   },
 };
 
@@ -133,6 +133,32 @@ test('init without a terminal names the question a flag has to answer', () => {
   expect(result.stderr).toContain('Repos to watch');
   expect(result.stderr).toContain('pass it as a flag');
 });
+
+test('init with --lead-reviewer flags forwards them and configures the lead reviewer', () => {
+  const out = join(dir, 'init-lead.json');
+  const result = run(
+    'init',
+    '--repo', 'AshuLab/carrier',
+    '--author-profile', 'forge:artanis-agent',
+    '--reviewer-profile', 'gh',
+    '--author', 'claude:sonnet',
+    '--reviewer', 'codex:gpt-test',
+    '--lead-reviewer', 'claude:opus',
+    '--lead-reviewer-profile', 'gh',
+    '--lead-reviewer-persona-name', 'Architect',
+    '--lead-reviewer-persona-prompt', 'Be rigorous.',
+    '--out', out,
+    '--yes',
+  );
+  expect(result.status).toBe(0);
+  const config = JSON.parse(readFileSync(out, 'utf8'));
+  expect(config.agents.leadReviewer).toEqual({
+    profile: 'gh',
+    provider: 'claude',
+    model: 'opus',
+    persona: { name: 'Architect', prompt: 'Be rigorous.' },
+  });
+}, 15_000);
 
 test('doctor refuses an invalid config like the run command does', () => {
   const result = run('doctor', '--config', write('doctor-bad.json', { ...valid, orchestratorProfile: 'x' }));

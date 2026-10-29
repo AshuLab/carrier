@@ -37,10 +37,10 @@ const loaded = loadConfig(defaults, {
   repos: [{ name: 'AshuLab/a' }],
   profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } },
   orchestratorProfile: 'a',
-  agentOptions: { claude: { harness: 'claude', model: 'm' } }, // one option: no epic waits for its choice
+  providers: { claude: { harness: 'claude' } },
   agents: {
-    author: { profile: 'a', option: 'claude' },
-    reviewer: { profile: 'b', option: 'claude' },
+    author: { profile: 'a', provider: 'claude', model: 'm' },
+    reviewer: { profile: 'b', provider: 'claude', model: 'm' },
   },
   limits: { maxConcurrentEpics: 2 },
 });

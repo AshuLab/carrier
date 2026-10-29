@@ -3,7 +3,9 @@ import type { Ui } from '../../prompts/types.ts';
 import type { Persona } from '../build-config.ts';
 
 /** The persona of a role: first a choice (default, or set one; when editing, keep the current), so skipping reads as an answer; then a name and a prompt, each skippable by leaving it empty; when editing, empty keeps the current value and `-` clears it. The limits are the schema's. A flag answers ahead of time and, outside the limits, is an error naming it. */
-export async function askPersona(ui: Ui, role: 'author' | 'reviewer', given: { name?: string; prompt?: string }, interactive: boolean, current?: Persona): Promise<Persona | undefined> {
+export async function askPersona(ui: Ui, role: 'author' | 'reviewer' | 'lead reviewer', given: { name?: string; prompt?: string }, interactive: boolean, current?: Persona): Promise<Persona | undefined> {
+  const roleName = role.split(' ').map((w) => `${w[0]!.toUpperCase()}${w.slice(1)}`).join(' ');
+  const flagPrefix = role.replace(/\s+/g, '-');
   const field = async (key: 'name' | 'prompt', flag: string | undefined): Promise<string | undefined> => {
     const refusal = (value: string) => {
       const parsed = persona.shape[key].safeParse(value);
@@ -11,7 +13,7 @@ export async function askPersona(ui: Ui, role: 'author' | 'reviewer', given: { n
     };
     if (flag !== undefined) {
       const problem = refusal(flag);
-      if (problem !== undefined) throw new Error(`--${role}-persona-${key}: ${problem}`);
+      if (problem !== undefined) throw new Error(`--${flagPrefix}-persona-${key}: ${problem}`);
       return flag.trim();
     }
     if (!interactive) return undefined;
@@ -24,7 +26,6 @@ export async function askPersona(ui: Ui, role: 'author' | 'reviewer', given: { n
     });
     return answer.trim() === '-' && kept ? undefined : answer.trim() || undefined;
   };
-  const roleName = `${role[0]!.toUpperCase()}${role.slice(1)}`;
   if (interactive && given.name === undefined && given.prompt === undefined) {
     const summary = current && [current.name, current.prompt && (current.prompt.length > 40 ? `${current.prompt.slice(0, 39)}…` : current.prompt)].filter(Boolean).join(' · ');
     const choice = await ui.select({

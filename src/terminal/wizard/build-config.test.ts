@@ -1,15 +1,20 @@
 import { expect, test } from 'vitest';
 import { defaults, loadConfig } from '../../config/load.ts';
-import { buildConfig, parseHarnessModel, parseIdentity, type AgentOption } from './build-config.ts';
+import { buildConfig, parseHarnessModel, parseIdentity, type AIProvider } from './build-config.ts';
 
-const options: Record<string, AgentOption> = { claude: { harness: 'claude', model: 'sonnet' }, codex: { harness: 'codex', model: 'x:y' } };
-const answers = { repos: ['A/b'], author: { identity: parseIdentity('gh'), option: 'claude' }, reviewer: { identity: parseIdentity('forge:bot'), option: 'codex' }, options };
+const providers: Record<string, AIProvider> = { claude: { harness: 'claude' }, codex: { harness: 'codex' } };
+const answers = {
+  repos: ['A/b'],
+  author: { identity: parseIdentity('gh'), provider: 'claude', model: 'sonnet' },
+  reviewer: { identity: parseIdentity('forge:bot'), provider: 'codex', model: 'x:y' },
+  providers,
+};
 
-test('buildConfig names a forge profile after its agent and the login "gh", and points each role at its option', () => {
+test('buildConfig names a forge profile after its agent and the login "gh", and points each role at its provider and model', () => {
   const config = buildConfig(answers);
   expect(config.profiles).toEqual({ gh: { kind: 'gh' }, bot: { kind: 'forge', agent: 'bot' } });
-  expect(config.agents.reviewer).toEqual({ profile: 'bot', option: 'codex' });
-  expect(config.agentOptions).toEqual(options);
+  expect(config.agents.reviewer).toEqual({ profile: 'bot', provider: 'codex', model: 'x:y' });
+  expect(config.providers).toEqual(providers);
   expect(loadConfig(defaults, config).ok).toBe(true);
   expect(() => parseIdentity('forge')).toThrow('invalid identity');
   expect(parseHarnessModel('codex:x:y')).toEqual({ harness: 'codex', model: 'x:y' });
@@ -17,7 +22,7 @@ test('buildConfig names a forge profile after its agent and the login "gh", and 
 });
 
 test('buildConfig writes identities only when shared, with one profile for both roles', () => {
-  const same = { ...answers, reviewer: { identity: parseIdentity('gh'), option: 'codex' } };
+  const same = { ...answers, reviewer: { identity: parseIdentity('gh'), provider: 'codex', model: 'x:y' } };
   expect(buildConfig({ ...same, identities: 'separate' })).not.toHaveProperty('identities');
   const shared = buildConfig({ ...same, identities: 'shared' });
   expect(shared).toMatchObject({ identities: 'shared', profiles: { gh: { kind: 'gh' } }, orchestratorProfile: 'gh' });
@@ -34,7 +39,11 @@ test('buildConfig writes a persona only when given, and the config loads', () =>
 
 test('buildConfig writes the failover block only when given, and a config with folders and a block loads', () => {
   expect(buildConfig(answers)).not.toHaveProperty('failover');
-  const config = buildConfig({ ...answers, options: { ...options, personal: { harness: 'claude', model: 'opus', configDir: '~/.claude-personal' } }, failover: { enabled: true, order: ['personal', 'codex'] } });
-  expect(config.failover).toEqual({ enabled: true, order: ['personal', 'codex'] });
+  const config = buildConfig({
+    ...answers,
+    providers: { ...providers, personal: { harness: 'claude', configDir: '~/.claude-personal' } },
+    failover: { enabled: true, default: ['personal', 'codex'] },
+  });
+  expect(config.failover).toEqual({ enabled: true, default: ['personal', 'codex'] });
   expect(loadConfig(defaults, config).ok).toBe(true);
 });

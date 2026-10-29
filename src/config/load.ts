@@ -31,7 +31,7 @@ function merge(base: unknown, override: unknown): unknown {
   return result;
 }
 
-const movedKeys = ['harness', 'model', 'provider'];
+const movedKeys = ['option'];
 
 export function loadConfig(base: unknown, user: unknown): LoadResult {
   const parsed = configSchema.safeParse(merge(base, user));
@@ -40,10 +40,16 @@ export function loadConfig(base: unknown, user: unknown): LoadResult {
     ok: false,
     errors: parsed.error.issues.flatMap((issue): ConfigError[] => {
       const path = issue.path.join('.') || '(root)';
-      // The old shape: say where the fields went instead of calling them unknown.
-      const moved = issue.code === 'unrecognized_keys' && issue.path.includes('agents') ? issue.keys.filter((key) => movedKeys.includes(key)) : [];
-      if (moved.length === 0) return [{ path, message: issue.message }];
-      return moved.map((key) => ({ path: `${path}.${key}`, message: `"${key}" moved to agentOptions: declare it in an agent option and point the role at it with "option" (see docs/configuration.md)` }));
+      if (issue.code === 'unrecognized_keys' && issue.path.includes('agents')) {
+        const moved = issue.keys.filter((key) => movedKeys.includes(key));
+        if (moved.length > 0) {
+          return moved.map((key) => ({
+            path: `${path}.${key}`,
+            message: `"${key}" was replaced by "provider" and "model" directly on the agent (see docs/configuration.md)`,
+          }));
+        }
+      }
+      return [{ path, message: issue.message }];
     }),
   };
 }

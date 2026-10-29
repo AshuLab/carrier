@@ -727,11 +727,11 @@ test('a usage limit does not count in the retry streak', async () => {
 });
 
 // Failover: three options, the author on `claude` and the reviewer on `codex`; `spare` is the one only the list can name.
-const failoverRepos = (failover?: { enabled: boolean; order: string[] }): EffectiveRepoConfig[] =>
-  choosing({ claude: claudeOption, codex: codexOption, spare: { harness: 'agy', model: 'flash' } }).map((repo) => ({ ...repo, ...(failover && { failover }) }));
+const failoverRepos = (failover?: { enabled: boolean; default?: string[]; order?: string[] }): EffectiveRepoConfig[] =>
+  choosing({ claude: claudeOption, codex: codexOption, spare: { harness: 'agy', model: 'flash' } }).map((repo) => ({ ...repo, ...(failover && { failover: { enabled: failover.enabled, default: failover.default ?? failover.order } }) }));
 // Reserves the epic and starts it on the defaults, past its wait for a choice.
 async function startFailover(order: string[], enabled = true, slots = 1) {
-  return startWith(failoverRepos({ enabled, order }), slots);
+  return startWith(failoverRepos({ enabled, default: order }), slots);
 }
 async function startWith(config: EffectiveRepoConfig[], slots = 1) {
   const engine = await start(slots, config);
@@ -780,6 +780,55 @@ test('failover skips the options that already ran out in this epic, and the one 
   expect(eventsOf(engine.db).map((e) => [e.data.from, e.data.to])).toEqual([['claude', 'spare'], ['spare', 'codex']]);
 });
 
+test('failover across harnesses without a model on the provider uses that harness default model rather than leaking the previous model', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => outOf('claude')(task, task.stage === 'ship' ? { sessionId: 's-codex', write: completed(task) } : { exit: 'hang' });
+  const repos = choosing({ claude: claudeOption, codexBare: { harness: 'codex' as const } }).map((repo) => ({
+    ...repo,
+    failover: { enabled: true, default: ['codexBare'] },
+  }));
+  const engine = await startWith(repos);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+  expect(runner.tasks[1]).toMatchObject({ harness: 'codex', model: 'gpt-5.3-codex', option: 'codexBare' });
+});
+
+test('failover on service_down failure suppresses execution error and does not burn retry streak', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  const serviceDownFailure: AgentFailure = { kind: 'api_error', detail: 'ECONNREFUSED 127.0.0.1:1234', exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null };
+  runner.behavior = (task) =>
+    task.option === 'claude'
+      ? { sessionId: 's-claude', exit: 'failed', failure: serviceDownFailure }
+      : task.stage === 'ship'
+        ? { sessionId: 's-spare', write: completed(task) }
+        : { exit: 'hang' };
+  const engine = await startFailover(['spare']);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+
+  expect(runner.tasks.map((t) => [t.stage, t.option])).toEqual([['ship', 'claude'], ['ship', 'spare'], ['review', 'codex']]);
+  const execs = executionsOf(engine.db);
+  expect(execs[0]).toMatchObject({ option: 'claude', status: 'failed', error: null, failureKind: 'api_error' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', lastError: null });
+});
+
+test('failover on rate_limit failure switches provider', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  const rateLimitFailure: AgentFailure = { kind: 'api_error', detail: 'HTTP 429: Rate limit exceeded', exitCode: 1, signal: null, hostFreeMemMb: null, hostLoad: null };
+  runner.behavior = (task) =>
+    task.option === 'claude'
+      ? { sessionId: 's-claude', exit: 'failed', failure: rateLimitFailure }
+      : task.stage === 'ship'
+        ? { sessionId: 's-spare', write: completed(task) }
+        : { exit: 'hang' };
+  const engine = await startFailover(['spare']);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+
+  expect(runner.tasks.map((t) => [t.stage, t.option])).toEqual([['ship', 'claude'], ['ship', 'spare'], ['review', 'codex']]);
+  expect(executionsOf(engine.db)[0]).toMatchObject({ option: 'claude', status: 'failed', error: null, failureKind: 'api_error' });
+});
+
 test('when no option in the list is left the epic stops with usage_limit and names every option that ran out, and never uses one outside the list', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   runner.behavior = (task) => (task.epic === 1 ? outOf('claude', 'spare')(task, { exit: 'hang' }) : { exit: 'hang' });
@@ -789,7 +838,7 @@ test('when no option in the list is left the epic stops with usage_limit and nam
 
   expect(runner.tasks.filter((t) => t.epic === 1).map((t) => t.option)).toEqual(['claude', 'spare']); // codex is the reviewer's default, not in the list
   expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'usage_limit', finishedAt: 5 * MIN });
-  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option spare · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}; no option left in failover.order, ran out: claude, spare`);
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option spare · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}; no provider left in failover, ran out: claude, spare`);
   expect(eventsOf(engine.db)).toMatchObject([{ type: 'option_switched', data: { from: 'claude', to: 'spare' } }]);
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
@@ -1758,6 +1807,19 @@ test('an epic whose last execution ended on a usage limit before it moved on is 
   expect(runner.tasks).toHaveLength(0);
 });
 
+test('an epic stopped after service_down failure with failover enabled recovers and failsover on start', async () => {
+  const db = open();
+  const repoWithFailover = failoverRepos({ enabled: true, default: ['spare'] });
+  seedEpic(db, 1, { config: repoWithFailover[0] });
+  seedExecution(db, 'e0', 1, { status: 'failed', option: 'claude', failureKind: 'api_error', failureDetail: 'ECONNREFUSED' });
+  pull(50);
+  runner.behavior = () => ({ exit: 'hang' });
+  const engine = await start(1, repoWithFailover);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(1));
+  expect(runner.tasks[0]).toMatchObject({ stage: 'ship', option: 'spare' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', authorOption: 'spare' });
+});
+
 test('a requeued epic that has not launched yet is not stopped again by the usage limit of its old history', async () => {
   const db = open();
   seedEpic(db, 1, { stage: null });
@@ -2535,7 +2597,7 @@ test('resumeEpic while a check is already running does not start a second one an
 const claudeOption = { harness: 'claude' as const, model: 'opus', provider: 'ollama' as const };
 const codexOption = { harness: 'codex' as const, model: 'gpt', configDir: '/cfg/codex' };
 const choosing = (options: NonNullable<EffectiveRepoConfig['options']> = { claude: claudeOption, codex: codexOption }): EffectiveRepoConfig[] => [
-  { name: 'AshuLab/a', options, agents: { author: { profile: 'a', option: 'claude', ...claudeOption }, reviewer: { profile: 'b', option: 'codex', ...codexOption } } },
+  { name: 'AshuLab/a', options, providers: options as any, agents: { author: { profile: 'a', option: 'claude', ...claudeOption }, reviewer: { profile: 'b', option: 'codex', ...codexOption } } },
 ];
 const choiceRefusal = (promise: Promise<void>) => promise.then(() => null, (e: ResumeRefused) => e.reason);
 

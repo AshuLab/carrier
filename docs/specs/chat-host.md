@@ -14,9 +14,9 @@ This epic is the backend of the conversation and nothing else: a chat with an ag
 
 ### The host
 
-A chat host: a process of its own with its own lock, its own control socket and its own SQLite file, all under `<root>/chat/` (`chat.sock`, `carrier.lock`, `chat.db`, `logs/`). It shares code with the engine (config, logger and its redaction, process handling) and none of its state, and the engine's stop does not touch it ([0013](../adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md)). A file of its own, with its own Drizzle migrations, keeps two processes from migrating or writing the engine's database; `pnpm db:generate` gains a second config for it and the build copies both migration folders.
+A chat host: a process of its own with its own lock, its own control socket and its own SQLite file, all under `<folder>/chat/`, where `<folder>` is the Carrier folder ([0016](../adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)): `state/` (`chat.sock`, `carrier.lock`, `chat.db`), `logs/`, `projects/` and `worktrees/`, and its configuration in `chat.json`. It shares code with the engine (logger and its redaction, process handling) and none of its state, and the engine's stop does not touch it ([0013](../adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md)). A file of its own, with its own Drizzle migrations, keeps two processes from migrating or writing the engine's database; `pnpm db:generate` gains a second config for it and the build copies both migration folders.
 
-A client starts it on demand. `carrier chat` looks for a host on the socket and, finding none, starts `carrier chat-host --config <file>` detached, the way `carrier start` starts the engine ([0010](../adr/0010-carrier-runs-in-the-background-as-a-detached-process.md)), and waits for the socket to answer. `chat-host` runs the host in the foreground and is also how it is debugged. Nothing starts a host but a client that wants a chat.
+A client starts it on demand. `carrier chat` looks for a host on the socket and, finding none, starts `carrier chat-host` detached, the way `carrier start` starts the engine ([0010](../adr/0010-carrier-runs-in-the-background-as-a-detached-process.md)), and waits for the socket to answer. `chat-host` runs the host in the foreground and is also how it is debugged. The host starts with only the Carrier folder, `~/.carrier/` or `CARRIER_HOME`: no engine config is needed, and every key of `chat.json` has a default. Nothing starts a host but a client that wants a chat.
 
 A session is live while its agent process runs. With no client attached, an idle session is closed after one minute: its process ends, the session stays in the list and resumes by its id. A session that is working, or waiting for an approval, is kept live. The host exits one minute after the last live session ended and the last client left, and `carrier chat --stop` closes every session and ends it at once. Each live session records its process id and its process group; the agent leads its own group, and when a host starts it sweeps the groups a dead host left behind, SIGTERM then SIGKILL, after checking the process is still the recorded command.
 
@@ -26,7 +26,7 @@ The chat runner is the port through which the host drives one provider, with a f
 
 Claude's adapter uses the Claude Agent SDK pointed at the user's own `claude` binary; Codex's uses `codex app-server`. ACP is not the seam and no ACP adapter is part of this epic. The first ticket is a spike that settles both paths against the real tools before anything is built on them: input works across several turns; an approval round-trips and a decline is honoured; a session id comes back and a second run resumes it; the options (permission mode, model, reasoning level) can be listed, set and changed; an interrupt stops a turn; the user's installed skills are visible; and the agent's process can lead its own group. The findings are written to `docs/research/chat-spike.md`. If Claude fails the SDK path its adapter falls back to the CLI headless (`claude -p --output-format stream-json`) and then to a terminal pane; if Codex fails, it drops out of the epic, which still closes with Claude.
 
-The session runs as the user: the agent's environment is the host's own, with the user's `CLAUDE_CONFIG_DIR` / `CODEX_HOME` and `gh` login, and no token is minted or injected. The binary is the `command` of the agent in the config, else the one found on the path.
+The session runs as the user: the agent's environment is the host's own, with the user's `CLAUDE_CONFIG_DIR` / `CODEX_HOME` and `gh` login, and no token is minted or injected. The binary is the `command` of the agent in `chat.json`, else the one found on the path.
 
 Permissions are the provider's. The adapter lists the provider's own options with their values and the current one, the person picks them per session, and a session the person gave no options starts with the provider's default; Carrier adds no policy and no bypass rule. When the agent asks for approval the host turns it into a chat event with the provider's own choices, keeps it pending while no client is attached, and passes the chosen answer back.
 
@@ -60,13 +60,20 @@ Text is redacted first and then cut, as in [0006](../adr/0006-agent-events-store
 
 The `events` reply carries the events after the cursor, the new cursor, the session's summary, the `streaming` text, the pending approvals, the options with their values and the commands the session lists. There is no push channel: a client polls `events` by cursor, as the app polls the engine, and the terminal client polls every 200 ms. A push channel can be added later behind a capability without changing these requests.
 
-The folder of `open` must be an absolute path to an existing directory and is resolved to its real path. It is refused when it lies inside `<root>/repos` or `<root>/worktrees` or `<root>/orchestrator`: a session never works in the engine's shared clone or in an epic's worktree. A reply that fails names the reason in words and never the provider's or the system's own message when that could carry more than the client should see.
+The folder of `open` must be an absolute path to an existing directory and is resolved to its real path. It is refused when it lies inside `<folder>/engine/` or is reached through a symlink into it: a session never works in the engine's shared clone or in an epic's worktree. A reply that fails names the reason in words and never the provider's or the system's own message when that could carry more than the client should see.
 
 ### The client and the config
 
 `carrier chat` is a thin client of that socket, in plain lines and without a full-screen UI. `carrier chat --workspace <folder> [--agent <name>]` opens a conversation and prints the reply as it streams; an approval is asked at the prompt with the provider's choices; `/options` lists the options, `/option <id> <value>` changes one, `/quit` leaves and the session stays. Ctrl+C during a turn interrupts it, at the prompt it leaves. `carrier chat --resume <id>` resumes a session and prints its end of the transcript, `--list` lists the sessions (folder, agent, state, age), `--list --archived` lists the archived ones, `--archive <id>`, `--unarchive <id>` and `--delete <id>` do what they say, and `--stop` stops the host.
 
-A `chat` block in the config lists the agents a session can start with; it is optional, and without it there are two agents, `claude` and `codex`, with the binaries on the path and the provider's defaults. A name is a lowercase word, the harness is `claude` or `codex`, and `command`, `model` and default `options` are optional. An option the adapter does not list is refused when the session opens. `docs/configuration.md` and the JSON Schema change with it.
+The chat's configuration is a level of its own, `<folder>/chat/chat.json` ([0016](../adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)). Every key is optional and so is the file, and the schema is strict: an unknown key is an error.
+
+- `agents`: the agents a session can start with. Without it there are two, `claude` and `codex`, with the binaries on the path and the provider's defaults. A name is a lowercase word (letters, digits and hyphens, starting with a letter), the harness is `claude` or `codex`, and `command`, `model` and default `options` are optional. An option the adapter does not list is refused when the session opens.
+- `projectsFolder`: where the chat brings projects onto the Mac, an absolute path or one starting with `~/`; `<folder>/chat/projects` by default. It is read again at each request, so a change applies to the next clone.
+- `githubCallTimeoutSeconds`: a positive integer, 30 by default.
+- `logLevel`: `info` by default.
+
+The agents, the timeout and the log level are read when the host starts. A file that cannot be read or does not match the schema makes the host refuse to start and name the key; it does not run on defaults the person did not choose. The engine's config has no `chat` section.
 
 ### What was cut
 
@@ -82,12 +89,12 @@ The chat inside the engine process, for tying conversations to the engine's stop
 6. A closed session, also after the host ended or died, resumes by its id with the same agent context, and the transcript so far is shown.
 7. `--list` shows the sessions with their folder, agent, state and age; a session can be archived, unarchived and deleted from the terminal (`--archive`, `--unarchive`, `--delete`), and a deleted one leaves nothing behind.
 8. The same conversation works with Codex through the same port, or the epic closes without Codex if its spike failed.
-9. A folder that does not exist, is not a directory, or is inside the engine's clone, worktrees or orchestrator folder is refused with a reason.
+9. A folder that does not exist, is not a directory, or is inside the engine's folder is refused with a reason.
 10. The host starts with the first chat, closes an idle session with no client after one minute, exits one minute after the last live session and client are gone, and `--stop` ends it at once; stopping or restarting the engine changes none of this.
 11. Every message, tool call and approval is stored in the transcript redacted and bounded, and each turn records its model, outcome, duration, tool calls and usage.
 12. After a host crash, the next host start ends the agent processes the dead one left and marks those sessions closed and resumable.
 13. A developer can test the host, the socket and the client with a fake runner and a temporary SQLite, with no provider installed.
-14. The configured agents can be listed, and the `chat` block validates and is documented in `docs/configuration.md`.
+14. The configured agents can be listed, and `chat.json` validates and is documented in `docs/configuration.md`.
 
 ## Decisions
 
@@ -139,9 +146,9 @@ Testing seams, by story:
 - Stories 2, 3, 5, 6, 7, 9, 10, 11, 13: the host through the same interface its socket uses, a request in and a reply out, with a fake chat runner (it plays scripted events, holds approvals and ends on cue) and a temporary SQLite, and an injected clock for the minute rules. This is the broadest seam and carries most of the behaviour. The socket gets its own test in the style of the engine's server test: strict objects, an unknown command, the line cap, the 0600 mode.
 - Stories 1 and 4 at the terminal: the `chat` command with scripted input and output streams against an in-process host over a real temporary socket with the fake runner.
 - Stories 1, 3, 4, 5, 6, 8 per provider: each adapter replayed against a recording of that provider's real conversation, with only the transport faked, as the harness adapters are tested against their fixtures; the recordings are made by the spike. A gated integration test per provider runs the real tool (`CARRIER_IT_*`, listed in its header) and covers what the recordings cannot: resume, interrupt and the skills.
-- Story 9: the folder check as a pure function over real temporary folders, including a symlink into the engine's clone.
+- Story 9: the folder check as a pure function over real temporary folders, including a symlink into the engine's folder.
 - Story 12: the sweep with the process table and the kill injected.
-- Story 14: the config's load test for the `chat` block (default agents, unknown harness, bad name, unknown field), and the JSON Schema is regenerated.
+- Story 14: the chat config's load test (default agents, unknown harness, bad name, unknown field, a missing file).
 - No tests: the spike's findings document.
 
 ## Out of scope

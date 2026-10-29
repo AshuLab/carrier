@@ -35,7 +35,7 @@ const controls = {
 };
 
 async function realServer() {
-  const server = await startControlServer({ orchestratorDir: dir, snapshot: () => snapshotData, startedAt: 1234, controls, stop: async () => {} });
+  const server = await startControlServer({ stateDir: dir, snapshot: () => snapshotData, startedAt: 1234, controls, stop: async () => {} });
   closers.push(server.close);
 }
 

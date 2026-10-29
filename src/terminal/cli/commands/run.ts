@@ -7,10 +7,10 @@ import { InstanceBusy, startCarrier } from '../compose.ts';
  * Starts the orchestrator; it keeps the process alive until Ctrl+C. On a terminal: "Starting…" until the engine is up,
  * then the arrival line, then the panel. `framed`: the caller (init) already opened the frame the spinner lives in.
  */
-export async function runCommand(config: Config, { framed = false } = {}) {
+export async function runCommand(config: Config, folder: string, { framed = false } = {}) {
   const announce = process.stdout.isTTY ? (await import('../../prompts/clack.ts')).announceStart({ framed }) : undefined;
   try {
-    await startCarrier(config, { onArrived: announce?.arrived });
+    await startCarrier(config, folder, { onArrived: announce?.arrived });
   } catch (error) {
     announce?.failed();
     if (error instanceof InstanceBusy) throw new CliError(1, error.message);

@@ -36,7 +36,7 @@ function fakeControls() {
 const stop = async () => {};
 
 async function open(snapshot: () => unknown = () => snapshotData, controls = fakeControls().controls) {
-  const server = await startControlServer({ orchestratorDir: dir, snapshot, startedAt: 1234, controls, stop });
+  const server = await startControlServer({ stateDir: dir, snapshot, startedAt: 1234, controls, stop });
   closers.push(server.close);
   return server;
 }
@@ -91,7 +91,7 @@ test('several requests in one write get one reply each, in order, and a request 
 
 test('every command in the schema gets a real reply, none is "not supported"', async () => {
   const stopped = vi.fn(async () => {});
-  const server = await startControlServer({ orchestratorDir: dir, snapshot: () => snapshotData, startedAt: 1234, controls: fakeControls().controls, stop: stopped });
+  const server = await startControlServer({ stateDir: dir, snapshot: () => snapshotData, startedAt: 1234, controls: fakeControls().controls, stop: stopped });
   closers.push(server.close);
   const c = await client();
   const commands = [
@@ -445,7 +445,7 @@ test('the socket is 0600 and orchestrator/ is 0700, also when the folder existed
   chmodSync(folder, 0o755);
   const lock = acquireLock(folder);
   expect(lock.ok).toBe(true);
-  const server = await startControlServer({ orchestratorDir: folder, snapshot: () => snapshotData, startedAt: 1, controls: fakeControls().controls, stop });
+  const server = await startControlServer({ stateDir: folder, snapshot: () => snapshotData, startedAt: 1, controls: fakeControls().controls, stop });
   expect(statSync(folder).mode & 0o777).toBe(0o700);
   expect(statSync(join(folder, 'control.sock')).mode & 0o777).toBe(0o600);
   server.close();
@@ -476,7 +476,7 @@ test('a leftover socket file is replaced by a new one that works', async () => {
 
 test('a socket that cannot open is logged and leaves a server that closes without failing', async () => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
-  const server = await startControlServer({ orchestratorDir: join(dir, 'missing', 'folder'), snapshot: () => snapshotData, startedAt: 1, controls: fakeControls().controls, stop });
+  const server = await startControlServer({ stateDir: join(dir, 'missing', 'folder'), snapshot: () => snapshotData, startedAt: 1, controls: fakeControls().controls, stop });
   expect(() => server.close()).not.toThrow();
 });
 
@@ -498,14 +498,14 @@ test.each([
   ['a root of multi-byte characters under 103 characters but over 103 bytes', 'é', 110],
 ])('%s: no socket file anywhere and a warning with the path and its length', async (_name, fill, bytes) => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-  const orchestratorDir = join(rootOf(bytes, fill), 'orchestrator');
-  mkdirSync(orchestratorDir, { recursive: true });
+  const stateDir = join(rootOf(bytes, fill), 'engine', 'state');
+  mkdirSync(stateDir, { recursive: true });
   const before = readdirSync(dir, { recursive: true }).sort();
-  const full = join(orchestratorDir, 'control.sock');
+  const full = join(stateDir, 'control.sock');
   expect(Buffer.byteLength(full)).toBeGreaterThan(103);
   if (fill === 'é') expect(full.length).toBeLessThan(103);
 
-  const server = await startControlServer({ orchestratorDir, snapshot: () => snapshotData, startedAt: 1, controls: fakeControls().controls, stop });
+  const server = await startControlServer({ stateDir, snapshot: () => snapshotData, startedAt: 1, controls: fakeControls().controls, stop });
 
   expect(readdirSync(dir, { recursive: true }).sort()).toEqual(before);
   const logged = warn.mock.calls.flat().join(' ');

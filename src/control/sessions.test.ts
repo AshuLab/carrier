@@ -28,7 +28,7 @@ beforeEach(async () => {
     files: () => null, fileDiff: () => null,
     availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), chooseOptions: () => Promise.resolve(),
   };
-  close = (await startControlServer({ orchestratorDir: dir, snapshot: () => ({}), startedAt: 1, controls, stop: async () => {} })).close;
+  close = (await startControlServer({ stateDir: dir, snapshot: () => ({}), startedAt: 1, controls, stop: async () => {} })).close;
 });
 afterEach(() => {
   close();

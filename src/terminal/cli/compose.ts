@@ -1,5 +1,7 @@
+import { chmodSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScopedLogger, type LogLevel } from '@ashulab/universal-logger';
+import { enginePlacesOf } from '../../config/engine-places.ts';
 import type { Config } from '../../config/schema.ts';
 import { resolveRepoConfig } from '../../config/resolve.ts';
 import type { AgentRunner } from '../../execution/agent-runner.ts';
@@ -74,36 +76,38 @@ const realDeps = (): CarrierDeps => ({
 });
 
 /**
- * Starts carrier on a validated config: the instance lock, file logging, the engine with the real GitHub (the
+ * Starts carrier on a validated config and the Carrier folder it keeps its files in: the instance lock, file logging, the engine with the real GitHub (the
  * orchestrator's profile, through Forge), workspaces and the runner of each harness, the panel, and Ctrl+C.
- * Throws InstanceBusy when another carrier holds the `orchestrator/` folder.
+ * Throws InstanceBusy when another carrier holds the folder's `engine/state/`.
  */
-export async function startCarrier(config: Config, overrides: Partial<CarrierDeps> = {}) {
+export async function startCarrier(config: Config, folder: string, overrides: Partial<CarrierDeps> = {}) {
   const deps = { ...realDeps(), ...overrides };
-  const orchestratorDir = join(config.root, 'orchestrator');
-  // First side effect of startup: one instance per orchestrator/ folder.
-  const lock = acquireLock(orchestratorDir);
-  if (!lock.ok) throw new InstanceBusy(`Another carrier instance is already running on ${orchestratorDir}`);
+  const places = enginePlacesOf(folder);
+  // First side effect of startup: one instance per Carrier folder.
+  const lock = acquireLock(places.state);
+  if (!lock.ok) throw new InstanceBusy(`Another carrier instance is already running on ${places.state}`);
+  mkdirSync(places.logs, { recursive: true });
+  chmodSync(places.logs, 0o700); // execution output is for the user only
   // From here on console.* goes to the log file; the terminal is for the panel.
-  deps.installLogging(join(orchestratorDir, 'logs', 'orchestrator.log'), config.logLevel);
-  createScopedLogger('cli').info('carrier started', { root: config.root, repos: config.repos.length });
+  deps.installLogging(join(places.logs, 'orchestrator.log'), config.logLevel);
+  createScopedLogger('cli').info('carrier started', { folder, repos: config.repos.length });
 
   const startedAt = deps.clock.now();
-  const db = openDatabase(join(orchestratorDir, 'carrier.db'));
+  const db = openDatabase(join(places.state, 'carrier.db'));
   const repos = config.repos.map((repo) => resolveRepoConfig(config, repo));
   const { limits } = config;
   // Git over the network (clone, fetch) runs as the repo's author profile.
   const authorProfile = (repo: string) => config.profiles[repos.find((r) => r.name === repo)!.agents.author.profile]!;
   const github = deps.makeGitHub({
     profile: config.profiles[config.orchestratorProfile]!,
-    cwd: forgeCwd(config.root),
+    cwd: forgeCwd(places),
     timeoutMs: limits.githubCallTimeoutSeconds * 1000,
   });
   const engine = createEngine({
     db,
     clock: deps.clock,
     github,
-    workspaces: deps.makeWorkspaces({ root: config.root, token: (repo) => deps.mint(authorProfile(repo), repo) }),
+    workspaces: deps.makeWorkspaces({ places, token: (repo) => deps.mint(authorProfile(repo), repo) }),
     runner: deps.makeRunner({ credentials: profileCredentials({ profiles: config.profiles, mint: deps.mint, botId: deps.botId }) }),
     repos,
     pollIntervalMs: config.pollIntervalMinutes * 60_000,
@@ -112,7 +116,7 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     maxExecutionRetries: limits.maxExecutionRetries,
     optionChoiceSeconds: limits.optionChoiceSeconds,
     maxExecutionHours: limits.maxExecutionHours,
-    root: config.root,
+    places,
     sessionDirs: deps.sessionDirs,
   });
   let stopPanel = () => {}; // the panel starts once the engine is up
@@ -160,17 +164,17 @@ export async function startCarrier(config: Config, overrides: Partial<CarrierDep
     setPaused: (paused: boolean) => engine.setPaused(paused),
     open: deps.openUrl,
     quit: deps.quit,
-    logs: (id: string, count: number) => tailExecution(config.root, id, count),
+    logs: (id: string, count: number) => tailExecution(places.logs, id, count),
     sessions: (repo: string, issue: number) => sessionsOf(db, repo, issue, inheritedConfigDirs()),
     events: (executionId: string, after: number, limit: number) => eventsOf(db, executionId, after, limit),
     epic: (repo: string, issue: number) => epicOf(db, repo, issue),
-    files: (repo: string, issue: number, executionId?: string) => filesOf(db, config.root, repo, issue, executionId),
-    fileDiff: (repo: string, issue: number, section: string, path: string) => fileDiff(db, config.root, repo, issue, section, path),
+    files: (repo: string, issue: number, executionId?: string) => filesOf(db, places.dir, repo, issue, executionId),
+    fileDiff: (repo: string, issue: number, section: string, path: string) => fileDiff(db, places.dir, repo, issue, section, path),
     availableRepos: (page: number) => deps.listRepos(page, limits.githubCallTimeoutSeconds * 1000),
     resumeEpic: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => engine.resumeEpic(repo, issue, chosen),
     chooseOptions: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => engine.chooseOptions(repo, issue, chosen),
   };
-  stopControl = (await startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop: shutdown })).close;
+  stopControl = (await startControlServer({ stateDir: places.state, snapshot, startedAt, controls, stop: shutdown })).close;
   const detail = (repo: string, issue: number) => controls.sessions(repo, issue)?.sessions ?? null;
   // With a terminal on both sides the panel takes keys; otherwise it only draws (or writes plain lines).
   stopPanel =

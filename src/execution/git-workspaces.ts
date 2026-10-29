@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
+import type { EnginePlaces } from '../config/engine-places.ts';
 import { repoNamePattern } from '../config/schema.ts';
 import type { GitHubProfile } from '../integrations/github.ts';
 import type { Workspaces } from './workspaces.ts';
@@ -11,8 +12,8 @@ import type { Workspaces } from './workspaces.ts';
 const execFileAsync = promisify(execFile);
 
 export interface GitWorkspacesOptions {
-  /** Shared root: clones go to `<root>/repos/<owner>/<name>`, reviewer checkouts to `<root>/reviews/<name>/<epic>`. */
-  root: string;
+  /** The engine's places: clones go to `<repos>/<owner>/<name>`, reviewer checkouts to `<reviews>/<name>/<epic>`. */
+  places: Pick<EnginePlaces, 'repos' | 'reviews'>;
   /** Token for git over HTTPS as the author's profile, minted per command and never stored. Absent: no credentials (local remotes). */
   token?: (repo: string) => Promise<string>;
   /** Defaults to the GitHub HTTPS URL; never carries a token. */
@@ -64,7 +65,7 @@ export function profileToken(profile: GitHubProfile, remoteUrl: (repo: string) =
 }
 
 export class GitWorkspaces implements Workspaces {
-  private readonly root: string;
+  private readonly places: GitWorkspacesOptions['places'];
   private readonly token?: (repo: string) => Promise<string>;
   private readonly remoteUrl: (repo: string) => string;
   private readonly reviewRef: (pr: number) => string;
@@ -72,7 +73,7 @@ export class GitWorkspaces implements Workspaces {
   private readonly queues = new Map<string, Promise<unknown>>();
 
   constructor(options: GitWorkspacesOptions) {
-    this.root = options.root;
+    this.places = options.places;
     this.token = options.token;
     this.remoteUrl = options.remoteUrl ?? defaultRemoteUrl;
     this.reviewRef = options.reviewRef ?? ((pr) => `refs/pull/${pr}/head`);
@@ -80,7 +81,7 @@ export class GitWorkspaces implements Workspaces {
   }
 
   private clonePath(repo: string) {
-    return join(this.root, 'repos', repo);
+    return join(this.places.repos, repo);
   }
 
   /** One git operation at a time per repo: concurrent fetches and worktree adds on one clone collide on its locks. */
@@ -139,7 +140,7 @@ export class GitWorkspaces implements Workspaces {
       const clone = await this.ensureClone(repo);
       await this.remote(repo, ['fetch', 'origin', this.reviewRef(pr)], clone);
       const sha = await git(['rev-parse', '--verify', 'FETCH_HEAD^{commit}'], { cwd: clone });
-      const path = join(this.root, 'reviews', repo.split('/')[1]!, String(epic));
+      const path = join(this.places.reviews, repo.split('/')[1]!, String(epic));
       if (existsSync(join(path, '.git'))) await git(['switch', '--detach', sha], { cwd: path });
       else {
         await mkdir(dirname(path), { recursive: true });

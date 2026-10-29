@@ -22,6 +22,7 @@ import { FakeClock, FakeGitHub } from './fake.ts';
 import { AuthError, GitHubUnavailable, type EpicSlice, type PullRequestBlock, type ReviewThread } from './github.ts';
 import { epicReviewThreads } from '../storage/epic-review-threads.ts';
 import { epicSlices } from '../storage/epic-slices.ts';
+import { enginePlacesOf } from '../config/engine-places.ts';
 
 const MIN = 60_000;
 const agents = {
@@ -59,7 +60,7 @@ async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: 
   const db = open();
   const engine = createEngine({
     db, github, clock, repos: config, pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, optionChoiceSeconds,
-    runner, workspaces, root: dir,
+    runner, workspaces, places: enginePlacesOf(dir),
   });
   await engine.start();
   return Object.assign(engine, { db });
@@ -385,7 +386,7 @@ test('a reserved epic launches the author with its effective config, a unique re
     repo: 'AshuLab/a', epic: 1, stage: 'ship', profile: 'p', harness: 'codex', model: 'x',
     workspace: '/work/AshuLab/a/1/author', timeoutMs: 2 * 3_600_000, context: { previousSummaries: [] },
   });
-  expect(task.resultPath).toContain(join(dir, 'orchestrator', 'results'));
+  expect(task.resultPath).toContain(join(dir, 'engine', 'state', 'results'));
   expect(new Set([task.executionId, other.executionId, task.resultPath, other.resultPath]).size).toBe(4);
   expect(executionsOf(engine.db).map((e) => [e.epicId, e.stage, e.status])).toEqual([[1, 'ship', 'running'], [2, 'ship', 'running']]);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' });
@@ -437,7 +438,7 @@ test('the whole output of an execution is saved per stream under its logs folder
   runner.behavior = () => ({ output: [['stdout', 'one\n'], ['stderr', 'oops\n'], ['stdout', 'two\n']], exit: 'hang' });
   await start(1);
   await clock.advance(5 * MIN);
-  const folder = join(dir, 'orchestrator', 'logs', 'executions', runner.tasks[0]!.executionId);
+  const folder = join(dir, 'engine', 'logs', 'executions', runner.tasks[0]!.executionId);
   expect(readFileSync(join(folder, 'stdout.log'), 'utf8')).toBe('one\ntwo\n');
   expect(readFileSync(join(folder, 'stderr.log'), 'utf8')).toBe('oops\n');
 });
@@ -1287,7 +1288,7 @@ test('last activity is written from the first output and then at most once every
   await clock.advance(1);
   emit('stderr', 'c');
   expect(row().lastActivityAt).toBe(5 * MIN + 10_000);
-  expect(readFileSync(join(dir, 'orchestrator', 'logs', 'executions', runner.tasks[0]!.executionId, 'stdout.log'), 'utf8')).toBe('a\nb\n'); // every chunk is logged, only the write is limited
+  expect(readFileSync(join(dir, 'engine', 'logs', 'executions', runner.tasks[0]!.executionId, 'stdout.log'), 'utf8')).toBe('a\nb\n'); // every chunk is logged, only the write is limited
 
   finish('failed');
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(2)); // the retry
@@ -2023,9 +2024,9 @@ test('purges expired logs and sessions when the engine starts and every 24 hours
   const db = open();
   const old = db.insert(epics).values({ repo: 'AshuLab/a', issue: 1, status: 'merged', finishedAt: -30 * 24 * 60 * MIN }).returning().get();
   db.insert(executions).values({ executionId: 'x-old', epicId: old.id, stage: 'ship', sessionId: 's-old', resultPath: 'r', startedAt: 0 }).run();
-  const logs = join(dir, 'orchestrator', 'logs', 'executions', 'x-old');
+  const logs = join(dir, 'engine', 'logs', 'executions', 'x-old');
   mkdirSync(logs, { recursive: true });
-  const engine = createEngine({ db, github, clock, repos, pollIntervalMs: 5 * MIN, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, optionChoiceSeconds: 60, runner, workspaces, root: dir });
+  const engine = createEngine({ db, github, clock, repos, pollIntervalMs: 5 * MIN, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, optionChoiceSeconds: 60, runner, workspaces, places: enginePlacesOf(dir) });
   await engine.start();
   expect(existsSync(logs)).toBe(false);
   mkdirSync(logs, { recursive: true });

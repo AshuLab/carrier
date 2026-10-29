@@ -3,7 +3,6 @@ import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import type { Config } from '../../../config/schema.ts';
 import { startControlServer } from '../../../control/server.ts';
 import type { SessionsReply } from '../../../control/replies.ts';
 import type { PanelEpic, PanelSnapshot } from '../../../status/types.ts';
@@ -13,7 +12,7 @@ let root: string;
 let closers: (() => void)[];
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'st-')); // short: a socket path holds 103 bytes on macOS
-  mkdirSync(join(root, 'orchestrator'));
+  mkdirSync(join(root, 'engine', 'state'), { recursive: true });
   closers = [];
 });
 afterEach(() => {
@@ -31,11 +30,10 @@ const stages = (took: number): SessionsReply => ({
   sessions: [{ executionId: 'e', stage: 'ship', role: 'author', round: null, agent: {} as never, status: 'finished', startedAt: 0, finishedAt: took * 60_000, resume: null, result: { outcome: 'completed', summary: 's', verification: null, reason: null }, failure: null }],
 });
 
-const config = () => ({ root }) as Config;
 async function printed() {
   const written: string[] = [];
   vi.spyOn(process.stdout, 'write').mockImplementation((text) => (written.push(String(text)), true));
-  const code = await statusCommand(config());
+  const code = await statusCommand(root);
   return { code, text: written.join('') };
 }
 
@@ -46,7 +44,7 @@ test('status prints the stage lines of a running epic taken over the socket', as
     sessions: (repo: string, issue: number) => (asked.push(`${repo}#${issue}`), stages(14)),
     events: () => null, epic: () => null, files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), chooseOptions: () => Promise.resolve(),
   };
-  closers.push((await startControlServer({ orchestratorDir: join(root, 'orchestrator'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
+  closers.push((await startControlServer({ stateDir: join(root, 'engine', 'state'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
   const { code, text } = await printed();
   expect(code).toBe(0);
   expect(text).toContain('ship ✓ 14m 00s');
@@ -61,7 +59,7 @@ test('status draws the kind of a failed stage in the history, and a failed stage
     sessions: (_repo: string, issue: number) => ({ sessions: [issue === 1 ? killed : failed] }),
     events: () => null, epic: () => null, files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), chooseOptions: () => Promise.resolve(),
   };
-  closers.push((await startControlServer({ orchestratorDir: join(root, 'orchestrator'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
+  closers.push((await startControlServer({ stateDir: join(root, 'engine', 'state'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
   const { text } = await printed();
   expect(text).toContain('ship ✗ killed 4m 00s');
   expect(text.match(/ship 4m 00s/g)).toHaveLength(1);
@@ -76,7 +74,7 @@ test('a sessions request that errors or answers unknown epic leaves that epic wi
     },
     events: () => null, epic: () => null, files: () => null, fileDiff: () => null, availableRepos: () => Promise.resolve({ repos: [], hasMore: false }), resumeEpic: () => Promise.resolve(), chooseOptions: () => Promise.resolve(),
   };
-  closers.push((await startControlServer({ orchestratorDir: join(root, 'orchestrator'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
+  closers.push((await startControlServer({ stateDir: join(root, 'engine', 'state'), snapshot: () => snapshot, startedAt: 1, controls, stop: async () => {} })).close);
   const { code, text } = await printed();
   expect(code).toBe(0);
   expect(text.match(/ship ✓/g)).toHaveLength(1);
@@ -102,7 +100,7 @@ test('against an engine whose hello does not list sessions, no sessions request 
       }
     });
   });
-  await new Promise<void>((resolve) => server.listen(join(root, 'orchestrator', 'control.sock'), resolve));
+  await new Promise<void>((resolve) => server.listen(join(root, 'engine', 'state', 'control.sock'), resolve));
   closers.push(() => server.close());
   const { code, text } = await printed();
   expect(code).toBe(0);
@@ -122,7 +120,7 @@ test('status asks for the stages of the epics that need a person and the ones re
     epics: [{ ...epic(1), status: 'needs_human', needsHumanReason: 'stuck' }],
     done: [{ repo: 'A/a', issue: 3, title: null, labels: [], prNumber: 9, finishedAt: 1_000_000, executionId: 'e' }],
   };
-  closers.push((await startControlServer({ orchestratorDir: join(root, 'orchestrator'), snapshot: () => more, startedAt: 1, controls, stop: async () => {} })).close);
+  closers.push((await startControlServer({ stateDir: join(root, 'engine', 'state'), snapshot: () => more, startedAt: 1, controls, stop: async () => {} })).close);
   const { code, text } = await printed();
   expect(code).toBe(0);
   expect(asked).toEqual(['A/a#1', 'A/a#3']);

@@ -133,6 +133,9 @@ public enum WorkspaceStep: Equatable {
     @ObservationIgnored private let projectsFolder: () -> String
     @ObservationIgnored private let readConfig: () -> Data?
     @ObservationIgnored private let writeConfig: (Data) throws -> Void
+    @ObservationIgnored private let readChatConfig: () throws -> Data?
+    @ObservationIgnored private let writeChatConfig: (Data) throws -> Void
+    @ObservationIgnored private let carrierFolder: String
     /// Counts the times the list was started over, so a page that was asked for before is dropped when it comes back.
     @ObservationIgnored private var reposRead = 0
     @ObservationIgnored private var cloneTask: Task<ClonedRepo, Error>?
@@ -145,20 +148,26 @@ public enum WorkspaceStep: Equatable {
     @ObservationIgnored private var failedFirstSends: [String: FailedFirstSend] = [:]
 
     /// `ensureHost` starts the chat host when it is not running (#503) and says whether it answers now.
-    /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where the config says the projects folder is;
-    /// `readConfig` and `writeConfig` are the config file itself.
+    /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where `chat.json` says the projects folder is, and
+    /// `readChatConfig` and `writeChatConfig` are that file inside `carrierFolder`; `readConfig` and `writeConfig` are the engine's
+    /// config file, which holds the watched repositories.
     public init(
         host: ChatHost, ensureHost: @escaping @MainActor () async -> Bool = { true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         projectsFolder: @escaping () -> String = currentProjectsFolder,
-        readConfig: @escaping () -> Data? = currentConfig, writeConfig: @escaping (Data) throws -> Void = writeCurrentConfig
+        readConfig: @escaping () -> Data? = currentConfig, writeConfig: @escaping (Data) throws -> Void = writeCurrentConfig,
+        readChatConfig: @escaping () throws -> Data? = currentChatConfig, writeChatConfig: @escaping (Data) throws -> Void = writeCurrentChatConfig,
+        carrierFolder: String = currentCarrierFolder()
     ) {
         self.host = host
         self.projectsFolder = projectsFolder
         projectsPath = projectsFolder()
         self.readConfig = readConfig
         self.writeConfig = writeConfig
+        self.readChatConfig = readChatConfig
+        self.writeChatConfig = writeChatConfig
+        self.carrierFolder = carrierFolder
         self.ensureHost = ensureHost
         self.log = log
         self.sleep = sleep
@@ -242,17 +251,22 @@ public enum WorkspaceStep: Equatable {
         watched = readConfig().flatMap { configRepoNames(json: $0) }
     }
 
-    /// The footer's Change…: writes `folder` as `chat.projectsFolder`, the file read again just now. A folder the host would refuse, or a
-    /// config that cannot be read or written, leaves the old one and says why in `projectsFolderProblem`. What was in the old folder is not moved.
+    /// The footer's Change…: writes `folder` as `projectsFolder` in `chat.json`, read again just now and made when it is not there. A folder
+    /// the host would refuse, or a file that cannot be read or written, leaves the old one and says why in `projectsFolderProblem`.
+    /// What was in the old folder is not moved.
     public func changeProjectsFolder(to folder: String) {
         projectsFolderProblem = nil
         func refused(_ reason: String) { projectsFolderProblem = "\(reason). The projects folder stays \(projectsPath)." }
-        guard let json = readConfig() else { return refused("The config file could not be read") }
-        if let problem = projectsFolderRefusal(folder, configJSON: json, home: NSHomeDirectory()) { return refused(problem) }
-        guard let updated = applyingProjectsFolder(folder, to: json) else { return refused("The config file is not a JSON object") }
-        do { try writeConfig(updated) } catch {
-            log("new session: could not write the config: \(error)")
-            return refused("The config file is not writable")
+        if let problem = projectsFolderRefusal(folder, carrierFolder: carrierFolder) { return refused(problem) }
+        let json: Data?
+        do { json = try readChatConfig() } catch {
+            log("new session: could not read chat.json: \(error)")
+            return refused("chat.json could not be read")
+        }
+        guard let updated = applyingProjectsFolder(folder, to: json) else { return refused("chat.json is not a JSON object") }
+        do { try writeChatConfig(updated) } catch {
+            log("new session: could not write chat.json: \(error)")
+            return refused("chat.json is not writable")
         }
         refreshFolders()
     }

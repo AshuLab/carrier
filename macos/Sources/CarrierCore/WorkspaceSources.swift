@@ -30,35 +30,37 @@ public func projectNameProblem(_ name: String) -> String? {
     return nil
 }
 
-/// The chat host's projects folder: the config's `chat.projectsFolder` (`~/` expanded), else `<root>/chat/projects`.
-public func projectsFolder(configJSON: Data?, home: String) -> String {
-    let object = configJSON.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
-    let chosen = ((object?["chat"] as? [String: Any])?["projectsFolder"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-    guard let chosen else { return sharedRoot(configJSON: configJSON, home: home) + "/chat/projects" }
+/// The chat host's projects folder: `projectsFolder` of `chat.json` (`~/` expanded), else `<folder>/chat/projects`; `carrierFolder` is the
+/// Carrier folder. The file is the host's own level of configuration (ADR 0016), never the engine's config.
+public func projectsFolder(chatJSON: Data?, carrierFolder: String, home: String) -> String {
+    let object = chatJSON.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
+    guard let chosen = (object?["projectsFolder"] as? String).flatMap({ $0.isEmpty ? nil : $0 }) else { return carrierFolder + "/chat/projects" }
     if chosen == "~" { return home }
     return chosen.hasPrefix("~/") ? home + chosen.dropFirst() : chosen
 }
 
 /// Why `folder` cannot be the projects folder, in words; nil when it can. The host's own rule (src/chat/folder.ts): an absolute path
-/// that is not the shared root's `repos`, `worktrees` or `orchestrator`, or inside one, symlinks resolved.
-public func projectsFolderRefusal(_ folder: String, configJSON: Data?, home: String) -> String? {
+/// that is not the Carrier folder's `engine` or the chat's own `state`, `logs` or `worktrees`, or inside one, symlinks resolved.
+public func projectsFolderRefusal(_ folder: String, carrierFolder: String) -> String? {
     guard folder.hasPrefix("/") else { return "The projects folder must be an absolute path" }
     let real = URL(fileURLWithPath: folder).resolvingSymlinksInPath().path
-    let root = URL(fileURLWithPath: sharedRoot(configJSON: configJSON, home: home)).resolvingSymlinksInPath().path
-    for name in ["repos", "worktrees", "orchestrator"] {
-        let engine = root + "/" + name
-        if real == engine || real.hasPrefix(engine + "/") { return "That folder is inside Carrier's own \(name) folder; the chat never works there" }
+    let base = URL(fileURLWithPath: carrierFolder).resolvingSymlinksInPath().path
+    for name in ["engine", "chat/state", "chat/logs", "chat/worktrees"] {
+        let own = base + "/" + name
+        if real == own || real.hasPrefix(own + "/") { return "That folder is inside Carrier's own \(name) folder; the chat never works there" }
     }
     return nil
 }
 
-/// `json` with `chat.projectsFolder` set to `folder`; the rest of the file, the `chat` block's other keys and the keys the app does not
-/// know are left as they were. nil when `json` is not a JSON object: the app never makes a config file.
-public func applyingProjectsFolder(_ folder: String, to json: Data) -> Data? {
-    guard var file = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return nil }
-    var chat = file["chat"] as? [String: Any] ?? [:]
-    chat["projectsFolder"] = folder
-    file["chat"] = chat
+/// `json` with `projectsFolder` set to `folder`; the file's other keys are left as they were. `json` nil is a `chat.json` that is not
+/// there yet, which this makes. nil when `json` is not a JSON object: the app never overwrites a file it cannot read.
+public func applyingProjectsFolder(_ folder: String, to json: Data?) -> Data? {
+    var file: [String: Any] = [:]
+    if let json {
+        guard let object = (try? JSONSerialization.jsonObject(with: json)) as? [String: Any] else { return nil }
+        file = object
+    }
+    file["projectsFolder"] = folder
     return try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
 }
 
@@ -92,8 +94,26 @@ public func currentConfig() -> Data? { try? Data(contentsOf: currentConfigURL())
 /// Writes the config file in place; the caller read it just before, as the Repos tab does.
 public func writeCurrentConfig(_ data: Data) throws { try data.write(to: currentConfigURL(), options: .atomic) }
 
-/// `projectsFolder` of the config file the app works with.
-public func currentProjectsFolder() -> String { projectsFolder(configJSON: currentConfig(), home: NSHomeDirectory()) }
+/// The Carrier folder the app works with: `CARRIER_HOME` in its own environment, else `~/.carrier`.
+public func currentCarrierFolder() -> String { carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()) }
+
+private func currentChatConfigURL() -> URL { URL(fileURLWithPath: currentCarrierFolder() + "/chat/chat.json") }
+
+/// The chat's `chat.json`, read each time; nil when it is not there, an error when it is there and cannot be read.
+public func currentChatConfig() throws -> Data? {
+    let url = currentChatConfigURL()
+    return FileManager.default.fileExists(atPath: url.path) ? try Data(contentsOf: url) : nil
+}
+
+/// Writes `chat.json` in place, making the chat's folder when it is not there yet.
+public func writeCurrentChatConfig(_ data: Data) throws {
+    let url = currentChatConfigURL()
+    try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try data.write(to: url, options: .atomic)
+}
+
+/// `projectsFolder` of the chat's `chat.json`.
+public func currentProjectsFolder() -> String { projectsFolder(chatJSON: try? currentChatConfig(), carrierFolder: currentCarrierFolder(), home: NSHomeDirectory()) }
 
 /// A row of My GitHub repositories: when it was last pushed, whether the config already watches it, and why the "watch" box would not
 /// apply to it when it is not watched but cannot be (a folder name another watched repo has).

@@ -19,15 +19,15 @@ import Testing
     }
 }
 
-@Test func theProjectsFolderIsTheConfigsOrUnderTheRoot() {
+@Test func theProjectsFolderIsChatJsonsOrUnderTheCarrierFolder() {
     let home = "/Users/x"
-    func folder(_ json: String?) -> String { projectsFolder(configJSON: json.map { Data($0.utf8) }, home: home) }
-    #expect(folder(nil) == "/Users/x/.solve/chat/projects")
-    #expect(folder("{\"root\":\"/data/solve\"}") == "/data/solve/chat/projects")
-    #expect(folder("{\"root\":\"~/solve\",\"chat\":{\"agents\":{}}}") == "/Users/x/solve/chat/projects")
-    #expect(folder("{\"chat\":{\"projectsFolder\":\"~/Projects/carrier\"}}") == "/Users/x/Projects/carrier")
-    #expect(folder("{\"chat\":{\"projectsFolder\":\"/srv/p\"},\"root\":\"/data\"}") == "/srv/p")
-    #expect(folder("{\"chat\":{\"projectsFolder\":\"\"}}") == "/Users/x/.solve/chat/projects")
+    func folder(_ json: String?) -> String { projectsFolder(chatJSON: json.map { Data($0.utf8) }, carrierFolder: "/Users/x/.carrier", home: home) }
+    #expect(folder(nil) == "/Users/x/.carrier/chat/projects")
+    #expect(folder("nope") == "/Users/x/.carrier/chat/projects")
+    #expect(folder("{\"agents\":{}}") == "/Users/x/.carrier/chat/projects")
+    #expect(folder("{\"projectsFolder\":\"~/Projects/carrier\"}") == "/Users/x/Projects/carrier")
+    #expect(folder("{\"projectsFolder\":\"/srv/p\"}") == "/srv/p")
+    #expect(folder("{\"projectsFolder\":\"\"}") == "/Users/x/.carrier/chat/projects")
 }
 
 @Test func theProjectsFoldersAreTheOwnerAndRepoFoldersOnDiskByName() throws {
@@ -50,34 +50,29 @@ import Testing
     for name in ["", ".", "..", ".hidden", "-x", "a/b", "../x", "a b", "a\n", "é", "ñandú", String(repeating: "a", count: 101)] { #expect(projectNameProblem(name) != nil, "\(name)") }
 }
 
-@Test func changingTheProjectsFolderSetsOnlyThatKeyKeepingTheChatBlockAndTheKeysTheAppDoesNotKnow() throws {
-    func change(_ json: String) throws -> [String: Any] {
-        let updated = try #require(applyingProjectsFolder("/Volumes/code", to: Data(json.utf8)))
+@Test func changingTheProjectsFolderSetsOnlyThatKeyOfChatJsonAndMakesTheFileWhenItIsNotThere() throws {
+    func change(_ json: String?) throws -> [String: Any] {
+        let updated = try #require(applyingProjectsFolder("/Volumes/code", to: json.map { Data($0.utf8) }))
         return try #require(try JSONSerialization.jsonObject(with: updated) as? [String: Any])
     }
-    let withChat = try change(#"{"root":"~/work","future":{"x":[1,2]},"chat":{"agents":{"a":{"harness":"claude"}},"projectsFolder":"~/old","extra":true},"repos":[{"name":"a/b"}]}"#)
-    let chat = try #require(withChat["chat"] as? [String: Any])
-    #expect(chat["projectsFolder"] as? String == "/Volumes/code" && chat["extra"] as? Bool == true && chat["agents"] != nil)
-    #expect(withChat["root"] as? String == "~/work" && withChat["future"] != nil && (withChat["repos"] as? [[String: Any]])?.count == 1)
-    let noChat = try change(#"{"repos":[{"name":"a/b"}],"unknown":1}"#)
-    #expect((noChat["chat"] as? [String: Any])?["projectsFolder"] as? String == "/Volumes/code" && noChat["unknown"] as? Int == 1)
+    let existing = try change(#"{"agents":{"a":{"harness":"claude"}},"projectsFolder":"~/old","logLevel":"debug"}"#)
+    #expect(existing["projectsFolder"] as? String == "/Volumes/code" && existing["agents"] != nil && existing["logLevel"] as? String == "debug")
+    #expect(try change(nil) as NSDictionary == ["projectsFolder": "/Volumes/code"])
     #expect(applyingProjectsFolder("/x", to: Data("[1]".utf8)) == nil && applyingProjectsFolder("/x", to: Data("nope".utf8)) == nil)
 }
 
-@Test func theProjectsFolderMayNotBeTheEnginesReposWorktreesOrOrchestratorOrInsideThem() throws {
-    let config = Data(#"{"root":"/data/solve"}"#.utf8)
-    func problem(_ folder: String) -> String? { projectsFolderRefusal(folder, configJSON: config, home: "/Users/x") }
-    for name in ["repos", "worktrees", "orchestrator"] {
-        #expect(problem("/data/solve/\(name)")?.contains("Carrier's own \(name) folder") == true)
-        #expect(problem("/data/solve/\(name)/a/b") != nil)
+@Test func theProjectsFolderMayNotBeTheEngineOrTheChatsStateLogsOrWorktreesOrInsideThem() throws {
+    func problem(_ folder: String) -> String? { projectsFolderRefusal(folder, carrierFolder: "/data/carrier") }
+    for name in ["engine", "chat/state", "chat/logs", "chat/worktrees"] {
+        #expect(problem("/data/carrier/\(name)")?.contains("Carrier's own \(name) folder") == true)
+        #expect(problem("/data/carrier/\(name)/a/b") != nil)
     }
-    for ok in ["/data/solve", "/data/solve/chat/projects", "/data/solve/reposx", "/data/other/repos", "/Users/x/Projects"] { #expect(problem(ok) == nil, "\(ok)") }
+    for ok in ["/data/carrier", "/data/carrier/chat", "/data/carrier/chat/projects", "/data/carrier/engines", "/data/other/engine", "/Users/x/Projects"] { #expect(problem(ok) == nil, "\(ok)") }
     #expect(problem("projects") == "The projects folder must be an absolute path")
-    #expect(projectsFolderRefusal("/Users/x/.solve/repos", configJSON: nil, home: "/Users/x") != nil)
-    // a symlink into an engine folder is refused too
+    // a symlink into the engine's folder is refused too
     let base = NSTemporaryDirectory() + "link-\(UUID().uuidString)"
     defer { try? FileManager.default.removeItem(atPath: base) }
-    try FileManager.default.createDirectory(atPath: base + "/root/worktrees", withIntermediateDirectories: true)
-    try FileManager.default.createSymbolicLink(atPath: base + "/alias", withDestinationPath: base + "/root/worktrees")
-    #expect(projectsFolderRefusal(base + "/alias", configJSON: Data(#"{"root":"\#(base)/root"}"#.utf8), home: "/Users/x") != nil)
+    try FileManager.default.createDirectory(atPath: base + "/carrier/engine/worktrees", withIntermediateDirectories: true)
+    try FileManager.default.createSymbolicLink(atPath: base + "/alias", withDestinationPath: base + "/carrier/engine/worktrees")
+    #expect(projectsFolderRefusal(base + "/alias", carrierFolder: base + "/carrier") != nil)
 }

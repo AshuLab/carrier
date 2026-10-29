@@ -9,11 +9,11 @@ public enum ResumeRejection: Error, Equatable {
     case unknownHarness
     case badSessionId
     case badFolder
-    case folderOutsideRoot
+    case folderOutsideEngine
     case badConfigDir
 }
 
-/// A descriptor that passed `validateResume`; `cwd` is the resolved folder (symlinks followed), inside the shared root.
+/// A descriptor that passed `validateResume`; `cwd` is the resolved folder (symlinks followed), inside the engine's folder.
 public struct ValidResume: Equatable {
     public var harness: String
     public var sessionId: String
@@ -41,13 +41,13 @@ private func existingFolder(_ path: String) -> String? {
     return FileManager.default.fileExists(atPath: result, isDirectory: &isFolder) && isFolder.boolValue ? result : nil
 }
 
-/// The allowlist: the three harnesses, a strict id, an existing folder inside `root` (after resolving symlinks) and, when
+/// The allowlist: the three harnesses, a strict id, an existing folder inside the engine's folder `engine` (after resolving symlinks) and, when
 /// given, an existing configuration folder. Antigravity has no configuration variable, so its `configDir` is dropped.
-public func validateResume(_ descriptor: ResumeDescriptor, root: String) -> Result<ValidResume, ResumeRejection> {
+public func validateResume(_ descriptor: ResumeDescriptor, engine: String) -> Result<ValidResume, ResumeRejection> {
     guard ["claude", "codex", "agy"].contains(descriptor.harness) else { return .failure(.unknownHarness) }
     guard isIdentifier(descriptor.sessionId) else { return .failure(.badSessionId) }
     guard let folder = existingFolder(descriptor.cwd) else { return .failure(.badFolder) }
-    guard let base = existingFolder(root), folder.hasPrefix(base == "/" ? "/" : base + "/") else { return .failure(.folderOutsideRoot) }
+    guard let base = existingFolder(engine), folder.hasPrefix(base == "/" ? "/" : base + "/") else { return .failure(.folderOutsideEngine) }
     var configDir: String?
     if let given = descriptor.configDir, descriptor.harness != "agy" {
         guard let config = existingFolder(given) else { return .failure(.badConfigDir) }
@@ -96,10 +96,10 @@ public enum ContinueError: Error, Equatable {
 /// it. The script is deleted again if it cannot be opened; otherwise it deletes itself when it runs.
 @discardableResult
 public func continueInTerminal(
-    _ descriptor: ResumeDescriptor, root: String, opener: TerminalOpener, directory: String = NSTemporaryDirectory()
+    _ descriptor: ResumeDescriptor, engine: String, opener: TerminalOpener, directory: String = NSTemporaryDirectory()
 ) throws -> URL {
     let resume: ValidResume
-    switch validateResume(descriptor, root: root) {
+    switch validateResume(descriptor, engine: engine) {
     case .success(let valid): resume = valid
     case .failure(let rejection): throw ContinueError.rejected(rejection)
     }

@@ -7,24 +7,24 @@ private let complete = SetupSettings(
 )
 
 @Test func theCommandLineIsNodeCarrierAndTheConfig() throws {
-    let command = try #require(startCommand(settings: complete, root: "/h/.solve", environment: ["HOME": "/h", "PATH": "/usr/bin"]))
+    let command = try #require(startCommand(settings: complete, engine: "/h/.carrier/engine", environment: ["HOME": "/h", "PATH": "/usr/bin"]))
     #expect(command.node == "/n/bin/node")
     #expect(command.arguments == ["/n/bin/carrier", "--config", "/h/.carrier/config.json"])
 }
 
 @Test func theEnvironmentGetsTheEnginePathAndKeepsTheRest() throws {
-    let command = try #require(startCommand(settings: complete, root: "/h/.solve", environment: ["HOME": "/h", "PATH": "/usr/bin"]))
+    let command = try #require(startCommand(settings: complete, engine: "/h/.carrier/engine", environment: ["HOME": "/h", "PATH": "/usr/bin"]))
     // node's directory first, then the rest of the detected one without repeating it
     #expect(command.environment["PATH"] == "/n/bin:/usr/bin:/bin")
     #expect(command.environment["HOME"] == "/h")
 }
 
-@Test func theLogAndTheSocketLiveUnderTheRootsOrchestratorFolder() throws {
-    let command = try #require(startCommand(settings: complete, root: "/h/.solve", environment: [:]))
-    #expect(command.orchestratorDir == "/h/.solve/orchestrator")
-    #expect(command.logsDir == "/h/.solve/orchestrator/logs")
-    #expect(command.logPath == "/h/.solve/orchestrator/logs/app-start.log")
-    #expect(command.socketPath == "/h/.solve/orchestrator/control.sock")
+@Test func theLogAndTheSocketLiveUnderTheEnginesFolder() throws {
+    let command = try #require(startCommand(settings: complete, engine: "/h/.carrier/engine", environment: [:]))
+    #expect(command.orchestratorDir == "/h/.carrier/engine")
+    #expect(command.logsDir == "/h/.carrier/engine/logs")
+    #expect(command.logPath == "/h/.carrier/engine/logs/app-start.log")
+    #expect(command.socketPath == "/h/.carrier/engine/state/control.sock")
 }
 
 @Test func withoutNodeCarrierOrAConfigPathThereIsNoCommandAndTheMissingOnesAreNamed() {
@@ -32,7 +32,7 @@ private let complete = SetupSettings(
     settings.node = ""
     settings.configPath = ""
     #expect(startMissing(settings) == ["node", "config path"])
-    #expect(startCommand(settings: settings, root: "/h/.solve", environment: [:]) == nil)
+    #expect(startCommand(settings: settings, engine: "/h/.carrier/engine", environment: [:]) == nil)
     settings.carrier = ""
     #expect(startMissing(settings) == ["node", "carrier", "config path"])
     #expect(startMissing(complete).isEmpty)

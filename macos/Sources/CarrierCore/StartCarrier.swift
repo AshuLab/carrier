@@ -7,7 +7,7 @@ import Foundation
 public let startTimeout: TimeInterval = 15
 
 /// What the shell spawns: `node <carrier> ...` with the engine's PATH, its output going to `logPath`. `orchestratorDir` is the
-/// user-only folder the log's folder lives in (the engine's `orchestrator/`, the chat host's `chat/`).
+/// user-only folder the log's folder lives in (the engine's `engine/`, the chat host's `chat/`).
 public struct StartCommand: Equatable {
     public let node: String
     public let arguments: [String]
@@ -25,16 +25,15 @@ public func startMissing(_ settings: SetupSettings) -> [String] {
         .filter { $0.1.isEmpty }.map(\.0)
 }
 
-/// nil when `startMissing` is not empty. `root` is the config file's, where the log and the socket live. `environment` is the
+/// nil when `startMissing` is not empty. `engine` is the engine's folder, where the log and the socket live. `environment` is the
 /// app's own; only its PATH is replaced.
-public func startCommand(settings: SetupSettings, root: String, environment: [String: String]) -> StartCommand? {
+public func startCommand(settings: SetupSettings, engine: String, environment: [String: String]) -> StartCommand? {
     guard startMissing(settings).isEmpty else { return nil }
     var environment = environment
     environment["PATH"] = enginePath(detected: settings.path, node: settings.node)
-    let orchestrator = root + "/orchestrator"
     return StartCommand(
         node: settings.node, arguments: [settings.carrier, "--config", settings.configPath], environment: environment,
-        orchestratorDir: orchestrator, logPath: orchestrator + "/logs/app-start.log", socketPath: orchestrator + "/control.sock"
+        orchestratorDir: engine, logPath: engine + "/logs/app-start.log", socketPath: engine + "/state/control.sock"
     )
 }
 

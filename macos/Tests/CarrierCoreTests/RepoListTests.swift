@@ -106,6 +106,6 @@ func anythingElseIsNot(name: String) { #expect(isRepoName(name) == false) }
     let stopped = repoRows(draft: ["a/b"], saved: ["a/b"], snapshot: nil)
     #expect(stopped == [RepoRow(name: "a/b", health: .unknown, line: "Carrier is stopped", epics: nil, isNew: false)])
     #expect(stopped[0].owner == "a" && stopped[0].repo == "b" && stopped[0].gitHubURL?.absoluteString == "https://github.com/a/b")
-    #expect(stopped[0].clonePath(root: "/data/solve") == "/data/solve/repos/a/b")
-    #expect(tildePath("/Users/ana/.solve/repos/a/b", home: "/Users/ana") == "~/.solve/repos/a/b" && tildePath("/srv/x", home: "/Users/ana") == "/srv/x")
+    #expect(stopped[0].clonePath(engine: "/data/carrier/engine") == "/data/carrier/engine/repos/a/b")
+    #expect(tildePath("/Users/ana/.carrier/engine/repos/a/b", home: "/Users/ana") == "~/.carrier/engine/repos/a/b" && tildePath("/srv/x", home: "/Users/ana") == "/srv/x")
 }

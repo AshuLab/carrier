@@ -19,12 +19,10 @@ struct ContinueInTerminalView: View {
 
     var body: some View {
         if let descriptor = section.resume {
-            let root = configRoot(
-                configPath: activeConfigPath(saved: SetupStore().load(), environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory()),
-                home: NSHomeDirectory())
-            if case .success(let valid) = validateResume(descriptor, root: root) {
+            let engine = engineFolder()
+            if case .success(let valid) = validateResume(descriptor, engine: engine) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Button { open(descriptor, root: root) } label: {
+                    Button { open(descriptor, engine: engine) } label: {
                         HStack(spacing: LogMetrics.gap) {
                             Image(systemName: "apple.terminal").font(.system(size: 12)).foregroundStyle(.secondary)
                                 .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
@@ -56,9 +54,9 @@ struct ContinueInTerminalView: View {
         }
     }
 
-    private func open(_ descriptor: ResumeDescriptor, root: String) {
+    private func open(_ descriptor: ResumeDescriptor, engine: String) {
         do {
-            try continueInTerminal(descriptor, root: root, opener: WorkspaceTerminalOpener())
+            try continueInTerminal(descriptor, engine: engine, opener: WorkspaceTerminalOpener())
             failure = nil
         } catch {
             NSLog("Carrier: continue in Terminal failed: %@", String(describing: error))

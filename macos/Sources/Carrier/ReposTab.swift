@@ -25,7 +25,7 @@ struct ReposTabView: View {
         activeConfigPath(saved: SetupStore().load(), environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
     }
 
-    private var root: String { configRoot(configPath: path, home: NSHomeDirectory()) }
+    private var engine: String { engineFolder() }
 
     private var snapshot: PanelSnapshot? {
         if case .running(let snapshot)? = state { return snapshot }
@@ -44,7 +44,7 @@ struct ReposTabView: View {
             if let note { SavedNote(text: note) }
             SettingsTabCard {
                 ForEach(Array(repoRows(draft: draft, saved: saved, snapshot: snapshot).enumerated()), id: \.element.id) { index, row in
-                    RepoRowView(row: row, first: index == 0, onlyOne: draft.count == 1, root: root) { removing = row.name }
+                    RepoRowView(row: row, first: index == 0, onlyOne: draft.count == 1, engine: engine) { removing = row.name }
                 }
             }
             if let problem, unreadable == false { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
@@ -141,12 +141,12 @@ private struct RepoRowView: View {
     let row: RepoRow
     let first: Bool
     let onlyOne: Bool
-    let root: String
+    let engine: String
     let remove: () -> Void
     @State private var hovering = false
 
     var body: some View {
-        let clone = row.clonePath(root: root)
+        let clone = row.clonePath(engine: engine)
         let cloned = FileManager.default.fileExists(atPath: clone)
         HStack(alignment: .top, spacing: 12) {
             tile

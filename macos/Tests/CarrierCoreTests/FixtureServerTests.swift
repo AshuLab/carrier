@@ -58,7 +58,7 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
 @Test func pointingCarrierHomeAtTheFixtureFindsItsSocket() throws {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
-    #expect(controlSocketPath(saved: nil, environment: ["CARRIER_HOME": server.home], home: "/nonexistent") == server.socketPath)
+    #expect(controlSocketPath(environment: ["CARRIER_HOME": server.home], home: "/nonexistent") == server.socketPath)
 }
 
 @Test func stopRemovesTheSocketAndTheTemporaryHome() throws {

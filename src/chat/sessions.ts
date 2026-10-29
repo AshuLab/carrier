@@ -357,7 +357,8 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
       const rows = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), gt(chatEvents.id, after))).orderBy(asc(chatEvents.id)).limit(limit).all();
       const live = lives.get(sessionId);
       return {
-        events: rows.map(({ id, at, kind, data }) => ({ id, at, kind, ...data })),
+        // an option event's data has the option's own `id`, which must not take the place of the row's: a client reads `id` as the cursor
+        events: rows.map(({ id, at, kind, data }) => (kind === 'option' ? { id, at, kind, option: data.id, value: data.value } : { id, at, kind, ...data })),
         cursor: rows.at(-1)?.id ?? after,
         session: summary(current),
         streaming: live?.streaming ?? '',

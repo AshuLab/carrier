@@ -161,7 +161,8 @@ test('setOption changes an option of a live session: the adapter applies it, an 
   const reply = await sessions.setOption({ sessionId: id, option: 'mode', value: 'default' });
   expect(reply.options.map((o) => [o.id, o.current])).toEqual([['mode', 'default'], ['model', 'haiku']]);
   const events = sessions.events({ sessionId: id, limit: 10 });
-  expect(events.events).toMatchObject([{ kind: 'option', id: 'mode', value: 'default' }]);
+  // `id` is the event's own, a number the client uses as a cursor; the option is `option`
+  expect(events.events).toMatchObject([{ id: expect.any(Number), kind: 'option', option: 'mode', value: 'default' }]);
   expect(events.options.map((o) => o.current)).toEqual(['default', 'haiku']);
   expect(rows('sessions')[0].options).toBe(JSON.stringify({ mode: 'default' })); // the session records the options it runs with
 });

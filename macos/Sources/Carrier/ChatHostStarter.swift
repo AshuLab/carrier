@@ -10,6 +10,10 @@ import Observation
     private var starting = false
     /// What the settings lack while the host could not be started for it, which the Sessions section and the Sessions home say.
     private(set) var missing: [String] = []
+    /// An older host is left running because a session is working: the Sessions section and the Sessions home say to restart it.
+    private(set) var restartAdvised = false
+    /// The installed `carrier` is asked its version once per launch.
+    private var versionChecked = false
 
     /// At open, and again when the Settings window closes: starts the host if it does not answer. With `node` or `carrier`
     /// missing there is no alert, only `missing`; a start that fails keeps the alert.
@@ -24,15 +28,22 @@ import Observation
         let command = startChatHostCommand(settings: settings, environment: ProcessInfo.processInfo.environment)
         // the socket asked here and the one the start waits on are the same: the Carrier folder decides both
         let socket = command?.socketPath ?? chatSocketPath()
+        let fixture = CommandLine.arguments.contains("--fixture")
         DispatchQueue.global().async {
             let answers = ControlClient.connect(path: socket) != nil
             DispatchQueue.main.async {
                 let decision = chatHostAtOpen(
-                    settings: settings, hostAnswers: answers, startRunning: self.starting, fixture: CommandLine.arguments.contains("--fixture")
+                    settings: settings, hostAnswers: answers, startRunning: self.starting, fixture: fixture
                 )
                 self.missing = if case .missing(let names) = decision { names } else { [] }
+                if answers == false { self.restartAdvised = false }
                 switch decision {
-                case .leave: done(answers)
+                case .leave:
+                    if answers, self.versionChecked == false, self.starting == false, fixture == false, let command {
+                        self.versionChecked = true
+                        self.replaceIfOlder(command)
+                    }
+                    done(answers)
                 case .missing(let names):
                     if alertWhenMissing {
                         let list = names.joined(separator: ", ")
@@ -54,5 +65,68 @@ import Observation
                 }
             }
         }
+    }
+
+    /// A host that answers while the installed `carrier` is newer is replaced when no session is working or waiting, and otherwise
+    /// left running with a notice. Anything that cannot be read leaves it alone, and says so in the log.
+    private func replaceIfOlder(_ command: StartCommand) {
+        Task.detached {
+            guard let installed = Self.installedVersion(command) else { return }
+            guard let client = ControlClient.connect(path: command.socketPath) else { return }
+            let running = (try? client.hello())?.version ?? ""
+            client.close()
+            let sessions: [ChatSession]
+            do { sessions = try await SocketChatHost(socketPath: { command.socketPath }).list(archived: false) } catch {
+                FileHandle.standardError.write(Data("carrier: the chat host was left alone, its sessions could not be listed: \(error)\n".utf8))
+                return
+            }
+            // ponytail: a session that starts working between the list and the stop is closed with the host; a guard in the host if it bites
+            switch hostReplacement(running: running, installed: installed, working: sessions.contains { $0.state != .idle }) {
+            case .keep: break
+            case .askRestart: await MainActor.run { self.restartAdvised = true }
+            case .replace: await self.replace(command)
+            }
+        }
+    }
+
+    /// Stops the host, waits for its socket to go, starts the installed one; a failed start keeps the alert.
+    private func replace(_ command: StartCommand) async {
+        await MainActor.run { self.starting = true }
+        var failure: (reason: String, tail: String)?
+        do {
+            try send(.stop, socketPath: command.socketPath)
+            // ponytail: polls the socket for 15 s, as the engine's restart does
+            let deadline = Date().addingTimeInterval(15)
+            while ControlClient.connect(path: command.socketPath) != nil, Date() < deadline { try await Task.sleep(for: .milliseconds(250)) }
+            failure = StartController.launch(command, name: "The chat host")
+        } catch {
+            FileHandle.standardError.write(Data("carrier: the older chat host was not replaced: \(error)\n".utf8))
+        }
+        await MainActor.run {
+            self.starting = false
+            if let failure { StartController.showAlert(title: "The chat host did not start", reason: failure.reason, tail: failure.tail) }
+        }
+    }
+
+    /// What `carrier --version` prints; nil, with the reason in the log, when the command fails or prints something else.
+    private static func installedVersion(_ command: StartCommand) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: command.node)
+        process.arguments = [command.arguments[0], "--version"]
+        process.environment = command.environment
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
+        do {
+            try process.run()
+            let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            process.waitUntilExit()
+            if process.terminationStatus == 0, versionNumbers(text) != nil { return text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            FileHandle.standardError.write(Data("carrier: the chat host was left alone, `carrier --version` failed (exit \(process.terminationStatus)) or printed something else\n".utf8))
+        } catch {
+            FileHandle.standardError.write(Data("carrier: the chat host was left alone, `carrier --version` could not run: \(error)\n".utf8))
+        }
+        return nil
     }
 }

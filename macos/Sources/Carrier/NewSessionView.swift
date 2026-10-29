@@ -9,8 +9,9 @@ struct NewSessionView: View {
     let opened: (String) -> Void
     @State private var foldersOpen = false
     @State private var branchesOpen = false
-    @State private var branchQuery = ""
-    @FocusState private var boxFocused: Bool
+    @State private var currentBranchOpen = false
+    @State private var whereOpen = false
+    @State private var boxFocused = false
 
     var body: some View {
         VStack(spacing: 14) {
@@ -21,22 +22,23 @@ struct NewSessionView: View {
                 Text("Pick where it works, then write.").font(.callout).foregroundStyle(.secondary)
             }
             .padding(.bottom, 10)
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 16) {
                 sentence
                 box
                 if model.worktree, let branch = model.startBranch {
-                    Text("Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.")
-                        .font(.caption).foregroundStyle(.secondary).padding(.leading, 4)
+                    Label("Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.", systemImage: "arrow.triangle.branch")
+                        .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
                 }
                 if let refusal = model.refusal {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(refusal).foregroundStyle(.red).textSelection(.enabled)
                         if let hint = signInLine(refusal: refusal) { Text(hint).foregroundStyle(.secondary) }
                     }
-                    .font(.callout).padding(.leading, 4)
+                    .font(.callout)
                 }
             }
-            .frame(maxWidth: 640)
+            // never narrower than 320: the window asks for its smallest size with no width, and the notes under the sentence would be a word a line
+            .frame(minWidth: 320, maxWidth: 820)
             Spacer(minLength: 0)
             Spacer(minLength: 0)
         }
@@ -44,7 +46,10 @@ struct NewSessionView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // nothing scrolls under the toolbar here, so it takes the page's own colour and not the system's band
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-        .task { await model.load() }
+        .task {
+            await model.load()
+            await model.loadOptions()
+        }
         .onAppear { boxFocused = true }
     }
 
@@ -65,7 +70,7 @@ struct NewSessionView: View {
                     )
                 }
                 .buttonStyle(.plain).accessibilityLabel("Workspace")
-                .popover(isPresented: $foldersOpen, arrowEdge: .bottom) { picker }
+                .sheet(isPresented: $foldersOpen) { WorkspaceSheet(model: model) }
                 if let repo = model.cloning {
                     ProgressView().controlSize(.small)
                     Text("Cloning \(repo)…")
@@ -73,32 +78,34 @@ struct NewSessionView: View {
                 if model.folder != nil {
                     if model.offersWorktree {
                         Text("on")
-                        Menu {
-                            Button { Task { await model.useWorktree(false) } } label: { Label("Current folder", systemImage: model.worktree ? "" : "checkmark") }
-                            Button { Task { await model.useWorktree(true) } } label: { Label("New worktree", systemImage: model.worktree ? "checkmark" : "") }
-                        } label: {
-                            chip(model.worktree ? "New worktree" : "Current folder")
-                        }
-                        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-                        .accessibilityLabel("Where it works")
-                        if model.worktree { worktreeControls } else { Text("(\(model.workspace?.branch ?? "detached HEAD"))") }
+                        Button { whereOpen.toggle() } label: { chip(model.worktree ? "New worktree" : "Current folder", icon: model.worktree ? "square.on.square" : "folder") }
+                            .buttonStyle(.plain).accessibilityLabel("Where it works")
+                            .sheet(isPresented: $whereOpen) { WhereItWorksSheet(model: model) }
+                        if model.worktree { worktreeControls } else { currentBranch }
                     } else {
                         Text(rest)
                     }
                 }
             }
-            .font(.callout).foregroundStyle(.secondary).padding(.leading, 4)
+            .font(.body).foregroundStyle(.secondary)
             .accessibilityElement(children: .contain)
             if let note = model.watchNote {
-                Text(note).font(.callout).foregroundStyle(model.watchFailed ? .orange : .secondary).padding(.leading, 4).textSelection(.enabled)
+                Label(note, systemImage: model.watchFailed ? "exclamationmark.triangle.fill" : "eye.fill").font(.subheadline).foregroundStyle(model.watchFailed ? .orange : .secondary).textSelection(.enabled)
             }
-            if let warning = model.warning { Text(warning).font(.callout).foregroundStyle(.orange).padding(.leading, 4) }
+            if let warning = model.warning { Text(warning).font(.callout).foregroundStyle(.orange) }
             if case .problem(let reason) = model.nameState, model.worktree {
-                Text(reason).font(.callout).foregroundStyle(.red).padding(.leading, 4).textSelection(.enabled)
+                Text(reason).font(.callout).foregroundStyle(.red).textSelection(.enabled)
             }
-            if let problem = model.workspaceProblem { Text(problem).font(.callout).foregroundStyle(.red).padding(.leading, 4).textSelection(.enabled) }
-            if let problem = model.cloneProblem { Text(problem).font(.callout).foregroundStyle(.red).padding(.leading, 4).textSelection(.enabled) }
+            if let problem = model.workspaceProblem { Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
+            if let problem = model.cloneProblem { Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
         }
+    }
+
+    /// The branch the chosen folder is on: a chip that opens its local branches, like the other controls.
+    private var currentBranch: some View {
+        Button { currentBranchOpen.toggle() } label: { chip(model.workspace?.branch ?? "detached HEAD", icon: "arrow.triangle.branch") }
+            .buttonStyle(.plain).accessibilityLabel("Branch of the folder")
+            .sheet(isPresented: $currentBranchOpen) { BranchSheet(model: model, browsing: true) }
     }
 
     /// What `model.sentence` says after "Work in <workspace> ".
@@ -107,38 +114,44 @@ struct NewSessionView: View {
         return model.sentence.hasPrefix(head) ? String(model.sentence.dropFirst(head.count)) : model.sentence
     }
 
-    /// A control of the sentence: its value and a chevron, on a faint fill.
-    private func chip(_ title: String, tint: Color = .primary) -> some View {
-        HStack(spacing: 4) {
-            Text(title).fontWeight(.medium)
-            Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(.secondary)
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 8).padding(.vertical, 2)
-        .background(RoundedRectangle(cornerRadius: 6).fill(tint.opacity(0.14)))
-        .contentShape(Rectangle())
+    /// A control of the sentence: its value and a chevron. The icon and the chevron are drawn over the text and not beside it: a `Menu`
+    /// takes a label that is a text and an image apart and puts the image first, which sent the chevron to the left.
+    private func chip(_ title: String, tint: Color = .primary, icon: String? = nil) -> some View {
+        Text(title).fontWeight(.medium)
+            .padding(.leading, icon == nil ? 0 : 17).padding(.trailing, 15)
+            .overlay(alignment: .leading) {
+                if let icon { Image(systemName: icon).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary) }
+            }
+            .overlay(alignment: .trailing) { Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary) }
+            .foregroundStyle(tint)
+            .padding(.horizontal, 10).frame(height: controlHeight)
+            .controlSurface(tint: tint)
+            .contentShape(RoundedRectangle(cornerRadius: 8))
     }
 
     /// The fixed `carrier/` prefix, the name (typed over in place) with ↻, and the branch it starts from.
     @ViewBuilder private var worktreeControls: some View {
-        HStack(spacing: 4) {
-            Text(worktreeBranchPrefix).foregroundStyle(.tertiary)
-            TextField("name", text: $model.worktreeName)
-                .textFieldStyle(.plain).autocorrectionDisabled().fixedSize()
-                .foregroundStyle(nameColor).accessibilityLabel("Worktree name")
+        HStack(spacing: 8) {
+            // the prefix and the name are one word to the eye: no space between them
+            HStack(spacing: 0) {
+                Text(worktreeBranchPrefix).foregroundStyle(.secondary)
+                TextField("name", text: $model.worktreeName)
+                    .textFieldStyle(.plain).autocorrectionDisabled().fixedSize()
+                    .foregroundStyle(nameColor).accessibilityLabel("Worktree name")
+            }
             Button { Task { await model.rollName() } } label: { Image(systemName: "arrow.clockwise") }
-                .buttonStyle(.plain).help("Pick another name").accessibilityLabel("Suggest another name")
+                .buttonStyle(.plain).foregroundStyle(.secondary).help("Pick another name").accessibilityLabel("Suggest another name")
         }
         .font(.callout.monospaced())
-        .padding(.horizontal, 8).padding(.vertical, 2)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.12)))
-        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(nameBorder, lineWidth: 1))
+        .padding(.horizontal, 10).frame(height: controlHeight)
+        .controlSurface()
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(nameBorder, lineWidth: 1))
         // the name is checked a moment after typing; typing again cancels the check that was waiting
         .task(id: model.worktreeName) { await model.verifyName() }
         Text("from")
-        Button { branchesOpen.toggle() } label: { chip(model.startBranch ?? "Choose a branch…") }
+        Button { branchesOpen.toggle() } label: { chip(model.startBranch ?? "Choose a branch…", icon: "arrow.triangle.branch") }
             .buttonStyle(.plain)
-            .popover(isPresented: $branchesOpen, arrowEdge: .bottom) { branches }
+            .sheet(isPresented: $branchesOpen) { BranchSheet(model: model) }
     }
 
     private var nameColor: Color {
@@ -149,355 +162,38 @@ struct NewSessionView: View {
         if case .problem = model.nameState { .red } else { .clear }
     }
 
-    /// The branch picker: a search, the local and the remote branches in two sections, and Fetch now with when it last did.
-    private var branches: some View {
-        let picker = model.picker(query: branchQuery)
-        return VStack(alignment: .leading, spacing: 6) {
-            TextField("Search branches", text: $branchQuery).textFieldStyle(.roundedBorder)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    branchSection("Local", picker?.local ?? [])
-                    branchSection("Remote", picker?.remote ?? [])
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(height: 220)
-            Divider()
-            HStack {
-                Text(picker?.fetched ?? "").font(.caption).foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                Button(model.fetching ? "Fetching…" : "Fetch now") { Task { await model.fetchNow() } }
-                    .controlSize(.small).disabled(model.fetching)
-            }
-            if let problem = model.fetchProblem { Text(problem).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
-        }
-        .padding(10).frame(width: 300)
-    }
-
-    @ViewBuilder private func branchSection(_ title: String, _ rows: [BranchRow]) -> some View {
-        if rows.isEmpty == false {
-            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.vertical, 4)
-            ForEach(rows, id: \.name) { row in
-                Button { model.choose(startBranch: row.name); branchesOpen = false } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark").opacity(model.startBranch == row.name ? 1 : 0).font(.caption)
-                        Text(row.name).lineLimit(1).truncationMode(.middle)
-                        if row.checkedOut { tag("checked out") }
-                        if row.isDefault { tag("default") }
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-                }
-                .buttonStyle(.plain).padding(.horizontal, 8).padding(.vertical, 3)
-            }
-        }
-    }
-
-    private func tag(_ text: String) -> some View {
-        Text(text).font(.caption2).foregroundStyle(.secondary)
-            .padding(.horizontal, 5).padding(.vertical, 1).background(Capsule().fill(Color.secondary.opacity(0.15)))
-    }
-
+    /// The first message and what it runs with: the message box shared with the open session, with the provider and the selects the
+    /// host cannot list yet.
     private var box: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextField("Write the first message…", text: $model.text, axis: .vertical)
-                .textFieldStyle(.plain).lineLimit(2...8).focused($boxFocused)
-                // Enter sends and Shift+Enter adds a line
-                .onKeyPress(.return, phases: .down) { press in
-                    if press.modifiers.contains(.shift) { model.text += "\n" } else { send() }
-                    return .handled
-                }
-            HStack(spacing: 8) {
-                Menu {
-                    ForEach(model.agents, id: \.name) { choice in
-                        Button(choice.note.map { "\(choice.name) (\($0))" } ?? choice.name) { model.agent = choice.name }
-                            .disabled(choice.available == false)
-                    }
-                } label: {
-                    Label(model.agent ?? "Agent", systemImage: "sparkle")
-                }
-                .menuStyle(.button).buttonStyle(.bordered).buttonBorderShape(.capsule).controlSize(.small).fixedSize()
-                Spacer(minLength: 0)
-                Button(action: send) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
-                        .frame(width: 26, height: 26).background(Circle().fill(Color.accentColor.opacity(model.canSend ? 1 : 0.35)))
-                }
-                .buttonStyle(.plain).disabled(model.canSend == false).help(model.canSend ? "Send" : "Choose a workspace and write a message")
-                .accessibilityLabel("Send")
-            }
-        }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 18).fill(Color.secondary.opacity(0.10)))
-        .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5))
-        // nothing to write to until a workspace is chosen
-        .opacity(model.folder == nil ? 0.5 : 1)
-    }
-
-    /// The workspace popover: the menu, or the step of a source inside it.
-    @ViewBuilder private var picker: some View {
-        switch model.step {
-        case .menu: menu
-        case .url: urlStep
-        case .repos: reposStep
-        case .project: projectStep
-        }
-    }
-
-    /// Recent folders, the projects folder's, the sources and a footer with where the projects folder is.
-    private var menu: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            menuHeader("Recent")
-            ForEach(model.recent, id: \.path) { folder in folderRow(folder.name, folder.path) }
-            if model.recent.isEmpty { Text("No recent folders").foregroundStyle(.secondary).padding(8) }
-            if model.projects.isEmpty == false {
-                menuHeader("In your projects folder")
-                ForEach(model.projects, id: \.path) { folderRow($0.name, $0.path) }
-            }
-            Divider().padding(.vertical, 4)
-            ForEach(model.sources, id: \.self) { source in
-                switch source {
-                case .localFolder:
-                    sourceRow(source.rawValue, "folder.badge.plus", drills: false) { openFolder() }
-                case .githubURL:
-                    sourceRow(source.rawValue, "link", drills: true) { model.show(.url) }
-                case .githubRepos:
-                    sourceRow(source.rawValue, "list.bullet", drills: true) { Task { await model.showRepos() } }
-                case .newProject:
-                    sourceRow(source.rawValue, "folder.badge.gearshape", drills: true) { model.show(.project) }
-                }
-            }
-            Divider().padding(.vertical, 4)
-            HStack(spacing: 4) {
-                Text("Projects folder").foregroundStyle(.secondary)
-                Text((model.projectsPath as NSString).abbreviatingWithTildeInPath).font(.caption.monospaced()).lineLimit(1).truncationMode(.head)
-                Spacer(minLength: 0)
-                Button("Change…") { changeProjectsFolder() }.buttonStyle(.link)
-            }
-            .font(.caption).padding(.horizontal, 8).padding(.vertical, 2)
-            if let problem = model.projectsFolderProblem {
-                Text(problem).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true).padding(.horizontal, 8)
-            }
-        }
-        .padding(8).frame(width: 340)
-    }
-
-    private func menuHeader(_ title: String) -> some View {
-        Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.top, 4)
-    }
-
-    private func folderRow(_ name: String, _ path: String) -> some View {
-        Button { foldersOpen = false; Task { await model.choose(folder: path) } } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(name)
-                Text((path as NSString).abbreviatingWithTildeInPath).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-        }
-        .buttonStyle(.plain).padding(.horizontal, 8).padding(.vertical, 4)
-    }
-
-    private func sourceRow(_ title: String, _ icon: String, drills: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                Label(title, systemImage: icon)
-                Spacer(minLength: 0)
-                if drills { Image(systemName: "chevron.right").font(.caption).foregroundStyle(.secondary) }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-        }
-        .buttonStyle(.plain).padding(.horizontal, 8).padding(.vertical, 4)
-    }
-
-    /// From a GitHub URL: the text, what will happen to it, and the button; while it clones, the clone and Cancel.
-    private var urlStep: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Button { model.show(.menu) } label: { Label("Back", systemImage: "chevron.left") }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).disabled(model.cloning != nil)
-                Text("From a GitHub URL").fontWeight(.semibold)
-            }
-            TextField("owner/repo  or  https://github.com/owner/repo", text: $model.urlText)
-                .textFieldStyle(.roundedBorder).autocorrectionDisabled().disabled(model.cloning != nil)
-                .onSubmit { clone() }
-            Toggle("Let Carrier watch this repo", isOn: Binding(get: { model.watching }, set: { model.watch = $0 }))
-                .disabled(model.watchProblem != nil || model.cloning != nil)
-            if let reason = model.watchProblem {
-                Text(reason).font(.caption).foregroundStyle(.secondary)
-            }
-            if let repo = model.cloning {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Cloning \(repo)…")
-                }
-                .font(.callout)
-            } else if let problem = model.cloneProblem {
-                Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled)
-            } else if model.alreadyThere {
-                Text("Already in your projects folder. It will be updated (fetch) and opened, not cloned again.").font(.callout).foregroundStyle(.orange)
-            }
-            HStack {
-                Spacer(minLength: 0)
-                Button("Cancel") {
-                    model.cancelClone()
-                    foldersOpen = false
-                }
-                .keyboardShortcut(.cancelAction)
-                if model.cloning == nil {
-                    Button(model.cloneButton) { clone() }
-                        .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(model.canCloneNow == false)
-                }
-            }
-        }
-        .padding(12).frame(width: 340)
-    }
-
-    /// My GitHub repositories (frames 4a and 4b of the prototype): the login, a search over what is loaded, the rows, a notice while the
-    /// list is partial with Load more, and the watch box under the list; choosing a row clones it, and the clone shows here.
-    private var reposStep: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Button { model.show(.menu) } label: { Label("Back", systemImage: "chevron.left") }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).disabled(model.cloning != nil)
-                Text("My GitHub repositories").fontWeight(.semibold)
-            }
-            if let login = model.login {
-                Text("Signed in to GitHub as \(Text(login).bold().foregroundStyle(.primary))").font(.callout).foregroundStyle(.secondary)
-            }
-            if model.repoList.blocked {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(model.reposReason ?? "GitHub did not answer").foregroundStyle(.red).textSelection(.enabled)
-                    Button("Try again") { Task { await model.loadRepos() } }.disabled(model.loadingRepos)
-                }
-                .font(.callout)
-            } else if model.repoList.repos.isEmpty && model.loadingRepos {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Loading your repositories…")
-                }
-                .font(.callout).foregroundStyle(.secondary)
+        MessageBox(
+            text: $model.text, placeholder: model.folder == nil ? "Choose a workspace to start…" : "Write the first message…",
+            canSend: model.canSend, sendHelp: model.canSend ? "Send" : "Choose a workspace and write a message",
+            focus: $boxFocused, commands: model.agentCommands, send: send
+        ) {
+            providerSelect
+            if model.shownOptions.isEmpty {
+                // until the host has listed them (a few seconds the first time), or when it cannot
+                ComposerSelect(title: "Model", icon: "cpu", note: model.loadingOptions ? "Reading what the provider offers…" : "Each provider's models will be listed here.")
+                ComposerSelect(title: "Reasoning", icon: "brain", note: model.loadingOptions ? "Reading what the provider offers…" : "How much the agent thinks before it answers.")
+                ComposerSelect(title: "Access", icon: "lock.shield", note: model.loadingOptions ? "Reading what the provider offers…" : "What the agent may do without asking you.")
             } else {
-                TextField("Search the loaded repositories", text: $model.reposQuery).textFieldStyle(.roundedBorder).autocorrectionDisabled()
-                let rows = model.repoRows()
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(rows) { repoRow($0) }
-                        if rows.isEmpty { Text(model.reposQuery.isEmpty ? "No repositories" : "No loaded repository matches “\(model.reposQuery)”").foregroundStyle(.secondary).padding(8) }
-                    }
-                }
-                .frame(height: 220)
-                if model.repoList.hasMore {
-                    Text("Partial list · \(model.repoList.repos.count) of your repositories loaded. Search only looks at these; for another, use the URL.").font(.caption).foregroundStyle(.secondary)
-                }
-                if model.repoList.problem != nil, let reason = model.reposReason {
-                    Text(reason).font(.caption).foregroundStyle(.red).textSelection(.enabled)
-                }
-                if model.repoList.hasMore {
-                    Button(model.loadingRepos ? "Loading…" : model.repoList.problem != nil ? "Try again" : "Load more") { Task { await model.loadRepos() } }
-                        .disabled(model.loadingRepos)
-                }
-            }
-            Divider()
-            Toggle("Let Carrier watch the repo I choose", isOn: $model.watch).disabled(model.cloning != nil)
-            Text("Not for repos that are already watched.").font(.caption).foregroundStyle(.secondary)
-            if let repo = model.cloning {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Cloning \(repo)…")
-                    Spacer(minLength: 0)
-                    Button("Cancel") { model.cancelClone() }.keyboardShortcut(.cancelAction)
-                }
-                .font(.callout)
-            } else if let problem = model.cloneProblem {
-                Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled)
+                optionSelects(model.shownOptions) { option, value in model.choose(option: option, value: value) }
             }
         }
-        .padding(12).frame(width: 400)
+        // nothing to write to until a workspace is chosen
+        .opacity(model.folder == nil ? 0.55 : 1)
     }
 
-    private func repoRow(_ row: GithubRepoRow) -> some View {
-        Button { Task { if await model.cloneAndUse(repo: row.name) { foldersOpen = false } } } label: {
-            HStack(alignment: .top, spacing: 6) {
-                VStack(alignment: .leading, spacing: 1) {
-                    let parts = row.name.split(separator: "/", maxSplits: 1).map(String.init)
-                    Text("\(Text(parts[0] + "/").foregroundStyle(.secondary))\(Text(parts[1]).fontWeight(.semibold))").lineLimit(1).truncationMode(.middle)
-                    HStack(spacing: 4) {
-                        if row.isPrivate { Image(systemName: "lock.fill").accessibilityLabel("Private") }
-                        Text(row.pushed)
-                    }
-                    .font(.caption).foregroundStyle(.secondary)
-                    if let reason = row.cannotWatch {
-                        Text("Carrier will not watch it: \(reason)").font(.caption2).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                Spacer(minLength: 0)
-                if row.watched { tag("watched") }
+    /// The agent the session starts with, from the host's list; one that is not installed is shown and cannot be chosen.
+    private var providerSelect: some View {
+        ComposerSelect(
+            title: "Provider", icon: "sparkle", selected: model.agent, showsValue: true,
+            choices: model.agents.map { SelectChoice(id: $0.name, label: $0.name, detail: $0.note, enabled: $0.available) },
+            choose: { name in
+                model.agent = name
+                Task { await model.loadOptions() }
             }
-            .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
-        }
-        .buttonStyle(.plain).padding(.horizontal, 8).padding(.vertical, 4).disabled(model.cloning != nil)
-    }
-
-    /// New project: a name, the path it will make, and the button; no watch box, a new project has no GitHub repository.
-    private var projectStep: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Button { model.show(.menu) } label: { Label("Back", systemImage: "chevron.left") }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).disabled(model.creating)
-                Text("New project").fontWeight(.semibold)
-            }
-            TextField("Project name", text: $model.projectName)
-                .textFieldStyle(.roundedBorder).autocorrectionDisabled().disabled(model.creating)
-                .onSubmit { create() }
-            Text("Will make \((model.projectPath as NSString).abbreviatingWithTildeInPath) and run git init on main.")
-                .font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(2).truncationMode(.head)
-            if let warning = model.projectNameWarning {
-                Text(warning).font(.callout).foregroundStyle(.orange)
-            } else if let problem = model.createProblem {
-                Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled)
-            }
-            HStack {
-                Spacer(minLength: 0)
-                Button("Cancel") { foldersOpen = false }.keyboardShortcut(.cancelAction)
-                Button("Create and use") { create() }
-                    .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(model.canCreateNow == false)
-            }
-        }
-        .padding(12).frame(width: 340)
-    }
-
-    private func create() {
-        guard model.canCreateNow else { return }
-        Task { if await model.createAndUse() { foldersOpen = false } }
-    }
-
-    private func clone() {
-        guard model.canCloneNow else { return }
-        Task { if await model.cloneAndUse() { foldersOpen = false } }
-    }
-
-    /// The footer's Change…: the folder panel, then the popover comes back to show the new path or why it was refused.
-    private func changeProjectsFolder() {
-        foldersOpen = false
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.directoryURL = URL(fileURLWithPath: model.projectsPath)
-        panel.prompt = "Choose"
-        if panel.runModal() == .OK, let url = panel.url { model.changeProjectsFolder(to: url.path) }
-        foldersOpen = true
-    }
-
-    private func openFolder() {
-        foldersOpen = false
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Choose"
-        if panel.runModal() == .OK, let url = panel.url { Task { await model.choose(folder: url.path) } }
+        )
     }
 
     private func send() {

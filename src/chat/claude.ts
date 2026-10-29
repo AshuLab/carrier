@@ -1,8 +1,8 @@
 import { execFile, spawn } from 'node:child_process';
-import { query as sdkQuery, type ModelInfo, type PermissionResult, type PermissionUpdate, type Query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query as sdkQuery, type ModelInfo, type PermissionResult, type PermissionUpdate, type Query, type SDKMessage, type SDKUserMessage, type SlashCommand } from '@anthropic-ai/claude-agent-sdk';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { endGroup, resolveAgentBinary } from './group.ts';
-import { ChatRefused, type ChatChoice, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner, type ChatUsage } from './runner.ts';
+import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner, type ChatUsage } from './runner.ts';
 
 // The Claude adapter of the chat runner: the Agent SDK pointed at the user's own `claude` binary, which runs as the
 // leader of its own process group (docs/research/chat-spike.md). The SDK is only the transport: everything below the
@@ -74,6 +74,10 @@ class ClaudeConversation implements ChatConversation {
   private endListeners: (() => void)[] = [];
   private query!: Query;
   private models: ModelInfo[] = [];
+  /** What the SDK lists to invoke (skills of the person, the project and plugins, and Claude Code's own commands). */
+  private slash: SlashCommand[] = [];
+  /** The ones whose use is the terminal's (`/exit`): a message box has no business listing them. */
+  private terminalOnly = new Set<string>();
   private mode: string;
   private model: string;
   private effort: string;
@@ -120,7 +124,9 @@ class ClaudeConversation implements ChatConversation {
         ...(this.nativeId && { resume: this.nativeId }),
       },
     });
-    this.models = (await this.query.initializationResult()).models;
+    const ready = await this.query.initializationResult();
+    this.models = ready.models;
+    this.slash = ready.commands ?? [];
     void this.pump();
   }
 
@@ -132,15 +138,22 @@ class ClaudeConversation implements ChatConversation {
     const efforts = this.models.find((m) => m.value === this.model)?.supportedEffortLevels ?? this.models.find((m) => m.value === 'default')?.supportedEffortLevels ?? [];
     return [
       { id: 'permissionMode', label: 'Permission mode', values: PERMISSION_MODES, current: this.mode },
-      { id: 'model', label: 'Model', values: this.models.map((m) => ({ id: m.value, label: m.displayName })), current: this.model },
+      { id: 'model', label: 'Model', values: this.models.map((m) => ({ id: m.value, label: m.displayName, ...(m.description && { detail: m.description }), ...(m.resolvedModel && { version: m.resolvedModel }) })), current: this.model },
       ...(efforts.length > 0 ? [{ id: 'effort', label: 'Reasoning effort', values: efforts.map((id) => ({ id, label: id })), current: this.effort }] : []),
     ];
   }
 
-  send(text: string) {
+  get commands(): ChatCommand[] {
+    return this.slash
+      .filter((c) => !this.terminalOnly.has(c.name))
+      .map((c) => ({ id: c.name, name: c.name, description: c.description, ...(c.argumentHint && { argumentHint: c.argumentHint }), kind: c.builtin ? ('command' as const) : ('skill' as const) }));
+  }
+
+  send(text: string, command?: ChatCommand) {
     this.turning = true;
     this.interrupting = false;
-    this.input.push(text);
+    // Claude Code reads a slash at the start of a message as the command or skill that follows it
+    this.input.push(command === undefined ? text : `/${command.name}${text === '' ? '' : ` ${text}`}`);
   }
 
   answer(approvalId: string, choiceId: string) {
@@ -250,6 +263,7 @@ class ClaudeConversation implements ChatConversation {
     switch (m.type) {
       case 'system':
         if (m.subtype === 'init' && typeof m.permissionMode === 'string') this.mode = m.permissionMode;
+        if (m.subtype === 'init' && Array.isArray(m.terminal_slash_commands)) this.terminalOnly = new Set(m.terminal_slash_commands as string[]);
         if (m.subtype === 'status' && typeof m.permissionMode === 'string' && m.permissionMode !== this.mode) {
           this.mode = m.permissionMode;
           return [{ kind: 'option', id: 'permissionMode', value: this.mode }];

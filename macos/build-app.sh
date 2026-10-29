@@ -22,6 +22,8 @@ cp .build/release/Carrier "$APP/Contents/MacOS/"
 # the golden files `--fixture` serves
 mkdir -p "$APP/Contents/Resources"
 cp -R Tests/Fixtures "$APP/Contents/Resources/Fixtures"
+# the app's icon (made by scripts/make-icon.swift)
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # SwiftPM's resource bundle of CarrierCore: the file icons and the licence text that goes with them
 cp -R .build/release/Carrier_CarrierCore.bundle "$APP/Contents/Resources/"
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -31,11 +33,16 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>CFBundleIdentifier</key><string>dev.ashulab.carrier</string>
 <key>CFBundleExecutable</key><string>Carrier</string>
 <key>CFBundleName</key><string>Carrier</string>
+<key>CFBundleDisplayName</key><string>Carrier</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>0.1.0</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>LSMinimumSystemVersion</key><string>26.0</string>
-<key>LSUIElement</key><true/>
+<key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSPrincipalClass</key><string>NSApplication</string>
+<key>NSHumanReadableCopyright</key><string>Copyright © AshuLab</string>
 </dict></plist>
 PLIST
 # the icons and their licence must be in the app: every icon of the source folder, and the upstream MIT text

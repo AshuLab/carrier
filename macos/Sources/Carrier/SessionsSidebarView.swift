@@ -138,7 +138,7 @@ struct SessionRowView: View {
             Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
                 .accessibilityLabel(Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date()))
         }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, 2)
+        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, 5)
         .contextMenu { SessionMenuItems(row: row) }
         .help(row.title)
     }

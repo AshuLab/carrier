@@ -52,7 +52,14 @@ function replay(segments: Segment[]) {
       }
     }
     return Object.assign(run(), {
-      initializationResult: async () => ({ models }),
+      initializationResult: async () => ({
+        models,
+        commands: [
+          { name: 'review', description: 'Review a change', argumentHint: '<pr>' },
+          { name: 'compact', description: 'Free up context', argumentHint: '', builtin: true },
+          { name: 'exit', description: 'Leave', argumentHint: '', builtin: true },
+        ],
+      }),
       interrupt: async () => (seen.calls.push('interrupt'), interrupted(), undefined),
       setModel: async (model?: string) => void seen.calls.push(`setModel ${model}`),
       setPermissionMode: async (mode: string) => void seen.calls.push(`setPermissionMode ${mode}`),
@@ -141,6 +148,8 @@ test('options are listed, change at once, and an interrupt ends the turn as inte
   expect(byId('permissionMode')).toMatchObject({ current: 'default', values: expect.arrayContaining([{ id: 'plan', label: expect.any(String) }]) });
   expect(byId('permissionMode').values.map((v) => v.id)).not.toContain('bypassPermissions');
   expect(byId('model').values.map((v) => v.id)).toContain('sonnet');
+  // what the SDK knows of a model (what it is, which exact model its alias stands for) reaches the client, so a person can tell Sonnet from Sonnet
+  expect(byId('model').values.find((v) => v.id === 'sonnet')).toMatchObject({ detail: expect.any(String), version: expect.stringMatching(/^claude-/) });
   expect(byId('effort').values.map((v) => v.id)).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
 
   await conversation.setOption('permissionMode', 'acceptEdits');
@@ -255,4 +264,19 @@ test('the conversation reports the process it started as the leader of its own g
   const conversation = await claudeChatRunner(deps(query, { spawn })).open({ folder: '/work', env: {} });
   expect(conversation.process).toEqual({ pid: 777, pgid: 777, command: '/bin/claude' });
   expect((await claudeChatRunner(deps(replayed.query)).open({ folder: '/work', env: {} })).process).toBeUndefined();
+});
+
+test('the skills and commands the SDK lists are the conversation\'s commands, and invoking one sends it as a slash', async () => {
+  const { conversation, events } = await openWith([{ ...main[0]!, text: '/review the diff' }]);
+  expect(conversation.commands).toEqual([
+    { id: 'review', name: 'review', description: 'Review a change', argumentHint: '<pr>', kind: 'skill' },
+    { id: 'compact', name: 'compact', description: 'Free up context', kind: 'command' },
+    { id: 'exit', name: 'exit', description: 'Leave', kind: 'command' },
+  ]);
+  // the provider's own words for what is for the terminal: not for a message box
+  (conversation as any).terminalOnly = new Set(['exit']);
+  expect(conversation.commands.map((c) => c.name)).toEqual(['review', 'compact']);
+  const from = events.length;
+  conversation.send('the diff', conversation.commands[0]);
+  await vi.waitFor(() => expect(events.slice(from).some((e) => e.kind === 'turn_end')).toBe(true));
 });

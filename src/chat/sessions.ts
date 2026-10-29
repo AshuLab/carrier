@@ -1,4 +1,5 @@
 import { accessSync, constants } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, gt } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
@@ -9,7 +10,7 @@ import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
 import { checkFolder } from './folder.ts';
 import type { Git } from './git.ts';
-import { ChatRefused, type ChatChoice, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
+import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
 import { checkName, suggestName } from './names.ts';
@@ -198,6 +199,9 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
     onLiveChange();
   };
 
+  /** What each agent offered when it was last asked (a draft lists the models before a session exists), kept ten minutes. */
+  const offered = new Map<string, { at: number; offer: Promise<{ options: ChatOption[]; commands: ChatCommand[] }> }>();
+
   return {
     liveCount: () => lives.size,
     clientJoined() {
@@ -254,6 +258,34 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
       return { session: summary(created), options: conversation.options };
     },
 
+    /**
+     * The options and the commands an agent offers, with the values it would start with, before any session exists: it starts the agent in a folder of
+     * nobody's, reads what it lists and ends it. Kept ten minutes, and a failure is not kept.
+     */
+    async agentOptions({ agent }: { agent: string }) {
+      const chosen = chatAgents(config).find((candidate) => candidate.name === agent);
+      if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
+      const runner = runners[chosen.harness];
+      if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
+      const known = offered.get(agent);
+      if (known !== undefined && clock.now() - known.at < 10 * 60_000) return await known.offer;
+      const offer = (async () => {
+        const conversation = await openConversation(chosen, runner, { folder: tmpdir(), options: { ...(chosen.model && { model: chosen.model }), ...chosen.options } });
+        try {
+          return { options: [...conversation.options], commands: [...conversation.commands] };
+        } finally {
+          await conversation.close().catch((error) => log.error('closing the agent that listed its options failed', error));
+        }
+      })();
+      offered.set(agent, { at: clock.now(), offer });
+      try {
+        return await offer;
+      } catch (error) {
+        offered.delete(agent);
+        throw error;
+      }
+    },
+
     /** Opens a closed session again from its stored native id, folder and options; a live one is just attached to. */
     async resume({ sessionId }: { sessionId: string }) {
       const current = row(sessionId);
@@ -281,18 +313,23 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
       return { session: summary(current), options: conversation.options };
     },
 
-    send({ sessionId, text }: { sessionId: string; text: string }) {
+    send({ sessionId, text, command }: { sessionId: string; text: string; command?: string }) {
       if (text.length > chatCaps.message) throw new ChatRefused(`That message has ${text.length} characters; the most a message can have is ${chatCaps.message}`);
       const current = row(sessionId);
       const live = lives.get(sessionId);
       if (live === undefined) throw new ChatRefused('This session is closed');
       if (live.state !== 'idle') throw new ChatRefused('The agent is still answering');
-      if (current.title === null) db.update(sessions).set({ title: titleOf(text) }).where(eq(sessions.id, sessionId)).run();
+      // a command is named by the id the session listed; what the person sees of it is a slash and its name, whatever the provider does with it
+      const invoked = command === undefined ? undefined : live.conversation.commands.find((candidate) => candidate.id === command);
+      if (command !== undefined && invoked === undefined) throw new ChatRefused('This session does not list that command');
+      const shown = invoked === undefined ? text : `/${invoked.name}${text === '' ? '' : ` ${text}`}`;
+      if (shown.length > chatCaps.message) throw new ChatRefused(`That message has ${shown.length} characters; the most a message can have is ${chatCaps.message}`);
+      if (current.title === null) db.update(sessions).set({ title: titleOf(shown) }).where(eq(sessions.id, sessionId)).run();
       live.turn = { startedAt: clock.now(), toolCalls: 0 };
-      store(sessionId, { kind: 'user', text });
+      store(sessionId, { kind: 'user', text: shown, ...(invoked !== undefined && { command: invoked.name }) });
       touch(sessionId, live, 'working');
       try {
-        live.conversation.send(text);
+        live.conversation.send(text, invoked);
       } catch (error) {
         log.error('a message could not be sent to the agent', error);
         live.turn = undefined;
@@ -357,12 +394,14 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
       const rows = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), gt(chatEvents.id, after))).orderBy(asc(chatEvents.id)).limit(limit).all();
       const live = lives.get(sessionId);
       return {
-        events: rows.map(({ id, at, kind, data }) => ({ id, at, kind, ...data })),
+        // an option event's data has the option's own `id`, which must not take the place of the row's: a client reads `id` as the cursor
+        events: rows.map(({ id, at, kind, data }) => (kind === 'option' ? { id, at, kind, option: data.id, value: data.value } : { id, at, kind, ...data })),
         cursor: rows.at(-1)?.id ?? after,
         session: summary(current),
         streaming: live?.streaming ?? '',
         approvals: [...(live?.approvals.values() ?? [])],
         options: live?.conversation.options ?? [],
+        commands: live?.conversation.commands ?? [],
       };
     },
 

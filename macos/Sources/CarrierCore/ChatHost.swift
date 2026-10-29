@@ -130,6 +130,12 @@ public protocol ChatHost {
     /// provider that is not logged in, and a worktree request for a folder that is not a git repository, a branch it did not list
     /// and a name that is invalid or taken.
     func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String
+    /// `open` with the options the person chose before the session existed (an id and a value each, as `agentOptions` listed them); the host
+    /// refuses a value the provider does not list.
+    func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String
+    /// What an agent offers (its options with the values it would start with, and the commands to invoke) before a session exists; the host
+    /// starts the agent to know, and keeps the answer.
+    func agentOptions(_ agent: String) async throws -> AgentOffer
     /// What a folder is as a git repository (`WorkspaceInfo.git` is false for a plain folder); refused for a folder the host will not open.
     func workspace(_ folder: String) async throws -> WorkspaceInfo
     /// Fetches the folder's `origin` and answers what the folder is after it; a fetch that fails or takes too long is refused in words.
@@ -156,6 +162,9 @@ public protocol ChatHost {
     func resume(_ id: String) async throws
     /// The host refuses it while the agent is answering ("The agent is still answering") and when it is over its character limit.
     func send(_ id: String, _ text: String) async throws
+    /// `send` that invokes a command the session listed: `text` is what follows its name (nothing is allowed), and the host shows it as the
+    /// slash and the name and tells the provider in the provider's own way.
+    func send(_ id: String, _ text: String, command: String?) async throws
     /// Ends the turn that is in progress.
     func interrupt(_ id: String) async throws
     /// Passes the person's choice for a pending approval to the agent; the host refuses one that is not pending and a choice the provider did not list.
@@ -170,6 +179,19 @@ public protocol ChatHost {
     func delete(_ id: String) async throws
     /// What deleting these sessions would discard, one entry per id in the order asked; the host refuses the whole request when an id is unknown.
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview]
+}
+
+extension ChatHost {
+    /// A host that knows nothing of options at open: the options are left out.
+    public func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String {
+        try await open(agent: agent, folder: folder, worktree: worktree)
+    }
+
+    /// A host that cannot list an agent's options before a session says it lists none.
+    public func agentOptions(_ agent: String) async throws -> AgentOffer { AgentOffer() }
+
+    /// A host that knows no commands sends the text as it is.
+    public func send(_ id: String, _ text: String, command: String?) async throws { try await send(id, text) }
 }
 
 /// The chat host over its socket: one connection per call (a host with no client attached may end itself), with the blocking
@@ -191,13 +213,25 @@ public struct SocketChatHost: ChatHost {
     }
 
     public func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String {
+        try await open(agent: agent, folder: folder, worktree: worktree, options: [:])
+    }
+
+    public func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String {
         let placed = worktree.map { request in
             ",\"worktree\":{\"from\":\(jsonString(request.from))" + (request.name.map { ",\"name\":\(jsonString($0))" } ?? "") + "}"
         } ?? ""
-        let fields = ",\"agent\":\(jsonString(agent)),\"folder\":\(jsonString(folder))" + placed
+        let chosen = options.isEmpty ? "" : ",\"options\":{" + options.sorted { $0.key < $1.key }.map { "\(jsonString($0.key)):\(jsonString($0.value))" }.joined(separator: ",") + "}"
+        let fields = ",\"agent\":\(jsonString(agent)),\"folder\":\(jsonString(folder))" + placed + chosen
         let path = socketPath()
         let reply: OpenedReply = try await Task.detached { try chatRequest(path, "open", requires: .open, fields: fields) }.value
         return reply.session.id
+    }
+
+    public func agentOptions(_ agent: String) async throws -> AgentOffer {
+        let fields = ",\"agent\":\(jsonString(agent))"
+        let path = socketPath()
+        // starting the agent to read its options takes a few seconds
+        return try await Task.detached { try chatRequest(path, "agentOptions", requires: .agentOptions, fields: fields, timeout: 30) }.value
     }
 
     public func workspace(_ folder: String) async throws -> WorkspaceInfo {
@@ -273,8 +307,10 @@ public struct SocketChatHost: ChatHost {
     }
 
     /// The text goes on the wire JSON-encoded, so quotes, newlines and anything else in it stay inside the string.
-    public func send(_ id: String, _ text: String) async throws {
-        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"text\":" + jsonString(text)
+    public func send(_ id: String, _ text: String) async throws { try await send(id, text, command: nil) }
+
+    public func send(_ id: String, _ text: String, command: String?) async throws {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"text\":" + jsonString(text) + (command.map { ",\"command\":" + jsonString($0) } ?? "")
         let path = socketPath()
         let _: AnyReply = try await Task.detached { try chatRequest(path, "send", requires: .send, fields: fields) }.value
     }
@@ -338,6 +374,25 @@ private func wireId(_ id: String) throws -> String {
 private func jsonString(_ text: String) -> String { String(decoding: (try? JSONEncoder().encode(text)) ?? Data("\"\"".utf8), as: UTF8.self) }
 
 /// The reply of `open`: only the new session's id is read.
+/// What an agent offers before a session exists.
+public struct AgentOffer: Decodable, Equatable {
+    public let options: [ChatOption]
+    public let commands: [ChatCommand]
+
+    public init(options: [ChatOption] = [], commands: [ChatCommand] = []) {
+        self.options = options
+        self.commands = commands
+    }
+
+    private enum CodingKeys: String, CodingKey { case options, commands }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        options = try values.decodeIfPresent([ChatOption].self, forKey: .options) ?? []
+        commands = try values.decodeIfPresent([ChatCommand].self, forKey: .commands) ?? []
+    }
+}
+
 private struct OpenedReply: Decodable {
     struct Session: Decodable { let id: String }
     let session: Session

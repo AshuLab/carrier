@@ -46,10 +46,11 @@ Text is redacted first and then cut, as in [0006](../adr/0006-agent-events-store
 { cmd: 'list'; archived?: boolean }
 { cmd: 'open'; agent: string; folder: string; options?: Record<string, string> }
 { cmd: 'resume'; sessionId: string }
-{ cmd: 'send'; sessionId: string; text: string }
+{ cmd: 'send'; sessionId: string; text: string; command?: string }   // `command` is the id of one the session lists; `text` is then what follows its name and may be empty
 { cmd: 'answer'; sessionId: string; approvalId: string; choiceId: string }
 { cmd: 'interrupt'; sessionId: string }
 { cmd: 'setOption'; sessionId: string; option: string; value: string }
+{ cmd: 'agentOptions'; agent: string }   // what an agent offers before a session exists: it is started in a folder of nobody's, read and ended; kept ten minutes
 { cmd: 'close'; sessionId: string }
 { cmd: 'archive'; sessionId: string; archived: boolean }
 { cmd: 'delete'; sessionId: string }
@@ -57,7 +58,7 @@ Text is redacted first and then cut, as in [0006](../adr/0006-agent-events-store
 { cmd: 'stop' }                                            // the host: close every session and exit
 ```
 
-The `events` reply carries the events after the cursor, the new cursor, the session's summary, the `streaming` text, the pending approvals and the options with their values. There is no push channel: a client polls `events` by cursor, as the app polls the engine, and the terminal client polls every 200 ms. A push channel can be added later behind a capability without changing these requests.
+The `events` reply carries the events after the cursor, the new cursor, the session's summary, the `streaming` text, the pending approvals, the options with their values and the commands the session lists. There is no push channel: a client polls `events` by cursor, as the app polls the engine, and the terminal client polls every 200 ms. A push channel can be added later behind a capability without changing these requests.
 
 The folder of `open` must be an absolute path to an existing directory and is resolved to its real path. It is refused when it lies inside `<root>/repos` or `<root>/worktrees` or `<root>/orchestrator`: a session never works in the engine's shared clone or in an epic's worktree. A reply that fails names the reason in words and never the provider's or the system's own message when that could carry more than the client should see.
 
@@ -93,7 +94,10 @@ The chat inside the engine process, for tying conversations to the engine's stop
 Implementation calls follow the Solution above and [0013](../adr/0013-the-chat-host-is-its-own-process-with-an-adapter-per-provider.md); this is the shape the chat runner has to take, trimmed to the decision. The spike may add to it what the providers force, not remove from it.
 
 ```ts
-type ChatOption = { id: string; label: string; values: { id: string; label: string }[]; current: string };
+type ChatOption = { id: string; label: string; values: { id: string; label: string; detail?: string; version?: string }[]; current: string };
+// What the person can invoke from the message box, whatever the provider calls it. The client lists these and sends one by `id`; how each
+// provider is told is the adapter's: Claude reads `/name arguments` in the message, Codex takes a skill item before the text.
+type ChatCommand = { id: string; name: string; description: string; argumentHint?: string; kind: 'skill' | 'command' };
 type ChatChoice = { id: string; label: string; allow: boolean };
 type ChatUsage = Record<string, number>; // as the provider reports it
 
@@ -110,9 +114,10 @@ type ChatEvent =
 
 interface ChatConversation {
   readonly options: ChatOption[];
+  readonly commands: ChatCommand[];            // skills and commands to invoke; empty when the provider has none or does not say
   /** The provider's id for this conversation, once it has one. */
   readonly nativeId: string | undefined;
-  send(text: string): void;
+  send(text: string, command?: ChatCommand): void;
   answer(approvalId: string, choiceId: string): void;
   interrupt(): Promise<void>;
   setOption(id: string, value: string): Promise<void>;

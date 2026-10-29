@@ -75,10 +75,28 @@ final class WindowController: NSObject, NSWindowDelegate {
     /// For the self-test: Escape on the About sheet, so the next choice of the item starts from no sheet.
     func dismissAbout() { model.shell.aboutInput(.escape) }
 
-    @objc private func aboutFromMenu() {
+    @objc private func aboutFromMenu() { showAbout() }
+
+    func showAbout() {
         open()
         model.shell.showAbout()
     }
+
+    // For the main menu: each opens the window (or brings it forward) first.
+
+    func show(_ selection: Selection) {
+        open()
+        model.shell.selection = selection
+    }
+
+    func search() {
+        open()
+        model.shell.perform(.search)
+    }
+
+    func toggleSidebar() { model.shell.toggleSidebar() }
+
+    func toggleInspector() { model.shell.toggleInspector() }
 
     func open(selecting epic: EpicMenuItem? = nil) { open(epic: epic.map { EpicRef(repo: $0.repo, issue: $0.issue) }) }
 
@@ -193,6 +211,7 @@ final class WindowController: NSObject, NSWindowDelegate {
     var structure: String {
         guard let window else { return "no window" }
         var lines = ["min content size: \(Int(Self.minContent.width)) x \(Int(Self.minContent.height))"]
+        lines.append("app: \(NSApp.activationPolicy() == .regular ? "in the Dock" : "no Dock icon"), menus \(NSApp.mainMenu?.items.map(\.title) ?? [])")
         func walk(_ view: NSView) {
             if let split = view as? NSSplitView {
                 // the sidebar and the detail, then the detail and the inspector: the inspector is a split of its own inside the detail
@@ -207,7 +226,11 @@ final class WindowController: NSObject, NSWindowDelegate {
             view.subviews.forEach(walk)
         }
         if let content = window.contentView { walk(content) }
-        for item in window.toolbar?.items ?? [] { lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)") }
+        for item in window.toolbar?.items ?? [] {
+            // where each one sits in the window, left edge and width: an item that is not where it belongs shows here
+            let frame = item.view.map { $0.convert($0.bounds, to: nil) }
+            lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)\(frame.map { " at x \(Int($0.minX)) width \(Int($0.width))" } ?? "")")
+        }
         lines.append("sessions: \(model.sessions.rows.count) rows, \(archivedCount(model.sessions.rows)) archived, groups \(sessionGroups(model.sessions.rows).map(\.title))")
         let home = sessionsPage(model.sessions.rows, by: model.sessionSort)
         lines.append("sessions home: \(home.subtitle.isEmpty ? "no count" : home.subtitle), \(home.emptyState?.title ?? "listed")")
@@ -217,6 +240,41 @@ final class WindowController: NSObject, NSWindowDelegate {
         let start = Date()
         transcript.apply(EventsReply(events: events, next: events.count, running: true, structured: true))
         lines.append("transcript merge: \(events.count) events in \(Int(Date().timeIntervalSince(start) * 1000)) ms, \(transcript.work) processed")
+        return lines.joined(separator: "\n")
+    }
+
+    /// For `--smoke-window`: the window at its smallest, one line per page with how tall the split view lays out. A page that asks for
+    /// more than the window has (its title bar's 26 points apart) shows the sidebar and the bottom of the page pushed out of the window.
+    @MainActor func minimumSizeReport() async -> String {
+        guard let window else { return "no window" }
+        window.setContentSize(Self.minContent)
+        var lines = ["at the smallest size (\(Int(Self.minContent.width)) x \(Int(Self.minContent.height))), split view height per page:"]
+        func splitHeight() -> Int {
+            var found = 0
+            func walk(_ view: NSView) {
+                if found == 0, let split = view as? NSSplitView, let first = split.arrangedSubviews.first { found = Int(first.frame.height) }
+                view.subviews.forEach(walk)
+            }
+            if let content = window.contentView { walk(content) }
+            return found
+        }
+        let pages: [(String, () -> Void)] = [
+            ("home", { self.model.shell.selection = .home }), ("sessions", { self.model.shell.selection = .sessions }),
+            ("new session", { self.model.shell.selection = .newSession }), ("archive", { self.model.shell.selection = .archive }),
+            ("settings", { self.model.shell.selection = .settings }), ("carrier", { self.model.shell.selection = .carrier }),
+            ("first session", { self.selectFirstSession() }),
+        ]
+        for (name, select) in pages {
+            select()
+            try? await Task.sleep(for: .milliseconds(700))
+            let height = splitHeight()
+            lines.append("  \(name): \(height)\(height > Int(Self.minContent.height) + 40 ? "  <- taller than the window" : "")")
+        }
+        // the last page is a session: where its toolbar's items sit, left edge and width (the header on the left, the Open menu on the right)
+        let items = (window.toolbar?.items ?? []).compactMap { item in
+            item.view.map { "\(item.label.isEmpty ? String(item.itemIdentifier.rawValue.prefix(8)) : item.label) x \(Int($0.convert($0.bounds, to: nil).minX)) w \(Int($0.bounds.width))" }
+        }
+        lines.append("  toolbar with a session open: \(items.joined(separator: ", "))")
         return lines.joined(separator: "\n")
     }
 
@@ -241,8 +299,17 @@ final class WindowController: NSObject, NSWindowDelegate {
             self.model.shell.perform(action)
             return nil
         }
-        window.setContentSize(NSSize(width: 1100, height: 700))
-        window.center()
+        // where it was and how big, as a Mac app keeps its window; the smoke check starts from the default so it measures the same every time
+        let restored = CommandLine.arguments.contains("--smoke-window") == false && window.setFrameAutosaveName("CarrierMainWindow")
+        // a kept frame that is smaller than the window may be, or on no screen any more (a display that went away), is not used: the window
+        // would be there and nobody could see it
+        let kept = window.contentRect(forFrameRect: window.frame).size
+        let usable = kept.width >= Self.minContent.width && kept.height >= Self.minContent.height
+            && NSScreen.screens.contains { $0.visibleFrame.intersects(window.frame) }
+        if restored == false || usable == false {
+            window.setContentSize(NSSize(width: 1100, height: 700))
+            window.center()
+        }
         NotificationCenter.default.addObserver(self, selector: #selector(windowClosed), name: NSWindow.willCloseNotification, object: window)
         return window
     }
@@ -253,7 +320,7 @@ final class WindowController: NSObject, NSWindowDelegate {
     }
 
     @objc private func windowClosed() {
-        NSApp.setActivationPolicy(.accessory)
+        // the app stays in the Dock and the menu bar: a closed window is a closed window, and the Dock icon opens it again
         stop?.set()
         stop = nil
         model.state = nil

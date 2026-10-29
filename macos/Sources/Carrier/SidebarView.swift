@@ -32,7 +32,7 @@ struct SidebarView: View {
     var body: some View {
         let epicCount = snapshot.map { sidebarGroups($0, by: groupBy).reduce(0) { $0 + $1.count } } ?? 0
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 2) {
+            LazyVStack(alignment: .leading, spacing: 4) {
                 SidebarSectionRow(title: "Home", icon: "house", selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
                 SessionsRows(
                     sessions: sessions, sort: $sessionSort, selection: $selection, selected: selection == .sessions,

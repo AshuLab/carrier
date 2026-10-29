@@ -161,9 +161,55 @@ test('setOption changes an option of a live session: the adapter applies it, an 
   const reply = await sessions.setOption({ sessionId: id, option: 'mode', value: 'default' });
   expect(reply.options.map((o) => [o.id, o.current])).toEqual([['mode', 'default'], ['model', 'haiku']]);
   const events = sessions.events({ sessionId: id, limit: 10 });
-  expect(events.events).toMatchObject([{ kind: 'option', id: 'mode', value: 'default' }]);
+  // `id` is the event's own, a number the client uses as a cursor; the option is `option`
+  expect(events.events).toMatchObject([{ id: expect.any(Number), kind: 'option', option: 'mode', value: 'default' }]);
   expect(events.options.map((o) => o.current)).toEqual(['default', 'haiku']);
   expect(rows('sessions')[0].options).toBe(JSON.stringify({ mode: 'default' })); // the session records the options it runs with
+});
+
+test('agentOptions starts the agent, reads what it offers, ends it, and asks again only after ten minutes', async () => {
+  const { sessions, claude, clock } = setup();
+  claude.setup = offering(['model', ['haiku', 'opus'], 'haiku']);
+  const first = await sessions.agentOptions({ agent: 'claude' });
+  expect(first.options).toMatchObject([{ id: 'model', current: 'haiku' }]);
+  expect(first.commands).toEqual([]);
+  expect(claude.conversations.map((c) => c.closed)).toEqual([true]);
+  expect(rows('sessions')).toEqual([]); // no session is made for it
+  await sessions.agentOptions({ agent: 'claude' });
+  expect(claude.opened.length).toBe(1); // the answer is kept
+  clock.time += 11 * 60_000;
+  await sessions.agentOptions({ agent: 'claude' });
+  expect(claude.opened.length).toBe(2);
+  await expect(sessions.agentOptions({ agent: 'nope' })).rejects.toThrow('no chat agent named "nope"');
+});
+
+test('a failure of agentOptions is not kept: the next ask tries again', async () => {
+  const { sessions, claude } = setup();
+  claude.refuseWith = 'claude is not logged in';
+  await expect(sessions.agentOptions({ agent: 'claude' })).rejects.toThrow('claude is not logged in');
+  claude.refuseWith = undefined;
+  await expect(sessions.agentOptions({ agent: 'claude' })).resolves.toBeDefined();
+});
+
+test('a command the session lists is invoked by its id: the person sees a slash and its name, the adapter gets the command, and the events list the commands', async () => {
+  const { sessions, conversation, id } = await openOne();
+  conversation.commands = [{ id: '/skills/pdf/SKILL.md', name: 'pdf', description: 'PDFs', kind: 'skill' }];
+  expect(sessions.events({ sessionId: id, limit: 10 }).commands).toEqual(conversation.commands);
+  sessions.send({ sessionId: id, text: 'the invoice', command: '/skills/pdf/SKILL.md' });
+  expect(conversation.sent).toEqual(['the invoice']);
+  expect(conversation.invoked).toEqual(['/skills/pdf/SKILL.md']);
+  const stored = sessions.events({ sessionId: id, limit: 10 }).events;
+  expect(stored).toMatchObject([{ kind: 'user', text: '/pdf the invoice', command: 'pdf' }]);
+  expect(rows('sessions')[0]).toMatchObject({ title: '/pdf the invoice' });
+});
+
+test('a command that is not listed is refused and nothing is sent; a command with nothing after it is a message', async () => {
+  const { sessions, conversation, id } = await openOne();
+  conversation.commands = [{ id: 'review', name: 'review', description: 'Review', kind: 'skill' }];
+  expect(() => sessions.send({ sessionId: id, text: 'x', command: 'nope' })).toThrow('does not list that command');
+  expect(conversation.sent).toEqual([]);
+  sessions.send({ sessionId: id, text: '', command: 'review' });
+  expect(sessions.events({ sessionId: id, limit: 10 }).events).toMatchObject([{ kind: 'user', text: '/review', command: 'review' }]);
 });
 
 test('setOption refuses, with the reason and changing nothing, an unlisted option, a value not offered, a closed session and a missing one', async () => {

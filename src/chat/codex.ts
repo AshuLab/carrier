@@ -2,7 +2,7 @@ import { execFile, spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { endGroup, resolveAgentBinary } from './group.ts';
-import { ChatRefused, type ChatChoice, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner, type ChatUsage } from './runner.ts';
+import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner, type ChatUsage } from './runner.ts';
 
 // The Codex adapter of the chat runner: the user's own `codex app-server`, JSON-RPC over stdio, one JSON object per
 // line (docs/research/chat-spike.md). No npm dependency: the adapter spawns the binary and speaks the protocol itself.
@@ -106,6 +106,8 @@ class CodexConversation implements ChatConversation {
   private waiting = new Map<number, { resolve: (result: any) => void; reject: (error: Error) => void }>();
   /** Approvals asked and not answered: the server's request id, and the decision each choice answers with. */
   private pending = new Map<string, { requestId: number; decisions: Record<string, unknown> }>();
+  /** The skills `skills/list` gave for the folder: what the person can invoke. */
+  private skills: { name: string; description: string; shortDescription?: string; path: string }[] = [];
   private models: { model: string; displayName: string; defaultReasoningEffort?: string; supportedReasoningEfforts: { reasoningEffort: string }[] }[] = [];
   private model: string;
   private effort: string;
@@ -144,6 +146,13 @@ class CodexConversation implements ChatConversation {
     this.effort = this.chosen.effort ?? started.reasoningEffort ?? '';
     if (this.chosen.effort) this.overrides.effort = this.chosen.effort; // a thread takes no effort: the first turn carries it
     this.models = (await this.request('model/list', {})).data.filter((m: { hidden?: boolean }) => !m.hidden);
+    // the skills of the folder; a provider that cannot say leaves the list empty and the conversation goes on
+    try {
+      const listed = await this.request('skills/list', { cwds: [folder] });
+      this.skills = (listed?.data ?? []).flatMap((entry: { skills?: { enabled?: boolean }[] }) => (entry.skills ?? []).filter((skill) => skill.enabled !== false)) as typeof this.skills;
+    } catch (error) {
+      log.warn('codex could not list its skills', { error: String(error) });
+    }
   }
 
   get process() {
@@ -155,20 +164,24 @@ class CodexConversation implements ChatConversation {
     return [
       { id: 'approvalPolicy', label: 'Approvals', values: APPROVAL_POLICIES, current: this.approvalPolicy },
       { id: 'sandbox', label: 'Sandbox', values: SANDBOXES, current: this.sandbox },
-      { id: 'model', label: 'Model', values: this.models.map((m) => ({ id: m.model, label: m.displayName })), current: this.model },
+      { id: 'model', label: 'Model', values: this.models.map((m) => ({ id: m.model, label: m.displayName, version: m.model })), current: this.model },
       ...(efforts.length > 0 ? [{ id: 'effort', label: 'Reasoning effort', values: efforts.map((id) => ({ id, label: id })), current: this.effort }] : []),
     ];
   }
 
   private effortsOf = (model: string) => this.models.find((m) => m.model === model)?.supportedReasoningEfforts.map((e) => e.reasoningEffort) ?? [];
 
-  send(text: string) {
+  get commands(): ChatCommand[] {
+    return this.skills.map((skill) => ({ id: skill.path, name: skill.name, description: skill.shortDescription ?? skill.description, kind: 'skill' as const }));
+  }
+
+  send(text: string, command?: ChatCommand) {
     this.turning = true;
     this.usage = {};
     this.turnId = undefined;
     const overrides = this.overrides;
     this.overrides = {};
-    this.request('turn/start', { threadId: this.nativeId, input: [{ type: 'text', text, text_elements: [] }], ...overrides }).then(
+    this.request('turn/start', { threadId: this.nativeId, input: this.inputOf(text, command), ...overrides }).then(
       (started) => {
         if (this.turning && this.turnId === undefined) this.turnId = started?.turn?.id;
       },
@@ -179,6 +192,12 @@ class CodexConversation implements ChatConversation {
         this.turning = false;
       },
     );
+  }
+
+  /** Codex takes a skill as an item of its own in the turn's input, before what the person wrote after it. */
+  private inputOf(text: string, command?: ChatCommand) {
+    const written = text === '' ? [] : [{ type: 'text', text, text_elements: [] }];
+    return command === undefined ? written : [{ type: 'skill', name: command.name, path: command.id }, ...written];
   }
 
   answer(approvalId: string, choiceId: string) {

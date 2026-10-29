@@ -70,6 +70,13 @@ function replay(lines: Line[]) {
         const answer = recording.find((line) => line.dir === 'in' && line.id === asked.id && line.result?.data)!;
         play({ id: message.id, result: answer.result });
         return;
+      } else if (message.method === 'skills/list') {
+        // the skills of the folder, as app-server lists them (a disabled one is not offered)
+        play({ id: message.id, result: { data: [{ cwd: '/work', errors: [], skills: [
+          { name: 'pdf', description: 'Read and write PDFs in full', shortDescription: 'PDFs', path: '/skills/pdf/SKILL.md', scope: 'user', enabled: true, pluginId: null },
+          { name: 'old', description: 'Gone', path: '/skills/old/SKILL.md', scope: 'user', enabled: false, pluginId: null },
+        ] }] } });
+        return;
       } else if (message.method === 'thread/resume' && message.params.threadId === 'unknown') {
         play({ id: message.id, error: { code: -32600, message: 'no rollout found' } });
         return;
@@ -329,4 +336,15 @@ test('the real transport starts "<binary> app-server" as the leader of its own g
 
   const missing = realCodexDeps.spawn(join(dir, 'nothing-here'), { cwd: dir, env: process.env });
   await new Promise<void>((resolve) => missing.onExit(resolve));
+});
+
+test('the skills of the folder are the conversation\'s commands, and invoking one is a skill item before what follows it', async () => {
+  const { conversation, seen } = await openWith(main);
+  expect(conversation.commands).toEqual([{ id: '/skills/pdf/SKILL.md', name: 'pdf', description: 'PDFs', kind: 'skill' }]);
+  conversation.send('the invoice', conversation.commands[0]);
+  const input = () => seen.written.filter((m) => m.method === 'turn/start').at(-1)!.params.input;
+  expect(input()).toEqual([{ type: 'skill', name: 'pdf', path: '/skills/pdf/SKILL.md' }, { type: 'text', text: 'the invoice', text_elements: [] }]);
+  // a skill with nothing after it is only the item
+  conversation.send('', conversation.commands[0]);
+  expect(input()).toEqual([{ type: 'skill', name: 'pdf', path: '/skills/pdf/SKILL.md' }]);
 });

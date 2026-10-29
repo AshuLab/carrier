@@ -365,3 +365,11 @@ describe('persona', () => {
     expect(errorsOf(withPersona({ name: 'Ada', role: 'x' })).map((e) => e.path)).toEqual(['agents.author.persona']);
   });
 });
+
+describe('chat', () => {
+  test('a `chat` section is refused as an unknown key; the chat has its own chat.json', () => {
+    const errors = errorsOf({ chat: { agents: {} } });
+    expect(errors).toEqual([{ path: '(root)', message: 'Unrecognized key: "chat"' }]);
+    expect(load({})).toMatchObject({ ok: true });
+  });
+});

@@ -16,6 +16,9 @@ if (!cli.ok) fail(2, cli.message, '', usage());
 else if (cli.flags.help) {
   process.stdout.write(`${usage()}\n`);
   process.exit(0);
+} else if (cli.flags.version) {
+  process.stdout.write(`${(await import('../../control/server.ts')).version}\n`); // the value both hellos carry
+  process.exit(0);
 } else {
   try {
     const configPath = configPathFor(cli.flags.config);

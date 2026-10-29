@@ -18,6 +18,6 @@ import Testing
     let folder = "/tmp/cc-home-\(UUID().uuidString.prefix(8))"
     try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(atPath: folder) }
-    try Data("{\"root\":\"/data/solve\"}".utf8).write(to: URL(fileURLWithPath: folder + "/config.json"))
+    try Data("{\"keep\":\"/data/solve\"}".utf8).write(to: URL(fileURLWithPath: folder + "/config.json"))
     #expect(controlSocketPath(environment: ["CARRIER_HOME": folder], home: "/Users/ana") == folder + "/engine/state/control.sock")
 }

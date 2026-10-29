@@ -19,9 +19,7 @@ struct BehaviorTabView: View {
     @State private var confirming = false
     @State private var restarting = false
 
-    private var path: String {
-        activeConfigPath(saved: SetupStore().load(), environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
-    }
+    private var path: String { configFilePath() }
 
     private var runningEpics: Int {
         if case .running(let snapshot)? = state { return snapshot.runningEpics }

@@ -12,12 +12,10 @@ final class StartController: ObservableObject {
 
     var missing: [String] { startMissing(SetupController.shared.settings) }
 
-    private var engine: String { engineFolder() }
-
     /// `done` is called on the main thread with whether Carrier came up (also false when nothing was started).
     func start(done: ((Bool) -> Void)? = nil) {
         guard starting == false else { done?(false); return }
-        guard let command = startCommand(settings: SetupController.shared.settings, engine: engine, environment: ProcessInfo.processInfo.environment) else { done?(false); return }
+        guard let command = startCommand(settings: SetupController.shared.settings, environment: ProcessInfo.processInfo.environment) else { done?(false); return }
         starting = true
         DispatchQueue.global().async {
             let failure = Self.launch(command)
@@ -50,7 +48,7 @@ final class StartController: ObservableObject {
     /// For the self-test: what a press would do, without doing it (it would start the real Carrier).
     func selfTest(state: ConnectionState) -> String {
         let item = startMenuState(state: state, starting: starting, missing: missing)
-        guard item.enabled, let command = startCommand(settings: SetupController.shared.settings, engine: engine, environment: [:]) else {
+        guard item.enabled, let command = startCommand(settings: SetupController.shared.settings, environment: [:]) else {
             return "start disabled: \(item.title)"
         }
         return "start enabled, would run \(command.node) \(command.arguments.joined(separator: " ")), log \(command.logPath)"

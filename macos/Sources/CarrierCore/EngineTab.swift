@@ -1,11 +1,11 @@
 import Foundation
 
-// The Engine tab of Settings as plain values: the readiness banner and the four paths, each found or not
+// The Engine tab of Settings as plain values: the readiness banner and the paths, each found or not
 // (docs/specs/macos-app-redesign.md, story 30). The views map them one to one; the values are the saved `SetupSettings`.
 
-/// The four values the app starts Carrier with, in the order the tab lists them.
+/// The three values the app starts Carrier with, in the order the tab lists them.
 public enum EngineField: CaseIterable {
-    case carrier, node, configPath, path
+    case carrier, node, path
 }
 
 extension SetupSettings {
@@ -14,7 +14,6 @@ extension SetupSettings {
             switch field {
             case .carrier: carrier
             case .node: node
-            case .configPath: configPath
             case .path: path
             }
         }
@@ -22,7 +21,6 @@ extension SetupSettings {
             switch field {
             case .carrier: carrier = newValue
             case .node: node = newValue
-            case .configPath: configPath = newValue
             case .path: path = newValue
             }
         }
@@ -84,7 +82,6 @@ public func engineTab(_ settings: SetupSettings, detecting: Bool, home: String =
     let rows = [
         row(.carrier, "Carrier", "The script that starts Carrier", .file),
         row(.node, "Node", "Runs Carrier", .file),
-        row(.configPath, "Config file", "Where Carrier keeps its settings", .file),
         pathRow,
     ]
 

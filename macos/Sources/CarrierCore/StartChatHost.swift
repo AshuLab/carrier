@@ -3,7 +3,7 @@ import Foundation
 // Starting the chat host from the app, the way `StartCarrier.swift` starts the engine: same command shape, same `PATH`, same
 // outcome and alert. The app opening asks for it, and so does a session being started. The spawn lives in the shell.
 
-/// What the settings lack to start the chat host: it needs no config path.
+/// What the settings lack to start the chat host.
 public func chatHostMissing(_ settings: SetupSettings) -> [String] {
     [("node", settings.node), ("carrier", settings.carrier)].filter { $0.1.isEmpty }.map(\.0)
 }

@@ -7,16 +7,11 @@ public func carrierFolder(environment: [String: String], home: String) -> String
     environment["CARRIER_HOME"].flatMap { $0.isEmpty ? nil : $0 } ?? home + "/.carrier"
 }
 
-public func configFilePath(environment: [String: String], home: String) -> String {
+/// The engine's config, the file the Behavior and Repos tabs edit: `<folder>/config.json`.
+public func configFilePath(
+    environment: [String: String] = ProcessInfo.processInfo.environment, home: String = NSHomeDirectory()
+) -> String {
     carrierFolder(environment: environment, home: home) + "/config.json"
-}
-
-/// The config file the app works with: `CARRIER_HOME` in the app's own environment (a dev run, the fixtures) wins, then the
-/// one chosen in the setup, then the engine's default.
-public func activeConfigPath(saved: SetupSettings?, environment: [String: String], home: String) -> String {
-    if environment["CARRIER_HOME"].map({ $0.isEmpty == false }) == true { return configFilePath(environment: environment, home: home) }
-    if let chosen = saved?.configPath, chosen.isEmpty == false { return chosen }
-    return configFilePath(environment: environment, home: home)
 }
 
 /// The engine's folder, `<folder>/engine`: its clones, review checkouts, state and logs.

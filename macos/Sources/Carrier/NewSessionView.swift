@@ -46,7 +46,10 @@ struct NewSessionView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // nothing scrolls under the toolbar here, so it takes the page's own colour and not the system's band
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-        .task { await model.load() }
+        .task {
+            await model.load()
+            await model.loadOptions()
+        }
         .onAppear { boxFocused = true }
     }
 
@@ -168,9 +171,14 @@ struct NewSessionView: View {
             focus: $boxFocused, send: send
         ) {
             providerSelect
-            ComposerSelect(title: "Model", icon: "cpu", note: "Each provider's models will be listed here.")
-            ComposerSelect(title: "Reasoning", icon: "brain", note: "How much the agent thinks before it answers.")
-            ComposerSelect(title: "Access", icon: "lock.shield", note: "What the agent may do without asking you.")
+            if model.shownOptions.isEmpty {
+                // until the host has listed them (a few seconds the first time), or when it cannot
+                ComposerSelect(title: "Model", icon: "cpu", note: model.loadingOptions ? "Reading what the provider offers…" : "Each provider's models will be listed here.")
+                ComposerSelect(title: "Reasoning", icon: "brain", note: model.loadingOptions ? "Reading what the provider offers…" : "How much the agent thinks before it answers.")
+                ComposerSelect(title: "Access", icon: "lock.shield", note: model.loadingOptions ? "Reading what the provider offers…" : "What the agent may do without asking you.")
+            } else {
+                optionSelects(model.shownOptions) { option, value in model.choose(option: option, value: value) }
+            }
         }
         // nothing to write to until a workspace is chosen
         .opacity(model.folder == nil ? 0.55 : 1)
@@ -181,7 +189,10 @@ struct NewSessionView: View {
         ComposerSelect(
             title: "Provider", icon: "sparkle", selected: model.agent, showsValue: true,
             choices: model.agents.map { SelectChoice(id: $0.name, label: $0.name, detail: $0.note, enabled: $0.available) },
-            choose: { model.agent = $0 }
+            choose: { name in
+                model.agent = name
+                Task { await model.loadOptions() }
+            }
         )
     }
 

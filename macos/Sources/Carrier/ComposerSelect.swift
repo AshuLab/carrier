@@ -1,3 +1,4 @@
+import CarrierCore
 import SwiftUI
 
 /// One value a select offers.
@@ -77,7 +78,7 @@ struct ComposerSelect: View {
                             }
                         }
                         Spacer(minLength: 8)
-                        if ticked { Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.accentColor).accessibilityLabel("Chosen") }
+                        if ticked { ChosenMark() }
                     }
                     .padding(.horizontal, 10).padding(.vertical, 6)
                 }
@@ -89,5 +90,35 @@ struct ComposerSelect: View {
             }
         }
         .padding(8).frame(width: 320)
+    }
+}
+
+/// One select per option an agent lists, in the order the draft has always had: the model, the reasoning, then what the agent may do
+/// (permission mode, or approvals and sandbox). A function and not a view, so the selects are the row's own and the row wraps them.
+@ViewBuilder func optionSelects(_ options: [ChatOption], choose: @escaping (String, String) -> Void) -> some View {
+    ForEach(optionRows(options).sorted { optionRank($0.id) < optionRank($1.id) }) { row in
+        ComposerSelect(
+            title: row.label, icon: optionIcon(row.id), selected: row.choices.first { $0.ticked }?.id, showsValue: true,
+            choices: row.choices.map { SelectChoice(id: $0.id, label: $0.label, detail: $0.detail, icon: $0.icon, version: $0.version) },
+            choose: { choose(row.id, $0) }
+        )
+    }
+}
+
+private func optionRank(_ id: String) -> Int {
+    switch id {
+    case "model": 0
+    case "effort": 1
+    default: 2
+    }
+}
+
+/// The icon of an option's select: what it is about, by the id the providers use.
+private func optionIcon(_ id: String) -> String {
+    switch id {
+    case "model": "cpu"
+    case "effort": "brain"
+    case "permissionMode", "approvalPolicy", "sandbox": "lock.shield"
+    default: "slider.horizontal.3"
     }
 }

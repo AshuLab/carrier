@@ -15,6 +15,16 @@ extension View {
     }
 }
 
+/// The mark of the chosen row of a list: a white tick on a disc of the accent colour, so the tick reads on it.
+struct ChosenMark: View {
+    var body: some View {
+        Image(systemName: "checkmark")
+            .font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+            .frame(width: 18, height: 18).background(Circle().fill(Color.accentColor))
+            .accessibilityLabel("Chosen")
+    }
+}
+
 /// What a state of a thing is, in a word and an icon, in its colour: indigo is private, green is watched.
 struct Badge: View {
     let text: String

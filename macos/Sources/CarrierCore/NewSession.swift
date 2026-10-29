@@ -61,6 +61,13 @@ public enum WorkspaceStep: Equatable {
     /// The chosen workspace's path, nil until one is chosen.
     public private(set) var folder: String?
     public var agent: String?
+    /// What the chosen agent offers (models, reasoning, access), as the host listed it before any session; empty while it is being asked,
+    /// when the host cannot say, or when it failed: the selects then say what they will hold.
+    public private(set) var agentOptions: [ChatOption] = []
+    public private(set) var loadingOptions = false
+    /// What the person changed from the agent's own values: an option and a value each, sent when the session opens.
+    public private(set) var chosenOptions: [String: String] = [:]
+    @ObservationIgnored private var optionsAgent: String?
     public var text = ""
     public private(set) var sending = false
     /// Why `open` was refused (or the host would not start), said in words in the draft; nil when it worked.
@@ -176,6 +183,40 @@ public enum WorkspaceStep: Equatable {
         hostClones = capabilities.contains(.cloneRepo)
         hostCreates = capabilities.contains(.createProject)
         hostLists = capabilities.contains(.githubRepos)
+    }
+
+    /// Asks the host what the chosen agent offers. A new agent starts from its own values: what was chosen for the other is dropped. A host
+    /// that cannot list them, or fails, leaves the list empty and the draft goes on without options.
+    public func loadOptions() async {
+        guard let name = agent, optionsAgent != name else { return }
+        optionsAgent = name
+        agentOptions = []
+        chosenOptions = [:]
+        loadingOptions = true
+        do {
+            let listed = try await host.agentOptions(name)
+            guard optionsAgent == name else { return }
+            agentOptions = listed
+        } catch {
+            guard optionsAgent == name else { return }
+            log("new session: could not list the options of \(name): \(ConversationModel.words(error))")
+            optionsAgent = nil  // asked again the next time
+        }
+        loadingOptions = false
+    }
+
+    /// What the selects list: the agent's options with the person's choices on top.
+    public var shownOptions: [ChatOption] {
+        agentOptions.map { option in
+            guard let chosen = chosenOptions[option.id] else { return option }
+            return ChatOption(id: option.id, label: option.label, values: option.values, current: chosen)
+        }
+    }
+
+    /// Chooses a value of an option the agent lists; one it does not list is not taken.
+    public func choose(option: String, value: String) {
+        guard agentOptions.contains(where: { $0.id == option && $0.values.contains { $0.id == value } }) else { return }
+        chosenOptions[option] = value
     }
 
     /// The sources the popover lists under the folders.
@@ -510,7 +551,7 @@ public enum WorkspaceStep: Equatable {
         }
         let id: String
         do {
-            id = try await host.open(agent: agent, folder: folder, worktree: worktreeRequest)
+            id = try await host.open(agent: agent, folder: folder, worktree: worktreeRequest, options: chosenOptions)
         } catch {
             refusal = report(error, "open the session")
             return nil

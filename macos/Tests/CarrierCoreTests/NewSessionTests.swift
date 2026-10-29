@@ -27,6 +27,10 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var names = ["brave-marine-aiur", "keen-ghost-char"]
     var taken: [String: NameCheck] = [:]
     var opens: [WorktreeRequest?] = []
+    /// What `agentOptions` lists for each agent (one not listed fails), how often it was asked, and the options each `open` carried.
+    var offered: [String: [ChatOption]] = [:]
+    var optionAsks: [String] = []
+    var openedWith: [[String: String]] = []
     var capabilities: Set<ControlClient.Capability> = [.cloneRepo, .createProject, .githubRepos]
     /// What `githubRepos` answers by page (one not listed is an empty last page) and the pages it was asked for.
     var repoPages: [Int: GithubReposPage] = [:]
@@ -42,6 +46,15 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
 
     func agents() async throws -> [ChatAgent] { agents }
     func list(archived wanted: Bool) async throws -> [ChatSession] { wanted ? archived : active }
+    func agentOptions(_ agent: String) async throws -> [ChatOption] {
+        optionAsks.append(agent)
+        guard let listed = offered[agent] else { throw ControlError.remote("the chat host does not support agentOptions") }
+        return listed
+    }
+    func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String {
+        openedWith.append(options)
+        return try await open(agent: agent, folder: folder, worktree: worktree)
+    }
     func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String {
         calls.append("open \(agent) \(folder)")
         opens.append(worktree)
@@ -1008,4 +1021,43 @@ private func page(_ names: [String], more: Bool, login: String? = nil) -> Github
     #expect(model.step == .url && host.repoCalls.isEmpty)
     host.release = true
     #expect(await running.value)
+}
+
+// MARK: the agent's options before a session exists
+
+private let claudeOptions = [
+    ChatOption(id: "model", label: "Model", values: [.init(id: "default", label: "Default"), .init(id: "haiku", label: "Haiku", version: "claude-haiku-5-5")], current: "default"),
+    ChatOption(id: "effort", label: "Reasoning effort", values: [.init(id: "low", label: "low"), .init(id: "high", label: "high")], current: "high"),
+]
+
+@MainActor @Test func theDraftListsWhatTheChosenAgentOffersAndSendsWhatWasChosen() async {
+    let host = FakeChat()
+    host.offered["claude"] = claudeOptions
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    #expect(model.agent == "claude" && model.shownOptions.isEmpty)
+    await model.loadOptions()
+    #expect(host.optionAsks == ["claude"] && optionsPill(model.shownOptions) == "Default · high")
+    // a value that is listed is taken, one that is not is not, and what is chosen shows on top of the agent's own values
+    model.choose(option: "model", value: "haiku")
+    model.choose(option: "model", value: "gpt-5")
+    model.choose(option: "speed", value: "fast")
+    #expect(model.chosenOptions == ["model": "haiku"] && optionsPill(model.shownOptions) == "Haiku · high")
+    model.text = "hello"
+    _ = await model.send()
+    #expect(host.openedWith == [["model": "haiku"]])
+}
+
+@MainActor @Test func aHostThatCannotListLeavesTheDraftWithoutOptionsAndAsksAgainLater() async {
+    let host = FakeChat()
+    var logged: [String] = []
+    let model = await draft(host, log: { logged.append($0) })
+    await model.loadOptions()
+    #expect(model.shownOptions.isEmpty && model.loadingOptions == false && logged.count == 1)
+    host.offered["claude"] = claudeOptions
+    await model.loadOptions()
+    #expect(host.optionAsks == ["claude", "claude"] && model.shownOptions.count == 2)
+    // asking for the same agent again is not another request
+    await model.loadOptions()
+    #expect(host.optionAsks.count == 2)
 }

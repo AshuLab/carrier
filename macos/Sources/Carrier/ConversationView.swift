@@ -115,14 +115,7 @@ struct ConversationView: View {
                         ComposerSelect(title: title, icon: icon, note: "The provider lists these once the session is awake. Send a message to wake it up.")
                     }
                 }
-                // the draft's order: model, reasoning, then what the agent may do (permission mode, or approvals and sandbox)
-                ForEach(optionRows(model.shownOptions).sorted { optionRank($0.id) < optionRank($1.id) }) { row in
-                    ComposerSelect(
-                        title: row.label, icon: optionIcon(row.id), selected: row.choices.first { $0.ticked }?.id, showsValue: true,
-                        choices: row.choices.map { SelectChoice(id: $0.id, label: $0.label, detail: $0.detail, icon: $0.icon, version: $0.version) },
-                        choose: { value in Task { await model.setOption(row.id, value) } }
-                    )
-                }
+                optionSelects(model.shownOptions) { option, value in Task { await model.setOption(option, value) } }
             }
             if let refusal = model.optionRefusal { Text(refusal).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
             if let refusal = model.refusal {
@@ -140,24 +133,6 @@ struct ConversationView: View {
         .padding(.horizontal, 40).padding(.vertical, 12)
         .frame(maxWidth: Self.column).frame(maxWidth: .infinity)
         .onAppear { boxFocused = true }
-    }
-
-    private func optionRank(_ id: String) -> Int {
-        switch id {
-        case "model": 0
-        case "effort": 1
-        default: 2
-        }
-    }
-
-    /// The icon of an option's select: what it is about, by the id the providers use.
-    private func optionIcon(_ id: String) -> String {
-        switch id {
-        case "model": "cpu"
-        case "effort": "brain"
-        case "permissionMode", "approvalPolicy", "sandbox": "lock.shield"
-        default: "slider.horizontal.3"
-        }
     }
 }
 

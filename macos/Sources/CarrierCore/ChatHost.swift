@@ -130,6 +130,11 @@ public protocol ChatHost {
     /// provider that is not logged in, and a worktree request for a folder that is not a git repository, a branch it did not list
     /// and a name that is invalid or taken.
     func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String
+    /// `open` with the options the person chose before the session existed (an id and a value each, as `agentOptions` listed them); the host
+    /// refuses a value the provider does not list.
+    func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String
+    /// What an agent offers, with the values it would start with, before a session exists; the host starts the agent to know, and keeps the answer.
+    func agentOptions(_ agent: String) async throws -> [ChatOption]
     /// What a folder is as a git repository (`WorkspaceInfo.git` is false for a plain folder); refused for a folder the host will not open.
     func workspace(_ folder: String) async throws -> WorkspaceInfo
     /// Fetches the folder's `origin` and answers what the folder is after it; a fetch that fails or takes too long is refused in words.
@@ -172,6 +177,16 @@ public protocol ChatHost {
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview]
 }
 
+extension ChatHost {
+    /// A host that knows nothing of options at open: the options are left out.
+    public func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String {
+        try await open(agent: agent, folder: folder, worktree: worktree)
+    }
+
+    /// A host that cannot list an agent's options before a session says it lists none.
+    public func agentOptions(_ agent: String) async throws -> [ChatOption] { [] }
+}
+
 /// The chat host over its socket: one connection per call (a host with no client attached may end itself), with the blocking
 /// socket work off the caller's thread. A host that is not there, or goes away mid-call, is `ControlError.closed`; an error reply is `.remote`.
 public struct SocketChatHost: ChatHost {
@@ -191,13 +206,26 @@ public struct SocketChatHost: ChatHost {
     }
 
     public func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String {
+        try await open(agent: agent, folder: folder, worktree: worktree, options: [:])
+    }
+
+    public func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String {
         let placed = worktree.map { request in
             ",\"worktree\":{\"from\":\(jsonString(request.from))" + (request.name.map { ",\"name\":\(jsonString($0))" } ?? "") + "}"
         } ?? ""
-        let fields = ",\"agent\":\(jsonString(agent)),\"folder\":\(jsonString(folder))" + placed
+        let chosen = options.isEmpty ? "" : ",\"options\":{" + options.sorted { $0.key < $1.key }.map { "\(jsonString($0.key)):\(jsonString($0.value))" }.joined(separator: ",") + "}"
+        let fields = ",\"agent\":\(jsonString(agent)),\"folder\":\(jsonString(folder))" + placed + chosen
         let path = socketPath()
         let reply: OpenedReply = try await Task.detached { try chatRequest(path, "open", requires: .open, fields: fields) }.value
         return reply.session.id
+    }
+
+    public func agentOptions(_ agent: String) async throws -> [ChatOption] {
+        let fields = ",\"agent\":\(jsonString(agent))"
+        let path = socketPath()
+        // starting the agent to read its options takes a few seconds
+        let reply: OptionsReply = try await Task.detached { try chatRequest(path, "agentOptions", requires: .agentOptions, fields: fields, timeout: 30) }.value
+        return reply.options
     }
 
     public func workspace(_ folder: String) async throws -> WorkspaceInfo {
@@ -338,6 +366,8 @@ private func wireId(_ id: String) throws -> String {
 private func jsonString(_ text: String) -> String { String(decoding: (try? JSONEncoder().encode(text)) ?? Data("\"\"".utf8), as: UTF8.self) }
 
 /// The reply of `open`: only the new session's id is read.
+private struct OptionsReply: Decodable { let options: [ChatOption] }
+
 private struct OpenedReply: Decodable {
     struct Session: Decodable { let id: String }
     let session: Session

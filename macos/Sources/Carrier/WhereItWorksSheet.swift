@@ -59,8 +59,11 @@ struct WhereItWorksSheet: View {
                     Text(detail).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
-                Image(systemName: chosen ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(chosen ? Color.accentColor : .secondary.opacity(0.5)).font(.system(size: 16)).accessibilityLabel(chosen ? "Chosen" : "Not chosen")
+                if chosen {
+                    ChosenMark()
+                } else {
+                    Image(systemName: "circle").foregroundStyle(.secondary.opacity(0.5)).font(.system(size: 16)).accessibilityLabel("Not chosen")
+                }
             }
             .padding(12)
         }

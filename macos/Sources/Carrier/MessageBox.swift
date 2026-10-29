@@ -56,21 +56,26 @@ struct MessageBox<Selects: View>: View {
         send()
     }
 
-    /// Glass, tinted when there is something to send and plain when there is not; it gives under the finger and springs back. The
-    /// arrow becomes the Stop square while the agent answers, bounces up on a send and pulses while it works.
-    private var button: some View {
+    /// A round glass button of the system's, tinted when there is something to send and plain when there is not; it gives under the finger
+    /// and springs back. The arrow becomes the Stop square while the agent answers, bounces up on a send and pulses while it works.
+    @ViewBuilder private var button: some View {
         let active = canSend || busy
-        let glass: Glass = active ? .regular.tint(.accentColor).interactive() : .regular
-        return Button(action: busy ? stop : fire) {
-            Image(systemName: busy ? "stop.fill" : "arrow.up")
-                .font(.system(size: busy ? 12 : 14, weight: .bold)).foregroundStyle(active ? .white : .secondary)
-                .contentTransition(.symbolEffect(.replace))
-                .symbolEffect(.bounce.up, value: sent)
-                .symbolEffect(.pulse, isActive: busy)
-                .frame(width: 34, height: 34)
+        let action = busy ? stop : fire
+        let label = Image(systemName: busy ? "stop.fill" : "arrow.up")
+            .font(.system(size: busy ? 12 : 14, weight: .bold)).foregroundStyle(active ? .white : .secondary)
+            .contentTransition(.symbolEffect(.replace))
+            .symbolEffect(.bounce.up, value: sent)
+            .symbolEffect(.pulse, isActive: busy)
+            .frame(width: 20, height: 20)
+        Group {
+            if active {
+                Button(action: action) { label }.buttonStyle(.glassProminent)
+            } else {
+                Button(action: action) { label }.buttonStyle(.glass).disabled(true)
+            }
         }
-        .buttonStyle(.plain).disabled(active == false)
-        .glassEffect(glass, in: .circle)
+        // a circle by construction: the system's border shape, over a label that is square
+        .buttonBorderShape(.circle).controlSize(.large).tint(.accentColor)
         .animation(.smooth(duration: 0.25), value: active)
         .help(busy ? "Stop" : "\(sendHelp) (↩) · New line (⇧↩)").accessibilityLabel(busy ? "Stop" : "Send")
     }

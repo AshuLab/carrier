@@ -439,8 +439,8 @@ test('a failing snapshot is an error reply, not a dead server', async () => {
   expect(await c.ask('{"id":2,"cmd":"snapshot"}')).toMatchObject({ id: 2, ok: true });
 });
 
-test('the socket is 0600 and orchestrator/ is 0700, also when the folder existed with a looser mode', async () => {
-  const folder = join(dir, 'orchestrator');
+test('the socket is 0600 and the state folder is 0700, also when the folder existed with a looser mode', async () => {
+  const folder = join(dir, 'state');
   mkdirSync(folder);
   chmodSync(folder, 0o755);
   const lock = acquireLock(folder);
@@ -480,9 +480,9 @@ test('a socket that cannot open is logged and leaves a server that closes withou
   expect(() => server.close()).not.toThrow();
 });
 
-// A root under `dir` whose socket path is `socketBytes` long, padded with `fill`; the folder exists, so a truncated name would be created in it.
-const rootOf = (socketBytes: number, fill: string) => {
-  const suffix = '/orchestrator/control.sock'.length;
+// A Carrier folder under `dir` whose socket path is `socketBytes` long, padded with `fill`; the folder exists, so a truncated name would be created in it.
+const folderOf = (socketBytes: number, fill: string) => {
+  const suffix = '/engine/state/control.sock'.length;
   const pad = Math.ceil((socketBytes - suffix - dir.length - 1) / Buffer.byteLength(fill));
   return join(dir, fill.repeat(pad));
 };
@@ -494,11 +494,11 @@ test('the path fits up to 103 bytes, counted in bytes and not in characters', ()
 });
 
 test.each([
-  ['a long root', 'x', 120],
-  ['a root of multi-byte characters under 103 characters but over 103 bytes', 'é', 110],
+  ['a long Carrier folder', 'x', 120],
+  ['a Carrier folder of multi-byte characters under 103 characters but over 103 bytes', 'é', 110],
 ])('%s: no socket file anywhere and a warning with the path and its length', async (_name, fill, bytes) => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-  const stateDir = join(rootOf(bytes, fill), 'engine', 'state');
+  const stateDir = join(folderOf(bytes, fill), 'engine', 'state');
   mkdirSync(stateDir, { recursive: true });
   const before = readdirSync(dir, { recursive: true }).sort();
   const full = join(stateDir, 'control.sock');

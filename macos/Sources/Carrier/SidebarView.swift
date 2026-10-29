@@ -112,6 +112,7 @@ struct SidebarView: View {
 /// them, nothing else; the epics follow it. Choosing it shows the Carrier home. Hovering it shows when the next check
 /// is, the uptime and the rate limit.
 private struct CarrierRow: View {
+    @ObservedObject private var start = StartController.shared
     let state: ConnectionState?
     let selected: Bool
     /// Folded, the row is its state and slots; unfolded, it also has the search and the grouping menu, and the epics follow.
@@ -152,7 +153,7 @@ private struct CarrierRow: View {
                     }
             }
         }, below: {
-            if state == .stopped, let notice = engineNotConfiguredNotice(configExists: StartController.shared.configExists) {
+            if state == .stopped, let notice = engineNotConfiguredNotice(configExists: start.configExists) {
                 Text(notice).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
             if let slots = card.slots {

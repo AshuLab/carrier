@@ -39,7 +39,7 @@ struct SettingsScreen: View {
                             StatusDot(found: true)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text("Carrier is ready to start").fontWeight(.semibold)
-                                Text("carrier, node and the config file were found").font(.caption).foregroundStyle(.secondary)
+                                Text("carrier and node were found").font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 8)
                             Button("Show paths ▾") { pathsOpen = true }.buttonStyle(.borderless)

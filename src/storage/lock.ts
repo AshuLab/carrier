@@ -8,7 +8,7 @@ export type Lock = { ok: true; release: () => void } | { ok: false };
 // the process. The OS drops it when the process dies, so a crash never leaves it stuck.
 export function acquireLock(stateDir: string): Lock {
   mkdirSync(stateDir, { recursive: true });
-  chmodSync(stateDir, 0o700); // the control socket, logs and results in here are for the user only, also in a folder an older version made
+  chmodSync(stateDir, 0o700); // the database, the control socket and the lock in here are for the user only, also when the folder already existed with a looser mode
   // timeout 0: no waiting, a held lock fails immediately with SQLITE_BUSY.
   const db = new Database(join(stateDir, 'carrier.lock'), { timeout: 0 });
   try {

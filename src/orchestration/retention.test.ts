@@ -107,7 +107,7 @@ test('a symlinked session is removed without following it, and an id with path p
   expect(existsSync(join(outside, 'precious'))).toBe(true);
 });
 
-test('a logs folder symlinked out of orchestrator/ is not deleted from', () => {
+test('a logs folder symlinked out of the engine folder is not deleted from', () => {
   const outside = join(dir, 'outside');
   mkdirSync(join(outside, 'x-x'), { recursive: true });
   seed('x', 'merged', 0);

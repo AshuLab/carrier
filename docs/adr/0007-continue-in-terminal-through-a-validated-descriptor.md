@@ -15,7 +15,7 @@ The engine publishes, for each session, a descriptor with three fields: the harn
 
 The app validates the descriptor before using it: the harness must be one of the allowed harnesses, the id must match a strict identifier pattern, and the folder must be an existing absolute path inside the engine's folder, `<folder>/engine/` in the Carrier folder. It then builds the command itself, putting each value in single quotes, writes it to a one-use script file with a `.command` extension and mode 0700 in the user's temporary folder, and opens the file with `NSWorkspace`, which hands it to the user's terminal. The script removes itself. It runs as the user, in their environment, not as the Forge bot.
 
-The folder is the one the session started in, which for a ship session is the shared clone, not the epic's worktree. The ship session is also the one that Continue in Terminal resumes for an epic in ship: the lanes are subagents inside it and have no session of their own.
+The folder is the one the session started in, which for a ship session is the shared clone, not the epic's worktree. A fix round is the exception: it starts in the epic's worktree, which may lie outside `<folder>/engine/`, so the folder rule refuses it and Continue in Terminal is not offered for that session. The ship session is also the one that Continue in Terminal resumes for an epic in ship: the lanes are subagents inside it and have no session of their own.
 
 ## Alternatives considered
 

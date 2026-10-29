@@ -112,7 +112,7 @@ describe('GitWorkspaces against a local bare remote', () => {
   test('findWorktree reads where a branch is really checked out, from `git worktree list`', async () => {
     const ws = workspaces();
     const clone = await ws.prepareAuthor(repo, 3);
-    // What Solve's ship does: the epic branch and a lane get their own worktrees under the shared root.
+    // What Solve's ship does: the epic branch and a lane get their own worktrees outside the engine folder.
     const epicPath = join(root, 'worktrees', 'demo', 'feature');
     git(clone, 'worktree', 'add', '-q', '-b', 'feat/feature/epic', epicPath, 'origin/main');
     git(clone, 'worktree', 'add', '-q', '-b', 'feat/feature/001-x', join(root, 'worktrees', 'demo', 'feature--lane-1'), 'origin/main');

@@ -12,12 +12,24 @@ final class StartController: ObservableObject {
 
     var missing: [String] { startMissing(SetupController.shared.settings) }
 
-    /// Whether the Carrier folder has its `config.json`; without it the engine does not start.
-    var configExists: Bool { FileManager.default.fileExists(atPath: configFilePath()) }
+    /// Whether the Carrier folder has its `config.json`; without it the engine does not start. Published so the views that read it
+    /// follow the file while Carrier stays stopped: it is read again every 3 seconds and whenever `refreshConfig` is called.
+    @Published private(set) var configExists = FileManager.default.fileExists(atPath: configFilePath())
+
+    private init() {
+        Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.refreshConfig() }
+    }
+
+    /// Reads the file again; the menu and the start call it so they never act on a value up to 3 seconds old.
+    @discardableResult func refreshConfig() -> Bool {
+        let exists = FileManager.default.fileExists(atPath: configFilePath())
+        if exists != configExists { configExists = exists }
+        return exists
+    }
 
     /// `done` is called on the main thread with whether Carrier came up (also false when nothing was started).
     func start(done: ((Bool) -> Void)? = nil) {
-        guard starting == false, configExists else { done?(false); return }
+        guard starting == false, refreshConfig() else { done?(false); return }
         guard let command = startCommand(settings: SetupController.shared.settings, environment: ProcessInfo.processInfo.environment) else { done?(false); return }
         starting = true
         DispatchQueue.global().async {

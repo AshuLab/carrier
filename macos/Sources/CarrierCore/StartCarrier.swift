@@ -33,10 +33,10 @@ public func startCommand(settings: SetupSettings, environment: [String: String],
     var environment = environment
     environment["PATH"] = enginePath(detected: settings.path, node: settings.node)
     environment["CARRIER_HOME"] = folder
-    let engine = folder + "/engine"
+    let engine = engineFolder(environment: environment, home: home)
     return StartCommand(
         node: settings.node, arguments: [settings.carrier], environment: environment,
-        orchestratorDir: engine, logPath: engine + "/logs/app-start.log", socketPath: engine + "/state/control.sock"
+        orchestratorDir: engine, logPath: engine + "/logs/app-start.log", socketPath: controlSocketPath(environment: environment, home: home)
     )
 }
 

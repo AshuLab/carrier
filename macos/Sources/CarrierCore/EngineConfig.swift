@@ -2,7 +2,7 @@ import Foundation
 
 // The eight values of `config.json` the app lets the person change: how often Carrier looks, how loud it logs and its limits.
 // The rules are the engine's (src/config/schema.ts and load.ts); the engine reads them once, when it starts. Everything else
-// in the file (repos, profiles, agents, root) is left as it is.
+// in the file (repos, profiles, agents) is left as it is.
 
 public struct EngineConfig: Equatable {
     public static let logLevels = ["debug", "info", "warn", "error"]

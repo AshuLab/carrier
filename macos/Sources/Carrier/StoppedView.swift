@@ -7,6 +7,7 @@ struct StoppedView: View {
     let state: ConnectionState?
     @Binding var selection: Selection
     @ObservedObject private var setup = SetupController.shared
+    @ObservedObject private var start = StartController.shared
 
     var body: some View {
         // the content is at least as tall as the window, so it sits in the middle both ways and scrolls only when it does not fit
@@ -47,7 +48,7 @@ struct StoppedView: View {
     /// Why the button is off, when it is: no config (nothing to do about it here), else the Engine tab's banner text and the way to the tab.
     @ViewBuilder private var missing: some View {
         let banner = engineTab(setup.settings, detecting: setup.detecting).banner
-        if let notice = engineNotConfiguredNotice(configExists: StartController.shared.configExists) {
+        if let notice = engineNotConfiguredNotice(configExists: start.configExists) {
             Label(notice, systemImage: "exclamationmark.triangle.fill")
                 .font(.callout).foregroundStyle(.orange).multilineTextAlignment(.center).frame(maxWidth: 340)
         } else if banner.state != .ready {

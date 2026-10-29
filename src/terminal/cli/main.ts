@@ -30,7 +30,7 @@ else if (cli.flags.help) {
         (await import('./commands/schema.ts')).schemaCommand();
         break;
       case 'init':
-        exit = await (await import('./commands/init.ts')).initCommand(cli.flags);
+        exit = await (await import('./commands/init.ts')).initCommand(cli.flags, folder);
         break;
       case 'doctor':
         if (configPath === undefined) throw noConfig('Usage: carrier doctor --config <path>');

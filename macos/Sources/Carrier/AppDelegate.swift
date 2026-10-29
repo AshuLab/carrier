@@ -102,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         triedStartOnOpen = true
         guard shouldStartOnOpen(
             enabled: UserDefaults.standard.bool(forKey: startOnOpenKey), firstState: state,
-            startReady: StartController.shared.missing.isEmpty && StartController.shared.configExists, fixture: fixtureServer != nil, alreadyTried: tried
+            startReady: StartController.shared.missing.isEmpty && StartController.shared.refreshConfig(), fixture: fixtureServer != nil, alreadyTried: tried
         ) else { return }
         StartController.shared.start()
     }

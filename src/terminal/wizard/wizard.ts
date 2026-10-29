@@ -22,7 +22,7 @@ import { summary, tilde } from './summary.ts';
 const ghIdentity = { kind: 'gh' } as const;
 
 /** The setup flow: look at the machine, ask what is missing, recap, save, check, offer to start. */
-export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDeps) {
+export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDeps, folder = carrierHome()) {
   ui.intro('Carrier setup');
   const interactive = ui.interactive && !flags.yes; // --yes never asks, whatever the terminal
 
@@ -161,7 +161,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   deps.write(out, `${JSON.stringify(user, null, 2)}\n`);
   ui.note(tilde(out), 'Config written');
 
-  const checks = await deps.doctor(loaded.config, carrierHome(), {}, ui.check, ui.checkStart);
+  const checks = await deps.doctor(loaded.config, folder, {}, ui.check, ui.checkStart);
   const use = out === fallback ? '' : ` --config ${out}`; // the default location needs no flag
   const failed = checks.filter((c) => c.status === 'fail').length;
   ui.checksEnd(checks.length, failed);
@@ -170,7 +170,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
     return { path: out, checks, config: loaded.config, start: false };
   }
 
-  const ready = await deps.readyEpics(loaded.config, carrierHome());
+  const ready = await deps.readyEpics(loaded.config, folder);
   const waiting = Object.entries(ready).map(([repo, count]) => `${repo}: ${count === undefined ? 'could not read' : `${count} epic${count === 1 ? '' : 's'} marked ready`}`);
   ui.note(waiting.join('\n'), 'Waiting for Carrier');
   const start = interactive && (await ui.confirm('Start Carrier now? (Ctrl+C stops it)'));

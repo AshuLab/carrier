@@ -11,7 +11,7 @@ export const usage = () => `Usage: carrier --config <path>          run the orch
        carrier schema                    print the JSON Schema of the config
        carrier status                    show once what the running Carrier is doing (exit 1: not running)
        carrier watch                     the live panel of the running Carrier; q leaves it running (exit 1: not running)
-       carrier stop|pause|resume|check --config <path>   stop Carrier, pause or resume intake, look at GitHub now
+       carrier stop|pause|resume|check   stop Carrier, pause or resume intake, look at GitHub now
        carrier restart <owner/name>#<issue> [--author <option>] [--reviewer <option>]   resume a stopped epic on the options you choose
        carrier chat --workspace <folder> [--agent <name>]   talk to an agent in a folder (starts the chat host if needed)
        carrier chat --resume <id>        go on with a closed chat session, after the end of its transcript

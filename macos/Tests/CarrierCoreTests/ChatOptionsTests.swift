@@ -129,3 +129,45 @@ private final class OptionsHost: ChatHost, @unchecked Sendable {
     await model.setOption("model", "opus")
     #expect(model.optionRefusal == "The chat host is not answering" && logged.count == 1)
 }
+
+// MARK: a closed session
+
+private final class MemoryBox: @unchecked Sendable { var stored: [String: [ChatOption]] = [:] }
+
+@MainActor @Test func aClosedSessionListsWhatItOfferedAndAChoiceWaitsForTheMessageThatWakesIt() async {
+    let box = MemoryBox()
+    let memory = OptionsMemory(load: { box.stored[$0] ?? [] }, save: { box.stored[$0] = $1 })
+    let host = OptionsHost()
+    let running = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory)
+    await running.poll()
+    #expect(box.stored["s"] == claude)
+
+    // the session closes, and the app starts again: the host lists nothing, the memory has what it offered
+    host.options = []
+    let closed = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: memory)
+    #expect(closed.shownOptions.isEmpty)  // nothing is shown before the first answer
+    await closed.poll()
+    #expect(closed.options.isEmpty && optionsPill(closed.shownOptions) == "Sonnet · High · Ask first")
+
+    // choosing changes the box and asks the host nothing
+    await closed.setOption("effort", "medium")
+    #expect(host.changes.isEmpty && optionsPill(closed.shownOptions) == "Sonnet · Medium · Ask first" && closed.wakeOptions == ["effort": "medium"])
+    // a value the session never offered is not taken
+    await closed.setOption("model", "gpt-5")
+    #expect(closed.wakeOptions == ["effort": "medium"])
+}
+
+@MainActor @Test func theChoicesMadeWhileClosedAreAppliedAfterTheResumeAndBeforeTheMessage() async {
+    let box = MemoryBox()
+    box.stored["s"] = claude
+    let host = OptionsHost()
+    host.options = []
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in }, memory: OptionsMemory(load: { box.stored[$0] ?? [] }, save: { box.stored[$0] = $1 }))
+    await model.poll()
+    await model.setOption("effort", "medium")
+    await model.setOption("model", "opus")
+    model.draft = "hello"
+    await model.submit()
+    // the model first: the reasoning levels depend on it
+    #expect(host.changes == ["model=opus", "effort=medium"] && model.wakeOptions.isEmpty)
+}

@@ -207,7 +207,11 @@ final class WindowController: NSObject, NSWindowDelegate {
             view.subviews.forEach(walk)
         }
         if let content = window.contentView { walk(content) }
-        for item in window.toolbar?.items ?? [] { lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)") }
+        for item in window.toolbar?.items ?? [] {
+            // where each one sits in the window, left edge and width: an item that is not where it belongs shows here
+            let frame = item.view.map { $0.convert($0.bounds, to: nil) }
+            lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)\(frame.map { " at x \(Int($0.minX)) width \(Int($0.width))" } ?? "")")
+        }
         lines.append("sessions: \(model.sessions.rows.count) rows, \(archivedCount(model.sessions.rows)) archived, groups \(sessionGroups(model.sessions.rows).map(\.title))")
         let home = sessionsPage(model.sessions.rows, by: model.sessionSort)
         lines.append("sessions home: \(home.subtitle.isEmpty ? "no count" : home.subtitle), \(home.emptyState?.title ?? "listed")")
@@ -247,6 +251,11 @@ final class WindowController: NSObject, NSWindowDelegate {
             let height = splitHeight()
             lines.append("  \(name): \(height)\(height > Int(Self.minContent.height) + 40 ? "  <- taller than the window" : "")")
         }
+        // the last page is a session: where its toolbar's items sit, left edge and width (the header on the left, the Open menu on the right)
+        let items = (window.toolbar?.items ?? []).compactMap { item in
+            item.view.map { "\(item.label.isEmpty ? String(item.itemIdentifier.rawValue.prefix(8)) : item.label) x \(Int($0.convert($0.bounds, to: nil).minX)) w \(Int($0.bounds.width))" }
+        }
+        lines.append("  toolbar with a session open: \(items.joined(separator: ", "))")
         return lines.joined(separator: "\n")
     }
 

@@ -152,6 +152,8 @@ struct PanelView: View {
             }
             .navigationTitle(title)
             .navigationSubtitle(subtitle)
+            // an open session has a header of its own (SessionHeader), which says more than a title and a line
+            .toolbar(removing: openSession == nil ? nil : .title)
         }
         .toolbar {
             ToolbarItem(placement: .navigation) {
@@ -173,6 +175,10 @@ struct PanelView: View {
                 }
             }
             if let session = openSession {
+                ToolbarItem(placement: .navigation) { SessionHeader(row: session) }
+                    .sharedBackgroundVisibility(.hidden)
+                // with the system title gone nothing is left to take the room, and the Open menu would follow the header
+                ToolbarSpacer(.flexible)
                 ToolbarItem(placement: .primaryAction) { OpenMenu(items: openMenuItems(session)).id(session.id) }
             }
             if let snapshot, shell.selection == .carrier {

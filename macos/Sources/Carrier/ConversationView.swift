@@ -22,7 +22,7 @@ struct ConversationView: View {
 
     init(sessionId: String, draft: NewSessionModel? = nil) {
         self.draft = draft
-        _model = State(initialValue: ConversationModel(host: SocketChatHost(), sessionId: sessionId))
+        _model = State(initialValue: ConversationModel(host: SocketChatHost(), sessionId: sessionId, memory: .userDefaults))
     }
 
     var body: some View {
@@ -85,9 +85,7 @@ struct ConversationView: View {
     /// session's provider and the options the provider lists as selects, and what the host refused under it.
     private var box: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if model.loaded, model.live == false {
-                Text(closedSessionNotice).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
+            if model.loaded, model.live == false { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false) }
             if let queued = model.queued {
                 HStack(spacing: 8) {
                     Image(systemName: "clock").foregroundStyle(.secondary)
@@ -105,15 +103,23 @@ struct ConversationView: View {
             MessageBox(
                 text: $model.draft, placeholder: "Message the agent", minLines: 2,
                 canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, busy: model.busy,
-                focus: $boxFocused, send: { Task { await model.submit() } }, stop: { Task { await model.stop() } }
+                focus: $boxFocused, halo: true, send: { Task { await model.submit() } }, stop: { Task { await model.stop() } }
             ) {
                 if model.agent.isEmpty == false {
                     ComposerSelect(title: "Provider", icon: "sparkle", selected: model.agent, showsValue: true, locked: true, choices: [SelectChoice(id: model.agent, label: model.agent)])
                 }
-                ForEach(optionRows(model.options)) { row in
+                // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app
+                // never saw running lists nothing, and the selects say so
+                if model.loaded, model.live == false, model.shownOptions.isEmpty {
+                    ForEach([("Model", "cpu"), ("Reasoning", "brain"), ("Access", "lock.shield")], id: \.0) { title, icon in
+                        ComposerSelect(title: title, icon: icon, note: "The provider lists these once the session is awake. Send a message to wake it up.")
+                    }
+                }
+                // the draft's order: model, reasoning, then what the agent may do (permission mode, or approvals and sandbox)
+                ForEach(optionRows(model.shownOptions).sorted { optionRank($0.id) < optionRank($1.id) }) { row in
                     ComposerSelect(
                         title: row.label, icon: optionIcon(row.id), selected: row.choices.first { $0.ticked }?.id, showsValue: true,
-                        choices: row.choices.map { SelectChoice(id: $0.id, label: $0.label) },
+                        choices: row.choices.map { SelectChoice(id: $0.id, label: $0.label, detail: $0.detail, icon: $0.icon, version: $0.version) },
                         choose: { value in Task { await model.setOption(row.id, value) } }
                     )
                 }
@@ -134,6 +140,14 @@ struct ConversationView: View {
         .padding(.horizontal, 40).padding(.vertical, 12)
         .frame(maxWidth: Self.column).frame(maxWidth: .infinity)
         .onAppear { boxFocused = true }
+    }
+
+    private func optionRank(_ id: String) -> Int {
+        switch id {
+        case "model": 0
+        case "effort": 1
+        default: 2
+        }
     }
 
     /// The icon of an option's select: what it is about, by the id the providers use.
@@ -291,6 +305,31 @@ private struct ThinkingRow: View {
             Text("Thinking…")
         }
         .font(.callout).foregroundStyle(.secondary)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A session whose agent is not running: what it means and what a message does, above the box, in the colour of night.
+private struct ClosedSessionNotice: View {
+    /// Whether the person already chose something that will apply when the session wakes.
+    let chosen: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "moon.zzz.fill")
+                .font(.system(size: 14, weight: .medium)).foregroundStyle(Color.indigo)
+                .frame(width: 30, height: 30)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.indigo.opacity(0.2)))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(closedSessionNotice.title).fontWeight(.semibold)
+                Text(chosen ? closedSessionNotice.chosen : closedSessionNotice.detail).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.callout).padding(12)
+        // glass, so the conversation that scrolls under it is blurred and not seen through it
+        .glassEffect(.regular.tint(Color.indigo.opacity(0.3)), in: .rect(cornerRadius: 12))
         .accessibilityElement(children: .combine)
     }
 }

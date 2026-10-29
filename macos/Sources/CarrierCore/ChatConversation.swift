@@ -162,7 +162,11 @@ public func refusalBanner(agent: String, reason: String) -> FailureBanner {
 }
 
 /// Above the box of a session that is not live: sending to it resumes it.
-public let closedSessionNotice = "This session is closed. Send a message and it picks up where it left off."
+public let closedSessionNotice = (
+    title: "This session is closed",
+    detail: "Its agent is not running. Send a message and it wakes up where it left off.",
+    chosen: "Its agent is not running. What you chose applies when a message wakes it up."
+)
 
 /// The line under a refusal when the provider is not signed in, nil for any other. The adapters say "<Agent> is not logged in; run … once to log in".
 public func signInLine(refusal reason: String) -> String? {
@@ -308,12 +312,26 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     public private(set) var options: [ChatOption] = []
     /// Why the last change of an option was refused, said in the panel; nil when it worked.
     public private(set) var optionRefusal: String?
+    /// What a closed session offered the last time it was seen running, kept between runs of the app.
+    public private(set) var remembered: [ChatOption] = []
+    /// The values chosen while the session is closed: the host cannot change them until its agent runs, so they wait and are applied
+    /// when a message wakes the session.
+    public private(set) var wakeOptions: [String: String] = [:]
+    /// What the box lists: what the provider offers while the agent runs, else what it offered last with the choices made since.
+    public var shownOptions: [ChatOption] {
+        if options.isEmpty == false || loaded == false { return options }
+        return remembered.map { option in
+            guard let chosen = wakeOptions[option.id] else { return option }
+            return ChatOption(id: option.id, label: option.label, values: option.values, current: chosen)
+        }
+    }
     /// Counts the sends, so a poll that began before one does not tell the model the agent is idle when it is not.
     @ObservationIgnored private var sends = 0
 
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
     @ObservationIgnored private let log: (String) -> Void
+    @ObservationIgnored private let memory: OptionsMemory
     @ObservationIgnored private var events: [ChatEvent] = []
     @ObservationIgnored private var streaming = ""
     /// The approvals the host still waits for, from the last reply.
@@ -323,12 +341,15 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
 
     public init(
         host: ChatHost, sessionId: String, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }
+        log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
+        memory: OptionsMemory = .none
     ) {
         self.host = host
         self.sessionId = sessionId
         self.sleep = sleep
         self.log = log
+        self.memory = memory
+        remembered = memory.load(sessionId)
     }
 
     /// Polls until the task is cancelled or `sleep` throws.
@@ -369,6 +390,10 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
             loaded = true
             failure = nil
             options = reply.options
+            if reply.options.isEmpty == false, reply.options != remembered {
+                remembered = reply.options
+                memory.save(sessionId, reply.options)
+            }
             if sends == sendsBefore, let state = reply.state { busy = state != .idle }
         } catch {
             let message = Self.words(error)
@@ -413,6 +438,12 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     /// Chooses a value in the options panel: asks the host and reads the session again, so the pill shows what the host says. A
     /// refusal is kept in words for the panel and nothing changes here.
     public func setOption(_ option: String, _ value: String) async {
+        // a closed session cannot change anything: the choice waits for the message that wakes it
+        if options.isEmpty, loaded, remembered.contains(where: { $0.id == option && $0.values.contains { $0.id == value } }) {
+            wakeOptions[option] = value
+            optionRefusal = nil
+            return
+        }
         do {
             try await host.setOption(sessionId, option: option, value: value)
         } catch {
@@ -458,7 +489,10 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
         // the box empties on Enter and not when the host has answered; a refusal puts the text back
         if refill, draft.trimmingCharacters(in: .whitespacesAndNewlines) == text { draft = "" }
         do {
-            if try await host.list(archived: false).first(where: { $0.id == sessionId })?.live != true { try await host.resume(sessionId) }
+            if try await host.list(archived: false).first(where: { $0.id == sessionId })?.live != true {
+                try await host.resume(sessionId)
+                await applyWakeOptions()
+            }
             try await host.send(sessionId, text)
         } catch {
             refusal = report(error, "send the message")
@@ -471,6 +505,20 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
         sends += 1
         busy = true
         await poll()
+    }
+
+    /// The choices made while the session was closed, now that its agent runs: the model first, as the reasoning levels depend on it. One
+    /// the host refuses is said in words and the rest still go.
+    private func applyWakeOptions() async {
+        let waiting = wakeOptions.sorted { ($0.key == "model" ? 0 : 1, $0.key) < ($1.key == "model" ? 0 : 1, $1.key) }
+        wakeOptions = [:]
+        for (option, value) in waiting {
+            do {
+                try await host.setOption(sessionId, option: option, value: value)
+            } catch {
+                optionRefusal = report(error, "change the option")
+            }
+        }
     }
 
     private func clearRefusal() {

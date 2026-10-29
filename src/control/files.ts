@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
-import { basename, dirname, join, sep } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { and, eq, sql } from 'drizzle-orm';
 import type { CallerResult } from '../execution/caller-result.ts';
 import type { Db } from '../storage/db.ts';
@@ -89,6 +89,12 @@ function real(path: string): string | null {
   }
 }
 
+/** Whether `git worktree list` of the engine's clone lists `workspace` (a real path), both sides compared by real path. Asked at each read. */
+function listedByGit(clone: string, workspace: string): boolean {
+  const list = git(clone, ['worktree', 'list', '--porcelain']); // null: no clone yet
+  return (list ?? '').split('\n').some((line) => line.startsWith('worktree ') && real(line.slice('worktree '.length)) === workspace);
+}
+
 /**
  * The lanes of an epic: `git worktree list` entries named `<epic worktree>--lane-<N>` beside it, with a slice branch checked out
  * (a detached one is a free lane and has no work). Nothing outside the epic's own folder is inspected.
@@ -114,15 +120,14 @@ type Card = { id: string; kind: FilesReply['sections'][number]['kind']; title: s
 /**
  * Every card of an epic and where git is asked over which range: a lane's worktree against its fork point, the epic worktree
  * over `<sha>^1..<sha>` of a merged slice, and over the two heads of a fix round. `filesOf` counts over it and `fileDiff` diffs over it,
- * so the two cannot drift apart. null for an unknown epic, 'none' for one without a worktree inside the engine's folder.
+ * so the two cannot drift apart. null for an unknown epic, 'none' for one whose worktree git does not list for the engine's clone.
  */
-function cardsOf(db: Db, engineDir: string, repo: string, issue: number, executionId?: string): { workspace: string; head: string; base: string | null; cards: Card[] } | 'none' | null {
+function cardsOf(db: Db, reposDir: string, repo: string, issue: number, executionId?: string): { workspace: string; head: string; base: string | null; cards: Card[] } | 'none' | null {
   const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
   if (epic === undefined) return null;
   const workspace = epic.workspace === null ? null : real(epic.workspace);
-  const shared = real(engineDir);
-  // the folder comes from the database, but it is only read when it really sits inside the engine's folder
-  if (workspace === null || shared === null || workspace.startsWith(shared + sep) === false) return 'none';
+  // the folder comes from the database, but it is only read when git lists it for the engine's clone of the repo
+  if (workspace === null || listedByGit(join(reposDir, repo), workspace) === false) return 'none';
   const branch = git(workspace, ['symbolic-ref', '--short', 'HEAD'])?.trim();
   if (branch === undefined || branch === '') return 'none';
   const head = `refs/heads/${branch}`;
@@ -169,12 +174,12 @@ function cardsOf(db: Db, engineDir: string, repo: string, issue: number, executi
 /**
  * The files an epic changed, from git and never from GitHub: the lanes' work so far (against the fork point, uncommitted work included),
  * each merged slice (the first-parent merge commits on the epic branch), each fix round (between the heads of its review and its fix),
- * and the epic branch against the default branch as `total`. An epic without a worktree here has nothing to show: empty, not an error.
+ * and the epic branch against the default branch as `total`. An epic without a worktree git lists has nothing to show: empty, not an error.
  * With `executionId`, only that fix round.
  * ponytail: nothing is cached, git is asked on every request (tens of ms); cache a few seconds if the app ever polls faster.
  */
-export function filesOf(db: Db, engineDir: string, repo: string, issue: number, executionId?: string): FilesReply | null {
-  const found = cardsOf(db, engineDir, repo, issue, executionId);
+export function filesOf(db: Db, reposDir: string, repo: string, issue: number, executionId?: string): FilesReply | null {
+  const found = cardsOf(db, reposDir, repo, issue, executionId);
   if (found === null) return null;
   if (found === 'none') return { sections: [], total: null, truncated: false };
   const { workspace, head, base } = found;
@@ -224,8 +229,8 @@ function diffText({ cwd, range, guard }: Card, path: string): { text: string; cu
  * a `..` or a NUL byte never reaches git. A lane's untracked file is read as `files` counts it, every line a '+'.
  * Redacted as a whole, then cut at MAX_DIFF_ROWS and MAX_LINE.
  */
-export function fileDiff(db: Db, engineDir: string, repo: string, issue: number, section: string, path: string): FileDiffReply | null {
-  const found = cardsOf(db, engineDir, repo, issue);
+export function fileDiff(db: Db, reposDir: string, repo: string, issue: number, section: string, path: string): FileDiffReply | null {
+  const found = cardsOf(db, reposDir, repo, issue);
   const card = found === null || found === 'none' ? undefined : found.cards.find((c) => c.id === section);
   if (card === undefined || path.length > MAX_PATH) return null;
   let out: string;

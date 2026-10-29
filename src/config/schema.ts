@@ -74,8 +74,6 @@ const failoverSchema = z.strictObject({
 
 export const configSchema = z
   .strictObject({
-    // Read by nothing: the engine's files are in `<Carrier folder>/engine/` (ADR 0016). Still accepted until the slice that removes it.
-    root: z.string().min(1).transform(expandHome),
     pollIntervalMinutes: z.number().positive(),
     finishedWindowDays: z.int().min(1).max(30),
     logLevel: z.enum(LogLevel),

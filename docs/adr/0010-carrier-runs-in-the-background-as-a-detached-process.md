@@ -11,7 +11,7 @@ Two rules pull against an easy answer. The macOS app's spec says Starting Carrie
 
 ## Decision
 
-We add `carrier start`, which launches Carrier in its own session with no terminal, writes its output to a log under `orchestrator/logs/`, waits for the control socket to answer and returns, and `carrier stop`, which stops it through the socket. A person looks at a running Carrier with `carrier status` (one snapshot) or `carrier watch` (the live panel, attached; closing it leaves Carrier running), and the macOS app is one more client of the same socket.
+We add `carrier start`, which launches Carrier in its own session with no terminal, writes its output to a log, `<folder>/engine/logs/start.log` in the Carrier folder (the app's own start writes `app-start.log` beside it), waits for the control socket to answer and returns, and `carrier stop`, which stops it through the socket. A person looks at a running Carrier with `carrier status` (one snapshot) or `carrier watch` (the live panel, attached; closing it leaves Carrier running), and the macOS app is one more client of the same socket.
 
 We do not install Carrier as a login service. Nothing starts it but a person: the command, the app's Start Carrier button, or the app's opt-in switch "Start Carrier when the app opens", which is off by default.
 
@@ -29,4 +29,4 @@ A detached Carrier survives closing the terminal but not a logout or a reboot, a
 
 The spawn exists twice for a while: in Swift (the app's StartController) and in the CLI. Until the app calls `carrier start` instead of its own code, the two are kept in step by their tests; once the CLI's has proven itself, the app delegates and the Swift one goes.
 
-The one-instance lock per root stays the guard against two Carriers; `start` on a running Carrier says so and does nothing.
+The one-instance lock per Carrier folder stays the guard against two Carriers; `start` on a running Carrier says so and does nothing.

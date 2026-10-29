@@ -220,6 +220,36 @@ final class WindowController: NSObject, NSWindowDelegate {
         return lines.joined(separator: "\n")
     }
 
+    /// For `--smoke-window`: the window at its smallest, one line per page with how tall the split view lays out. A page that asks for
+    /// more than the window has (its title bar's 26 points apart) shows the sidebar and the bottom of the page pushed out of the window.
+    @MainActor func minimumSizeReport() async -> String {
+        guard let window else { return "no window" }
+        window.setContentSize(Self.minContent)
+        var lines = ["at the smallest size (\(Int(Self.minContent.width)) x \(Int(Self.minContent.height))), split view height per page:"]
+        func splitHeight() -> Int {
+            var found = 0
+            func walk(_ view: NSView) {
+                if found == 0, let split = view as? NSSplitView, let first = split.arrangedSubviews.first { found = Int(first.frame.height) }
+                view.subviews.forEach(walk)
+            }
+            if let content = window.contentView { walk(content) }
+            return found
+        }
+        let pages: [(String, () -> Void)] = [
+            ("home", { self.model.shell.selection = .home }), ("sessions", { self.model.shell.selection = .sessions }),
+            ("new session", { self.model.shell.selection = .newSession }), ("archive", { self.model.shell.selection = .archive }),
+            ("settings", { self.model.shell.selection = .settings }), ("carrier", { self.model.shell.selection = .carrier }),
+            ("first session", { self.selectFirstSession() }),
+        ]
+        for (name, select) in pages {
+            select()
+            try? await Task.sleep(for: .milliseconds(700))
+            let height = splitHeight()
+            lines.append("  \(name): \(height)\(height > Int(Self.minContent.height) + 40 ? "  <- taller than the window" : "")")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     private func makeWindow() -> NSWindow {
         let host = NSHostingController(rootView: PanelView(model: model))
         // the split view's title and toolbar (the sidebar toggle) go to the window

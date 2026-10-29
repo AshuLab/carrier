@@ -128,6 +128,9 @@ struct ConversationView: View {
             }
         }
         .animation(.smooth(duration: 0.25), value: model.queued)
+        // the window asks the box for its smallest size with no width at all, and a notice that wraps would answer with a word a line:
+        // taller than the window (a closed session's notice made it ask for 450 points more than it had)
+        .frame(minWidth: 320)
         .padding(.horizontal, 40).padding(.vertical, 12)
         .frame(maxWidth: Self.column).frame(maxWidth: .infinity)
         .onAppear { boxFocused = true }

@@ -30,9 +30,10 @@ struct EmptyStateView: View {
                 .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
                 .padding(.bottom, 9)
             Text(title).font(.headline)
-            // wraps to as many lines as it needs, whatever height it is given
+            // wraps to as many lines as it needs, whatever height it is given; never narrower than 200, or the window's smallest size
+            // (asked with no width) would be one word a line
             Text(line).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true).frame(maxWidth: 280)
+                .fixedSize(horizontal: false, vertical: true).frame(minWidth: 200, maxWidth: 280)
             if let action {
                 Button(action.title, action: action.run).buttonStyle(.glass).buttonBorderShape(.capsule).padding(.top, 8)
             }

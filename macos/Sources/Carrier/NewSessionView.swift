@@ -37,7 +37,8 @@ struct NewSessionView: View {
                     .font(.callout)
                 }
             }
-            .frame(maxWidth: 820)
+            // never narrower than 320: the window asks for its smallest size with no width, and the notes under the sentence would be a word a line
+            .frame(minWidth: 320, maxWidth: 820)
             Spacer(minLength: 0)
             Spacer(minLength: 0)
         }

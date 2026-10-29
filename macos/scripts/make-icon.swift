@@ -1,6 +1,10 @@
-// Draws Carrier's app icon (the paper plane of its sidebar on the accent gradient, on the macOS icon grid) and writes Resources/AppIcon.icns.
+// Draws Carrier's app icon and writes Resources/AppIcon.icns.
+// Uses Resources/AppIcon-source.png if present; otherwise draws the default vector paper plane.
 // Run from macos/:  swift scripts/make-icon.swift
 import AppKit
+
+let sourcePath = "Resources/AppIcon-source.png"
+let sourceImage = NSImage(contentsOfFile: sourcePath)
 
 func render(_ side: Int) -> Data {
     let size = CGFloat(side)
@@ -19,23 +23,27 @@ func render(_ side: Int) -> Data {
         NSGraphicsContext.restoreGraphicsState()
         NSGraphicsContext.saveGraphicsState()
         path.addClip()
-        NSGradient(colors: [NSColor(red: 0.36, green: 0.55, blue: 1.0, alpha: 1), NSColor(red: 0.45, green: 0.30, blue: 0.95, alpha: 1)])!
-            .draw(in: body, angle: -55)
-        // a soft light from the top
-        NSGradient(colors: [NSColor.white.withAlphaComponent(0.22), NSColor.white.withAlphaComponent(0)])!
-            .draw(in: NSRect(x: body.minX, y: body.midY, width: body.width, height: body.height / 2), angle: -90)
-        NSGraphicsContext.restoreGraphicsState()
-        // the plane, white, a little to the upper right as paper planes fly
-        let configuration = NSImage.SymbolConfiguration(pointSize: body.width * 0.46, weight: .semibold)
-        if let symbol = NSImage(systemSymbolName: "paperplane.fill", accessibilityDescription: nil)?.withSymbolConfiguration(configuration) {
-            let tinted = symbol.copy() as! NSImage
-            tinted.lockFocus()
-            NSColor.white.set()
-            NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
-            tinted.unlockFocus()
-            let target = NSRect(x: body.midX - tinted.size.width / 2 + size * 0.01, y: body.midY - tinted.size.height / 2 - size * 0.005, width: tinted.size.width, height: tinted.size.height)
-            tinted.draw(in: target)
+        if let source = sourceImage {
+            source.draw(in: body, from: NSRect(origin: .zero, size: source.size), operation: .copy, fraction: 1.0)
+        } else {
+            NSGradient(colors: [NSColor(red: 0.36, green: 0.55, blue: 1.0, alpha: 1), NSColor(red: 0.45, green: 0.30, blue: 0.95, alpha: 1)])!
+                .draw(in: body, angle: -55)
+            // a soft light from the top
+            NSGradient(colors: [NSColor.white.withAlphaComponent(0.22), NSColor.white.withAlphaComponent(0)])!
+                .draw(in: NSRect(x: body.minX, y: body.midY, width: body.width, height: body.height / 2), angle: -90)
+            // the plane, white, a little to the upper right as paper planes fly
+            let configuration = NSImage.SymbolConfiguration(pointSize: body.width * 0.46, weight: .semibold)
+            if let symbol = NSImage(systemSymbolName: "paperplane.fill", accessibilityDescription: nil)?.withSymbolConfiguration(configuration) {
+                let tinted = symbol.copy() as! NSImage
+                tinted.lockFocus()
+                NSColor.white.set()
+                NSRect(origin: .zero, size: tinted.size).fill(using: .sourceAtop)
+                tinted.unlockFocus()
+                let target = NSRect(x: body.midX - tinted.size.width / 2 + size * 0.01, y: body.midY - tinted.size.height / 2 - size * 0.005, width: tinted.size.width, height: tinted.size.height)
+                tinted.draw(in: target)
+            }
         }
+        NSGraphicsContext.restoreGraphicsState()
         return true
     }
     let bitmap = NSBitmapImageRep(data: image.tiffRepresentation!)!

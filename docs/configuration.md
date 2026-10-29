@@ -198,7 +198,7 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
 | `githubCallTimeoutSeconds` | `30` | A positive whole number: how long a call to GitHub (the repository list, the login) may take. Read when the host starts. |
 | `logLevel` | `info` | `debug`, `info`, `warn` or `error`. Read when the host starts. |
 
-A session never works inside `<folder>/engine/`, nor through a symlink into it.
+A session never works inside `<folder>/engine/`, nor through a symlink into it. The engine's config has no `chat` section: it rejects one like any unknown key.
 
 ## Chat agents
 

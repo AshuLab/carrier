@@ -9,6 +9,8 @@ struct NewSessionView: View {
     let opened: (String) -> Void
     @State private var foldersOpen = false
     @State private var branchesOpen = false
+    @State private var currentBranchOpen = false
+    @State private var whereOpen = false
     @FocusState private var boxFocused: Bool
 
     var body: some View {
@@ -20,19 +22,19 @@ struct NewSessionView: View {
                 Text("Pick where it works, then write.").font(.callout).foregroundStyle(.secondary)
             }
             .padding(.bottom, 10)
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 16) {
                 sentence
                 box
                 if model.worktree, let branch = model.startBranch {
-                    Text("Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.")
-                        .font(.caption).foregroundStyle(.secondary).padding(.leading, 4)
+                    Label("Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.", systemImage: "arrow.triangle.branch")
+                        .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
                 }
                 if let refusal = model.refusal {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(refusal).foregroundStyle(.red).textSelection(.enabled)
                         if let hint = signInLine(refusal: refusal) { Text(hint).foregroundStyle(.secondary) }
                     }
-                    .font(.callout).padding(.leading, 4)
+                    .font(.callout)
                 }
             }
             .frame(maxWidth: 820)
@@ -72,32 +74,34 @@ struct NewSessionView: View {
                 if model.folder != nil {
                     if model.offersWorktree {
                         Text("on")
-                        Menu {
-                            Button { Task { await model.useWorktree(false) } } label: { Label("Current folder", systemImage: model.worktree ? "" : "checkmark") }
-                            Button { Task { await model.useWorktree(true) } } label: { Label("New worktree", systemImage: model.worktree ? "checkmark" : "") }
-                        } label: {
-                            chip(model.worktree ? "New worktree" : "Current folder")
-                        }
-                        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
-                        .accessibilityLabel("Where it works")
-                        if model.worktree { worktreeControls } else { Text("(\(model.workspace?.branch ?? "detached HEAD"))") }
+                        Button { whereOpen.toggle() } label: { chip(model.worktree ? "New worktree" : "Current folder", icon: model.worktree ? "square.on.square" : "folder") }
+                            .buttonStyle(.plain).accessibilityLabel("Where it works")
+                            .sheet(isPresented: $whereOpen) { WhereItWorksSheet(model: model) }
+                        if model.worktree { worktreeControls } else { currentBranch }
                     } else {
                         Text(rest)
                     }
                 }
             }
-            .font(.callout).foregroundStyle(.secondary).padding(.leading, 4)
+            .font(.body).foregroundStyle(.secondary)
             .accessibilityElement(children: .contain)
             if let note = model.watchNote {
-                Text(note).font(.callout).foregroundStyle(model.watchFailed ? .orange : .secondary).padding(.leading, 4).textSelection(.enabled)
+                Label(note, systemImage: model.watchFailed ? "exclamationmark.triangle.fill" : "eye.fill").font(.subheadline).foregroundStyle(model.watchFailed ? .orange : .secondary).textSelection(.enabled)
             }
-            if let warning = model.warning { Text(warning).font(.callout).foregroundStyle(.orange).padding(.leading, 4) }
+            if let warning = model.warning { Text(warning).font(.callout).foregroundStyle(.orange) }
             if case .problem(let reason) = model.nameState, model.worktree {
-                Text(reason).font(.callout).foregroundStyle(.red).padding(.leading, 4).textSelection(.enabled)
+                Text(reason).font(.callout).foregroundStyle(.red).textSelection(.enabled)
             }
-            if let problem = model.workspaceProblem { Text(problem).font(.callout).foregroundStyle(.red).padding(.leading, 4).textSelection(.enabled) }
-            if let problem = model.cloneProblem { Text(problem).font(.callout).foregroundStyle(.red).padding(.leading, 4).textSelection(.enabled) }
+            if let problem = model.workspaceProblem { Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
+            if let problem = model.cloneProblem { Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
         }
+    }
+
+    /// The branch the chosen folder is on: a chip that opens its local branches, like the other controls.
+    private var currentBranch: some View {
+        Button { currentBranchOpen.toggle() } label: { chip(model.workspace?.branch ?? "detached HEAD", icon: "arrow.triangle.branch") }
+            .buttonStyle(.plain).accessibilityLabel("Branch of the folder")
+            .sheet(isPresented: $currentBranchOpen) { BranchSheet(model: model, browsing: true) }
     }
 
     /// What `model.sentence` says after "Work in <workspace> ".
@@ -106,36 +110,51 @@ struct NewSessionView: View {
         return model.sentence.hasPrefix(head) ? String(model.sentence.dropFirst(head.count)) : model.sentence
     }
 
-    /// A control of the sentence: its value and a chevron, on a faint fill.
-    private func chip(_ title: String, tint: Color = .primary) -> some View {
-        HStack(spacing: 4) {
-            Text(title).fontWeight(.medium)
-            Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)).foregroundStyle(.secondary)
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, 8).padding(.vertical, 2)
-        .background(RoundedRectangle(cornerRadius: 6).fill(tint.opacity(0.14)))
-        .contentShape(Rectangle())
+    /// Every control of the sentence is this tall, with this corner, fill and edge, so they sit on one line and read as one family (the
+    /// sheets' radius is the same). The fill and the edge are the text's own colour, faint, so they follow the appearance.
+    private let controlHeight: CGFloat = 28
+
+    private func control(tint: Color = .primary) -> some View {
+        RoundedRectangle(cornerRadius: 8).fill(tint.opacity(tint == .primary ? 0.07 : 0.14))
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(tint.opacity(tint == .primary ? 0.14 : 0.4), lineWidth: 1))
+    }
+
+    /// A control of the sentence: its value and a chevron. The icon and the chevron are drawn over the text and not beside it: a `Menu`
+    /// takes a label that is a text and an image apart and puts the image first, which sent the chevron to the left.
+    private func chip(_ title: String, tint: Color = .primary, icon: String? = nil) -> some View {
+        Text(title).fontWeight(.medium)
+            .padding(.leading, icon == nil ? 0 : 17).padding(.trailing, 15)
+            .overlay(alignment: .leading) {
+                if let icon { Image(systemName: icon).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary) }
+            }
+            .overlay(alignment: .trailing) { Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary) }
+            .foregroundStyle(tint)
+            .padding(.horizontal, 10).frame(height: controlHeight)
+            .background(control(tint: tint))
+            .contentShape(RoundedRectangle(cornerRadius: 8))
     }
 
     /// The fixed `carrier/` prefix, the name (typed over in place) with ↻, and the branch it starts from.
     @ViewBuilder private var worktreeControls: some View {
-        HStack(spacing: 4) {
-            Text(worktreeBranchPrefix).foregroundStyle(.tertiary)
-            TextField("name", text: $model.worktreeName)
-                .textFieldStyle(.plain).autocorrectionDisabled().fixedSize()
-                .foregroundStyle(nameColor).accessibilityLabel("Worktree name")
+        HStack(spacing: 8) {
+            // the prefix and the name are one word to the eye: no space between them
+            HStack(spacing: 0) {
+                Text(worktreeBranchPrefix).foregroundStyle(.secondary)
+                TextField("name", text: $model.worktreeName)
+                    .textFieldStyle(.plain).autocorrectionDisabled().fixedSize()
+                    .foregroundStyle(nameColor).accessibilityLabel("Worktree name")
+            }
             Button { Task { await model.rollName() } } label: { Image(systemName: "arrow.clockwise") }
-                .buttonStyle(.plain).help("Pick another name").accessibilityLabel("Suggest another name")
+                .buttonStyle(.plain).foregroundStyle(.secondary).help("Pick another name").accessibilityLabel("Suggest another name")
         }
         .font(.callout.monospaced())
-        .padding(.horizontal, 8).padding(.vertical, 2)
-        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.12)))
-        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(nameBorder, lineWidth: 1))
+        .padding(.horizontal, 10).frame(height: controlHeight)
+        .background(control())
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(nameBorder, lineWidth: 1))
         // the name is checked a moment after typing; typing again cancels the check that was waiting
         .task(id: model.worktreeName) { await model.verifyName() }
         Text("from")
-        Button { branchesOpen.toggle() } label: { chip(model.startBranch ?? "Choose a branch…") }
+        Button { branchesOpen.toggle() } label: { chip(model.startBranch ?? "Choose a branch…", icon: "arrow.triangle.branch") }
             .buttonStyle(.plain)
             .sheet(isPresented: $branchesOpen) { BranchSheet(model: model) }
     }

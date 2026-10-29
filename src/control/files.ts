@@ -124,8 +124,9 @@ function cardsOf(db: Db, reposDir: string, repo: string, issue: number, executio
   if (epic === undefined) return null;
   const workspace = epic.workspace === null ? null : real(epic.workspace);
   // the folder comes from the database, but it is only read when git lists it for the engine's clone of the repo; asked once per request
+  if (workspace === null) return 'none';
   const list = git(join(reposDir, repo), ['worktree', 'list', '--porcelain']); // null: no clone yet
-  if (workspace === null || list === null || listedByGit(list, workspace) === false) return 'none';
+  if (list === null || listedByGit(list, workspace) === false) return 'none';
   const branch = git(workspace, ['symbolic-ref', '--short', 'HEAD'])?.trim();
   if (branch === undefined || branch === '') return 'none';
   const head = `refs/heads/${branch}`;

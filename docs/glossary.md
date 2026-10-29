@@ -47,10 +47,13 @@ _Avoid_: implementer, developer.
 **Reviewer** - Agent that reviews the final PR in a separate checkout, publishes findings and verifies the fixes. Its GitHub profile differs from the author's, unless the user chose a shared identity.
 _Avoid_: external reviewer, review bot.
 
-**Shared root** - Folder (by default `~/.solve/`) where Solve and Carrier keep `repos/`, `worktrees/` and `orchestrator/`. It is independent of where the app's code lives or from where it is started.
-_Avoid_: workspace (it is an epic's checkout, inside `worktrees/`).
+**Carrier folder** - The one folder where Carrier keeps everything it owns: `~/.carrier/` by default, changed with `CARRIER_HOME`. It holds the engine's config (`config.json`) and one subfolder per process, each with its own state, logs and lock: `engine/` (with its `repos/`, `worktrees/` and `reviews/`) and `chat/` (with its config `chat.json`, its `projects/` and its `worktrees/`). Solve never receives it ([0016](adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)). It is independent of where the app's code lives or from where it is started.
+_Avoid_: shared root, root, Carrier home (that is the app's page of the Carrier world), data folder, workspace (it is an epic's checkout, inside `engine/worktrees/`).
 
-**Control socket** - Local channel (a Unix socket in `orchestrator/`) a running Carrier opens so another process can watch it and drive it: the snapshot and the agent's output come out, and pause, check now and stop go in. The macOS app is a client of it. See [0005](adr/0005-engine-independent-of-the-macos-app.md).
+**Config level** - One of the three places a setting lives, by who reads it: the engine's `config.json`, the chat's `chat/chat.json` and the app's preferences (user defaults, read only by the app). A setting lives in one level and no process reads another's. The chat host starts with neither file; the engine needs its own.
+_Avoid_: settings file (there are two files and the preferences), global config.
+
+**Control socket** - Local channel (a Unix socket in `engine/state/`) a running Carrier opens so another process can watch it and drive it: the snapshot and the agent's output come out, and pause, check now and stop go in. The macOS app is a client of it. See [0005](adr/0005-engine-independent-of-the-macos-app.md).
 _Avoid_: API, daemon, IPC.
 
 **Slice progress** - How many of an epic's slices (its sub-issues) are closed out of the total, read from GitHub on every poll, when the agent runs a command that changes the slices, and once a minute for live epics. The list behind the count is kept in SQLite as a cache of GitHub, never as authority ([0008](adr/0008-slices-are-kept-in-sqlite-as-a-cache-of-github.md)); the agent running `ship` works the slices inside its own session.
@@ -123,13 +126,13 @@ _Avoid_: chat, thread.
 **Workspace** - The folder a user session works in: a folder on this Mac the person picks, a GitHub repository the chat cloned for them into the projects folder, or a new project it made there. The sidebar groups sessions by workspace. It is never the shared clone an epic runs in nor an epic's worktree, and Carrier's list of repos to watch is not where workspaces come from ([0015](adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)).
 _Avoid_: project (for the folder; "project" is only the word of the New project action), epic checkout.
 
-**Projects folder** - The one folder where the chat puts what it brings onto this Mac: a clone at `<owner>/<repo>`, a new project at `local/<name>`. By default `<CARRIER_HOME>/chat/projects`, changeable in the config. It is the person's: Carrier fetches in it and never deletes anything from it. It is not the shared root's `repos/`, where the engine keeps its own clones and the chat host refuses to work.
+**Projects folder** - The one folder where the chat puts what it brings onto this Mac: a clone at `<owner>/<repo>`, a new project at `local/<name>`. By default `<CARRIER_HOME>/chat/projects`, changeable in the chat config. It is the person's: Carrier fetches in it and never deletes anything from it. It is not the engine's `repos/`, where the engine keeps its own clones and the chat host refuses to work.
 _Avoid_: workspace folder, clones folder, repos folder.
 
 **Base folder** - The workspace's own folder, as opposed to a worktree made from it. A session that works in the base folder edits the person's own checkout, with whatever branch and uncommitted changes it has.
 _Avoid_: main folder, original, source.
 
-**Session worktree** - A git worktree that Carrier creates for a user session, on a new branch named `carrier/<adjective>-<unit>-<place>` and cut from a branch the person picks, so the base folder stays untouched. It lives under Carrier's home, its name is generated (the person may type another after the `carrier/` prefix) and it is removed with the session ([0014](adr/0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md)). It is not an epic's worktree and not a lane.
+**Session worktree** - A git worktree that Carrier creates for a user session, on a new branch named `carrier/<adjective>-<unit>-<place>` and cut from a branch the person picks, so the base folder stays untouched. It lives in the chat folder's `worktrees/`, its name is generated (the person may type another after the `carrier/` prefix) and it is removed with the session ([0014](adr/0014-a-session-worktree-lives-in-carriers-home-and-dies-with-its-session.md)). It is not an epic's worktree and not a lane.
 _Avoid_: workspace copy, sandbox, checkout, epic worktree.
 
 **Done** - The group of epics whose final PR was merged, shown for the finished window after the merge. Not Ready for test: nothing is waiting for a person any more. In the terminal panel it is a section of the same name.
@@ -140,7 +143,7 @@ _Avoid_: failed, aborted.
 
 **Finished window** - How many days after an epic ends it stays listed under Done or Cancelled (`finishedWindowDays`, 15 by default, at most 30 because the retention purge deletes logs and sessions at 30). Counted from when the epic left `running`. After it the epic is only reachable by its issue and PR on GitHub; its row stays in SQLite.
 
-**Detached run** - Carrier started with `carrier start`: its own session, no terminal, its output in a log under `orchestrator/logs/`, reached through its control socket (`carrier status`, `watch`, `stop`, or the macOS app). Nothing starts it but a person; it is not a login service and nothing restarts it if it dies.
+**Detached run** - Carrier started with `carrier start`: its own session, no terminal, its output in a log under `engine/logs/`, reached through its control socket (`carrier status`, `watch`, `stop`, or the macOS app). Nothing starts it but a person; it is not a login service and nothing restarts it if it dies.
 _Avoid_: daemon, service (a launchd service is the alternative that was not chosen), background process.
 
 **Attention colours** - The two colours the macOS app uses for an epic that cannot go on alone: orange when a person's input is needed (the review limit was reached, the agent asks for help), red when something failed (retries exhausted, a timeout, failed authentication, a workspace problem, an invalid pull request). A kind the app does not know is orange, because a person has to act either way. Cancelled is neither: nothing is asked and nothing failed, so it is grey. Both colours still sit under the same "Needs you" group; only the colour tells which of the two it is.

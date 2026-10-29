@@ -152,6 +152,9 @@ private struct CarrierRow: View {
                     }
             }
         }, below: {
+            if state == .stopped, let notice = engineNotConfiguredNotice(configExists: StartController.shared.configExists) {
+                Text(notice).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            }
             if let slots = card.slots {
                 SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
                     .accessibilityElement(children: .ignore)

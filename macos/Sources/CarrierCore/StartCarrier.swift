@@ -74,11 +74,18 @@ public func logTail(_ log: Data, lines: Int = 30) -> String {
     return text.isEmpty ? "(the start log is empty)" : tail.joined(separator: "\n")
 }
 
-/// The Start Carrier menu item: it can be pressed only while Carrier is stopped, the settings are complete and no start is
-/// under way; otherwise the title says what is missing or that it is starting.
-public func startMenuState(state: ConnectionState, starting: Bool, missing: [String]) -> (title: String, enabled: Bool) {
+/// What the Carrier home and the Carrier section of the sidebar say while `<folder>/config.json` does not exist; nil once it does.
+/// It has no action: the config is made by the native setup wizard, which is its own epic.
+public func engineNotConfiguredNotice(configExists: Bool) -> String? {
+    configExists ? nil : "The engine is not configured: there is no config.json in the Carrier folder."
+}
+
+/// The Start Carrier menu item: it can be pressed only while Carrier is stopped, the engine is configured, the settings are
+/// complete and no start is under way; otherwise the title says what is missing or that it is starting.
+public func startMenuState(state: ConnectionState, starting: Bool, missing: [String], configExists: Bool) -> (title: String, enabled: Bool) {
     if starting { return ("Starting Carrier…", false) }
     guard state == .stopped else { return ("Start Carrier", false) }
+    if configExists == false { return ("Start Carrier (engine not configured)", false) }
     if missing.isEmpty { return ("Start Carrier", true) }
     return ("Start Carrier (missing: \(missing.joined(separator: ", ")))", false)
 }

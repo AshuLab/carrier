@@ -89,9 +89,15 @@ import Observation
         }
     }
 
-    /// Stops the host, waits for its socket to go, starts the installed one; a failed start keeps the alert.
+    /// Stops the host, waits for its socket to go, starts the installed one; a failed start keeps the alert. A start that is already
+    /// running (the host went away while the version was read) leaves nothing to replace.
     private func replace(_ command: StartCommand) async {
-        await MainActor.run { self.starting = true }
+        let free = await MainActor.run { () -> Bool in
+            guard self.starting == false else { return false }
+            self.starting = true
+            return true
+        }
+        guard free else { return }
         var failure: (reason: String, tail: String)?
         do {
             try send(.stop, socketPath: command.socketPath)

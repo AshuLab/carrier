@@ -7,7 +7,7 @@
 
 A user session works in a folder the person picked, and nothing else is offered: the New session draft lists recent folders and Open folder…. Someone who wants to talk to an agent about a repository that is on GitHub and not on their Mac, or to start from nothing, has to prepare a folder by hand first.
 
-Carrier already knows repositories, but they are the engine's: the engine config's `repos` carry only `owner/name`, and the clones the engine keeps for them live in its own `repos/` folder, `<folder>/engine/repos/` in the Carrier folder, which the chat host refuses to work in on purpose. The engine also reaches GitHub as a profile that can be a bot identity, chosen for unattended work, and its repo list shows only what that login can push to.
+Carrier already knows repositories, but they are the engine's: the engine config's `repos` carry only `owner/name`, and the clones the engine keeps for them live in its own `repos/` folder (under `root` today, `<folder>/engine/repos/` once the engine moves into the Carrier folder), which the chat host refuses to work in on purpose. The engine also reaches GitHub as a profile that can be a bot identity, chosen for unattended work, and its repo list shows only what that login can push to.
 
 Three things about what the chat brings onto the Mac are hard to change once people have work in it: where it lives, whose credentials fetched it, and whether Carrier's own list of repos is the list the person works from.
 

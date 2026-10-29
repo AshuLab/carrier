@@ -6,6 +6,10 @@ export type EnginePlaces = {
   dir: string;
   /** The database, the control socket, the lock, the execution results and `forge-cwd/<owner>/<name>`. */
   state: string;
+  /** `<state>/control.sock`. */
+  socket: string;
+  /** `<state>/carrier.db`. */
+  db: string;
   /** `orchestrator.log`, `executions/<executionId>/` and the start logs. */
   logs: string;
   /** The engine's clones: `<owner>/<repo>`. */
@@ -16,8 +20,12 @@ export type EnginePlaces = {
   worktrees: string;
 };
 
+/** The control socket in an engine state folder; the server opens it from the folder it is given. */
+export const controlSocketIn = (state: string) => join(state, 'control.sock');
+
 /** The engine's places, all computed from the Carrier folder here and nowhere else. */
 export function enginePlacesOf(folder: string): EnginePlaces {
   const dir = join(folder, 'engine');
-  return { dir, state: join(dir, 'state'), logs: join(dir, 'logs'), repos: join(dir, 'repos'), reviews: join(dir, 'reviews'), worktrees: join(dir, 'worktrees') };
+  const state = join(dir, 'state');
+  return { dir, state, socket: controlSocketIn(state), db: join(state, 'carrier.db'), logs: join(dir, 'logs'), repos: join(dir, 'repos'), reviews: join(dir, 'reviews'), worktrees: join(dir, 'worktrees') };
 }

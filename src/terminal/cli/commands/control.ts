@@ -1,4 +1,3 @@
-import { join } from 'node:path';
 import { enginePlacesOf } from '../../../config/engine-places.ts';
 import { CliError } from '../cli-error.ts';
 import { connectControl, ControlUnreachable, type CarrierClient } from '../control-client.ts';
@@ -25,7 +24,7 @@ export async function socketGone(path: string): Promise<boolean> {
 
 /** `stop`, `pause`, `resume` and `check` over the control socket of the Carrier running in this Carrier folder. Returns the exit code. */
 export async function controlCommand(name: ControlName, folder: string): Promise<number> {
-  const path = join(enginePlacesOf(folder).state, 'control.sock');
+  const path = enginePlacesOf(folder).socket;
   let client: CarrierClient;
   try {
     client = await connectControl(path);

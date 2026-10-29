@@ -93,7 +93,7 @@ export async function startCarrier(config: Config, folder: string, overrides: Pa
   createScopedLogger('cli').info('carrier started', { folder, repos: config.repos.length });
 
   const startedAt = deps.clock.now();
-  const db = openDatabase(join(places.state, 'carrier.db'));
+  const db = openDatabase(places.db);
   const repos = config.repos.map((repo) => resolveRepoConfig(config, repo));
   const { limits } = config;
   // Git over the network (clone, fetch) runs as the repo's author profile.

@@ -162,7 +162,7 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
   const profiles = [orchestrator, ...repos.flatMap((repo) => rolesOf(repo).map((agent) => config.profiles[agent.profile]!))];
 
   // Only a path that does not fit is reported: Carrier works without the socket, it just has none for the app to use.
-  const socket = join(enginePlacesOf(folder).state, 'control.sock');
+  const socket = enginePlacesOf(folder).socket;
   const { fits, bytes } = socketPathFits(socket);
   if (fits === false) report({ name: 'control socket path fits', status: 'warn', detail: `${socket} is ${bytes} bytes and a socket path holds 103, so Carrier starts without its control socket`, fix: fixes.socketPath });
 

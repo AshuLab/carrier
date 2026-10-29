@@ -6,6 +6,7 @@ import SwiftUI
 struct SettingsScreen: View {
     let state: ConnectionState?
     @ObservedObject var setup: SetupController = .shared
+    @ObservedObject private var start = StartController.shared
     @State private var tab = Tab.engine
     /// the Engine tab's paths, opened by the person while everything is found; not remembered
     @State private var pathsOpen = false
@@ -15,6 +16,7 @@ struct SettingsScreen: View {
 
     var body: some View {
         let model = engineTab(setup.settings, detecting: setup.detecting)
+        let notConfigured = engineNotConfiguredNotice(configExists: start.configExists)
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 if model.banner.state != .ready {
@@ -36,10 +38,10 @@ struct SettingsScreen: View {
                         .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
                     } else {
                         HStack(spacing: 12) {
-                            StatusDot(found: true)
+                            StatusDot(found: notConfigured == nil)
                             VStack(alignment: .leading, spacing: 1) {
-                                Text("Carrier is ready to start").fontWeight(.semibold)
-                                Text("carrier and node were found").font(.caption).foregroundStyle(.secondary)
+                                Text(notConfigured == nil ? "Carrier is ready to start" : "Carrier cannot start yet").fontWeight(.semibold)
+                                Text(notConfigured ?? "carrier and node were found").font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer(minLength: 8)
                             Button("Show paths ▾") { pathsOpen = true }.buttonStyle(.borderless)
@@ -49,8 +51,8 @@ struct SettingsScreen: View {
                         .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
                     }
                     if model.banner.state == .ready {
-                        SettingsTabRow(title: "Start Carrier when the app opens", detail: "Carrier starts working on ready epics as soon as the app opens", first: true) {
-                            Toggle("Start Carrier when the app opens", isOn: $startOnOpen).labelsHidden().toggleStyle(.switch)
+                        SettingsTabRow(title: "Start Carrier when the app opens", detail: notConfigured == nil ? "Carrier starts working on ready epics as soon as the app opens" : "Does nothing until the engine is configured", first: true) {
+                            Toggle("Start Carrier when the app opens", isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
                         }
                         .padding(.horizontal, 14)
                         .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))

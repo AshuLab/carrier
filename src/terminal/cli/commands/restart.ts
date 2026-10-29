@@ -1,4 +1,3 @@
-import { join } from 'node:path';
 import { enginePlacesOf } from '../../../config/engine-places.ts';
 import type { ControlSnapshot, EpicAdditions, PanelEpic } from '../../../status/types.ts';
 import { cancelled, makeClackUi } from '../../prompts/clack.ts';
@@ -45,7 +44,7 @@ export async function askRestartOptions(epic: (Pick<PanelEpic, 'stage' | 'option
 
 /** `carrier restart <owner/repo>#<issue>`: resumes a stopped epic over the control socket. Returns the exit code. */
 export async function restartCommand(folder: string, { repo, issue }: EpicTarget, flags: Chosen): Promise<number> {
-  const path = join(enginePlacesOf(folder).state, 'control.sock');
+  const path = enginePlacesOf(folder).socket;
   let client: CarrierClient;
   try {
     client = await connectControl(path, { timeoutMs: RESTART_WAIT_MS });

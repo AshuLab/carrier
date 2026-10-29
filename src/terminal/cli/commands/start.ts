@@ -9,7 +9,7 @@ import { pidAt, startDetached } from '../detached.ts';
  */
 export async function startCommand(folder: string, configPath: string): Promise<number> {
   const places = enginePlacesOf(folder);
-  const socketPath = join(places.state, 'control.sock');
+  const socketPath = places.socket;
   const logPath = join(places.logs, 'start.log');
 
   const running = await pidAt(socketPath);

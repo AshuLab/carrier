@@ -12,7 +12,7 @@ const err = (text: string) => process.stderr.write(`${text}\n`);
 /** Connects to the Carrier running in this Carrier folder; when there is none to use, says why and returns the exit code instead: 1 not running or silent, 2 another protocol. */
 export async function attach(folder: string): Promise<CarrierClient | number> {
   try {
-    return await connectControl(join(enginePlacesOf(folder).state, 'control.sock'));
+    return await connectControl(enginePlacesOf(folder).socket);
   } catch (error) {
     if (error instanceof ControlUnreachable === false) throw error;
     if (error.reason === 'incompatible') {

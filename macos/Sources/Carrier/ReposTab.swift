@@ -67,7 +67,10 @@ struct ReposTabView: View {
             if let failure { Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
         }
         .buttonStyle(.glass).buttonBorderShape(.capsule)
+        // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
+        .disabled(unreadable)
         .onAppear(perform: load)
+        .onChange(of: start.configExists) { load() }
         .onChange(of: draft) { note = nil }
         .alert(
             "Stop watching \(removing ?? "")?",

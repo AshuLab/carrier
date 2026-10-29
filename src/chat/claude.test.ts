@@ -141,6 +141,8 @@ test('options are listed, change at once, and an interrupt ends the turn as inte
   expect(byId('permissionMode')).toMatchObject({ current: 'default', values: expect.arrayContaining([{ id: 'plan', label: expect.any(String) }]) });
   expect(byId('permissionMode').values.map((v) => v.id)).not.toContain('bypassPermissions');
   expect(byId('model').values.map((v) => v.id)).toContain('sonnet');
+  // what the SDK knows of a model (what it is, which exact model its alias stands for) reaches the client, so a person can tell Sonnet from Sonnet
+  expect(byId('model').values.find((v) => v.id === 'sonnet')).toMatchObject({ detail: expect.any(String), version: expect.stringMatching(/^claude-/) });
   expect(byId('effort').values.map((v) => v.id)).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);
 
   await conversation.setOption('permissionMode', 'acceptEdits');

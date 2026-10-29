@@ -132,7 +132,7 @@ class ClaudeConversation implements ChatConversation {
     const efforts = this.models.find((m) => m.value === this.model)?.supportedEffortLevels ?? this.models.find((m) => m.value === 'default')?.supportedEffortLevels ?? [];
     return [
       { id: 'permissionMode', label: 'Permission mode', values: PERMISSION_MODES, current: this.mode },
-      { id: 'model', label: 'Model', values: this.models.map((m) => ({ id: m.value, label: m.displayName })), current: this.model },
+      { id: 'model', label: 'Model', values: this.models.map((m) => ({ id: m.value, label: m.displayName, ...(m.description && { detail: m.description }), ...(m.resolvedModel && { version: m.resolvedModel }) })), current: this.model },
       ...(efforts.length > 0 ? [{ id: 'effort', label: 'Reasoning effort', values: efforts.map((id) => ({ id, label: id })), current: this.effort }] : []),
     ];
   }

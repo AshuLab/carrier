@@ -2,7 +2,9 @@
 // Carrier's own chat events whatever the provider speaks, and it is not the engine's `AgentRunner`: nothing in it is
 // epic-shaped, there is no result file and the process is not done after one answer.
 
-export type ChatOption = { id: string; label: string; values: { id: string; label: string }[]; current: string };
+/** A value of an option: `detail` says what it is in a line, `version` which exact thing it stands for (a model's alias is not its number). */
+export type ChatOptionValue = { id: string; label: string; detail?: string; version?: string };
+export type ChatOption = { id: string; label: string; values: ChatOptionValue[]; current: string };
 export type ChatChoice = { id: string; label: string; allow: boolean };
 /** As the provider reports it. */
 export type ChatUsage = Record<string, number>;

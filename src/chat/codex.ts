@@ -155,7 +155,7 @@ class CodexConversation implements ChatConversation {
     return [
       { id: 'approvalPolicy', label: 'Approvals', values: APPROVAL_POLICIES, current: this.approvalPolicy },
       { id: 'sandbox', label: 'Sandbox', values: SANDBOXES, current: this.sandbox },
-      { id: 'model', label: 'Model', values: this.models.map((m) => ({ id: m.model, label: m.displayName })), current: this.model },
+      { id: 'model', label: 'Model', values: this.models.map((m) => ({ id: m.model, label: m.displayName, version: m.model })), current: this.model },
       ...(efforts.length > 0 ? [{ id: 'effort', label: 'Reasoning effort', values: efforts.map((id) => ({ id, label: id })), current: this.effort }] : []),
     ];
   }

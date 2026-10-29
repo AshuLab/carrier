@@ -158,31 +158,19 @@ struct NewSessionView: View {
         if case .problem = model.nameState { .red } else { .clear }
     }
 
-    /// The first message and what it runs with: a roomy text area, then the selects (provider, model, reasoning, access) and Send.
+    /// The first message and what it runs with: the message box shared with the open session, with the provider and the selects the
+    /// host cannot list yet.
     private var box: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            TextField(model.folder == nil ? "Choose a workspace to start…" : "Write the first message…", text: $model.text, axis: .vertical)
-                .textFieldStyle(.plain).font(.system(size: 14)).lineLimit(3...10).focused($boxFocused)
-                // Enter sends and Shift+Enter adds a line
-                .onKeyPress(.return, phases: .down) { press in
-                    if press.modifiers.contains(.shift) { model.text += "\n" } else { send() }
-                    return .handled
-                }
-            HStack(spacing: 6) {
-                providerSelect
-                ComposerSelect(title: "Model", icon: "cpu", note: "Each provider's models will be listed here.")
-                ComposerSelect(title: "Reasoning", icon: "brain", note: "How much the agent thinks before it answers.")
-                ComposerSelect(title: "Access", icon: "lock.shield", note: "What the agent may do without asking you.")
-                Spacer(minLength: 12)
-                if model.text.isEmpty == false {
-                    Text("↩ send   ⇧↩ new line").font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                }
-                sendButton
-            }
+        MessageBox(
+            text: $model.text, placeholder: model.folder == nil ? "Choose a workspace to start…" : "Write the first message…",
+            canSend: model.canSend, sendHelp: model.canSend ? "Send" : "Choose a workspace and write a message",
+            focus: $boxFocused, send: send
+        ) {
+            providerSelect
+            ComposerSelect(title: "Model", icon: "cpu", note: "Each provider's models will be listed here.")
+            ComposerSelect(title: "Reasoning", icon: "brain", note: "How much the agent thinks before it answers.")
+            ComposerSelect(title: "Access", icon: "lock.shield", note: "What the agent may do without asking you.")
         }
-        .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
-        .background(RoundedRectangle(cornerRadius: 16).fill(Color.primary.opacity(0.06)))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(boxFocused ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.14), lineWidth: boxFocused ? 1.5 : 1))
         // nothing to write to until a workspace is chosen
         .opacity(model.folder == nil ? 0.55 : 1)
     }
@@ -194,17 +182,6 @@ struct NewSessionView: View {
             choices: model.agents.map { SelectChoice(id: $0.name, label: $0.name, detail: $0.note, enabled: $0.available) },
             choose: { model.agent = $0 }
         )
-    }
-
-    private var sendButton: some View {
-        Button(action: send) {
-            Image(systemName: "arrow.up")
-                .font(.system(size: 14, weight: .bold)).foregroundStyle(model.canSend ? .white : .secondary)
-                .frame(width: 32, height: 32)
-                .background(Circle().fill(model.canSend ? Color.accentColor : Color.primary.opacity(0.12)))
-        }
-        .buttonStyle(.plain).disabled(model.canSend == false)
-        .help(model.canSend ? "Send" : "Choose a workspace and write a message").accessibilityLabel("Send")
     }
 
     private func send() {

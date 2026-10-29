@@ -14,7 +14,8 @@ struct ConversationView: View {
     /// The tool groups and calls the person opened, by id; here and not in each row, which the lazy stack may recreate.
     @State private var opened: Set<String> = []
     @FocusState private var boxFocused: Bool
-    @State private var optionsOpen = false
+    /// Whether rows are animated in: not the ones the first answer brings, which are the history.
+    @State private var animatesRows = false
 
     /// Where a first message that failed to send is handed over, by the session the draft opened.
     private let draft: NewSessionModel?
@@ -35,6 +36,11 @@ struct ConversationView: View {
                             continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
                             answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
                         )
+                        .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
+                    }
+                    // between Enter and the first words of the answer
+                    if model.busy, case .user = model.rows.last {
+                        ThinkingRow().transition(.opacity)
                     }
                 } else if model.failure == nil {
                     LoadingRow()
@@ -44,9 +50,15 @@ struct ConversationView: View {
             .padding(.horizontal, 40).padding(.vertical, 16)
             .frame(maxWidth: Self.column, alignment: .leading)
             .frame(maxWidth: .infinity)
+            .animation(animatesRows ? .smooth(duration: 0.28) : nil, value: model.rows.count)
         }
-        // the end of the conversation is what shows, and stays in view as it grows
+        // the end of the conversation is what shows, and stays in view as it grows; a short one starts at the top
         .defaultScrollAnchor(.bottom)
+        .defaultScrollAnchor(.top, for: .alignment)
+        .onChange(of: model.loaded) { _, loaded in
+            guard loaded else { return }
+            Task { try? await Task.sleep(for: .milliseconds(400)); animatesRows = true }
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) { if model.archived { archivedBox } else { box } }
         .task {
             if let failed = draft?.takeFailure(of: model.sessionId) { model.showRefusal(of: failed.text, failed.reason) }
@@ -69,9 +81,10 @@ struct ConversationView: View {
         .frame(maxWidth: Self.column).frame(maxWidth: .infinity)
     }
 
-    /// The message box (chat-ui-conv.html, section 3): the queued message above it, the box with its send or Stop button, and what the host refused under it.
+    /// The message box, the same as the draft's (chat-ui-conv.html, section 3): the queued message above it, then the box with the
+    /// session's provider and the options the provider lists as selects, and what the host refused under it.
     private var box: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             if model.loaded, model.live == false {
                 Text(closedSessionNotice).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
@@ -80,51 +93,32 @@ struct ConversationView: View {
                     Image(systemName: "clock").foregroundStyle(.secondary)
                     Text(queued).lineLimit(2).textSelection(.enabled)
                     Spacer(minLength: 0)
-                    Text("Sends when the agent finishes").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Text("Sends when the agent finishes").font(.subheadline).foregroundStyle(.secondary)
                     Button { model.cancelQueued() } label: { Image(systemName: "xmark.circle.fill") }
                         .buttonStyle(.plain).foregroundStyle(.secondary).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
                 }
                 .font(.callout)
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            HStack(alignment: .bottom, spacing: 8) {
-                TextField("Message the agent", text: $model.draft, axis: .vertical)
-                    .textFieldStyle(.plain).lineLimit(1...8).focused($boxFocused)
-                    // Enter sends and Shift+Enter adds a line
-                    .onKeyPress(.return, phases: .down) { press in
-                        if press.modifiers.contains(.shift) {
-                            model.draft += "\n"
-                        } else {
-                            Task { await model.submit() }
-                        }
-                        return .handled
-                    }
-                Button {
-                    Task { if model.busy { await model.stop() } else { await model.submit() } }
-                } label: {
-                    Image(systemName: model.busy ? "stop.fill" : "arrow.up")
-                        .font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
-                        .frame(width: 26, height: 26).background(Circle().fill(Color.accentColor))
+            MessageBox(
+                text: $model.draft, placeholder: "Message the agent", minLines: 2,
+                canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, busy: model.busy,
+                focus: $boxFocused, send: { Task { await model.submit() } }, stop: { Task { await model.stop() } }
+            ) {
+                if model.agent.isEmpty == false {
+                    ComposerSelect(title: "Provider", icon: "sparkle", selected: model.agent, showsValue: true, locked: true, choices: [SelectChoice(id: model.agent, label: model.agent)])
                 }
-                .buttonStyle(.plain).help(model.busy ? "Stop" : "Send").accessibilityLabel(model.busy ? "Stop" : "Send")
-            }
-            .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(RoundedRectangle(cornerRadius: 18).fill(Color.secondary.opacity(0.10)))
-            .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.secondary.opacity(0.25), lineWidth: 0.5))
-            if let pill = optionsPill(model.options) {
-                Button { optionsOpen.toggle() } label: {
-                    HStack(spacing: 4) {
-                        Text(pill).lineLimit(1)
-                        Image(systemName: "chevron.up").font(.system(size: 8, weight: .bold))
-                    }
-                    .font(.system(size: 11.5)).foregroundStyle(.secondary)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                ForEach(optionRows(model.options)) { row in
+                    ComposerSelect(
+                        title: row.label, icon: optionIcon(row.id), selected: row.choices.first { $0.ticked }?.id, showsValue: true,
+                        choices: row.choices.map { SelectChoice(id: $0.id, label: $0.label) },
+                        choose: { value in Task { await model.setOption(row.id, value) } }
+                    )
                 }
-                .buttonStyle(.plain).help("The session's options").accessibilityLabel("Session options: \(pill)")
-                .popover(isPresented: $optionsOpen, arrowEdge: .top) { OptionsPanel(model: model) }
             }
+            if let refusal = model.optionRefusal { Text(refusal).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
             if let refusal = model.refusal {
                 if model.refusedText == nil {
                     Text(refusal).font(.callout).foregroundStyle(.red).textSelection(.enabled)
@@ -133,36 +127,20 @@ struct ConversationView: View {
                 }
             }
         }
+        .animation(.smooth(duration: 0.25), value: model.queued)
         .padding(.horizontal, 40).padding(.vertical, 12)
         .frame(maxWidth: Self.column).frame(maxWidth: .infinity)
         .onAppear { boxFocused = true }
     }
-}
 
-/// The panel the options pill opens: a row per option the provider lists, with a menu of its values and the current one ticked.
-/// What the host refused is said at the bottom, in words.
-private struct OptionsPanel: View {
-    let model: ConversationModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(optionRows(model.options)) { row in
-                HStack(spacing: 16) {
-                    Text(row.label)
-                    Spacer(minLength: 12)
-                    Menu {
-                        ForEach(row.choices) { choice in
-                            Toggle(choice.label, isOn: Binding(get: { choice.ticked }, set: { _ in Task { await model.setOption(row.id, choice.id) } }))
-                        }
-                    } label: {
-                        Text(row.choices.first { $0.ticked }?.label ?? "")
-                    }
-                    .menuStyle(.borderlessButton).fixedSize()
-                }
-            }
-            if let refusal = model.optionRefusal { Text(refusal).font(.callout).foregroundStyle(.red).textSelection(.enabled).frame(maxWidth: 260, alignment: .leading) }
+    /// The icon of an option's select: what it is about, by the id the providers use.
+    private func optionIcon(_ id: String) -> String {
+        switch id {
+        case "model": "cpu"
+        case "effort": "brain"
+        case "permissionMode", "approvalPolicy", "sandbox": "lock.shield"
+        default: "slider.horizontal.3"
         }
-        .padding(14).frame(minWidth: 280)
     }
 }
 
@@ -299,5 +277,17 @@ struct CodeBlockView: View {
         }
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.12)))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+/// The agent has the message and has not said anything yet: three dots that run.
+private struct ThinkingRow: View {
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "ellipsis").symbolEffect(.variableColor.iterative, options: .repeating)
+            Text("Thinking…")
+        }
+        .font(.callout).foregroundStyle(.secondary)
+        .accessibilityElement(children: .combine)
     }
 }

@@ -455,6 +455,8 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     /// to the box when it came from there or from the queue (`refill`); on success the box is emptied unless the person has typed something else.
     private func deliver(_ text: String, refill: Bool = true) async {
         sends += 1
+        // the box empties on Enter and not when the host has answered; a refusal puts the text back
+        if refill, draft.trimmingCharacters(in: .whitespacesAndNewlines) == text { draft = "" }
         do {
             if try await host.list(archived: false).first(where: { $0.id == sessionId })?.live != true { try await host.resume(sessionId) }
             try await host.send(sessionId, text)

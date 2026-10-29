@@ -18,6 +18,8 @@ struct ComposerSelect: View {
     var selected: String?
     /// Whether the pill says the chosen value even when it is the default one (the provider always does).
     var showsValue = false
+    /// A value that cannot change here (the provider of a session that already started): no chevron, no list.
+    var locked = false
     var choices: [SelectChoice] = []
     var choose: (String) -> Void = { _ in }
     @State private var open = false
@@ -28,15 +30,16 @@ struct ComposerSelect: View {
     var body: some View {
         Button { open.toggle() } label: {
             Text(showsValue ? (chosen?.label ?? title) : (selected == nil ? title : chosen?.label ?? title)).fontWeight(.medium)
-                .padding(.leading, 18).padding(.trailing, 15)
+                .padding(.leading, 18).padding(.trailing, locked ? 0 : 15)
                 .overlay(alignment: .leading) { Image(systemName: icon).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary) }
-                .overlay(alignment: .trailing) { Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary) }
-                .font(.callout).lineLimit(1)
+                .overlay(alignment: .trailing) { if locked == false { Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary) } }
+                .font(.callout).lineLimit(1).truncationMode(.tail)
                 .padding(.horizontal, 10).frame(height: controlHeight)
                 .controlSurface()
                 .contentShape(RoundedRectangle(cornerRadius: 8))
         }
-        .buttonStyle(.plain).help(title).accessibilityLabel("\(title): \(chosen?.label ?? "Default")")
+        .buttonStyle(.plain).disabled(locked).frame(maxWidth: 220)
+        .help(locked ? "\(title) is fixed once a session has started" : title).accessibilityLabel("\(title): \(chosen?.label ?? "Default")")
         .popover(isPresented: $open, arrowEdge: .top) { list }
     }
 

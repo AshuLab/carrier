@@ -37,7 +37,7 @@ The file is a JSON object merged over the defaults: objects merge field by field
 | `agents.leadReviewer` | no | none | Optional technical lead role `{ profile, provider, model, persona? }` (configuration setup; reserved for upcoming lead reviewer gating in the Carrier flow). |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
 | `failover` | no | off | `{ enabled, triggers?, default?, roles? }`: moves a role to the next AI provider when its credits run out or service fails. See [Failover](#failover). |
-| `root` | no | `~/.solve` | The folder shared with Solve: `repos/`, `worktrees/`, `reviews/`, `orchestrator/`. |
+| `root` | no | `~/.solve` | Not read any more: the engine keeps its files in `engine/` of the Carrier folder (`CARRIER_HOME`, else `~/.carrier`), whatever this says. |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `finishedWindowDays` | no | `15` | Days a merged or cancelled epic stays in the snapshot after it ends, a whole number from 1 to 30 (30 is the retention purge). |
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |

@@ -68,11 +68,11 @@ function sessionFiles({ claude, codex }: SessionDirs, ids: string[]): string[] {
 }
 
 /**
- * Deletes the execution logs (`orchestrator/logs/executions/<executionId>/`) and the sessions the CLIs saved
+ * Deletes the execution logs (`<logs>/executions/<executionId>/`) and the sessions the CLIs saved
  * for them, of epics finished or cancelled 30 days or more before `now`, and the events stored from those logs.
  * Never touches other SQLite rows nor workspaces; a symlink is removed itself, never followed. Returns the paths deleted.
  */
-export function purgeExpired(db: Db, root: string, now: number, sessionDirs: SessionDirs = sessionDirsFrom()): string[] {
+export function purgeExpired(db: Db, logs: string, now: number, sessionDirs: SessionDirs = sessionDirsFrom()): string[] {
   const rows = db
     .select({ executionId: executions.executionId, sessionId: executions.sessionId, configDir: executions.configDir })
     .from(executions)
@@ -104,30 +104,29 @@ export function purgeExpired(db: Db, root: string, now: number, sessionDirs: Ses
     for (const file of sessionFiles(folder === null ? sessionDirs : { claude: folder, codex: folder }, ids)) if (!deleted.includes(file)) remove(file);
   }
 
-  const base = join(root, 'orchestrator');
   let real: string;
   try {
-    real = realpathSync(base);
+    real = realpathSync(logs);
   } catch {
-    return deleted; // no orchestrator folder: no logs were ever written
+    return deleted; // no logs folder: no logs were ever written
   }
   try {
-    // A folder that resolves outside orchestrator/ (symlinked) is not ours to delete from.
-    if (!realpathSync(join(base, 'logs', 'executions')).startsWith(real + sep)) return deleted;
+    // A folder that resolves outside the logs folder (symlinked) is not ours to delete from.
+    if (!realpathSync(join(logs, 'executions')).startsWith(real + sep)) return deleted;
   } catch {
     return deleted; // folder absent
   }
-  for (const { executionId } of rows) if (safeId.test(executionId)) remove(join(base, 'logs', 'executions', executionId));
+  for (const { executionId } of rows) if (safeId.test(executionId)) remove(join(logs, 'executions', executionId));
   return deleted;
 }
 
 /** Purges now and every 24 hours on the injected clock; a failed purge is logged and tried again next day. */
-export function startRetention(db: Db, root: string, clock: Clock, sessionDirs?: SessionDirs): () => void {
+export function startRetention(db: Db, logs: string, clock: Clock, sessionDirs?: SessionDirs): () => void {
   let cancel = () => {};
   let stopped = false;
   const run = async () => {
     try {
-      const deleted = purgeExpired(db, root, clock.now(), sessionDirs);
+      const deleted = purgeExpired(db, logs, clock.now(), sessionDirs);
       if (deleted.length > 0) log.info('purged expired logs and sessions', { count: deleted.length });
     } catch (error) {
       log.error('retention purge failed', error);

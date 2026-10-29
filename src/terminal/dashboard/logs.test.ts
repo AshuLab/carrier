@@ -7,8 +7,8 @@ import { summarizeLogLine, tailExecution } from './logs.ts';
 const root = mkdtempSync(join(tmpdir(), 'carrier-logs-'));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 const write = (id: string, text: string) => {
-  mkdirSync(join(root, 'orchestrator', 'logs', 'executions', id), { recursive: true });
-  writeFileSync(join(root, 'orchestrator', 'logs', 'executions', id, 'stdout.log'), text);
+  mkdirSync(join(root, 'executions', id), { recursive: true });
+  writeFileSync(join(root, 'executions', id, 'stdout.log'), text);
 };
 const j = (o: object) => JSON.stringify(o);
 

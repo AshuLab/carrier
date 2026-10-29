@@ -1,4 +1,3 @@
-import type { Config } from '../../../config/schema.ts';
 import type { PanelSnapshot } from '../../../status/types.ts';
 import type { Sessions } from '../../dashboard/history.ts';
 import { renderDashboard } from '../../dashboard/dashboard.ts';
@@ -78,8 +77,8 @@ export function socketPanel(client: Pick<CarrierClient, 'hello' | 'request'>, { 
 }
 
 /** Shows the live panel of the running Carrier, with the foreground panel's keys; `q` and Ctrl+C leave and Carrier keeps running. Exit 0 left; 1 not running, or it stopped; 2 another protocol. */
-export async function watchCommand(config: Config): Promise<number> {
-  const client = await attach(config);
+export async function watchCommand(folder: string): Promise<number> {
+  const client = await attach(folder);
   if (typeof client === 'number') return client;
 
   return new Promise<number>((resolve) => {

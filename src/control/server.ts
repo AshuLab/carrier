@@ -194,15 +194,15 @@ function answer(line: string, snapshot: () => unknown, controls: Controls, stopA
 }
 
 /**
- * Opens `orchestrator/control.sock`: newline-delimited JSON, a hello on connect and one reply per request. The caller
+ * Opens `control.sock` in the engine's state folder: newline-delimited JSON, a hello on connect and one reply per request. The caller
  * must hold the instance lock: that is what makes any socket file already there a leftover of a crash, safe to replace.
  * A path that does not fit, or a socket that cannot open, is logged and Carrier goes on without it. `close()` is synchronous and removes the file.
  */
-export async function startControlServer({ orchestratorDir, snapshot, startedAt, controls, stop }: { orchestratorDir: string; snapshot: () => unknown; startedAt: number; controls: Controls; stop: () => Promise<void> }): Promise<{ close: () => void }> {
-  const path = join(orchestratorDir, 'control.sock');
+export async function startControlServer({ stateDir, snapshot, startedAt, controls, stop }: { stateDir: string; snapshot: () => unknown; startedAt: number; controls: Controls; stop: () => Promise<void> }): Promise<{ close: () => void }> {
+  const path = join(stateDir, 'control.sock');
   const { fits, bytes } = socketPathFits(path);
   if (fits === false) {
-    log.warn(`control socket not opened: ${path} is ${bytes} bytes, the limit is ${MAX_SOCKET_PATH_BYTES}; use a shorter shared root`);
+    log.warn(`control socket not opened: ${path} is ${bytes} bytes, the limit is ${MAX_SOCKET_PATH_BYTES}; use a shorter Carrier folder`);
     return { close: () => {} };
   }
   const sockets = new Set<Socket>();

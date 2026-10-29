@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { defaultConfigPath } from '../../config/default-path.ts';
+import { carrierHome, defaultConfigPath } from '../../config/default-path.ts';
 import { defaults, loadConfig } from '../../config/load.ts';
 import { installFix } from '../../doctor/fixes.ts';
 import { localKinds, type LocalProvider } from '../../harnesses/local.ts';
@@ -161,7 +161,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   deps.write(out, `${JSON.stringify(user, null, 2)}\n`);
   ui.note(tilde(out), 'Config written');
 
-  const checks = await deps.doctor(loaded.config, {}, ui.check, ui.checkStart);
+  const checks = await deps.doctor(loaded.config, carrierHome(), {}, ui.check, ui.checkStart);
   const use = out === fallback ? '' : ` --config ${out}`; // the default location needs no flag
   const failed = checks.filter((c) => c.status === 'fail').length;
   ui.checksEnd(checks.length, failed);
@@ -170,7 +170,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
     return { path: out, checks, config: loaded.config, start: false };
   }
 
-  const ready = await deps.readyEpics(loaded.config);
+  const ready = await deps.readyEpics(loaded.config, carrierHome());
   const waiting = Object.entries(ready).map(([repo, count]) => `${repo}: ${count === undefined ? 'could not read' : `${count} epic${count === 1 ? '' : 's'} marked ready`}`);
   ui.note(waiting.join('\n'), 'Waiting for Carrier');
   const start = interactive && (await ui.confirm('Start Carrier now? (Ctrl+C stops it)'));

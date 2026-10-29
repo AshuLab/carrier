@@ -35,7 +35,7 @@ test.each(['SIGINT', 'SIGTERM', 'SIGHUP'] as const)('%s in the middle of two run
   expect([code, signal]).toEqual([0, null]);
 
   // Reopen the database the process left.
-  const db = new Database(join(dir, 'orchestrator', 'carrier.db'), { readonly: true });
+  const db = new Database(join(dir, 'engine', 'state', 'carrier.db'), { readonly: true });
   expect(db.prepare('select status from epics order by id').all()).toEqual([{ status: 'running' }, { status: 'running' }, { status: 'queued' }]);
   expect(db.prepare('select status, sessionId, finishedAt is not null as finished from executions order by rowid').all()).toEqual([
     { status: 'interrupted', sessionId: 's-1', finished: 1 },
@@ -43,7 +43,7 @@ test.each(['SIGINT', 'SIGTERM', 'SIGHUP'] as const)('%s in the middle of two run
   ]);
   db.close();
 
-  const lock = acquireLock(join(dir, 'orchestrator'));
+  const lock = acquireLock(join(dir, 'engine', 'state'));
   expect(lock.ok).toBe(true);
   if (lock.ok) lock.release();
 
@@ -58,12 +58,12 @@ test('a runner whose stop never finishes: the shutdown gives up after its time l
   child.kill('SIGTERM');
   expect((await closed)[0]).toBe(1);
 
-  const db = new Database(join(dir, 'orchestrator', 'carrier.db'), { readonly: true });
+  const db = new Database(join(dir, 'engine', 'state', 'carrier.db'), { readonly: true });
   expect(db.prepare('select status from epics order by id').pluck().all()).toEqual(['running', 'running', 'queued']);
   expect(db.prepare('select status from executions order by rowid').pluck().all()).toEqual(['running', 'running']); // the next start recovers them
   db.close();
 
-  const lock = acquireLock(join(dir, 'orchestrator'));
+  const lock = acquireLock(join(dir, 'engine', 'state'));
   expect(lock.ok).toBe(true);
   if (lock.ok) lock.release();
 });
@@ -109,7 +109,7 @@ test('restarting after Ctrl+C resumes the interrupted runs with their saved sess
   expect(tasks()).toEqual(['1:-:-', '2:-:-', '1:s-1:true', '2:s-2:true']); // the third epic stays queued: still two slots
   expect(await second.stop()).toBe(0);
 
-  const db = new Database(join(dir, 'orchestrator', 'carrier.db'), { readonly: true });
+  const db = new Database(join(dir, 'engine', 'state', 'carrier.db'), { readonly: true });
   expect(db.prepare('select status from epics order by id').pluck().all()).toEqual(['running', 'running', 'queued']);
   expect(db.prepare('select status from executions order by rowid').pluck().all()).toEqual(['interrupted', 'interrupted', 'interrupted', 'interrupted']);
   db.close();
@@ -117,7 +117,7 @@ test('restarting after Ctrl+C resumes the interrupted runs with their saved sess
 
 // A socket client of the real process: `ask` sends a line and resolves with the next reply (the hello is skipped).
 async function socketClient() {
-  const socket = connect(join(dir, 'orchestrator', 'control.sock'));
+  const socket = connect(join(dir, 'engine', 'state', 'control.sock'));
   socket.setEncoding('utf8');
   let buffer = '';
   const lines: string[] = [];
@@ -138,15 +138,15 @@ test('stop through the socket: the reply arrives every time, then the same shutd
     await client.closed;
     expect((await closed)[0]).toBe(0);
 
-    const db = new Database(join(dir, 'orchestrator', 'carrier.db'), { readonly: true });
+    const db = new Database(join(dir, 'engine', 'state', 'carrier.db'), { readonly: true });
     expect(db.prepare('select status from epics order by id').pluck().all()).toEqual(['running', 'running', 'queued']);
     expect(db.prepare('select status, sessionId from executions order by rowid').all()).toEqual([
       { status: 'interrupted', sessionId: 's-1' },
       { status: 'interrupted', sessionId: 's-2' },
     ]);
     db.close();
-    expect(existsSync(join(dir, 'orchestrator', 'control.sock'))).toBe(false);
-    const lock = acquireLock(join(dir, 'orchestrator'));
+    expect(existsSync(join(dir, 'engine', 'state', 'control.sock'))).toBe(false);
+    const lock = acquireLock(join(dir, 'engine', 'state'));
     expect(lock.ok).toBe(true);
     if (lock.ok) lock.release();
     const writes = readFileSync(join(dir, 'writes.log'), 'utf8').trim().split('\n');

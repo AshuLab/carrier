@@ -33,11 +33,11 @@ export const taskContext = (c: { repo: string; epic: number; executionId: string
 const MAX_PENDING = 64 * 1024;
 
 /**
- * Where the whole output of one execution goes: `<root>/orchestrator/logs/executions/<executionId>/{stdout,stderr}.log`.
+ * Where the whole output of one execution goes: `<logs>/executions/<executionId>/{stdout,stderr}.log`.
  * Only whole lines are redacted and written, so a token split across two chunks is still caught; `flush` writes what is left when the run ends.
  */
-export function executionOutput(root: string, executionId: string) {
-  const dir = join(root, 'orchestrator', 'logs', 'executions', executionId);
+export function executionOutput(logs: string, executionId: string) {
+  const dir = join(logs, 'executions', executionId);
   mkdirSync(dir, { recursive: true });
   const pending = { stdout: '', stderr: '' };
   const append = (stream: 'stdout' | 'stderr', text: string) => text && appendFileSync(join(dir, `${stream}.log`), redact(text));

@@ -51,8 +51,8 @@ export function summarizeLogLine(line: string): string | null {
 }
 
 /** The last `count` meaningful lines of an execution's output, read from the end of the file (it can be megabytes). */
-export function tailExecution(root: string, executionId: string, count: number, fileSizeLimit = 256 * 1024): string[] {
-  const path = join(root, 'orchestrator', 'logs', 'executions', executionId, 'stdout.log');
+export function tailExecution(logs: string, executionId: string, count: number, fileSizeLimit = 256 * 1024): string[] {
+  const path = join(logs, 'executions', executionId, 'stdout.log');
   let fd: number;
   try {
     fd = openSync(path, 'r');

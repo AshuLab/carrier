@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { enginePlacesOf } from '../../config/engine-places.ts';
 import type { Config } from '../../config/schema.ts';
 import { repoNamePattern } from '../../config/schema.ts';
 import { defaults } from '../../config/load.ts';
@@ -40,7 +41,7 @@ export interface InitDeps {
   /** Runs `agent-forge add` on the terminal; true when it ended well. */
   forgeAdd: () => boolean;
   /** Epics labeled ready now, per repo; undefined for a repo that cannot be read. */
-  readyEpics: (config: Config) => Promise<Record<string, number | undefined>>;
+  readyEpics: (config: Config, folder: string) => Promise<Record<string, number | undefined>>;
 }
 
 
@@ -115,8 +116,8 @@ export const realDeps: InitDeps = {
   doctor: runDoctor,
   readConfig: (path) => JSON.parse(readFileSync(path, 'utf8')),
   forgeAdd: () => spawnSync('agent-forge', ['add'], { stdio: 'inherit' }).status === 0,
-  readyEpics: async (config) => {
-    const github = new GhGitHub({ profile: config.profiles[config.orchestratorProfile]!, cwd: forgeCwd(config.root), timeoutMs: config.limits.githubCallTimeoutSeconds * 1000 });
+  readyEpics: async (config, folder) => {
+    const github = new GhGitHub({ profile: config.profiles[config.orchestratorProfile]!, cwd: forgeCwd(enginePlacesOf(folder)), timeoutMs: config.limits.githubCallTimeoutSeconds * 1000 });
     return Object.fromEntries(await Promise.all(config.repos.map(async (repo) => [repo.name, await github.listReadyEpics(repo.name).then((epics) => epics.length, () => undefined)] as const)));
   },
 };

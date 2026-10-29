@@ -1,3 +1,4 @@
+import { carrierHome } from '../../../config/default-path.ts';
 import { runInit } from '../../wizard/wizard.ts';
 import { cancelled, makeClackUi, noPromptUi } from '../../prompts/clack.ts';
 import { Cancelled } from '../../prompts/types.ts';
@@ -41,6 +42,6 @@ export async function initCommand(flags: Flags): Promise<number | undefined> {
     }
     throw new CliError(1, error instanceof Error ? error.message : String(error));
   }
-  if (started.start) return void (await runCommand(started.config, { framed: true })); // the same process, until Ctrl+C
+  if (started.start) return void (await runCommand(started.config, carrierHome(), { framed: true })); // the same process, until Ctrl+C
   return started.checks.some((c) => c.status === 'fail') ? 1 : 0;
 }

@@ -483,6 +483,16 @@ test('--help lists chat and chat-host', () => {
   expect(out).toContain('carrier chat-host');
 });
 
+test('--version prints the package version, the one the hello carries, with no config', () => {
+  const { version } = JSON.parse(readFileSync(join(import.meta.dirname, '../../../package.json'), 'utf8'));
+  const result = run('--version');
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe(`${version}\n`);
+  expect(result.stderr).toBe('');
+  expect(run('-v').stdout).toBe(`${version}\n`);
+  expect(run('--help').stdout).toContain('--version');
+});
+
 test('chat --list starts a real detached host, a second one starts no other, an engine on the same root keeps running, and chat --stop ends only the host', () => {
   const root = join(dir, 'chat-run');
   const config = write('chat.json', { ...valid, root });

@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterAll, expect, test, vi } from 'vitest';
 import { acquireLock } from '../../storage/lock.ts';
 import { connectControl } from './control-client.ts';
@@ -106,6 +106,21 @@ test('a second carrier on the same Carrier folder reports it and exits non-zero 
   }
 });
 
+test('--config chooses the file and not the engine\'s folder', async () => {
+  home = join(dir, 'elsewhere');
+  const config = write('elsewhere.json', { ...valid, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
+  const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
+  const closed = once(child, 'close');
+  try {
+    await vi.waitFor(() => expect(existsSync(join(home, 'engine', 'state', 'carrier.db'))).toBe(true), { timeout: 15_000 });
+    expect(existsSync(join(dirname(config), 'engine'))).toBe(false); // the file's folder is not the engine's
+  } finally {
+    child.kill('SIGINT');
+  }
+  await closed;
+  expect(readdirSync(home).sort()).toEqual(['engine']); // the config sits outside the Carrier folder and nothing else appeared in it
+});
+
 test('missing file exits non-zero', () => {
   expect(run('--config', join(dir, 'nope.json')).status).not.toBe(0);
 });
@@ -116,7 +131,7 @@ test('schema prints the JSON Schema of the config as the user writes it', () => 
   const schema = JSON.parse(result.stdout);
   expect(schema.properties.repos.minItems).toBe(1);
   expect(schema.required).toEqual(expect.arrayContaining(['repos', 'profiles', 'agents']));
-  expect(schema.required).not.toContain('root'); // has a default
+  expect(schema.properties).not.toHaveProperty('root');
   expect(schema.properties.limits.required ?? []).toEqual([]);
 });
 

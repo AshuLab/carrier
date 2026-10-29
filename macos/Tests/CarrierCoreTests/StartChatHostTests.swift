@@ -2,7 +2,7 @@ import Testing
 @testable import CarrierCore
 
 private let complete = SetupSettings(
-    carrier: "/n/bin/carrier", node: "/n/bin/node", path: "/usr/bin:/n/bin:/bin", configPath: "/h/.carrier/config.json"
+    carrier: "/n/bin/carrier", node: "/n/bin/node", path: "/usr/bin:/n/bin:/bin"
 )
 
 @Test func theHostsCommandLineIsNodeCarrierChatHostWithNoConfig() throws {
@@ -38,15 +38,7 @@ private let complete = SetupSettings(
     settings.node = ""
     #expect(startChatHostCommand(settings: settings, environment: [:], home: "/h") == nil)
     settings.carrier = ""
-    settings.configPath = ""
     #expect(chatHostMissing(settings) == ["node", "carrier"])
-}
-
-@Test func anEmptyConfigPathNoLongerStopsTheHost() {
-    var settings = complete
-    settings.configPath = ""
-    #expect(chatHostMissing(settings).isEmpty)
-    #expect(startChatHostCommand(settings: settings, environment: [:], home: "/h") != nil)
 }
 
 @Test func opening_startsTheHostOnlyWhenNothingAnswersOrRunsAndTheSettingsAreKnown() {

@@ -25,8 +25,7 @@ final class SetupController: ObservableObject {
         self.detector = detector
         let saved = store.load()
         isFirstLaunch = saved == nil
-        // the config path is not the shell's to say: it comes from where Carrier keeps it
-        settings = saved ?? SetupSettings(detection: nil, environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
+        settings = saved ?? SetupSettings()
     }
 
     /// Asks the shell only when nothing was saved. `done` runs once the settings are known: at once, or when the shell answered.
@@ -34,8 +33,8 @@ final class SetupController: ObservableObject {
         if isFirstLaunch { detect(then: done) } else { done() }
     }
 
-    /// Runs the shell off the main thread and puts what it found in the three values it can find. Edits to the config path
-    /// stay; a shell that gave no answer leaves every value as it was.
+    /// Runs the shell off the main thread and puts what it found in the three values. A shell that gave no answer leaves
+    /// every value as it was.
     func detect(then done: (() -> Void)? = nil) {
         guard detecting == false else { return }
         detecting = true

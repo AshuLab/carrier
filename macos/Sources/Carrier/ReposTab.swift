@@ -21,9 +21,7 @@ struct ReposTabView: View {
     @State private var restarting = false
     @State private var adding = false
 
-    private var path: String {
-        activeConfigPath(saved: SetupStore().load(), environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
-    }
+    private var path: String { configFilePath() }
 
     private var engine: String { engineFolder() }
 

@@ -9,10 +9,10 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\":1000,\"version\":\"x\",\"capabilities\":[\(capabilities)]}\n"
 }
 
-@Test func theChatSocketIsUnderTheSharedRoot() {
-    let environment = ["CARRIER_HOME": "/tmp/nowhere"]
-    #expect(chatSocketPath(saved: nil, environment: environment, home: "/Users/x") == "/Users/x/.solve/chat/chat.sock")
-    #expect(controlSocketPath(saved: nil, environment: environment, home: "/Users/x") == "/Users/x/.solve/orchestrator/control.sock")
+@Test func theChatSocketIsUnderTheCarrierFolderAndNeverReadsTheConfig() {
+    #expect(chatSocketPath(environment: [:], home: "/Users/x") == "/Users/x/.carrier/chat/state/chat.sock")
+    #expect(chatSocketPath(environment: ["CARRIER_HOME": ""], home: "/Users/x") == "/Users/x/.carrier/chat/state/chat.sock")
+    #expect(chatSocketPath(environment: ["CARRIER_HOME": "/tmp/scratch"], home: "/Users/x") == "/tmp/scratch/chat/state/chat.sock")
 }
 
 @Test func theClientReadsAgentsAndListFromTheFixtureHost() async throws {

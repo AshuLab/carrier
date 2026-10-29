@@ -11,9 +11,8 @@ final class ChatHostStarter {
     /// `done` is called on the main thread with whether the host answers, so the session can go on; false after the alert.
     func ensureRunning(done: @escaping (Bool) -> Void) {
         let settings = SetupController.shared.settings
-        let root = configRoot(configPath: settings.configPath, home: NSHomeDirectory())
-        let command = startChatHostCommand(settings: settings, root: root, environment: ProcessInfo.processInfo.environment)
-        // the socket asked here and the one the start waits on are the same: the settings' config file decides both
+        let command = startChatHostCommand(settings: settings, environment: ProcessInfo.processInfo.environment)
+        // the socket asked here and the one the start waits on are the same: the Carrier folder decides both
         let socket = command?.socketPath ?? chatSocketPath()
         DispatchQueue.global().async {
             let answers = ControlClient.connect(path: socket) != nil
@@ -23,7 +22,7 @@ final class ChatHostStarter {
                 )
                 guard start else { done(answers); return }
                 guard let command else {
-                    let missing = startMissing(settings).joined(separator: ", ")
+                    let missing = chatHostMissing(settings).joined(separator: ", ")
                     FileHandle.standardError.write(Data("carrier: the chat host was not started, the settings lack: \(missing)\n".utf8))
                     StartController.showAlert(title: "The chat host did not start", reason: "The settings lack: \(missing).", tail: "")
                     done(false)

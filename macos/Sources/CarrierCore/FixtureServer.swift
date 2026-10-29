@@ -7,7 +7,7 @@ public enum FixtureError: Error, Equatable {
 
 /// A fake Carrier for the app's `--fixture` mode: a control server on a temporary socket that answers the snapshot and the
 /// requests from the golden files (macos/Tests/Fixtures), and `availableRepos` with a made-up list, so the app is exercised through its real client path with no engine.
-/// A second socket, `<home>/chat/chat.sock`, is a fake chat host: `agents` and `list` from `chat-agents.json` and `chat-list.json`,
+/// A second socket, `<home>/chat/state/chat.sock`, is a fake chat host: `agents` and `list` from `chat-agents.json` and `chat-list.json`,
 /// `events` from the `chat-events-*.json` files (each names its session; a listed session with none has no events) with the approvals
 /// asked and not answered as pending, `answer`, which records the answer as an event, `archive` and `delete` on the listed sessions
 /// (kept in memory, refused for a working or waiting one as the host does), `deletePreview`, which says what `chat-delete-preview.json`
@@ -22,7 +22,7 @@ public enum FixtureError: Error, Equatable {
 public final class FixtureServer {
     public let home: String
     public var socketPath: String { home + "/orchestrator/control.sock" }
-    public var chatSocketPath: String { home + "/chat/chat.sock" }
+    public var chatSocketPath: String { home + "/chat/state/chat.sock" }
 
     private let listener: Int32
     private let chatListener: Int32
@@ -136,9 +136,9 @@ public final class FixtureServer {
             let orchestrator = home + "/orchestrator"
             try FileManager.default.createDirectory(atPath: orchestrator, withIntermediateDirectories: true)
             try JSONSerialization.data(withJSONObject: ["root": home]).write(to: URL(fileURLWithPath: home + "/config.json"))
-            try FileManager.default.createDirectory(atPath: home + "/chat", withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(atPath: home + "/chat/state", withIntermediateDirectories: true)
             listener = try Self.listen(path: orchestrator + "/control.sock")
-            do { chatListener = try Self.listen(path: home + "/chat/chat.sock") } catch {
+            do { chatListener = try Self.listen(path: home + "/chat/state/chat.sock") } catch {
                 Darwin.close(listener)
                 throw error
             }

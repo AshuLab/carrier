@@ -3,9 +3,7 @@ import { join, resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
-import { chatAgents } from '../../../config/chat-agents.ts';
-import type { Config } from '../../../config/schema.ts';
-import { chatDirOf, chatSocketOf } from '../../../chat/server.ts';
+import { chatConfigPathOf, chatLogsOf, chatSocketOf } from '../../../chat/config.ts';
 import { CliError } from '../cli-error.ts';
 import { connectControl, ControlUnreachable, type CarrierClient } from '../control-client.ts';
 import { startDetached } from '../detached.ts';
@@ -26,10 +24,10 @@ async function connectHost(path: string): Promise<CarrierClient | null> {
 export const POLL_MS = 200;
 
 /** The chat host's client, started on demand. */
-async function hostClient(socketPath: string, config: Config, configPath: string, start: typeof startDetached): Promise<CarrierClient> {
+async function hostClient(socketPath: string, start: typeof startDetached): Promise<CarrierClient> {
   const client = await connectHost(socketPath);
   if (client !== null) return client;
-  await start({ label: 'The chat host', args: ['chat-host', '--config', configPath], socketPath, logPath: join(chatDirOf(config.root), 'logs', 'start.log') });
+  await start({ label: 'The chat host', args: ['chat-host'], socketPath, logPath: join(chatLogsOf(), 'start.log') });
   const started = await connectHost(socketPath);
   if (started === null) throw new CliError(1, 'The chat host stopped answering right after it started');
   return started;
@@ -229,15 +227,13 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
 
 /**
  * `carrier chat --workspace <folder> [--agent <name>]`, `--resume <id>`, `--list [--archived]`, `--archive|--unarchive|--delete <id>` and `--stop`. A host is started on demand by --list and
- * by a chat (`start` is replaceable in tests). `configPath` is absolute. Returns the exit code.
+ * by a chat (`start` is replaceable in tests). The host is the one in the Carrier folder (`CARRIER_HOME`, else `~/.carrier`). Returns the exit code.
  */
 export async function chatCommand(
   flags: { list?: boolean; archived?: boolean; stop?: boolean; workspace?: string; agent?: string; resume?: string; archive?: string; unarchive?: string; delete?: string },
-  config: Config,
-  configPath: string,
   { start = startDetached, input = process.stdin, pollMs = POLL_MS, now = Date.now, sigint = process }: { start?: typeof startDetached; input?: Readable; pollMs?: number; now?: () => number; sigint?: EventEmitter } = {},
 ): Promise<number> {
-  const socketPath = chatSocketOf(config.root);
+  const socketPath = chatSocketOf();
   if (flags.stop) {
     const client = await connectHost(socketPath);
     if (client === null) {
@@ -251,7 +247,7 @@ export async function chatCommand(
     return 0;
   }
   if (flags.list) {
-    const client = await hostClient(socketPath, config, configPath, start);
+    const client = await hostClient(socketPath, start);
     const { sessions } = (await client.request('list', flags.archived ? { archived: true } : {})) as { sessions: { id: string; agent: string; folder: string; state: string; live: boolean; lastActiveAt: number }[] };
     client.close();
     if (sessions.length === 0) process.stdout.write(flags.archived ? 'No archived chat sessions.\n' : 'No chat sessions.\n');
@@ -266,7 +262,7 @@ export async function chatCommand(
     : undefined;
   if (change !== undefined) {
     const [sessionId, cmd, extra, done] = change;
-    const client = await hostClient(socketPath, config, configPath, start);
+    const client = await hostClient(socketPath, start);
     try {
       await client.request(cmd, { sessionId, ...extra });
     } catch (error) {
@@ -278,7 +274,7 @@ export async function chatCommand(
     return 0;
   }
   if (flags.resume !== undefined) {
-    const client = await hostClient(socketPath, config, configPath, start);
+    const client = await hostClient(socketPath, start);
     try {
       await converse(client, { start: { cmd: 'resume', sessionId: flags.resume }, input, pollMs, sigint });
     } finally {
@@ -287,14 +283,15 @@ export async function chatCommand(
     return 0;
   }
   if (flags.workspace !== undefined) {
-    const agent = flags.agent ?? chatAgents(config)[0]!.name;
-    const client = await hostClient(socketPath, config, configPath, start);
+    const client = await hostClient(socketPath, start);
     try {
+      const agent = flags.agent ?? ((await client.request('agents')) as { name: string }[])[0]?.name;
+      if (agent === undefined) throw new CliError(1, `chat.json lists no agents, so there is none to chat with; add one to the "agents" of ${chatConfigPathOf()}`);
       await converse(client, { start: { cmd: 'open', agent, folder: resolve(flags.workspace) }, input, pollMs, sigint });
     } finally {
       client.close();
     }
     return 0;
   }
-  throw new CliError(2, 'Usage: carrier chat --workspace <folder> [--agent <name>] | --resume <id> | --list [--archived] | --archive|--unarchive|--delete <id> | --stop [--config <path>]');
+  throw new CliError(2, 'Usage: carrier chat --workspace <folder> [--agent <name>] | --resume <id> | --list [--archived] | --archive|--unarchive|--delete <id> | --stop');
 }

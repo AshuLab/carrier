@@ -1,7 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { chatAgents } from './chat-agents.ts';
 import { defaults, loadConfig } from './load.ts';
 
 const valid = {
@@ -364,47 +363,5 @@ describe('persona', () => {
   test('a persona is an object with only name and prompt', () => {
     for (const persona of ['Ada', null, ['Ada']]) expect(errorsOf(withPersona(persona)).map((e) => e.path)).toEqual(['agents.author.persona']);
     expect(errorsOf(withPersona({ name: 'Ada', role: 'x' })).map((e) => e.path)).toEqual(['agents.author.persona']);
-  });
-});
-
-describe('chat agents', () => {
-  const agentsOf = (user: object) => {
-    const result = load(user);
-    if (!result.ok) throw new Error(JSON.stringify(result.errors));
-    return chatAgents(result.config);
-  };
-
-  test('without the block there are claude and codex, each with the harness of its own name', () => {
-    expect(agentsOf({})).toEqual([{ name: 'claude', harness: 'claude' }, { name: 'codex', harness: 'codex' }]);
-  });
-
-  test('`chat.projectsFolder` is expanded from ~ and must then be absolute; the block may hold only it, only agents or neither', () => {
-    expect(load({ chat: { projectsFolder: '~/Projects' } })).toMatchObject({ ok: true, config: { chat: { projectsFolder: join(homedir(), 'Projects') } } });
-    expect(load({ chat: { projectsFolder: '/srv/projects' } })).toMatchObject({ ok: true, config: { chat: { projectsFolder: '/srv/projects' } } });
-    for (const projectsFolder of ['', 'relative/dir', './x', '~other/dir', 5]) expect(errorsOf({ chat: { projectsFolder } }).map((e) => e.path)).toEqual(['chat.projectsFolder']);
-    expect(errorsOf({ chat: { projectsFolder: 'x' } })[0]!.message).toContain('absolute');
-    expect(load({ chat: { agents: { zed: { harness: 'codex' } } } })).toMatchObject({ ok: true });
-    expect(load({ chat: {} })).toMatchObject({ ok: true });
-    expect(agentsOf({ chat: { projectsFolder: '/srv/p' } }).map((agent) => agent.name)).toEqual(['claude', 'codex']);
-  });
-
-  test('with the block there are the agents it lists and only those, in the order written', () => {
-    const agents = { zed: { harness: 'codex' }, work: { harness: 'claude', command: '/opt/claude', model: 'opus', options: { permissionMode: 'plan' } }, 'claude-2': { harness: 'claude' } };
-    expect(agentsOf({ chat: { agents } })).toEqual([
-      { name: 'zed', harness: 'codex' },
-      { name: 'work', harness: 'claude', command: '/opt/claude', model: 'opus', options: { permissionMode: 'plan' } },
-      { name: 'claude-2', harness: 'claude' },
-    ]);
-  });
-
-  test('rejects, naming the field, an unknown field, another harness, a bad name and an empty command or model', () => {
-    const one = (agent: object, name = 'a') => errorsOf({ chat: { agents: { [name]: agent } } });
-    expect(errorsOf({ chat: { agents: {}, extra: 1 } }).map((e) => e.path)).toEqual(['chat']);
-    expect(one({ harness: 'claude', extra: 1 }).map((e) => e.path)).toEqual(['chat.agents.a']);
-    expect(one({ harness: 'agy' }).map((e) => e.path)).toEqual(['chat.agents.a.harness']);
-    expect(one({ harness: 'claude', command: '' }).map((e) => e.path)).toEqual(['chat.agents.a.command']);
-    expect(one({ harness: 'claude', model: '' }).map((e) => e.path)).toEqual(['chat.agents.a.model']);
-    expect(one({ harness: 'claude', options: { mode: 1 } }).map((e) => e.path)).toEqual(['chat.agents.a.options.mode']);
-    for (const name of ['Work', 'my agent', '1st', '-x']) expect(one({ harness: 'claude' }, name).map((e) => e.path.startsWith('chat.agents'))).toEqual([true]);
   });
 });

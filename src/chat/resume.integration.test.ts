@@ -1,8 +1,7 @@
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { vi, afterAll, beforeAll, describe, expect, test } from 'vitest';
-import type { Config } from '../config/schema.ts';
 import { connectControl } from '../terminal/cli/control-client.ts';
 import { realClock } from '../orchestration/clock.ts';
 import { claudeChatRunner } from './claude.ts';
@@ -23,16 +22,20 @@ describe.skipIf(!enabled)('a chat session resumed by a second host, with the rea
     folder = realpathSync(mkdtempSync(join(tmpdir(), 'carrier-resume-')));
   });
   afterAll(() => {
+    vi.unstubAllEnvs();
     rmSync(root, { recursive: true, force: true });
     rmSync(folder, { recursive: true, force: true });
   });
 
   test('the second host answers with what the first was told', { timeout: 240_000 }, async () => {
-    const config = { root, logLevel: 'info', chat: { agents: { claude: { harness: 'claude', model: 'haiku', ...(process.env.CARRIER_IT_CLAUDE_COMMAND && { command: process.env.CARRIER_IT_CLAUDE_COMMAND }) } } } } as unknown as Config;
+    vi.stubEnv('CARRIER_HOME', root);
+    mkdirSync(join(root, 'chat'), { recursive: true });
+    const chat = { agents: { claude: { harness: 'claude', model: 'haiku', ...(process.env.CARRIER_IT_CLAUDE_COMMAND && { command: process.env.CARRIER_IT_CLAUDE_COMMAND }) } } };
+    writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify(chat));
     const run = async (body: (client: Awaited<ReturnType<typeof connectControl>>) => Promise<void>) => {
       const exit = vi.fn();
-      const host = await startChatHost(config, { installLogging: () => {}, clock: realClock, exit, signals: false, runners: { claude: claudeChatRunner() } });
-      const client = await connectControl(join(root, 'chat', 'chat.sock'));
+      const host = await startChatHost({ installLogging: () => {}, clock: realClock, exit, signals: false, runners: { claude: claudeChatRunner() } });
+      const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
       try {
         await body(client);
       } finally {

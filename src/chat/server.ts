@@ -148,15 +148,15 @@ async function answer(line: string, controls: ChatControls, gone: AbortSignal, s
 }
 
 /**
- * Opens `<chat dir>/chat.sock`: newline-delimited JSON, a hello on connect and one reply per request, like the engine's.
+ * Opens `chat.sock` in `stateDir`: newline-delimited JSON, a hello on connect and one reply per request, like the engine's.
  * The caller holds the chat lock, so a socket file already there is a leftover of a crash. Unlike the engine, a socket
  * that cannot open rejects: a host without it is of no use. `clients` is told when a client connects or leaves.
  * `close()` is synchronous and removes the file.
  */
-export async function startChatServer({ chatDir, startedAt, controls, stop, clients }: { chatDir: string; startedAt: number; controls: ChatControls; stop: () => Promise<void>; clients: { joined(): void; left(): void } }): Promise<{ close: () => void }> {
-  const path = join(chatDir, 'chat.sock');
+export async function startChatServer({ stateDir, startedAt, controls, stop, clients }: { stateDir: string; startedAt: number; controls: ChatControls; stop: () => Promise<void>; clients: { joined(): void; left(): void } }): Promise<{ close: () => void }> {
+  const path = join(stateDir, 'chat.sock');
   const { fits, bytes } = socketPathFits(path);
-  if (fits === false) throw new Error(`${path} is ${bytes} bytes, too long for a socket; use a shorter shared root`);
+  if (fits === false) throw new Error(`${path} is ${bytes} bytes, too long for a socket; use a shorter CARRIER_HOME`);
   const sockets = new Set<Socket>();
   const hello: Hello = { event: 'hello', protocol: 1, pid: process.pid, startedAt, version, capabilities };
   const send = (socket: Socket, message: Hello | Reply, written?: () => void) => void socket.write(`${JSON.stringify(message)}\n`, written);
@@ -217,6 +217,3 @@ export async function startChatServer({ chatDir, startedAt, controls, stop, clie
     },
   };
 }
-
-export const chatDirOf = (root: string) => join(root, 'chat');
-export const chatSocketOf = (root: string) => join(chatDirOf(root), 'chat.sock');

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import type { Config } from '../config/schema.ts';
+import type { ChatAgent } from './config.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { openChatDatabase } from './db.ts';
 import { FakeChatRunner, FakeGit, type FakeConversation } from './fake.ts';
@@ -18,18 +18,22 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'ss-'));
   work = join(dir, 'work');
   mkdirSync(work);
+  vi.stubEnv('CARRIER_HOME', join(dir, 'home'));
 });
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => {
+  rmSync(dir, { recursive: true, force: true });
+  vi.unstubAllEnvs();
+});
 
 const token = `ghp_${'a1B2'.repeat(9)}`;
 
-function setup(chat?: Config['chat']) {
+function setup(chat?: { agents: Record<string, Omit<ChatAgent, 'name'>> }) {
+  const agents = Object.entries(chat?.agents ?? { claude: { harness: 'claude' }, codex: { harness: 'codex' } }).map(([name, agent]) => ({ name, ...agent }) as ChatAgent);
   const db = openChatDatabase(join(dir, 'chat.db'));
   const clock = new FakeClock();
   const claude = new FakeChatRunner();
   const onLiveChange = vi.fn();
-  const config = { root: join(dir, 'root'), chat } as Config;
-  const sessions = createSessions({ db, config, clock, runners: { claude }, env: { SOME: 'env' }, git: new FakeGit(), binaryFound: (command) => command === 'claude', onLiveChange });
+  const sessions = createSessions({ db, agents, clock, runners: { claude }, env: { SOME: 'env' }, git: new FakeGit(), binaryFound: (command) => command === 'claude', onLiveChange });
   return { db, clock, claude, sessions, onLiveChange };
 }
 async function openOne(s = setup()) {
@@ -104,8 +108,8 @@ test('open refuses, in words, an unknown agent, a harness with no runner, a bad 
   await expect(sessions.open({ agent: 'nope', folder: work })).rejects.toThrow('no chat agent named "nope"');
   await expect(sessions.open({ agent: 'codex', folder: work })).rejects.toThrow('no chat runner for codex');
   await expect(sessions.open({ agent: 'claude', folder: join(dir, 'missing') })).rejects.toThrow('does not exist');
-  mkdirSync(join(dir, 'root', 'repos'), { recursive: true });
-  await expect(sessions.open({ agent: 'claude', folder: join(dir, 'root', 'repos') })).rejects.toThrow('inside Carrier');
+  mkdirSync(join(dir, 'home', 'engine', 'repos'), { recursive: true });
+  await expect(sessions.open({ agent: 'claude', folder: join(dir, 'home', 'engine', 'repos') })).rejects.toThrow('inside Carrier');
   claude.refuseWith = 'claude is not logged in';
   await expect(sessions.open({ agent: 'claude', folder: work })).rejects.toThrow('claude is not logged in');
   expect(rows('sessions')).toEqual([]);

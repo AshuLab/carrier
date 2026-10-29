@@ -195,14 +195,14 @@ test('without --config the global file is used when it exists, and init is sugge
 test('status prints the panel of the running carrier, plain when piped, and exits 0; with none running it says so and exits 1', async () => {
   home = join(dir, 'st');
   const config = write('status.json', { ...valid, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
-  const none = run('status', '--config', config);
+  const none = run('status');
   expect([none.status, none.stdout, none.stderr]).toEqual([1, '', expect.stringMatching(/not running.*carrier start/)]);
 
   const child = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
   const closed = once(child, 'close');
   try {
-    await vi.waitFor(() => expect(run('status', '--config', config).status).toBe(0), { timeout: 15_000 });
-    const shown = run('status', '--config', config);
+    await vi.waitFor(() => expect(run('status').status).toBe(0), { timeout: 15_000 });
+    const shown = run('status');
     expect(shown.stdout).toContain('CARRIER');
     expect(shown.stdout).toContain('Slots');
     expect(shown.stdout).not.toContain('\x1b[');
@@ -216,28 +216,28 @@ test('watch prints plain lines when piped and leaves on Ctrl+C with Carrier stil
   home = join(dir, 'w');
   const config = write('watch.json', { ...valid, pollIntervalMinutes: 0.001, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
   const began = Date.now();
-  const none = run('watch', '--config', config);
+  const none = run('watch');
   expect([none.status, none.stdout, none.stderr]).toEqual([1, '', expect.stringMatching(/not running.*carrier start/)]);
   expect(Date.now() - began).toBeLessThan(5000);
 
   const carrier = spawn(process.execPath, [main, '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
   const carrierClosed = once(carrier, 'close');
   const watch = () => {
-    const child = spawn(process.execPath, [main, 'watch', '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [main, 'watch'], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'pipe', 'pipe'] });
     const seen = { stdout: '', stderr: '' };
     child.stdout.on('data', (chunk) => (seen.stdout += chunk));
     child.stderr.on('data', (chunk) => (seen.stderr += chunk));
     return { child, seen, closed: once(child, 'close') };
   };
   try {
-    await vi.waitFor(() => expect(run('status', '--config', config).status).toBe(0), { timeout: 15_000 });
+    await vi.waitFor(() => expect(run('status').status).toBe(0), { timeout: 15_000 });
 
     const leaving = watch();
     await vi.waitFor(() => expect(leaving.seen.stdout).toContain('slots 0/3'), { timeout: 15_000 });
     expect(leaving.seen.stdout).not.toContain('\x1b[');
     leaving.child.kill('SIGINT');
     expect((await leaving.closed)[0]).toBe(0);
-    expect(run('status', '--config', config).status).toBe(0); // leaving did not stop it
+    expect(run('status').status).toBe(0); // leaving did not stop it
 
     const watching = watch();
     await vi.waitFor(() => expect(watching.seen.stdout).toContain('slots 0/3'), { timeout: 15_000 });
@@ -257,7 +257,7 @@ test('status against a carrier that speaks another protocol exits 2 naming both'
   await new Promise<void>((resolve) => server.listen(join(home, 'engine', 'state', 'control.sock'), resolve));
   try {
     const result = await new Promise<{ status: number | null; stderr: string }>((resolve) => {
-      const child = spawn(process.execPath, [main, 'status', '--config', write('proto.json', valid)], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
+      const child = spawn(process.execPath, [main, 'status'], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
       let stderr = '';
       child.stderr.on('data', (chunk) => (stderr += chunk));
       child.on('close', (status) => resolve({ status, stderr }));
@@ -273,7 +273,7 @@ test('pause, resume, check and stop act on a running Carrier; a second stop and 
   home = join(dir, 's'); // short: a socket path holds 103 bytes on macOS
   const config = write('control.json', { ...valid, profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'gh' } } });
   const socket = join(home, 'engine', 'state', 'control.sock');
-  const control = (command: string) => run(command, '--config', config);
+  const control = (command: string) => run(command);
 
   // none running yet
   for (const command of ['pause', 'resume', 'check']) {
@@ -315,9 +315,8 @@ test('a Carrier that speaks another protocol makes the commands exit 2', async (
   const server = createServer((connection) => connection.write(`${JSON.stringify({ event: 'hello', protocol: 2 })}\n`));
   await new Promise<void>((resolve) => server.listen(join(home, 'engine', 'state', 'control.sock'), resolve));
   try {
-    const config = write('protocol.json', valid);
     const result = await new Promise<{ status: number | null; stderr: string }>((resolve) => {
-      const child = spawn(process.execPath, [main, 'pause', '--config', config], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
+      const child = spawn(process.execPath, [main, 'pause'], { cwd: dir, env: { ...process.env, CARRIER_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
       let stderr = '';
       child.stderr.on('data', (chunk) => (stderr += chunk));
       child.on('close', (status) => resolve({ status, stderr }));
@@ -362,11 +361,10 @@ test('restart asks a running Carrier to resume the epic on the options named, pr
   home = join(dir, 'r1');
   const carrier = await fakeCarrier(home);
   try {
-    const config = write('restart.json', valid);
-    expect(await runAsync('restart', 'AshuLab/carrier#5', '--author', 'codex', '--config', config)).toEqual({ status: 0, stdout: 'Restarting AshuLab/carrier#5…\nRestarted AshuLab/carrier#5\n', stderr: '' });
-    expect(await runAsync('restart', 'AshuLab/carrier#6', '--reviewer', 'claude', '--author', 'claude', '--config', config)).toMatchObject({ status: 0, stdout: 'Restarting AshuLab/carrier#6…\nRestarted AshuLab/carrier#6\n' });
+    expect(await runAsync('restart', 'AshuLab/carrier#5', '--author', 'codex')).toEqual({ status: 0, stdout: 'Restarting AshuLab/carrier#5…\nRestarted AshuLab/carrier#5\n', stderr: '' });
+    expect(await runAsync('restart', 'AshuLab/carrier#6', '--reviewer', 'claude', '--author', 'claude')).toMatchObject({ status: 0, stdout: 'Restarting AshuLab/carrier#6…\nRestarted AshuLab/carrier#6\n' });
     // without flags and without a terminal each role keeps its option: neither is sent
-    expect(await runAsync('restart', 'AshuLab/carrier#7', '--config', config)).toMatchObject({ status: 0, stdout: 'Restarting AshuLab/carrier#7…\nRestarted AshuLab/carrier#7\n' });
+    expect(await runAsync('restart', 'AshuLab/carrier#7')).toMatchObject({ status: 0, stdout: 'Restarting AshuLab/carrier#7…\nRestarted AshuLab/carrier#7\n' });
     expect(carrier.requests.map(({ id, ...request }) => request)).toEqual([
       { cmd: 'resumeEpic', repo: 'AshuLab/carrier', issue: 5, author: 'codex' },
       { cmd: 'resumeEpic', repo: 'AshuLab/carrier', issue: 6, author: 'claude', reviewer: 'claude' },
@@ -388,7 +386,7 @@ test.each([
   home = join(dir, 'r2');
   const carrier = await fakeCarrier(home, { reply: () => new Error(reason) });
   try {
-    const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('refused.json', valid));
+    const result = await runAsync('restart', 'AshuLab/carrier#5');
     expect([result.status, result.stdout, result.stderr]).toEqual([1, 'Restarting AshuLab/carrier#5…\n', `${words}\n`]);
   } finally {
     carrier.close();
@@ -399,7 +397,7 @@ test('restart against an engine without the agentOptions capability says so and 
   home = join(dir, 'r3');
   const carrier = await fakeCarrier(home, { capabilities: ['resumeEpic'] });
   try {
-    const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('old.json', valid));
+    const result = await runAsync('restart', 'AshuLab/carrier#5');
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('agentOptions');
     expect(carrier.requests).toEqual([]);
@@ -410,15 +408,14 @@ test('restart against an engine without the agentOptions capability says so and 
 
 test('restart without a Carrier running says so and exits 1; against another protocol it exits 2', async () => {
   home = join(dir, 'r4');
-  const none = write('restart-none.json', valid);
-  expect(await runAsync('restart', 'AshuLab/carrier#5', '--config', none)).toEqual({ status: 1, stdout: '', stderr: 'Carrier is not running\n' });
+  expect(await runAsync('restart', 'AshuLab/carrier#5')).toEqual({ status: 1, stdout: '', stderr: 'Carrier is not running\n' });
 
   home = join(dir, 'r5');
   mkdirSync(join(home, 'engine', 'state'), { recursive: true });
   const server = createServer((connection) => connection.write(`${JSON.stringify({ event: 'hello', protocol: 2 })}\n`));
   await new Promise<void>((resolve) => server.listen(join(home, 'engine', 'state', 'control.sock'), resolve));
   try {
-    const result = await runAsync('restart', 'AshuLab/carrier#5', '--config', write('restart-protocol.json', valid));
+    const result = await runAsync('restart', 'AshuLab/carrier#5');
     expect(result.status).toBe(2);
     expect(result.stderr).toContain('protocol');
   } finally {
@@ -430,8 +427,7 @@ test('restart with an argument that is not owner/name#N is a usage error and sen
   home = join(dir, 'r6');
   const carrier = await fakeCarrier(home);
   try {
-    const config = write('restart-usage.json', valid);
-    for (const args of [['restart', '--config', config], ['restart', 'AshuLab/carrier', '--config', config], ['restart', 'AshuLab/carrier#0', '--config', config], ['restart', 'carrier#5', '--config', config]]) {
+    for (const args of [['restart'], ['restart', 'AshuLab/carrier'], ['restart', 'AshuLab/carrier#0'], ['restart', 'carrier#5']]) {
       const result = await runAsync(...args);
       expect([result.status, result.stdout, result.stderr]).toEqual([2, '', expect.stringContaining('owner/name#N')]);
     }

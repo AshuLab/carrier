@@ -89,19 +89,16 @@ function real(path: string): string | null {
   }
 }
 
-/** Whether `git worktree list` of the engine's clone lists `workspace` (a real path), both sides compared by real path. Asked at each read. */
-function listedByGit(clone: string, workspace: string): boolean {
-  const list = git(clone, ['worktree', 'list', '--porcelain']); // null: no clone yet
-  return (list ?? '').split('\n').some((line) => line.startsWith('worktree ') && real(line.slice('worktree '.length)) === workspace);
+/** Whether `list` (`git worktree list --porcelain` of the engine's clone) lists `workspace` (a real path), both sides compared by real path. */
+function listedByGit(list: string, workspace: string): boolean {
+  return list.split('\n').some((line) => line.startsWith('worktree ') && real(line.slice('worktree '.length)) === workspace);
 }
 
 /**
  * The lanes of an epic: `git worktree list` entries named `<epic worktree>--lane-<N>` beside it, with a slice branch checked out
  * (a detached one is a free lane and has no work). Nothing outside the epic's own folder is inspected.
  */
-function lanes(workspace: string): { lane: number; path: string }[] {
-  const list = git(workspace, ['worktree', 'list', '--porcelain']);
-  if (list === null) return [];
+function lanes(list: string, workspace: string): { lane: number; path: string }[] {
   const parent = real(dirname(workspace));
   const prefix = `${basename(workspace)}--lane-`;
   return list.split('\n\n').flatMap((block) => {
@@ -126,8 +123,10 @@ function cardsOf(db: Db, reposDir: string, repo: string, issue: number, executio
   const epic = db.select().from(epics).where(and(eq(epics.repo, repo), eq(epics.issue, issue))).get();
   if (epic === undefined) return null;
   const workspace = epic.workspace === null ? null : real(epic.workspace);
-  // the folder comes from the database, but it is only read when git lists it for the engine's clone of the repo
-  if (workspace === null || listedByGit(join(reposDir, repo), workspace) === false) return 'none';
+  // the folder comes from the database, but it is only read when git lists it for the engine's clone of the repo; asked once per request
+  if (workspace === null) return 'none';
+  const list = git(join(reposDir, repo), ['worktree', 'list', '--porcelain']); // null: no clone yet
+  if (list === null || listedByGit(list, workspace) === false) return 'none';
   const branch = git(workspace, ['symbolic-ref', '--short', 'HEAD'])?.trim();
   if (branch === undefined || branch === '') return 'none';
   const head = `refs/heads/${branch}`;
@@ -153,7 +152,7 @@ function cardsOf(db: Db, reposDir: string, repo: string, issue: number, executio
   }
 
   if (executionId === undefined) {
-    for (const { lane, path } of lanes(workspace)) {
+    for (const { lane, path } of lanes(list, workspace)) {
       const fork = git(path, ['merge-base', head, 'HEAD'])?.trim();
       if (fork) cards.push({ id: `lane-${lane}`, kind: 'lane', title: `Lane ${lane}`, cwd: path, range: [fork], guard: guardOf(path) });
     }

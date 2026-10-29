@@ -55,12 +55,11 @@ else if (cli.flags.help) {
         exit = await (await import('./commands/restart.ts')).restartCommand(loadConfigFile(configPath), cli.target!, { author: cli.flags.author, reviewer: cli.flags.reviewer });
         break;
       case 'chat':
-        if (configPath === undefined) throw noConfig('Usage: carrier chat --workspace <folder> [--agent <name>] | --resume <id> | --list [--archived] | --archive|--unarchive|--delete <id> | --stop [--config <path>]');
-        exit = await (await import('./commands/chat.ts')).chatCommand(cli.flags, loadConfigFile(configPath), resolve(configPath));
-        break;
       case 'chat-host':
-        if (configPath === undefined) throw noConfig('Usage: carrier chat-host --config <path>');
-        await (await import('./commands/chat-host.ts')).chatHostCommand(loadConfigFile(configPath), resolve(configPath)); // runs until stopped
+        // the chat runs from the Carrier folder alone (ADR 0016), not from an engine config
+        if (cli.flags.config !== undefined) throw new CliError(2, `carrier ${cli.command} takes no --config: it runs from the Carrier folder (CARRIER_HOME, else ~/.carrier)`);
+        if (cli.command === 'chat') exit = await (await import('./commands/chat.ts')).chatCommand(cli.flags);
+        else await (await import('./commands/chat-host.ts')).chatHostCommand(); // runs until stopped
         break;
       default:
         if (configPath === undefined) throw noConfig(usage(), '');

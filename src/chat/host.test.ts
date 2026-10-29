@@ -1,79 +1,112 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import type { Config } from '../config/schema.ts';
 import { connectControl } from '../terminal/cli/control-client.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { acquireLock } from '../storage/lock.ts';
 import { FakeChatRunner, FakeGit } from './fake.ts';
-import { HostBusy, startChatHost } from './host.ts';
+import { ChatConfigInvalid, HostBusy, startChatHost } from './host.ts';
 
 let root: string;
 let stops: (() => Promise<void>)[];
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'hs-')); // short: a socket path holds 103 bytes on macOS
+  vi.stubEnv('CARRIER_HOME', root);
   stops = [];
 });
 afterEach(async () => {
   for (const stop of stops) await stop();
   rmSync(root, { recursive: true, force: true });
+  vi.unstubAllEnvs();
 });
 
-const config = () => ({ root, logLevel: 'info' }) as Config;
 async function host(clock = new FakeClock(), claude = new FakeChatRunner(), git = new FakeGit()) {
   const exit = vi.fn();
-  const started = await startChatHost(config(), { installLogging: () => {}, clock, exit, signals: false, runners: { claude }, git, binaryFound: () => true });
+  const started = await startChatHost({ installLogging: () => {}, clock, exit, signals: false, runners: { claude }, git, binaryFound: () => true });
   stops.push(started.stop);
   return { ...started, exit, clock };
 }
 
-test('the host makes its folder 0700 with a 0600 socket, a lock, chat.db with a sessions table, and answers list', async () => {
-  await host();
-  const chat = join(root, 'chat');
-  expect(statSync(chat).mode & 0o777).toBe(0o700);
-  expect(statSync(join(chat, 'chat.sock')).mode & 0o777).toBe(0o600);
-  expect(statSync(join(chat, 'carrier.lock')).isFile()).toBe(true);
-  const db = new Database(join(chat, 'chat.db'), { readonly: true });
+test('the host starts from an empty Carrier folder: state is 0700 with a 0600 socket, a lock and chat.db, the log is in logs, and nothing else is made', async () => {
+  const installLogging = vi.fn();
+  const started = await startChatHost({ installLogging, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: new FakeChatRunner() }, binaryFound: () => true });
+  stops.push(started.stop);
+  const state = join(root, 'chat', 'state');
+  expect(statSync(state).mode & 0o777).toBe(0o700);
+  expect(statSync(join(state, 'chat.sock')).mode & 0o777).toBe(0o600);
+  expect(statSync(join(state, 'carrier.lock')).isFile()).toBe(true);
+  expect(installLogging).toHaveBeenCalledWith(join(root, 'chat', 'logs', 'chat-host.log'), 'info');
+  const db = new Database(join(state, 'chat.db'), { readonly: true });
   expect(db.prepare("select name from sqlite_master where name = 'sessions'").all()).toHaveLength(1);
   db.close();
-  const client = await connectControl(join(chat, 'chat.sock'));
+  const client = await connectControl(join(state, 'chat.sock'));
   expect(client.hello.protocol).toBe(1);
   expect(await client.request('list')).toEqual({ sessions: [] });
   client.close();
+  expect(readdirSync(root)).toEqual(['chat']); // the folder is the only place touched
+});
+
+test('a chat.json that sets agents and a log level is what the host lists and logs at', async () => {
+  mkdirSync(join(root, 'chat'), { recursive: true });
+  writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify({ agents: { mine: { harness: 'claude', command: 'claude' } }, logLevel: 'debug' }));
+  const installLogging = vi.fn();
+  const started = await startChatHost({ installLogging, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: new FakeChatRunner() }, binaryFound: () => true });
+  stops.push(started.stop);
+  expect(installLogging).toHaveBeenCalledWith(expect.any(String), 'debug');
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  expect(await client.request('agents')).toEqual([{ name: 'mine', harness: 'claude', found: true }]);
+  client.close();
+});
+
+test.each([
+  ['is not valid JSON', '{ nope', '(file)'],
+  ['has an unknown key', '{"root":"/x"}', '(root)'],
+  ['has a text where a number goes', '{"githubCallTimeoutSeconds":"30"}', 'githubCallTimeoutSeconds'],
+  ['has a non-positive timeout', '{"githubCallTimeoutSeconds":0}', 'githubCallTimeoutSeconds'],
+  ['has a relative projects folder', '{"projectsFolder":"projects"}', 'projectsFolder'],
+  ['has an empty projects folder', '{"projectsFolder":""}', 'projectsFolder'],
+])('a chat.json that %s stops the host with a message naming the file and the key, and no socket is made', async (_name, text, key) => {
+  mkdirSync(join(root, 'chat'), { recursive: true });
+  writeFileSync(join(root, 'chat', 'chat.json'), text);
+  const error = await startChatHost({ installLogging: () => {}, signals: false }).catch((e) => e);
+  expect(error).toBeInstanceOf(ChatConfigInvalid);
+  expect(error.message).toContain(join(root, 'chat', 'chat.json'));
+  expect(error.message).toContain(key);
+  expect(readdirSync(join(root, 'chat'))).toEqual(['chat.json']); // no state, no socket, no log
 });
 
 test('a second host on the same root is refused, and the lock is free again after stop', async () => {
   const first = await host();
-  await expect(startChatHost(config(), { installLogging: () => {}, signals: false })).rejects.toThrow(HostBusy);
+  await expect(startChatHost({ installLogging: () => {}, signals: false })).rejects.toThrow(HostBusy);
   await first.stop();
   const again = await host();
   expect(again.exit).not.toHaveBeenCalled();
 });
 
-test('the chat lock and the engine lock are held together on one root', async () => {
+test('the chat lock and the engine lock are held together in one Carrier folder', async () => {
   await host();
-  const engine = acquireLock(join(root, 'orchestrator'));
+  const engine = acquireLock(join(root, 'engine', 'state'));
   expect(engine.ok).toBe(true);
-  expect(acquireLock(join(root, 'chat')).ok).toBe(false); // still the host's
+  expect(acquireLock(join(root, 'chat', 'state')).ok).toBe(false); // still the host's
   if (engine.ok) engine.release();
 });
 
 test('the stop request ends the host: it exits 0, removes the socket and frees the lock', async () => {
   const { exit } = await host();
-  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
   await client.request('stop');
   await vi.waitFor(() => expect(exit).toHaveBeenCalledWith(0));
-  const lock = acquireLock(join(root, 'chat'));
+  const lock = acquireLock(join(root, 'chat', 'state'));
   expect(lock.ok).toBe(true);
   if (lock.ok) lock.release();
-  expect(() => statSync(join(root, 'chat', 'chat.sock'))).toThrow();
+  expect(() => statSync(join(root, 'chat', 'state', 'chat.sock'))).toThrow();
 });
 
 test('the host exits a minute after its start, and a client connected keeps it up until it leaves', async () => {
   const { clock, exit } = await host();
-  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
   await clock.advance(5 * 60_000);
   expect(exit).not.toHaveBeenCalled();
   client.close();
@@ -92,16 +125,16 @@ test('a client opens a conversation, sends, reads the events by cursor and close
   const { exit } = await host(new FakeClock(), claude);
   const work = join(root, 'w');
   mkdirSync(work);
-  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
   expect(client.hello.capabilities).toEqual(expect.arrayContaining(['agents', 'open', 'send', 'events', 'close', 'list']));
   expect(await client.request('agents')).toEqual([
     { name: 'claude', harness: 'claude', found: true },
     { name: 'codex', harness: 'codex', found: true },
   ]);
   await expect(client.request('open', { agent: 'claude', folder: join(root, 'chat') })).resolves.toBeDefined(); // the chat folder is the host's own, not a forbidden one
-  await expect(client.request('open', { agent: 'claude', folder: join(root, 'repos') })).rejects.toThrow('does not exist');
-  mkdirSync(join(root, 'repos'));
-  await expect(client.request('open', { agent: 'claude', folder: join(root, 'repos') })).rejects.toThrow('inside Carrier');
+  await expect(client.request('open', { agent: 'claude', folder: join(root, 'engine') })).rejects.toThrow('does not exist');
+  mkdirSync(join(root, 'engine'));
+  await expect(client.request('open', { agent: 'claude', folder: join(root, 'engine') })).rejects.toThrow('inside Carrier');
   await expect(client.request('open', { agent: 'codex', folder: work })).rejects.toThrow('no chat runner for codex');
   const { session } = (await client.request('open', { agent: 'claude', folder: work })) as { session: { id: string } };
   await client.request('send', { sessionId: session.id, text: 'hi' });
@@ -128,7 +161,7 @@ test('a new host over the same chat.db resumes a session of the one that ended, 
     };
   };
   const one = await host(new FakeClock(), first);
-  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
   const { session } = (await client.request('open', { agent: 'claude', folder: work })) as { session: { id: string } };
   await client.request('send', { sessionId: session.id, text: 'the word is pineapple' });
   await client.request('stop');
@@ -137,7 +170,7 @@ test('a new host over the same chat.db resumes a session of the one that ended, 
 
   const second = new FakeChatRunner();
   await host(new FakeClock(), second);
-  const again = await connectControl(join(root, 'chat', 'chat.sock'));
+  const again = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
   expect(again.hello.capabilities).toContain('resume');
   expect(((await again.request('list')) as any).sessions).toMatchObject([{ id: session.id, live: false }]);
   await expect(again.request('resume', { sessionId: '00000000-0000-4000-8000-000000000000' })).rejects.toThrow('no such session');
@@ -156,7 +189,7 @@ test('an approval is asked with the provider choices, survives the client leavin
     c.reply = () => c.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', arg: 'touch x', choices: [{ id: 'allow', label: 'Allow', allow: true }, { id: 'deny', label: 'Deny', allow: false }] });
   };
   const { clock } = await host(new FakeClock(), claude);
-  const path = join(root, 'chat', 'chat.sock');
+  const path = join(root, 'chat', 'state', 'chat.sock');
   const first = await connectControl(path);
   expect(first.hello.capabilities).toContain('answer');
   const { session } = (await first.request('open', { agent: 'claude', folder: work })) as { session: { id: string } };
@@ -196,7 +229,7 @@ test('workspace tells a client what a folder is, with the fake git, and refuses 
   writeFileSync(fetched, '');
   utimesSync(fetched, 1_700_000_000, 1_700_000_000);
   git.repos.set(repo, { head: 'feat/x', branches: ['main', 'feat/x'], remoteBranches: ['main', 'dev'], originHead: 'main', origin: 'git@github.com:acme/app.git', status: [' M a.ts', '?? b.ts'], fetchHead: fetched });
-  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
   expect(client.hello.capabilities).toContain('workspace');
   expect(await client.request('workspace', { folder: repo })).toEqual({
     folder: repo,
@@ -216,8 +249,8 @@ test('workspace tells a client what a folder is, with the fake git, and refuses 
   await expect(client.request('workspace', { folder: 'relative' })).rejects.toThrow('absolute');
   writeFileSync(join(root, 'file'), '');
   await expect(client.request('workspace', { folder: join(root, 'file') })).rejects.toThrow('not a folder');
-  mkdirSync(join(root, 'repos'));
-  await expect(client.request('workspace', { folder: join(root, 'repos') })).rejects.toThrow('inside Carrier');
+  mkdirSync(join(root, 'engine'));
+  await expect(client.request('workspace', { folder: join(root, 'engine') })).rejects.toThrow('inside Carrier');
   expect(git.calls).toHaveLength(asked); // a refused folder never reaches git
   git.failures.set('rev-parse --is-bare-repository --git-dir --git-common-dir --git-path FETCH_HEAD', { ok: false, code: null, stderr: 'git took too long' });
   await expect(client.request('workspace', { folder: repo })).rejects.toThrow('Git could not read that folder');
@@ -233,7 +266,7 @@ test('fetch runs git fetch origin --prune with a 60 second limit, answers the re
   writeFileSync(fetched, '');
   utimesSync(fetched, 1_700_000_000, 1_700_000_000);
   git.repos.set(repo, { head: 'main', branches: ['main'], remoteBranches: ['main'], origin: 'git@github.com:acme/app.git', fetchHead: fetched });
-  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
   expect(client.hello.capabilities).toContain('fetch');
   const info = (await client.request('fetch', { folder: repo })) as { fetchedAt: number; branches: unknown[] };
   expect(info).toMatchObject({ folder: repo, git: true, fetchedAt: 1_700_000_000_000 });
@@ -257,15 +290,13 @@ test('fetch runs git fetch origin --prune with a 60 second limit, answers the re
 });
 
 test('suggestName and checkName answer a free name, say why a name is invalid or taken in each of the three places, and refuse what is not a repository', async () => {
-  vi.stubEnv('CARRIER_HOME', join(root, 'home'));
-  stops.push(async () => void vi.unstubAllEnvs());
   const git = new FakeGit();
   await host(new FakeClock(), new FakeChatRunner(), git);
   mkdirSync(join(root, 'repo'));
   const repo = realpathSync(join(root, 'repo'));
   git.repos.set(repo, { head: 'main', branches: ['main', 'carrier/local-one'], remoteBranches: ['main', 'carrier/remote-one'], origin: 'git@github.com:acme/app.git' });
-  mkdirSync(join(root, 'home', 'chat', 'worktrees', 'acme', 'app', 'folder-one'), { recursive: true });
-  const client = await connectControl(join(root, 'chat', 'chat.sock'));
+  mkdirSync(join(root, 'chat', 'worktrees', 'acme', 'app', 'folder-one'), { recursive: true });
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
   expect(client.hello.capabilities).toEqual(expect.arrayContaining(['suggestName', 'checkName']));
 
   const suggested = (await client.request('suggestName', { folder: repo })) as { name: string };
@@ -293,16 +324,14 @@ test('suggestName and checkName answer a free name, say why a name is invalid or
 
 /** A host with a fake git, a base repository acme/app and CARRIER_HOME under the temporary root. */
 async function worktreeHost() {
-  vi.stubEnv('CARRIER_HOME', join(root, 'home'));
-  stops.push(async () => void vi.unstubAllEnvs());
   const git = new FakeGit();
   const claude = new FakeChatRunner();
   await host(new FakeClock(), claude, git);
   mkdirSync(join(root, 'repo'));
   const repo = realpathSync(join(root, 'repo'));
   git.repos.set(repo, { head: 'feat/x', branches: ['main', 'feat/x'], remoteBranches: ['main', 'dev'], origin: 'git@github.com:acme/app.git', status: [' M a.ts'] });
-  const client = await connectControl(join(root, 'chat', 'chat.sock'));
-  const worktrees = join(root, 'home', 'chat', 'worktrees');
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  const worktrees = join(root, 'chat', 'worktrees');
   return { git, claude, client, repo, worktrees, base: git.repos.get(repo)! };
 }
 const worktreeAdds = (git: FakeGit) => git.calls.filter((call) => call.args[0] === 'worktree' && call.args[1] === 'add');
@@ -412,7 +441,7 @@ test('a failed add leaves alone the branch or folder that appeared after the nam
 
 test('a session that cannot be created after the worktree exists takes the worktree, its branch and the conversation away', async () => {
   const { git, claude, client, repo, worktrees, base } = await worktreeHost();
-  const db = new Database(join(root, 'chat', 'chat.db'));
+  const db = new Database(join(root, 'chat', 'state', 'chat.db'));
   db.exec("create trigger no_sessions before insert on sessions begin select raise(abort, 'disk full'); end");
   await expect(client.request('open', { agent: 'claude', folder: repo, worktree: { from: 'main', name: 'delta' } })).rejects.toThrow('internal error');
   expect(() => statSync(join(worktrees, 'acme', 'app', 'delta'))).toThrow();
@@ -438,7 +467,7 @@ async function inWorktree(h: Awaited<ReturnType<typeof worktreeHost>>, name: str
   return { id: session.id, path, branch };
 }
 const sessionRows = () => {
-  const db = new Database(join(root, 'chat', 'chat.db'), { readonly: true });
+  const db = new Database(join(root, 'chat', 'state', 'chat.db'), { readonly: true });
   const found = db.prepare('select id from sessions').all() as { id: string }[];
   db.close();
   return found.map((row) => row.id);
@@ -573,7 +602,7 @@ test('a record whose path lies outside the worktrees folder, or whose branch is 
   writeFileSync(join(victim, 'file'), 'keep');
   const outside = await inWorktree(h, 'outside');
   const sneaky = await inWorktree(h, 'sneaky');
-  const raw = new Database(join(root, 'chat', 'chat.db'));
+  const raw = new Database(join(root, 'chat', 'state', 'chat.db'));
   raw.prepare('update sessions set worktreePath = ? where id = ?').run(victim, outside.id);
   raw.prepare('update sessions set worktreePath = ? where id = ?').run(join(h.worktrees, '..', '..', 'precious'), sneaky.id);
   const dashed = await inWorktree(h, 'dashed');

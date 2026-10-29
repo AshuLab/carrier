@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { query as sdkQuery } from '@anthropic-ai/claude-agent-sdk';
-import type { Config } from '../config/schema.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { FakeGit } from './fake.ts';
 import { claudeChatRunner, type ClaudeChatDeps } from './claude.ts';
@@ -238,7 +237,7 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 test('the host stores the transcript of the replayed conversation and the native session id', async () => {
   const db = openChatDatabase(join(dir, 'chat.db'));
   const runner = claudeChatRunner(deps(replay(main).query));
-  const sessions = createSessions({ db, config: { root: join(dir, 'root') } as Config, clock: new FakeClock(), runners: { claude: runner }, env: {}, git: new FakeGit(), binaryFound: () => true, onLiveChange: () => {} });
+  const sessions = createSessions({ db, agents: [{ name: 'claude', harness: 'claude' }, { name: 'codex', harness: 'codex' }], clock: new FakeClock(), runners: { claude: runner }, env: {}, git: new FakeGit(), binaryFound: () => true, onLiveChange: () => {} });
   const { session } = await sessions.open({ agent: 'claude', folder: join(dir, 'work') });
   expect(session.nativeId).toBeNull();
   for (const segment of main.slice(0, 3)) {

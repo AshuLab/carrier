@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, gt } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
-import { chatAgents } from '../config/chat-agents.ts';
-import type { Config } from '../config/schema.ts';
+import { carrierHome } from '../config/default-path.ts';
+import type { ChatAgent } from './config.ts';
 import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
@@ -45,7 +45,8 @@ type Live = {
 
 export type ChatSessionsDeps = {
   db: ChatDb;
-  config: Config;
+  /** The agents a chat can start with, in the order `chat.json` lists them. */
+  agents: ChatAgent[];
   clock: Clock;
   /** The runner of each harness; a harness with none cannot be opened. */
   runners: Partial<Record<Harness, ChatRunner>>;
@@ -76,7 +77,7 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, config, clock, runners, env, git, binaryFound, onLiveChange }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, binaryFound, onLiveChange }: ChatSessionsDeps) {
   const lives = new Map<string, Live>();
   // Sessions being deleted: no agent may open in their folder while it is removed.
   const deleting = new Set<string>();
@@ -162,7 +163,7 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
     if (lives.has(sessionId)) throw new ChatRefused('This session was resumed meanwhile; close it first'); // a resume that finished during the close
   }
 
-  async function openConversation(chosen: ReturnType<typeof chatAgents>[number], runner: ChatRunner, args: { folder: string; options: Record<string, string>; resume?: string }) {
+  async function openConversation(chosen: ChatAgent, runner: ChatRunner, args: { folder: string; options: Record<string, string>; resume?: string }) {
     try {
       return await runner.open({ ...args, command: chosen.command, env });
     } catch (error) {
@@ -213,16 +214,16 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
       for (const [sessionId, live] of lives) armIdle(sessionId, live);
     },
 
-    agents: () => chatAgents(config).map(({ name, harness, model, command }) => ({ name, harness, model, found: binaryFound(command ?? harness) })),
+    agents: () => agents.map(({ name, harness, model, command }) => ({ name, harness, model, found: binaryFound(command ?? harness) })),
 
     list: ({ archived = false }: { archived?: boolean }) => ({
       sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => ({ ...summary(found), live: lives.has(found.id) })),
     }),
 
     async open({ agent, folder, options, worktree }: { agent: string; folder: string; options?: Record<string, string>; worktree?: { from: string; name?: string } }) {
-      const chosen = chatAgents(config).find((candidate) => candidate.name === agent);
+      const chosen = agents.find((candidate) => candidate.name === agent);
       if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
-      const real = checkFolder(folder, config.root);
+      const real = checkFolder(folder, carrierHome());
       const runner = runners[chosen.harness];
       if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
       const chosenOptions = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...options };
@@ -263,7 +264,7 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
      * nobody's, reads what it lists and ends it. Kept ten minutes, and a failure is not kept.
      */
     async agentOptions({ agent }: { agent: string }) {
-      const chosen = chatAgents(config).find((candidate) => candidate.name === agent);
+      const chosen = agents.find((candidate) => candidate.name === agent);
       if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
       const runner = runners[chosen.harness];
       if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
@@ -292,11 +293,11 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
       const present = lives.get(sessionId);
       if (present !== undefined) return { session: summary(current), options: present.conversation.options };
       if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
-      const chosen = chatAgents(config).find((candidate) => candidate.name === current.agent);
+      const chosen = agents.find((candidate) => candidate.name === current.agent);
       if (chosen === undefined) throw new ChatRefused(`The agent "${current.agent}" of this session is not configured any more`);
       const runner = runners[chosen.harness];
       if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
-      const folder = checkFolder(current.folder, config.root);
+      const folder = checkFolder(current.folder, carrierHome());
       // a session that never got a native id (nothing was said) has nothing to resume: it starts again, as it was opened
       const conversation = await openConversation(chosen, runner, { folder, options: current.options ?? {}, ...(current.nativeId !== null && { resume: current.nativeId }) });
       if (lives.has(sessionId)) {
@@ -452,16 +453,16 @@ export function createSessions({ db, config, clock, runners, env, git, binaryFou
     },
 
     /** What a folder is as a git repository, for the person to choose how to work in it. */
-    workspace: async ({ folder }: { folder: string }) => inspectFolder(git, checkFolder(folder, config.root)),
+    workspace: async ({ folder }: { folder: string }) => inspectFolder(git, checkFolder(folder, carrierHome())),
 
     /** Fetches `origin` of a folder and answers what it is after it. */
-    fetch: async ({ folder }: { folder: string }) => fetchFolder(git, checkFolder(folder, config.root)),
+    fetch: async ({ folder }: { folder: string }) => fetchFolder(git, checkFolder(folder, carrierHome())),
 
     /** A free name for a worktree of a folder, from the StarCraft word lists. */
-    suggestName: async ({ folder }: { folder: string }) => suggestName(git, checkFolder(folder, config.root)),
+    suggestName: async ({ folder }: { folder: string }) => suggestName(git, checkFolder(folder, carrierHome())),
 
     /** Whether a typed worktree name is valid and free. */
-    checkName: async ({ folder, name }: { folder: string; name: string }) => checkName(git, checkFolder(folder, config.root), name),
+    checkName: async ({ folder, name }: { folder: string; name: string }) => checkName(git, checkFolder(folder, carrierHome()), name),
 
     /** Closes every live session: the host's stop. */
     async closeAll() {

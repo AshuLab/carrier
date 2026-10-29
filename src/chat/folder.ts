@@ -2,8 +2,9 @@ import { realpathSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, sep } from 'node:path';
 import { ChatRefused } from './runner.ts';
 
-// A session never works in the engine's shared clones, in an epic's worktree or in the engine's own state.
-const engineFolders = ['repos', 'worktrees', 'orchestrator'];
+// A session never works in the engine's folder (ADR 0016); the projects folder also stays out of the chat's own state, logs and worktrees.
+const engineFolders = ['engine'];
+const chatOwnFolders = [...engineFolders, join('chat', 'state'), join('chat', 'logs'), join('chat', 'worktrees')];
 
 const realOrSelf = (path: string) => {
   try {
@@ -14,7 +15,7 @@ const realOrSelf = (path: string) => {
 };
 
 /** The real path of the folder a session may work in, or a `ChatRefused` saying why not. A symlink into an engine folder is refused too. */
-export function checkFolder(folder: string, root: string): string {
+export function checkFolder(folder: string, home: string): string {
   if (isAbsolute(folder) === false) throw new ChatRefused('The folder must be an absolute path');
   let real: string;
   try {
@@ -23,15 +24,15 @@ export function checkFolder(folder: string, root: string): string {
     throw new ChatRefused('That folder does not exist');
   }
   if (statSync(real).isDirectory() === false) throw new ChatRefused('That path is not a folder');
-  refuseEngineFolder(real, root);
+  refuseInside(real, home, engineFolders);
   return real;
 }
 
-function refuseEngineFolder(real: string, root: string) {
-  const realRoot = realOrSelf(root);
-  for (const name of engineFolders) {
-    const engine = join(realRoot, name);
-    if (real === engine || real.startsWith(engine + sep)) throw new ChatRefused(`That folder is inside Carrier's own ${name} folder; a chat never works there`);
+function refuseInside(real: string, home: string, names: string[]) {
+  const realHome = realOrSelf(home);
+  for (const name of names) {
+    const refused = join(realHome, name);
+    if (real === refused || real.startsWith(refused + sep)) throw new ChatRefused(`That folder is inside Carrier's own ${name} folder; a chat never works there`);
   }
 }
 
@@ -45,10 +46,10 @@ const realOfNearest = (path: string): string => {
   }
 };
 
-/** The projects folder as the host will use it (it may not exist yet), or a `ChatRefused` saying why not. The engine-folder rule of `checkFolder`, with symlinks resolved. */
-export function checkProjectsFolder(folder: string, root: string): string {
+/** The projects folder as the host will use it (it may not exist yet), or a `ChatRefused` saying why not. The engine-folder rule of `checkFolder` plus the chat's own state, logs and worktrees, with symlinks resolved. */
+export function checkProjectsFolder(folder: string, home: string): string {
   if (isAbsolute(folder) === false) throw new ChatRefused('The projects folder must be an absolute path');
   const real = realOfNearest(folder);
-  refuseEngineFolder(real, root);
+  refuseInside(real, home, chatOwnFolders);
   return folder;
 }

@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import type { Config } from '../config/schema.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { connectControl } from '../terminal/cli/control-client.ts';
 import { FakeChatRunner, FakeGit } from './fake.ts';
@@ -11,22 +10,14 @@ import { ChatRefused } from './runner.ts';
 
 // The host's cloneRepo request through its socket, with a fake git and a fake `gh` token.
 let root: string;
-let configPath: string;
 let stops: (() => Promise<void>)[];
 let git: FakeGit;
 let token: () => Promise<string>;
-const valid = {
-  repos: [{ name: 'AshuLab/carrier' }],
-  profiles: { bot: { kind: 'gh' } },
-  orchestratorProfile: 'bot',
-  providers: { claude: { harness: 'claude', model: 'm' } },
-  agents: { author: { profile: 'bot', provider: 'claude', model: 'm' }, reviewer: { profile: 'bot', provider: 'claude', model: 'm' } },
-  identities: 'shared',
-};
-const writeConfig = (chat?: object) => writeFileSync(configPath, JSON.stringify({ ...valid, root, ...(chat === undefined ? {} : { chat }) }));
+const chatJson = () => join(root, 'chat', 'chat.json');
+const writeConfig = (chat: object = {}) => (mkdirSync(join(root, 'chat'), { recursive: true }), writeFileSync(chatJson(), JSON.stringify(chat)));
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'pr-')); // short: a socket path holds 103 bytes on macOS
-  configPath = join(root, 'config.json');
+  vi.stubEnv('CARRIER_HOME', root);
   stops = [];
   hosted = false;
   git = new FakeGit();
@@ -36,16 +27,17 @@ beforeEach(() => {
 afterEach(async () => {
   for (const stop of stops) await stop();
   rmSync(root, { recursive: true, force: true });
+  vi.unstubAllEnvs();
 });
 
 let hosted = false;
 async function connect() {
   if (hosted === false) await start();
-  return connectControl(join(root, 'chat', 'chat.sock'));
+  return connectControl(join(root, 'chat', 'state', 'chat.sock'));
 }
 async function start() {
   hosted = true;
-  const started = await startChatHost({ root, logLevel: 'info' } as Config, { installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: new FakeChatRunner() }, git, token: () => token(), configPath, binaryFound: () => true });
+  const started = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: new FakeChatRunner() }, git, token: () => token(), binaryFound: () => true });
   stops.push(started.stop);
 }
 const projects = () => join(root, 'chat', 'projects');
@@ -192,7 +184,7 @@ test('two requests for the same repository at the same time share one clone, and
   second.close();
 });
 
-test('the projects folder is read from the config file at each request, ~ expanded, with no restart', async () => {
+test('the projects folder is read from chat.json at each request, ~ expanded, with no restart', async () => {
   const client = await connect();
   const elsewhere = join(root, 'elsewhere');
   writeConfig({ projectsFolder: elsewhere });
@@ -206,7 +198,7 @@ test('the projects folder is read from the config file at each request, ~ expand
   client.close();
 });
 
-test.each(['repos', 'worktrees', 'orchestrator'])('a projects folder inside the shared root\'s %s is refused with a reason and git is not run', async (name) => {
+test.each(['engine', join('chat', 'state'), join('chat', 'logs'), join('chat', 'worktrees')])('a projects folder inside the Carrier folder\'s %s is refused with a reason and git is not run', async (name) => {
   const client = await connect();
   writeConfig({ projectsFolder: join(root, name, 'mine') });
   await expect(client.request('cloneRepo', { repo: 'acme/app' })).rejects.toThrow(`inside Carrier's own ${name} folder`);
@@ -214,21 +206,21 @@ test.each(['repos', 'worktrees', 'orchestrator'])('a projects folder inside the 
   client.close();
 });
 
-test("a projects folder that is the shared root cannot reach the engine's own clones", async () => {
+test("a projects folder that is the Carrier folder cannot reach the engine's folder", async () => {
   const client = await connect();
   writeConfig({ projectsFolder: root });
-  await expect(client.request('cloneRepo', { repo: 'repos/x' })).rejects.toThrow("inside Carrier's own repos folder");
+  await expect(client.request('cloneRepo', { repo: 'engine/x' })).rejects.toThrow("inside Carrier's own engine folder");
   expect(git.calls).toHaveLength(0);
-  expect(existsSync(join(root, 'repos'))).toBe(false);
+  expect(existsSync(join(root, 'engine'))).toBe(false);
   client.close();
 });
 
-test('a config file that cannot be read or is not valid is a refusal in words', async () => {
+test('a chat.json that cannot be read or is not valid is a refusal in words', async () => {
   const client = await connect();
-  writeFileSync(configPath, '{ nope');
-  await expect(client.request('cloneRepo', { repo: 'acme/app' })).rejects.toThrow('The config file cannot be read');
+  writeFileSync(chatJson(), '{ nope');
+  await expect(client.request('cloneRepo', { repo: 'acme/app' })).rejects.toThrow('chat.json is not valid: (file): is not valid JSON');
   writeConfig({ projectsFolder: 'relative/dir' });
-  await expect(client.request('cloneRepo', { repo: 'acme/app' })).rejects.toThrow('chat.projectsFolder: must be an absolute path');
+  await expect(client.request('cloneRepo', { repo: 'acme/app' })).rejects.toThrow('chat.json is not valid: projectsFolder: must be an absolute path');
   client.close();
 });
 
@@ -276,13 +268,13 @@ test('a name that is empty, dotted or has a slash never makes a folder', async (
   client.close();
 });
 
-test('createProject follows the projects folder of the config file and refuses one inside the engine folders', async () => {
+test('createProject follows the projects folder of chat.json and refuses one inside the engine folder', async () => {
   const client = await connect();
   const elsewhere = join(root, 'elsewhere');
   writeConfig({ projectsFolder: elsewhere });
   expect(await client.request('createProject', { name: 'x' })).toEqual({ folder: join(elsewhere, 'local', 'x') });
-  writeConfig({ projectsFolder: join(root, 'repos', 'mine') });
-  await expect(client.request('createProject', { name: 'y' })).rejects.toThrow("inside Carrier's own repos folder");
-  expect(existsSync(join(root, 'repos'))).toBe(false);
+  writeConfig({ projectsFolder: join(root, 'engine', 'mine') });
+  await expect(client.request('createProject', { name: 'y' })).rejects.toThrow("inside Carrier's own engine folder");
+  expect(existsSync(join(root, 'engine'))).toBe(false);
   client.close();
 });

@@ -53,6 +53,8 @@ struct NewSessionView: View {
         }
         .onAppear { boxFocused = true }
         // the health arrives after the draft opened, or changes when the app comes back active: the provider follows what can be chosen
+        // `git` goes missing while a worktree is chosen: back to the current folder
+        .onChange(of: model.gitMissing) { Task { await model.useWorktree(false) } }
         .onChange(of: model.agents) {
             model.pickAvailableAgent()
             Task { await model.loadOptions() }

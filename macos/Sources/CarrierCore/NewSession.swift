@@ -502,13 +502,16 @@ public enum WorkspaceStep: Equatable {
 
     public var sentence: String {
         if let cloning, let name = cloningName { return "Work in \(name) Cloning \(cloning)…" }
-        return workSentence(folder: folder, workspace: workspace, worktree: worktree ? (worktreeName, startBranch) : nil)
+        return workSentence(folder: folder, workspace: workspace, worktree: worktree ? (worktreeName, startBranch) : nil, gitMissing: gitMissing)
     }
 
     /// The line under the sentence: the uncommitted files of the base folder, which a worktree would keep out of the agent's way.
-    public var warning: String? { worktree ? nil : workspace.flatMap(uncommittedWarning) }
+    public var warning: String? { worktree || gitMissing ? nil : workspace.flatMap(uncommittedWarning) }
 
-    public var offersWorktree: Bool { workspace?.offersWorktree == true }
+    /// The health says `git` is missing (`unknown`, or no health at all, switches nothing off).
+    public var gitMissing: Bool { health?.latest?.git == .missing }
+
+    public var offersWorktree: Bool { workspace?.offersWorktree == true && gitMissing == false }
 
     /// The picker's lists for the chosen folder.
     public func picker(query: String, now: Date = Date()) -> BranchPicker? { workspace.map { branchPicker($0, query: query, now: now) } }

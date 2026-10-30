@@ -1,0 +1,105 @@
+import Foundation
+
+// The rows of the Health tab (docs/specs/health-check-in-the-app.md): a pure function of what the app already knows, one section per
+// layer. "This Mac" is the host's reply, "Carrier" is what only the app knows. The engine's setup (`carrier doctor --json`) is a third
+// section that is added to the list `healthSections` returns.
+
+public struct HealthRow: Equatable {
+    /// How the row reads: `ok` is green, `problem` needs the person, `neutral` is neither (not checked, or stopped on purpose).
+    public enum Mark: Equatable { case ok, problem, neutral }
+
+    public let title: String
+    public let mark: Mark
+    public let detail: String
+    /// What the fixed list (`healthFix`) is asked about, with `state`; nil for a row with no fix.
+    public let tool: HealthTool?
+    public let state: ToolState
+
+    public init(title: String, mark: Mark, detail: String, tool: HealthTool? = nil, state: ToolState = .ready) {
+        self.title = title
+        self.mark = mark
+        self.detail = detail
+        self.tool = tool
+        self.state = state
+    }
+}
+
+public struct HealthSection: Equatable {
+    public let title: String
+    /// Said in place of the rows when the layer could not be checked.
+    public let note: String?
+    public let rows: [HealthRow]
+}
+
+/// What the app knows of Carrier itself.
+public struct CarrierFacts: Equatable {
+    public var carrierFound: Bool
+    /// What `carrier --version` printed; nil when it could not be read.
+    public var installedVersion: String?
+    public var hostRunning: Bool
+    public var hostVersion: String?
+    public var configExists: Bool
+    public var engineRunning: Bool
+
+    public init(carrierFound: Bool, installedVersion: String?, hostRunning: Bool, hostVersion: String?, configExists: Bool, engineRunning: Bool) {
+        self.carrierFound = carrierFound
+        self.installedVersion = installedVersion
+        self.hostRunning = hostRunning
+        self.hostVersion = hostVersion
+        self.configExists = configExists
+        self.engineRunning = engineRunning
+    }
+}
+
+private func macRow(_ title: String, _ tool: HealthTool, _ state: ToolState) -> HealthRow {
+    switch state {
+    case .ready: HealthRow(title: title, mark: .ok, detail: "Ready", tool: tool, state: state)
+    case .missing: HealthRow(title: title, mark: .problem, detail: "Not installed", tool: tool, state: state)
+    case .signedOut: HealthRow(title: title, mark: .problem, detail: "Signed out", tool: tool, state: state)
+    case .unknown: HealthRow(title: title, mark: .neutral, detail: "Could not check", tool: tool, state: state)
+    }
+}
+
+/// `host` is the last reply of `health`; nil is a host that does not report it (or none running), and says so in place of the rows.
+public func healthSections(host: HostHealth?, facts: CarrierFacts) -> [HealthSection] {
+    let mac: HealthSection
+    if let host {
+        mac = HealthSection(
+            title: "This Mac", note: nil,
+            rows: [macRow("git", .git, host.git), macRow("gh", .gh, host.gh)]
+                + host.agents.map { macRow($0.name, .agent(harness: $0.harness), $0.state) }
+        )
+    } else {
+        let note = facts.hostRunning
+            ? "The chat host is too old to check this Mac. Restart it to use the installed Carrier."
+            : "The chat host is not running, so this Mac was not checked."
+        mac = HealthSection(title: "This Mac", note: note, rows: [])
+    }
+
+    let versionLine = facts.installedVersion.map { " · version \($0)" } ?? ""
+    let carrier = facts.carrierFound
+        ? HealthRow(title: "carrier", mark: .ok, detail: "Found" + versionLine)
+        : HealthRow(title: "carrier", mark: .problem, detail: "Not found. Set its path in the Engine tab.")
+
+    let hostRow: HealthRow
+    if facts.hostRunning == false {
+        hostRow = HealthRow(title: "Chat host", mark: .problem, detail: "Not running")
+    } else if let running = facts.hostVersion, let installed = facts.installedVersion,
+        hostReplacement(running: running, installed: installed, working: false) != .keep
+    {
+        hostRow = HealthRow(title: "Chat host", mark: .problem, detail: "Running version \(running), older than the installed \(installed). Restart it to update.")
+    } else {
+        hostRow = HealthRow(title: "Chat host", mark: .ok, detail: "Running" + (facts.hostVersion.map { " · version \($0)" } ?? ""))
+    }
+
+    let engine: HealthRow
+    if let notConfigured = engineNotConfiguredNotice(configExists: facts.configExists) {
+        engine = HealthRow(title: "Engine", mark: .problem, detail: notConfigured)
+    } else if facts.engineRunning {
+        engine = HealthRow(title: "Engine", mark: .ok, detail: "Running")
+    } else {
+        engine = HealthRow(title: "Engine", mark: .neutral, detail: "Configured, stopped")
+    }
+
+    return [mac, HealthSection(title: "Carrier", note: nil, rows: [carrier, hostRow, engine])]
+}

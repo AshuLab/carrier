@@ -6,6 +6,8 @@ import SwiftUI
 /// then a new worktree or the current folder), and the box with the agent chip and Send. Sending opens the session and `opened` selects it.
 struct NewSessionView: View {
     @Bindable var model: NewSessionModel
+    /// Opens the Health tab of Settings.
+    let openHealth: () -> Void
     let opened: (String) -> Void
     @State private var foldersOpen = false
     @State private var branchesOpen = false
@@ -33,6 +35,9 @@ struct NewSessionView: View {
                     }
                 }
                 if model.gitMissing { HealthFixButton(tool: .git, state: .missing) }
+                if model.gitMissing || model.agents.contains(where: { $0.state.blocks }) {
+                    Button("Open Health in Settings", action: openHealth).buttonStyle(.link).font(.callout)
+                }
                 if model.worktree, let branch = model.startBranch {
                     Label("Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.", systemImage: "arrow.triangle.branch")
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
@@ -85,7 +90,7 @@ struct NewSessionView: View {
                     )
                 }
                 .buttonStyle(.plain).accessibilityLabel("Workspace")
-                .sheet(isPresented: $foldersOpen) { WorkspaceSheet(model: model) }
+                .sheet(isPresented: $foldersOpen) { WorkspaceSheet(model: model, openHealth: openHealth) }
                 if let repo = model.cloning {
                     ProgressView().controlSize(.small)
                     Text("Cloning \(repo)…")

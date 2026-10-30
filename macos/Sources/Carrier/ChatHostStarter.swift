@@ -115,7 +115,7 @@ import Observation
     }
 
     /// What `carrier --version` prints; nil, with the reason in the log, when the command fails or prints something else.
-    private static func installedVersion(_ command: StartCommand) -> String? {
+    static func installedVersion(_ command: StartCommand) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: command.node)
         process.arguments = [command.arguments[0], "--version"]

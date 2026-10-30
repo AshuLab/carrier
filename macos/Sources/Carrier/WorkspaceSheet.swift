@@ -7,6 +7,8 @@ import SwiftUI
 /// the lists); choosing a workspace closes the sheet.
 struct WorkspaceSheet: View {
     @Bindable var model: NewSessionModel
+    /// Opens the Health tab of Settings.
+    let openHealth: () -> Void
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focused: Field?
     @State private var visibility = Visibility.all
@@ -63,6 +65,13 @@ struct WorkspaceSheet: View {
             }
             if let gh = model.ghState {
                 HealthFixButton(tool: .gh, state: gh).padding(.horizontal, 8).padding(.top, 8)
+                if gh.blocks {
+                    Button("Open Health in Settings") {
+                        dismiss()
+                        openHealth()
+                    }
+                    .buttonStyle(.link).font(.callout).padding(.horizontal, 8).padding(.top, 4)
+                }
             }
             Spacer(minLength: 0)
         }

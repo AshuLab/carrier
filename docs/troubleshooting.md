@@ -2,6 +2,20 @@
 
 First step for almost everything: `carrier doctor` (it reads `~/.carrier/config.json`; pass `--config <file>` for another).
 
+## Start with the Health tab
+
+In the macOS app, open Settings and the Health tab first when **a session fails**, **your repositories do not load** or **the engine does not start**. It checks `git`, `gh` and the `claude` and `codex` CLIs and their logins, the `carrier` command, the chat host and the engine, and shows the checks of `carrier doctor` once the engine has a config. See [the Health tab](../macos/README.md#health-tab) for what each state means.
+
+| Symptom | Look at | Usual cause and what to do |
+|---------|---------|----------------------------|
+| A session fails right after the first message | This Mac, the provider's row | `Signed out`: press its button (`claude auth login` or `codex login` in Terminal). `Not installed`: install the CLI from the link in the row. |
+| My GitHub repositories do not load, or cloning is off | This Mac, `gh` | `Signed out`: press `gh auth login`. `Not installed`: install `gh` from the link. |
+| New worktree is off | This Mac, `git` | `Not installed`: press `xcode-select --install`. |
+| The engine does not start | Carrier, then Engine setup | `carrier` not found: set its path in the Engine tab. Engine not configured: the setup wizard makes `config.json`. Otherwise read the failing doctor checks and their fix text. |
+| A row says `Could not check` | The row | The probe timed out or could not be read; press Check again. It never blocks anything. |
+
+Without the app, `carrier doctor` is the same engine-setup check in a terminal; `carrier doctor --json` prints its checks as one JSON array (`{ name, status, detail?, fix? }`, `status` being `ok`, `warn` or `fail`) and exits 1 when any fails, as the app reads it.
+
 Where to look: the panel in the terminal shows each epic's stage, its history, round and reason (for a Carrier started with `carrier start`, `carrier status` prints it once and `carrier watch` follows it). `<folder>/engine/logs/orchestrator.log` has the process log and `<folder>/engine/logs/executions/<id>/` the full output of each agent run (`<folder>` is the Carrier folder: `~/.carrier`, or `CARRIER_HOME`). A detached Carrier writes what it prints to `<folder>/engine/logs/start.log`, replaced at each start (the macOS app's start uses `app-start.log`). None contains tokens. In the panel, select an epic with `↑`/`↓` and press `l` to read what its agent is doing, without leaving it; `?` lists the keys.
 
 ## An epic ends in `solve:epic:needs-human`

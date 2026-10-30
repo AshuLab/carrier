@@ -7,7 +7,7 @@ export type CommandName = (typeof commandNames)[number];
 export const usage = () => `Usage: carrier --config <path>          run the orchestrator
        carrier start --config <path>     run it in the background, without a terminal
        carrier init [flags]              guided setup: writes the config and checks it
-       carrier doctor --config <path>    check the config and what this machine needs
+       carrier doctor --config <path> [--json]   check the config and what this machine needs (--json: the checks as a JSON array on stdout, for the app)
        carrier schema                    print the JSON Schema of the config
        carrier status                    show once what the running Carrier is doing (exit 1: not running)
        carrier watch                     the live panel of the running Carrier; q leaves it running (exit 1: not running)
@@ -58,6 +58,7 @@ const options = {
   'lead-reviewer-persona-prompt': { type: 'string' },
   out: { type: 'string' },
   yes: { type: 'boolean' },
+  json: { type: 'boolean' },
   list: { type: 'boolean' },
   stop: { type: 'boolean' },
   workspace: { type: 'string' },

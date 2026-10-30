@@ -182,6 +182,21 @@ test('doctor refuses an invalid config like the run command does', () => {
   expect(run('doctor').stderr).toContain('Usage: carrier doctor --config');
 });
 
+test('doctor --json prints only the checks as a JSON array on stdout and exits like the report: 1 when a check failed', () => {
+  home = join(dir, 'doctor-json');
+  const config = write('doctor-json.json', valid);
+  const empty = join(dir, 'empty-path'); // no which, no git: every installed check fails, and nothing reaches the network
+  mkdirSync(empty);
+  const env = { ...process.env, CARRIER_HOME: home, PATH: empty };
+  const json = spawnSync(process.execPath, [main, 'doctor', '--config', config, '--json'], { cwd: dir, encoding: 'utf8', env });
+  const checks = JSON.parse(json.stdout);
+  expect(json.status).toBe(1);
+  expect(checks).toContainEqual({ name: 'git installed', status: 'fail', detail: 'not found on PATH', fix: expect.any(String) });
+  const plain = spawnSync(process.execPath, [main, 'doctor', '--config', config], { cwd: dir, encoding: 'utf8', env });
+  expect(plain.status).toBe(1);
+  expect(plain.stdout).toContain('checks failed');
+});
+
 test('without --config the global file is used when it exists, and init is suggested when it does not', () => {
   home = join(dir, 'global');
   const missing = run('doctor');

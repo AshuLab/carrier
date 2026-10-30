@@ -17,7 +17,7 @@ import Observation
 
     /// At open, and again when the Settings window closes: starts the host if it does not answer. With `node` or `carrier`
     /// missing there is no alert, only `missing`; a start that fails keeps the alert.
-    func checkAtOpen() { run(alertWhenMissing: false) { _ in } }
+    func checkAtOpen(done: @escaping (Bool) -> Void = { _ in }) { run(alertWhenMissing: false, done: done) }
 
     /// A session is being started: `done` is called on the main thread with whether the host answers, so the session can go on;
     /// false after the alert.
@@ -115,7 +115,7 @@ import Observation
     }
 
     /// What `carrier --version` prints; nil, with the reason in the log, when the command fails or prints something else.
-    private static func installedVersion(_ command: StartCommand) -> String? {
+    static func installedVersion(_ command: StartCommand) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: command.node)
         process.arguments = [command.arguments[0], "--version"]

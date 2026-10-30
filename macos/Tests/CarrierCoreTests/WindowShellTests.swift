@@ -157,3 +157,12 @@ import Testing
     shell.reset()
     #expect(shell.searchRequest == nil)
 }
+
+@Test func openHealthSelectsTheHealthTabOfSettingsAndLeavingItResetsTheTab() {
+    let shell = WindowShell()
+    shell.openHealth()
+    #expect(shell.selection == .settings && shell.settingsTab == .health)
+    shell.selection = .newSession
+    shell.selection = .settings
+    #expect(shell.settingsTab == .engine)
+}

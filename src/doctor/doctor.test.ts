@@ -6,6 +6,7 @@ import { PassThrough } from 'node:stream';
 import { afterEach, expect, test, vi } from 'vitest';
 import { defaults, loadConfig } from '../config/load.ts';
 import type { Config } from '../config/schema.ts';
+import { doctorCommand } from '../terminal/cli/commands/doctor.ts';
 import { cliLoggedIn, runDoctor, type Check, type DoctorDeps } from './doctor.ts';
 
 const folder = '/tmp/carrier-doctor';
@@ -371,7 +372,7 @@ test('cliLoggedIn reads the verdict of the CLI with the option\'s folder, withou
     const answers = await Promise.all([cliLoggedIn('claude', '/cfg'), cliLoggedIn('claude', undefined), cliLoggedIn('codex', '/cfg'), cliLoggedIn('codex', undefined)]);
     expect(answers).toEqual([true, false, true, false]);
     script('claude', 'echo not json');
-    expect(await cliLoggedIn('claude', undefined)).toBe(false);
+    await expect(cliLoggedIn('claude', undefined)).rejects.toThrow('could not read');
     process.env.PATH = '/nonexistent';
     await expect(cliLoggedIn('codex', undefined)).rejects.toThrow();
   } finally {
@@ -400,4 +401,40 @@ test('cliLoggedIn gives up on time on a CLI that ignores SIGTERM and one whose c
     process.env.PATH = path;
     rmSync(bin, { recursive: true, force: true });
   }
+});
+
+// doctorCommand writes to process.stdout; capture it whole.
+async function printed(run: () => Promise<number>) {
+  let out = '';
+  const write = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => ((out += String(chunk)), true));
+  try {
+    return { code: await run(), out };
+  } finally {
+    write.mockRestore();
+  }
+}
+
+test('--json prints the checks as one JSON array and nothing else, with the exit code the terminal report has', async () => {
+  for (const which of [() => true, (command: string) => command !== 'gh']) {
+    const overrides = deps({ which });
+    const terminal = await printed(() => doctorCommand(config(), folder, false, overrides));
+    const json = await printed(() => doctorCommand(config(), folder, true, overrides));
+    const checks = JSON.parse(json.out) as Check[]; // the whole of stdout parses: no summary line, no progress
+    expect(json.out.trimEnd().split('\n')).toHaveLength(1);
+    expect(checks).toEqual(await doctor(config(), overrides));
+    expect(json.code).toBe(terminal.code);
+    expect(json.code).toBe(checks.some((c) => c.status === 'fail') ? 1 : 0);
+    for (const check of checks) expect(Object.keys(check).every((key) => ['name', 'status', 'detail', 'fix'].includes(key))).toBe(true);
+  }
+});
+
+test('--json carries no token and no email', async () => {
+  const { out } = await printed(() => doctorCommand(config(), folder, true, deps({ mint: async () => 'secret-token' })));
+  expect(out).not.toContain('secret-token');
+});
+
+test('without --json the report is the summary line, not an array', async () => {
+  const { code, out } = await printed(() => doctorCommand(config(), folder, false, deps()));
+  expect([code, out]).toEqual([0, expect.stringMatching(/All \d+ checks passed\n$/)]);
+  expect(out.trimStart().startsWith('[')).toBe(false);
 });

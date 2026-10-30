@@ -13,6 +13,10 @@ test('no command means run, and --config and --help are flags of any command', (
   expect(parseCli([])).toMatchObject({ ok: true, command: undefined, flags: {} });
 });
 
+test('doctor takes --json as a flag', () => {
+  expect(parseCli(['doctor', '--json'])).toMatchObject({ ok: true, command: 'doctor', flags: { json: true } });
+});
+
 test('an unknown command, a second word and an unknown flag are errors that say why, without exiting', () => {
   expect(parseCli(['frobnicate'])).toEqual({ ok: false, message: 'Unknown command: frobnicate' });
   expect(parseCli(['init', 'now'])).toEqual({ ok: false, message: 'Unknown command: init now' });
@@ -27,7 +31,7 @@ test('status is a command that takes no arguments', () => {
 });
 
 test('the usage names every command and every init flag', () => {
-  for (const word of ['carrier init', 'carrier doctor', 'carrier schema', 'carrier start', 'carrier status', 'stop', 'pause', 'resume', 'check', 'carrier chat ', 'carrier chat-host', '--repo', '--author-profile', '--reviewer-provider', '--out', '--yes', '--config']) expect(usage()).toContain(word);
+  for (const word of ['carrier init', 'carrier doctor', 'carrier schema', 'carrier start', 'carrier status', 'stop', 'pause', 'resume', 'check', 'carrier chat ', 'carrier chat-host', '--repo', '--author-profile', '--reviewer-provider', '--out', '--yes', '--config', '--json']) expect(usage()).toContain(word);
 });
 
 test('stop, pause, resume and check are commands that take no argument', () => {

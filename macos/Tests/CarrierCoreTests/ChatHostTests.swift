@@ -157,3 +157,25 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     await #expect(throws: ControlError.remote("the chat host does not support githubRepos")) { try await SocketChatHost(socketPath: { server.path }).githubRepos(page: 1) }
     #expect(asked == false)
 }
+
+@Test func theHealthReplyIsDecodedAndAStateItDoesNotKnowReadsAsUnknown() async throws {
+    let server = TestServer { connection in
+        connection.send(hello("\"health\""))
+        guard let id = connection.readRequestId() else { return }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"git\":\"ready\",\"gh\":\"signedOut\",\"agents\":[{\"name\":\"claude\",\"harness\":\"claude\",\"state\":\"missing\"},{\"name\":\"codex\",\"harness\":\"codex\",\"state\":\"asleep\"}]}}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    #expect(try await host.health(refresh: true) == HostHealth(git: .ready, gh: .signedOut, agents: [.init(name: "claude", harness: "claude", state: .missing), .init(name: "codex", harness: "codex", state: .unknown)]))
+}
+
+@Test func aHostWithoutTheHealthCapabilityIsNotAskedForIt() async {
+    var asked = false
+    let server = TestServer { connection in
+        connection.send(hello("\"agents\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { server.stop() }
+    await #expect(throws: ControlError.remote("the chat host does not support health")) { try await SocketChatHost(socketPath: { server.path }).health(refresh: false) }
+    #expect(asked == false)
+}

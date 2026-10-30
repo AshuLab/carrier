@@ -25,6 +25,7 @@ struct NewSessionView: View {
             VStack(alignment: .leading, spacing: 16) {
                 sentence
                 box
+                if let reason = model.noAgentReason { Text(reason).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
                 if model.worktree, let branch = model.startBranch {
                     Label("Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.", systemImage: "arrow.triangle.branch")
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
@@ -51,6 +52,11 @@ struct NewSessionView: View {
             await model.loadOptions()
         }
         .onAppear { boxFocused = true }
+        // the health arrives after the draft opened, or changes when the app comes back active: the provider follows what can be chosen
+        .onChange(of: model.agents) {
+            model.pickAvailableAgent()
+            Task { await model.loadOptions() }
+        }
     }
 
     /// "Work in <workspace> on <Current folder | New worktree>": the workspace is a chip that opens the folders, and where it works
@@ -167,7 +173,7 @@ struct NewSessionView: View {
     private var box: some View {
         MessageBox(
             text: $model.text, placeholder: model.folder == nil ? "Choose a workspace to start…" : "Write the first message…",
-            canSend: model.canSend, sendHelp: model.canSend ? "Send" : "Choose a workspace and write a message",
+            canSend: model.canSend, sendHelp: model.canSend ? "Send" : model.noAgentReason ?? "Choose a workspace and write a message",
             focus: $boxFocused, commands: model.agentCommands, send: send
         ) {
             providerSelect
@@ -184,7 +190,7 @@ struct NewSessionView: View {
         .opacity(model.folder == nil ? 0.55 : 1)
     }
 
-    /// The agent the session starts with, from the host's list; one that is not installed is shown and cannot be chosen.
+    /// The agent the session starts with, from the host's list; one that is not installed or signed out is shown and cannot be chosen.
     private var providerSelect: some View {
         ComposerSelect(
             title: "Provider", icon: "sparkle", selected: model.agent, showsValue: true,

@@ -61,6 +61,9 @@ struct WorkspaceSheet: View {
                 Divider().padding(.vertical, 8)
                 railRow("Open a folder…", "Any folder on this Mac", "folder.badge.plus", selected: false, action: openFolder)
             }
+            if let gh = model.ghState {
+                HealthFixButton(tool: .gh, state: gh).padding(.horizontal, 8).padding(.top, 8)
+            }
             Spacer(minLength: 0)
         }
         .padding(14).frame(width: 250)

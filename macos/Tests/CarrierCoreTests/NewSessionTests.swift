@@ -1219,3 +1219,25 @@ private func agentHealth(_ states: [String: ToolState]) -> HostHealth {
     await store.check(.active)
     #expect(store.latest == nil)
 }
+
+@MainActor @Test func withGhSignedOutTheDraftKeepsTheGitHubStepsClosedAndTheOthersOpen() async {
+    let host = FakeChat()
+    host.healthReply = HostHealth(git: .ready, gh: .signedOut, agents: [])
+    host.capabilities.insert(.health)
+    let store = HealthStore(host: host)
+    await store.check(.open)
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in }, projectsFolder: { "/nowhere" })
+    await model.load()
+    #expect(model.sources == [.localFolder, .githubURL, .githubRepos, .newProject])
+    #expect(model.sourceReason(.githubURL) != nil && model.sourceReason(.githubRepos) != nil)
+    #expect(model.sourceReason(.localFolder) == nil && model.sourceReason(.newProject) == nil)
+    model.show(.url)
+    await model.showRepos()
+    #expect(model.step == .menu && host.repoCalls.isEmpty)
+    model.show(.project)
+    #expect(model.step == .project)
+    host.healthReply = HostHealth(git: .ready, gh: .unknown, agents: [])
+    await store.check(.refresh)
+    model.show(.url)
+    #expect(model.step == .url)
+}

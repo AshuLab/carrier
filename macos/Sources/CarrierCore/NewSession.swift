@@ -264,6 +264,9 @@ public enum WorkspaceStep: Equatable {
     /// The sources the popover lists under the folders.
     public var sources: [WorkspaceSource] { [.localFolder] + (hostClones ? [.githubURL] : []) + (hostLists && hostClones ? [.githubRepos] : []) + (hostCreates ? [.newProject] : []) }
 
+    /// Why a source of `sources` is off, in words (what `gh` says, the health the app last had); nil when it is on.
+    public func sourceReason(_ source: WorkspaceSource) -> String? { workspaceSourceReason(source, gh: health?.latest?.gh) }
+
     /// The popover opens on the menu with the projects folder read again; one that is cloning, or whose clone failed while it was closed,
     /// stays on the step that shows it until the next action starts.
     public func openPicker() {
@@ -302,6 +305,8 @@ public enum WorkspaceStep: Equatable {
 
     public func show(_ next: WorkspaceStep) {
         guard cloning == nil, creating == false else { return }
+        if next == .url, sourceReason(.githubURL) != nil { return }
+        if next == .repos, sourceReason(.githubRepos) != nil { return }
         refreshFolders()
         step = next
         cloneProblem = nil

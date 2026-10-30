@@ -3,6 +3,18 @@ import Foundation
 // The pieces of the workspace popover that need no model (docs/specs/workspace-sources.md): what the URL step accepts, where the
 // projects folder is and what is in it. `NewSessionModel` drives the popover with them.
 
+/// Why `source` is off, in words; nil when it is on. Only the sources that list and clone with the person's `gh` login (a GitHub URL and
+/// My GitHub repositories, ADR 0015) are off, and only for a `gh` that is `missing` or `signedOut`: `ready`, `unknown` and a host that did
+/// not report the health (`gh` nil) leave the sheet as it was. A local folder, the recent folders and a new project never depend on `gh`.
+public func workspaceSourceReason(_ source: WorkspaceSource, gh: ToolState?) -> String? {
+    guard source == .githubURL || source == .githubRepos else { return nil }
+    switch gh {
+    case .missing: return "gh is not installed. See Health in Settings."
+    case .signedOut: return "gh is signed out. See Health in Settings."
+    case .ready, .unknown, nil: return nil
+    }
+}
+
 /// `owner/repo` for what the URL step was given, nil when it is not exactly one GitHub repository: the form itself, with or without
 /// `.git`, a trailing slash, `github.com/` or `https://github.com/` in front. The host takes only the `owner/repo` form, and only
 /// with the characters and parts its own pattern takes (no empty, `.` or `..` part).

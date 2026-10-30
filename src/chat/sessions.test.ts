@@ -10,6 +10,7 @@ import { FakeChatRunner, FakeGit, type FakeConversation } from './fake.ts';
 import { ChatRefused } from './runner.ts';
 import { chatCaps } from './transcript.ts';
 import { sessions as schemaSessions } from './schema.ts';
+import type { HealthProbes } from './health.ts';
 import { createSessions } from './sessions.ts';
 
 let dir: string;
@@ -27,13 +28,13 @@ afterEach(() => {
 
 const token = `ghp_${'a1B2'.repeat(9)}`;
 
-function setup(chat?: { agents: Record<string, Omit<ChatAgent, 'name'>> }) {
+function setup(chat?: { agents: Record<string, Omit<ChatAgent, 'name'>> }, extra: Partial<Parameters<typeof createSessions>[0]> = {}) {
   const agents = Object.entries(chat?.agents ?? { claude: { harness: 'claude' }, codex: { harness: 'codex' } }).map(([name, agent]) => ({ name, ...agent }) as ChatAgent);
   const db = openChatDatabase(join(dir, 'chat.db'));
   const clock = new FakeClock();
   const claude = new FakeChatRunner();
   const onLiveChange = vi.fn();
-  const sessions = createSessions({ db, agents, clock, runners: { claude }, env: { SOME: 'env' }, git: new FakeGit(), binaryFound: (command) => command === 'claude', onLiveChange });
+  const sessions = createSessions({ db, agents, clock, runners: { claude }, env: { SOME: 'env' }, git: new FakeGit(), binaryFound: (command) => command === 'claude', onLiveChange, ...extra });
   return { db, clock, claude, sessions, onLiveChange };
 }
 async function openOne(s = setup()) {
@@ -602,4 +603,91 @@ test('archive, unarchive and delete refuse an unknown session in words', async (
   for (const attempt of [sessions.archive({ sessionId: 'nope', archived: true }), sessions.archive({ sessionId: 'nope', archived: false }), sessions.delete({ sessionId: 'nope' })]) {
     await expect(attempt).rejects.toThrow('There is no such session');
   }
+});
+
+// The health request: the probes are replaced, the states come from the verdicts alone.
+const probesOf = (over: Partial<HealthProbes> = {}): HealthProbes & { calls: string[] } => {
+  const calls: string[] = [];
+  return {
+    calls,
+    loggedIn: async (harness) => (calls.push(harness), true),
+    exitCode: async (command, args) => (calls.push([command, ...args].join(' ')), 0),
+    gitPath: () => '/opt/homebrew/bin/git',
+    ...over,
+  };
+};
+const allFound = { binaryFound: () => true };
+
+test('health says ready for everything that works, and missing for a binary that is not found, an agent by its own command', async () => {
+  const probes = probesOf();
+  const { sessions } = setup({ agents: { claude: { harness: 'claude' }, mine: { harness: 'codex', command: '/opt/codex' } } }, { probes, binaryFound: (command) => command !== 'gh' && command !== '/opt/codex' });
+  expect(await sessions.health({})).toEqual({ git: 'ready', gh: 'missing', agents: [{ name: 'claude', harness: 'claude', state: 'ready' }, { name: 'mine', harness: 'codex', state: 'missing' }] });
+  expect(probes.calls).not.toContain('codex');
+  const none = setup(undefined, { probes: probesOf(), binaryFound: () => false });
+  expect(await none.sessions.health({})).toMatchObject({ git: 'missing', gh: 'missing' });
+});
+
+test('health says signedOut for a claude, codex or gh whose login is not there, and never for git', async () => {
+  const probes = probesOf({ loggedIn: async () => false, exitCode: async (command) => (command === 'gh' ? 1 : 0) });
+  const { sessions } = setup(undefined, { probes, ...allFound });
+  expect(await sessions.health({})).toEqual({ git: 'ready', gh: 'signedOut', agents: [{ name: 'claude', harness: 'claude', state: 'signedOut' }, { name: 'codex', harness: 'codex', state: 'signedOut' }] });
+  expect(probes.calls).toEqual([]);
+});
+
+test('health reads gh with auth status for github.com', async () => {
+  const probes = probesOf();
+  await setup(undefined, { probes, ...allFound }).sessions.health({});
+  expect(probes.calls).toContain('gh auth status --hostname github.com');
+});
+
+test('a probe that cannot start or answer, or takes over five seconds, is unknown and the others still answer', async () => {
+  const never = new Promise<never>(() => {});
+  const probes = probesOf({ loggedIn: async (harness) => (harness === 'claude' ? Promise.reject(new Error('cannot read')) : never), exitCode: async (command) => (command === 'gh' ? never : 0) });
+  const { sessions, clock } = setup(undefined, { probes, ...allFound });
+  const answer = sessions.health({});
+  await clock.advance(4_999);
+  let early = false;
+  void answer.then(() => (early = true));
+  await Promise.resolve();
+  expect(early).toBe(false);
+  await clock.advance(1);
+  expect(await answer).toEqual({ git: 'ready', gh: 'unknown', agents: [{ name: 'claude', harness: 'claude', state: 'unknown' }, { name: 'codex', harness: 'codex', state: 'unknown' }] });
+});
+
+test('the probes of a request run in parallel: all delayed one second, the answer takes one second', async () => {
+  let clockOf: ReturnType<typeof setup>['clock'];
+  const slow = <T>(value: T) => new Promise<T>((resolve) => clockOf.after(1_000, async () => resolve(value)));
+  const probes = probesOf({ loggedIn: () => slow(true), exitCode: () => slow(0) });
+  const s = setup(undefined, { probes, ...allFound });
+  clockOf = s.clock;
+  let done = false;
+  const answer = s.sessions.health({}).then((health) => ((done = true), health));
+  await s.clock.advance(1_000);
+  await Promise.resolve();
+  expect(await answer).toMatchObject({ git: 'ready', gh: 'ready' });
+  expect(done).toBe(true);
+});
+
+test('a second health request within thirty seconds is answered from the kept result, and refresh asks again', async () => {
+  const probes = probesOf();
+  const { sessions, clock } = setup(undefined, { probes, ...allFound });
+  const first = await sessions.health({});
+  const ran = probes.calls.length;
+  expect(ran).toBeGreaterThan(0);
+  clock.time = 29_999;
+  expect(await sessions.health({})).toBe(first);
+  expect(probes.calls).toHaveLength(ran);
+  await sessions.health({ refresh: true });
+  expect(probes.calls).toHaveLength(ran * 2);
+  clock.time += 30_000;
+  await sessions.health({});
+  expect(probes.calls).toHaveLength(ran * 3);
+});
+
+test('the health reply carries only the states, whatever the probes could say', async () => {
+  const leak = new Error('me@example.com acme-org ghp_secret');
+  const probes = probesOf({ loggedIn: async (harness) => (harness === 'claude' ? true : Promise.reject(leak)), exitCode: async () => Promise.reject(leak) });
+  const reply = await setup(undefined, { probes, ...allFound }).sessions.health({});
+  expect(JSON.stringify(reply)).not.toMatch(/example|acme|ghp_/);
+  expect(Object.keys(reply).sort()).toEqual(['agents', 'gh', 'git']);
 });

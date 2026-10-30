@@ -35,6 +35,9 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var sentCommands: [String?] = []
     var openedWith: [[String: String]] = []
     var capabilities: Set<ControlClient.Capability> = [.cloneRepo, .createProject, .githubRepos]
+    /// What `health` answers, and the `refresh` flags it was asked with.
+    var healthReply = HostHealth(git: .ready, gh: .ready, agents: [])
+    var healthAsks: [Bool] = []
     /// What `githubRepos` answers by page (one not listed is an empty last page) and the pages it was asked for.
     var repoPages: [Int: GithubReposPage] = [:]
     var repoCalls: [Int] = []
@@ -120,6 +123,11 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         return repoPages[page] ?? GithubReposPage(repos: [], hasMore: false)
     }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
+    func health(refresh: Bool) async throws -> HostHealth {
+        healthAsks.append(refresh)
+        if let error = refuse["health"] { throw error }
+        return healthReply
+    }
 }
 
 private func cleanRepo(_ folder: String) -> WorkspaceInfo {
@@ -160,7 +168,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
 
 @MainActor @Test func anAgentWithNoBinaryIsListedDisabledAndNotInstalledAndTheFirstFoundOneIsChosen() async {
     let model = await draft(FakeChat())
-    #expect(model.agents == [AgentChoice(name: "codex", available: false), AgentChoice(name: "claude", available: true)])
+    #expect(model.agents == [AgentChoice(name: "codex", state: .missing), AgentChoice(name: "claude", state: .ready)])
     #expect(model.agents.map(\.note) == ["not installed", nil])
     #expect(model.agent == "claude")
 }
@@ -1097,4 +1105,117 @@ private let claudeOptions = [
     model.text = "/nope here"
     _ = await model.send()
     #expect(host.sentCommands == ["review"] && host.calls.last == "send \(opened) /nope here")
+}
+
+
+// The health: what `agentChoices` and the draft's provider make of it, and the store that asks the host.
+
+private func agentHealth(_ states: [String: ToolState]) -> HostHealth {
+    HostHealth(git: .ready, gh: .ready, agents: states.sorted { $0.key < $1.key }.map { .init(name: $0.key, harness: $0.key, state: $0.value) })
+}
+
+@Test func aProviderThatIsMissingOrSignedOutIsListedDisabledWithWhyAndReadyOrUnknownCanBeChosen() {
+    let agents = [ChatAgent(name: "a", harness: "claude", found: true), ChatAgent(name: "b", harness: "codex", found: true), ChatAgent(name: "c", harness: "codex", found: true), ChatAgent(name: "d", harness: "codex", found: true)]
+    let choices = agentChoices(agents, health: agentHealth(["a": .ready, "b": .signedOut, "c": .missing, "d": .unknown]))
+    #expect(choices.map(\.available) == [true, false, false, true])
+    #expect(choices.map(\.note) == [nil, "signed out", "not installed", nil])
+}
+
+@Test func withoutAHealthAnAgentIsReadyWhenItsBinaryWasFoundAndMissingWhenItWasNot() {
+    let agents = [ChatAgent(name: "claude", harness: "claude", found: true), ChatAgent(name: "codex", harness: "codex", found: false)]
+    #expect(agentChoices(agents).map(\.state) == [.ready, .missing])
+    // an agent the health does not list is read the same way
+    #expect(agentChoices(agents, health: agentHealth(["claude": .signedOut])).map(\.state) == [.signedOut, .missing])
+}
+
+@MainActor @Test func theDraftTakesTheFirstProviderThatIsAvailableAndNeverASignedOutOne() async {
+    let host = FakeChat()
+    host.agents = [ChatAgent(name: "claude", harness: "claude", found: true), ChatAgent(name: "codex", harness: "codex", found: true)]
+    host.healthReply = agentHealth(["claude": .signedOut, "codex": .ready])
+    let store = HealthStore(host: host)
+    host.capabilities.insert(.health)
+    await store.check(.open)
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
+    await model.load()
+    #expect(model.agents.map(\.note) == ["signed out", nil])
+    #expect(model.agent == "codex")
+    #expect(model.noAgentReason == nil)
+}
+
+@MainActor @Test func aProviderThatLosesItsLoginAfterTheDraftOpenedIsLeftForAnAvailableOne() async {
+    let host = FakeChat()
+    host.agents = [ChatAgent(name: "claude", harness: "claude", found: true), ChatAgent(name: "codex", harness: "codex", found: true)]
+    host.capabilities.insert(.health)
+    let store = HealthStore(host: host)
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
+    await model.load()
+    await model.choose(folder: "/w/api")
+    model.text = "hello"
+    #expect(model.agent == "claude" && model.canSend)
+    host.healthReply = agentHealth(["claude": .signedOut, "codex": .unknown])
+    await store.check(.active)
+    #expect(model.canSend == false)
+    model.pickAvailableAgent()
+    #expect(model.agent == "codex" && model.canSend)
+}
+
+@MainActor @Test func withNoProviderAvailableTheBoxSaysWhyAndSendIsOff() async {
+    let host = FakeChat()
+    host.agents = [ChatAgent(name: "claude", harness: "claude", found: true), ChatAgent(name: "codex", harness: "codex", found: false)]
+    host.healthReply = agentHealth(["claude": .signedOut, "codex": .missing])
+    host.capabilities.insert(.health)
+    let store = HealthStore(host: host)
+    await store.check(.open)
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
+    await model.load()
+    await model.choose(folder: "/w/api")
+    model.text = "hello"
+    #expect(model.agent == nil && model.canSend == false)
+    #expect(model.noAgentReason == "No provider can start a session: claude is signed out, codex is not installed.")
+    #expect(await model.send() == nil && host.calls.isEmpty)
+}
+
+@MainActor @Test func aHostWithoutTheHealthCapabilityIsNeverAskedAndTheDraftBehavesAsBefore() async {
+    let host = FakeChat()
+    host.healthReply = agentHealth(["claude": .signedOut])
+    let store = HealthStore(host: host)
+    for moment in HealthMoment.allCases { await store.check(moment) }
+    #expect(host.healthAsks.isEmpty && store.latest == nil)
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
+    await model.load()
+    #expect(model.agents == [AgentChoice(name: "codex", state: .missing), AgentChoice(name: "claude", state: .ready)] && model.agent == "claude")
+}
+
+@MainActor @Test func theStoreAsksAfreshWhenTheAppBecomesActiveOrIsAskedToCheckAgainButNotAtOpen() async {
+    let host = FakeChat()
+    host.capabilities.insert(.health)
+    let store = HealthStore(host: host)
+    await store.check(.open)
+    await store.check(.active)
+    await store.check(.refresh)
+    #expect(host.healthAsks == [false, true, true])
+    #expect(store.latest == host.healthReply)
+}
+
+@MainActor @Test func aHostThatRefusesTheHealthIsLoggedAndTheLastAnswerStands() async {
+    let host = FakeChat()
+    host.capabilities.insert(.health)
+    var lines: [String] = []
+    let store = HealthStore(host: host, log: { lines.append($0) })
+    await store.check(.open)
+    let answered = store.latest
+    host.refuse["health"] = ControlError.remote("boom")
+    await store.check(.refresh)
+    #expect(lines == ["health: boom"] && store.latest == answered && answered != nil)
+}
+
+@MainActor @Test func theStoreForgetsItsAnswerWhenTheHostNoLongerListsHealth() async {
+    let host = FakeChat()
+    host.capabilities.insert(.health)
+    let store = HealthStore(host: host)
+    await store.check(.open)
+    #expect(store.latest != nil)
+    host.capabilities.remove(.health)
+    await store.check(.active)
+    #expect(store.latest == nil)
 }

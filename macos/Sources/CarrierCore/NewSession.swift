@@ -26,14 +26,28 @@ public func recentFolders(_ sessions: [ChatSession], limit: Int = 8) -> [RecentF
     return folders
 }
 
-/// An entry of the agent chip's menu: one whose binary was not found is listed, disabled, with "not installed".
+/// An entry of the agent chip's menu: one that is missing or signed out is listed, disabled, with why ("not installed", "signed out").
 public struct AgentChoice: Equatable {
     public let name: String
-    public let available: Bool
-    public var note: String? { available ? nil : "not installed" }
+    public let state: ToolState
+    public var available: Bool { state.blocks == false }
+    public var note: String? {
+        switch state {
+        case .missing: "not installed"
+        case .signedOut: "signed out"
+        case .ready, .unknown: nil
+        }
+    }
 }
 
-public func agentChoices(_ agents: [ChatAgent]) -> [AgentChoice] { agents.map { AgentChoice(name: $0.name, available: $0.found) } }
+/// The host's agents with the state each is in: the health's when the host said one, else as before this check existed (the binary found
+/// is `ready`, not found is `missing`).
+public func agentChoices(_ agents: [ChatAgent], health: HostHealth? = nil) -> [AgentChoice] {
+    agents.map { agent in
+        let state = health?.agents.first { $0.name == agent.name }?.state ?? (agent.found ? .ready : .missing)
+        return AgentChoice(name: agent.name, state: state)
+    }
+}
 
 /// A first message whose send failed after `open` made the session.
 public struct FailedFirstSend: Equatable {
@@ -57,7 +71,9 @@ public enum WorkspaceStep: Equatable {
 /// The draft: loads what it offers, and `send()` opens the session and then sends the message, in two steps.
 @MainActor @Observable public final class NewSessionModel {
     public private(set) var recent: [RecentFolder] = []
-    public private(set) var agents: [AgentChoice] = []
+    /// The host's agents, with the health the app last had for them.
+    public var agents: [AgentChoice] { agentChoices(listed, health: health?.latest) }
+    private var listed: [ChatAgent] = []
     /// The chosen workspace's path, nil until one is chosen.
     public private(set) var folder: String?
     public var agent: String?
@@ -130,6 +146,7 @@ public enum WorkspaceStep: Equatable {
     public private(set) var projectsFolderProblem: String?
 
     @ObservationIgnored private let host: ChatHost
+    @ObservationIgnored private let health: HealthStore?
     @ObservationIgnored private let projectsFolder: () -> String
     @ObservationIgnored private let readConfig: () -> Data?
     @ObservationIgnored private let writeConfig: (Data) throws -> Void
@@ -152,7 +169,7 @@ public enum WorkspaceStep: Equatable {
     /// `readChatConfig` and `writeChatConfig` are that file inside `carrierFolder`; `readConfig` and `writeConfig` are the engine's
     /// config file, which holds the watched repositories.
     public init(
-        host: ChatHost, ensureHost: @escaping @MainActor () async -> Bool = { true },
+        host: ChatHost, health: HealthStore? = nil, ensureHost: @escaping @MainActor () async -> Bool = { true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         projectsFolder: @escaping () -> String = currentProjectsFolder,
@@ -161,6 +178,7 @@ public enum WorkspaceStep: Equatable {
         carrierFolder: String = currentCarrierFolder()
     ) {
         self.host = host
+        self.health = health
         self.projectsFolder = projectsFolder
         projectsPath = projectsFolder()
         self.readConfig = readConfig
@@ -184,11 +202,22 @@ public enum WorkspaceStep: Equatable {
         } catch {
             log("new session: \(ConversationModel.words(error))")
         }
+        pickAvailableAgent()
+    }
+
+    /// Keeps the chosen provider while it can be chosen, else takes the first one that can; none when none can.
+    public func pickAvailableAgent() {
         if agents.contains(where: { $0.name == agent && $0.available }) == false { agent = agents.first(where: \.available)?.name }
     }
 
+    /// Why no provider can start a session, when the host listed some and none can; nil otherwise.
+    public var noAgentReason: String? {
+        guard agents.isEmpty == false, agents.contains(where: \.available) == false else { return nil }
+        return "No provider can start a session: " + agents.map { "\($0.name) is \($0.note ?? "unavailable")" }.joined(separator: ", ") + "."
+    }
+
     private func read() async throws {
-        agents = agentChoices(try await host.agents())
+        listed = try await host.agents()
         recent = recentFolders(try await host.list(archived: false) + (try await host.list(archived: true)))
         let capabilities = try await host.capabilities()
         hostClones = capabilities.contains(.cloneRepo)
@@ -543,7 +572,7 @@ public enum WorkspaceStep: Equatable {
     }
 
     public var canSend: Bool {
-        guard folder != nil, agent != nil, sending == false, text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return false }
+        guard folder != nil, agents.contains(where: { $0.name == agent && $0.available }), sending == false, text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return false }
         guard worktree else { return true }
         if case .problem = nameState { return false }
         return startBranch != nil && worktreeName.isEmpty == false

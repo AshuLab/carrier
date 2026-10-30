@@ -34,7 +34,7 @@ else if (cli.flags.help) {
         break;
       case 'doctor':
         if (configPath === undefined) throw noConfig('Usage: carrier doctor --config <path>');
-        exit = await (await import('./commands/doctor.ts')).doctorCommand(loadConfigFile(configPath), folder);
+        exit = await (await import('./commands/doctor.ts')).doctorCommand(loadConfigFile(configPath), folder, cli.flags.json === true);
         break;
       case 'start':
         if (configPath === undefined) throw noConfig('Usage: carrier start --config <path>');

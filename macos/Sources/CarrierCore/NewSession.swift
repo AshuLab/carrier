@@ -29,8 +29,11 @@ public func recentFolders(_ sessions: [ChatSession], limit: Int = 8) -> [RecentF
 /// An entry of the agent chip's menu: one that is missing or signed out is listed, disabled, with why ("not installed", "signed out").
 public struct AgentChoice: Equatable {
     public let name: String
+    public let harness: String
     public let state: ToolState
     public var available: Bool { state.blocks == false }
+    /// What to do about it: the fixed list's command or installation page for this provider in this state.
+    public var fix: HealthFix? { healthFix(.agent(harness: harness), state) }
     public var note: String? {
         switch state {
         case .missing: "not installed"
@@ -45,7 +48,7 @@ public struct AgentChoice: Equatable {
 public func agentChoices(_ agents: [ChatAgent], health: HostHealth? = nil) -> [AgentChoice] {
     agents.map { agent in
         let state = health?.agents.first { $0.name == agent.name }?.state ?? (agent.found ? .ready : .missing)
-        return AgentChoice(name: agent.name, state: state)
+        return AgentChoice(name: agent.name, harness: agent.harness, state: state)
     }
 }
 
@@ -512,6 +515,9 @@ public enum WorkspaceStep: Equatable {
 
     /// The line under the sentence: the uncommitted files of the base folder, which a worktree would keep out of the agent's way.
     public var warning: String? { worktree || gitMissing ? nil : workspace.flatMap(uncommittedWarning) }
+
+    /// What the host last said of `gh`; nil while it has not said (an older host, or none yet).
+    public var ghState: ToolState? { health?.latest?.gh }
 
     /// The health says `git` is missing (`unknown`, or no health at all, switches nothing off).
     public var gitMissing: Bool { health?.latest?.git == .missing }

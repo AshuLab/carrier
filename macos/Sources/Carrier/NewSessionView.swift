@@ -26,6 +26,13 @@ struct NewSessionView: View {
                 sentence
                 box
                 if let reason = model.noAgentReason { Text(reason).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
+                ForEach(model.agents.filter { $0.fix != nil }, id: \.name) { agent in
+                    HStack(spacing: 8) {
+                        Text("\(agent.name) is \(agent.note ?? "unavailable"):").font(.callout).foregroundStyle(.secondary)
+                        HealthFixButton(tool: .agent(harness: agent.harness), state: agent.state)
+                    }
+                }
+                if model.gitMissing { HealthFixButton(tool: .git, state: .missing) }
                 if model.worktree, let branch = model.startBranch {
                     Label("Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.", systemImage: "arrow.triangle.branch")
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity)

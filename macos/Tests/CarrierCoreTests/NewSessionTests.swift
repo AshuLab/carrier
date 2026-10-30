@@ -168,7 +168,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
 
 @MainActor @Test func anAgentWithNoBinaryIsListedDisabledAndNotInstalledAndTheFirstFoundOneIsChosen() async {
     let model = await draft(FakeChat())
-    #expect(model.agents == [AgentChoice(name: "codex", state: .missing), AgentChoice(name: "claude", state: .ready)])
+    #expect(model.agents == [AgentChoice(name: "codex", harness: "codex", state: .missing), AgentChoice(name: "claude", harness: "claude", state: .ready)])
     #expect(model.agents.map(\.note) == ["not installed", nil])
     #expect(model.agent == "claude")
 }
@@ -1114,6 +1114,25 @@ private func agentHealth(_ states: [String: ToolState]) -> HostHealth {
     HostHealth(git: .ready, gh: .ready, agents: states.sorted { $0.key < $1.key }.map { .init(name: $0.key, harness: $0.key, state: $0.value) })
 }
 
+@Test func aBlockedProviderGhAndGitOfferTheirFixFromTheList() {
+    let agents = [ChatAgent(name: "work", harness: "claude", found: true), ChatAgent(name: "codex", harness: "codex", found: true), ChatAgent(name: "x'; id", harness: "agy", found: true)]
+    let choices = agentChoices(agents, health: agentHealth(["work": .signedOut, "codex": .missing, "x'; id": .signedOut]))
+    // the harness picks the fix, never the name the person gave the agent
+    #expect(choices.map(\.fix) == [.command(["claude", "auth", "login"]), healthFix(.agent(harness: "codex"), .missing), nil])
+    #expect(agentChoices(agents, health: agentHealth(["work": .ready, "codex": .unknown])).prefix(2).map(\.fix) == [nil, nil])
+}
+
+@MainActor @Test func theModelSaysWhatGhIs() async {
+    let host = FakeChat()
+    host.healthReply = HostHealth(git: .ready, gh: .signedOut, agents: [])
+    host.capabilities.insert(.health)
+    let store = HealthStore(host: host)
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
+    #expect(model.ghState == nil)
+    await store.check(.open)
+    #expect(model.ghState == .signedOut)
+}
+
 @Test func aProviderThatIsMissingOrSignedOutIsListedDisabledWithWhyAndReadyOrUnknownCanBeChosen() {
     let agents = [ChatAgent(name: "a", harness: "claude", found: true), ChatAgent(name: "b", harness: "codex", found: true), ChatAgent(name: "c", harness: "codex", found: true), ChatAgent(name: "d", harness: "codex", found: true)]
     let choices = agentChoices(agents, health: agentHealth(["a": .ready, "b": .signedOut, "c": .missing, "d": .unknown]))
@@ -1183,7 +1202,7 @@ private func agentHealth(_ states: [String: ToolState]) -> HostHealth {
     #expect(host.healthAsks.isEmpty && store.latest == nil)
     let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
     await model.load()
-    #expect(model.agents == [AgentChoice(name: "codex", state: .missing), AgentChoice(name: "claude", state: .ready)] && model.agent == "claude")
+    #expect(model.agents == [AgentChoice(name: "codex", harness: "codex", state: .missing), AgentChoice(name: "claude", harness: "claude", state: .ready)] && model.agent == "claude")
 }
 
 @MainActor @Test func theStoreAsksAfreshWhenTheAppBecomesActiveOrIsAskedToCheckAgainButNotAtOpen() async {

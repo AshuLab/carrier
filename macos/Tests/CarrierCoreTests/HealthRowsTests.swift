@@ -74,3 +74,32 @@ private func health(git: ToolState = .ready, gh: ToolState = .ready, claude: Too
     facts.configExists = false
     #expect(engine(facts).mark == .problem && engine(facts).detail.contains("not configured"))
 }
+
+@Test func theEnginesSetupListsTheDoctorsChecksWithTheirStateDetailAndFixText() {
+    let checks = [
+        DoctorCheck(name: "config", status: .ok), DoctorCheck(name: "gh", status: .warn, detail: "old", fix: "brew upgrade gh"),
+        DoctorCheck(name: "labels", status: .fail, detail: "missing", fix: "carrier init"),
+    ]
+    let section = healthSections(host: nil, facts: allWell, doctor: .checks(checks))[2]
+    #expect(section.title == "Engine setup" && section.note == nil)
+    #expect(section.rows.map(\.title) == ["config", "gh", "labels"])
+    #expect(section.rows.map(\.mark) == [.ok, .warning, .problem])
+    #expect(section.rows.map(\.detail) == ["", "old", "missing"])
+    #expect(section.rows.map(\.fix) == [nil, "brew upgrade gh", "carrier init"])
+    #expect(section.rows.allSatisfy { $0.tool == nil })
+}
+
+@Test func theEnginesSetupNeedsTheConfigAndRunsNothingWithoutOne() {
+    var facts = allWell
+    facts.configExists = false
+    for doctor in [DoctorState.idle, .running, .checks([DoctorCheck(name: "x", status: .ok)])] {
+        let section = healthSections(host: nil, facts: facts, doctor: doctor)[2]
+        #expect(section.rows.isEmpty && section.note?.contains("needs the config") == true)
+    }
+}
+
+@Test func theEnginesSetupSaysItIsRunningAndShowsAnUnknownDoctorAsSuchWithItsReason() {
+    #expect(healthSections(host: nil, facts: allWell, doctor: .running)[2].note?.contains("Running") == true)
+    let row = healthSections(host: nil, facts: allWell, doctor: .unknown("did not finish"))[2].rows[0]
+    #expect(row.mark == .neutral && row.detail == "Could not check: did not finish")
+}

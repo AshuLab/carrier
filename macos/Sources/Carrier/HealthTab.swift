@@ -7,6 +7,7 @@ import SwiftUI
 struct HealthTabView: View {
     let state: ConnectionState?
     private let store = AppHealth.store
+    private let doctor = AppHealth.doctor
     @ObservedObject private var start = StartController.shared
     @ObservedObject private var setup = SetupController.shared
     @State private var probe = CarrierProbe()
@@ -33,7 +34,7 @@ struct HealthTabView: View {
                 Button("Check again") { Task { await checkAgain() } }.buttonStyle(.glass).buttonBorderShape(.capsule).disabled(checking)
             }
             .padding(.horizontal, 14)
-            ForEach(healthSections(host: store.latest, facts: facts), id: \.title) { section in
+            ForEach(healthSections(host: store.latest, facts: facts, doctor: doctor.state), id: \.title) { section in
                 SettingsGroup(title: section.title) {
                     if let note = section.note {
                         Text(note).font(.callout).foregroundStyle(.secondary).padding(.vertical, 12).frame(maxWidth: .infinity, alignment: .leading)
@@ -44,11 +45,21 @@ struct HealthTabView: View {
                 }
             }
         }
-        .task { await read() }
+        .task {
+            runDoctor()
+            await read()
+        }
+    }
+
+    /// Not awaited: the layer says it is running and the rest of the tab stays usable. The store ignores a run while one is running.
+    private func runDoctor() {
+        let settings = setup.settings, configExists = start.configExists
+        Task { await doctor.check(settings: settings, environment: ProcessInfo.processInfo.environment, configExists: configExists) }
     }
 
     private func checkAgain() async {
         checking = true
+        runDoctor()
         await store.check(.refresh)
         await read()
         checking = false
@@ -80,7 +91,12 @@ private struct HealthRowView: View {
             mark
             VStack(alignment: .leading, spacing: 1) {
                 Text(row.title).fontWeight(.medium)
-                Text(row.detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if row.detail.isEmpty == false {
+                    Text(row.detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                if let fix = row.fix {
+                    Text("Fix: \(fix)").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer(minLength: 8)
             if let tool = row.tool { HealthFixButton(tool: tool, state: row.state) }
@@ -93,6 +109,7 @@ private struct HealthRowView: View {
     private var mark: some View {
         let (symbol, color, label): (String, Color, String) = switch row.mark {
         case .ok: ("checkmark", .green, "Ready")
+        case .warning: ("exclamationmark", .yellow, "Warning")
         case .problem: ("exclamationmark", .orange, "Needs attention")
         case .neutral: ("questionmark", .gray, "Not known")
         }

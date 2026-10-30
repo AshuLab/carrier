@@ -9,6 +9,7 @@ import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
 import { checkFolder } from './folder.ts';
+import { createHealth, realProbes, type HealthProbes } from './health.ts';
 import type { Git } from './git.ts';
 import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
@@ -55,6 +56,8 @@ export type ChatSessionsDeps = {
   git: Git;
   /** Whether an agent's binary is there. */
   binaryFound: (command: string) => boolean;
+  /** What the `health` request runs; the machine's own tools unless a test replaces it. */
+  probes?: HealthProbes;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
   onLiveChange: () => void;
 };
@@ -77,7 +80,8 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, binaryFound, onLiveChange }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, binaryFound, probes = realProbes, onLiveChange }: ChatSessionsDeps) {
+  const health = createHealth({ agents, clock, binaryFound, probes });
   const lives = new Map<string, Live>();
   // Sessions being deleted: no agent may open in their folder while it is removed.
   const deleting = new Set<string>();
@@ -215,6 +219,8 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     },
 
     agents: () => agents.map(({ name, harness, model, command }) => ({ name, harness, model, found: binaryFound(command ?? harness) })),
+
+    health,
 
     list: ({ archived = false }: { archived?: boolean }) => ({
       sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => ({ ...summary(found), live: lives.has(found.id) })),

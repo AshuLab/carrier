@@ -372,7 +372,7 @@ test('cliLoggedIn reads the verdict of the CLI with the option\'s folder, withou
     const answers = await Promise.all([cliLoggedIn('claude', '/cfg'), cliLoggedIn('claude', undefined), cliLoggedIn('codex', '/cfg'), cliLoggedIn('codex', undefined)]);
     expect(answers).toEqual([true, false, true, false]);
     script('claude', 'echo not json');
-    expect(await cliLoggedIn('claude', undefined)).toBe(false);
+    await expect(cliLoggedIn('claude', undefined)).rejects.toThrow('could not read');
     process.env.PATH = '/nonexistent';
     await expect(cliLoggedIn('codex', undefined)).rejects.toThrow();
   } finally {

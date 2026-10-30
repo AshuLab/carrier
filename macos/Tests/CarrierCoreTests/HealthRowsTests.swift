@@ -3,7 +3,7 @@ import Testing
 
 // The rows of the Health tab: what the host says of this Mac and what the app knows of Carrier.
 
-private let allWell = CarrierFacts(carrierFound: true, installedVersion: "1.4.0", hostRunning: true, hostVersion: "1.4.0", configExists: true, engineRunning: true)
+private let allWell = CarrierFacts(carrierFound: true, installedVersion: "1.4.0", hostRunning: true, hostVersion: "1.4.0", hostReportsHealth: true, configExists: true, engineRunning: true)
 
 private func health(git: ToolState = .ready, gh: ToolState = .ready, claude: ToolState = .ready, codex: ToolState = .ready) -> HostHealth {
     HostHealth(git: git, gh: gh, agents: [
@@ -32,9 +32,15 @@ private func health(git: ToolState = .ready, gh: ToolState = .ready, claude: Too
 }
 
 @Test func withoutHealthTheMacSaysWhyAndCarrierIsStillThere() {
-    let old = healthSections(host: nil, facts: allWell)
+    var tooOld = allWell
+    tooOld.hostReportsHealth = false
+    let old = healthSections(host: nil, facts: tooOld)
     #expect(old[0].rows.isEmpty && old[0].note?.contains("too old") == true)
     #expect(old[1].title == "Carrier" && old[1].rows.count == 3)
+
+    // a host that lists `health` but has not answered (in flight, or the request failed) is not called old
+    let pending = healthSections(host: nil, facts: allWell)[0]
+    #expect(pending.rows.isEmpty && pending.note?.contains("too old") == false && pending.note?.contains("Check again") == true)
 
     var stopped = allWell
     stopped.hostRunning = false

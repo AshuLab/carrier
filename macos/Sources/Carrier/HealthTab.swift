@@ -18,12 +18,14 @@ struct HealthTabView: View {
         var installedVersion: String?
         var hostRunning = false
         var hostVersion: String?
+        var hostReportsHealth = true
     }
 
     var body: some View {
         let facts = CarrierFacts(
             carrierFound: setup.settings.carrier.isEmpty == false, installedVersion: probe.installedVersion,
             hostRunning: probe.hostRunning, hostVersion: probe.hostVersion,
+            hostReportsHealth: probe.hostReportsHealth,
             configExists: start.configExists, engineRunning: { if case .running? = state { true } else { false } }()
         )
         VStack(alignment: .leading, spacing: 12) {
@@ -74,7 +76,9 @@ struct HealthTabView: View {
             if let command { result.installedVersion = ChatHostStarter.installedVersion(command) }
             if let client = ControlClient.connect(path: socket) {
                 result.hostRunning = true
-                result.hostVersion = (try? client.hello())?.version
+                let hello = try? client.hello()
+                result.hostVersion = hello?.version
+                result.hostReportsHealth = hello?.capabilities.contains(.health) ?? true
                 client.close()
             }
             return result

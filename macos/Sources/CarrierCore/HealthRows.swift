@@ -40,14 +40,17 @@ public struct CarrierFacts: Equatable {
     public var installedVersion: String?
     public var hostRunning: Bool
     public var hostVersion: String?
+    /// Whether the running host's hello lists `health`; false is a host too old to be asked.
+    public var hostReportsHealth: Bool
     public var configExists: Bool
     public var engineRunning: Bool
 
-    public init(carrierFound: Bool, installedVersion: String?, hostRunning: Bool, hostVersion: String?, configExists: Bool, engineRunning: Bool) {
+    public init(carrierFound: Bool, installedVersion: String?, hostRunning: Bool, hostVersion: String?, hostReportsHealth: Bool, configExists: Bool, engineRunning: Bool) {
         self.carrierFound = carrierFound
         self.installedVersion = installedVersion
         self.hostRunning = hostRunning
         self.hostVersion = hostVersion
+        self.hostReportsHealth = hostReportsHealth
         self.configExists = configExists
         self.engineRunning = engineRunning
     }
@@ -62,7 +65,7 @@ private func macRow(_ title: String, _ tool: HealthTool, _ state: ToolState) -> 
     }
 }
 
-/// `host` is the last reply of `health`; nil is a host that does not report it (or none running), and says so in place of the rows.
+/// `host` is the last reply of `health`; nil is no reply yet: a host that is not running, one too old to report it, or one whose answer is still on its way or failed. Each says so in place of the rows.
 public func healthSections(host: HostHealth?, facts: CarrierFacts, doctor: DoctorState = .idle) -> [HealthSection] {
     let mac: HealthSection
     if let host {
@@ -72,9 +75,13 @@ public func healthSections(host: HostHealth?, facts: CarrierFacts, doctor: Docto
                 + host.agents.map { macRow($0.name, .agent(harness: $0.harness), $0.state) }
         )
     } else {
-        let note = facts.hostRunning
-            ? "The chat host is too old to check this Mac. Restart it to use the installed Carrier."
-            : "The chat host is not running, so this Mac was not checked."
+        let note = if facts.hostRunning == false {
+            "The chat host is not running, so this Mac was not checked."
+        } else if facts.hostReportsHealth == false {
+            "The chat host is too old to check this Mac. Restart it to use the installed Carrier."
+        } else {
+            "This Mac has not been checked yet, or the check failed. Press Check again."
+        }
         mac = HealthSection(title: "This Mac", note: note, rows: [])
     }
 

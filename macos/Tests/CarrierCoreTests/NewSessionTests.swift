@@ -1220,6 +1220,44 @@ private func agentHealth(_ states: [String: ToolState]) -> HostHealth {
     #expect(store.latest == nil)
 }
 
+// Without git: the draft turns off New worktree and says why where the branch would be.
+
+private func gitHealth(_ git: ToolState) -> HostHealth { HostHealth(git: git, gh: .ready, agents: []) }
+
+@MainActor private func draftWithGit(_ git: ToolState?, folder: String) async -> NewSessionModel {
+    let host = FakeChat()
+    host.workspaces[folder] = WorkspaceInfo(folder: folder, branch: "main", defaultBranch: "main", dirty: 2, branches: [.init(name: "main", remote: false)])
+    var store: HealthStore?
+    if let git {
+        host.healthReply = gitHealth(git)
+        host.capabilities.insert(.health)
+        store = HealthStore(host: host)
+        await store?.check(.open)
+    }
+    let model = NewSessionModel(host: host, health: store, log: { _ in }, sleep: { _ in })
+    await model.load()
+    await model.choose(folder: folder)
+    return model
+}
+
+@MainActor @Test func withGitMissingTheDraftOffersNoWorktreeAndSaysWhyInsteadOfTheBranch() async {
+    let model = await draftWithGit(.missing, folder: "/w/api")
+    #expect(model.gitMissing && model.offersWorktree == false && model.warning == nil)
+    #expect(model.sentence == "Work in api in the folder (git is missing: no worktree, no branch. See Health in Settings)")
+    await model.useWorktree(true)
+    #expect(model.worktree == false)
+}
+
+@MainActor @Test func withGitReadyOrUnknownOrNoHealthTheDraftIsAsBefore() async {
+    for git in [ToolState.ready, .unknown, nil] {
+        let model = await draftWithGit(git, folder: "/w/api")
+        #expect(model.gitMissing == false && model.offersWorktree)
+        #expect(model.sentence == "Work in api on the base folder (main)" && model.warning != nil)
+        await model.useWorktree(true)
+        #expect(model.worktree)
+    }
+}
+
 @MainActor @Test func withGhSignedOutTheDraftKeepsTheGitHubStepsClosedAndTheOthersOpen() async {
     let host = FakeChat()
     host.healthReply = HostHealth(git: .ready, gh: .signedOut, agents: [])

@@ -85,8 +85,9 @@ struct SessionsHomeView: View {
 
     @ViewBuilder private var searchItem: some View {
         if query != nil {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                // a fixed box, so the magnifier sits on the field's centre line and clear of the pill's rounded edge
+                Image(systemName: "magnifyingglass").font(.body).foregroundStyle(.secondary).frame(width: 18, height: 18).accessibilityHidden(true)
                 // not `Binding($query)`: its getter force-unwraps and crashes once the query is nil
                 TextField("Search sessions", text: Binding(get: { query ?? "" }, set: { query = $0 }))
                     .textFieldStyle(.plain)
@@ -98,7 +99,7 @@ struct SessionsHomeView: View {
                 Button { query = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
                     .buttonStyle(.plain).help("Close search (Esc)").accessibilityLabel("Close search")
             }
-            .frame(width: 200)
+            .padding(.horizontal, 8).frame(width: 220)
         } else {
             Button {
                 query = ""

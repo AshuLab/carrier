@@ -70,7 +70,25 @@ final class WindowController: NSObject, NSWindowDelegate {
         showIcon("info.circle", on: item)
     }
 
+    /// Adds the "Settings…" item: it opens the window if it was closed, then shows the Settings sheet over it.
+    func addSettingsItem(to menu: NSMenu) {
+        let item = menu.addItem(withTitle: "Settings…", action: #selector(settingsFromMenu), keyEquivalent: ",")
+        item.target = self
+        showIcon("gearshape", on: item)
+    }
+
     @objc private func openFromMenu() { open() }
+
+    @objc private func settingsFromMenu() { showSettings() }
+
+    func showSettings() {
+        open()
+        model.shell.showSettings()
+    }
+
+    /// For the self-test.
+    func closeSettings() { model.shell.settingsShown = false }
+    var settingsStatus: String { "settings sheet \(model.shell.settingsShown ? "shown" : "hidden")" }
 
     /// For the self-test: Escape on the About sheet, so the next choice of the item starts from no sheet.
     func dismissAbout() { model.shell.aboutInput(.escape) }
@@ -261,7 +279,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         let pages: [(String, () -> Void)] = [
             ("home", { self.model.shell.selection = .home }), ("sessions", { self.model.shell.selection = .sessions }),
             ("new session", { self.model.shell.selection = .newSession }), ("archive", { self.model.shell.selection = .archive }),
-            ("settings", { self.model.shell.selection = .settings }), ("carrier", { self.model.shell.selection = .carrier }),
+            ("carrier", { self.model.shell.selection = .carrier }),
             ("first session", { self.selectFirstSession() }),
         ]
         for (name, select) in pages {

@@ -16,6 +16,9 @@ public enum Selection: Hashable {
     case settings
 }
 
+/// The tabs of the Settings screen; the raw value is the title.
+public enum SettingsTab: String, CaseIterable { case engine = "Engine", behavior = "Behavior", repos = "Repos", notifications = "Notifications", health = "Health" }
+
 /// Which of the Sessions, Carrier and Archive sections is unfolded; the others are folded.
 public enum OpenSection: String { case sessions, carrier, archive }
 
@@ -61,6 +64,8 @@ public struct SearchRequest: Equatable {
     /// rest leave it. `chooseArchived` puts Archive back after choosing a session from its list.
     public var selection: Selection = .home {
         didSet {
+            // Settings opens on its first tab, unless something asked for another one (`openHealth`)
+            if selection != .settings { settingsTab = .engine }
             switch selection {
             case .sessions, .session, .newSession: open = .sessions
             case .carrier, .epic: open = .carrier
@@ -69,6 +74,8 @@ public struct SearchRequest: Equatable {
             }
         }
     }
+    /// The tab Settings shows.
+    public var settingsTab = SettingsTab.engine
     /// The unfolded section; nil when all are folded.
     public var open: OpenSection?
     public var sidebarShown = true
@@ -84,6 +91,12 @@ public struct SearchRequest: Equatable {
     public func chooseArchived(_ id: String) {
         selection = .session(id: id)
         open = .archive
+    }
+
+    /// A reason that points to the Health tab (a provider, `gh` or `git` that cannot be used) opens it.
+    public func openHealth() {
+        selection = .settings
+        settingsTab = .health
     }
 
     public func toggleSidebar() { sidebarShown.toggle() }

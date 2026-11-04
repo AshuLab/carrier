@@ -103,12 +103,18 @@ public func continueInTerminal(
     case .success(let valid): resume = valid
     case .failure(let rejection): throw ContinueError.rejected(rejection)
     }
+    return try openScript({ resumeScript(resume, path: $0) }, opener: opener, directory: directory)
+}
+
+/// Writes `script(path)` as a one-use file (mode 0700, unpredictable name, created exclusively) in `directory` and asks `opener` to open
+/// it; the file is deleted again if it cannot be opened. Shared by Continue in Terminal and the health fixes (`fixInTerminal`).
+func openScript(_ script: (String) -> String, opener: TerminalOpener, directory: String) throws -> URL {
     let path = (directory as NSString).appendingPathComponent("carrier-\(UUID().uuidString).command")
     let descriptorNumber = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o700)
     guard descriptorNumber >= 0 else { throw ContinueError.notWritten }
     let handle = FileHandle(fileDescriptor: descriptorNumber, closeOnDealloc: true)
     do {
-        try handle.write(contentsOf: Data(resumeScript(resume, path: path).utf8))
+        try handle.write(contentsOf: Data(script(path).utf8))
         try handle.close()
         // The mode asked at creation is subject to the umask; this one is not.
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: path)

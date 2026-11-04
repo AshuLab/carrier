@@ -38,7 +38,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SystemNotificationCentre.shared.attachDelegate()
         // the host starts when the app opens, once the settings are known; the self-test only checks what would run
         let underSelfTest = CommandLine.arguments.contains("--selftest")
-        SetupController.shared.detectIfFirstLaunch { if underSelfTest == false { ChatHostStarter.shared.checkAtOpen() } }
+        SetupController.shared.detectIfFirstLaunch {
+            guard underSelfTest == false else { return }
+            // once the host answers (or was just started), ask how the machine is
+            ChatHostStarter.shared.checkAtOpen { _ in Task { @MainActor in await AppHealth.store.check(.open) } }
+        }
 
         if CommandLine.arguments.contains("--smoke-window") {
             WindowController.shared.open()
@@ -106,6 +110,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) else { return }
         StartController.shared.start()
     }
+
+    /// Coming back from Terminal, where the person may have just logged in, asks again.
+    func applicationDidBecomeActive(_ notification: Notification) { Task { @MainActor in await AppHealth.store.check(.active) } }
 
     // A menu bar app keeps running with no windows.
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { false }

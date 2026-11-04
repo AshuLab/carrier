@@ -53,6 +53,9 @@ _Avoid_: shared root, root, Carrier home (that is the app's page of the Carrier 
 **Config level** - One of the three places a setting lives, by who reads it: the engine's `config.json`, the chat's `chat/chat.json` and the app's preferences (user defaults, read only by the app). A setting lives in one level and no process reads another's. The chat host starts with neither file; the engine needs its own.
 _Avoid_: settings file (there are two files and the preferences), global config.
 
+**Health check** - The app's answer to "is everything Carrier needs ready?", in the Health tab of Settings, in three layers: this Mac (`git`, `gh` and the logins of `claude`, `codex` and `gh`), Carrier itself (the `carrier` command, the chat host, the engine) and the engine's setup (the checks of `carrier doctor`, once there is a config). Each check is ready, missing, signed out or unknown, and what a failure breaks is switched off with its reason.
+_Avoid_: doctor (that is the command that validates an engine's config and is one layer of the health check), diagnostics, setup (that is the wizard that creates the config).
+
 **Control socket** - Local channel (a Unix socket, `engine/state/control.sock` in the Carrier folder) a running Carrier opens so another process can watch it and drive it: the snapshot and the agent's output come out, and pause, check now and stop go in. The macOS app is a client of it. See [0005](adr/0005-engine-independent-of-the-macos-app.md).
 _Avoid_: API, daemon, IPC.
 

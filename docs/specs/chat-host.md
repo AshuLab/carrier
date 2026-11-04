@@ -55,8 +55,11 @@ Text is redacted first and then cut, as in [0006](../adr/0006-agent-events-store
 { cmd: 'archive'; sessionId: string; archived: boolean }
 { cmd: 'delete'; sessionId: string }
 { cmd: 'events'; sessionId: string; after?: number; limit: number }   // limit 1..200
+{ cmd: 'health'; refresh?: boolean }                       // whether git, gh and each agent's CLI work; kept thirty seconds unless `refresh`
 { cmd: 'stop' }                                            // the host: close every session and exit
 ```
+
+The `health` reply is `{ git: ToolState; gh: ToolState; agents: { name: string; harness: string; state: ToolState }[] }` with `ToolState = 'ready' | 'missing' | 'signedOut' | 'unknown'`, and it carries nothing else: no email, organisation or token. `git` is never `signedOut`, and `agents` lists the agents the chat can start with, as `agents` does. The probes run in parallel with a limit of five seconds each, and one that times out, cannot start or prints something unreadable is `unknown`. `claude` and `codex` are read with the doctor's login probe, `gh` with the exit code of `gh auth status --hostname github.com`, and an agent with its own `command` is looked up by that command. When the `git` on the host's `PATH` is `/usr/bin/git`, which on a Mac without the Command Line Tools is a stub that opens the installer dialog, the probe runs `xcode-select -p` and never that `git`; any other `git` runs `--version`. A client checks that the hello lists `health` before asking.
 
 The `events` reply carries the events after the cursor, the new cursor, the session's summary, the `streaming` text, the pending approvals, the options with their values and the commands the session lists. There is no push channel: a client polls `events` by cursor, as the app polls the engine, and the terminal client polls every 200 ms. A push channel can be added later behind a capability without changing these requests.
 

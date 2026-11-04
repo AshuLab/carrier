@@ -156,6 +156,9 @@ public protocol ChatHost {
     /// One page (1 to 100) of the repositories the person's `gh` login can read, thirty at a time, newest push first. Refused in words
     /// (`gh` missing or signed out, no network, too slow). Gh can take seconds.
     func githubRepos(page: Int) async throws -> GithubReposPage
+    /// The state of `git`, `gh` and each chat agent on the host's machine; `refresh` skips the answer the host kept for thirty seconds.
+    /// Only for a host whose hello lists `health`.
+    func health(refresh: Bool) async throws -> HostHealth
     /// The events of a session after the cursor, at most `limit` (the host takes 1 to 200).
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents
     /// Opens a closed session's agent again; the host refuses a `send` to one that is not live.
@@ -189,6 +192,9 @@ extension ChatHost {
 
     /// A host that cannot list an agent's options before a session says it lists none.
     public func agentOptions(_ agent: String) async throws -> AgentOffer { AgentOffer() }
+
+    /// A host that cannot say how the machine is refuses; the app only asks one that lists `health`.
+    public func health(refresh: Bool) async throws -> HostHealth { throw ControlError.remote("the chat host does not support health") }
 
     /// A host that knows no commands sends the text as it is.
     public func send(_ id: String, _ text: String, command: String?) async throws { try await send(id, text) }
@@ -292,6 +298,13 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"page\":\(page)"
         let path = socketPath()
         return try await Task.detached { try chatRequest(path, "githubRepos", requires: .githubRepos, fields: fields, timeout: 40) }.value
+    }
+
+    /// The probes of a request run in parallel with five seconds each, so the wait is longer than the 5 seconds of the other requests.
+    public func health(refresh: Bool) async throws -> HostHealth {
+        let fields = refresh ? ",\"refresh\":true" : ""
+        let path = socketPath()
+        return try await Task.detached { try chatRequest(path, "health", requires: .health, fields: fields, timeout: 15) }.value
     }
 
     public func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {

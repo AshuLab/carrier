@@ -2,17 +2,15 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// Settings as a screen of the main window: the readiness banner (only while something is missing or being looked for), four tabs.
+/// Settings as a screen of the main window: the readiness banner (only while something is missing or being looked for), five tabs.
 struct SettingsScreen: View {
     let state: ConnectionState?
     @ObservedObject var setup: SetupController = .shared
     @ObservedObject private var start = StartController.shared
-    @State private var tab = Tab.engine
+    @Binding var tab: SettingsTab
     /// the Engine tab's paths, opened by the person while everything is found; not remembered
     @State private var pathsOpen = false
     @AppStorage(startOnOpenKey) private var startOnOpen = false
-
-    enum Tab: String, CaseIterable { case engine = "Engine", behavior = "Behavior", repos = "Repos", notifications = "Notifications" }
 
     var body: some View {
         let model = engineTab(setup.settings, detecting: setup.detecting)
@@ -25,7 +23,7 @@ struct SettingsScreen: View {
                 if let message = setup.message {
                     Label(message, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
                 }
-                UnderlineTabs(items: Tab.allCases.map { UnderlineTabs.Item(id: $0, title: $0.rawValue) }, selection: $tab)
+                UnderlineTabs(items: SettingsTab.allCases.map { UnderlineTabs.Item(id: $0, title: $0.rawValue) }, selection: $tab)
                 if tab == .engine {
                     if enginePathsShown(model.banner, opened: pathsOpen) {
                         if let notConfigured {
@@ -67,8 +65,10 @@ struct SettingsScreen: View {
                     BehaviorTabView(state: state)
                 } else if tab == .repos {
                     ReposTabView(state: state)
-                } else {
+                } else if tab == .notifications {
                     NotificationsTabView()
+                } else {
+                    HealthTabView(state: state)
                 }
             }
             .padding(18)

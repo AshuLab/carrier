@@ -12,6 +12,7 @@ import { createProjects, ghLogin, ghRepos, ghToken, type GithubRepos } from './p
 import { openChatDatabase } from './db.ts';
 import { idleExit } from './idle.ts';
 import { startChatServer } from './server.ts';
+import { realProbes, type HealthProbes } from './health.ts';
 import { binaryFound, createSessions, type ChatSessionsDeps } from './sessions.ts';
 import { realProcesses, sweepDeadHost, type Processes } from './sweep.ts';
 
@@ -37,6 +38,7 @@ export interface ChatHostDeps {
   /** The person's GitHub repositories and login, for the list. */
   github: GithubRepos;
   binaryFound: ChatSessionsDeps['binaryFound'];
+  probes: HealthProbes;
   /** The process table and the kill the start-up sweep uses. */
   processes: Processes;
 }
@@ -46,7 +48,7 @@ const realGithub = ({ githubCallTimeoutSeconds }: ChatSettings): GithubRepos => 
   login: () => ghLogin(githubCallTimeoutSeconds * 1000),
 });
 
-const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub(settings), binaryFound, processes: realProcesses });
+const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub(settings), binaryFound, probes: realProbes, processes: realProcesses });
 
 /**
  * Runs the chat host from the Carrier folder alone (`CARRIER_HOME`, else `~/.carrier`): its own lock, database and socket under
@@ -69,7 +71,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   await sweepDeadHost(db, deps.processes); // the lock is ours, so any recorded process belongs to a host that died
   let closeServer = () => {};
   let idle: ReturnType<typeof idleExit> | undefined;
-  const sessions = createSessions({ db, agents: settings.agents, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, binaryFound: deps.binaryFound, onLiveChange: () => idle?.recheck() });
+  const sessions = createSessions({ db, agents: settings.agents, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, binaryFound: deps.binaryFound, probes: deps.probes, onLiveChange: () => idle?.recheck() });
   const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github });
   const close = () => {
     idle?.stop();

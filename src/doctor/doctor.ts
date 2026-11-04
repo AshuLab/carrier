@@ -113,8 +113,9 @@ export function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | und
       try {
         resolve((JSON.parse(out) as { loggedIn?: unknown }).loggedIn === true);
       } catch {
-        log.warn('could not read the output of claude auth status'); // the parse error carries the start of the output: only this fixed text is logged
-        resolve(false);
+        // the parse error carries the start of the output: only this fixed text is logged and thrown
+        log.warn('could not read the output of claude auth status');
+        reject(new Error('could not read the output of claude auth status'));
       }
     });
   });

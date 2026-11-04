@@ -7,6 +7,8 @@ import SwiftUI
 /// the lists); choosing a workspace closes the sheet.
 struct WorkspaceSheet: View {
     @Bindable var model: NewSessionModel
+    /// Opens the Health tab of Settings.
+    let openHealth: () -> Void
     @Environment(\.dismiss) private var dismiss
     @FocusState private var focused: Field?
     @State private var visibility = Visibility.all
@@ -49,10 +51,10 @@ struct WorkspaceSheet: View {
             .padding(.horizontal, 8).padding(.bottom, 14)
             railRow("Recent", "Folders you used lately", "clock", selected: model.step == .menu) { model.show(.menu) }
             if model.sources.contains(.githubURL) {
-                railRow("From a GitHub URL", "Clone owner/repo", "link", selected: model.step == .url) { model.show(.url) }
+                railRow("From a GitHub URL", model.sourceReason(.githubURL) ?? "Clone owner/repo", "link", selected: model.step == .url, off: model.sourceReason(.githubURL) != nil) { model.show(.url) }
             }
             if model.sources.contains(.githubRepos) {
-                railRow("My repositories", "Browse yours and clone one", "list.bullet", selected: model.step == .repos) { Task { await model.showRepos() } }
+                railRow("My repositories", model.sourceReason(.githubRepos) ?? "Browse yours and clone one", "list.bullet", selected: model.step == .repos, off: model.sourceReason(.githubRepos) != nil) { Task { await model.showRepos() } }
             }
             if model.sources.contains(.newProject) {
                 railRow("New project", "Start from an empty folder", "folder.badge.gearshape", selected: model.step == .project) { model.show(.project) }
@@ -61,13 +63,23 @@ struct WorkspaceSheet: View {
                 Divider().padding(.vertical, 8)
                 railRow("Open a folder…", "Any folder on this Mac", "folder.badge.plus", selected: false, action: openFolder)
             }
+            if let gh = model.ghState {
+                HealthFixButton(tool: .gh, state: gh).padding(.horizontal, 8).padding(.top, 8)
+                if gh.blocks {
+                    Button("Open Health in Settings") {
+                        dismiss()
+                        openHealth()
+                    }
+                    .buttonStyle(.link).font(.callout).padding(.horizontal, 8).padding(.top, 4)
+                }
+            }
             Spacer(minLength: 0)
         }
         .padding(14).frame(width: 250)
         .background(Color.secondary.opacity(0.06))
     }
 
-    private func railRow(_ title: String, _ detail: String, _ icon: String, selected: Bool, action: @escaping () -> Void) -> some View {
+    private func railRow(_ title: String, _ detail: String, _ icon: String, selected: Bool, off: Bool = false, action: @escaping () -> Void) -> some View {
         HoverRow(action: action, fill: selected ? Color.accentColor.opacity(0.22) : nil) { _ in
             HStack(spacing: 10) {
                 Image(systemName: icon)
@@ -76,13 +88,13 @@ struct WorkspaceSheet: View {
                     .background(RoundedRectangle(cornerRadius: radius).fill(selected ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12)))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).fontWeight(.medium)
-                    Text(detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                    Text(detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(off ? 2 : 1)
                 }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 8).padding(.vertical, 6)
         }
-        .disabled(model.cloning != nil || model.creating)
+        .disabled(off || model.cloning != nil || model.creating)
     }
 
     // MARK: Footer

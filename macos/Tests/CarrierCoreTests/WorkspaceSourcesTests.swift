@@ -76,3 +76,18 @@ import Testing
     try FileManager.default.createSymbolicLink(atPath: base + "/alias", withDestinationPath: base + "/carrier/engine/worktrees")
     #expect(projectsFolderRefusal(base + "/alias", carrierFolder: base + "/carrier") != nil)
 }
+
+@Test func withGhMissingOrSignedOutOnlyTheSourcesThatNeedItAreOffAndSayWhy() {
+    let needGh: [WorkspaceSource] = [.githubURL, .githubRepos]
+    let noGh: [WorkspaceSource] = [.localFolder, .newProject]
+    for gh in [ToolState.missing, .signedOut] {
+        for source in needGh { #expect(workspaceSourceReason(source, gh: gh) != nil, "\(source) \(gh)") }
+        for source in noGh { #expect(workspaceSourceReason(source, gh: gh) == nil, "\(source) \(gh)") }
+    }
+    #expect(workspaceSourceReason(.githubURL, gh: .missing)?.contains("not installed") == true)
+    #expect(workspaceSourceReason(.githubRepos, gh: .signedOut)?.contains("signed out") == true)
+    // ready, unknown and a host that did not report the health leave every source on
+    for gh in [ToolState.ready, .unknown, nil] {
+        for source in needGh + noGh { #expect(workspaceSourceReason(source, gh: gh) == nil, "\(source) \(String(describing: gh))") }
+    }
+}

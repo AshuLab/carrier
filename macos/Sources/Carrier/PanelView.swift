@@ -110,13 +110,13 @@ struct PanelView: View {
                             .id("\(epic.subject.repo)#\(epic.subject.issue)")
                     } else if shell.selection == .settings {
                         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
-                        SettingsScreen(state: model.state)
+                        SettingsScreen(state: model.state, tab: $shell.settingsTab)
                     } else if shell.selection == .sessions {
                         SessionsHomeView(sessions: model.sessions, sort: sessionSort, newSession: { shell.selection = .newSession }) { shell.selection = .session(id: $0) }
                     } else if shell.selection == .archive {
                         ArchiveView(rows: model.sessions.rows, sort: archiveSort) { shell.selection = .session(id: $0) }
                     } else if shell.selection == .newSession {
-                        NewSessionView(model: model.newSession) { shell.selection = .session(id: $0) }
+                        NewSessionView(model: model.newSession, openHealth: shell.openHealth) { shell.selection = .session(id: $0) }
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
                     } else if case .session(let id) = shell.selection {

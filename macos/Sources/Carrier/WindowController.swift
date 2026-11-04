@@ -19,7 +19,7 @@ import SwiftUI
     /// The draft of a new session; it starts the chat host when it is not running (#503) before it opens the session.
     // built on the main thread, where the app creates its window
     let newSession = MainActor.assumeIsolated {
-        NewSessionModel(host: SocketChatHost()) {
+        NewSessionModel(host: SocketChatHost(), health: AppHealth.store) {
             await withCheckedContinuation { continuation in ChatHostStarter.shared.ensureRunning { continuation.resume(returning: $0) } }
         }
     }

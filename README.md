@@ -139,7 +139,7 @@ Check a config (yours or a hand-written one) at any time:
 carrier doctor
 ```
 
-It verifies the tools are installed, that the author and the reviewer really are different identities (under separate identities), that each identity can get a token for each repo, and that the orchestrator can read it. `carrier schema` prints the JSON Schema of the config for your editor.
+It verifies the tools are installed, that the author and the reviewer really are different identities (under separate identities), that each identity can get a token for each repo, and that the orchestrator can read it. `carrier schema` prints the JSON Schema of the config for your editor. `carrier doctor --json` prints the checks as a JSON array (`{ name, status, detail?, fix? }`, `status` `ok`, `warn` or `fail`) and nothing else, with the same exit code (1 when any fails); the macOS app's Health tab reads it.
 
 #### The file, by hand
 

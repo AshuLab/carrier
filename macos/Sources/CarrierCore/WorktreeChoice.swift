@@ -83,9 +83,11 @@ public func defaultStartBranch(_ info: WorkspaceInfo) -> String? {
 
 /// What the sentence says: "Work in web on the base folder (main)", or in a new worktree, or why it cannot be one. `workspace` is nil
 /// while the host has not said what the folder is; `worktree` is the chosen name and branch ("…" while the branch is not chosen).
-public func workSentence(folder: String?, workspace: WorkspaceInfo? = nil, worktree: (name: String, from: String?)? = nil) -> String {
+/// `gitMissing` (the health says so) says why there is no branch and no worktree, whatever the host could read of the folder.
+public func workSentence(folder: String?, workspace: WorkspaceInfo? = nil, worktree: (name: String, from: String?)? = nil, gitMissing: Bool = false) -> String {
     guard let folder else { return "Work in Choose a workspace… on the base folder" }
     let name = URL(fileURLWithPath: folder).lastPathComponent
+    guard gitMissing == false else { return "Work in \(name) in the folder (\(gitMissingReason))" }
     guard let workspace else { return "Work in \(name) on the base folder" }
     guard workspace.git else { return "Work in \(name) in the folder (not a git repository: no worktree)" }
     guard workspace.bare == false else { return "Work in \(name) in the folder (bare repository: no worktree)" }
@@ -93,6 +95,9 @@ public func workSentence(folder: String?, workspace: WorkspaceInfo? = nil, workt
     if let worktree { return "Work in \(name) in a new worktree \(worktreeBranchPrefix)\(worktree.name) from \(worktree.from ?? "…")" }
     return "Work in \(name) on the base folder (\(workspace.branch ?? "detached HEAD"))"
 }
+
+/// Why there is no New worktree and no branch to show while `git` is missing; the reason points to the Health tab.
+public let gitMissingReason = "git is missing: no worktree, no branch. See Health in Settings"
 
 /// The line under the sentence when the base folder has uncommitted changes: how many, and that a worktree keeps them out of the agent's way.
 public func uncommittedWarning(_ workspace: WorkspaceInfo) -> String? {

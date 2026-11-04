@@ -89,7 +89,7 @@ struct SettingsSheet: View {
             }
             switch tab {
             case .engine: engine(model, notConfigured: notConfigured)
-            case .behavior: BehaviorTabView(state: state)
+            case .behavior: BehaviorTabView()
             case .repos: ReposTabView(state: state)
             case .notifications: NotificationsTabView()
             case .health: HealthTabView(state: state)

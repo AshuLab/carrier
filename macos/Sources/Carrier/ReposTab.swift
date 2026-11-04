@@ -3,13 +3,11 @@ import CarrierCore
 import SwiftUI
 
 /// The Repos tab: which repos Carrier watches (the `repos` of `config.json`, CarrierCore/RepoList.swift), each with how its last
-/// check went. Add from the gh login's list, stop watching with a question first. Saved like the Behavior tab: the engine reads
-/// the file when it starts, so with Carrier running "Save and restart" also restarts it.
+/// check went. Add from the gh login's list, stop watching with a question first. Saved like the Behavior tab: every change is written
+/// as it is made, and nothing restarts Carrier, which reads the file when it starts.
 struct ReposTabView: View {
     let state: ConnectionState?
     @ObservedObject private var start = StartController.shared
-    @ObservedObject private var setup = SetupController.shared
-    @AppStorage(confirmStopKey) private var asksBeforeStop = true
     @State private var saved: [String] = []
     @State private var draft: [String] = []
     @State private var unreadable = false
@@ -17,8 +15,6 @@ struct ReposTabView: View {
     @State private var note: String?
     /// the repo whose ✕ was pressed
     @State private var removing: String?
-    @State private var confirmingRestart = false
-    @State private var restarting = false
     @State private var adding = false
 
     private var path: String { configFilePath() }
@@ -31,15 +27,12 @@ struct ReposTabView: View {
     }
 
     var body: some View {
-        let dirty = draft != saved
         let problem = reposProblem(draft)
-        let footer = behaviorFooter(state: state, dirty: dirty, valid: problem == nil, startMissing: startMissing(setup.settings), noun: "list")
         VStack(alignment: .leading, spacing: 12) {
             if unreadable {
                 Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange)
             }
-            if let note { SavedNote(text: note) }
             if draft.isEmpty == false {
                 SettingsTabCard {
                     ForEach(Array(repoRows(draft: draft, saved: saved, snapshot: snapshot).enumerated()), id: \.element.id) { index, row in
@@ -48,25 +41,18 @@ struct ReposTabView: View {
                 }
             }
             if let problem, unreadable == false { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
-            if confirmingRestart, let warning = restartWarning(epics: snapshot?.runningEpics ?? 0, asks: asksBeforeStop) {
-                ConfirmationCard(text: warning, confirm: "Restart and interrupt", cancel: { confirmingRestart = false }) { confirmingRestart = false; saveAndRestart() }
-            }
             HStack(spacing: 8) {
                 Button("＋ Add repo…") { adding = true }.disabled(unreadable)
-                Spacer()
-                if restarting || start.starting { ProgressView().controlSize(.small) }
-                Button("Revert") { draft = saved; removing = nil }.disabled(dirty == false || restarting)
-                if footer.offersRestart {
-                    Button("Save only") { if write() { note = "Saved. Carrier keeps the old list until it restarts." } }
-                        .disabled(footer.canSave == false || restarting)
-                    Button("Save and restart") { restartPressed() }
-                        .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(footer.canRestart == false || restarting).help(footer.message)
+                Spacer(minLength: 8)
+                if let failure {
+                    Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+                } else if let note {
+                    Label(note, systemImage: "checkmark.circle.fill").font(.callout).foregroundStyle(.green)
                 } else {
-                    Button("Save") { if write() { note = "Saved. Carrier uses it the next time it starts." } }
-                        .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(footer.canSave == false)
+                    Text("Saved as you change it. Carrier reads this list when it starts.").font(.callout).foregroundStyle(.secondary)
                 }
             }
-            if let failure { Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
+            .padding(.horizontal, 4)
         }
         .buttonStyle(.glass).buttonBorderShape(.capsule)
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
@@ -75,7 +61,10 @@ struct ReposTabView: View {
         .onChange(of: start.configExists) { load() }
         // a file that is there but unreadable may be fixed in another app: look again when Carrier is back in front (only then, so no edit is lost)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if unreadable { load() } }
-        .onChange(of: draft) { note = nil }
+        .onChange(of: draft) {
+            note = nil
+            autosave()
+        }
         .alert(
             "Stop watching \(removing ?? "")?",
             isPresented: Binding(get: { removing.map { draft.contains($0) } ?? false }, set: { if $0 == false { removing = nil } })
@@ -130,19 +119,10 @@ struct ReposTabView: View {
         }
     }
 
-    /// Asks first only when it would interrupt epics (and the General switch is on).
-    private func restartPressed() {
-        if restartWarning(epics: snapshot?.runningEpics ?? 0, asks: asksBeforeStop) == nil { saveAndRestart() } else { confirmingRestart = true }
-    }
-
-    private func saveAndRestart() {
-        guard write() else { return }
-        restarting = true
-        StartController.shared.restart { ok in
-            restarting = false
-            if ok { note = "Carrier restarted with the new list" }
-            else { failure = "Saved, but Carrier did not come up again. See the alert or the start log in General." }
-        }
+    /// Writes the list as soon as it changes, when the engine would accept it.
+    private func autosave() {
+        guard unreadable == false, draft != saved, reposProblem(draft) == nil else { return }
+        if write() { note = "Saved" }
     }
 }
 

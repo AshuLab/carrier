@@ -8,40 +8,27 @@ private func store() -> SetupStore {
     return SetupStore(defaults: UserDefaults(suiteName: suite)!)
 }
 
-private let saved = SetupSettings(
-    carrier: "/old/carrier", node: "/old/node", path: "/old/bin"
-)
+private let saved = SetupSettings(node: "/old/node", path: "/old/bin")
 
-@MainActor @Test func detectAgainRunsTheDetectionAndTheRowsUpdate() async {
+@MainActor @Test func detectAgainRunsTheDetectionAndNodeAndThePathUpdate() async {
     let store = store()
     store.save(saved)
     let controller = SetupController(store: store, detector: {
-        Detection(carrier: "/new/carrier", node: "/new/node", path: "/new/bin:/usr/bin")
+        Detection(node: "/new/node", path: "/new/bin:/usr/bin")
     })
     await withCheckedContinuation { done in controller.detect { done.resume() } }
-    let tab = engineTab(controller.settings, detecting: controller.detecting, home: "/nobody")
-    #expect(tab.rows.first?.value == "/new/carrier")
-    #expect(tab.rows[1].value == "/new/node")
-    #expect(tab.banner.state == .ready)
-    #expect(store.load()?.carrier == "/new/carrier")
+    #expect(controller.settings == SetupSettings(node: "/new/node", path: "/new/bin:/usr/bin"))
+    #expect(store.load()?.node == "/new/node")
 }
 
-@MainActor @Test func detectAgainThatFindsNothingEmptiesTheToolsAndNamesThem() async {
+@MainActor @Test func aChosenCarrierIsStoredAndTrimmedWhenLookedUp() {
     let store = store()
-    store.save(saved)
-    let controller = SetupController(store: store, detector: { Detection() })
-    await withCheckedContinuation { done in controller.detect { done.resume() } }
-    #expect(engineTab(controller.settings, detecting: false).banner.title == "Start Carrier needs node and carrier")
-}
-
-@MainActor @Test func aChosenPathIsStoredAndTheBannerUpdates() {
-    let store = store()
-    store.save(SetupSettings(node: "/n/node", path: "/bin"))
     let controller = SetupController(store: store, detector: { nil })
-    #expect(engineTab(controller.settings, detecting: false).banner.title == "Start Carrier needs carrier")
-
-    controller.settings[.carrier] = "/chosen/carrier"
-
-    #expect(store.load()?.carrier == "/chosen/carrier")
-    #expect(engineTab(controller.settings, detecting: false).banner.state == .ready)
+    controller.carrierOverride = "  /chosen/main.ts "
+    #expect(store.carrierOverride == "  /chosen/main.ts ")
+    #expect(controller.carrier == "/chosen/main.ts")
+    // a script needs a node: none was found
+    #expect(controller.missing == ["node"])
+    controller.settings.node = "/n/node"
+    #expect(controller.missing.isEmpty)
 }

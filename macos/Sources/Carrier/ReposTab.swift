@@ -33,7 +33,7 @@ struct ReposTabView: View {
     var body: some View {
         let dirty = draft != saved
         let problem = reposProblem(draft)
-        let footer = behaviorFooter(state: state, dirty: dirty, valid: problem == nil, startMissing: startMissing(setup.settings), noun: "list")
+        let footer = behaviorFooter(state: state, dirty: dirty, valid: problem == nil, startMissing: setup.missing, noun: "list")
         VStack(alignment: .leading, spacing: 12) {
             if unreadable {
                 Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")

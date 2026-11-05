@@ -6,10 +6,10 @@ import Foundation
 /// How long the socket has to answer after the process starts.
 public let startTimeout: TimeInterval = 15
 
-/// What the shell spawns: `node <carrier> ...` with the engine's PATH and `CARRIER_HOME`, its output going to `logPath`. `processDir` is the
+/// What the shell spawns: `carrier ...` (or `node <carrier> ...` for a script) with the engine's PATH and `CARRIER_HOME`, its output going to `logPath`. `processDir` is the
 /// user-only folder the log's folder lives in (the engine's `engine/`, the chat host's `chat/`).
 public struct StartCommand: Equatable {
-    public let node: String
+    public let program: String
     public let arguments: [String]
     public let environment: [String: String]
     public let processDir: String
@@ -19,23 +19,25 @@ public struct StartCommand: Equatable {
     public var logsDir: String { (logPath as NSString).deletingLastPathComponent }
 }
 
-/// What the settings lack to start Carrier.
-public func startMissing(_ settings: SetupSettings) -> [String] {
-    [("node", settings.node), ("carrier", settings.carrier)].filter { $0.1.isEmpty }.map(\.0)
+/// What Carrier lacks to start: `carrier` itself, or the `node` a script needs.
+public func startMissing(_ settings: SetupSettings, carrier: String?) -> [String] {
+    guard let carrier else { return ["carrier"] }
+    return carrierNeedsNode(carrier) && settings.node.isEmpty ? ["node"] : []
 }
 
 /// nil when `startMissing` is not empty. The engine finds its config, logs and socket from `CARRIER_HOME`, which is set to the
 /// Carrier folder (the app's own environment's, else `~/.carrier`); the log and the socket are in the folder's `engine/`.
 /// `environment` is the app's own; its PATH is replaced.
-public func startCommand(settings: SetupSettings, environment: [String: String], home: String = NSHomeDirectory()) -> StartCommand? {
-    guard startMissing(settings).isEmpty else { return nil }
+public func startCommand(settings: SetupSettings, carrier: String?, environment: [String: String], home: String = NSHomeDirectory()) -> StartCommand? {
+    guard let carrier, startMissing(settings, carrier: carrier).isEmpty else { return nil }
     let folder = carrierFolder(environment: environment, home: home)
     var environment = environment
     environment["PATH"] = enginePath(detected: settings.path, node: settings.node)
     environment["CARRIER_HOME"] = folder
     let engine = engineFolder(environment: environment, home: home)
+    let run = carrierProgram(carrier: carrier, node: settings.node, arguments: [])
     return StartCommand(
-        node: settings.node, arguments: [settings.carrier], environment: environment,
+        program: run.program, arguments: run.arguments, environment: environment,
         processDir: engine, logPath: engine + "/logs/app-start.log", socketPath: controlSocketPath(environment: environment, home: home)
     )
 }

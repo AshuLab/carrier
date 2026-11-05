@@ -27,6 +27,8 @@ const valid = {
 // CARRIER_HOME keeps the tests away from the real ~/.carrier.
 let home = join(dir, 'carrier-home'); // each test that starts or reaches an engine gets its own
 const run = (...args: string[]) => spawnSync(process.execPath, [main, ...args], { cwd: dir, encoding: 'utf8', env: { ...process.env, CARRIER_HOME: home } });
+// These two run the real `init`, which ends in the doctor: it needs the agent CLIs, `agent-forge` and their logins on the machine. A CI runner has none of them.
+const hasInitTools = ['claude', 'codex', 'agent-forge'].every((tool) => spawnSync('which', [tool], { stdio: 'ignore' }).status === 0);
 const write = (name: string, content: unknown) => {
   const file = join(dir, name);
   writeFileSync(file, JSON.stringify(content));
@@ -142,14 +144,14 @@ test('an unknown command or flag exits 2 with the usage', () => {
   }
 });
 
-test('init without a terminal names the question a flag has to answer', () => {
+test.skipIf(!hasInitTools)('init without a terminal names the question a flag has to answer', () => {
   const result = run('init', '--yes', '--out', join(dir, 'never.json')); // cwd is not a git repo: no repo to suggest
   expect(result.status).toBe(1);
   expect(result.stderr).toContain('Repos to watch');
   expect(result.stderr).toContain('pass it as a flag');
 });
 
-test('init with --lead-reviewer flags forwards them and configures the lead reviewer', () => {
+test.skipIf(!hasInitTools)('init with --lead-reviewer flags forwards them and configures the lead reviewer', () => {
   const out = join(dir, 'init-lead.json');
   const result = run(
     'init',

@@ -13,7 +13,7 @@ import { openChatDatabase } from './db.ts';
 import { idleExit } from './idle.ts';
 import { startChatServer } from './server.ts';
 import { realProbes, type HealthProbes } from './health.ts';
-import { binaryFound, createSessions, type ChatSessionsDeps } from './sessions.ts';
+import { binaryFound, createSessions, type ChatSessionsDeps, type SessionAges } from './sessions.ts';
 import { realProcesses, sweepDeadHost, type Processes } from './sweep.ts';
 
 const HOUR_MS = 3_600_000;
@@ -73,7 +73,14 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   await sweepDeadHost(db, deps.processes); // the lock is ours, so any recorded process belongs to a host that died
   let closeServer = () => {};
   let idle: ReturnType<typeof idleExit> | undefined;
-  const sessions = createSessions({ db, agents: settings.agents, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, binaryFound: deps.binaryFound, probes: deps.probes, onLiveChange: () => idle?.recheck() });
+  // `list` says from the ages in chat.json, read fresh; a wrong file keeps the last ages that were good.
+  let ages: SessionAges = settings;
+  const currentAges = () => {
+    const current = readChatConfig();
+    if (current.ok) ages = current.settings;
+    return ages;
+  };
+  const sessions = createSessions({ db, agents: settings.agents, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, binaryFound: deps.binaryFound, probes: deps.probes, ages: currentAges, onLiveChange: () => idle?.recheck() });
   // The clock's pass, at start and every hour while the host runs; the ages are read from chat.json each time, and a wrong file skips the pass.
   let cancelPass = () => {};
   const clockPass = async () => {

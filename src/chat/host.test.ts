@@ -702,3 +702,25 @@ test('the host deletes at its start what is due for deletion, and again after an
   expect(await archivedIds()).toEqual([]);
   expect(sessionRows()).toEqual([]);
 });
+
+test('list says the delete date from the ages in chat.json, read at each request, and a wrong file keeps the last good ages', async () => {
+  const clock = new FakeClock();
+  const id = await leaveIdleSession(clock);
+  const config = (text: string) => writeFileSync(join(root, 'chat', 'chat.json'), text);
+  config('{"archiveAfterDays":1,"deleteAfterDays":40}');
+  clock.time = 2 * DAY;
+  await host(clock); // archives it at its start
+  const deleteAt = async () => {
+    const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+    const { sessions } = (await client.request('list', { archived: true })) as { sessions: { id: string; deleteAt: number | null }[] };
+    client.close();
+    return sessions.find((s) => s.id === id)!.deleteAt;
+  };
+  expect(await deleteAt()).toBe(40 * DAY);
+  config('{"archiveAfterDays":1,"deleteAfterDays":50}');
+  expect(await deleteAt()).toBe(50 * DAY);
+  config('{"archiveAfterDays":0}');
+  expect(await deleteAt()).toBe(50 * DAY);
+  config('{"archiveAfterDays":1,"deleteAfterDays":"never"}');
+  expect(await deleteAt()).toBeNull();
+});

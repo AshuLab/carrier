@@ -269,7 +269,7 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
   });
   afterEach(() => void vi.unstubAllEnvs());
 
-  const sessionsOf = () => createSessions({ db: openChatDatabase(join(home, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, binaryFound: () => true, onLiveChange: () => {} });
+  const sessionsOf = () => createSessions({ db: openChatDatabase(join(home, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
   const stateOf = (folder: string) => ({ head: git(folder, 'rev-parse', 'HEAD').trim(), status: git(folder, 'status', '--porcelain'), branches: git(folder, 'branch', '--format=%(refname:short)').split('\n').filter((line) => line.startsWith('carrier/') === false).join('\n') });
   /** A session in a worktree with an uncommitted change, an untracked file and one commit nobody else has. */
   async function session(name: string) {

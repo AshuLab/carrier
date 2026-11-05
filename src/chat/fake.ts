@@ -1,6 +1,8 @@
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { FakeClock } from '../orchestration/fake.ts';
 import type { Git, GitResult } from './git.ts';
+import { createProjects, type GithubRepos } from './projects.ts';
 import { ChatRefused, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 
 /**
@@ -116,10 +118,19 @@ export class FakeGit implements Git {
   worktreePending: Promise<void> | undefined;
   /** Commands that fail instead of answering, by their arguments joined with a space. */
   failures = new Map<string, Extract<GitResult, { ok: false }>>();
+  /** What a repository is when it has just been cloned, besides its origin: `head` and `branches` are `main` unless this says otherwise. */
+  cloned: Partial<FakeRepo> = {};
+  private progress: ((line: string) => void) | undefined;
 
-  async run(folder: string, args: string[], options?: { timeoutMs?: number; env?: NodeJS.ProcessEnv; signal?: AbortSignal }): Promise<GitResult> {
+  /** Plays a line of stderr of the clone that is running, as git writes it. */
+  emitProgress(...lines: string[]) {
+    for (const line of lines) this.progress?.(line);
+  }
+
+  async run(folder: string, args: string[], options?: { timeoutMs?: number; env?: NodeJS.ProcessEnv; signal?: AbortSignal; onProgress?: (line: string) => void }): Promise<GitResult> {
     this.calls.push({ folder, args, timeoutMs: options?.timeoutMs, env: options?.env });
     if (args[0] === 'clone') {
+      this.progress = options?.onProgress;
       // clone -- <url> <dest>: git makes the folder first; a failure or an abort leaves it half made
       const [url, dest] = args.slice(2) as [string, string];
       mkdirSync(dest, { recursive: true });
@@ -129,7 +140,7 @@ export class FakeGit implements Git {
       const failure = this.failures.get(args.join(' '));
       if (failure !== undefined) return failure;
       mkdirSync(join(dest, '.git'));
-      this.repos.set(dest, { origin: url, head: 'main', branches: ['main'] });
+      this.repos.set(dest, { head: 'main', branches: ['main'], ...structuredClone(this.cloned), origin: url });
       return { ok: true, out: '' };
     }
     if (args[0] === 'init') {
@@ -192,3 +203,7 @@ export class FakeGit implements Git {
     return { ok: false, code: 129, stderr: `the fake git does not know ${verb}` };
   }
 }
+
+/** What brings repositories onto the Mac, over a fake git and a fake `gh`: the token is `ghp_fake`, GitHub lists nothing and knows `main` and `feat/x` for any repository. */
+export const fakeProjects = (git: Git, clock = new FakeClock(), github: Partial<GithubRepos> = {}) =>
+  createProjects({ git, clock, token: async () => 'ghp_fake', github: { repos: async () => ({ repos: [], hasMore: false }), login: async () => 'me', branches: async () => ({ default: 'main', branches: ['main', 'feat/x'], hasMore: false }), ...github } });

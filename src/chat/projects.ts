@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/default-path.ts';
 import { listAvailableRepos, type AvailableRepo } from '../integrations/available-repos.ts';
+import type { Clock } from '../orchestration/clock.ts';
 import { repoNamePattern } from '../config/schema.ts';
 import { readChatConfig } from './config.ts';
 import { checkProjectsFolder } from './folder.ts';
@@ -59,6 +60,22 @@ export const ghLogin = (timeoutMs: number): Promise<string> =>
     },
   );
 
+export type RepoBranches = { default: string; branches: string[]; hasMore: boolean };
+
+const BRANCHES_PER_PAGE = 100;
+
+/** The default branch and the first hundred branches of a repository (`owner/name`, already checked against `repoNamePattern`) the person's `gh` login can read. */
+export async function ghBranches(repo: string, timeoutMs: number): Promise<RepoBranches> {
+  const gh = (args: string[]) => promisify(execFile)('gh', ['api', ...args], { encoding: 'utf8', timeout: timeoutMs });
+  try {
+    const [head, listed] = await Promise.all([gh([`repos/${repo}`, '--jq', '.default_branch']), gh([`repos/${repo}/branches?per_page=${BRANCHES_PER_PAGE}`, '--jq', '.[].name'])]);
+    const branches = listed.stdout.split('\n').filter((name) => name !== '');
+    return { default: head.stdout.trim(), branches, hasMore: branches.length === BRANCHES_PER_PAGE };
+  } catch (error) {
+    throw ghRefusal(error, 'branches');
+  }
+}
+
 // What git's stderr says, read here and never forwarded: it can hold a URL.
 const notVisible = /repository not found|not found|authentication failed|could not read username|error: 40[134]/i;
 const offline = /could not resolve host|failed to connect|connection (timed out|refused|reset)|network is unreachable|unable to access/i;
@@ -105,16 +122,19 @@ export async function createProject(git: Git, name: string): Promise<{ folder: s
 }
 
 /** What the host takes of GitHub as a dependency, so a test injects a fake. Both throw a `ChatRefused` in words. */
-export type GithubRepos = { repos: (page: number) => Promise<{ repos: AvailableRepo[]; hasMore: boolean }>; login: () => Promise<string> };
+export type GithubRepos = { repos: (page: number) => Promise<{ repos: AvailableRepo[]; hasMore: boolean }>; login: () => Promise<string>; branches: (repo: string) => Promise<RepoBranches> };
 
 type CloneReply = { folder: string; repo: string; fetched: boolean };
-type Job = { done: Promise<CloneReply>; waiters: number; abort: AbortController };
+type Job = { done: Promise<CloneReply>; mode: 'clone' | 'fetch'; waiters: number; abort: AbortController; listeners: Set<(line: string) => void>; latest?: string };
+
+// The only stderr lines of git that leave this file: its progress, as "Receiving objects: 45%". Anything else can hold a URL.
+const progressLine = /^(?:remote: )?((?:Counting|Compressing|Receiving|Resolving|Updating) [A-Za-z ]+: +\d+)%/;
 
 /**
  * Brings GitHub repositories into the projects folder with the person's own `gh` login (ADR 0015). The folder is read
  * from `chat.json` at each request, so a change applies to the next one.
  */
-export function createProjects({ git, token, github }: { git: Git; token: () => Promise<string>; github: GithubRepos }) {
+export function createProjects({ git, token, github, clock }: { git: Git; token: () => Promise<string>; github: GithubRepos; clock: Clock }) {
   const running = new Map<string, Job>();
 
   // Not in argv, in a file or in a log: git reads the header from its environment, as `git-workspaces.ts` does.
@@ -123,7 +143,7 @@ export function createProjects({ git, token, github }: { git: Git; token: () => 
     return { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'http.extraHeader', GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}` };
   };
 
-  async function fetchOrClone(repo: string, dest: string, signal: AbortSignal): Promise<CloneReply> {
+  async function fetchOrClone(repo: string, dest: string, signal: AbortSignal, onProgress: (line: string) => void): Promise<CloneReply> {
     if (existsSync(dest)) {
       const origin = existsSync(join(dest, '.git')) ? await git.run(dest, ['config', '--get', 'remote.origin.url']) : undefined;
       const found = origin?.ok === true ? parseOrigin(origin.out) : null;
@@ -140,7 +160,7 @@ export function createProjects({ git, token, github }: { git: Git; token: () => 
       throw new ChatRefused(`${dest} is already there and is not a clone of ${repo}; it was left as it is`);
     }
     try {
-      const cloned = await git.run(dirname(dest), ['clone', '--', `https://github.com/${repo}.git`, dest], { timeoutMs: GIT_TIMEOUT_MS, env, signal });
+      const cloned = await git.run(dirname(dest), ['clone', '--', `https://github.com/${repo}.git`, dest], { timeoutMs: GIT_TIMEOUT_MS, env, signal, onProgress });
       if (cloned.ok === false) throw refusal(cloned, 'clone', repo);
     } catch (error) {
       await rm(dest, { recursive: true, force: true });
@@ -149,7 +169,27 @@ export function createProjects({ git, token, github }: { git: Git; token: () => 
     return { folder: dest, repo, fetched: false };
   }
 
+  /** `<projects folder>/<owner>/<name>`, where `repo` is or would be cloned. */
+  const repoFolder = (repo: string): string => {
+    if (repoNamePattern.test(repo) === false) throw new ChatRefused(`"${repo}" is not a repository; write it as owner/name`);
+    return projectsFolder(repo);
+  };
+
   return {
+    repoFolder,
+
+    /** What bringing `repo` is: `fetch` when it is already in the projects folder, `clone` when it is not, or what the one in progress is doing (a clone being made is not yet a repository to fetch). */
+    stepOf(repo: string): 'clone' | 'fetch' {
+      const dest = repoFolder(repo);
+      return running.get(dest.toLowerCase())?.mode ?? (existsSync(dest) ? 'fetch' : 'clone');
+    },
+
+    /** The default branch and the branches of a repository that need not be on disk, read from GitHub with the person's login. */
+    repoBranches({ repo }: { repo: string }): Promise<RepoBranches> {
+      if (repoNamePattern.test(repo) === false) throw new ChatRefused(`"${repo}" is not a repository; write it as owner/name`);
+      return github.branches(repo);
+    },
+
     /** A page of the repositories the person's login can read; page 1 also says the login. */
     async githubRepos({ page }: { page: number }): Promise<{ repos: AvailableRepo[]; hasMore: boolean; login?: string }> {
       if (page > 1) return github.repos(page);
@@ -160,35 +200,57 @@ export function createProjects({ git, token, github }: { git: Git; token: () => 
     /** Makes `<projects folder>/local/<name>` and runs `git init -b main` in it (the `createProject` request, for apps older than the plan). */
     createProject: ({ name }: { name: string }) => createProject(git, name),
 
-    /** Clones `repo` to `<projects folder>/<owner>/<name>`, or fetches it when it is already there. `signal` is the client's connection: when it closes, git is aborted and a destination this request made is removed. */
-    async cloneRepo({ repo }: { repo: string }, signal: AbortSignal): Promise<CloneReply> {
-      if (repoNamePattern.test(repo) === false) throw new ChatRefused(`"${repo}" is not a repository; write it as owner/name`);
-      const dest = projectsFolder(repo);
+    /**
+     * Clones `repo` to `<projects folder>/<owner>/<name>`, or fetches it when it is already there. `signal` is the waiter's: when it aborts, this waiter
+     * leaves, and git is aborted and a destination this request made is removed once nobody waits for it. `onProgress` gets git's progress lines of a
+     * clone ("Receiving objects: 45%"), at most one a second and no other line of git's.
+     */
+    async cloneRepo({ repo }: { repo: string }, signal: AbortSignal, onProgress?: (line: string) => void): Promise<CloneReply> {
+      const dest = repoFolder(repo);
       const key = dest.toLowerCase();
       // a clone being aborted finishes first, so a new one never meets its leftovers
       for (let old = running.get(key); old?.abort.signal.aborted === true; old = running.get(key)) await old.done.catch(() => {});
       let job = running.get(key);
       if (job === undefined) {
         const abort = new AbortController();
-        const started: Job = { done: fetchOrClone(repo, dest, abort.signal), waiters: 0, abort };
+        const listeners = new Set<(line: string) => void>();
+        let last = -Infinity;
+        const report = (raw: string) => {
+          const found = progressLine.exec(raw.trim());
+          if (found === null || clock.now() - last < 1000) return;
+          last = clock.now();
+          const line = `${found[1]!.replace(/ +/g, ' ')}%`;
+          started.latest = line;
+          for (const listener of listeners) listener(line);
+        };
+        const started: Job = { done: fetchOrClone(repo, dest, abort.signal, report), mode: existsSync(dest) ? 'fetch' : 'clone', waiters: 0, abort, listeners };
         const forget = () => void (running.get(key) === started && running.delete(key));
         started.done.then(forget, forget);
         running.set(key, (job = started));
       }
       const joined = job;
       joined.waiters++;
+      if (onProgress !== undefined) {
+        joined.listeners.add(onProgress);
+        if (joined.latest !== undefined) onProgress(joined.latest);
+      }
       return new Promise<CloneReply>((resolve, reject) => {
-        // the clone stops when nobody waits for it any more
-        const leave = () => {
-          if (--joined.waiters === 0) joined.abort.abort();
+        // the clone stops when nobody waits for it any more, and the last one to leave hears of it once the half clone is removed
+        const leave = async () => {
+          if (onProgress !== undefined) joined.listeners.delete(onProgress);
+          if (--joined.waiters === 0) {
+            joined.abort.abort();
+            await joined.done.catch(() => {});
+          }
           reject(new ChatRefused('The clone was cancelled'));
         };
         if (signal.aborted) return leave();
         signal.addEventListener('abort', leave, { once: true });
-        const settled = () => signal.removeEventListener('abort', leave);
+        const settled = () => (signal.removeEventListener('abort', leave), onProgress !== undefined && joined.listeners.delete(onProgress));
+        // a waiter that has left is answered by `leave`
         joined.done.then(
-          (reply) => (settled(), resolve(reply)),
-          (error) => (settled(), reject(error)),
+          (reply) => (settled(), signal.aborted || resolve(reply)),
+          (error) => (settled(), signal.aborted || reject(error)),
         );
       });
     },

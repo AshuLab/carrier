@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FakeClock } from '../orchestration/fake.ts';
-import { FakeGit } from './fake.ts';
+import { FakeGit, fakeProjects } from './fake.ts';
 import { codexChatRunner, realCodexDeps, type CodexChatDeps, type CodexTransport } from './codex.ts';
 import { openChatDatabase } from './db.ts';
 import { endGroup } from './group.ts';
@@ -307,7 +307,7 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 test('the host stores the transcript of the replayed conversation and the native thread id', async () => {
   const db = openChatDatabase(join(dir, 'chat.db'));
   const runner = codexChatRunner(deps(replay(main).transport));
-  const sessions = createSessions({ db, agents: [{ name: 'claude', harness: 'claude' }, { name: 'codex', harness: 'codex' }], clock: new FakeClock(), runners: { codex: runner }, env: {}, git: new FakeGit(), binaryFound: () => true, onLiveChange: () => {} });
+  const sessions = createSessions({ db, agents: [{ name: 'claude', harness: 'claude' }, { name: 'codex', harness: 'codex' }], clock: new FakeClock(), runners: { codex: runner }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, onLiveChange: () => {} });
   const { session } = await sessions.open({ agent: 'codex', folder: join(dir, 'work') });
   for (const text of mainTexts.slice(0, 2)) {
     sessions.send({ sessionId: session.id, text });

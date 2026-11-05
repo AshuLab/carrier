@@ -133,7 +133,7 @@ struct BranchSheet: View {
         HStack(spacing: 8) {
             Image(systemName: "plus.circle").foregroundStyle(.secondary).accessibilityHidden(true)
             Text("New branch").font(.subheadline).foregroundStyle(.secondary)
-            Text("\(worktreeBranchPrefix)\(model.worktreeName)").font(.subheadline.monospaced()).lineLimit(1).truncationMode(.middle)
+            Text(model.worktreeName.isEmpty ? "\(worktreeBranchPrefix)<generated when sent>" : "\(worktreeBranchPrefix)\(model.worktreeName)").font(.subheadline.monospaced()).lineLimit(1).truncationMode(.middle)
             Image(systemName: "arrow.left").font(.caption).foregroundStyle(.secondary).accessibilityLabel("from")
             Text(model.startBranch ?? "…").font(.subheadline.monospaced().weight(.semibold)).lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 0)
@@ -142,7 +142,21 @@ struct BranchSheet: View {
         .padding(.horizontal, 16).padding(.bottom, 16)
     }
 
-    private func footer(_ picker: BranchPicker?) -> some View {
+    @ViewBuilder private func footer(_ picker: BranchPicker?) -> some View {
+        if model.toClone {
+            HStack(spacing: 10) {
+                Image(systemName: "icloud").foregroundStyle(.secondary).accessibilityHidden(true)
+                Text("Branches as GitHub lists them now. The repository is cloned when the message is sent.").font(.subheadline)
+                Spacer(minLength: 16)
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+            }
+            .padding(.horizontal, 20).padding(.vertical, 12)
+        } else {
+            fetchFooter(picker)
+        }
+    }
+
+    private func fetchFooter(_ picker: BranchPicker?) -> some View {
         let at = model.workspace?.fetchedAt
         let stale = at.map { Date().timeIntervalSince1970 - Double($0) / 1000 > staleAfter } ?? true
         return VStack(alignment: .leading, spacing: 8) {

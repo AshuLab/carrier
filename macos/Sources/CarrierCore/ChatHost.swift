@@ -126,6 +126,22 @@ public struct GithubReposPage: Decodable, Equatable {
     }
 }
 
+/// The reply of `repoBranches`: the default branch of a repository that need not be on disk and its branches (the first hundred, as GitHub lists
+/// them), and whether there are more.
+public struct RepoBranches: Decodable, Equatable {
+    public let defaultBranch: String
+    public let branches: [String]
+    public let hasMore: Bool
+
+    public init(defaultBranch: String, branches: [String], hasMore: Bool = false) {
+        self.defaultBranch = defaultBranch
+        self.branches = branches
+        self.hasMore = hasMore
+    }
+
+    private enum CodingKeys: String, CodingKey { case defaultBranch = "default", branches, hasMore }
+}
+
 /// What the app needs from the chat host's socket; the real one speaks to the socket, tests use a fake.
 public protocol ChatHost {
     func agents() async throws -> [ChatAgent]
@@ -163,6 +179,9 @@ public protocol ChatHost {
     /// One page (1 to 100) of the repositories the person's `gh` login can read, thirty at a time, newest push first. Refused in words
     /// (`gh` missing or signed out, no network, too slow). Gh can take seconds.
     func githubRepos(page: Int) async throws -> GithubReposPage
+    /// The default branch and the branches of `owner/repo`, read from GitHub with the person's `gh` login: the repository need not be on this
+    /// Mac. Refused in words (`gh` missing or signed out, no network, not found or not visible, too slow). Only for a host whose hello lists `repoBranches`.
+    func repoBranches(_ repo: String) async throws -> RepoBranches
     /// The state of `git`, `gh` and each chat agent on the host's machine; `refresh` skips the answer the host kept for thirty seconds.
     /// Only for a host whose hello lists `health`.
     func health(refresh: Bool) async throws -> HostHealth
@@ -200,6 +219,9 @@ extension ChatHost {
 
     /// A host that cannot list an agent's options before a session says it lists none.
     public func agentOptions(_ agent: String) async throws -> AgentOffer { AgentOffer() }
+
+    /// A host that cannot list the branches of a repository refuses; the app only asks one that lists `repoBranches`.
+    public func repoBranches(_ repo: String) async throws -> RepoBranches { throw ControlError.remote("the chat host does not support repoBranches") }
 
     /// A host that cannot say how the machine is refuses; the app only asks one that lists `health`.
     public func health(refresh: Bool) async throws -> HostHealth { throw ControlError.remote("the chat host does not support health") }
@@ -314,6 +336,13 @@ public struct SocketChatHost: ChatHost {
         return try await Task.detached { try chatRequest(path, "githubRepos", requires: .githubRepos, fields: fields, timeout: 40) }.value
     }
 
+    /// Both of the host's `gh` calls have its 30 seconds, so the wait for the reply is longer than the 5 seconds of the other requests.
+    public func repoBranches(_ repo: String) async throws -> RepoBranches {
+        let fields = ",\"repo\":\(jsonString(repo))"
+        let path = socketPath()
+        return try await Task.detached { try chatRequest(path, "repoBranches", requires: .repoBranches, fields: fields, timeout: 40) }.value
+    }
+
     /// The probes of a request run in parallel with five seconds each, so the wait is longer than the 5 seconds of the other requests.
     public func health(refresh: Bool) async throws -> HostHealth {
         let fields = refresh ? ",\"refresh\":true" : ""
@@ -401,9 +430,11 @@ private func wireId(_ id: String) throws -> String {
 private func jsonString(_ text: String) -> String { String(decoding: (try? JSONEncoder().encode(text)) ?? Data("\"\"".utf8), as: UTF8.self) }
 
 /// The reply of `open`: only the new session's id is read.
-/// Where a plan works: a folder that exists, or a new project of this name (the host makes `<projects folder>/local/<name>` when the message is sent).
+/// Where a plan works: a folder that exists, a repository `owner/name` (the host clones it into its projects folder when the message is sent, or
+/// fetches it when it is there already), or a new project of this name (the host makes `<projects folder>/local/<name>` when the message is sent).
 public enum PlanWorkspace: Equatable {
     case folder(String)
+    case repo(String)
     case project(String)
 }
 
@@ -418,7 +449,7 @@ public struct SessionPlan: Equatable {
     public let options: [String: String]
     public let text: String
 
-    /// The folder of a plan for a folder; nil for a new project.
+    /// The folder of a plan for a folder; nil for a repository or a new project.
     public var folder: String? {
         if case .folder(let path) = workspace { return path }
         return nil
@@ -441,6 +472,7 @@ public struct SessionPlan: Equatable {
     var wire: String {
         let place = switch workspace {
         case .folder(let path): "{\"kind\":\"folder\",\"folder\":\(jsonString(path))}"
+        case .repo(let name): "{\"kind\":\"repo\",\"repo\":\(jsonString(name))}"
         case .project(let name): "{\"kind\":\"project\",\"name\":\(jsonString(name))}"
         }
         var fields = [
@@ -479,12 +511,13 @@ private struct OpenedReply: Decodable {
     let session: Session
 }
 
-/// The reply of `cancelPreparation`: the plan as the host stored it. Only a plan for a folder or a new project exists yet.
+/// The reply of `cancelPreparation`: the plan as the host stored it.
 private struct CancelledReply: Decodable {
     struct Stored: Decodable {
         struct Workspace: Decodable {
             let kind: String
             let folder: String?
+            let repo: String?
             let name: String?
         }
         struct Worktree: Decodable { let name: String? }
@@ -499,9 +532,10 @@ private struct CancelledReply: Decodable {
         var plan: SessionPlan {
             get throws {
                 let place: PlanWorkspace
-                switch (workspace.kind, workspace.folder, workspace.name) {
-                case ("folder", let folder?, _): place = .folder(folder)
-                case ("project", _, let name?): place = .project(name)
+                switch (workspace.kind, workspace.folder, workspace.repo, workspace.name) {
+                case ("folder", let folder?, _, _): place = .folder(folder)
+                case ("repo", _, let repo?, _): place = .repo(repo)
+                case ("project", _, _, let name?): place = .project(name)
                 default: throw ControlError.badLine
                 }
                 let cut = worktree.flatMap { wanted in branch.map { WorktreeRequest(from: $0, name: wanted.name) } }

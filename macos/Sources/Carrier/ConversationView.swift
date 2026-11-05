@@ -42,6 +42,9 @@ struct ConversationView: View {
                         })
                         .transition(.opacity)
                     }
+                    if let note = draft?.watchNotes[model.sessionId] {
+                        Label(note.text, systemImage: note.failed ? "exclamationmark.triangle.fill" : "eye.fill").font(.subheadline).foregroundStyle(note.failed ? .orange : .secondary).textSelection(.enabled)
+                    }
                     let open = openOutcome(model.rows)
                     ForEach(model.rows) { row in
                         FeedRowView(

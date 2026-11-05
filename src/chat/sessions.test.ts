@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { ChatAgent } from './config.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { openChatDatabase } from './db.ts';
-import { FakeChatRunner, FakeGit, type FakeConversation, type FakeRepo } from './fake.ts';
+import { FakeChatRunner, FakeGit, fakeProjects, type FakeConversation, type FakeRepo } from './fake.ts';
 import { ChatRefused } from './runner.ts';
 import { chatCaps } from './transcript.ts';
 import { sessions as schemaSessions } from './schema.ts';
@@ -34,7 +34,8 @@ function setup(chat?: { agents: Record<string, Omit<ChatAgent, 'name'>> }, extra
   const clock = new FakeClock();
   const claude = new FakeChatRunner();
   const onLiveChange = vi.fn();
-  const sessions = createSessions({ db, agents, clock, runners: { claude }, env: { SOME: 'env' }, git: new FakeGit(), binaryFound: (command) => command === 'claude', onLiveChange, ...extra });
+  const git = extra.git ?? new FakeGit();
+  const sessions = createSessions({ db, agents, clock, runners: { claude }, env: { SOME: 'env' }, git, projects: fakeProjects(git, clock), binaryFound: (command) => command === 'claude', onLiveChange, ...extra });
   return { db, clock, claude, sessions, onLiveChange };
 }
 async function openOne(s = setup()) {
@@ -769,7 +770,7 @@ test('a session that was preparing when the host stopped comes back with the run
   const { session } = await first.sessions.openPlan({ plan: planFor() });
   expect(stepsOf(first, session.id)).toEqual(['agent:running']);
   first.db.$client.close();
-  const next = createSessions({ db: openChatDatabase(join(dir, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' } as ChatAgent], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: new FakeGit(), binaryFound: () => true, onLiveChange: () => {} });
+  const next = createSessions({ db: openChatDatabase(join(dir, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' } as ChatAgent], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, onLiveChange: () => {} });
   expect(next.list({}).sessions[0]).toMatchObject({ id: session.id, state: 'idle', preparation: 'failed', live: false });
   expect((next.events({ sessionId: session.id, limit: 200 }).events as any[]).map((e) => `${e.step}:${e.status}:${e.detail}`)).toEqual(['agent:running:undefined', 'agent:failed:Carrier stopped while this step was running']);
 });
@@ -788,9 +789,8 @@ test('the host is not idle while a session is preparing, and is again once the p
   expect(s.onLiveChange).toHaveBeenCalled();
 });
 
-test('openPlan refuses a repo, a bad folder, a bad folder, an unknown agent and a long text, and makes no session', async () => {
+test('openPlan refuses a bad folder, an unknown agent and a long text, and makes no session', async () => {
   const { sessions, onLiveChange } = setup();
-  await expect(sessions.openPlan({ plan: planFor({ workspace: { kind: 'repo', repo: 'AshuLab/carrier' } }) })).rejects.toThrow('not supported yet');
   await expect(sessions.openPlan({ plan: planFor({ workspace: { kind: 'folder', folder: join(dir, 'missing') } }) })).rejects.toThrow('does not exist');
   await expect(sessions.openPlan({ plan: planFor({ agent: 'nope' }) })).rejects.toThrow('no chat agent named "nope"');
   await expect(sessions.openPlan({ plan: planFor({ agent: 'codex' }) })).rejects.toThrow('no chat runner for codex');
@@ -1059,7 +1059,7 @@ test('a failed preparation is still failed, with its failed step and plan, after
   const first = setup();
   const id = await failedAtAgent(first);
   first.db.$client.close();
-  const next = createSessions({ db: openChatDatabase(join(dir, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' } as ChatAgent], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: new FakeGit(), binaryFound: () => true, onLiveChange: () => {} });
+  const next = createSessions({ db: openChatDatabase(join(dir, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' } as ChatAgent], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, onLiveChange: () => {} });
   expect(next.list({}).sessions[0]).toMatchObject({ id, state: 'idle', preparation: 'failed', live: false });
   expect((next.events({ sessionId: id, limit: 200 }).events as any[]).map((e) => `${e.step}:${e.status}:${e.detail}`)).toEqual(['agent:running:undefined', 'agent:failed:claude is not logged in']);
   await next.retryPreparation({ sessionId: id });
@@ -1122,4 +1122,151 @@ test('a retry after the project was made does not make it twice', async () => {
   expect(git.calls.filter((call) => call.args[0] === 'init')).toHaveLength(1);
   expect(s.claude.opened.at(-1)).toMatchObject({ folder: join(projectsDir(), 'my-app') });
   expect(stepsOf(s, id).filter((step) => step.startsWith('project'))).toEqual(['project:running', 'project:done']);
+});
+
+// A plan for a repository: the `clone` step (or `fetch`) comes first, then the rest as for a folder.
+const repoPlan = (extra: object = {}, repo = 'acme/app') => planFor({ workspace: { kind: 'repo' as const, repo }, ...extra });
+const cloneOf = (repo = 'acme/app') => join(dir, 'home', 'chat', 'projects', ...repo.split('/'));
+const clonesOf = (s: { git: FakeGit }) => s.git.calls.filter((call) => call.args[0] === 'clone');
+const repoSession = (cloned: Partial<FakeRepo> = {}) => {
+  const git = new FakeGit();
+  git.cloned = cloned;
+  return { ...setup(undefined, { git }), git };
+};
+
+test('a plan for a repository clones it into the projects folder first, with git\'s progress while it runs, then the agent works in it', async () => {
+  const s = repoSession();
+  let release!: () => void;
+  s.git.clonePending = new Promise<void>((resolve) => (release = resolve));
+  s.claude.setup = (conversation) => void (conversation.reply = () => {});
+  const { session } = await s.sessions.openPlan({ plan: repoPlan() });
+  expect(session).toMatchObject({ state: 'preparing', preparation: 'running', folder: cloneOf() });
+  await vi.waitFor(() => expect(clonesOf(s)).toHaveLength(1));
+  expect(stepsOf(s, session.id)).toEqual(['clone:running']);
+  expect(s.sessions.events({ sessionId: session.id, limit: 50 }).progress).toBeNull();
+  s.git.emitProgress("Cloning into 'x'...", 'Receiving objects: 45% (45/100)');
+  expect(s.sessions.events({ sessionId: session.id, limit: 50 }).progress).toBe('Receiving objects: 45%');
+  expect(rows('chat_events').map((e) => e.data)).not.toContain(expect.stringContaining('Receiving')); // never stored
+  release();
+  await vi.waitFor(() => expect(stepsOf(s, session.id)).toEqual(['clone:running', 'clone:done', 'agent:running', 'agent:done', 'message:running']));
+  expect(s.sessions.events({ sessionId: session.id, limit: 50 }).progress).toBeNull();
+  expect(clonesOf(s)[0]).toMatchObject({ args: ['clone', '--', 'https://github.com/acme/app.git', cloneOf()] });
+  expect(s.claude.opened[0]).toMatchObject({ folder: cloneOf() });
+  expect(rows('sessions')[0]).toMatchObject({ folder: cloneOf(), workspaceKind: 'folder' });
+});
+
+test('a repository already in the projects folder is fetched, and the steps say fetch', async () => {
+  const s = repoSession();
+  mkdirSync(join(cloneOf(), '.git'), { recursive: true });
+  s.git.repos.set(cloneOf(), { head: 'main', branches: ['main'], origin: 'git@github.com:acme/app.git' });
+  const { session } = await s.sessions.openPlan({ plan: repoPlan() });
+  await vi.waitFor(() => expect(stepsOf(s, session.id)).toEqual(['fetch:running', 'fetch:done', 'agent:running', 'agent:done', 'message:running']));
+  expect(clonesOf(s)).toHaveLength(0);
+  expect(s.git.calls.some((call) => call.args[0] === 'fetch' && call.folder === cloneOf())).toBe(true);
+});
+
+test('a worktree plan for a repository to clone starts from a branch GitHub listed, and a branch plan checks it out of the fresh clone', async () => {
+  const s = repoSession({ branches: ['main'], remoteBranches: ['main', 'feat/x'] });
+  const { session } = await s.sessions.openPlan({ plan: repoPlan({ branch: 'feat/x', worktree: {} }) });
+  await vi.waitFor(() => expect(stepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(stepsOf(s, session.id)).toEqual(['clone:running', 'clone:done', 'worktree:running', 'worktree:done', 'agent:running', 'agent:done', 'message:running']);
+  expect(rows('sessions')[0]).toMatchObject({ workspaceKind: 'worktree', worktreeFrom: 'origin/feat/x', worktreeBase: cloneOf() });
+  expect(s.claude.opened[0]!.folder).toBe(rows('sessions')[0].worktreePath);
+
+  const other = repoSession({ branches: ['main'], remoteBranches: ['main', 'feat/x'] });
+  const { session: second } = await other.sessions.openPlan({ plan: repoPlan({ branch: 'feat/x' }, 'acme/other') });
+  await vi.waitFor(() => expect(stepsOf(other, second.id).at(-1)).toBe('message:running'));
+  expect(stepsOf(other, second.id).slice(0, 4)).toEqual(['clone:running', 'clone:done', 'checkout:running', 'checkout:done']);
+  expect(other.git.repos.get(cloneOf('acme/other'))!.head).toBe('feat/x');
+  expect(other.claude.opened[0]).toMatchObject({ folder: cloneOf('acme/other') });
+});
+
+test('a failed clone leaves no partial folder, says why in words, and Try again clones again and goes on', async () => {
+  const s = repoSession();
+  s.git.failures.set(`clone -- https://github.com/acme/app.git ${cloneOf()}`, { ok: false, code: 128, stderr: 'fatal: unable to access https://x:ghp_secrettoken@github.com/acme/app.git/: Could not resolve host' });
+  const { session } = await s.sessions.openPlan({ plan: repoPlan() });
+  await vi.waitFor(() => expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'idle', preparation: 'failed', live: false }));
+  expect(stepsOf(s, session.id)).toEqual(['clone:running', 'clone:failed:GitHub could not be reached; check the network connection']);
+  expect(existsSync(cloneOf())).toBe(false);
+  expect(JSON.stringify(rows('chat_events'))).not.toContain('secrettoken');
+  expect(s.claude.opened).toEqual([]);
+  s.git.failures.clear();
+  await s.sessions.retryPreparation({ sessionId: session.id });
+  await vi.waitFor(() => expect(stepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(stepsOf(s, session.id).slice(2)).toEqual(['clone:running', 'clone:done', 'agent:running', 'agent:done', 'message:running']);
+  expect(clonesOf(s)).toHaveLength(2);
+});
+
+test('a retry after the clone was done does not clone or fetch again', async () => {
+  const s = repoSession();
+  s.claude.refuseWith = 'claude is not logged in';
+  const { session } = await s.sessions.openPlan({ plan: repoPlan() });
+  await vi.waitFor(() => expect(s.sessions.list({}).sessions[0]).toMatchObject({ preparation: 'failed' }));
+  s.claude.refuseWith = undefined;
+  s.git.calls.length = 0;
+  await s.sessions.retryPreparation({ sessionId: session.id });
+  await vi.waitFor(() => expect(stepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(s.git.calls.filter((call) => ['clone', 'fetch'].includes(call.args[0]!))).toEqual([]);
+  expect(stepsOf(s, session.id).filter((step) => step.startsWith('clone'))).toEqual(['clone:running', 'clone:done']);
+});
+
+test('cancel in the middle of a clone removes the half clone, deletes the session and answers the plan', async () => {
+  const s = repoSession();
+  s.git.clonePending = new Promise<void>(() => {});
+  const plan = repoPlan();
+  const { session } = await s.sessions.openPlan({ plan });
+  await vi.waitFor(() => expect(existsSync(cloneOf())).toBe(true)); // the half clone
+  expect(await s.sessions.cancelPreparation({ sessionId: session.id })).toEqual({ plan });
+  expect(existsSync(cloneOf())).toBe(false);
+  expect(rows('sessions')).toEqual([]);
+  expect(rows('chat_events')).toEqual([]);
+  expect(s.claude.opened).toEqual([]);
+  expect(s.sessions.liveCount()).toBe(0);
+});
+
+test('a clone that finished stays in the projects folder when the session is cancelled after it', async () => {
+  const s = repoSession();
+  s.claude.setup = (conversation) => void (conversation.reply = () => {});
+  const { session } = await s.sessions.openPlan({ plan: repoPlan() });
+  await vi.waitFor(() => expect(stepsOf(s, session.id).at(-1)).toBe('message:running'));
+  await s.sessions.cancelPreparation({ sessionId: session.id });
+  expect(existsSync(join(cloneOf(), '.git'))).toBe(true);
+  expect(rows('sessions')).toEqual([]);
+});
+
+test('two preparations of the same repository share one clone, and it stops only when both are cancelled', async () => {
+  const s = repoSession();
+  let release!: () => void;
+  s.git.clonePending = new Promise<void>((resolve) => (release = resolve));
+  const one = await s.sessions.openPlan({ plan: repoPlan() });
+  await vi.waitFor(() => expect(clonesOf(s)).toHaveLength(1));
+  const two = await s.sessions.openPlan({ plan: repoPlan({}, 'ACME/app') }); // another spelling of the same folder
+  await vi.waitFor(() => expect(stepsOf(s, two.session.id)).toEqual(['clone:running']));
+  await s.sessions.cancelPreparation({ sessionId: one.session.id });
+  expect(existsSync(cloneOf())).toBe(true); // the second still waits for it
+  release();
+  await vi.waitFor(() => expect(stepsOf(s, two.session.id).at(-1)).toBe('message:running'));
+  expect(clonesOf(s)).toHaveLength(1);
+  expect(s.claude.opened).toHaveLength(1);
+
+  const both = repoSession();
+  both.git.clonePending = new Promise<void>(() => {});
+  const first = await both.sessions.openPlan({ plan: repoPlan({}, 'acme/two') });
+  const second = await both.sessions.openPlan({ plan: repoPlan({}, 'acme/two') });
+  await vi.waitFor(() => expect(existsSync(cloneOf('acme/two'))).toBe(true));
+  await both.sessions.cancelPreparation({ sessionId: first.session.id });
+  expect(existsSync(cloneOf('acme/two'))).toBe(true);
+  await both.sessions.cancelPreparation({ sessionId: second.session.id });
+  expect(existsSync(cloneOf('acme/two'))).toBe(false);
+  expect(clonesOf(both)).toHaveLength(1);
+});
+
+test('a repository that is not owner/name, or a projects folder that is not valid, is refused before a session is made', async () => {
+  const s = repoSession();
+  for (const repo of ['', '../x', 'a/b/c', 'solo']) await expect(s.sessions.openPlan({ plan: repoPlan({}, repo) }), repo).rejects.toThrow('is not a repository');
+  mkdirSync(join(dir, 'home', 'chat'), { recursive: true });
+  writeFileSync(join(dir, 'home', 'chat', 'chat.json'), JSON.stringify({ projectsFolder: join(dir, 'home', 'engine', 'mine') }));
+  await expect(s.sessions.openPlan({ plan: repoPlan() })).rejects.toThrow("inside Carrier's own engine folder");
+  expect(rows('sessions')).toEqual([]);
+  expect(s.git.calls).toEqual([]);
 });

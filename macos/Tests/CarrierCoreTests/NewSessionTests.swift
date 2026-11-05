@@ -33,7 +33,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var optionAsks: [String] = []
     /// What `agentOptions` lists to invoke.
     var commandsOffered: [String: [ChatCommand]] = [:]
-    var capabilities: Set<ControlClient.Capability> = [.cloneRepo, .createProject, .githubRepos, .plan]
+    var capabilities: Set<ControlClient.Capability> = [.repoBranches, .createProject, .githubRepos, .plan]
     /// What `health` answers, and the `refresh` flags it was asked with.
     var healthReply = HostHealth(git: .ready, gh: .ready, agents: [])
     var healthAsks: [Bool] = []
@@ -41,11 +41,11 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var repoPages: [Int: GithubReposPage] = [:]
     var repoCalls: [Int] = []
     var created: [String] = []
-    /// What `cloneRepo` asked for, and whether it ended by being cancelled; while `holdClone` is set it waits for `release` or a cancel.
+    /// What `cloneRepo` was asked for: the draft never asks.
     var clones: [String] = []
-    var cloneCancelled = false
-    var holdClone = false
-    var release = false
+    /// What `repoBranches` answers by repository (one not listed is refused as for a repository the login cannot see) and what it was asked for.
+    var branchesOf: [String: RepoBranches] = [:]
+    var branchCalls: [String] = []
     /// Where the host puts what it clones and makes; a test points it at the config's projects folder, which the real host reads at each request.
     var projects: () -> String = { "/projects" }
 
@@ -93,15 +93,13 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     func capabilities() async throws -> Set<ControlClient.Capability> { capabilities }
     func cloneRepo(_ repo: String) async throws -> ClonedRepo {
         clones.append(repo)
-        while holdClone && release == false {
-            if Task.isCancelled {
-                cloneCancelled = true
-                throw CancellationError()
-            }
-            try? await Task.sleep(for: .milliseconds(2))
-        }
-        if let error = refuse["cloneRepo"] { throw error }
         return ClonedRepo(folder: "\(projects())/\(repo)", repo: repo, fetched: false)
+    }
+    func repoBranches(_ repo: String) async throws -> RepoBranches {
+        branchCalls.append(repo)
+        if let error = refuse["repoBranches"] { throw error }
+        guard let listed = branchesOf[repo] else { throw ControlError.remote("\(repo) was not found, or your GitHub login cannot see it") }
+        return listed
     }
     func createProject(_ name: String) async throws -> String {
         created.append(name)
@@ -556,7 +554,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     model.urlText = "AshuLab/web"
     model.projectName = "scratch"
     model.blank()
-    #expect(model.urlText.isEmpty && model.projectName.isEmpty && model.step == .menu && model.cloning == nil)
+    #expect(model.urlText.isEmpty && model.projectName.isEmpty && model.step == .menu)
 }
 
 // MARK: the client
@@ -646,7 +644,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
 @MainActor private func popover(_ host: FakeChat, projects: String = "/nowhere", config: FakeConfig? = nil) async -> NewSessionModel {
     let config = config ?? FakeConfig()
     let model = NewSessionModel(
-        host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { projects },
+        host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, watchEvery: .milliseconds(5), projectsFolder: { projects },
         readConfig: { config.json }, writeConfig: { try config.write($0) }
     )
     await model.load()
@@ -658,12 +656,12 @@ private func projectsRoot(_ names: [String]) throws -> String {
     for _ in 0..<500 where done() == false { try? await Task.sleep(for: .milliseconds(2)) }
 }
 
-@MainActor @Test func theMenuListsOpenLocalFolderAndGitHubURLOnlyForAHostThatClones() async {
+@MainActor @Test func theMenuListsOpenLocalFolderAndGitHubURLOnlyForAHostThatPreparesARepository() async {
     let host = FakeChat()
     #expect(await popover(host).sources == [.localFolder, .githubURL, .githubRepos, .newProject])
-    host.capabilities = [.cloneRepo, .createProject]
+    host.capabilities = [.repoBranches, .createProject]
     #expect(await popover(host).sources == [.localFolder, .githubURL, .newProject])
-    host.capabilities = [.cloneRepo]
+    host.capabilities = [.repoBranches]
     #expect(await popover(host).sources == [.localFolder, .githubURL])
     host.capabilities = [.createProject]
     #expect(await popover(host).sources == [.localFolder, .newProject])
@@ -686,90 +684,123 @@ private func projectsRoot(_ names: [String]) throws -> String {
     let model = await popover(FakeChat())
     model.openPicker()
     model.show(.url)
-    #expect(model.step == .url && model.canCloneNow == false && model.cloneButton == "Clone and use")
+    #expect(model.step == .url && model.canUseRepo == false && model.repoButton == "Use (cloned when sent)")
     model.urlText = "AshuLab"
-    #expect(model.canCloneNow == false)
+    #expect(model.canUseRepo == false)
     model.urlText = "https://github.com/AshuLab/carrier.git"
-    #expect(model.canCloneNow && model.reference == "AshuLab/carrier")
+    #expect(model.canUseRepo && model.reference == "AshuLab/carrier")
     model.show(.menu)
     #expect(model.step == .menu)
 }
 
-@MainActor @Test func cloningAsksTheHostSaysCloningWhileItRunsAndThenTheDraftShowsTheFolder() async {
+@MainActor @Test func choosingARepositoryToCloneOnlyFillsThePlanWithGitHubsBranchesAndTouchesNothing() async {
     let host = FakeChat()
-    host.holdClone = true
-    host.fetched = nil
-    let model = await popover(host)
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
+    let config = FakeConfig()
+    let model = await popover(host, config: config)
     model.show(.url)
     model.urlText = "AshuLab/carrier"
     await model.choose(folder: "/w/api")
-    let running = Task { await model.cloneAndUse() }
-    await settle { host.clones.isEmpty == false }
-    #expect(host.clones == ["AshuLab/carrier"] && model.cloning == "AshuLab/carrier")
-    #expect(model.sentence == "Work in carrier Cloning AshuLab/carrier…" && model.folder == nil && model.canSend == false)
-    host.release = true
-    #expect(await running.value)
-    #expect(model.cloning == nil && model.folder == "/projects/AshuLab/carrier" && model.workspace?.branch == "main" && model.urlText.isEmpty)
-    #expect(model.sentence == "Work in carrier on the base folder (main)" && model.offersWorktree)
+    #expect(await model.useRepo())
+    // nothing was cloned, nothing was written, and nothing was asked of the folder, which is not there
+    #expect(host.clones.isEmpty && config.writes == 0 && host.branchCalls == ["AshuLab/carrier"])
+    #expect(model.repo == "AshuLab/carrier" && model.toClone && model.folder == "/nowhere/AshuLab/carrier" && model.urlText.isEmpty)
+    #expect(model.workspace?.branches.map(\.name) == ["main", "feat/x"] && model.workspace?.branch == "main" && model.startBranch == "main")
+    #expect(model.picker(query: "")?.local.map(\.name) == ["main", "feat/x"])
+    #expect(model.sentence == "Work in carrier on the base folder (main)" && model.offersWorktree && model.canSend == false)
+    #expect(model.repoNote == "AshuLab/carrier will be cloned to /nowhere/AshuLab/carrier when the message is sent.")
+    // a fresh clone has no uncommitted changes, and nothing is said of the folder's branch
+    #expect(model.warning == nil && model.branchNote == nil)
+    model.choose(startBranch: "feat/x")
+    #expect(model.branchNote == nil && model.warning == nil)
 }
 
-@MainActor @Test func aRepositoryAlreadyInTheProjectsFolderIsSaidBeforeAndTheButtonUpdates() async throws {
+@MainActor @Test func aWorktreeForARepositoryToCloneHasNoNameYetAndTheHostIsNotAskedForOne() async {
+    let host = FakeChat()
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
+    let model = await popover(host)
+    await model.choose(repo: "AshuLab/carrier")
+    await model.useWorktree(true)
+    #expect(model.worktree && model.worktreeName.isEmpty && model.nameState == .free && host.names.count == 2)
+    model.choose(startBranch: "feat/x")
+    model.text = "hello"
+    #expect(model.canSend)
+    await model.verifyName()
+    await model.fetchNow()
+    #expect(host.calls.isEmpty && model.fetchProblem == nil)
+    #expect(model.worktreeRequest == WorktreeRequest(from: "feat/x", name: nil))
+    // a typed name is the host's to check when it makes the worktree
+    model.worktreeName = "my-fix"
+    #expect(model.worktreeRequest == WorktreeRequest(from: "feat/x", name: "my-fix"))
+}
+
+@MainActor @Test func sendingARepositoryPlanCarriesTheRepoTheBranchAndAWorktreeWithNoName() async {
+    let host = FakeChat()
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
+    let model = await popover(host)
+    await model.choose(repo: "AshuLab/carrier")
+    model.choose(startBranch: "feat/x")
+    model.text = "hello"
+    #expect(await model.send() == opened)
+    #expect(host.plans == [SessionPlan(agent: "claude", workspace: .repo("AshuLab/carrier"), branch: "feat/x", text: "hello")])
+    #expect(host.clones.isEmpty && model.repo == nil && model.folder == nil)
+    await model.choose(repo: "AshuLab/carrier")
+    await model.useWorktree(true)
+    model.choose(startBranch: "feat/x")
+    model.text = "again"
+    _ = await model.send()
+    #expect(host.plans.last == SessionPlan(agent: "claude", workspace: .repo("AshuLab/carrier"), worktree: WorktreeRequest(from: "feat/x"), text: "again"))
+    #expect(host.plans.last?.wire.contains("\"worktree\":{}") == true && host.plans.last?.wire.contains("\"kind\":\"repo\",\"repo\":\"AshuLab\\/carrier\"") == true)
+}
+
+@MainActor @Test func aRepositoryAlreadyInTheProjectsFolderIsReadLocallyAndFetchedWhenTheMessageIsSent() async throws {
     let root = try projectsRoot(["AshuLab/carrier"])
     defer { try? FileManager.default.removeItem(atPath: root) }
-    let model = await popover(FakeChat(), projects: root)
-    model.openPicker()
-    model.urlText = "AshuLab/web"
-    #expect(model.alreadyThere == false && model.cloneButton == "Clone and use")
+    let host = FakeChat()
+    host.workspaces[root + "/AshuLab/carrier"] = WorkspaceInfo(folder: root + "/AshuLab/carrier", branch: "main", defaultBranch: "main", dirty: 3, branches: [.init(name: "main", remote: false), .init(name: "origin/feat", remote: true)])
+    let model = await popover(host, projects: root)
+    model.show(.url)
     model.urlText = "github.com/ashulab/Carrier"
-    #expect(model.alreadyThere && model.cloneButton == "Update and use")
+    #expect(await model.useRepo())
+    #expect(host.branchCalls.isEmpty && host.clones.isEmpty && model.toClone == false && model.repo == "AshuLab/carrier")
+    #expect(model.folder == root + "/AshuLab/carrier" && model.workspace?.dirty == 3 && model.warning != nil)
+    #expect(model.repoNote == "AshuLab/carrier is in your projects folder and will be fetched when the message is sent.")
+    model.text = "hello"
+    _ = await model.send()
+    #expect(host.plans.count == 1 && host.plans[0].folder == nil)
 }
 
-@MainActor @Test func aRefusedCloneIsSaidInWordsTheChipStaysOrangeAndTryAgainWorks() async {
+@MainActor @Test func aRepositoryThatGitHubWillNotListStillWorksOnItsDefaultBranchAndSaysWhy() async {
     let host = FakeChat()
-    host.refuse["cloneRepo"] = ControlError.remote("AshuLab/nope was not found, or your GitHub login cannot see it")
+    host.refuse["repoBranches"] = ControlError.remote("GitHub could not be reached; check the network connection")
     let model = await popover(host)
-    model.show(.url)
-    model.urlText = "AshuLab/nope"
-    #expect(await model.cloneAndUse() == false)
-    #expect(model.cloneProblem == "AshuLab/nope was not found, or your GitHub login cannot see it")
-    #expect(model.folder == nil && model.cloning == nil && model.step == .url && model.cloneButton == "Try again" && model.canCloneNow)
-    host.refuse["cloneRepo"] = nil
-    #expect(await model.cloneAndUse())
-    #expect(model.cloneProblem == nil && model.folder == "/projects/AshuLab/nope")
+    await model.choose(repo: "AshuLab/carrier")
+    #expect(model.workspaceProblem == "GitHub could not be reached; check the network connection" && model.workspace == nil && model.offersWorktree == false)
+    model.text = "hello"
+    #expect(model.canSend && model.loadingBranches == false)
+    // a name that is not a repository is not taken
+    await model.choose(repo: "../x")
+    #expect(model.repo == "AshuLab/carrier")
 }
 
-@MainActor @Test func aCloneThatFailsWhileThePopoverIsClosedKeepsItsReasonWhenItReopens() async {
+@MainActor @Test func theBranchesAreAPartialListWhenGitHubSaysThereAreMoreAndTheDefaultIsAlwaysThere() async {
     let host = FakeChat()
-    host.refuse["cloneRepo"] = ControlError.remote("The clone took more than ten minutes and was stopped")
+    host.branchesOf["AshuLab/api"] = RepoBranches(defaultBranch: "trunk", branches: ["a", "b"], hasMore: true)
     let model = await popover(host)
-    model.openPicker()
-    model.show(.url)
-    model.urlText = "AshuLab/slow"
-    #expect(await model.cloneAndUse() == false)
-    // the popover was closed while it ran; reopening it must not wipe why the chip is orange
-    model.openPicker()
-    #expect(model.step == .url && model.cloneProblem == "The clone took more than ten minutes and was stopped" && model.urlText == "AshuLab/slow" && model.cloneButton == "Try again")
-    // the next action starts over
-    host.refuse["cloneRepo"] = nil
-    #expect(await model.cloneAndUse())
-    model.openPicker()
-    #expect(model.cloneProblem == nil && model.step == .menu)
-}
-
-@MainActor @Test func cancelWhileCloningStopsTheRequestAndLeavesTheDraftWithNoWorkspace() async {
-    let host = FakeChat()
-    host.holdClone = true
-    let model = await popover(host)
-    model.show(.url)
-    model.urlText = "AshuLab/carrier"
+    await model.choose(repo: "AshuLab/api")
+    #expect(model.branchesPartial && model.workspace?.branches.map(\.name) == ["trunk", "a", "b"])
     await model.choose(folder: "/w/api")
-    let running = Task { await model.cloneAndUse() }
-    await settle { model.cloning != nil }
-    model.cancelClone()
-    #expect(model.cloning == nil && model.folder == nil)
-    #expect(await running.value == false)
-    await settle { host.cloneCancelled }
-    #expect(host.cloneCancelled && model.folder == nil && model.cloneProblem == nil)
+    #expect(model.branchesPartial == false && model.repo == nil && model.toClone == false)
+}
+
+@MainActor @Test func aCancelledRepositoryPlanComesBackInTheDraftWithItsBranchAndWorktree() async {
+    let host = FakeChat()
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
+    let model = await popover(host)
+    model.restore(SessionPlan(agent: "claude", workspace: .repo("AshuLab/carrier"), worktree: WorktreeRequest(from: "feat/x"), text: "again"))
+    await model.load()
+    #expect(model.repo == "AshuLab/carrier" && model.toClone && model.worktree && model.startBranch == "feat/x" && model.text == "again" && model.worktreeName.isEmpty)
+    #expect(host.clones.isEmpty)
 }
 
 @MainActor @Test func theNewProjectStepShowsThePathAndItsButtonStaysOffForANameTheHostWouldRefuse() async throws {
@@ -804,7 +835,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
     #expect(model.offersWorktree == false && model.warning == nil && model.branchNote == nil && model.picked == nil)
     await model.useWorktree(true)
     #expect(model.worktree == false && model.workspaceProblem == nil)
-    #expect(model.watchNote == nil && model.watchFailed == false)
+    #expect(model.watchNotes.isEmpty)
     model.clearWorkspace()
     #expect(model.newProject == nil && model.folder == nil && model.projectNote == nil)
 }
@@ -923,82 +954,126 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     #expect(model.watching == false && model.watchProblem?.contains("same folder name as acme/web") == true)
 }
 
-@MainActor @Test func cloningWithTheBoxOnAddsTheRepoToTheConfigKeepingEverythingElseAndSaysItListensFromTheNextStart() async throws {
+/// A session of the host's list in the given stage of its preparation: still preparing, failed at a step, or answered (no preparation left).
+private func listed(_ id: String, _ stage: String) -> ChatSession {
+    let (state, preparation) = switch stage {
+    case "running": ("preparing", ",\"preparation\":\"running\"")
+    case "failed": ("idle", ",\"preparation\":\"failed\"")
+    default: ("working", "")
+    }
+    let json = """
+    {"id":"\(id)","agent":"claude","harness":"claude","folder":"/projects/AshuLab/carrier","state":"\(state)","createdAt":0,"lastActiveAt":0,"archived":false,"live":true\(preparation)}
+    """
+    return try! JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))
+}
+
+/// A draft that chose `repo`, wrote its first message and sent it: the session `opened` exists and the repository waits for its `message` step.
+@MainActor private func sentForRepo(_ host: FakeChat, config: FakeConfig, repo: String = "AshuLab/carrier") async -> NewSessionModel {
+    host.branchesOf[repo] = RepoBranches(defaultBranch: "main", branches: ["main"])
+    host.active = [listed(opened, "running")]
+    let model = await popover(host, config: config)
+    await model.choose(repo: repo)
+    model.text = "hello"
+    #expect(await model.send() == opened)
+    return model
+}
+
+@MainActor @Test func theRepositoryIsAddedToTheConfigOnlyOnceTheMessageStepIsDoneKeepingEverythingElseAndSaysItListensFromTheNextStart() async throws {
     let config = FakeConfig("""
     {"note": "kept", "limits": {"maxReviews": 7}, "repos": [{"name": "acme/web", "agents": {"author": {"profile": "p"}}}]}
     """)
-    let model = await popover(FakeChat(), config: config)
-    model.show(.url)
-    model.urlText = "https://github.com/AshuLab/carrier"
-    #expect(await model.cloneAndUse())
+    let host = FakeChat()
+    let model = await sentForRepo(host, config: config)
+    // preparing, then failed at a step: nothing is written
+    #expect(config.writes == 0)
+    await model.settleWatches()
+    host.active = [listed(opened, "failed")]
+    await model.settleWatches()
+    #expect(config.writes == 0 && model.watchNotes[opened] == nil)
+    // the agent answered: the message step is done
+    host.active = [listed(opened, "answered")]
+    await settle { config.writes == 1 }
     let saved = try #require(config.json)
     let file = try #require(try JSONSerialization.jsonObject(with: saved) as? [String: Any])
     let repos = try #require(file["repos"] as? [[String: Any]])
     #expect(repos.map { $0["name"] as? String } == ["acme/web", "AshuLab/carrier"] && repos[0]["agents"] != nil && repos[1].keys.sorted() == ["name"])
     #expect(file["note"] as? String == "kept" && (file["limits"] as? [String: Any])?["maxReviews"] as? Int == 7)
-    #expect(model.watchNote == "Carrier will listen to AshuLab/carrier from its next start." && model.watchFailed == false)
-    #expect(model.folder == "/projects/AshuLab/carrier")
+    #expect(model.watchNotes[opened] == WatchNote(text: "Carrier will listen to AshuLab/carrier from its next start.", failed: false))
+    // once: looking again changes nothing
+    await model.settleWatches()
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(config.writes == 1 && host.clones.isEmpty)
+}
+
+@MainActor @Test func aPreparationThatFailedAndThenWorksAfterTryAgainAddsTheRepositoryThen() async {
+    let config = FakeConfig()
+    let host = FakeChat()
+    let model = await sentForRepo(host, config: config)
+    host.active = [listed(opened, "failed")]
+    await model.settleWatches()
+    try? await Task.sleep(for: .milliseconds(30))
+    #expect(config.writes == 0)
+    host.active = [listed(opened, "running")]
+    await model.settleWatches()
+    #expect(config.writes == 0)
+    host.active = [listed(opened, "answered")]
+    await settle { config.writes == 1 }
+    #expect(configRepoNames(json: config.json ?? Data()) == ["acme/web", "AshuLab/carrier"])
+}
+
+@MainActor @Test func aCancelledOrDeletedSessionNeverAddsItsRepository() async throws {
+    let config = FakeConfig()
+    let host = FakeChat()
+    let model = await sentForRepo(host, config: config)
+    host.active = []  // cancelled: the host deleted the session
+    await model.settleWatches()
+    host.active = [listed(opened, "answered")]  // and nothing of the same id comes back to be counted
+    await model.settleWatches()
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(config.writes == 0 && model.watchNotes.isEmpty)
 }
 
 @MainActor @Test func theConfigIsReadAgainJustBeforeTheWrite() async throws {
-    let host = FakeChat()
-    host.holdClone = true
     let config = FakeConfig()
-    let model = await popover(host, config: config)
-    model.show(.url)
-    model.urlText = "AshuLab/carrier"
-    let running = Task { await model.cloneAndUse() }
-    await settle { host.clones.isEmpty == false }
-    // another tab saves while the clone runs
+    let host = FakeChat()
+    let model = await sentForRepo(host, config: config)
+    // another tab saves while the session is prepared
     config.json = Data(#"{"repos": [{"name": "acme/web"}, {"name": "vemec/encaja"}], "pollIntervalMinutes": 3}"#.utf8)
-    host.release = true
-    #expect(await running.value)
+    host.active = [listed(opened, "answered")]
+    await settle { config.writes == 1 }
     let saved = try #require(config.json)
     #expect(configRepoNames(json: saved) == ["acme/web", "vemec/encaja", "AshuLab/carrier"])
     #expect(String(decoding: saved, as: UTF8.self).contains("pollIntervalMinutes"))
 }
 
-@MainActor @Test func withTheBoxOffOrNotAllowedTheCloneGoesAheadAndTheConfigIsNotTouched() async {
+@MainActor @Test func withTheBoxOffOrNotAllowedTheSessionIsPreparedAndTheConfigIsNotTouched() async throws {
     let config = FakeConfig()
-    let model = await popover(FakeChat(), config: config)
-    model.show(.url)
-    model.urlText = "AshuLab/carrier"
-    model.watch = false
-    #expect(await model.cloneAndUse())
-    #expect(config.writes == 0 && model.watchNote == nil)
-    model.show(.url)
-    model.urlText = "acme/web"
-    let boxOff = await model.cloneAndUse()
-    #expect(model.watch == false && boxOff)
-    model.watch = true
-    model.show(.url)
-    model.urlText = "acme/web"
-    #expect(model.watching == false)
-    let notAllowed = await model.cloneAndUse()
-    #expect(notAllowed)
-    #expect(config.writes == 0 && model.watchNote == nil && model.folder == "/projects/acme/web")
+    let host = FakeChat()
+    host.active = [listed(opened, "answered")]
+    for (name, watch) in [("AshuLab/carrier", false), ("acme/web", true), ("other/web", true)] {
+        host.branchesOf[name] = RepoBranches(defaultBranch: "main", branches: ["main"])
+        let model = await popover(host, config: config)
+        model.watch = watch
+        await model.choose(repo: name)
+        model.text = "hello"
+        #expect(await model.send() == opened)
+        await model.settleWatches()
+        #expect(host.plans.last?.workspace == .repo(name))
+    }
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(config.writes == 0)
 }
 
-@MainActor @Test func aConfigThatCannotBeWrittenDoesNotUndoTheCloneAndTheDraftSaysSo() async {
+@MainActor @Test func aConfigThatCannotBeWrittenIsSaidInTheSessionsNoteAndTheSessionGoesOn() async {
     for config in [FakeConfig("[1]"), FakeConfig(nil), { let c = FakeConfig(); c.unwritable = true; return c }()] {
-        let model = await popover(FakeChat(), config: config)
-        model.show(.url)
-        model.urlText = "AshuLab/carrier"
-        #expect(await model.cloneAndUse())
-        #expect(model.folder == "/projects/AshuLab/carrier" && model.watchFailed)
-        #expect(model.watchNote?.hasPrefix("AshuLab/carrier could not be added to Carrier's list: ") == true)
+        let host = FakeChat()
+        let model = await sentForRepo(host, config: config)
+        host.active = [listed(opened, "answered")]
+        await settle { model.watchNotes[opened] != nil }
+        #expect(model.watchNotes[opened]?.failed == true)
+        #expect(model.watchNotes[opened]?.text.hasPrefix("AshuLab/carrier could not be added to Carrier's list: ") == true)
         #expect(config.writes == 0)
     }
-}
-
-@MainActor @Test func theNoteGoesWhenAnotherFolderIsChosen() async {
-    let model = await popover(FakeChat())
-    model.show(.url)
-    model.urlText = "AshuLab/carrier"
-    _ = await model.cloneAndUse()
-    #expect(model.watchNote != nil)
-    await model.choose(folder: "/elsewhere")
-    #expect(model.watchNote == nil && model.watchFailed == false)
 }
 
 // The footer's Change…: the config write, the refusals, and the next request using the new folder.
@@ -1025,8 +1100,8 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     #expect(FileManager.default.fileExists(atPath: old + "/AshuLab/carrier"))
     model.show(.url)
     model.urlText = "acme/web"
-    #expect(await model.cloneAndUse())
-    #expect(model.folder == new + "/acme/web" && host.clones == ["acme/web"])
+    #expect(await model.useRepo())
+    #expect(model.folder == new + "/acme/web" && host.clones.isEmpty)
     model.show(.project)
     model.projectName = "idea"
     #expect(model.useProject())
@@ -1135,56 +1210,16 @@ private func page(_ names: [String], more: Bool, login: String? = nil) -> Github
     #expect(model.repoRows().isEmpty)
 }
 
-@MainActor @Test func choosingARowClonesItLikeTheUrlStepAndAddsItToTheConfigWithTheBoxOn() async throws {
+@MainActor @Test func choosingARowFillsThePlanLikeTheUrlStepAndNothingIsClonedOrWritten() async {
     let host = FakeChat()
     host.repoPages = [1: page(["AshuLab/carrier"], more: false, login: "vemec")]
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main"])
     let config = FakeConfig()
     let model = await popover(host, config: config)
     await model.showRepos()
-    #expect(await model.cloneAndUse(repo: "AshuLab/carrier"))
-    #expect(host.clones == ["AshuLab/carrier"] && model.folder == "/projects/AshuLab/carrier" && model.cloning == nil)
-    #expect(configRepoNames(json: try #require(config.json)) == ["acme/web", "AshuLab/carrier"])
-    #expect(model.watchNote == "Carrier will listen to AshuLab/carrier from its next start.")
-}
-
-@MainActor @Test func aRowClonesWithoutTouchingTheConfigWhenTheBoxIsOffOrTheRepoIsWatchedOrClashes() async {
-    let host = FakeChat()
-    host.repoPages = [1: page(["AshuLab/carrier", "acme/web", "other/web"], more: false)]
-    let config = FakeConfig()
-    let model = await popover(host, config: config)
-    await model.showRepos()
-    model.watch = false
-    #expect(await model.cloneAndUse(repo: "AshuLab/carrier"))
-    model.watch = true
-    model.show(.repos)
-    #expect(await model.cloneAndUse(repo: "acme/web") && model.watchProblem(for: "acme/web") == "acme/web is already watched")
-    #expect(await model.cloneAndUse(repo: "other/web"))
-    #expect(config.writes == 0 && model.watchNote == nil && model.folder == "/projects/other/web")
-}
-
-@MainActor @Test func aRefusedCloneFromTheListStaysOnTheStepWithItsReasonAndTheListIntact() async {
-    let host = FakeChat()
-    host.repoPages = [1: page(["AshuLab/carrier"], more: false, login: "vemec")]
-    host.refuse["cloneRepo"] = ControlError.remote("The clone took more than ten minutes and was stopped")
-    let model = await popover(host)
-    await model.showRepos()
-    #expect(await model.cloneAndUse(repo: "AshuLab/carrier") == false)
-    #expect(model.step == .repos && model.cloneProblem == "The clone took more than ten minutes and was stopped" && model.folder == nil)
+    await model.choose(repo: "AshuLab/carrier")
+    #expect(host.clones.isEmpty && config.writes == 0 && model.repo == "AshuLab/carrier" && model.toClone && model.folder == "/nowhere/AshuLab/carrier")
     #expect(model.repoList.repos.count == 1 && model.login == "vemec")
-}
-
-@MainActor @Test func theStepCannotBeOpenedWhileACloneRuns() async {
-    let host = FakeChat()
-    host.holdClone = true
-    let model = await popover(host)
-    model.show(.url)
-    model.urlText = "AshuLab/carrier"
-    let running = Task { await model.cloneAndUse() }
-    await settle { model.cloning != nil }
-    await model.showRepos()
-    #expect(model.step == .url && host.repoCalls.isEmpty)
-    host.release = true
-    #expect(await running.value)
 }
 
 // MARK: the agent's options before a session exists

@@ -8,7 +8,7 @@ import { createProjects } from './projects.ts';
 import { ChatRefused } from './runner.ts';
 import { createWorktree, removeWorktree } from './worktree.ts';
 import { openChatDatabase } from './db.ts';
-import { FakeChatRunner } from './fake.ts';
+import { FakeChatRunner, fakeProjects } from './fake.ts';
 import { createSessions } from './sessions.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { fetchFolder, inspectFolder } from './workspace.ts';
@@ -269,7 +269,7 @@ describe.skipIf(!enabled)('deleting a session in a worktree, with the real git',
   });
   afterEach(() => void vi.unstubAllEnvs());
 
-  const sessionsOf = () => createSessions({ db: openChatDatabase(join(home, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, binaryFound: () => true, onLiveChange: () => {} });
+  const sessionsOf = () => createSessions({ db: openChatDatabase(join(home, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: realGit, projects: fakeProjects(realGit), binaryFound: () => true, onLiveChange: () => {} });
   const stateOf = (folder: string) => ({ head: git(folder, 'rev-parse', 'HEAD').trim(), status: git(folder, 'status', '--porcelain'), branches: git(folder, 'branch', '--format=%(refname:short)').split('\n').filter((line) => line.startsWith('carrier/') === false).join('\n') });
   /** A session in a worktree with an uncommitted change, an untracked file and one commit nobody else has. */
   async function session(name: string) {
@@ -358,7 +358,7 @@ describe.skipIf(!enabled)('cloneRepo, with the real git', () => {
     else process.env.GIT_CONFIG_GLOBAL = previousGlobal;
     rmSync(work, { recursive: true, force: true });
   });
-  const projects = () => createProjects({ git: realGit, token: async () => 'unused', github: { repos: async () => ({ repos: [], hasMore: false }), login: async () => 'unused' } });
+  const projects = () => createProjects({ git: realGit, token: async () => 'unused', github: { repos: async () => ({ repos: [], hasMore: false }), login: async () => 'unused', branches: async () => ({ default: 'main', branches: [], hasMore: false }) }, clock: new FakeClock() });
 
   test('a real clone lands in <projects>/<owner>/<repo>, and asking again fetches it', async () => {
     const dest = join(work, 'projects', 'acme', 'app');

@@ -16,7 +16,7 @@ import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, 
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
 import { checkName, suggestName } from './names.ts';
-import { createProject, projectFolder } from './projects.ts';
+import { createProject, projectFolder, type createProjects } from './projects.ts';
 import { createWorktree, deleteWorktree, previewWorktree, removeWorktree } from './worktree.ts';
 import { checkout, fetchFolder, inspectFolder } from './workspace.ts';
 
@@ -62,6 +62,8 @@ export type ChatSessionsDeps = {
   env: NodeJS.ProcessEnv;
   /** The `git` of the machine. */
   git: Git;
+  /** What brings a repository onto the Mac, for a plan that clones one. */
+  projects: Pick<ReturnType<typeof createProjects>, 'cloneRepo' | 'repoFolder' | 'stepOf'>;
   /** Whether an agent's binary is there. */
   binaryFound: (command: string) => boolean;
   /** What the `health` request runs; the machine's own tools unless a test replaces it. */
@@ -88,7 +90,7 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, binaryFound, probes = realProbes, onLiveChange }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, onLiveChange }: ChatSessionsDeps) {
   const health = createHealth({ agents, clock, binaryFound, probes });
   const lives = new Map<string, Live>();
   // Sessions being deleted: no agent may open in their folder while it is removed.
@@ -131,6 +133,8 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
 
   // Sessions whose steps run in the background and are not live yet: the host is not idle while one does. `abort` stops the running step, `done` ends when the steps stopped.
   const preparing = new Map<string, { abort: AbortController; done: Promise<void> }>();
+  // The latest line of git's progress for the clone of a session that is cloning: shown by `events`, never stored.
+  const progress = new Map<string, string>();
   const stepEvent = (sessionId: string, step: Step, status: StepEvent['status'], detail?: string) => store(sessionId, { kind: 'step', step, status, ...(detail !== undefined && { detail }) });
   /** How the last event of a step left it, undefined when the step never ran. */
   const lastStatus = (sessionId: string, step: Step) => {
@@ -268,6 +272,13 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     return live;
   };
 
+  /** The name the repository lists for the branch the plan picked. A repository the plan cloned lists its other branches as `origin/<name>`, while the draft read them from GitHub as plain names. */
+  const listedAs = async (folder: string, { workspace }: Plan, branch: string) => {
+    if (workspace.kind !== 'repo') return branch;
+    const { branches } = await inspectFolder(git, folder);
+    return branches.some((listed) => listed.name === branch) ? branch : `origin/${branch}`;
+  };
+
   /**
    * The `worktree` or `checkout` step of a plan, when it has one: the folder the agent runs in, or undefined once the step failed and was recorded.
    * A worktree already recorded on the session is the one made before, so it is reused and not made twice; so is a checkout already done.
@@ -284,12 +295,12 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
       if (worktree !== undefined) {
         if (branch === undefined) throw new ChatRefused('A worktree needs the branch it starts from');
         // an empty name is the host's to generate
-        const made = await exclusive(() => createWorktree(git, folder, { from: branch, ...(worktree.name !== undefined && worktree.name !== '' && { name: worktree.name }) }, signal));
+        const made = await exclusive(async () => createWorktree(git, folder, { from: await listedAs(folder, plan, branch), ...(worktree.name !== undefined && worktree.name !== '' && { name: worktree.name }) }, signal));
         db.update(sessions).set({ folder: made.path, workspaceKind: 'worktree', worktreeBranch: made.branch, worktreeFrom: made.from, worktreeBase: made.base, worktreePath: made.path }).where(eq(sessions.id, sessionId)).run();
         stepEvent(sessionId, step, 'done');
         return made.path;
       }
-      await checkout(git, folder, branch!);
+      await checkout(git, folder, await listedAs(folder, plan, branch!));
       stepEvent(sessionId, step, 'done');
       return folder;
     } catch (error) {
@@ -314,10 +325,29 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     }
   }
 
+  /** The `clone` step of a plan for a repository, or `fetch` when it is already in the projects folder. False once the step failed and was recorded. A clone or a fetch already done by an earlier try is reused. */
+  async function bring(sessionId: string, repo: string, signal: AbortSignal): Promise<boolean> {
+    if (lastStatus(sessionId, 'clone') === 'done' || lastStatus(sessionId, 'fetch') === 'done') return true;
+    const step = projects.stepOf(repo);
+    stepEvent(sessionId, step, 'running');
+    try {
+      await projects.cloneRepo({ repo }, signal, (line) => void progress.set(sessionId, line));
+      stepEvent(sessionId, step, 'done');
+      return true;
+    } catch (error) {
+      if (error instanceof ChatRefused === false) log.error(`preparing a session failed at ${step}`, error);
+      failStep(sessionId, step, error instanceof ChatRefused ? error.message : `The ${step} could not be done`);
+      return false;
+    } finally {
+      progress.delete(sessionId);
+    }
+  }
+
   /** The steps of a plan, in the background: it never throws, a failure is recorded as a step that failed. */
   async function prepare(sessionId: string, chosen: ChatAgent, runner: ChatRunner, base: string, plan: Plan, signal: AbortSignal) {
     try {
       if (plan.workspace.kind === 'project' && (await makeProject(sessionId, plan.workspace.name)) === false) return;
+      if (plan.workspace.kind === 'repo' && (await bring(sessionId, plan.workspace.repo, signal)) === false) return;
       const folder = await arrange(sessionId, plan.workspace.kind === 'project' ? row(sessionId).folder : base, plan, signal);
       if (folder === undefined || signal.aborted) return;
       stepEvent(sessionId, 'agent', 'running');
@@ -357,14 +387,13 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     }
   }
 
-  /** What a plan needs to run, refusing in words one that cannot: only a plan for a folder or a project runs yet. A project's folder is the one it will be made at. */
+  /** What a plan needs to run, refusing in words one that cannot. A project's or a repository's folder is the one it will be made or cloned at. */
   const targetOf = (plan: Plan) => {
-    if (plan.workspace.kind === 'repo') throw new ChatRefused('A plan for a repository is not supported yet; only a folder or a new project');
     const chosen = agents.find((candidate) => candidate.name === plan.agent);
     if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${plan.agent}"`);
     const runner = runners[chosen.harness];
     if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
-    return { chosen, runner, folder: plan.workspace.kind === 'project' ? projectFolder(plan.workspace.name) : checkFolder(plan.workspace.folder, carrierHome()) };
+    return { chosen, runner, folder: plan.workspace.kind === 'project' ? projectFolder(plan.workspace.name) : plan.workspace.kind === 'repo' ? projects.repoFolder(plan.workspace.repo) : checkFolder(plan.workspace.folder, carrierHome()) };
   };
   /** Runs the steps of a plan in the background. */
   const begin = (sessionId: string, { chosen, runner, folder }: ReturnType<typeof targetOf>, plan: Plan) => {
@@ -435,8 +464,7 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     },
 
     /**
-     * Opens a session from a plan: it exists at once as `preparing`, and the steps run in the background and record their events. Only a plan for a
-     * folder (with the branch to check out or a worktree from it) or a new project runs yet.
+     * Opens a session from a plan: it exists at once as `preparing`, and the steps run in the background and record their events.
      */
     async openPlan({ plan }: { plan: Plan }) {
       if (plan.text.length > chatCaps.message) throw new ChatRefused(`That message has ${plan.text.length} characters; the most a message can have is ${chatCaps.message}`);
@@ -623,6 +651,7 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
         cursor: rows.at(-1)?.id ?? after,
         session: summary(current),
         streaming: live?.streaming ?? '',
+        progress: progress.get(sessionId) ?? null,
         approvals: [...(live?.approvals.values() ?? [])],
         options: live?.conversation.options ?? [],
         commands: live?.conversation.commands ?? [],

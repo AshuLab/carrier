@@ -17,6 +17,7 @@ let asked: number[];
 let pages: Record<number, { repos: AvailableRepo[]; hasMore: boolean }>;
 let failure: Error | undefined;
 let logins: number;
+let askedBranches: string[];
 const repo = (name: string, isPrivate = false): AvailableRepo => ({ name, private: isPrivate, pushedAt: '2026-10-20T10:00:00Z' });
 
 beforeEach(async () => {
@@ -24,6 +25,7 @@ beforeEach(async () => {
   vi.stubEnv('CARRIER_HOME', root);
   asked = [];
   logins = 0;
+  askedBranches = [];
   failure = undefined;
   pages = { 1: { repos: [repo('acme/app', true), repo('org/lib')], hasMore: true }, 2: { repos: [repo('me/old')], hasMore: false } };
   const github = {
@@ -35,6 +37,11 @@ beforeEach(async () => {
     login: async () => {
       logins++;
       return 'vemec';
+    },
+    branches: async (name: string) => {
+      askedBranches.push(name);
+      if (failure !== undefined) throw failure;
+      return { default: 'main', branches: ['main', 'feat/x'], hasMore: false };
     },
   };
   const started = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: new FakeChatRunner() }, github, binaryFound: () => true });
@@ -59,6 +66,24 @@ test('a later page answers its repositories and hasMore, and no login', async ()
   expect(await client.request('githubRepos', { page: 2 })).toEqual({ repos: pages[2]!.repos, hasMore: false });
   expect(asked).toEqual([2]);
   expect(logins).toBe(0);
+  client.close();
+});
+
+test('the hello lists repoBranches, and it answers the default branch and the branches of a repository with the login, read-only', async () => {
+  const client = await connect();
+  expect(client.hello.capabilities).toContain('repoBranches');
+  expect(await client.request('repoBranches', { repo: 'acme/app' })).toEqual({ default: 'main', branches: ['main', 'feat/x'], hasMore: false });
+  expect(askedBranches).toEqual(['acme/app']);
+  failure = new ChatRefused('gh is not signed in to GitHub; run "gh auth login"');
+  await expect(client.request('repoBranches', { repo: 'acme/app' })).rejects.toThrow('gh is not signed in');
+  client.close();
+});
+
+test('repoBranches refuses a name that does not match the repository pattern before anything is asked', async () => {
+  const client = await connect();
+  for (const repo of ['', '../x', 'a/..', 'a/b/c', 'solo', '/a', 'a//b', '-x/y?z', 7, null]) await expect(client.request('repoBranches', { repo } as never)).rejects.toThrow('invalid request');
+  await expect(client.request('repoBranches', { repo: 'acme/app', page: 2 } as never)).rejects.toThrow('invalid request');
+  expect(askedBranches).toEqual([]);
   client.close();
 });
 

@@ -54,7 +54,7 @@ private func health(git: ToolState = .ready, gh: ToolState = .ready, claude: Too
     #expect(healthSections(host: nil, facts: facts)[1].rows[0].detail == "Found")
     facts.carrierFound = false
     let row = healthSections(host: nil, facts: facts)[1].rows[0]
-    #expect(row.mark == .problem && row.detail.hasPrefix("Not found"))
+    #expect(row.mark == .problem && row.detail.hasPrefix("Not found") && row.tool == .carrier && row.state == .missing)
 }
 
 @Test func theChatHostRunsStaleOrNot() {

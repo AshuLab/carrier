@@ -136,3 +136,9 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     ).run()
     #expect(log == ["snapshot", "tick", "snapshot", "tick"])
 }
+
+@Test func theMenuAndTheCardShowTheSentenceOfTheSideToUpdate() {
+    let state = ConnectionState.incompatible(update: "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier.")
+    #expect(state.menuStatus.detail == "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier.")
+    #expect(ConnectionState.incompatible(update: nil).menuStatus.detail == nil)
+}

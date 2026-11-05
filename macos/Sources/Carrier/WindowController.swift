@@ -70,7 +70,25 @@ final class WindowController: NSObject, NSWindowDelegate {
         showIcon("info.circle", on: item)
     }
 
+    /// Adds the "Settings…" item: it opens the window if it was closed, then shows the Settings sheet over it.
+    func addSettingsItem(to menu: NSMenu) {
+        let item = menu.addItem(withTitle: "Settings…", action: #selector(settingsFromMenu), keyEquivalent: ",")
+        item.target = self
+        showIcon("gearshape", on: item)
+    }
+
     @objc private func openFromMenu() { open() }
+
+    @objc private func settingsFromMenu() { showSettings() }
+
+    func showSettings() {
+        open()
+        model.shell.showSettings()
+    }
+
+    /// For the self-test.
+    func closeSettings() { model.shell.settingsShown = false }
+    var settingsStatus: String { "settings sheet \(model.shell.settingsShown ? "shown" : "hidden")" }
 
     /// For the self-test: Escape on the About sheet, so the next choice of the item starts from no sheet.
     func dismissAbout() { model.shell.aboutInput(.escape) }
@@ -180,10 +198,10 @@ final class WindowController: NSObject, NSWindowDelegate {
         draft.openPicker()
         lines.append("new session picker: recent \(draft.recent.map(\.name)), projects \(draft.projects.map(\.name)), sources \(draft.sources.map(\.rawValue)), footer \(draft.projectsPath)")
         draft.show(.url)
-        for text in ["https://github.com/AshuLab/web", "AshuLab/nope"] {
+        for text in ["https://github.com/AshuLab/web", "AshuLab/api", "AshuLab/nope"] {
             draft.urlText = text
-            let worked = await draft.cloneAndUse()
-            lines.append("new session clone \(text): \(draft.cloneButton), \(worked ? "used" : "refused: \(draft.cloneProblem ?? "no reason")"), \"\(draft.sentence)\"")
+            let worked = await draft.useRepo()
+            lines.append("new session repo \(text): \(draft.repoButton), \(worked ? "used" : "refused"), \"\(draft.sentence)\", branches \(draft.picker(query: "")?.local.map(\.name) ?? []), problem \(draft.workspaceProblem ?? "none"), worktree \(draft.offersWorktree ? "offered" : "not offered"), \(draft.repoNote ?? "no note")")
         }
         // My GitHub repositories against the host: page 1 with the login, Load more, and a repository chosen from the list
         await draft.showRepos()
@@ -192,15 +210,15 @@ final class WindowController: NSObject, NSWindowDelegate {
         lines.append("new session repos page 2: \(draft.repoRows().count) loaded, more \(draft.repoList.hasMore), reason \(draft.reposReason ?? "none")")
         draft.watch = false  // a smoke pass never writes the config
         if let first = draft.repoRows().first {
-            let worked = await draft.cloneAndUse(repo: first.name)
-            lines.append("new session repo \(first.name): \(worked ? "used" : "refused: \(draft.cloneProblem ?? "no reason")"), \"\(draft.sentence)\"")
+            await draft.choose(repo: first.name)
+            lines.append("new session repo \(first.name): \"\(draft.sentence)\", problem \(draft.workspaceProblem ?? "none")")
         }
-        // New project against the host: a name it makes (and the draft then offers no worktree), then one it refuses as taken
+        // New project: only the plan is filled (the draft then offers no worktree), and a name that is taken is refused beforehand
         draft.show(.project)
         for name in ["my-idea", "web"] {
             draft.projectName = name
-            let worked = await draft.createAndUse()
-            lines.append("new session project \(name): \(worked ? "used" : "refused: \(draft.createProblem ?? draft.projectNameWarning ?? "no reason")"), \"\(draft.sentence)\", worktree \(draft.offersWorktree ? "offered" : "not offered")")
+            let worked = draft.useProject()
+            lines.append("new session project \(name): \(worked ? "used" : "refused: \(draft.projectNameWarning ?? "no reason")"), \"\(draft.sentence)\", worktree \(draft.offersWorktree ? "offered" : "not offered")")
         }
         return lines.joined(separator: "\n")
     }
@@ -261,7 +279,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         let pages: [(String, () -> Void)] = [
             ("home", { self.model.shell.selection = .home }), ("sessions", { self.model.shell.selection = .sessions }),
             ("new session", { self.model.shell.selection = .newSession }), ("archive", { self.model.shell.selection = .archive }),
-            ("settings", { self.model.shell.selection = .settings }), ("carrier", { self.model.shell.selection = .carrier }),
+            ("carrier", { self.model.shell.selection = .carrier }),
             ("first session", { self.selectFirstSession() }),
         ]
         for (name, select) in pages {

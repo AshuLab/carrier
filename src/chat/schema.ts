@@ -1,6 +1,7 @@
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import type { Plan } from './plan.ts';
 
-export const sessionStates = ['working', 'waiting_approval', 'idle'] as const;
+export const sessionStates = ['working', 'waiting_approval', 'idle', 'preparing'] as const;
 
 /** A user session: one conversation with a provider's agent in a folder. */
 export const sessions = sqliteTable('sessions', {
@@ -15,6 +16,7 @@ export const sessions = sqliteTable('sessions', {
   worktreePath: text(),
   title: text(),
   options: text({ mode: 'json' }).$type<Record<string, string>>(),
+  plan: text({ mode: 'json' }).$type<Plan>(), // what the host is preparing, or failed to, with the first message; null once the agent answered it
   nativeId: text(), // the provider's id for the conversation, to resume it
   state: text({ enum: sessionStates }).notNull().default('idle'),
   pid: integer(), // of the live agent process, null when closed
@@ -23,6 +25,7 @@ export const sessions = sqliteTable('sessions', {
   createdAt: integer().notNull(), // ms since epoch
   lastActiveAt: integer().notNull(),
   archived: integer({ mode: 'boolean' }).notNull().default(false),
+  keptAt: integer(), // ms since epoch: when the clock's delete spared this archived session for unsaved work; null otherwise
 });
 
 /**

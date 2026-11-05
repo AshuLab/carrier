@@ -1,11 +1,24 @@
 import CarrierCore
 import SwiftUI
 
-/// The two numbers every sidebar row is laid out with. The scroll area and the foot keep `edge` on both sides, so nothing inside has a
-/// side margin of its own; a row draws its fill edge to edge of that and keeps its content `inset` inside the fill.
+/// What every sidebar row is laid out with. The scroll area and the foot keep `edge` on both sides, so nothing inside has a side margin
+/// of its own; a row draws its fill edge to edge of that and keeps its content `inset` inside the fill. The type has four levels, one
+/// for each job: a section (Home, Sessions, Carrier), a group's title, an item's title (a session, an epic) and its detail.
 enum SidebarMetrics {
     static let edge: CGFloat = 8
-    static let inset: CGFloat = 10
+    static let inset: CGFloat = 12
+    static let section = Font.system(size: 16, weight: .medium)
+    static let group = Font.system(size: 12, weight: .semibold)
+    static let item = Font.system(size: 14)
+    static let detail = Font.system(size: 12)
+    /// Between rows: each one carries its own vertical padding.
+    static let rowGap: CGFloat = 2
+    /// The vertical padding of a section's row and of an item's row, and between an item's lines.
+    static let sectionPadding: CGFloat = 8
+    static let itemPadding: CGFloat = 7
+    static let lineGap: CGFloat = 3
+    /// Above a group's title, so it reads where a group begins; under it the first row is closer.
+    static let groupTop: CGFloat = 10
 }
 
 /// The sidebar: the Home row, Sessions, then Carrier with the epics in groups under it, in a scroll area; Archive and Settings are fixed
@@ -24,6 +37,10 @@ struct SidebarView: View {
     let searchRequest: SearchRequest?
     /// Choosing a session from the Archive list.
     let chooseArchived: (String) -> Void
+    /// Settings is a sheet over the window, not a page: the row opens it and is never the selected one.
+    let openSettings: () -> Void
+    /// The + of a workspace's header: a new session in that folder.
+    let newSessionIn: (String) -> Void
     /// Carrier's search: not remembered between launches.
     @State private var searching = false
     @State private var query = ""
@@ -32,12 +49,12 @@ struct SidebarView: View {
     var body: some View {
         let epicCount = snapshot.map { sidebarGroups($0, by: groupBy).reduce(0) { $0 + $1.count } } ?? 0
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 4) {
+            LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
                 SidebarSectionRow(title: "Home", icon: "house", selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
                 SessionsRows(
                     sessions: sessions, sort: $sessionSort, selection: $selection, selected: selection == .sessions,
                     select: { selection = .sessions }, open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }),
-                    searchRequest: searchRequest, newSession: { selection = .newSession }
+                    searchRequest: searchRequest, newSession: { selection = .newSession }, newSessionIn: newSessionIn
                 )
                 CarrierRow(
                     state: state, selected: selection == .carrier, unfolded: open == .carrier, hasEpics: epicCount > 0,
@@ -62,14 +79,14 @@ struct SidebarView: View {
                             if queried == false { collapse.toggle(group, by: groupBy) }
                         } label: {
                             HStack {
-                                Text(group.title).textCase(.uppercase)
+                                Text(group.title)
                                 Spacer(minLength: 0)
                                 Text("\(group.count)").monospacedDigit()
                                 Image(systemName: "chevron.right").imageScale(.small).rotationEffect(.degrees(expanded ? 90 : 0))
                                     .opacity(queried ? 0 : 1)
                             }
-                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                            .padding(.horizontal, SidebarMetrics.inset).padding(.top, 8).padding(.bottom, 2)
+                            .font(SidebarMetrics.group).foregroundStyle(.secondary)
+                            .frame(height: 22).padding(.horizontal, SidebarMetrics.inset).padding(.top, SidebarMetrics.groupTop)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -101,7 +118,7 @@ struct SidebarView: View {
                 )
                 .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
                 Divider()
-                SidebarSectionRow(title: "Settings", icon: "gearshape", selected: selection == .settings, action: { selection = .settings })
+                SidebarSectionRow(title: "Settings", icon: "gearshape", selected: false, action: openSettings)
                     .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
             }
         }
@@ -132,7 +149,7 @@ private struct CarrierRow: View {
         let detail: String? = if let snapshot { Self.hover(snapshot) } else if case .incompatible(let update)? = state { update ?? state?.menuLine } else { nil }
         SidebarSectionRow(title: "Carrier", icon: "paperplane", selected: selected, action: select, actions: {
             Text(card.title)
-                .font(.caption.weight(.semibold))
+                .font(SidebarMetrics.detail.weight(.semibold))
                 .foregroundStyle(Self.tint(card.kind))
                 .padding(.horizontal, 8).padding(.vertical, 2)
                 .background(Capsule().fill(Self.tint(card.kind).opacity(0.28)))
@@ -157,9 +174,12 @@ private struct CarrierRow: View {
                 Text(notice).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
             if let slots = card.slots {
-                SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(slots.busy) of \(slots.total) slots busy")
+                HStack(spacing: 8) {
+                    SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
+                    Text("\(slots.busy)/\(slots.total)").font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(slots.busy) of \(slots.total) slots busy")
             }
         })
         .help(([detail, "Carrier (⌘3)"].compactMap { $0 }).joined(separator: "\n"))
@@ -284,9 +304,9 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
                 // row, but on its actions, still does through the tap below
                 Button(action: action) {
                     HStack(spacing: 8) {
-                        Image(systemName: icon).resizable().scaledToFit().frame(width: 15, height: 15)
+                        Image(systemName: icon).resizable().scaledToFit().frame(width: 18, height: 18)
                             .foregroundStyle(selected ? .primary : .secondary)
-                        Text(title).fontWeight(.medium)
+                        Text(title).font(SidebarMetrics.section)
                         Spacer(minLength: 0)
                     }
                     .contentShape(Rectangle())
@@ -296,10 +316,10 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
                 .accessibilityAddTraits(selected ? .isSelected : [])
                 actions
             }
-            .frame(minHeight: 20)
+            .frame(minHeight: 24)
             below
         }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, 6)
+        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.sectionPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
         .contentShape(RoundedRectangle(cornerRadius: 8))
@@ -311,53 +331,41 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
 
 struct SidebarRowView: View {
     let row: SidebarRow
+    private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
+
+    /// What the project's icon wears for the epic's state: a halo while it runs, a mark on its corner when there is something to say.
+    private var mark: ProjectIcon.Mark? {
+        switch row.state {
+        case .needsYou: .init(text: "!", color: (row.attention ?? .input).color)
+        case .ready: .init(text: "✓", color: .blue)
+        case .done: .init(text: "✓", color: .green)
+        case .cancelled: .init(text: "✕", color: .gray)
+        case .running, .waiting: nil
+        }
+    }
+
+    private var detailColor: Color {
+        guard row.state == .needsYou else { return .secondary }
+        return row.attention == .error ? .red : SessionRowView.attention
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
-            StateGlyph(state: row.state, attention: row.attention)
-            VStack(alignment: .leading, spacing: 5) {
+        HStack(spacing: SidebarMetrics.inset) {
+            ProjectIcon(name: row.name, colorKey: projectColorKey(row.repo), halo: row.state == .running, mark: mark)
+            VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 // two lines before the ellipsis: a title is a sentence, and the number no longer takes room from it
-                Text(row.title ?? row.name).font(.system(size: 12)).lineLimit(2)
-                StateAndRepo {
-                    // the number comes first so that, when the state is long, the tail is what gets cut
-                    Text("\(Text("#\(row.issue) · ").foregroundStyle(.secondary))\(Text(row.detail).foregroundStyle(row.attention?.color ?? .secondary))")
-                        .font(.caption).monospacedDigit().lineLimit(1).truncationMode(.tail)
-                    if let repo = row.repoLabel {
-                        HStack(spacing: 3) {
-                            GitHubMark.image.renderingMode(.template).resizable().scaledToFit().frame(width: 10, height: 10)
-                            Text(repo).lineLimit(1).truncationMode(.tail)
-                        }
-                        .font(.caption)
-                    }
-                }
+                Text(row.title ?? row.name).font(SidebarMetrics.item).lineLimit(2)
+                Text("#\(row.issue) · \(row.detail)").font(SidebarMetrics.detail).monospacedDigit().foregroundStyle(detailColor)
+                    .lineLimit(1).truncationMode(.tail).frame(height: Self.detailLine, alignment: .leading)
             }
+            Spacer(minLength: 4)
+            Text(row.age).font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary).lineLimit(1)
+                .frame(height: Self.titleLine).frame(maxHeight: .infinity, alignment: .top)
         }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, 4)
-        .help(row.tooltip)
-    }
-}
-
-/// The state on the left and, when there is one, the repository on the right. The state keeps what it needs; the repository takes
-/// at most half of the line and gives way first.
-private struct StateAndRepo: Layout {
-    /// The least space between the state and the repository.
-    static let gap: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
-        return CGSize(width: proposal.width ?? sizes.map(\.width).reduce(0, +), height: sizes.map(\.height).max() ?? 0)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        guard let state = subviews.first else { return }
-        let stateWidth = min(state.sizeThatFits(.unspecified).width, bounds.width)
-        state.place(at: bounds.origin, proposal: ProposedViewSize(width: stateWidth, height: bounds.height))
-        guard subviews.count > 1 else { return }
-        let repo = subviews[1]
-        let repoWidth = max(0, min(repo.sizeThatFits(.unspecified).width, bounds.width / 2, bounds.width - stateWidth - Self.gap))
-        repo.place(
-            at: CGPoint(x: bounds.maxX - repoWidth, y: bounds.minY), proposal: ProposedViewSize(width: repoWidth, height: bounds.height)
-        )
+        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.itemPadding)
+        .hoverCard { EpicCardView(card: row.card) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(([row.title ?? row.name, row.state.label, row.detail] + (row.age.isEmpty ? [] : [row.age])).joined(separator: ", "))
     }
 }
 

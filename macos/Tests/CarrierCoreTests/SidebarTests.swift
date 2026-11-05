@@ -38,18 +38,19 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
         done: [.init(repo: "acme/web", issue: 5, prNumber: 9, finishedAt: 5_000, executionId: nil)]
     )
     let groups = sidebarGroups(all, by: .status)
-    #expect(groups.map(\.title) == ["Needs you", "Running", "Up next", "Ready for test"])
+    #expect(groups.map(\.title) == ["Needs attention", "Running", "Up next", "Ready for test"])
     #expect(groups[0].rows.map(\.detail) == ["review limit reached"])
     #expect(groups[1].rows.map(\.detail) == ["ship · 3/5 slices", "review · round 2/5"])
     #expect(groups[2].rows.map(\.detail) == ["waiting for a slot"])
-    #expect(groups[3].rows.map(\.detail) == ["2m ago"])
+    #expect(groups[3].rows.map(\.detail) == ["PR #9"])
+    #expect(groups[3].rows.map(\.age) == ["2m"] && groups[0].rows.map(\.age) == ["2m"])
     let first = try #require(groups[0].rows.first)
     #expect(first.name == "api" && first.issue == 3 && first.state == .needsYou && first.selection == .epic(repo: "acme/api", issue: 3))
 }
 
 @Test func theStatusGroupsKeepTheSnapshotOrderAndOnlyReadyHidesWhenEmpty() {
     let groups = sidebarGroups(snapshot([epic("acme/web", 9), epic("acme/web", 2)]), by: .status)
-    #expect(groups.map(\.title) == ["Needs you", "Running", "Up next"])
+    #expect(groups.map(\.title) == ["Needs attention", "Running", "Up next"])
     #expect(groups[0].rows.isEmpty && groups[2].rows.isEmpty)
     #expect(groups[1].rows.map(\.issue) == [9, 2])
 }
@@ -76,30 +77,29 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     let groups = sidebarGroups(all, by: .repo)
     #expect(groups.map(\.title) == ["api", "web"])
     #expect(groups[0].rows.map(\.issue) == [1, 7] && groups[1].rows.map(\.issue) == [3, 8])
-    #expect(groups[0].rows[0].detail == "a while ago")
+    #expect(groups[0].rows[0].detail == "ready for test" && groups[0].rows[0].age == "")
 }
 
 @Test func anEpicWithNoKnownTitleStillGetsARow() {
     let rows = sidebarGroups(snapshot([epic("acme/web", 4), epic("acme/web", 5, title: "Add login")], queue: [queued("acme/api", 6)]), by: .status)
-    #expect(rows[1].rows.map(\.tooltip) == ["web #4\nacme/web", "Add login\nacme/web"])
-    #expect(rows[2].rows[0].tooltip == "api #6\nacme/api")
+    #expect(rows[1].rows.map(\.card.title) == ["Epic #4", "Add login"])
+    #expect(rows[1].rows.map(\.card.subtitle) == ["acme/web · #4", "acme/web · #5"])
+    #expect(rows[2].rows[0].card.title == "Epic #6" && rows[2].rows[0].card.subtitle == "acme/api · #6")
 }
 
-@Test func aRowLeadsWithItsTitleAndNamesItsRepositoryOnTheRightOnlyWhenGroupedByStatus() {
+@Test func aRowLeadsWithItsTitleAndItsRepositoryIsItsIconNotAWord() {
     let all = snapshot([epic("acme/web", 4), epic("acme/web", 5, title: "Add login"), epic("acme/web", 6, title: "")])
     let byStatus = sidebarGroups(all, by: .status)[1].rows
     #expect(byStatus.map(\.title) == [nil, "Add login", nil])
-    #expect(byStatus.map(\.repoLabel) == [nil, "web", nil])
-    let byRepo = sidebarGroups(all, by: .repo)[0].rows
-    #expect(byRepo.map(\.title) == [nil, "Add login", nil])
-    #expect(byRepo.map(\.repoLabel) == [nil, nil, nil])
     #expect(byStatus.map(\.name) == ["web", "web", "web"])
+    #expect(byStatus.map(\.card.name) == ["web", "web", "web"])
+    #expect(sidebarGroups(all, by: .repo)[0].rows.map(\.title) == [nil, "Add login", nil])
 }
 
-@Test func theTooltipIsTheFullTitleThenOwnerAndName() {
+@Test func theCardNamesTheFullTitleEvenWhenTheRowCutsIt() {
     let long = String(repeating: "a long title ", count: 12)
     let rows = sidebarGroups(snapshot([epic("acme/web", 5, title: long)]), by: .repo)[0].rows
-    #expect(rows[0].tooltip == "\(long)\nacme/web")
+    #expect(rows[0].card.title == long && rows[0].card.subtitle == "acme/web · #5")
 }
 
 @Test func theGroupsOfAnEmptySnapshotAreEmpty() {
@@ -160,7 +160,7 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
         done: [.init(repo: "c/d", issue: 7, prNumber: 9, finishedAt: 5_000, executionId: nil)]
     )
     let byStatus = sidebarGroups(all, by: .status)
-    #expect(byStatus.map(\.title) == ["Needs you", "Running", "Up next", "Ready for test"])
+    #expect(byStatus.map(\.title) == ["Needs attention", "Running", "Up next", "Ready for test"])
     #expect(byStatus.map(\.count) == [1, 2, 1, 1])
     let byRepo = sidebarGroups(all, by: .repo)
     #expect(byRepo.map(\.title) == ["b", "d"])
@@ -273,7 +273,7 @@ private func withFinished(_ finished: [PanelSnapshot.FinishedEpic], done: [Panel
         done: [.init(repo: "acme/web", issue: 5, prNumber: 9, finishedAt: 5_000, executionId: nil)]
     )
     let groups = sidebarGroups(all, by: .status)
-    #expect(groups.map(\.title) == ["Needs you", "Running", "Up next", "Ready for test", "Done", "Cancelled"])
+    #expect(groups.map(\.title) == ["Needs attention", "Running", "Up next", "Ready for test", "Done", "Cancelled"])
     #expect(groups.map(\.startsCollapsed) == [false, false, false, false, true, true])
     #expect(groups[4].rows.map(\.issue) == [7, 9] && groups[4].rows.allSatisfy { $0.state == .done })
     #expect(groups[5].rows.map(\.issue) == [8] && groups[5].rows[0].state == .cancelled)
@@ -283,10 +283,10 @@ private func withFinished(_ finished: [PanelSnapshot.FinishedEpic], done: [Panel
 
 @Test func aFinishedGroupWithNoEpicsIsHiddenAndAnEngineWithoutTheFieldChangesNothing() {
     let onlyDone = sidebarGroups(withFinished([ended(7, .merged, at: 1)]), by: .status)
-    #expect(onlyDone.map(\.title) == ["Needs you", "Running", "Up next", "Done"])
+    #expect(onlyDone.map(\.title) == ["Needs attention", "Running", "Up next", "Done"])
     let onlyCancelled = sidebarGroups(withFinished([ended(7, .cancelled, at: 1)]), by: .status)
-    #expect(onlyCancelled.map(\.title) == ["Needs you", "Running", "Up next", "Cancelled"])
-    #expect(sidebarGroups(withFinished([]), by: .status).map(\.title) == ["Needs you", "Running", "Up next"])
+    #expect(onlyCancelled.map(\.title) == ["Needs attention", "Running", "Up next", "Cancelled"])
+    #expect(sidebarGroups(withFinished([]), by: .status).map(\.title) == ["Needs attention", "Running", "Up next"])
 }
 
 @Test func everyFinishedEpicIsListedWithNoCapInTheSnapshotsOrder() {
@@ -303,10 +303,10 @@ private func withFinished(_ finished: [PanelSnapshot.FinishedEpic], done: [Panel
     ])
     let groups = sidebarGroups(all, by: .status)
     let done = groups[3].rows[0], cancelled = groups[4].rows
-    #expect((done.name, done.issue, done.detail, done.tooltip) == ("web", 7, "2m ago", "Add login\nacme/web"))
-    #expect(cancelled[0].detail == "2m ago · final PR closed without merge")
-    #expect(cancelled[0].tooltip == "Add logout\nacme/web\nfinal PR closed without merge")
-    #expect((cancelled[1].detail, cancelled[1].tooltip) == ("2m ago", "web #9\nacme/web"))
+    #expect((done.name, done.issue, done.detail, done.age, done.card.title) == ("web", 7, "merged", "2m", "Add login"))
+    #expect((cancelled[0].detail, cancelled[0].age) == ("final PR closed without merge", "2m"))
+    #expect(cancelled[0].card.facts == [.init(label: "Reason", value: "final PR closed without merge")])
+    #expect((cancelled[1].detail, cancelled[1].age, cancelled[1].card.title) == ("cancelled", "2m", "Epic #9"))
     #expect(cancelled[0].selection == .epic(repo: "acme/web", issue: 8))
 }
 
@@ -358,15 +358,15 @@ private func found(_ query: String, by: GroupBy = .status) -> [String] {
 }
 
 @Test func aQueryMatchesTheIssueNumberWithOrWithoutTheHash() {
-    #expect(found("7") == ["Needs you:7"])
-    #expect(found("#7") == ["Needs you:7"])
+    #expect(found("7") == ["Needs attention:7"])
+    #expect(found("#7") == ["Needs attention:7"])
     #expect(found("#31") == ["Ready for test:31"])
     #expect(found("#12") == ["Running:12", "Up next:120"])
     #expect(found("#") == [])
 }
 
 @Test func aQueryMatchesTheRepositoryOwnerAndName() {
-    #expect(found("acme/api") == ["Needs you:7", "Ready for test:31"])
+    #expect(found("acme/api") == ["Needs attention:7", "Ready for test:31"])
     #expect(found("ACME/WEB") == ["Running:12", "Up next:120", "Done:40"])
     #expect(found("docs") == ["Cancelled:41"])
 }
@@ -379,7 +379,7 @@ private func found(_ query: String, by: GroupBy = .status) -> [String] {
 
 @Test func aQueryKeepsTheGroupsAndHidesTheEmptyOnes() {
     let groups = sidebarGroups(searchable(), by: .status, query: "acme")
-    #expect(groups.map(\.title) == ["Needs you", "Running", "Up next", "Ready for test", "Done", "Cancelled"])
+    #expect(groups.map(\.title) == ["Needs attention", "Running", "Up next", "Ready for test", "Done", "Cancelled"])
     #expect(groups.map(\.startsCollapsed) == [false, false, false, false, true, true])
     #expect(sidebarGroups(searchable(), by: .status, query: "dashboard").map(\.title) == ["Done"])
     #expect(sidebarGroups(searchable(), by: .status, query: "nothing like this").isEmpty)

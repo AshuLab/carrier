@@ -6,6 +6,8 @@ struct PanelView: View {
     let model: PanelModel
     /// The last Check now pressed from the toolbar, for the button to say it is checking.
     @State private var checkAsked: CheckAsked?
+    /// The window's size, for the sheets over it.
+    @State private var windowSize = CGSize(width: 1100, height: 700)
     /// The right panel's width: also the empty toolbar item that keeps the epic's buttons off it.
     private static let inspectorWidth: CGFloat = 316
 
@@ -47,7 +49,6 @@ struct PanelView: View {
     private var title: String {
         if let epic { return "\(epic.subject.repo.split(separator: "/").last ?? "") #\(epic.subject.issue)" }
         switch model.shell.selection {
-        case .settings: return "Settings"
         case .sessions: return "Sessions"
         case .session: return openSession.map(conversationTitle) ?? "Session"
         case .newSession: return "New session"
@@ -64,7 +65,6 @@ struct PanelView: View {
     private var subtitle: String {
         switch model.shell.selection {
         case .carrier: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
-        case .settings: "what the app starts Carrier with"
         case .sessions: sessionsPage(model.sessions.rows, by: model.sessionSort).subtitle
         case .session: openSession.map(conversationSubtitle) ?? ""
         default: ""
@@ -90,8 +90,13 @@ struct PanelView: View {
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, sessionSort: sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived)
+            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, sessionSort: sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { shell.showSettings() }, newSessionIn: { path in
+                model.newSession.start(in: path)
+                shell.selection = .newSession
+            })
                 .onChange(of: shell.open) { SidebarStore().open = shell.open }
+                // the menu or the + while the draft is open: it starts blank again
+                .onChange(of: shell.newSessionOpened) { model.newSession.blank() }
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
             // resizes and the app dies with "more Update Constraints passes than there are views"
@@ -108,9 +113,6 @@ struct PanelView: View {
                             fileDiffs: epics.canOpenFiles ? FileDiffs(open: Binding(get: { epics.openFiles[ref] ?? [] }, set: { epics.openFiles[ref] = $0 }), shown: $epics.filesTabShown, fragments: data?.fragments ?? [:]) : nil
                         )
                             .id("\(epic.subject.repo)#\(epic.subject.issue)")
-                    } else if shell.selection == .settings {
-                        // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
-                        SettingsScreen(state: model.state, tab: $shell.settingsTab)
                     } else if shell.selection == .sessions {
                         SessionsHomeView(sessions: model.sessions, sort: sessionSort, newSession: { shell.selection = .newSession }) { shell.selection = .session(id: $0) }
                     } else if shell.selection == .archive {
@@ -120,7 +122,10 @@ struct PanelView: View {
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
                     } else if case .session(let id) = shell.selection {
-                        ConversationView(sessionId: id, draft: model.newSession).id(id)
+                        ConversationView(sessionId: id, draft: model.newSession) { plan in
+                            model.newSession.restore(plan)
+                            shell.selection = .newSession
+                        }.id(id)
                     } else if case .running(let snapshot)? = model.state {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 26) {
@@ -131,7 +136,7 @@ struct PanelView: View {
                         }
                     } else {
                         // Carrier is not answering (or has not yet): what to do about it
-                        StoppedView(state: model.state, selection: $shell.selection)
+                        StoppedView(state: model.state, openSettings: { shell.showSettings() })
                     }
                 }
                 // only an epic has something to inspect; the other pages are a single column. The panel runs up behind the
@@ -215,10 +220,14 @@ struct PanelView: View {
                 AboutSheetView(state: model.state, onInput: shell.aboutInput)
             }
         }
+        // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
+        .sheet(isPresented: $shell.settingsShown) { SettingsSheet(state: model.state, tab: $shell.settingsTab) }
         .frame(minWidth: 1100, minHeight: 600)
         .environment(model.actions)
         .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
         .onChange(of: snapshot) { if let snapshot { model.epics.settleResuming(snapshot) } }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }
+        .environment(\.windowSize, windowSize)
     }
 }
 
@@ -233,7 +242,7 @@ private struct Running: View {
         case .epic(let repo, let issue):
             // not in the snapshot (any more)
             Text("\(repo) #\(issue)")
-        case .home, .sessions, .session, .newSession, .archive, .settings:
+        case .home, .sessions, .session, .newSession, .archive:
             EmptyView()  // PanelView shows these pages
         }
     }

@@ -28,6 +28,7 @@ struct NewSessionView: View {
                 sentence
                 box
                 if let reason = model.noAgentReason { Text(reason).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
+                if model.hostOlder { Text(NewSessionModel.olderHostNotice).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
                 ForEach(model.agents.filter { $0.fix != nil }, id: \.name) { agent in
                     HStack(spacing: 8) {
                         Text("\(agent.name) is \(agent.note ?? "unavailable"):").font(.callout).foregroundStyle(.secondary)
@@ -39,7 +40,7 @@ struct NewSessionView: View {
                     Button("Open Health in Settings", action: openHealth).buttonStyle(.link).font(.callout)
                 }
                 if model.worktree, let branch = model.startBranch {
-                    Label("Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.", systemImage: "arrow.triangle.branch")
+                    Label(model.worktreeName.isEmpty ? "Creates a worktree on a new branch \(worktreeBranchPrefix)<name, generated when the message is sent> from \(branch)." : "Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.", systemImage: "arrow.triangle.branch")
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
                 }
                 if let refusal = model.refusal {
@@ -59,7 +60,8 @@ struct NewSessionView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // nothing scrolls under the toolbar here, so it takes the page's own colour and not the system's band
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-        .task {
+        // a workspace's + while the draft is open asks again, for another folder
+        .task(id: model.starts) {
             await model.load()
             await model.loadOptions()
         }
@@ -85,16 +87,17 @@ struct NewSessionView: View {
                     foldersOpen.toggle()
                 } label: {
                     chip(
-                        model.cloningName ?? model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Choose a workspace…",
-                        tint: model.folder == nil && model.cloning == nil ? .orange : .primary
+                        model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "Choose a workspace…",
+                        tint: model.folder == nil ? .orange : .primary
                     )
                 }
                 .buttonStyle(.plain).accessibilityLabel("Workspace")
                 .sheet(isPresented: $foldersOpen) { WorkspaceSheet(model: model, openHealth: openHealth) }
-                if let repo = model.cloning {
-                    ProgressView().controlSize(.small)
-                    Text("Cloning \(repo)…")
+                if model.folder != nil {
+                    Button { model.clearWorkspace() } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                        .buttonStyle(.plain).accessibilityLabel("Clear workspace").help("Clear the workspace")
                 }
+                if model.loadingBranches { ProgressView().controlSize(.small) }
                 if model.folder != nil {
                     if model.offersWorktree {
                         Text("on")
@@ -109,21 +112,21 @@ struct NewSessionView: View {
             }
             .font(.body).foregroundStyle(.secondary)
             .accessibilityElement(children: .contain)
-            if let note = model.watchNote {
-                Label(note, systemImage: model.watchFailed ? "exclamationmark.triangle.fill" : "eye.fill").font(.subheadline).foregroundStyle(model.watchFailed ? .orange : .secondary).textSelection(.enabled)
-            }
+            if let note = model.repoNote { Label(note, systemImage: "arrow.down.circle").font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
+            if model.branchesPartial { Text("Only the first branches GitHub lists are offered; the others can be checked out once the repository is on this Mac.").font(.subheadline).foregroundStyle(.secondary) }
+            if let note = model.projectNote { Label(note, systemImage: "folder.badge.plus").font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
+            if let note = model.branchNote { Text(note).font(.callout).foregroundStyle(.secondary) }
             if let warning = model.warning { Text(warning).font(.callout).foregroundStyle(.orange) }
             if case .problem(let reason) = model.nameState, model.worktree {
                 Text(reason).font(.callout).foregroundStyle(.red).textSelection(.enabled)
             }
             if let problem = model.workspaceProblem { Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
-            if let problem = model.cloneProblem { Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
         }
     }
 
     /// The branch the chosen folder is on: a chip that opens its local branches, like the other controls.
     private var currentBranch: some View {
-        Button { currentBranchOpen.toggle() } label: { chip(model.workspace?.branch ?? "detached HEAD", icon: "arrow.triangle.branch") }
+        Button { currentBranchOpen.toggle() } label: { chip(model.picked ?? model.workspace?.branch ?? "detached HEAD", icon: "arrow.triangle.branch") }
             .buttonStyle(.plain).accessibilityLabel("Branch of the folder")
             .sheet(isPresented: $currentBranchOpen) { BranchSheet(model: model, browsing: true) }
     }
@@ -155,12 +158,14 @@ struct NewSessionView: View {
             // the prefix and the name are one word to the eye: no space between them
             HStack(spacing: 0) {
                 Text(worktreeBranchPrefix).foregroundStyle(.secondary)
-                TextField("name", text: $model.worktreeName)
+                TextField(model.toClone ? "generated when sent" : "name", text: $model.worktreeName)
                     .textFieldStyle(.plain).autocorrectionDisabled().fixedSize()
                     .foregroundStyle(nameColor).accessibilityLabel("Worktree name")
             }
-            Button { Task { await model.rollName() } } label: { Image(systemName: "arrow.clockwise") }
-                .buttonStyle(.plain).foregroundStyle(.secondary).help("Pick another name").accessibilityLabel("Suggest another name")
+            if model.toClone == false {
+                Button { Task { await model.rollName() } } label: { Image(systemName: "arrow.clockwise") }
+                    .buttonStyle(.plain).foregroundStyle(.secondary).help("Pick another name").accessibilityLabel("Suggest another name")
+            }
         }
         .font(.callout.monospaced())
         .padding(.horizontal, 10).frame(height: controlHeight)
@@ -187,7 +192,7 @@ struct NewSessionView: View {
     private var box: some View {
         MessageBox(
             text: $model.text, placeholder: model.folder == nil ? "Choose a workspace to start…" : "Write the first message…",
-            canSend: model.canSend, sendHelp: model.canSend ? "Send" : model.noAgentReason ?? "Choose a workspace and write a message",
+            canSend: model.canSend, sendHelp: model.canSend ? "Send" : model.hostOlder ? NewSessionModel.olderHostNotice : model.noAgentReason ?? "Choose a workspace and write a message",
             focus: $boxFocused, commands: model.agentCommands, send: send
         ) {
             providerSelect

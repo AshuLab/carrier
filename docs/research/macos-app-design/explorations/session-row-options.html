@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Session row — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* sr- = session row. The sidebar at its ideal width (268) with the type scale of SidebarMetrics: 16 section, 12 group, 14 item, 12 detail */
+@property --sr-a{syntax:'<angle>';initial-value:0deg;inherits:false}
+.sr-opts{display:grid;grid-template-columns:repeat(auto-fill,300px);gap:28px;align-items:start;margin-top:8px}
+.sr-opt>h3{margin:0 0 2px;font-size:14px}.sr-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:300px;min-height:70px}
+.sr-pane{width:268px;border-radius:18px;background:var(--side);box-shadow:0 0 0 .5px var(--line) inset;padding:8px}
+.sr-sec{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:16px;font-weight:500;min-height:40px}
+.sr-sec svg{width:18px;height:18px;opacity:.7}
+.sr-sec .sp{flex:1}
+.sr-sec .sr-n{font-size:12px;font-weight:600;color:var(--dim);background:var(--card2);padding:1px 6px;border-radius:99px}
+.sr-grp{height:22px;margin-top:10px;padding:0 12px;display:flex;align-items:center;font-size:12px;font-weight:600;color:var(--dim)}
+.sr-row{display:flex;gap:10px;align-items:center;padding:7px 12px;border-radius:8px;margin-top:2px}
+.sr-row.sel{background:color-mix(in srgb,var(--blue) 45%,transparent)}
+.sr-t{flex:1;min-width:0}
+.sr-t b{display:block;font-size:14px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr-t>span{display:block;font-size:12px;margin-top:3px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sr-r{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}
+.sr-age{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;line-height:17px}
+.sr-provs{display:flex;gap:3px;align-items:center;height:14px}
+.sr-prov{width:14px;height:14px;color:var(--dim);display:block;flex:none}
+.sr-prov svg{width:100%;height:100%;display:block}
+.sr-more{font-size:10px;font-weight:600;color:var(--dim);line-height:14px}
+/* the project: initials in a rounded square (a squircle, not a circle) */
+.sr-av{position:relative;width:30px;height:30px;flex:none;border-radius:9px;display:grid;place-items:center;font-size:12px;font-weight:650;color:#fff;letter-spacing:.02em}
+.sr-bd{position:absolute;right:-4px;bottom:-4px;width:15px;height:15px;border-radius:50%;display:grid;place-items:center;background:var(--bgbadge,#2b2b2f);box-shadow:0 0 0 2px var(--bgbadge,#2b2b2f)}
+.sr-row.sel .sr-bd{--bgbadge:#2c5a96}
+body.light .sr-bd{--bgbadge:#e9e9ef}
+.sr-warn{width:15px;height:15px;border-radius:50%;background:var(--orange);color:#fff;font-size:10px;font-weight:800;display:grid;place-items:center}
+.sr-wait .sr-t b{font-weight:550}
+.sr-wait .sr-t>span{color:var(--orange);font-weight:500}
+.sr-quiet .sr-t b{color:var(--dim)}
+.sr-row.sel .sr-t b{color:var(--text)}
+.sr-ctl{display:flex;gap:10px;align-items:center;margin-bottom:18px}
+
+/* the clock of a working session */
+.sr-live{color:var(--blue);font-weight:550;font-variant-numeric:tabular-nums}
+.sr-row.sel .sr-live{color:#fff}
+.sr-pill{background:color-mix(in srgb,var(--blue) 22%,transparent);padding:0 7px;border-radius:99px;font-size:11px;line-height:16px}
+/* ---- the animation that was chosen: breathing ---- */
+/* ---- the four ways a working session moves ---- */
+/* 1 · breathing: a soft blue halo that swells and fades around the project icon */
+.an-breath{animation:an-breath 1.8s ease-out infinite}
+@keyframes an-breath{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--blue) 70%,transparent)}100%{box-shadow:0 0 0 8px transparent}}
+/* 2 · shimmer: a light sweeps across the second line, the title and the icon stay still */
+.an-shim{background:linear-gradient(100deg,var(--dim) 35%,var(--text) 50%,var(--dim) 65%) 100% 0/250% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:an-shim 1.8s linear infinite}
+@keyframes an-shim{to{background-position:0 0}}
+.sr-row.sel .an-shim{background-image:linear-gradient(100deg,rgba(255,255,255,.55) 35%,#fff 50%,rgba(255,255,255,.55) 65%)}
+/* 3 · bars: three bars that rise and fall, in the badge on the corner */
+.an-bars{display:flex;gap:1.5px;align-items:center;height:9px}
+.an-bars i{width:2px;height:100%;border-radius:1px;background:var(--blue);animation:an-bars 1s ease-in-out infinite;transform-origin:center}
+.an-bars i:nth-child(2){animation-delay:.2s}.an-bars i:nth-child(3){animation-delay:.4s}
+@keyframes an-bars{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
+/* 4 · edge: a bright arc that runs around the rounded square */
+.an-edge::after{content:"";position:absolute;inset:-3px;border-radius:12px;padding:2px;background:conic-gradient(from var(--sr-a),transparent 0 55%,var(--blue));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:an-rot 1.5s linear infinite;pointer-events:none}
+@keyframes an-rot{to{--sr-a:360deg}}
+</style></head>
+<body>
+<h1>Session row</h1>
+<div class="sub">The project as an icon, the time on top at the right and the providers under it (a session can have used several), the branch under the title. The animation is the breathing halo you chose. Three ways to show how long it has been working (the clocks tick). Switch the order, including the new "By state".</div>
+
+<div class="bar sr-ctl">
+  <button class="tab on" data-o="workspace">By workspace</button>
+  <button class="tab" data-o="age">By age</button>
+  <button class="tab" data-o="state">By state</button>
+  <span class="sp"></span>
+  <button class="tog" id="sr-theme">Light / dark</button>
+</div>
+
+<div class="sr-opts" id="sr-opts"></div>
+
+<p class="note"><b>1</b>: the clock takes the place of the age while it works, which says nothing then ("now"); it is the shortest. <b>2</b>: it opens the second line, so the top right keeps one meaning (the last activity) and the clock is readable as words; it needs the width of the line. <b>3</b>: a pill, the most visible and the one that makes the row taller. Under "By state" the group says Working, so the second line does not repeat it. The clock needs the host to say when the turn started: <code>list</code> does not carry it today.</p>
+
+<script>
+const ICON={"claude": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z\"></path></svg>", "codex": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path clip-rule=\"evenodd\" d=\"M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.7a.117.117 0 00.107.029c1.408-.346 2.762-.224 4.061.366l.063.03.154.076c1.357.703 2.33 1.77 2.918 3.198.278.679.418 1.388.421 2.126a5.655 5.655 0 01-.18 1.631.167.167 0 00.04.155 5.982 5.982 0 011.578 2.891c.385 1.901-.01 3.615-1.183 5.14l-.182.22a6.063 6.063 0 01-2.934 1.851.162.162 0 00-.108.102c-.255.736-.511 1.364-.987 1.992-1.199 1.582-2.962 2.462-4.948 2.451-1.583-.008-2.986-.587-4.21-1.736a.145.145 0 00-.14-.032c-.518.167-1.04.191-1.604.185a5.924 5.924 0 01-2.595-.622 6.058 6.058 0 01-2.146-1.781c-.203-.269-.404-.522-.551-.821a7.74 7.74 0 01-.495-1.283 6.11 6.11 0 01-.017-3.064.166.166 0 00.008-.074.115.115 0 00-.037-.064 5.958 5.958 0 01-1.38-2.202 5.196 5.196 0 01-.333-1.589 6.915 6.915 0 01.188-2.132c.45-1.484 1.309-2.648 2.577-3.493.282-.188.55-.334.802-.438.286-.12.573-.22.861-.304a.129.129 0 00.087-.087A6.016 6.016 0 015.635 2.31C6.315 1.464 7.132.846 8.086.457zm-.804 7.85a.848.848 0 00-1.473.842l1.694 2.965-1.688 2.848a.849.849 0 001.46.864l1.94-3.272a.849.849 0 00.007-.854l-1.94-3.393zm5.446 6.24a.849.849 0 000 1.695h4.848a.849.849 0 000-1.696h-4.848z\"></path></svg>", "antigravity": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z\"></path></svg>"};
+const S=[
+ {t:'Add rate limiting to the webhook',ws:'carrier',pv:['claude','codex'],br:'carrier/rate-limit',age:'now',st:'work',secs:134},
+ {t:'Fix the flaky sidebar test',ws:'carrier',pv:['codex'],br:'carrier/flaky',age:'2m',st:'wait'},
+ {t:'Hola',ws:'carrier',pv:['claude'],br:null,age:'28m',st:'idle',sel:1},
+ {t:'Refactor the control socket',ws:'carrier',pv:['claude','codex','antigravity'],br:'carrier/socket',age:'3h',st:'idle'},
+ {t:'Landing copy for the site',ws:'web',pv:['codex'],br:null,age:'1d',st:'idle'},
+ {t:'Port the importer to the schema',ws:'ashu-lab',pv:['antigravity','claude'],br:'carrier/importer',age:'now',st:'work',secs:2417}
+];
+const COLOR={carrier:'#8e5bd6',web:'#1d9bb0','ashu-lab':'#d9742c'};
+const initials=n=>{const w=n.split(/[-_ ]+/).filter(Boolean);return(w.length>1?w[0][0]+w[1][0]:n.slice(0,2)).toUpperCase()};
+const MAX=3;
+const provs=s=>`<div class="sr-provs">${s.pv.slice(0,MAX).map(p=>`<i class="sr-prov" title="${p}">${ICON[p]}</i>`).join('')}${s.pv.length>MAX?`<span class="sr-more">+${s.pv.length-MAX}</span>`:''}</div>`;
+const STATE={work:'Working',wait:'Waiting for you',idle:null};
+const where=(s,o)=>{const place=s.br?'\u2442 '+s.br:'Base folder';
+  if(s.st==='wait')return 'Waiting for you';
+  return (o==='workspace'?'':s.ws+' \u00b7 ')+place};
+const fmt=n=>{const h=Math.floor(n/3600),m=Math.floor(n%3600/60),x=n%60;return h?`${h}h ${String(m).padStart(2,'0')}m`:m?`${m}m ${String(x).padStart(2,'0')}s`:`${x}s`};
+const AN={
+ 1:{h:'1 \u00b7 The time replaces "now"',d:'While it works the slot at the top right is the turn\'s clock, in blue. Idle sessions keep their age there.',
+    age:s=>s.st==='work'?`<span class="sr-live" data-secs="${s.secs}">${fmt(s.secs)}</span>`:s.age,tail:()=>''},
+ 2:{h:'2 \u00b7 In the second line',d:'"Working 2m 14s" opens the second line; the top right keeps the age of the last activity ("now").',
+    age:s=>s.age,tail:s=>s.st==='work'?`Working <span class="sr-live" data-secs="${s.secs}">${fmt(s.secs)}</span> \u00b7 `:''},
+ 3:{h:'3 \u00b7 A pill under the time',d:'The clock is a small blue pill between the time and the providers. More weight, more height.',
+    age:s=>s.age,tail:()=>'',pill:s=>s.st==='work'?`<span class="sr-pill"><span class="sr-live" data-secs="${s.secs}">${fmt(s.secs)}</span></span>`:''}
+};
+function row(s,a,o){
+  const bd=s.st==='wait'?'<div class="sr-warn">!</div>':'';
+  const cls=s.st==='wait'?'sr-wait':s.st==='idle'?'sr-quiet':'';
+  return `<div class="sr-row ${s.sel?'sel':''} ${cls}"><div class="sr-av ${s.st==='work'?'an-breath':''}" style="background:${COLOR[s.ws]}">${initials(s.ws)}${bd?`<div class="sr-bd">${bd}</div>`:''}</div><div class="sr-t"><b>${s.t}</b><span>${a.tail(s)}${where(s,o)}</span></div><div class="sr-r"><div class="sr-age">${a.age(s)}</div>${a.pill?a.pill(s):''}${provs(s)}</div></div>`;
+}
+let order='workspace';
+function pane(a){
+  const rows=l=>l.map(s=>row(s,a,order)).join('');
+  let body;
+  if(order==='workspace')body=['carrier','web','ashu-lab'].map(w=>`<div class="sr-grp">${w}</div>${rows(S.filter(s=>s.ws===w))}`).join('');
+  else if(order==='age')body=`<div class="sr-grp">Today</div>${rows(S.filter(s=>['now','2m','28m','3h'].includes(s.age)))}<div class="sr-grp">Older</div>${rows(S.filter(s=>s.age==='1d'))}`;
+  else body=[['Needs attention','wait'],['Working','work'],['Active','idle']].map(([t,k])=>`<div class="sr-grp">${t}</div>${rows(S.filter(s=>s.st===k))}`).join('');
+  return `<div class="sr-pane"><div class="sr-sec"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 3.5h8v5H6l-2.5 2v-2H2zM11 6.5h3v5h-1v1.5l-2-1.5H8"/></svg>Sessions<span class="sp"></span><span class="sr-n">6</span></div>${body}</div>`;
+}
+function draw(){document.getElementById('sr-opts').innerHTML=Object.values(AN).map(a=>`<div class="sr-opt"><h3>${a.h}</h3><p>${a.d}</p>${pane(a)}</div>`).join('')}
+document.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>{order=b.dataset.o;document.querySelectorAll('[data-o]').forEach(x=>x.classList.toggle('on',x===b));draw()});
+document.getElementById('sr-theme').onclick=()=>document.body.classList.toggle('light');
+draw();
+setInterval(()=>document.querySelectorAll('[data-secs]').forEach(e=>{e.dataset.secs=+e.dataset.secs+1;e.textContent=fmt(+e.dataset.secs)}),1000);
+</script>
+</body></html>

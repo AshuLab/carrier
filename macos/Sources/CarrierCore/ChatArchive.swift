@@ -9,17 +9,27 @@ import Observation
 public enum ArchiveSort: String, CaseIterable { case dateArchived, project }
 
 /// What the page shows for the archived rows: the groups, the count under the title, which empty state when there is nothing to list,
-/// and whether Clear sessions has something to delete.
+/// whether Clear sessions has something to delete, and the line under a row (by session id) for the ones that have one.
 public struct ArchivePage: Equatable {
     public var subtitle: String
     public var groups: [SessionGroup]
+    public var notes: [String: String] = [:]
     public var emptyState: EmptyState?
     public var canClear: Bool
 }
 
+/// The line under an archived row: why a kept session is still there, else when the clock deletes it ("Deletes in 12 days", counted up
+/// to whole days from `now`, "Deletes soon" when it is due); nil when the host gave no date.
+public func archiveNote(_ row: SessionRow, now: Date = Date()) -> String? {
+    if row.kept { return "Kept because its worktree has unsaved work" }
+    guard let deleteAt = row.deleteAt else { return nil }
+    let days = Int((deleteAt.timeIntervalSince(now) / 86400).rounded(.up))
+    return days <= 0 ? "Deletes soon" : days == 1 ? "Deletes in 1 day" : "Deletes in \(days) days"
+}
+
 /// The archived rows only. By date archived: Last 30 days and Older (counted back from `now`); by project: one group per workspace
 /// ordered by name ignoring case; newest first inside a group. A non-empty `query` matches the title, the workspace and the agent
-/// ignoring case and lists the matches, newest first, in one group. The subtitle is "5 sessions" ("2 results" while searching) and
+/// ignoring case and lists the matches, newest first, in one group. `notes` is `archiveNote` of each archived row. The subtitle is "5 sessions" ("2 results" while searching) and
 /// says nothing when nothing is archived; the page is "Nothing archived" then, "No sessions match" when a search finds none.
 public func archivePage(_ rows: [SessionRow], by sort: ArchiveSort = .dateArchived, query: String = "", now: Date = Date()) -> ArchivePage {
     let archived = rows.filter(\.archived)
@@ -43,7 +53,8 @@ public func archivePage(_ rows: [SessionRow], by sort: ArchiveSort = .dateArchiv
     let shown = groups.reduce(0) { $0 + $1.rows.count }
     let subtitle = query.isEmpty == false ? (shown == 1 ? "1 result" : "\(shown) results") : archived.isEmpty ? "" : archived.count == 1 ? "1 session" : "\(archived.count) sessions"
     let empty: EmptyState? = groups.isEmpty ? (archived.isEmpty ? .nothingArchived : .noSessionsMatch) : nil
-    return ArchivePage(subtitle: subtitle, groups: groups, emptyState: empty, canClear: archived.isEmpty == false)
+    let notes = Dictionary(uniqueKeysWithValues: archived.compactMap { row in archiveNote(row, now: now).map { (row.id, $0) } })
+    return ArchivePage(subtitle: subtitle, groups: groups, notes: notes, emptyState: empty, canClear: archived.isEmpty == false)
 }
 
 /// What an alert says; its first button is the one that does nothing, and the default.

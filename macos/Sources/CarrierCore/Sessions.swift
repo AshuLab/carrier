@@ -6,12 +6,12 @@ import Foundation
 public enum SessionState: Hashable {
     case working, waiting, idle, done
 
-    /// The group's title by status and the filter's wording.
+    /// The group's title by state and the filter's wording.
     public var title: String {
         switch self {
-        case .waiting: "Waiting for you"
+        case .waiting: "Needs attention"
         case .working: "Working"
-        case .idle: "Idle"
+        case .idle: "Active"
         case .done: "Done"
         }
     }
@@ -30,12 +30,20 @@ public struct SessionRow: Equatable {
     public var branch: String?
     /// Where the session works: the worktree's path, or the folder.
     public var folder: String
+    /// The folder the session is grouped under: the repository's folder for a session in a worktree, `folder` otherwise.
+    public var base: String
+    /// The providers the session has worked with, as the names of their icons; one today, and the row has room for more.
+    public var providers: [String]
     /// Whether the host has a title for it; `title` says "Untitled session" when it has none.
     public var titled: Bool
+    /// An archived session the clock spares because its worktree holds unsaved work.
+    public var kept: Bool
+    /// When the clock deletes an archived session; nil when it will not.
+    public var deleteAt: Date?
 
     public init(
         id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil,
-        folder: String = "", titled: Bool = true
+        folder: String = "", base: String? = nil, providers: [String] = [], titled: Bool = true, kept: Bool = false, deleteAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -46,7 +54,11 @@ public struct SessionRow: Equatable {
         self.archived = archived
         self.branch = branch
         self.folder = folder
+        self.base = base ?? folder
+        self.providers = providers
         self.titled = titled
+        self.kept = kept
+        self.deleteAt = deleteAt
     }
 }
 
@@ -77,7 +89,7 @@ public struct Sessions: Equatable {
 public enum SessionSort: String, CaseIterable { case workspace, age, status }
 
 /// The sessions in the order `by` gives. By workspace: one group per workspace ordered by name ignoring case. By age: Today,
-/// Yesterday, Last 7 days and Older, counted from the start of today in `calendar`. By status: Waiting for you, Working, Idle and
+/// Yesterday, Last 7 days and Older, counted from the start of today in `calendar`. By state: Needs attention, Working, Active and
 /// Done. Empty groups are left out, the rows of a group are newest first and no archived row is listed, searching included. A
 /// non-empty `query` keeps the groups of that order, filtered to the rows whose title, workspace or agent contain it ignoring case.
 public func sessionGroups(

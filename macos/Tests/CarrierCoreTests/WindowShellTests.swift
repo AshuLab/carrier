@@ -20,7 +20,7 @@ import Testing
 
 @Test func theSelectionHoldsEveryPage() {
     let shell = WindowShell()
-    for next in [Selection.epic(repo: "acme/web", issue: 7), .settings, .home, .sessions, .session(id: "s1"), .newSession, .archive, .carrier] {
+    for next in [Selection.epic(repo: "acme/web", issue: 7), .home, .sessions, .session(id: "s1"), .newSession, .archive, .carrier] {
         shell.selection = next
         #expect(shell.selection == next)
     }
@@ -49,7 +49,7 @@ import Testing
         shell.selection = next
         #expect(shell.open == opens)
     }
-    for (kept, next) in [(OpenSection.carrier as OpenSection?, Selection.home), (nil, .settings), (.carrier, .settings), (.archive, .settings)] {
+    for (kept, next) in [(OpenSection.carrier as OpenSection?, Selection.home), (nil, .home), (.archive, .home)] {
         shell.open = kept
         shell.selection = next
         #expect(shell.open == kept)
@@ -113,6 +113,15 @@ import Testing
     #expect(shell.aboutShown == false)
 }
 
+@Test func askingForNewSessionWhileItsDraftIsOpenCountsAsOpeningIt() {
+    let shell = WindowShell()
+    shell.selection = .newSession
+    shell.selection = .newSession
+    #expect(shell.newSessionOpened == 2)
+    shell.selection = .home
+    #expect(shell.newSessionOpened == 2)
+}
+
 @Test func commandAndANumberOrFSelectOrSearch() {
     #expect(shortcutAction(key: "1", modifiers: .command) == .select(.home))
     #expect(shortcutAction(key: "2", modifiers: .command) == .select(.sessions))
@@ -158,11 +167,26 @@ import Testing
     #expect(shell.searchRequest == nil)
 }
 
-@Test func openHealthSelectsTheHealthTabOfSettingsAndLeavingItResetsTheTab() {
+@Test func settingsIsASheetOverTheSelectionThatOpensOnTheEngineSectionUnlessAskedOtherwise() {
     let shell = WindowShell()
+    shell.selection = .sessions
+    shell.showSettings()
+    #expect(shell.settingsShown && shell.settingsTab == .engine && shell.selection == .sessions)
+    shell.settingsShown = false
     shell.openHealth()
-    #expect(shell.selection == .settings && shell.settingsTab == .health)
-    shell.selection = .newSession
-    shell.selection = .settings
+    #expect(shell.settingsShown && shell.settingsTab == .health && shell.selection == .sessions)
+    shell.showSettings()
+    #expect(shell.settingsTab == .engine)
+    shell.reset()
+    #expect(shell.settingsShown == false)
+}
+
+@Test func settingsHasASessionsTabBetweenReposAndNotificationsAndOpensOnItWhenAsked() {
+    let tabs = SettingsTab.allCases
+    #expect(SettingsTab.sessions.rawValue == "Sessions" && tabs.firstIndex(of: .sessions) == tabs.firstIndex(of: .repos)! + 1 && tabs.firstIndex(of: .sessions)! + 1 == tabs.firstIndex(of: .notifications))
+    let shell = WindowShell()
+    shell.showSettings(.sessions)
+    #expect(shell.settingsShown && shell.settingsTab == .sessions)
+    shell.showSettings()
     #expect(shell.settingsTab == .engine)
 }

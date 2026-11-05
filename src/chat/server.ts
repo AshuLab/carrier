@@ -5,6 +5,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { repoNamePattern } from '../config/schema.ts';
 import { socketPathFits, version, type Hello, type Reply } from '../control/server.ts';
+import { plan } from './plan.ts';
 import { projectNamePattern } from './projects.ts';
 import { ChatRefused } from './runner.ts';
 
@@ -14,8 +15,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'health' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'health', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'plan' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'plan', 'stop'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -24,6 +25,9 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('agents') }),
   z.strictObject({ id, cmd: z.literal('list'), archived: z.boolean().optional() }),
   z.strictObject({ id, cmd: z.literal('open'), agent: z.string().min(1), folder: z.string().min(1), options: z.record(z.string(), z.string()).optional(), worktree: z.strictObject({ from: z.string().min(1).max(1000), name: z.string().max(1000).optional() }).optional() }),
+  z.strictObject({ id, cmd: z.literal('open'), plan }),
+  z.strictObject({ id, cmd: z.literal('retryPreparation'), sessionId }),
+  z.strictObject({ id, cmd: z.literal('cancelPreparation'), sessionId }),
   z.strictObject({ id, cmd: z.literal('resume'), sessionId }),
   // a message has text, unless it invokes a command, which may take nothing after its name
   z.strictObject({ id, cmd: z.literal('send'), sessionId, text: z.string(), command: z.string().min(1).max(1000).optional() }).refine((r) => r.text.length > 0 || r.command !== undefined),
@@ -43,17 +47,25 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('cloneRepo'), repo: z.string().regex(repoNamePattern) }),
   z.strictObject({ id, cmd: z.literal('createProject'), name: z.string().regex(projectNamePattern) }),
   z.strictObject({ id, cmd: z.literal('githubRepos'), page: z.int().min(1).max(100) }),
+  z.strictObject({ id, cmd: z.literal('repoBranches'), repo: z.string().regex(repoNamePattern) }),
   z.strictObject({ id, cmd: z.literal('health'), refresh: z.boolean().optional() }),
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
 type Args<C extends Request['cmd']> = Omit<Extract<Request, { cmd: C }>, 'id' | 'cmd'>;
+type OpenPlan = Extract<Request, { cmd: 'open'; plan: unknown }>;
 
 /** What the socket does for the client. A `ChatRefused` thrown here reaches the client with its message; any other error is "internal error". */
 export type ChatControls = {
   agents(): unknown;
   list(args: Args<'list'>): unknown;
-  open(args: Args<'open'>): Promise<unknown>;
+  open(args: Omit<Extract<Request, { cmd: 'open'; folder: string }>, 'id' | 'cmd'>): Promise<unknown>;
+  /** Answers at once with the session, `preparing`; the steps run in the background. */
+  openPlan(args: Omit<OpenPlan, 'id' | 'cmd'>): Promise<unknown>;
+  /** Repeats the steps of a failed preparation that did not finish; answers the session, `preparing` again. */
+  retryPreparation(args: Args<'retryPreparation'>): Promise<unknown>;
+  /** Stops the running step and deletes the session; answers the plan, for the draft to take back. */
+  cancelPreparation(args: Args<'cancelPreparation'>): Promise<unknown>;
   resume(args: Args<'resume'>): Promise<unknown>;
   send(args: Args<'send'>): unknown;
   answer(args: Args<'answer'>): unknown;
@@ -73,6 +85,8 @@ export type ChatControls = {
   cloneRepo(args: Args<'cloneRepo'>, gone: AbortSignal): Promise<unknown>;
   createProject(args: Args<'createProject'>): Promise<unknown>;
   githubRepos(args: Args<'githubRepos'>): Promise<unknown>;
+  /** The default branch and the branches of a repository that need not be on disk; read-only. */
+  repoBranches(args: Args<'repoBranches'>): Promise<unknown>;
   health(args: Args<'health'>): Promise<unknown>;
 };
 
@@ -83,7 +97,11 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
     case 'list':
       return controls.list({ archived: request.archived });
     case 'open':
-      return controls.open({ agent: request.agent, folder: request.folder, options: request.options, worktree: request.worktree });
+      return 'plan' in request ? controls.openPlan({ plan: request.plan }) : controls.open({ agent: request.agent, folder: request.folder, options: request.options, worktree: request.worktree });
+    case 'retryPreparation':
+      return controls.retryPreparation({ sessionId: request.sessionId });
+    case 'cancelPreparation':
+      return controls.cancelPreparation({ sessionId: request.sessionId });
     case 'resume':
       return controls.resume({ sessionId: request.sessionId });
     case 'send':
@@ -120,6 +138,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.createProject({ name: request.name });
     case 'githubRepos':
       return controls.githubRepos({ page: request.page });
+    case 'repoBranches':
+      return controls.repoBranches({ repo: request.repo });
     case 'health':
       return controls.health({ refresh: request.refresh });
   }

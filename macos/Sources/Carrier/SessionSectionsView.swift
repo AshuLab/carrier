@@ -271,7 +271,7 @@ struct AgentAvatar: View {
         }
     }
 
-    @MainActor private static func mark(_ harness: String) -> NSImage? {
+    @MainActor static func mark(_ harness: String) -> NSImage? {
         if let known = marks[harness] { return known }
         guard let url = providerIconURL(harness), let image = NSImage(contentsOf: url) else { return nil }
         image.isTemplate = true

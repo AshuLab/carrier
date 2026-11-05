@@ -209,7 +209,9 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
   },
   "projectsFolder": "~/Projects/carrier",
   "githubCallTimeoutSeconds": 30,
-  "logLevel": "info"
+  "logLevel": "info",
+  "archiveAfterDays": 15,
+  "deleteAfterDays": 30
 }
 ```
 
@@ -219,8 +221,23 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
 | `projectsFolder` | `<folder>/chat/projects` | Where the host puts the repositories it clones (`<owner>/<repo>` inside it). An absolute path, or one starting with `~/`. It may not lie inside `<folder>/engine/` or the chat's own `state/`, `logs/` or `worktrees/`. Read at each request, so a change applies to the next clone with no restart. See [Projects folder](#projects-folder). |
 | `githubCallTimeoutSeconds` | `30` | A positive whole number: how long a call to GitHub (the repository list, the login) may take. Read when the host starts. |
 | `logLevel` | `info` | `debug`, `info`, `warn` or `error`. Read when the host starts. |
+| `archiveAfterDays` | `15` | Days of no activity after which a session is archived: a positive whole number, or `"never"`. A wrong value (`0`, a negative, a fraction, a text such as `"15"`, `null`) stops the host naming the key. See [The session clock](#the-session-clock). |
+| `deleteAfterDays` | `30` | Days of no activity after which an archived session is deleted, with its worktree and branch: a positive whole number, or `"never"`. It must be greater than `archiveAfterDays` when both are numbers (the error is reported on `deleteAfterDays`); with `"never"` on either side there is no such rule. Same checks as `archiveAfterDays`. See [The session clock](#the-session-clock). |
 
 A session never works inside `<folder>/engine/`, nor through a symlink into it. The engine's config has no `chat` section: it rejects one like any unknown key.
+
+### The session clock
+
+The chat host applies the two ages in one pass when it starts and again every hour while it runs, never while it is stopped: a host that was off for 40 days catches up on its next start.
+
+- **Counted from the last activity.** Both ages count from the session's last message or event, not from when it was archived. Restoring a session from the archive counts as activity, so it is not archived again at once.
+- **`"never"`.** `archiveAfterDays: "never"` archives nothing, and with it nothing is deleted by the clock, whatever `deleteAfterDays` says. `deleteAfterDays: "never"` archives but never deletes.
+- **What the clock skips.** A session that is working, waiting for an approval or open in the host is left alone and looked at again on the next pass.
+- **What an automatic delete spares.** An archived session whose worktree has uncommitted changes or commits that exist nowhere else is not deleted: it stays archived and the Archive page shows it as kept, until a later pass finds the worktree clean (and deletes it) or you restore or delete it yourself. A worktree that git cannot read is left alone, the failure is logged and the next pass tries again. A session in your own folder has no worktree and is deleted without that check. Archiving loses nothing and has no such check.
+- **What is never deleted.** The clones in the [projects folder](#projects-folder) and anything else in it.
+- **Changing it.** Edit the two keys here, or in the macOS app under Settings, Sessions: each age is a number of days or Never, and it is saved as you change it. The host reads the file at each pass, so no restart is needed; if the file is wrong at that moment the pass is skipped and the log says why. The Archive page shows when each archived session will go ("Deletes in N days", "Deletes soon" once due) or "Kept because its worktree has unsaved work". If a session is kept, see [Troubleshooting](troubleshooting.md#an-archived-session-is-kept-and-not-deleted).
+
+The reasons are in [ADR 0019](adr/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md).
 
 ## Chat agents
 
@@ -236,7 +253,7 @@ A chat (`carrier chat`) starts with one of the agents in `agents`, each running 
 
 ## Projects folder
 
-The chat host can clone a GitHub repository for a session (the `cloneRepo` request). It goes to `<projects folder>/<owner>/<repo>`; one already there (a `.git` whose `origin` is that repository) is fetched instead, and anything else at that path stops the request and is left untouched. The clone and the fetch use the token of your active `gh` login, handed to git in its environment, so `gh` must be installed and signed in. Each git command has ten minutes. A new project (the `createProject` request) is a folder at `<projects folder>/local/<name>` with `git init -b main`; the name is a plain folder name (letters, digits, `_`, `.` and `-`, at most a hundred, not starting with a dot or a dash), one that is taken is refused and nothing is changed. The same host lists your repositories for the app's "My GitHub repositories" step (the `githubRepos` request, thirty a page, with the same `gh` login): every repository that login can read, as owner, collaborator or organisation member, archived and disabled ones left out; it needs no config. Carrier never deletes anything in the folder, except the half-made clone or project of a request that failed or was cancelled.
+The chat host clones a GitHub repository for a session when the first message is sent (the `clone` step of a plan, or the older `cloneRepo` request). It goes to `<projects folder>/<owner>/<repo>`; one already there (a `.git` whose `origin` is that repository) is fetched instead, and anything else at that path stops the request and is left untouched. The clone and the fetch use the token of your active `gh` login, handed to git in its environment, so `gh` must be installed and signed in. Each git command has ten minutes. A new project (the `project` step of a plan the host prepares when the first message is sent, or the older `createProject` request) is a folder at `<projects folder>/local/<name>` with `git init -b main`; the name is a plain folder name (letters, digits, `_`, `.` and `-`, at most a hundred, not starting with a dot or a dash), one that is taken is refused and nothing is changed. Its branches are listed, without the repository being on your Mac, for the draft's worktree choice (the `repoBranches` request, with the same `gh` login). The same host lists your repositories for the app's "My GitHub repositories" step (the `githubRepos` request, thirty a page, with the same `gh` login): every repository that login can read, as owner, collaborator or organisation member, archived and disabled ones left out; it needs no config. Carrier never deletes anything in the folder, except the half-made clone or project of a request that failed or was cancelled.
 
 ## Things that are checked
 

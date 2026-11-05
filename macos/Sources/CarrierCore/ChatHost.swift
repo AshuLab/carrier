@@ -20,7 +20,9 @@ public struct ChatAgent: Decodable, Equatable {
 
 /// A session as the host's `list` carries it: times are milliseconds since the epoch.
 public struct ChatSession: Decodable, Equatable {
-    public enum State: String, Decodable { case working, waitingApproval = "waiting_approval", idle }
+    public enum State: String, Decodable { case working, waitingApproval = "waiting_approval", idle, preparing }
+    /// Whether the host is preparing the session from its plan, or a step failed; nil for a session that is not (or a host that does not say).
+    public enum Preparation: String, Decodable { case running, failed }
 
     public let id: String
     public let agent: String
@@ -36,13 +38,18 @@ public struct ChatSession: Decodable, Equatable {
     public let workspace: Workspace?
     /// Whether the session's agent process runs: a closed one is resumed before a message is sent to it.
     public let live: Bool
+    public let preparation: Preparation?
+    /// True while the clock spares the session because its worktree holds unsaved work. A host that leaves it out is not keeping it.
+    public let kept: Bool
+    /// When the clock deletes the session, in milliseconds since the epoch; nil when it will not, and from a host that leaves it out.
+    public let deleteAt: Int?
 
     public struct Workspace: Decodable, Equatable {
         public let base: String
         public let branch: String?
     }
 
-    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live }
+    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt }
     private struct Kind: Decodable {
         let kind: String
         let base: String?
@@ -61,6 +68,10 @@ public struct ChatSession: Decodable, Equatable {
         lastActiveAt = try values.decode(Int.self, forKey: .lastActiveAt)
         archived = try values.decode(Bool.self, forKey: .archived)
         live = try values.decode(Bool.self, forKey: .live)
+        // a value this app does not know is no preparation, as a host that leaves the field out
+        preparation = (try? values.decodeIfPresent(Preparation.self, forKey: .preparation)) ?? nil
+        kept = try values.decodeIfPresent(Bool.self, forKey: .kept) ?? false
+        deleteAt = try values.decodeIfPresent(Int.self, forKey: .deleteAt)
         let placed = try values.decodeIfPresent(Kind.self, forKey: .workspace)
         guard let placed, placed.kind == "worktree" else { workspace = nil; return }
         guard let base = placed.base else { throw DecodingError.keyNotFound(CodingKeys.workspace, .init(codingPath: decoder.codingPath, debugDescription: "a worktree without its base folder")) }
@@ -121,18 +132,36 @@ public struct GithubReposPage: Decodable, Equatable {
     }
 }
 
+/// The reply of `repoBranches`: the default branch of a repository that need not be on disk and its branches (the first hundred, as GitHub lists
+/// them), and whether there are more.
+public struct RepoBranches: Decodable, Equatable {
+    public let defaultBranch: String
+    public let branches: [String]
+    public let hasMore: Bool
+
+    public init(defaultBranch: String, branches: [String], hasMore: Bool = false) {
+        self.defaultBranch = defaultBranch
+        self.branches = branches
+        self.hasMore = hasMore
+    }
+
+    private enum CodingKeys: String, CodingKey { case defaultBranch = "default", branches, hasMore }
+}
+
 /// What the app needs from the chat host's socket; the real one speaks to the socket, tests use a fake.
 public protocol ChatHost {
     func agents() async throws -> [ChatAgent]
     func list(archived: Bool) async throws -> [ChatSession]
-    /// Creates a session with the agent in the folder (the agent's configured `options` apply on the host's side) and returns its id;
-    /// with a `worktree` it works in a new worktree of the folder instead. The host refuses a folder inside Carrier's own folders, a
-    /// provider that is not logged in, and a worktree request for a folder that is not a git repository, a branch it did not list
-    /// and a name that is invalid or taken.
-    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String
-    /// `open` with the options the person chose before the session existed (an id and a value each, as `agentOptions` listed them); the host
-    /// refuses a value the provider does not list.
-    func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String
+    /// Creates a session from the plan, in one request that carries the first message, and returns its id at once: the host prepares it in
+    /// the background (the `step` events of its conversation say how far). Only for a host whose hello lists `plan`. The host refuses a
+    /// folder inside Carrier's own folders, a provider that is not logged in, and a message over its limit.
+    func open(plan: SessionPlan) async throws -> String
+    /// Repeats the steps of a failed preparation that did not finish (what was made is reused); refused in words for a session that is not in
+    /// a failed preparation. Only for a host whose hello lists `plan`.
+    func retryPreparation(_ id: String) async throws
+    /// Stops the running step and deletes the session with its worktree; answers the plan it was opened with, for the draft to take back.
+    /// Refused in words for a session that is not being prepared. Only for a host whose hello lists `plan`.
+    func cancelPreparation(_ id: String) async throws -> SessionPlan
     /// What an agent offers (its options with the values it would start with, and the commands to invoke) before a session exists; the host
     /// starts the agent to know, and keeps the answer.
     func agentOptions(_ agent: String) async throws -> AgentOffer
@@ -156,6 +185,9 @@ public protocol ChatHost {
     /// One page (1 to 100) of the repositories the person's `gh` login can read, thirty at a time, newest push first. Refused in words
     /// (`gh` missing or signed out, no network, too slow). Gh can take seconds.
     func githubRepos(page: Int) async throws -> GithubReposPage
+    /// The default branch and the branches of `owner/repo`, read from GitHub with the person's `gh` login: the repository need not be on this
+    /// Mac. Refused in words (`gh` missing or signed out, no network, not found or not visible, too slow). Only for a host whose hello lists `repoBranches`.
+    func repoBranches(_ repo: String) async throws -> RepoBranches
     /// The state of `git`, `gh` and each chat agent on the host's machine; `refresh` skips the answer the host kept for thirty seconds.
     /// Only for a host whose hello lists `health`.
     func health(refresh: Bool) async throws -> HostHealth
@@ -185,13 +217,17 @@ public protocol ChatHost {
 }
 
 extension ChatHost {
-    /// A host that knows nothing of options at open: the options are left out.
-    public func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String {
-        try await open(agent: agent, folder: folder, worktree: worktree)
-    }
+    /// A host that cannot prepare a session from a plan has nothing to try again.
+    public func retryPreparation(_ id: String) async throws { throw ControlError.remote("the chat host does not support retryPreparation") }
+
+    /// A host that cannot prepare a session from a plan has nothing to cancel.
+    public func cancelPreparation(_ id: String) async throws -> SessionPlan { throw ControlError.remote("the chat host does not support cancelPreparation") }
 
     /// A host that cannot list an agent's options before a session says it lists none.
     public func agentOptions(_ agent: String) async throws -> AgentOffer { AgentOffer() }
+
+    /// A host that cannot list the branches of a repository refuses; the app only asks one that lists `repoBranches`.
+    public func repoBranches(_ repo: String) async throws -> RepoBranches { throw ControlError.remote("the chat host does not support repoBranches") }
 
     /// A host that cannot say how the machine is refuses; the app only asks one that lists `health`.
     public func health(refresh: Bool) async throws -> HostHealth { throw ControlError.remote("the chat host does not support health") }
@@ -218,19 +254,25 @@ public struct SocketChatHost: ChatHost {
         return reply.sessions
     }
 
-    public func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String {
-        try await open(agent: agent, folder: folder, worktree: worktree, options: [:])
+    public func open(plan: SessionPlan) async throws -> String {
+        let fields = ",\"plan\":" + plan.wire
+        let path = socketPath()
+        let reply: OpenedReply = try await Task.detached { try chatRequest(path, "open", requires: .plan, fields: fields) }.value
+        return reply.session.id
     }
 
-    public func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String {
-        let placed = worktree.map { request in
-            ",\"worktree\":{\"from\":\(jsonString(request.from))" + (request.name.map { ",\"name\":\(jsonString($0))" } ?? "") + "}"
-        } ?? ""
-        let chosen = options.isEmpty ? "" : ",\"options\":{" + options.sorted { $0.key < $1.key }.map { "\(jsonString($0.key)):\(jsonString($0.value))" }.joined(separator: ",") + "}"
-        let fields = ",\"agent\":\(jsonString(agent)),\"folder\":\(jsonString(folder))" + placed + chosen
+    public func retryPreparation(_ id: String) async throws {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
-        let reply: OpenedReply = try await Task.detached { try chatRequest(path, "open", requires: .open, fields: fields) }.value
-        return reply.session.id
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "retryPreparation", requires: .plan, fields: fields) }.value
+    }
+
+    /// Deleting a worktree takes git a while, so the wait for the reply is longer than the 5 seconds of the other requests.
+    public func cancelPreparation(_ id: String) async throws -> SessionPlan {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\""
+        let path = socketPath()
+        let reply: CancelledReply = try await Task.detached { try chatRequest(path, "cancelPreparation", requires: .plan, fields: fields, timeout: 30) }.value
+        return try reply.plan.plan
     }
 
     public func agentOptions(_ agent: String) async throws -> AgentOffer {
@@ -298,6 +340,13 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"page\":\(page)"
         let path = socketPath()
         return try await Task.detached { try chatRequest(path, "githubRepos", requires: .githubRepos, fields: fields, timeout: 40) }.value
+    }
+
+    /// Both of the host's `gh` calls have its 30 seconds, so the wait for the reply is longer than the 5 seconds of the other requests.
+    public func repoBranches(_ repo: String) async throws -> RepoBranches {
+        let fields = ",\"repo\":\(jsonString(repo))"
+        let path = socketPath()
+        return try await Task.detached { try chatRequest(path, "repoBranches", requires: .repoBranches, fields: fields, timeout: 40) }.value
     }
 
     /// The probes of a request run in parallel with five seconds each, so the wait is longer than the 5 seconds of the other requests.
@@ -387,6 +436,62 @@ private func wireId(_ id: String) throws -> String {
 private func jsonString(_ text: String) -> String { String(decoding: (try? JSONEncoder().encode(text)) ?? Data("\"\"".utf8), as: UTF8.self) }
 
 /// The reply of `open`: only the new session's id is read.
+/// Where a plan works: a folder that exists, a repository `owner/name` (the host clones it into its projects folder when the message is sent, or
+/// fetches it when it is there already), or a new project of this name (the host makes `<projects folder>/local/<name>` when the message is sent).
+public enum PlanWorkspace: Equatable {
+    case folder(String)
+    case repo(String)
+    case project(String)
+}
+
+/// What a new session is before it exists (docs/adr/0018): where it works, the agent and the options the person chose (an id and a value each,
+/// as `agentOptions` listed them), the first message and the branch to check out, or for a worktree the branch it starts from and its name.
+public struct SessionPlan: Equatable {
+    public let agent: String
+    public let workspace: PlanWorkspace
+    /// The branch to check out in the folder, when the person picked one other than the checked-out one and asked for no worktree.
+    public let branch: String?
+    public let worktree: WorktreeRequest?
+    public let options: [String: String]
+    public let text: String
+
+    /// The folder of a plan for a folder; nil for a repository or a new project.
+    public var folder: String? {
+        if case .folder(let path) = workspace { return path }
+        return nil
+    }
+
+    public init(agent: String, folder: String, branch: String? = nil, worktree: WorktreeRequest? = nil, options: [String: String] = [:], text: String) {
+        self.init(agent: agent, workspace: .folder(folder), branch: branch, worktree: worktree, options: options, text: text)
+    }
+
+    public init(agent: String, workspace: PlanWorkspace, branch: String? = nil, worktree: WorktreeRequest? = nil, options: [String: String] = [:], text: String) {
+        self.agent = agent
+        self.workspace = workspace
+        self.branch = branch
+        self.worktree = worktree
+        self.options = options
+        self.text = text
+    }
+
+    /// The plan as the host's request takes it; every string goes on the wire JSON-encoded.
+    var wire: String {
+        let place = switch workspace {
+        case .folder(let path): "{\"kind\":\"folder\",\"folder\":\(jsonString(path))}"
+        case .repo(let name): "{\"kind\":\"repo\",\"repo\":\(jsonString(name))}"
+        case .project(let name): "{\"kind\":\"project\",\"name\":\(jsonString(name))}"
+        }
+        var fields = [
+            "\"workspace\":\(place)", "\"agent\":\(jsonString(agent))", "\"text\":\(jsonString(text))",
+        ]
+        if options.isEmpty == false { fields.append("\"options\":{" + options.sorted { $0.key < $1.key }.map { "\(jsonString($0.key)):\(jsonString($0.value))" }.joined(separator: ",") + "}") }
+        // a worktree is cut from the branch, so the one field serves both
+        if let branch = worktree?.from ?? branch { fields.append("\"branch\":\(jsonString(branch))") }
+        if let worktree { fields.append("\"worktree\":{" + (worktree.name.map { "\"name\":\(jsonString($0))" } ?? "") + "}") }
+        return "{" + fields.joined(separator: ",") + "}"
+    }
+}
+
 /// What an agent offers before a session exists.
 public struct AgentOffer: Decodable, Equatable {
     public let options: [ChatOption]
@@ -406,9 +511,45 @@ public struct AgentOffer: Decodable, Equatable {
     }
 }
 
+/// The reply of `open`: only the new session's id is read.
 private struct OpenedReply: Decodable {
     struct Session: Decodable { let id: String }
     let session: Session
+}
+
+/// The reply of `cancelPreparation`: the plan as the host stored it.
+private struct CancelledReply: Decodable {
+    struct Stored: Decodable {
+        struct Workspace: Decodable {
+            let kind: String
+            let folder: String?
+            let repo: String?
+            let name: String?
+        }
+        struct Worktree: Decodable { let name: String? }
+        let workspace: Workspace
+        let agent: String
+        let text: String
+        let options: [String: String]?
+        let branch: String?
+        let worktree: Worktree?
+
+        /// A worktree is cut from the branch, so the one field serves both, as the plan's wire has it.
+        var plan: SessionPlan {
+            get throws {
+                let place: PlanWorkspace
+                switch (workspace.kind, workspace.folder, workspace.repo, workspace.name) {
+                case ("folder", let folder?, _, _): place = .folder(folder)
+                case ("repo", _, let repo?, _): place = .repo(repo)
+                case ("project", _, _, let name?): place = .project(name)
+                default: throw ControlError.badLine
+                }
+                let cut = worktree.flatMap { wanted in branch.map { WorktreeRequest(from: $0, name: wanted.name) } }
+                return SessionPlan(agent: agent, workspace: place, branch: worktree == nil ? branch : nil, worktree: cut, options: options ?? [:], text: text)
+            }
+        }
+    }
+    let plan: Stored
 }
 
 private struct SuggestedName: Decodable { let name: String }

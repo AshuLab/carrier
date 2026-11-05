@@ -19,9 +19,9 @@ const ADD_TIMEOUT_MS = 60_000;
  * repository of `folder` (already checked, a real path). The base folder is only read: git adds the worktree without a
  * checkout, stash or commit in it. Refuses, with a reason in words, a folder that is not a repository or is bare, a `from`
  * that `workspace` does not list and a name that is invalid or taken. When git fails nothing is left behind.
- * Callers run it one at a time, so what it checked is still true when git adds.
+ * Callers run it one at a time, so what it checked is still true when git adds. `signal` stops the add, and what it made is taken away.
  */
-export async function createWorktree(git: Git, folder: string, request: { from: string; name?: string }): Promise<MadeWorktree> {
+export async function createWorktree(git: Git, folder: string, request: { from: string; name?: string }, signal?: AbortSignal): Promise<MadeWorktree> {
   const { info, takenBecause, freeName } = await repository(git, folder);
   const start = info.branches.find((branch) => branch.name === request.from);
   if (start === undefined) throw new ChatRefused('The branch to start from is not one this repository lists');
@@ -37,7 +37,7 @@ export async function createWorktree(git: Git, folder: string, request: { from: 
     folder: existsSync(made.path) === false,
   };
   // The start point is spelled as a full ref, so it cannot read as an option, and `--no-track` leaves the new branch without an upstream.
-  const added = await git.run(folder, ['worktree', 'add', '--no-track', '-b', made.branch, made.path, `${start.remote ? 'refs/remotes/' : 'refs/heads/'}${start.name}`], { timeoutMs: ADD_TIMEOUT_MS });
+  const added = await git.run(folder, ['worktree', 'add', '--no-track', '-b', made.branch, made.path, `${start.remote ? 'refs/remotes/' : 'refs/heads/'}${start.name}`], { timeoutMs: ADD_TIMEOUT_MS, signal });
   if (added.ok === false) {
     log.error('git worktree add failed', { code: added.code, timedOut: added.timedOut === true });
     await removeWorktree(git, made, mine);

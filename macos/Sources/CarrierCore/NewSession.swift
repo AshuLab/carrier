@@ -52,12 +52,6 @@ public func agentChoices(_ agents: [ChatAgent], health: HostHealth? = nil) -> [A
     }
 }
 
-/// A first message whose send failed after `open` made the session.
-public struct FailedFirstSend: Equatable {
-    public let text: String
-    public let reason: String
-}
-
 /// A way into the workspace popover besides the folders it lists. One that is not built, or that the host cannot do, is not in `sources`.
 public enum WorkspaceSource: String {
     case localFolder = "Open local folder…"
@@ -71,7 +65,13 @@ public enum WorkspaceStep: Equatable {
     case menu, url, repos, project
 }
 
-/// The draft: loads what it offers, and `send()` opens the session and then sends the message, in two steps.
+/// What the draft says about Carrier's list once a session's message step is done and the repository it was to watch was added (or could not be).
+public struct WatchNote: Equatable {
+    public let text: String
+    public let failed: Bool
+}
+
+/// The draft: loads what it offers, and `send()` opens the session with one request that carries the plan and the first message.
 @MainActor @Observable public final class NewSessionModel {
     public private(set) var recent: [RecentFolder] = []
     /// The host's agents, with the health the app last had for them.
@@ -108,8 +108,12 @@ public enum WorkspaceStep: Equatable {
     /// Why the last Fetch now failed, in the host's words; cleared by the next one.
     public private(set) var fetchProblem: String?
 
-    /// Whether the host can clone (its hello lists `cloneRepo`); an older one is not offered From a GitHub URL…
-    public private(set) var hostClones = false
+    /// Whether a host answered and its hello does not list `plan`: it cannot take the first message as a plan, so the draft sends nothing.
+    public private(set) var hostOlder = false
+    /// What the draft says then, and why nothing is sent.
+    public static let olderHostNotice = "The chat host is older than this app, so it cannot start a session. Restart it to use the installed Carrier."
+    /// Whether the host can prepare a plan for a repository (its hello lists `repoBranches`, which comes with it); an older one is not offered From a GitHub URL…
+    public private(set) var hostPlansRepos = false
     /// Whether the host can list the person's GitHub repositories (its hello lists `githubRepos`).
     public private(set) var hostLists = false
     /// Whether the host can make a new project (its hello lists `createProject`).
@@ -119,10 +123,14 @@ public enum WorkspaceStep: Equatable {
     public private(set) var step = WorkspaceStep.menu
     /// What the URL step was given.
     public var urlText = ""
-    /// The repository being cloned, nil when none is.
-    public private(set) var cloning: String?
-    /// Why the last clone was refused, in the host's words; cleared when the next one starts.
-    public private(set) var cloneProblem: String?
+    /// The repository `owner/name` the plan is for, nil when it is for a folder or a new project. Nothing is cloned and nothing is written
+    /// when it is chosen: the host clones it (or fetches it when it is in the projects folder) when the message is sent.
+    public private(set) var repo: String?
+    /// Whether the repository is not on this Mac: its branches come from GitHub, it has no uncommitted changes and its worktree has no name yet.
+    public private(set) var toClone = false
+    /// Whether GitHub's branches are being read, and whether there are more than the ones listed.
+    public private(set) var loadingBranches = false
+    public private(set) var branchesPartial = false
     /// The pages of the person's repositories loaded so far (My GitHub repositories), the login they were read with (page 1 only),
     /// and why the latest read failed, in the host's words; the list keeps what was loaded when a later page fails.
     public private(set) var repoList = AvailableReposList()
@@ -133,16 +141,16 @@ public enum WorkspaceStep: Equatable {
     public var reposQuery = ""
     /// What the New project step was given: the part after `local/`.
     public var projectName = ""
-    public private(set) var creating = false
-    /// Why the host refused the last project, in its words; cleared when the next one starts.
-    public private(set) var createProblem: String?
-    /// "Let Carrier watch this repo": the person's choice, on by default; `watching` is what it comes to for the repository typed.
+    /// The name of the new project the draft is planned for, nil when the workspace is a folder that exists. Nothing is made until the
+    /// message is sent: `folder` is the path the host will make.
+    public private(set) var newProject: String?
+    /// "Let Carrier watch this repo": the person's choice, on by default; `watching` is what it comes to for the repository typed. It is acted on
+    /// when the `message` step of the session is done, never before.
     public var watch = true
     /// The `repos` of the config file as of the last time the popover opened or showed a step; nil when the file cannot be read.
     public private(set) var watched: [String]?
-    /// What the draft says about Carrier's list after a clone that was to add the repository, in words; `watchFailed` when it did not.
-    public private(set) var watchNote: String?
-    public private(set) var watchFailed = false
+    /// What was said of Carrier's list for each session whose repository was to be added, in words, for its conversation to show.
+    public private(set) var watchNotes: [String: WatchNote] = [:]
     /// Where the footer says the projects folder is.
     public private(set) var projectsPath: String
     /// Why the last Change… was refused, in words; the old folder stands. Cleared when the popover opens.
@@ -158,23 +166,33 @@ public enum WorkspaceStep: Equatable {
     @ObservationIgnored private let carrierFolder: String
     /// Counts the times the list was started over, so a page that was asked for before is dropped when it comes back.
     @ObservationIgnored private var reposRead = 0
-    @ObservationIgnored private var cloneTask: Task<ClonedRepo, Error>?
+    /// The repositories to add to the engine's `repos`, by the session that was opened for them, until its `message` step is done.
+    @ObservationIgnored private var pendingWatches: [String: String] = [:]
+    @ObservationIgnored private var watchTask: Task<Void, Never>?
     @ObservationIgnored private let ensureHost: @MainActor () async -> Bool
     @ObservationIgnored private let log: (String) -> Void
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
+    @ObservationIgnored private let watchEvery: Duration
     /// The name the host last vouched for (suggested or checked), so a name it already vouched for is not asked about again.
     @ObservationIgnored private var verifiedName: String?
-    /// What a conversation shows when its first message failed to send, by session id, until it takes it.
-    @ObservationIgnored private var failedFirstSends: [String: FailedFirstSend] = [:]
+    /// The first message of each session the draft opened, by session id, until its conversation takes it.
+    @ObservationIgnored private var firstMessages: [String: String] = [:]
+    /// The plan of a cancelled preparation, put back in the draft the next time it loads, and the options of it that wait for the agent's list.
+    @ObservationIgnored private var restoring: SessionPlan?
+    @ObservationIgnored private var restoredOptions: [String: String]?
+    /// The folder a workspace header's + asked for, chosen when the draft loads next.
+    @ObservationIgnored private var startFolder: String?
+    /// Counts the asks for a folder, so the open draft loads again for the new one.
+    public private(set) var starts = 0
 
     /// `ensureHost` starts the chat host when it is not running (#503) and says whether it answers now.
-    /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where `chat.json` says the projects folder is, and
+    /// `sleep` is the wait before a typed name is checked, `watchEvery` how often the list is looked at for a session whose repository is to be watched. `projectsFolder` is where `chat.json` says the projects folder is, and
     /// `readChatConfig` and `writeChatConfig` are that file inside `carrierFolder`; `readConfig` and `writeConfig` are the engine's
     /// config file, which holds the watched repositories.
     public init(
         host: ChatHost, health: HealthStore? = nil, ensureHost: @escaping @MainActor () async -> Bool = { true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
-        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, watchEvery: Duration = .seconds(2),
         projectsFolder: @escaping () -> String = currentProjectsFolder,
         readConfig: @escaping () -> Data? = currentConfig, writeConfig: @escaping (Data) throws -> Void = writeCurrentConfig,
         readChatConfig: @escaping () throws -> Data? = currentChatConfig, writeChatConfig: @escaping (Data) throws -> Void = writeCurrentChatConfig,
@@ -192,11 +210,13 @@ public enum WorkspaceStep: Equatable {
         self.ensureHost = ensureHost
         self.log = log
         self.sleep = sleep
+        self.watchEvery = watchEvery
     }
 
     /// Reads the agents and the recent folders again, each time the draft opens. A host that does not answer is started (the + is always
     /// on, so this is where it comes up) and asked once more; one that still does not answer leaves what was there.
     public func load() async {
+        blank()
         do {
             do { try await read() } catch {
                 guard await ensureHost() else { throw error }
@@ -206,7 +226,57 @@ public enum WorkspaceStep: Equatable {
             log("new session: \(ConversationModel.words(error))")
         }
         pickAvailableAgent()
+        if let plan = restoring {
+            restoring = nil
+            await apply(plan)
+        } else if let path = startFolder {
+            startFolder = nil
+            await choose(folder: path)
+        }
     }
+
+    /// The + of a workspace in the sidebar: the draft opens (or starts over, if it is open) with that folder chosen.
+    public func start(in path: String) {
+        startFolder = path
+        starts += 1
+    }
+
+    /// A cancelled preparation gives the plan back: the draft that loads next has the folder, the branch or the worktree, the agent and its
+    /// options and the text it was sent with, so nothing typed is lost.
+    public func restore(_ plan: SessionPlan) { restoring = plan }
+
+    private func apply(_ plan: SessionPlan) async {
+        switch plan.workspace {
+        case .folder(let path): await choose(folder: path)
+        case .repo(let name): await choose(repo: name)
+        case .project(let name): choose(project: name)
+        }
+        text = plan.text
+        if agents.contains(where: { $0.name == plan.agent && $0.available }) { agent = plan.agent }
+        restoredOptions = plan.options
+        if let wanted = plan.worktree {
+            picked = wanted.from
+            await useWorktree(true)
+            // an empty name is the host's to generate, which the draft already did
+            if let name = wanted.name, name.isEmpty == false, worktree { worktreeName = name }
+        } else if let branch = plan.branch {
+            picked = branch
+        }
+    }
+
+    /// Every opening of New session starts here: no workspace (nor the branch and worktree that depend on it), no text, nothing the last
+    /// opening left half done. The agent and its options are the person's taste, not part of where the session works, and stay.
+    public func blank() {
+        clearWorkspace()
+        text = ""
+        refusal = nil
+        urlText = ""
+        projectName = ""
+        step = .menu
+    }
+
+    /// The workspace chip's ✕: drops the workspace and what depends on it (branch, worktree choice and name).
+    public func clearWorkspace() { reset(folder: nil) }
 
     /// Keeps the chosen provider while it can be chosen, else takes the first one that can; none when none can.
     public func pickAvailableAgent() {
@@ -223,7 +293,8 @@ public enum WorkspaceStep: Equatable {
         listed = try await host.agents()
         recent = recentFolders(try await host.list(archived: false) + (try await host.list(archived: true)))
         let capabilities = try await host.capabilities()
-        hostClones = capabilities.contains(.cloneRepo)
+        hostOlder = capabilities.contains(.plan) == false
+        hostPlansRepos = capabilities.contains(.repoBranches)
         hostCreates = capabilities.contains(.createProject)
         hostLists = capabilities.contains(.githubRepos)
     }
@@ -231,6 +302,7 @@ public enum WorkspaceStep: Equatable {
     /// Asks the host what the chosen agent offers. A new agent starts from its own values: what was chosen for the other is dropped. A host
     /// that cannot list them, or fails, leaves the list empty and the draft goes on without options.
     public func loadOptions() async {
+        defer { takeRestoredOptions() }
         guard let name = agent, optionsAgent != name else { return }
         optionsAgent = name
         agentOptions = []
@@ -250,6 +322,13 @@ public enum WorkspaceStep: Equatable {
         loadingOptions = false
     }
 
+    /// The options of a restored plan, as far as the agent lists them.
+    private func takeRestoredOptions() {
+        guard let wanted = restoredOptions, loadingOptions == false, agent == optionsAgent else { return }
+        restoredOptions = nil
+        for (option, value) in wanted { choose(option: option, value: value) }
+    }
+
     /// What the selects list: the agent's options with the person's choices on top.
     public var shownOptions: [ChatOption] {
         agentOptions.map { option in
@@ -265,19 +344,16 @@ public enum WorkspaceStep: Equatable {
     }
 
     /// The sources the popover lists under the folders.
-    public var sources: [WorkspaceSource] { [.localFolder] + (hostClones ? [.githubURL] : []) + (hostLists && hostClones ? [.githubRepos] : []) + (hostCreates ? [.newProject] : []) }
+    public var sources: [WorkspaceSource] { [.localFolder] + (hostPlansRepos ? [.githubURL] : []) + (hostLists && hostPlansRepos ? [.githubRepos] : []) + (hostCreates ? [.newProject] : []) }
 
     /// Why a source of `sources` is off, in words (what `gh` says, the health the app last had); nil when it is on.
     public func sourceReason(_ source: WorkspaceSource) -> String? { workspaceSourceReason(source, gh: health?.latest?.gh) }
 
-    /// The popover opens on the menu with the projects folder read again; one that is cloning, or whose clone failed while it was closed,
-    /// stays on the step that shows it until the next action starts.
+    /// The popover opens on the menu with the projects folder read again.
     public func openPicker() {
         refreshFolders()
         projectsFolderProblem = nil
-        guard cloning == nil, cloneProblem == nil else { return }
         step = .menu
-        createProblem = nil
     }
 
     private func refreshFolders() {
@@ -307,17 +383,11 @@ public enum WorkspaceStep: Equatable {
     }
 
     public func show(_ next: WorkspaceStep) {
-        guard cloning == nil, creating == false else { return }
         if next == .url, sourceReason(.githubURL) != nil { return }
         if next == .repos, sourceReason(.githubRepos) != nil { return }
         refreshFolders()
         step = next
-        cloneProblem = nil
-        createProblem = nil
     }
-
-    /// The repository being cloned without its owner: what the chip says while it runs.
-    public var cloningName: String? { cloning.flatMap { $0.split(separator: "/").last.map(String.init) } }
 
     /// The repository the URL step's text names.
     public var reference: String? { repoReference(urlText) }
@@ -325,7 +395,7 @@ public enum WorkspaceStep: Equatable {
     /// A repository already among the projects folder's folders is fetched, not cloned again.
     public var alreadyThere: Bool { reference.map { name in projects.contains { $0.name.lowercased() == name.lowercased() } } ?? false }
 
-    public var cloneButton: String { cloneProblem != nil ? "Try again" : alreadyThere ? "Update and use" : "Clone and use" }
+    public var repoButton: String { alreadyThere ? "Use (updated when sent)" : "Use (cloned when sent)" }
 
     /// Why the box cannot be on for the repository typed (already watched, or a folder name another watched repo has); nil when it can.
     public var watchProblem: String? { reference.flatMap(watchProblem(for:)) }
@@ -335,45 +405,41 @@ public enum WorkspaceStep: Equatable {
 
     public var watching: Bool { watch && watchProblem == nil }
 
-    /// "Clone and use" stays off until the text is one repository, and while a clone runs.
-    public var canCloneNow: Bool { reference != nil && cloning == nil }
+    /// "Use" stays off until the text is one repository.
+    public var canUseRepo: Bool { reference != nil }
 
-    /// Clones (or fetches) the repository of the URL step and chooses its folder as the workspace; true when it did. The draft has no
-    /// workspace while it runs and when it fails, so the chip stays orange; the refusal is in `cloneProblem`.
-    public func cloneAndUse() async -> Bool {
-        guard let repo = reference else { return false }
-        return await clone(repo, showing: .url)
+    /// Chooses the repository of the URL step as the workspace; true when it did. Nothing is cloned: the plan is filled, and the host clones the
+    /// repository (fetches it when it is already in the projects folder) when the message is sent.
+    public func useRepo() async -> Bool {
+        guard let name = reference else { return false }
+        urlText = ""
+        await choose(repo: name)
+        return true
     }
 
-    /// The same for a repository chosen in My GitHub repositories, where the clone shows.
-    public func cloneAndUse(repo: String) async -> Bool { await clone(repo, showing: .repos) }
-
-    private func clone(_ repo: String, showing shown: WorkspaceStep) async -> Bool {
-        guard cloning == nil else { return false }
-        let adding = watch && watchProblem(for: repo) == nil
-        reset(folder: nil)
-        cloning = repo
-        cloneProblem = nil
-        step = shown
-        let task = Task { [host] in try await host.cloneRepo(repo) }
-        cloneTask = task
+    /// Chooses `owner/name` as the workspace. One in the projects folder is read locally, as a folder; one that is not on this Mac has its branches
+    /// read from GitHub with the person's login, no uncommitted changes and a worktree whose name the host generates when the message is sent.
+    public func choose(repo name: String) async {
+        guard isRepoName(name) else { return }
+        refreshFolders()
+        let there = projects.first { $0.name.lowercased() == name.lowercased() }
+        let path = there?.path ?? "\(projectsPath)/\(name)"
+        reset(folder: path)
+        repo = there?.name ?? name
+        if there != nil { return await read(path) }
+        toClone = true
+        loadingBranches = true
+        defer { if folder == path { loadingBranches = false } }
         do {
-            let cloned = try await task.value
-            guard cloneTask == task else { return false }
-            cloning = nil
-            cloneTask = nil
-            if shown == .url { urlText = "" }
-            await choose(folder: cloned.folder)
-            // the clone stands whatever happens to the list
-            if adding, folder == cloned.folder { addToWatched(repo) }
-            return true
+            let listed = try await host.repoBranches(name)
+            guard folder == path else { return }
+            let names = listed.branches.contains(listed.defaultBranch) ? listed.branches : [listed.defaultBranch] + listed.branches
+            workspace = WorkspaceInfo(folder: path, branch: listed.defaultBranch, defaultBranch: listed.defaultBranch, branches: names.map { .init(name: $0, remote: false) })
+            branchesPartial = listed.hasMore
         } catch {
-            // a clone that was cancelled has already been dropped by `cancelClone`
-            guard cloneTask == task else { return false }
-            cloning = nil
-            cloneTask = nil
-            cloneProblem = report(error, "clone \(repo)")
-            return false
+            guard folder == path else { return }
+            // the draft still works: the repository is cloned on its default branch, with no worktree to offer
+            workspaceProblem = report(error, "list the branches of \(name)")
         }
     }
 
@@ -424,59 +490,94 @@ public enum WorkspaceStep: Equatable {
         return nil
     }
 
-    /// "Create and use" stays off for a name the host would refuse, and while a project is being made.
-    public var canCreateNow: Bool { projectName.isEmpty == false && projectNameWarning == nil && creating == false }
+    /// "Use this project" stays off for a name the host would refuse.
+    public var canUseNow: Bool { projectName.isEmpty == false && projectNameWarning == nil }
 
-    /// Makes the project on the host and chooses its folder as the workspace; true when it did. A refusal is in `createProblem` and the
-    /// draft keeps its workspace.
-    public func createAndUse() async -> Bool {
-        guard canCreateNow else { return false }
-        let name = projectName
-        creating = true
-        createProblem = nil
-        defer { creating = false }
-        do {
-            let created = try await host.createProject(name)
-            projectName = ""
-            await choose(folder: created)
-            return true
-        } catch {
-            createProblem = report(error, "create \(name)")
-            return false
-        }
+    /// Chooses a new project as the workspace: only the plan is filled, the host makes the folder and runs `git init` when the message is
+    /// sent. A project has no commits, so the draft offers neither a branch nor a worktree.
+    public func choose(project name: String) {
+        let path = "\(projectsPath)/local/\(name)"
+        reset(folder: path)
+        newProject = name
+        workspace = WorkspaceInfo(folder: path)
     }
 
-    /// Adds `repo` to the config's `repos`, the file read again just now; the engine reads it when it starts, so nothing is restarted.
-    private func addToWatched(_ repo: String) {
-        func failed(_ reason: String) {
-            watchNote = "\(repo) could not be added to Carrier's list: \(reason)."
-            watchFailed = true
-        }
+    /// The New project step's button: uses the name typed; false when it cannot be used.
+    public func useProject() -> Bool {
+        guard canUseNow else { return false }
+        choose(project: projectName)
+        projectName = ""
+        return true
+    }
+
+    /// The line that says beforehand what sending will make, nil unless the workspace is a new project.
+    public var projectNote: String? {
+        guard newProject != nil, let folder else { return nil }
+        return "\(folder) will be created, with git ready, when the message is sent."
+    }
+
+    /// The same for a repository: where it will be cloned, or that it is in the projects folder and will be fetched, when the message is sent.
+    public var repoNote: String? {
+        guard let repo, let folder else { return nil }
+        return toClone ? "\(repo) will be cloned to \(folder) when the message is sent." : "\(repo) is in your projects folder and will be fetched when the message is sent."
+    }
+
+    /// Adds `repo` to the config's `repos`, the file read again just now; the engine reads it when it starts, so nothing is restarted. What it
+    /// came to is the session's `watchNotes`.
+    private func addToWatched(_ repo: String, session id: String) {
+        func failed(_ reason: String) { watchNotes[id] = WatchNote(text: "\(repo) could not be added to Carrier's list: \(reason).", failed: true) }
         guard let json = readConfig(), let names = configRepoNames(json: json) else {
             return failed("the config file could not be read or is not a JSON object")
         }
+        if names.contains(where: { $0.lowercased() == repo.lowercased() }) { return }  // another session of it got there first
         if let problem = reposProblem(names + [repo]) { return failed(problem) }
         guard let updated = applyingRepos(names + [repo], to: json) else { return failed("the config file could not be rewritten") }
         do {
             try writeConfig(updated)
             watched = names + [repo]
-            watchNote = "Carrier will listen to \(repo) from its next start."
+            watchNotes[id] = WatchNote(text: "Carrier will listen to \(repo) from its next start.", failed: false)
         } catch {
             log("new session: could not write the config: \(error)")
             failed("the config file is not writable")
         }
     }
 
-    /// Cancel: closes the request's connection, which stops the clone on the host, and the draft goes on with no workspace.
-    public func cancelClone() {
-        cloneTask?.cancel()
-        cloneTask = nil
-        cloning = nil
+    /// One look at the sessions whose repository waits to be watched: one whose preparation is over (the `message` step is done) adds its
+    /// repository, once; one the host no longer lists (cancelled, deleted) or that is still preparing or failed does not, a failed one
+    /// waiting for Try again.
+    public func settleWatches() async {
+        guard pendingWatches.isEmpty == false, let listed = try? await host.list(archived: false) else { return }
+        for (id, repo) in pendingWatches {
+            guard let found = listed.first(where: { $0.id == id }) else {
+                pendingWatches[id] = nil
+                continue
+            }
+            if found.state != .preparing, found.preparation == nil {
+                pendingWatches[id] = nil
+                addToWatched(repo, session: id)
+            }
+        }
+    }
+
+    // ponytail: polls the list every two seconds for as long as a session of a repository to watch is preparing or failed; the host could push the step.
+    private func keepWatching() {
+        guard watchTask == nil else { return }
+        watchTask = Task { [weak self] in
+            while let self, self.pendingWatches.isEmpty == false {
+                await self.settleWatches()
+                try? await Task.sleep(for: self.watchEvery)
+            }
+            self?.watchTask = nil
+        }
     }
 
     /// Chooses the workspace and asks the host what it is; the worktree choice starts over (a new folder has other branches and names).
     public func choose(folder path: String) async {
         reset(folder: path)
+        await read(path)
+    }
+
+    private func read(_ path: String) async {
         do {
             let info = try await host.workspace(path)
             guard folder == path else { return }
@@ -490,17 +591,19 @@ public enum WorkspaceStep: Equatable {
 
     private func reset(folder path: String?) {
         folder = path
+        newProject = nil
         workspace = nil
         workspaceProblem = nil
-        cloneProblem = nil
+        repo = nil
+        toClone = false
+        loadingBranches = false
+        branchesPartial = false
         worktree = false
         picked = nil
         fetchProblem = nil
         worktreeName = ""
         verifiedName = nil
         nameState = .suggesting
-        watchNote = nil
-        watchFailed = false
     }
 
     /// The branch the worktree starts from, nil when none is known and the person is asked.
@@ -509,12 +612,30 @@ public enum WorkspaceStep: Equatable {
     public func choose(startBranch branch: String) { picked = branch }
 
     public var sentence: String {
-        if let cloning, let name = cloningName { return "Work in \(name) Cloning \(cloning)…" }
         return workSentence(folder: folder, workspace: workspace, worktree: worktree ? (worktreeName, startBranch) : nil, gitMissing: gitMissing)
     }
 
-    /// The line under the sentence: the uncommitted files of the base folder, which a worktree would keep out of the agent's way.
-    public var warning: String? { worktree || gitMissing ? nil : workspace.flatMap(uncommittedWarning) }
+    /// The branch the folder will be switched to when the message is sent: the person picked one other than the checked-out one and
+    /// asked for no worktree (a worktree is cut from the pick and changes no folder). Nil when the folder keeps its branch.
+    public var branchChange: (from: String, to: String)? {
+        guard worktree == false, gitMissing == false, let workspace, workspace.git, workspace.bare == false, let to = picked, to != workspace.branch else { return nil }
+        return (workspace.branch ?? "detached HEAD", to)
+    }
+
+    /// The line that says beforehand that the folder's branch will change.
+    public var branchNote: String? {
+        guard toClone == false else { return nil }
+        return branchChange.map { "The branch of the folder will change from \($0.from) to \($0.to) when the message is sent." }
+    }
+
+    /// The line under the sentence: the uncommitted files of the base folder, which a worktree would keep out of the agent's way; when the
+    /// branch is to change, that this step will fail (sending is still allowed).
+    public var warning: String? {
+        guard worktree == false, gitMissing == false, let workspace else { return nil }
+        guard branchChange != nil else { return uncommittedWarning(workspace) }
+        guard workspace.dirty > 0 else { return nil }
+        return "\(workspace.dirty) uncommitted \(workspace.dirty == 1 ? "file" : "files") in the folder, so changing its branch will fail and it keeps the branch it is on. Save the work first, or use a worktree."
+    }
 
     /// What the host last said of `gh`; nil while it has not said (an older host, or none yet).
     public var ghState: ToolState? { health?.latest?.gh }
@@ -531,12 +652,14 @@ public enum WorkspaceStep: Equatable {
     public func useWorktree(_ on: Bool) async {
         guard on == false || offersWorktree else { return }
         worktree = on
-        if on, worktreeName.isEmpty { await rollName() }
+        // a repository to clone has no folder to ask yet: the host picks the name when the message is sent
+        if on, toClone { nameState = .free }
+        else if on, worktreeName.isEmpty { await rollName() }
     }
 
     /// ↻: asks the host for another free name.
     public func rollName() async {
-        guard let path = folder else { return }
+        guard let path = folder, toClone == false else { return }
         nameState = .suggesting
         do {
             let name = try await host.suggestName(path)
@@ -553,7 +676,7 @@ public enum WorkspaceStep: Equatable {
     /// Checks the name that was typed, after `typingPause` with no change: the view runs it again, cancelling the one before, each time the name changes.
     public func verifyName() async {
         let name = worktreeName
-        guard worktree, name != verifiedName, let path = folder else { return }
+        guard worktree, toClone == false, name != verifiedName, let path = folder else { return }
         nameState = .checking
         do {
             try await sleep(.milliseconds(400))
@@ -571,7 +694,7 @@ public enum WorkspaceStep: Equatable {
 
     /// Fetch now: the host fetches `origin` and answers what the folder is after it, with the remote branches and the time of the fetch.
     public func fetchNow() async {
-        guard let path = folder, fetching == false else { return }
+        guard let path = folder, fetching == false, toClone == false else { return }
         fetching = true
         fetchProblem = nil
         defer { fetching = false }
@@ -586,20 +709,21 @@ public enum WorkspaceStep: Equatable {
     }
 
     public var canSend: Bool {
-        guard folder != nil, agents.contains(where: { $0.name == agent && $0.available }), sending == false, text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return false }
+        guard folder != nil, hostOlder == false, agents.contains(where: { $0.name == agent && $0.available }), sending == false, text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return false }
         guard worktree else { return true }
         if case .problem = nameState { return false }
-        return startBranch != nil && worktreeName.isEmpty == false
+        return startBranch != nil && (worktreeName.isEmpty == false || toClone)
     }
 
     /// What `send` asks `open` for: nil in the base folder.
     var worktreeRequest: WorktreeRequest? {
         guard worktree, let from = startBranch else { return nil }
-        return WorktreeRequest(from: from, name: worktreeName)
+        return WorktreeRequest(from: from, name: worktreeName.isEmpty ? nil : worktreeName)
     }
 
-    /// Opens the session and sends the message; returns the session's id to select, nil when `open` was refused (the draft keeps
-    /// the text and says why). A `send` that fails after `open` still returns the id: the session exists and its conversation shows the failure.
+    /// Opens the session with one request that carries the plan and the first message, and returns the session's id to select, nil when
+    /// `open` was refused or was not made (the draft keeps the text and says why). The host prepares the session in the background and its
+    /// conversation shows the steps; the message is kept in `takeFirstMessage` for it.
     public func send() async -> String? {
         guard canSend, let folder, let agent else { return nil }
         let message = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -610,29 +734,25 @@ public enum WorkspaceStep: Equatable {
             refusal = hostNotRunning
             return nil
         }
+        // a host that was not running when the draft opened has not said yet whether it takes a plan
+        if let capabilities = try? await host.capabilities() { hostOlder = capabilities.contains(.plan) == false }
+        guard hostOlder == false else { return nil }
         let id: String
         do {
-            id = try await host.open(agent: agent, folder: folder, worktree: worktreeRequest, options: chosenOptions)
+            id = try await host.open(plan: SessionPlan(agent: agent, workspace: newProject.map(PlanWorkspace.project) ?? repo.map(PlanWorkspace.repo) ?? .folder(folder), branch: branchChange?.to, worktree: worktreeRequest, options: chosenOptions, text: message))
         } catch {
             refusal = report(error, "open the session")
             return nil
         }
-        do {
-            // a first message that starts with the name of a command the agent lists invokes it
-            if let invoked = invokedCommand(in: message, among: agentCommands) {
-                try await host.send(id, invoked.arguments, command: invoked.command.id)
-            } else {
-                try await host.send(id, message)
-            }
-        } catch {
-            failedFirstSends[id] = FailedFirstSend(text: message, reason: report(error, "send the first message"))
-        }
-        text = ""
+        firstMessages[id] = message
+        // added when the `message` step is done, never before
+        if let repo, watch, watchProblem(for: repo) == nil { pendingWatches[id] = repo; keepWatching() }
+        blank()
         return id
     }
 
-    /// The failure of a session's first send, handed over once to the conversation that shows it.
-    public func takeFailure(of id: String) -> FailedFirstSend? { failedFirstSends.removeValue(forKey: id) }
+    /// The first message of a session this draft opened, handed over once to the conversation that shows it.
+    public func takeFirstMessage(of id: String) -> String? { firstMessages.removeValue(forKey: id) }
 
     private func report(_ error: Error, _ doing: String) -> String {
         let message = ConversationModel.words(error)

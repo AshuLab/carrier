@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Session rows: errors vs exit codes — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--acc:#0a84ff;--run:#30d158;--need:#ff9f0a;--err:#ff453a}body.light{--acc:#007aff;--run:#28a745;--need:#e08600;--err:#e5372d}
+h2.e-q{font-size:15px;margin:30px 0 2px}h2.e-q:first-of-type{margin-top:6px}
+.e-q+.sub{margin-bottom:12px}
+.e-ctl{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:0 0 20px;padding:10px 16px;border-radius:14px;background:var(--card);max-width:980px;position:sticky;top:8px;z-index:9;backdrop-filter:blur(20px)}
+.e-ctl .e-l{color:var(--dim);font-size:12px}
+.e-seg{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.e-seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 11px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.e-seg button.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25)}body.light .e-seg button.on{background:#fff}
+.e-btn{border:0;font:inherit;font-size:12.5px;color:var(--text);background:var(--card2);padding:5px 14px;border-radius:99px;cursor:pointer}
+.e-opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(620px,1fr));gap:26px;align-items:start}
+.e-opt>h3{margin:0 0 2px;font-size:14px}.e-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:600px;min-height:50px}
+.e-box{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:8px}
+.e-s{border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden}
+.e-r{display:flex;align-items:center;gap:12px;padding:11px 12px}
+.e-av{width:34px;height:34px;border-radius:50%;background:var(--card2);display:grid;place-items:center;font-size:15px;flex:none}
+.e-t{flex:1;min-width:0}
+.e-t b{display:block;font-weight:600;white-space:nowrap}.e-t b i{font-style:normal;color:var(--dim);font-weight:500}
+.e-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:5px}
+.e-c{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--dim);background:var(--card2);padding:2px 9px;border-radius:99px;white-space:nowrap}
+.e-c b{color:var(--text);font-weight:650}
+.e-c.ad b:first-of-type{color:var(--run)}.e-c .m{color:var(--err)}
+.e-c.red{background:color-mix(in srgb,var(--err) 20%,transparent);color:var(--err);cursor:pointer}.e-c.red b{color:var(--err)}
+.e-c.gr{cursor:pointer}
+.e-c.gr:hover,.e-c.red:hover{filter:brightness(1.2)}
+.e-dur{color:var(--dim);font-size:12px;flex:none}
+.e-go{width:30px;height:30px;border-radius:50%;background:var(--card2);display:grid;place-items:center;color:var(--dim);flex:none;cursor:pointer;transition:transform .15s}
+.e-go.open{transform:rotate(90deg)}
+.e-det{padding:2px 12px 12px 58px;display:flex;flex-direction:column;gap:6px}
+.e-d{display:flex;gap:9px;align-items:baseline;font-size:12px;color:var(--dim)}
+.e-d .tg{flex:none;font-size:10.5px;font-weight:650;padding:1px 7px;border-radius:99px;background:var(--card2);color:var(--dim);min-width:62px;text-align:center}
+.e-d .tg.r{background:color-mix(in srgb,var(--err) 20%,transparent);color:var(--err)}
+.e-d code{font-family:var(--mono);font-size:11.5px;color:var(--text);word-break:break-all}
+.e-d span.o{display:block;color:var(--faint);margin-top:1px;font-size:11.5px}
+.e-note{max-width:920px;margin:26px 0 0;color:var(--dim)}.e-note b{color:var(--text)}.e-note li{margin:6px 0}
+</style></head><body>
+<h1>The session rows: errors, and exit codes that are not errors</h1>
+<div class="sub">Today the red chip counts every tool call that Claude Code flagged, and a shell command that ends in exit 1 is flagged even when its output is what the agent wanted (a <code>grep</code> with no match, a <code>… | head</code>). In the epic #350 run, 7 of the builder's 7 “errors” were 5 exit codes and 2 real tool errors. The rows below are the four sessions of that run; the second case is an example I made up, with failing tests, to see how each option behaves when there is something to worry about. Click a chip or the arrow to open the list behind it.</div>
+<div class="e-ctl">
+ <span class="e-l">Data</span>
+ <div class="e-seg" id="cs"><button data-v="run" class="on">The #350 run</button><button data-v="rough">A rougher run (example)</button></div>
+ <span style="flex:1"></span><button class="e-btn" id="theme">☾ / ☀︎</button>
+</div>
+<div class="e-opts" id="opts"></div>
+<ul class="e-note">
+ <li><b>What the engine would add:</b> each tool result keeps its exit code as its own field, and a call is told apart as <i>error</i> (the tool itself refused or failed: a tool that does not exist, a blocked command), <i>exit</i> (a command that ended non-zero) or <i>ok</i>. SQLite's status column has only <code>ok</code> and <code>err</code> today, so the app cannot tell them apart without this.</li>
+ <li><b>“Test runs” and “failed”:</b> the row already counts test runs, so C leans on the engine knowing which calls are <code>pnpm test</code>, <code>typecheck</code> or <code>build</code>. If it cannot tell a failed one from a passed one, C falls back to A.</li>
+ <li><b>What is lost in A, B and C:</b> a non-zero exit that is a real failure but is not a test or build (a <code>git push</code> rejected, say) shows grey. It is one click away and the agent usually says it in its summary, but it is no longer red. That is the cost of not crying wolf.</li>
+</ul>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const CASES={
+ run:[
+  {t:'Builder · Ship',calls:110,edits:[6,0,0],runs:19,failed:[],dur:'11m',
+   exits:[
+    ['git status --porcelain; git worktree list; gh issue view 350 --json … | head -c 6000','exit 1 · the last command, a --jq over a field that does not exist, ended 1; the rest printed'],
+    ['gh issue comment 350 --body-file …; git -C $W status -sb | head','exit 1 · the comment was posted; a later step ended 1'],
+    ['cat src/prompts/persona.ts src/prompts/intro.ts; grep -rn "persona" src -l','exit 1 · the files printed; the grep found nothing in one folder'],
+    ['cat src/execution/agent-runner.ts; grep -rn "persona" src test* -l','exit 1 · same: a grep with no match'],
+    ['git fetch -q; … gh issue close …; ls ~/.solve/worktrees/carrier','exit 1 · the issue closed and the branch was deleted; the last ls failed']],
+   errs:[['bash_placeholder','No such tool available: bash_placeholder'],['sleep 100; echo ok','Blocked: sleep 100 followed by echo ok. Use Monitor with an until-loop']]},
+  {t:'Reviewer · Round 1',calls:16,edits:null,runs:4,failed:[],dur:'1m',exits:[['gh issue view 350 --json body | tail -c 4500; git diff origin/main...HEAD -- src | head -700','exit 1 · the diff printed; a pipe closed early']],errs:[]},
+  {t:'Fixer · Round 1',calls:20,edits:null,runs:5,failed:[],dur:'2m',exits:[['grep -n "config" src/orchestration/engine.ts | grep -n -i "profiles" | head','exit 1 · the second grep matched nothing']],errs:[]},
+  {t:'Reviewer · Round 2',calls:9,edits:null,runs:4,failed:[],dur:'1m',exits:[],errs:[]}],
+ rough:[
+  {t:'Builder · Ship',calls:143,edits:[9,212,31],runs:14,failed:[['pnpm test','exit 1 · 2 tests failed in config/load.test.ts'],['pnpm typecheck','exit 2 · 3 type errors']],dur:'23m',
+   exits:[['git push origin feat/x/001','exit 1 · rejected: the remote has work you do not have'],['grep -rn "TODO" src | head','exit 1 · no match'],['ls dist','exit 1 · no such directory']],
+   errs:[['Edit src/config/schema.ts','String to replace not found in file']]},
+  {t:'Reviewer · Round 1',calls:31,edits:null,runs:6,failed:[['pnpm test','exit 1 · 1 test failed on the reviewed commit']],dur:'6m',exits:[],errs:[]},
+  {t:'Fixer · Round 1',calls:25,edits:[3,18,6],runs:5,failed:[],dur:'4m',exits:[['grep -n "persona" src/prompts/intro.ts | head','exit 1 · no match'],['git diff --stat | head','exit 1 · a pipe closed early']],errs:[]},
+  {t:'Reviewer · Round 2',calls:9,edits:null,runs:4,failed:[],dur:'1m',exits:[],errs:[]}]
+};
+const open=new Set();
+const key=(o,i)=>o+':'+$('#cs .on').dataset.v+':'+i;
+const callIc='<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1.5" y="3" width="13" height="10" rx="2"/><path d="M4.5 7l2 1.5-2 1.5M8.5 10.5h3"/></svg>';
+const chipsOf=(r,o)=>{
+ const nErr=r.errs.length,nExit=r.exits.length,nFail=r.failed.length;
+ const calls='<span class="e-c">'+callIc+'<b>'+r.calls+'</b> calls</span>';
+ const edits=r.edits?'<span class="e-c ad"><b>'+r.edits[0]+'</b> edits'+(r.edits[1]||r.edits[2]?' <b style="color:var(--run)">+'+r.edits[1]+'</b> <span class="m">−'+r.edits[2]+'</span>':' <b style="color:var(--run)">+0</b> <span class="m">−0</span>')+'</span>':'';
+ const warn='<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2l6.5 11.5h-13z"/><path d="M8 6.5v3.2M8 11.6v.1"/></svg>';
+ const tests=(failedChip)=>'<span class="e-c"><b>'+r.runs+'</b> test runs</span>'+failedChip;
+ const redErr=(n)=>n?'<span class="e-c red" data-o="'+o+'">'+warn+'<b>'+n+'</b> '+(n===1?'error':'errors')+'</span>':'';
+ const grExit=(n)=>n?'<span class="e-c gr" data-o="'+o+'"><b>'+n+'</b> '+(n===1?'exit':'exits')+'</span>':'';
+ if(o==='today')return calls+edits+tests('')+redErr(nErr+nExit+nFail);
+ if(o==='A')return calls+edits+tests('')+redErr(nErr)+grExit(nExit+nFail);
+ if(o==='B')return calls+edits+tests('')+redErr(nErr);
+ if(o==='C')return calls+edits+tests(nFail?'<span class="e-c red" data-o="C">'+warn+'<b>'+nFail+'</b> failed</span>':'')+redErr(nErr)+grExit(nExit);
+};
+const detail=(r,o)=>{
+ const all=[];
+ r.errs.forEach(e=>all.push(['error',e[0],e[1]]));
+ r.failed.forEach(e=>all.push([o==='C'||o==='today'?'failed':'exit',e[0],e[1]]));
+ r.exits.forEach(e=>all.push(['exit',e[0],e[1]]));
+ if(!all.length)return '<div class="e-det"><div class="e-d">Nothing to open.</div></div>';
+ return '<div class="e-det">'+all.map(x=>'<div class="e-d"><span class="tg'+(x[0]==='exit'?'':' r')+'">'+x[0]+'</span><div><code>'+esc(x[1])+'</code><span class="o">'+esc(x[2])+'</span></div></div>').join('')+'</div>';
+};
+const OPTS=[
+ {id:'today',h:'Today',p:'One red chip for everything Claude Code flagged. The builder of #350 reads as “7 errors”.'},
+ {id:'A',h:'A · Errors in red, exit codes in grey',p:'Real tool errors stay red. Commands that ended non-zero get their own grey chip, a count you can open. Failed test runs are exit codes too, so they are grey here.'},
+ {id:'B',h:'B · Only real errors, exit codes out of the row',p:'The quietest. A red chip only when the tool itself failed; exit codes are not on the row at all and live behind the arrow. Nothing red on a run like the reviewer’s.'},
+ {id:'C',h:'C · A and a red “failed” on test and build runs',p:'As A, plus the test-runs chip grows a red “N failed” when a test, typecheck or build ended non-zero. The one non-zero exit that matters gets the colour back.'}
+];
+function draw(){
+ const rows=CASES[$('#cs .on').dataset.v];
+ $('#opts').innerHTML=OPTS.map(op=>'<div class="e-opt"><h3>'+op.h+'</h3><p>'+op.p+'</p><div class="e-box">'+rows.map((r,i)=>{
+  const k=key(op.id,i),isOpen=open.has(k);
+  return '<div class="e-s"><div class="e-r"><div class="e-av">✳︎</div><div class="e-t"><b>Claude <i>· '+r.t+'</i></b><div class="e-chips">'+chipsOf(r,op.id)+'</div></div><span class="e-dur">'+r.dur+'</span><span class="e-go'+(isOpen?' open':'')+'" data-k="'+k+'">›</span></div>'+(isOpen?detail(r,op.id):'')+'</div>';
+ }).join('')+'</div></div>').join('');
+ document.querySelectorAll('.e-c.red[data-o],.e-c.gr[data-o]').forEach(c=>{
+  const s=c.closest('.e-s'),idx=[...c.closest('.e-box').children].indexOf(s);c.dataset.k=key(c.dataset.o,idx);
+ });
+}
+document.addEventListener('click',e=>{
+ const t=e.target.closest('[data-k]');if(!t)return;
+ const k=t.dataset.k;open.has(k)?open.delete(k):open.add(k);draw();
+});
+$('#cs').onclick=e=>{const b=e.target.closest('button');if(!b)return;document.querySelectorAll('#cs button').forEach(x=>x.classList.toggle('on',x===b));draw()};
+$('#theme').onclick=()=>document.body.classList.toggle('light');
+const h=location.hash.slice(1).split(',');
+if(h.includes('rough')){document.querySelectorAll('#cs button').forEach(x=>x.classList.toggle('on',x.dataset.v==='rough'))}
+if(h.includes('light'))document.body.classList.add('light');
+if(h.includes('open')){const v=$('#cs .on').dataset.v;['today','A','B','C'].forEach(o=>open.add(o+':'+v+':0'))}
+draw();
+</script></body></html>

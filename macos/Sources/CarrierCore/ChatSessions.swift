@@ -16,6 +16,8 @@ public func sessionRows(_ sessions: [ChatSession]) -> [SessionRow] {
     }
     return sessions.map { session in
         let state: SessionState = switch (session.live, session.state) {
+        // the host prepares it in the background: it shows at once, working, whether or not its agent has started
+        case (_, .preparing): .working
         case (false, _), (_, .idle): .idle
         case (true, .working): .working
         case (true, .waitingApproval): .waiting
@@ -23,7 +25,8 @@ public func sessionRows(_ sessions: [ChatSession]) -> [SessionRow] {
         return SessionRow(
             id: session.id, title: session.title ?? "Untitled session", workspace: title(base(session)), agent: session.agent, state: state,
             updatedAt: Date(timeIntervalSince1970: Double(session.lastActiveAt) / 1000), archived: session.archived,
-            branch: session.workspace?.branch, folder: session.folder, titled: session.title != nil
+            branch: session.workspace?.branch, folder: session.folder, base: base(session), providers: [session.harness], titled: session.title != nil,
+            kept: session.kept, deleteAt: session.deleteAt.map { Date(timeIntervalSince1970: Double($0) / 1000) }
         )
     }
 }

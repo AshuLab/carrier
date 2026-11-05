@@ -1,6 +1,8 @@
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { FakeClock } from '../orchestration/fake.ts';
 import type { Git, GitResult } from './git.ts';
+import { createProjects, type GithubRepos } from './projects.ts';
 import { ChatRefused, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 
 /**
@@ -112,12 +114,23 @@ export class FakeGit implements Git {
   calls: { folder: string; args: string[]; timeoutMs?: number; env?: NodeJS.ProcessEnv }[] = [];
   /** While set, a `clone` waits for it (or for its signal to abort) before it ends: a clone that is still running. */
   clonePending: Promise<void> | undefined;
+  /** While set, a `worktree add` waits for it (or for its signal to abort) before it makes anything: a worktree that is still being made. */
+  worktreePending: Promise<void> | undefined;
   /** Commands that fail instead of answering, by their arguments joined with a space. */
   failures = new Map<string, Extract<GitResult, { ok: false }>>();
+  /** What a repository is when it has just been cloned, besides its origin: `head` and `branches` are `main` unless this says otherwise. */
+  cloned: Partial<FakeRepo> = {};
+  private progress: ((line: string) => void) | undefined;
 
-  async run(folder: string, args: string[], options?: { timeoutMs?: number; env?: NodeJS.ProcessEnv; signal?: AbortSignal }): Promise<GitResult> {
+  /** Plays a line of stderr of the clone that is running, as git writes it. */
+  emitProgress(...lines: string[]) {
+    for (const line of lines) this.progress?.(line);
+  }
+
+  async run(folder: string, args: string[], options?: { timeoutMs?: number; env?: NodeJS.ProcessEnv; signal?: AbortSignal; onProgress?: (line: string) => void }): Promise<GitResult> {
     this.calls.push({ folder, args, timeoutMs: options?.timeoutMs, env: options?.env });
     if (args[0] === 'clone') {
+      this.progress = options?.onProgress;
       // clone -- <url> <dest>: git makes the folder first; a failure or an abort leaves it half made
       const [url, dest] = args.slice(2) as [string, string];
       mkdirSync(dest, { recursive: true });
@@ -127,7 +140,7 @@ export class FakeGit implements Git {
       const failure = this.failures.get(args.join(' '));
       if (failure !== undefined) return failure;
       mkdirSync(join(dest, '.git'));
-      this.repos.set(dest, { origin: url, head: 'main', branches: ['main'] });
+      this.repos.set(dest, { head: 'main', branches: ['main'], ...structuredClone(this.cloned), origin: url });
       return { ok: true, out: '' };
     }
     if (args[0] === 'init') {
@@ -147,6 +160,9 @@ export class FakeGit implements Git {
     const [verb, ...rest] = args[0] === '--no-optional-locks' ? args.slice(1) : args;
     if (verb === 'rev-parse' && rest.includes('--verify')) return [...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`)].includes(rest.at(-1)!) ? out(rest.at(-1)!) : no;
     if (verb === 'worktree' && rest[0] === 'add') {
+      const signal = options?.signal;
+      if (this.worktreePending !== undefined) await Promise.race([this.worktreePending, new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true }))]);
+      if (signal?.aborted === true) return { ok: false, code: null, stderr: 'killed' };
       // worktree add --no-track -b <branch> <path> <start>: the branch and the folder appear, as git makes them
       const [branch, path, start] = rest.slice(3);
       const known = [...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`)];
@@ -173,8 +189,21 @@ export class FakeGit implements Git {
     if (verb === 'symbolic-ref') return repo.head === null ? no : out(repo.head);
     if (verb === 'for-each-ref') return out(...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`), ...(repo.originHead === undefined ? [] : ['refs/remotes/origin/HEAD']));
     if (verb === 'rev-list') return out(String(repo.unpushed?.[rest[1]!.replace('refs/heads/', '')] ?? 0));
+    if (verb === 'switch') {
+      // switch <branch>, or switch --track origin/<branch>, which makes the local branch
+      const target = rest.at(-1)!;
+      const local = target.replace(/^origin\//, '');
+      if (rest[0] === '--track') repo.branches.push(local);
+      else if (repo.branches.includes(target) === false) return { ok: false, code: 128, stderr: 'fatal: invalid reference' };
+      repo.head = local;
+      return out();
+    }
     if (verb === 'fetch') return out();
     if (verb === 'status') return out(...(repo.status ?? []));
     return { ok: false, code: 129, stderr: `the fake git does not know ${verb}` };
   }
 }
+
+/** What brings repositories onto the Mac, over a fake git and a fake `gh`: the token is `ghp_fake`, GitHub lists nothing and knows `main` and `feat/x` for any repository. */
+export const fakeProjects = (git: Git, clock = new FakeClock(), github: Partial<GithubRepos> = {}) =>
+  createProjects({ git, clock, token: async () => 'ghp_fake', github: { repos: async () => ({ repos: [], hasMore: false }), login: async () => 'me', branches: async () => ({ default: 'main', branches: ['main', 'feat/x'], hasMore: false }), ...github } });

@@ -38,9 +38,20 @@ private func session(
     #expect(sessionRows([tree, try session("plain")]).map(\.branch) == ["carrier/fix", nil])
 }
 
+@Test func aRowCarriesTheBaseFolderItIsGroupedUnder() throws {
+    let rows = sessionRows([try session("w", folder: "/w/fix", base: "/Users/dev/web"), try session("plain", folder: "/Users/dev/api")])
+    #expect(rows.map(\.base) == ["/Users/dev/web", "/Users/dev/api"])
+    #expect(rows.map(\.providers) == [["codex"], ["codex"]])
+}
+
 @Test func aSessionThatIsNotLiveIsIdle() throws {
     let rows = sessionRows([try session("w", state: "working", live: false), try session("a", state: "waiting_approval", live: false)])
     #expect(rows.map(\.state) == [.idle, .idle])
+}
+
+@Test func aSessionThatIsPreparingShowsAtOnceAsWorkingWhetherOrNotItsAgentHasStarted() throws {
+    let rows = sessionRows([try session("p", state: "preparing", live: false), try session("q", state: "preparing", live: true)])
+    #expect(rows.map(\.state) == [.working, .working])
 }
 
 @Test func aWorktreeSessionIsGroupedUnderItsBaseFolderAndAFolderSessionUnderItsFolder() throws {
@@ -78,7 +89,7 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     var calls: [Bool] = []
 
     func agents() async throws -> [ChatAgent] { [] }
-    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String { "" }
+    func open(plan: SessionPlan) async throws -> String { "" }
     func workspace(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
     func fetch(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
     func suggestName(_ folder: String) async throws -> String { "" }
@@ -195,9 +206,9 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
 private func row(
     _ id: String, _ title: String = "t", workspace: String = "web", agent: String = "claude", state: SessionState = .idle, ago: TimeInterval = 60,
-    archived: Bool = false
+    archived: Bool = false, kept: Bool = false, deleteAt: Date? = nil
 ) -> SessionRow {
-    SessionRow(id: id, title: title, workspace: workspace, agent: agent, state: state, updatedAt: now.addingTimeInterval(-ago), archived: archived)
+    SessionRow(id: id, title: title, workspace: workspace, agent: agent, state: state, updatedAt: now.addingTimeInterval(-ago), archived: archived, kept: kept, deleteAt: deleteAt)
 }
 
 private let sample = [
@@ -230,7 +241,7 @@ private let sample = [
     var filter = SessionFilter(statuses: [.working, .waiting], agents: ["codex"])
     #expect(filter.count == 3 && SessionFilter().count == 0)
     #expect(filter.chips == [.status(.waiting), .status(.working), .agent("codex")])
-    #expect(filter.chips.map(\.title) == ["Waiting for you", "Working", "codex"])
+    #expect(filter.chips.map(\.title) == ["Needs attention", "Working", "codex"])
     filter.remove(.status(.working))
     #expect(filter.chips == [.status(.waiting), .agent("codex")])
     filter.remove(.agent("codex"))
@@ -255,7 +266,7 @@ private let sample = [
 @Test func theSortsGroupByWorkspaceByAgeAndByStatus() {
     #expect(sessionsPage(sample, by: .workspace, now: now).groups.map(\.title) == ["api", "web"])
     #expect(sessionsPage(sample, by: .age, now: now).groups.map(\.title) == ["Today", "Last 7 days"])
-    #expect(sessionsPage(sample, by: .status, now: now).groups.map(\.title) == ["Waiting for you", "Working", "Idle"])
+    #expect(sessionsPage(sample, by: .status, now: now).groups.map(\.title) == ["Needs attention", "Working", "Active"])
 }
 
 @Test func withNoActiveSessionsThePageIsNoSessionsYetEvenWhenSomethingIsArchived() {
@@ -592,4 +603,38 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     ])
     await #expect(throws: ControlError.remote("There is no such session")) { try await host.deletePreview([baseSession, "3f2b6a52-8f5e-4a63-9d5b-0a1d2c3e4f50"]) }
     await #expect(throws: ControlError.remote("not a valid session id")) { try await host.deletePreview(["../x"]) }
+}
+
+// When the clock deletes an archived session, and why a kept one is still there.
+
+private func clockSession(_ extra: String) throws -> ChatSession {
+    let json = """
+        {"id":"c","agent":"codex","harness":"codex","folder":"/f","title":"t","state":"idle","createdAt":1,"lastActiveAt":1,"archived":true,"live":false\(extra)}
+        """
+    return try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))
+}
+
+@Test func aRowCarriesKeptAndTheDeleteDateAndAHostThatLeavesThemOutIsNotKeepingItAndGivesNoDate() throws {
+    let kept = sessionRows([try clockSession(",\"kept\":true,\"deleteAt\":null")])[0]
+    #expect(kept.kept && kept.deleteAt == nil)
+    let due = sessionRows([try clockSession(",\"kept\":false,\"deleteAt\":1792000123456")])[0]
+    #expect(due.kept == false && due.deleteAt == Date(timeIntervalSince1970: 1_792_000_123.456))
+    let older = sessionRows([try clockSession("")])[0]
+    #expect(older.kept == false && older.deleteAt == nil)
+}
+
+@Test func theArchivePageSaysWhenEachSessionIsDeletedAndWhyAKeptOneIsStillThere() {
+    let day: TimeInterval = 86400
+    func archivedRow(_ id: String, kept: Bool = false, deleteIn: TimeInterval? = nil) -> SessionRow {
+        row(id, "s \(id)", workspace: "api", ago: day, archived: true, kept: kept, deleteAt: deleteIn.map { now.addingTimeInterval($0) })
+    }
+    let page = archivePage([
+        archivedRow("due", deleteIn: 12 * day), archivedRow("part", deleteIn: 11.2 * day), archivedRow("tomorrow", deleteIn: day),
+        archivedRow("late", deleteIn: -3600), archivedRow("kept", kept: true), archivedRow("never"),
+    ], now: now)
+    #expect(page.notes == [
+        "due": "Deletes in 12 days", "part": "Deletes in 12 days", "tomorrow": "Deletes in 1 day", "late": "Deletes soon",
+        "kept": "Kept because its worktree has unsaved work",
+    ])
+    #expect(archivePage(activeSample, now: now).notes.isEmpty)
 }

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { FakeClock } from '../orchestration/fake.ts';
 import { connectControl } from '../terminal/cli/control-client.ts';
-import { FakeChatRunner, FakeGit } from './fake.ts';
+import { FakeChatRunner, FakeGit, fakeProjects } from './fake.ts';
 import { startChatHost } from './host.ts';
 import { ChatRefused } from './runner.ts';
 
@@ -277,4 +277,88 @@ test('createProject follows the projects folder of chat.json and refuses one ins
   await expect(client.request('createProject', { name: 'y' })).rejects.toThrow("inside Carrier's own engine folder");
   expect(existsSync(join(root, 'engine'))).toBe(false);
   client.close();
+});
+
+// The progress of a clone: git's stderr, of which only its progress lines leave projects.ts, one a second at most.
+test('only git\'s progress lines reach the waiter, and a line with a URL or anything else does not', async () => {
+  let release!: () => void;
+  git.clonePending = new Promise((resolve) => (release = resolve));
+  const clock = new FakeClock();
+  const lines: string[] = [];
+  const cloning = fakeProjects(git, clock).cloneRepo({ repo: 'acme/app' }, new AbortController().signal, (line) => lines.push(line));
+  await vi.waitFor(() => expect(clones()).toHaveLength(1));
+  const said = [
+    "Cloning into '/x/acme/app'...",
+    'fatal: unable to access https://x:ghp_secrettoken@github.com/acme/app.git/',
+    'Receiving objects: 45% (45/100), https://x:tok@github.com/ 1.2 MiB',
+    'remote: Counting objects: 100% (5/5), done.',
+    'Enumerating objects: 5, done.',
+    'warning: Receiving objects: 10%',
+    'https://github.com/acme/app Receiving objects: 10%',
+  ];
+  for (const line of said) {
+    git.emitProgress(line);
+    clock.time += 1500;
+  }
+  release();
+  await cloning;
+  expect(lines).toEqual(['Receiving objects: 45%', 'Counting objects: 100%']);
+});
+
+test('every kind of git progress passes, and at most one line a second', async () => {
+  let release!: () => void;
+  git.clonePending = new Promise((resolve) => (release = resolve));
+  const clock = new FakeClock();
+  const lines: string[] = [];
+  const cloning = fakeProjects(git, clock).cloneRepo({ repo: 'acme/app' }, new AbortController().signal, (line) => lines.push(line));
+  await vi.waitFor(() => expect(clones()).toHaveLength(1));
+  for (const line of ['Counting objects:   1%', 'Compressing objects:   2%', 'Receiving objects:   3%', 'Resolving deltas:   4%', 'Updating files:   5%']) {
+    git.emitProgress(line, 'Receiving objects: 99%'); // the second is within the same second
+    clock.time += 1000;
+  }
+  release();
+  await cloning;
+  expect(lines).toEqual(['Counting objects: 1%', 'Compressing objects: 2%', 'Receiving objects: 3%', 'Resolving deltas: 4%', 'Updating files: 5%']);
+});
+
+test('a waiter that joins a clone in progress hears the latest line at once, and one that left hears nothing more', async () => {
+  let release!: () => void;
+  git.clonePending = new Promise((resolve) => (release = resolve));
+  const clock = new FakeClock();
+  const projects = fakeProjects(git, clock);
+  const first = new AbortController();
+  const heardFirst: string[] = [];
+  const one = projects.cloneRepo({ repo: 'acme/app' }, first.signal, (line) => heardFirst.push(line));
+  await vi.waitFor(() => expect(clones()).toHaveLength(1));
+  git.emitProgress('Receiving objects: 10%');
+  const heardSecond: string[] = [];
+  const two = projects.cloneRepo({ repo: 'acme/app' }, new AbortController().signal, (line) => heardSecond.push(line));
+  expect(heardSecond).toEqual(['Receiving objects: 10%']);
+  first.abort();
+  await expect(one).rejects.toThrow('The clone was cancelled');
+  clock.time += 2000;
+  git.emitProgress('Receiving objects: 50%');
+  release();
+  await two;
+  expect(heardFirst).toEqual(['Receiving objects: 10%']);
+  expect(heardSecond).toEqual(['Receiving objects: 10%', 'Receiving objects: 50%']);
+  expect(clones()).toHaveLength(1);
+});
+
+test('the last waiter to leave stops the clone and hears of it only once the half clone is gone', async () => {
+  git.clonePending = new Promise(() => {});
+  const abort = new AbortController();
+  const dest = join(projects(), 'acme', 'app');
+  const cloning = fakeProjects(git).cloneRepo({ repo: 'acme/app' }, abort.signal);
+  await vi.waitFor(() => expect(existsSync(dest)).toBe(true));
+  abort.abort();
+  await expect(cloning).rejects.toThrow('The clone was cancelled');
+  expect(existsSync(dest)).toBe(false);
+});
+
+test('no progress callback is asked of git for a fetch', async () => {
+  const dest = join(projects(), 'acme', 'app');
+  mkdirSync(join(dest, '.git'), { recursive: true });
+  git.repos.set(dest, { head: 'main', branches: ['main'], origin: 'https://github.com/acme/app.git' });
+  expect(await fakeProjects(git).cloneRepo({ repo: 'acme/app' }, new AbortController().signal)).toMatchObject({ fetched: true });
 });

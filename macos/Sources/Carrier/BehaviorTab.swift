@@ -3,13 +3,10 @@ import CarrierCore
 import SwiftUI
 
 /// The Behavior tab: the values of `config.json` the engine reads when it starts (CarrierCore/EngineConfig.swift), in four
-/// groups. Saving edits the file in place; with Carrier running, "Save and restart" also restarts it (BehaviorSave.swift
-/// says what the footer offers).
+/// groups. Every change that the engine would accept is written to the file as it is made, in place; nothing restarts Carrier,
+/// which reads the file when it starts. "Reset to defaults" is the one button.
 struct BehaviorTabView: View {
-    let state: ConnectionState?
     @ObservedObject private var start = StartController.shared
-    @ObservedObject private var setup = SetupController.shared
-    @AppStorage(confirmStopKey) private var asksBeforeStop = true
     @State private var saved = EngineConfig()
     @State private var draft = EngineConfig()
     /// fields whose text is not a number yet
@@ -17,29 +14,19 @@ struct BehaviorTabView: View {
     @State private var unreadable = false
     @State private var failure: String?
     @State private var note: String?
-    @State private var confirming = false
-    @State private var restarting = false
 
     private var path: String { configFilePath() }
-
-    private var runningEpics: Int {
-        if case .running(let snapshot)? = state { return snapshot.runningEpics }
-        return 0
-    }
 
     private var problems: [String: String] {
         draft.problems.merging(unparsable.map { ($0, "Must be a number") }) { _, text in text }
     }
 
     var body: some View {
-        let dirty = draft != saved || unparsable.isEmpty == false
-        let footer = behaviorFooter(state: state, dirty: dirty, valid: problems.isEmpty, startMissing: setup.missing)
         VStack(alignment: .leading, spacing: 12) {
             if unreadable {
                 Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange)
             }
-            if let note { SavedNote(text: note) }
             group("Rhythm") {
                 row("Check GitHub every", "Minutes between looks for ready epics", "pollIntervalMinutes", first: true) {
                     field("pollIntervalMinutes", $draft.pollIntervalMinutes, unit: "min", parse: { Double($0.replacingOccurrences(of: ",", with: ".")) }, format: shownNumber, step: { $0 + Double($1) > 0 ? $0 + Double($1) : nil })
@@ -74,24 +61,18 @@ struct BehaviorTabView: View {
                 }
                 row("GitHub call timeout", "Each short call to GitHub", "githubCallTimeoutSeconds") { integer("githubCallTimeoutSeconds", $draft.githubCallTimeoutSeconds, min: 1, unit: "s") }
             }
-            if confirming, let warning = restartWarning(epics: runningEpics, asks: asksBeforeStop) {
-                ConfirmationCard(text: warning, confirm: "Restart and interrupt", cancel: { confirming = false }) { confirming = false; saveAndRestart() }
-            }
             HStack(spacing: 8) {
-                Spacer()
-                if restarting || start.starting { ProgressView().controlSize(.small) }
-                Button("Revert") { draft = saved; unparsable = [] }.disabled(dirty == false || restarting)
-                if footer.offersRestart {
-                    Button("Save only") { if write() { note = "Saved. Carrier keeps the old values until it restarts." } }
-                        .disabled(footer.canSave == false || restarting)
-                    Button("Save and restart") { restartPressed() }
-                        .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(footer.canRestart == false || restarting).help(footer.message)
+                if let failure {
+                    Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+                } else if let note {
+                    Label(note, systemImage: "checkmark.circle.fill").font(.callout).foregroundStyle(.green)
                 } else {
-                    Button("Save") { if write() { note = "Saved. Carrier uses it the next time it starts." } }
-                        .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(footer.canSave == false)
+                    Text("Saved as you change them. Carrier reads these when it starts.").font(.callout).foregroundStyle(.secondary)
                 }
+                Spacer(minLength: 8)
+                Button("Reset to defaults") { draft = EngineConfig(); unparsable = [] }.disabled(draft == EngineConfig() && unparsable.isEmpty)
             }
-            if let failure { Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
+            .padding(.horizontal, 4)
         }
         .buttonStyle(.glass).buttonBorderShape(.capsule)
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
@@ -100,7 +81,10 @@ struct BehaviorTabView: View {
         .onChange(of: start.configExists) { load() }
         // a file that is there but unreadable may be fixed in another app: look again when Carrier is back in front (only then, so no edit is lost)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if unreadable { load() } }
-        .onChange(of: draft) { note = nil }
+        .onChange(of: draft) {
+            note = nil
+            autosave()
+        }
     }
 
     private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -158,19 +142,10 @@ struct BehaviorTabView: View {
         }
     }
 
-    /// Asks first only when it would interrupt epics (and the General switch is on).
-    private func restartPressed() {
-        if restartWarning(epics: runningEpics, asks: asksBeforeStop) == nil { saveAndRestart() } else { confirming = true }
-    }
-
-    private func saveAndRestart() {
-        guard write() else { return }
-        restarting = true
-        StartController.shared.restart { ok in
-            restarting = false
-            if ok { note = "Carrier restarted with the new values" }
-            else { failure = "Saved, but Carrier did not come up again. See the alert or the start log in General." }
-        }
+    /// Writes what the person just changed, when the engine would accept it; a value that is still being typed waits.
+    private func autosave() {
+        guard unreadable == false, draft != saved, problems.isEmpty else { return }
+        if write() { note = "Saved" }
     }
 }
 
@@ -209,7 +184,7 @@ struct ConfirmationCard: View {
 
 /// A text field that hands its number to `value` as it is typed, so Save is on at once; text that is not a number yet is
 /// reported through `unparsable` and the value keeps its last good number.
-private struct NumberField<Value: Equatable>: View {
+struct NumberField<Value: Equatable>: View {
     let key: String
     @Binding var value: Value
     @Binding var unparsable: Set<String>

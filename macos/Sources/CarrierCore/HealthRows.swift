@@ -125,9 +125,53 @@ private func setupSection(_ doctor: DoctorState, configExists: Bool) -> HealthSe
     case .unknown(let reason):
         return HealthSection(title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: "Could not check: \(reason)")])
     case .checks(let checks):
-        return HealthSection(title: title, note: nil, rows: checks.map { check in
-            let mark: HealthRow.Mark = switch check.status { case .ok: .ok; case .warn: .warning; case .fail: .problem }
-            return HealthRow(title: check.name, mark: mark, detail: check.detail ?? "", fix: check.fix)
-        })
+        return HealthSection(title: title, note: nil, rows: groupedChecks(checks))
+    }
+}
+
+/// The doctor prints one check per tool, per login and per identity and repository; the tab shows one card for each of those kinds instead,
+/// and any other check as it is. A card is as bad as its worst check, says what it covers while all are well and which checks are not when
+/// not, with the first fix of the checks that have one.
+func groupedChecks(_ checks: [DoctorCheck]) -> [HealthRow] {
+    enum Kind: Hashable { case tools, logins, access, single(Int) }
+    func kind(_ index: Int, _ name: String) -> Kind {
+        if name.hasSuffix(" installed") { return .tools }
+        if name.contains(" provider "), name.hasSuffix(" is logged in") { return .logins }
+        if name.hasPrefix("forge agent ") { return .access }
+        return .single(index)
+    }
+    var order: [Kind] = []
+    var members: [Kind: [DoctorCheck]] = [:]
+    for (index, check) in checks.enumerated() {
+        let found = kind(index, check.name)
+        if members[found] == nil { order.append(found) }
+        members[found, default: []].append(check)
+    }
+    return order.map { found in
+        let group = members[found]!
+        let mark: HealthRow.Mark = group.contains { $0.status == .fail } ? .problem : group.contains { $0.status == .warn } ? .warning : .ok
+        let fix = group.first { $0.fix != nil && $0.status != .ok }?.fix
+        if case .single = found, let only = group.first {
+            return HealthRow(title: only.name, mark: mark, detail: only.detail ?? "", fix: only.fix)
+        }
+        let title: String
+        var covers: String
+        switch found {
+        case .tools:
+            title = "Tools installed"
+            covers = group.map { String($0.name.dropLast(" installed".count)) }.joined(separator: ", ")
+        case .logins:
+            title = "Provider logins"
+            covers = group.map { $0.name.replacingOccurrences(of: " provider ", with: " ").replacingOccurrences(of: " is logged in", with: "") }.joined(separator: ", ")
+        default:
+            title = "Repository access"
+            let words = group.map { $0.name.split(separator: " ").map(String.init) }
+            let identities = Set(words.compactMap { $0.count > 2 ? $0[2] : nil }).count
+            let repos = Set(words.compactMap(\.last)).count
+            covers = "\(repos) \(repos == 1 ? "repository" : "repositories"), \(identities) \(identities == 1 ? "identity" : "identities")"
+        }
+        if mark == .ok { return HealthRow(title: title, mark: mark, detail: covers) }
+        let bad = group.filter { $0.status != .ok }.map { "\($0.name)\($0.detail.map { ": \($0)" } ?? "")" }
+        return HealthRow(title: title, mark: mark, detail: "\(bad.count) of \(group.count) not ok\n" + bad.joined(separator: "\n"), fix: fix)
     }
 }

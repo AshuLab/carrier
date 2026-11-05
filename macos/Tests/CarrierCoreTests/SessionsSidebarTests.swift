@@ -69,7 +69,7 @@ private func byAge(_ rows: [SessionRow]) -> [SessionGroup] { sessionGroups(rows,
         at("waiting", noon, state: .waiting), at("gone", noon, state: .working, archived: true),
     ]
     let groups = sessionGroups(rows, by: .status, now: noon, calendar: utc)
-    #expect(groups.map(\.title) == ["Waiting for you", "Idle", "Done"])
+    #expect(groups.map(\.title) == ["Needs attention", "Active", "Done"])
     #expect(groups[1].rows.map(\.id) == ["idleNew", "idleOld"])
     #expect(sessionGroups([], by: .status, now: noon, calendar: utc).isEmpty)
     #expect(sessionGroups([], by: .age, now: noon, calendar: utc).isEmpty)

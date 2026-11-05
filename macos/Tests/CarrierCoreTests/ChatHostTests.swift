@@ -36,7 +36,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .plan])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {
@@ -202,5 +202,125 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     }
     defer { server.stop() }
     await #expect(throws: ControlError.remote("the chat host does not support health")) { try await SocketChatHost(socketPath: { server.path }).health(refresh: false) }
+    #expect(asked == false)
+}
+
+// MARK: the preparation of a session
+
+@Test func theEventsReplyCarriesStepEventsThePreparationAndTheProgress() throws {
+    let json = """
+    {"events":[{"id":1,"at":5,"kind":"step","step":"clone","status":"failed","detail":"Could not reach github.com"}],"cursor":1,"streaming":"",
+     "session":{"state":"preparing","preparation":"running"},"approvals":[],"options":[],"commands":[],"progress":"Receiving objects: 45%"}
+    """
+    let reply = try JSONDecoder().decode(ChatEvents.self, from: Data(json.utf8))
+    #expect(reply.events.first?.step == "clone" && reply.events.first?.status == "failed" && reply.events.first?.detail == "Could not reach github.com")
+    #expect(reply.state == .preparing && reply.preparation == .running && reply.progress == "Receiving objects: 45%")
+}
+
+@Test func aHostThatLeavesTheNewFieldsOutOrSaysNullStillDecodes() throws {
+    let bare = #"{"events":[],"cursor":0,"streaming":"","session":{"state":"idle"}}"#
+    let reply = try JSONDecoder().decode(ChatEvents.self, from: Data(bare.utf8))
+    #expect(reply.preparation == nil && reply.progress == nil)
+    let nulls = #"{"events":[],"cursor":0,"streaming":"","session":{"state":"idle","preparation":null},"progress":null}"#
+    let withNulls = try JSONDecoder().decode(ChatEvents.self, from: Data(nulls.utf8))
+    #expect(withNulls.preparation == nil && withNulls.progress == nil)
+    // a preparation this app does not know is none, not a failure to read the reply
+    let newer = #"{"events":[],"cursor":0,"streaming":"","session":{"state":"idle","preparation":"queued"}}"#
+    #expect(try JSONDecoder().decode(ChatEvents.self, from: Data(newer.utf8)).preparation == nil)
+}
+
+@Test func aSessionInTheListCarriesItsPreparationOrNone() throws {
+    func decode(_ extra: String) throws -> ChatSession {
+        let json = #"{"id":"a","agent":"claude","harness":"claude","folder":"/w","title":"t","state":"\#(extra)","createdAt":1,"lastActiveAt":2,"archived":false,"live":false}"#
+        return try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))
+    }
+    let preparing = try decode(#"preparing","preparation":"running"#)
+    #expect(preparing.state == .preparing && preparing.preparation == .running)
+    #expect(try decode(#"idle","preparation":"failed"#).preparation == .failed)
+    #expect(try decode("idle").preparation == nil)
+}
+
+@Test func retryAndCancelOfAPreparationGoOnTheWireBehindPlanAndTheCancelReadsThePlanBack() async throws {
+    var lines: [String] = []
+    let server = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        lines.append(line)
+        if line.contains("retryPreparation") { return connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"session\":{\"id\":\"x\"}}}\n") }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"folder\",\"folder\":\"/w/api\"},\"agent\":\"claude\",\"text\":\"hi\\nthere\",\"options\":{\"model\":\"haiku\"},\"branch\":\"main\",\"worktree\":{\"name\":\"my-fix\"}}}}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    let sessionId = "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01"
+    try await host.retryPreparation(sessionId)
+    let plan = try await host.cancelPreparation(sessionId)
+    #expect(plan == SessionPlan(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "main", name: "my-fix"), options: ["model": "haiku"], text: "hi\nthere"))
+    let sent = lines.compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+    #expect(sent.map { $0["cmd"] as? String } == ["retryPreparation", "cancelPreparation"] && sent.allSatisfy { $0["sessionId"] as? String == sessionId && $0.keys.sorted() == ["cmd", "id", "sessionId"] })
+}
+
+@Test func aPlanForABranchWithNoWorktreeComesBackAsABranchAndAHostWithoutPlanIsNotAsked() async throws {
+    let server = TestServer { connection in
+        connection.send(hello("\"agents\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"folder\",\"folder\":\"/w/api\"},\"agent\":\"claude\",\"text\":\"hi\",\"branch\":\"feat/x\"}}}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    // a host that does not list `plan` is never sent either request
+    await #expect(throws: ControlError.remote("the chat host does not support cancelPreparation")) { _ = try await host.cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01") }
+}
+
+@Test func aCancelledPlanForARepositoryIsReadBackWithItsBranchAndWorktree() async throws {
+    let server = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"repo\",\"repo\":\"a/b\"},\"agent\":\"claude\",\"text\":\"hi\",\"branch\":\"feat/x\",\"worktree\":{}}}}\n")
+    }
+    defer { server.stop() }
+    let plan = try await SocketChatHost(socketPath: { server.path }).cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01")
+    #expect(plan == SessionPlan(agent: "claude", workspace: .repo("a/b"), worktree: WorktreeRequest(from: "feat/x"), text: "hi"))
+}
+
+@Test func aCancelledPlanWithAWorkspaceThisAppDoesNotKnowIsNotRead() async throws {
+    let server = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"remote\",\"repo\":\"a/b\"},\"agent\":\"claude\",\"text\":\"hi\"}}}\n")
+    }
+    defer { server.stop() }
+    await #expect(throws: ControlError.badLine) { _ = try await SocketChatHost(socketPath: { server.path }).cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01") }
+}
+
+@Test func theFixtureHostAnswersRepoBranchesFromTheGoldenFileAndRefusesWhatItDoesNotList() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    #expect(try await host.capabilities().contains(.repoBranches))
+    #expect(try await host.repoBranches("AshuLab/web") == RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"], hasMore: false))
+    #expect(try await host.repoBranches("AshuLab/api") == RepoBranches(defaultBranch: "trunk", branches: ["trunk"], hasMore: true))
+    await #expect(throws: ControlError.remote("AshuLab/nope was not found, or your GitHub login cannot see it")) { try await host.repoBranches("AshuLab/nope") }
+}
+
+@Test func repoBranchesGoesOnTheWireWithTheRepoAsAJSONStringAndOnlyForAHostThatListsIt() async throws {
+    var wire = ""
+    let server = TestServer { connection in
+        connection.send(hello("\"repoBranches\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        wire = line
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"default\":\"main\",\"branches\":[\"main\"],\"hasMore\":false}}\n")
+    }
+    defer { server.stop() }
+    _ = try await SocketChatHost(socketPath: { server.path }).repoBranches("AshuLab/carrier")
+    let sent = try #require(try JSONSerialization.jsonObject(with: Data(wire.utf8)) as? [String: Any])
+    #expect(sent["cmd"] as? String == "repoBranches" && sent["repo"] as? String == "AshuLab/carrier" && sent.keys.sorted() == ["cmd", "id", "repo"])
+
+    var asked = false
+    let older = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    await #expect(throws: ControlError.remote("the chat host does not support repoBranches")) { _ = try await SocketChatHost(socketPath: { older.path }).repoBranches("AshuLab/carrier") }
     #expect(asked == false)
 }

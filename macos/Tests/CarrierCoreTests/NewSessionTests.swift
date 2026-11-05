@@ -26,15 +26,14 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var fetched: WorkspaceInfo?
     var names = ["brave-marine-aiur", "keen-ghost-char"]
     var taken: [String: NameCheck] = [:]
-    var opens: [WorktreeRequest?] = []
-    /// What `agentOptions` lists for each agent (one not listed fails), how often it was asked, and the options each `open` carried.
+    /// The plan of each `open`.
+    var plans: [SessionPlan] = []
+    /// What `agentOptions` lists for each agent (one not listed fails) and how often it was asked.
     var offered: [String: [ChatOption]] = [:]
     var optionAsks: [String] = []
-    /// What `agentOptions` lists to invoke, and the commands each `send` invoked.
+    /// What `agentOptions` lists to invoke.
     var commandsOffered: [String: [ChatCommand]] = [:]
-    var sentCommands: [String?] = []
-    var openedWith: [[String: String]] = []
-    var capabilities: Set<ControlClient.Capability> = [.cloneRepo, .createProject, .githubRepos]
+    var capabilities: Set<ControlClient.Capability> = [.repoBranches, .createProject, .githubRepos, .plan]
     /// What `health` answers, and the `refresh` flags it was asked with.
     var healthReply = HostHealth(git: .ready, gh: .ready, agents: [])
     var healthAsks: [Bool] = []
@@ -42,11 +41,11 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var repoPages: [Int: GithubReposPage] = [:]
     var repoCalls: [Int] = []
     var created: [String] = []
-    /// What `cloneRepo` asked for, and whether it ended by being cancelled; while `holdClone` is set it waits for `release` or a cancel.
+    /// What `cloneRepo` was asked for: the draft never asks.
     var clones: [String] = []
-    var cloneCancelled = false
-    var holdClone = false
-    var release = false
+    /// What `repoBranches` answers by repository (one not listed is refused as for a repository the login cannot see) and what it was asked for.
+    var branchesOf: [String: RepoBranches] = [:]
+    var branchCalls: [String] = []
     /// Where the host puts what it clones and makes; a test points it at the config's projects folder, which the real host reads at each request.
     var projects: () -> String = { "/projects" }
 
@@ -57,17 +56,9 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         guard let listed = offered[agent] else { throw ControlError.remote("the chat host does not support agentOptions") }
         return AgentOffer(options: listed, commands: commandsOffered[agent] ?? [])
     }
-    func send(_ id: String, _ text: String, command: String?) async throws {
-        sentCommands.append(command)
-        try await send(id, text)
-    }
-    func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String {
-        openedWith.append(options)
-        return try await open(agent: agent, folder: folder, worktree: worktree)
-    }
-    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String {
-        calls.append("open \(agent) \(folder)")
-        opens.append(worktree)
+    func open(plan: SessionPlan) async throws -> String {
+        calls.append("open \(plan.agent) \(plan.folder ?? "")")
+        plans.append(plan)
         if let error = refuse["open"] { throw error }
         return opened
     }
@@ -102,15 +93,13 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     func capabilities() async throws -> Set<ControlClient.Capability> { capabilities }
     func cloneRepo(_ repo: String) async throws -> ClonedRepo {
         clones.append(repo)
-        while holdClone && release == false {
-            if Task.isCancelled {
-                cloneCancelled = true
-                throw CancellationError()
-            }
-            try? await Task.sleep(for: .milliseconds(2))
-        }
-        if let error = refuse["cloneRepo"] { throw error }
         return ClonedRepo(folder: "\(projects())/\(repo)", repo: repo, fetched: false)
+    }
+    func repoBranches(_ repo: String) async throws -> RepoBranches {
+        branchCalls.append(repo)
+        if let error = refuse["repoBranches"] { throw error }
+        guard let listed = branchesOf[repo] else { throw ControlError.remote("\(repo) was not found, or your GitHub login cannot see it") }
+        return listed
     }
     func createProject(_ name: String) async throws -> String {
         created.append(name)
@@ -180,6 +169,16 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(model.sentence == "Work in api on the base folder (main)")
 }
 
+@MainActor @Test func aWorkspacePlusOpensTheDraftWithThatFolderChosenAndEveryLoadAfterItIsBlank() async {
+    let model = await draft(FakeChat())
+    model.start(in: "/w/api")
+    #expect(model.starts == 1)
+    await model.load()
+    #expect(model.folder == "/w/api")
+    await model.load()
+    #expect(model.folder == nil)
+}
+
 @MainActor @Test func theBoxCannotSendWithoutAWorkspaceAnAgentAndAMessage() async {
     let host = FakeChat()
     let model = await draft(host)
@@ -195,15 +194,18 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(model.canSend == false)
 }
 
-@MainActor @Test func sendingOpensTheSessionWithTheAgentAndFolderAndThenSendsTheMessage() async {
+@MainActor @Test func sendingMakesOneOpenWithThePlanAndNothingElse() async {
     let host = FakeChat()
     let model = await draft(host)
     await model.choose(folder: "/w/api")
     model.text = " fix the bug \n"
     let id = await model.send()
     #expect(id == opened)
-    #expect(host.calls == ["open claude /w/api", "send \(opened) fix the bug"])
-    #expect(model.text == "" && model.refusal == nil && model.sending == false && model.takeFailure(of: opened) == nil)
+    #expect(host.calls == ["open claude /w/api"])
+    #expect(host.plans == [SessionPlan(agent: "claude", folder: "/w/api", text: "fix the bug")])
+    #expect(model.text == "" && model.refusal == nil && model.sending == false)
+    // the message goes to the conversation that shows the session, once
+    #expect(model.takeFirstMessage(of: opened) == "fix the bug" && model.takeFirstMessage(of: opened) == nil)
 }
 
 @MainActor @Test func aRefusedOpenIsSaidInTheDraftAndKeepsTheMessage() async {
@@ -218,16 +220,26 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(signInLine(refusal: model.refusal ?? "") != nil)
 }
 
-@MainActor @Test func aSendThatFailsAfterOpenStillSelectsTheSessionAndHandsOverTheFailure() async {
+@MainActor @Test func aHostThatDoesNotListPlanIsSaidToBeOlderAndSendsNothing() async {
     let host = FakeChat()
-    host.refuse["send"] = ControlError.remote("The message is too long")
+    host.capabilities = [.cloneRepo]
     let model = await draft(host)
     await model.choose(folder: "/w/api")
     model.text = "hello"
-    #expect(await model.send() == opened)
-    #expect(model.refusal == nil)
-    #expect(model.takeFailure(of: opened) == FailedFirstSend(text: "hello", reason: "The message is too long"))
-    #expect(model.takeFailure(of: opened) == nil)
+    #expect(model.hostOlder && model.canSend == false && NewSessionModel.olderHostNotice.contains("Restart"))
+    #expect(await model.send() == nil)
+    #expect(host.calls.isEmpty && model.text == "hello")
+}
+
+@MainActor @Test func theSendAsksTheHostForPlanAgainSoAHostReplacedByAnOlderOneIsFoundOut() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    model.text = "hello"
+    #expect(model.hostOlder == false && model.canSend)
+    host.capabilities = []
+    #expect(await model.send() == nil)
+    #expect(model.hostOlder && host.calls.isEmpty && model.text == "hello")
 }
 
 @MainActor @Test func aHostThatCannotStartStopsTheSendBeforeOpen() async {
@@ -250,25 +262,38 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(model.refusal == "The chat host is not answering" && logged.count == 1)
 }
 
-@MainActor @Test func aFailedFirstSendShowsInTheConversationWithTryAgain() async {
-    let conversation = ConversationModel(host: FakeChat(), sessionId: opened)
-    conversation.showRefusal(of: "hello", "The message is too long")
-    #expect(conversation.refusal == "The message is too long" && conversation.refusedText == "hello")
-}
-
-@Test func theClientOpensWithTheAgentAndFolderInsideJSONStringsAndReadsTheNewId() async throws {
+@Test func theClientOpensWithThePlanInsideJSONStringsAndReadsTheNewId() async throws {
     var lines: [String] = []
     let server = TestServer { connection in
-        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"open\"]}\n")
+        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"plan\"]}\n")
         guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
         lines.append(line)
         connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"session\":{\"id\":\"\(opened)\",\"agent\":\"claude\"},\"options\":[]}}\n")
     }
     defer { server.stop() }
-    let id = try await SocketChatHost(socketPath: { server.path }).open(agent: "claude", folder: "/w/\"odd\"\n/dir", worktree: nil)
+    let plan = SessionPlan(agent: "claude", folder: "/w/\"odd\"\n/dir", options: ["model": "haiku"], text: "say \"hi\"\nthen stop")
+    let id = try await SocketChatHost(socketPath: { server.path }).open(plan: plan)
     #expect(id == opened)
     let sent = try #require(lines.first.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] })
-    #expect(sent["cmd"] as? String == "open" && sent["agent"] as? String == "claude" && sent["folder"] as? String == "/w/\"odd\"\n/dir")
+    #expect(sent["cmd"] as? String == "open" && sent.keys.sorted() == ["cmd", "id", "plan"])
+    let wired = try #require(sent["plan"] as? [String: Any])
+    #expect(wired["agent"] as? String == "claude" && wired["text"] as? String == "say \"hi\"\nthen stop" && wired["options"] as? [String: String] == ["model": "haiku"])
+    #expect(wired["workspace"] as? [String: String] == ["kind": "folder", "folder": "/w/\"odd\"\n/dir"] && wired["branch"] == nil && wired["worktree"] == nil)
+}
+
+@Test func aProjectPlanGoesOnTheWireWithItsNameAndNoBranchNorWorktree() async throws {
+    var lines: [String] = []
+    let server = TestServer { connection in
+        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"plan\"]}\n")
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        lines.append(line)
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"session\":{\"id\":\"\(opened)\",\"agent\":\"claude\"},\"options\":[]}}\n")
+    }
+    defer { server.stop() }
+    _ = try await SocketChatHost(socketPath: { server.path }).open(plan: SessionPlan(agent: "claude", workspace: .project("my-app"), text: "hi"))
+    let sent = try #require(lines.first.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] })
+    let wired = try #require(sent["plan"] as? [String: Any])
+    #expect(wired["workspace"] as? [String: String] == ["kind": "project", "name": "my-app"] && wired["branch"] == nil && wired["worktree"] == nil)
 }
 
 // MARK: the worktree half
@@ -412,13 +437,66 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     await model.choose(folder: "/w/api")
     model.text = "one"
     #expect(await model.send() == opened)
+    await model.choose(folder: "/w/api")
     await model.useWorktree(true)
     model.choose(startBranch: "origin/main")
     model.worktreeName = "my-fix"
     model.text = "two"
     #expect(await model.send() == opened)
-    #expect(host.opens == [nil, WorktreeRequest(from: "origin/main", name: "my-fix")])
-    #expect(host.calls == ["open claude /w/api", "send \(opened) one", "open claude /w/api", "send \(opened) two"])
+    #expect(host.plans.map(\.worktree) == [nil, WorktreeRequest(from: "origin/main", name: "my-fix")] && host.plans.map(\.text) == ["one", "two"])
+    #expect(host.calls == ["open claude /w/api", "open claude /w/api"])
+}
+
+@MainActor @Test func pickingAnotherBranchSaysTheFolderBranchWillChangeAndSendsItInThePlan() async {
+    let host = FakeChat()
+    host.workspaces["/w/clean"] = WorkspaceInfo(folder: "/w/clean", branch: "main", dirty: 0, branches: [.init(name: "main", remote: false), .init(name: "feat/x", remote: false)])
+    let model = await draft(host)
+    await model.choose(folder: "/w/clean")
+    // nothing picked, or the checked-out branch picked: the folder keeps its branch and says nothing
+    #expect(model.branchNote == nil && model.branchChange == nil)
+    model.choose(startBranch: "main")
+    #expect(model.branchNote == nil)
+    model.choose(startBranch: "feat/x")
+    #expect(model.branchNote == "The branch of the folder will change from main to feat/x when the message is sent.")
+    #expect(model.warning == nil)
+    model.text = "go"
+    #expect(await model.send() == opened)
+    #expect(host.plans.map(\.branch) == ["feat/x"] && host.plans.map(\.worktree) == [nil])
+}
+
+@MainActor @Test func aFolderWithUncommittedChangesWarnsThatTheBranchChangeWillFailAndSendingIsStillAllowed() async {
+    let host = FakeChat()
+    host.workspaces["/w/dirty"] = WorkspaceInfo(folder: "/w/dirty", branch: "main", dirty: 2, branches: [.init(name: "main", remote: false), .init(name: "feat/x", remote: false)])
+    let model = await draft(host)
+    await model.choose(folder: "/w/dirty")
+    // no change picked: the worktree way out is offered
+    #expect(model.warning == "2 uncommitted files in the folder. A worktree keeps them out of the agent's way.")
+    model.choose(startBranch: "feat/x")
+    #expect(model.branchNote == "The branch of the folder will change from main to feat/x when the message is sent.")
+    #expect(model.warning == "2 uncommitted files in the folder, so changing its branch will fail and it keeps the branch it is on. Save the work first, or use a worktree.")
+    model.text = "go"
+    #expect(model.canSend)
+    // a worktree is cut from the pick and changes no folder: no branch change, and the pick is the worktree's start
+    await model.useWorktree(true)
+    #expect(model.branchNote == nil && model.warning == nil)
+    model.worktreeName = "my-fix"
+    #expect(await model.send() == opened)
+    #expect(host.plans.map(\.branch) == [nil] && host.plans.map(\.worktree) == [WorktreeRequest(from: "feat/x", name: "my-fix")])
+}
+
+@Test func thePlanPutsTheBranchOnTheWireWithNoWorktree() async throws {
+    var lines: [String] = []
+    let server = TestServer { connection in
+        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"plan\"]}\n")
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        lines.append(line)
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"session\":{\"id\":\"\(opened)\"},\"options\":[]}}\n")
+    }
+    defer { server.stop() }
+    _ = try await SocketChatHost(socketPath: { server.path }).open(plan: SessionPlan(agent: "claude", folder: "/w/api", branch: "feat/x", text: "hi"))
+    let sent = try #require(lines.first.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] })
+    let wired = try #require(sent["plan"] as? [String: Any])
+    #expect(wired["branch"] as? String == "feat/x" && wired["worktree"] == nil)
 }
 
 @MainActor @Test func aRefusedWorktreeIsSaidInTheDraftAndKeepsTheMessageAndTheChoice() async {
@@ -440,6 +518,53 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     model.choose(startBranch: "origin/main")
     await model.choose(folder: "/w/web")
     #expect(model.worktree == false && model.worktreeName.isEmpty && model.startBranch == "main" && model.nameState == .suggesting)
+}
+
+@MainActor @Test func theDraftIsBlankAfterLoadWhateverWasChosenBefore() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.useWorktree(true)
+    model.choose(startBranch: "origin/main")
+    model.text = "half a thought"
+    await model.load()
+    #expect(model.folder == nil && model.workspace == nil && model.worktree == false && model.worktreeName.isEmpty && model.picked == nil && model.text.isEmpty)
+    #expect(model.sentence == "Work in Choose a workspace… on the base folder")
+}
+
+@MainActor @Test func theClearButtonDropsTheWorkspaceAndWhatDependsOnItButKeepsTheText() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.useWorktree(true)
+    model.choose(startBranch: "origin/main")
+    model.text = "hello"
+    model.clearWorkspace()
+    #expect(model.folder == nil && model.workspace == nil && model.worktree == false && model.worktreeName.isEmpty && model.picked == nil && model.canSend == false)
+    #expect(model.text == "hello")
+}
+
+@MainActor @Test func afterASendTheDraftIsBlankSoTheNextSendDoesNotCarryTheOldWorkspaceOrWorktree() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.useWorktree(true)
+    model.text = "first"
+    #expect(await model.send() == opened)
+    #expect(model.folder == nil && model.worktree == false && model.worktreeName.isEmpty && model.text.isEmpty)
+    model.text = "second"
+    #expect(model.canSend == false)
+    #expect(await model.send() == nil)
+    #expect(host.calls.filter { $0.hasPrefix("open") }.count == 1)
+}
+
+@MainActor @Test func aBlankDraftHasNoTypedRepositoryNorProjectNameAndShowsTheMenu() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    model.urlText = "AshuLab/web"
+    model.projectName = "scratch"
+    model.blank()
+    #expect(model.urlText.isEmpty && model.projectName.isEmpty && model.step == .menu)
 }
 
 // MARK: the client
@@ -466,35 +591,36 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     let server = try FixtureServer(fixtures: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path)
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
-    let id = try await host.open(agent: "claude", folder: "/Users/dev/carrier", worktree: WorktreeRequest(from: "origin/main", name: "my-fix"))
+    func plan(_ folder: String, _ worktree: WorktreeRequest?) -> SessionPlan { SessionPlan(agent: "claude", folder: folder, worktree: worktree, text: "hello") }
+    let id = try await host.open(plan: plan("/Users/dev/carrier", WorktreeRequest(from: "origin/main", name: "my-fix")))
     let made = try #require(try await host.list(archived: false).first { $0.id == id })
     #expect(made.workspace == ChatSession.Workspace(base: "/Users/dev/carrier", branch: "carrier/my-fix") && made.folder.hasSuffix("/my-fix"))
-    try await host.send(id, "hello")
-    #expect(try await host.events(id, after: 0, limit: 10).events.count == 1)
+    #expect(try await host.events(id, after: 0, limit: 10).events.map(\.kind) == ["step", "step", "user"])
     // refused as the host does
     await #expect(throws: ControlError.remote("The branch to start from is not one this repository lists")) {
-        try await host.open(agent: "claude", folder: "/Users/dev/carrier", worktree: WorktreeRequest(from: "nope", name: "x"))
+        try await host.open(plan: plan("/Users/dev/carrier", WorktreeRequest(from: "nope", name: "x")))
     }
     await #expect(throws: ControlError.remote("A branch called carrier/fix-login already exists")) {
-        try await host.open(agent: "claude", folder: "/Users/dev/carrier", worktree: WorktreeRequest(from: "main", name: "fix-login"))
+        try await host.open(plan: plan("/Users/dev/carrier", WorktreeRequest(from: "main", name: "fix-login")))
     }
     await #expect(throws: ControlError.remote("Worktrees need a git repository")) {
-        try await host.open(agent: "claude", folder: "/Users/dev/notes", worktree: WorktreeRequest(from: "main"))
+        try await host.open(plan: plan("/Users/dev/notes", WorktreeRequest(from: "main")))
     }
 }
 
 @Test func theClientPutsTheWorktreeRequestOnTheWireInsideJSONStrings() async throws {
     var lines: [String] = []
     let server = TestServer { connection in
-        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"open\"]}\n")
+        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"plan\"]}\n")
         guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
         lines.append(line)
         connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"session\":{\"id\":\"\(opened)\"},\"options\":[]}}\n")
     }
     defer { server.stop() }
-    _ = try await SocketChatHost(socketPath: { server.path }).open(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "origin/feat\"x\"", name: "my-fix"))
+    _ = try await SocketChatHost(socketPath: { server.path }).open(plan: SessionPlan(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "origin/feat\"x\"", name: "my-fix"), text: "hi"))
     let sent = try #require(lines.first.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] })
-    #expect(sent["worktree"] as? [String: String] == ["from": "origin/feat\"x\"", "name": "my-fix"])
+    let wired = try #require(sent["plan"] as? [String: Any])
+    #expect(wired["branch"] as? String == "origin/feat\"x\"" && wired["worktree"] as? [String: String] == ["name": "my-fix"])
 }
 
 @Test func aSessionInTheBaseFolderIsListedByTheRealHostAsKindFolderAndDecodesWithNoWorkspace() throws {
@@ -528,7 +654,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
 @MainActor private func popover(_ host: FakeChat, projects: String = "/nowhere", config: FakeConfig? = nil) async -> NewSessionModel {
     let config = config ?? FakeConfig()
     let model = NewSessionModel(
-        host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: { projects },
+        host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, watchEvery: .milliseconds(5), projectsFolder: { projects },
         readConfig: { config.json }, writeConfig: { try config.write($0) }
     )
     await model.load()
@@ -540,12 +666,12 @@ private func projectsRoot(_ names: [String]) throws -> String {
     for _ in 0..<500 where done() == false { try? await Task.sleep(for: .milliseconds(2)) }
 }
 
-@MainActor @Test func theMenuListsOpenLocalFolderAndGitHubURLOnlyForAHostThatClones() async {
+@MainActor @Test func theMenuListsOpenLocalFolderAndGitHubURLOnlyForAHostThatPreparesARepository() async {
     let host = FakeChat()
     #expect(await popover(host).sources == [.localFolder, .githubURL, .githubRepos, .newProject])
-    host.capabilities = [.cloneRepo, .createProject]
+    host.capabilities = [.repoBranches, .createProject]
     #expect(await popover(host).sources == [.localFolder, .githubURL, .newProject])
-    host.capabilities = [.cloneRepo]
+    host.capabilities = [.repoBranches]
     #expect(await popover(host).sources == [.localFolder, .githubURL])
     host.capabilities = [.createProject]
     #expect(await popover(host).sources == [.localFolder, .newProject])
@@ -568,90 +694,123 @@ private func projectsRoot(_ names: [String]) throws -> String {
     let model = await popover(FakeChat())
     model.openPicker()
     model.show(.url)
-    #expect(model.step == .url && model.canCloneNow == false && model.cloneButton == "Clone and use")
+    #expect(model.step == .url && model.canUseRepo == false && model.repoButton == "Use (cloned when sent)")
     model.urlText = "AshuLab"
-    #expect(model.canCloneNow == false)
+    #expect(model.canUseRepo == false)
     model.urlText = "https://github.com/AshuLab/carrier.git"
-    #expect(model.canCloneNow && model.reference == "AshuLab/carrier")
+    #expect(model.canUseRepo && model.reference == "AshuLab/carrier")
     model.show(.menu)
     #expect(model.step == .menu)
 }
 
-@MainActor @Test func cloningAsksTheHostSaysCloningWhileItRunsAndThenTheDraftShowsTheFolder() async {
+@MainActor @Test func choosingARepositoryToCloneOnlyFillsThePlanWithGitHubsBranchesAndTouchesNothing() async {
     let host = FakeChat()
-    host.holdClone = true
-    host.fetched = nil
-    let model = await popover(host)
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
+    let config = FakeConfig()
+    let model = await popover(host, config: config)
     model.show(.url)
     model.urlText = "AshuLab/carrier"
     await model.choose(folder: "/w/api")
-    let running = Task { await model.cloneAndUse() }
-    await settle { host.clones.isEmpty == false }
-    #expect(host.clones == ["AshuLab/carrier"] && model.cloning == "AshuLab/carrier")
-    #expect(model.sentence == "Work in carrier Cloning AshuLab/carrier…" && model.folder == nil && model.canSend == false)
-    host.release = true
-    #expect(await running.value)
-    #expect(model.cloning == nil && model.folder == "/projects/AshuLab/carrier" && model.workspace?.branch == "main" && model.urlText.isEmpty)
-    #expect(model.sentence == "Work in carrier on the base folder (main)" && model.offersWorktree)
+    #expect(await model.useRepo())
+    // nothing was cloned, nothing was written, and nothing was asked of the folder, which is not there
+    #expect(host.clones.isEmpty && config.writes == 0 && host.branchCalls == ["AshuLab/carrier"])
+    #expect(model.repo == "AshuLab/carrier" && model.toClone && model.folder == "/nowhere/AshuLab/carrier" && model.urlText.isEmpty)
+    #expect(model.workspace?.branches.map(\.name) == ["main", "feat/x"] && model.workspace?.branch == "main" && model.startBranch == "main")
+    #expect(model.picker(query: "")?.local.map(\.name) == ["main", "feat/x"])
+    #expect(model.sentence == "Work in carrier on the base folder (main)" && model.offersWorktree && model.canSend == false)
+    #expect(model.repoNote == "AshuLab/carrier will be cloned to /nowhere/AshuLab/carrier when the message is sent.")
+    // a fresh clone has no uncommitted changes, and nothing is said of the folder's branch
+    #expect(model.warning == nil && model.branchNote == nil)
+    model.choose(startBranch: "feat/x")
+    #expect(model.branchNote == nil && model.warning == nil)
 }
 
-@MainActor @Test func aRepositoryAlreadyInTheProjectsFolderIsSaidBeforeAndTheButtonUpdates() async throws {
+@MainActor @Test func aWorktreeForARepositoryToCloneHasNoNameYetAndTheHostIsNotAskedForOne() async {
+    let host = FakeChat()
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
+    let model = await popover(host)
+    await model.choose(repo: "AshuLab/carrier")
+    await model.useWorktree(true)
+    #expect(model.worktree && model.worktreeName.isEmpty && model.nameState == .free && host.names.count == 2)
+    model.choose(startBranch: "feat/x")
+    model.text = "hello"
+    #expect(model.canSend)
+    await model.verifyName()
+    await model.fetchNow()
+    #expect(host.calls.isEmpty && model.fetchProblem == nil)
+    #expect(model.worktreeRequest == WorktreeRequest(from: "feat/x", name: nil))
+    // a typed name is the host's to check when it makes the worktree
+    model.worktreeName = "my-fix"
+    #expect(model.worktreeRequest == WorktreeRequest(from: "feat/x", name: "my-fix"))
+}
+
+@MainActor @Test func sendingARepositoryPlanCarriesTheRepoTheBranchAndAWorktreeWithNoName() async {
+    let host = FakeChat()
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
+    let model = await popover(host)
+    await model.choose(repo: "AshuLab/carrier")
+    model.choose(startBranch: "feat/x")
+    model.text = "hello"
+    #expect(await model.send() == opened)
+    #expect(host.plans == [SessionPlan(agent: "claude", workspace: .repo("AshuLab/carrier"), branch: "feat/x", text: "hello")])
+    #expect(host.clones.isEmpty && model.repo == nil && model.folder == nil)
+    await model.choose(repo: "AshuLab/carrier")
+    await model.useWorktree(true)
+    model.choose(startBranch: "feat/x")
+    model.text = "again"
+    _ = await model.send()
+    #expect(host.plans.last == SessionPlan(agent: "claude", workspace: .repo("AshuLab/carrier"), worktree: WorktreeRequest(from: "feat/x"), text: "again"))
+    #expect(host.plans.last?.wire.contains("\"worktree\":{}") == true && host.plans.last?.wire.contains("\"kind\":\"repo\",\"repo\":\"AshuLab\\/carrier\"") == true)
+}
+
+@MainActor @Test func aRepositoryAlreadyInTheProjectsFolderIsReadLocallyAndFetchedWhenTheMessageIsSent() async throws {
     let root = try projectsRoot(["AshuLab/carrier"])
     defer { try? FileManager.default.removeItem(atPath: root) }
-    let model = await popover(FakeChat(), projects: root)
-    model.openPicker()
-    model.urlText = "AshuLab/web"
-    #expect(model.alreadyThere == false && model.cloneButton == "Clone and use")
+    let host = FakeChat()
+    host.workspaces[root + "/AshuLab/carrier"] = WorkspaceInfo(folder: root + "/AshuLab/carrier", branch: "main", defaultBranch: "main", dirty: 3, branches: [.init(name: "main", remote: false), .init(name: "origin/feat", remote: true)])
+    let model = await popover(host, projects: root)
+    model.show(.url)
     model.urlText = "github.com/ashulab/Carrier"
-    #expect(model.alreadyThere && model.cloneButton == "Update and use")
+    #expect(await model.useRepo())
+    #expect(host.branchCalls.isEmpty && host.clones.isEmpty && model.toClone == false && model.repo == "AshuLab/carrier")
+    #expect(model.folder == root + "/AshuLab/carrier" && model.workspace?.dirty == 3 && model.warning != nil)
+    #expect(model.repoNote == "AshuLab/carrier is in your projects folder and will be fetched when the message is sent.")
+    model.text = "hello"
+    _ = await model.send()
+    #expect(host.plans.count == 1 && host.plans[0].folder == nil)
 }
 
-@MainActor @Test func aRefusedCloneIsSaidInWordsTheChipStaysOrangeAndTryAgainWorks() async {
+@MainActor @Test func aRepositoryThatGitHubWillNotListStillWorksOnItsDefaultBranchAndSaysWhy() async {
     let host = FakeChat()
-    host.refuse["cloneRepo"] = ControlError.remote("AshuLab/nope was not found, or your GitHub login cannot see it")
+    host.refuse["repoBranches"] = ControlError.remote("GitHub could not be reached; check the network connection")
     let model = await popover(host)
-    model.show(.url)
-    model.urlText = "AshuLab/nope"
-    #expect(await model.cloneAndUse() == false)
-    #expect(model.cloneProblem == "AshuLab/nope was not found, or your GitHub login cannot see it")
-    #expect(model.folder == nil && model.cloning == nil && model.step == .url && model.cloneButton == "Try again" && model.canCloneNow)
-    host.refuse["cloneRepo"] = nil
-    #expect(await model.cloneAndUse())
-    #expect(model.cloneProblem == nil && model.folder == "/projects/AshuLab/nope")
+    await model.choose(repo: "AshuLab/carrier")
+    #expect(model.workspaceProblem == "GitHub could not be reached; check the network connection" && model.workspace == nil && model.offersWorktree == false)
+    model.text = "hello"
+    #expect(model.canSend && model.loadingBranches == false)
+    // a name that is not a repository is not taken
+    await model.choose(repo: "../x")
+    #expect(model.repo == "AshuLab/carrier")
 }
 
-@MainActor @Test func aCloneThatFailsWhileThePopoverIsClosedKeepsItsReasonWhenItReopens() async {
+@MainActor @Test func theBranchesAreAPartialListWhenGitHubSaysThereAreMoreAndTheDefaultIsAlwaysThere() async {
     let host = FakeChat()
-    host.refuse["cloneRepo"] = ControlError.remote("The clone took more than ten minutes and was stopped")
+    host.branchesOf["AshuLab/api"] = RepoBranches(defaultBranch: "trunk", branches: ["a", "b"], hasMore: true)
     let model = await popover(host)
-    model.openPicker()
-    model.show(.url)
-    model.urlText = "AshuLab/slow"
-    #expect(await model.cloneAndUse() == false)
-    // the popover was closed while it ran; reopening it must not wipe why the chip is orange
-    model.openPicker()
-    #expect(model.step == .url && model.cloneProblem == "The clone took more than ten minutes and was stopped" && model.urlText == "AshuLab/slow" && model.cloneButton == "Try again")
-    // the next action starts over
-    host.refuse["cloneRepo"] = nil
-    #expect(await model.cloneAndUse())
-    model.openPicker()
-    #expect(model.cloneProblem == nil && model.step == .menu)
-}
-
-@MainActor @Test func cancelWhileCloningStopsTheRequestAndLeavesTheDraftWithNoWorkspace() async {
-    let host = FakeChat()
-    host.holdClone = true
-    let model = await popover(host)
-    model.show(.url)
-    model.urlText = "AshuLab/carrier"
+    await model.choose(repo: "AshuLab/api")
+    #expect(model.branchesPartial && model.workspace?.branches.map(\.name) == ["trunk", "a", "b"])
     await model.choose(folder: "/w/api")
-    let running = Task { await model.cloneAndUse() }
-    await settle { model.cloning != nil }
-    model.cancelClone()
-    #expect(model.cloning == nil && model.folder == nil)
-    #expect(await running.value == false)
-    await settle { host.cloneCancelled }
-    #expect(host.cloneCancelled && model.folder == nil && model.cloneProblem == nil)
+    #expect(model.branchesPartial == false && model.repo == nil && model.toClone == false)
+}
+
+@MainActor @Test func aCancelledRepositoryPlanComesBackInTheDraftWithItsBranchAndWorktree() async {
+    let host = FakeChat()
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
+    let model = await popover(host)
+    model.restore(SessionPlan(agent: "claude", workspace: .repo("AshuLab/carrier"), worktree: WorktreeRequest(from: "feat/x"), text: "again"))
+    await model.load()
+    #expect(model.repo == "AshuLab/carrier" && model.toClone && model.worktree && model.startBranch == "feat/x" && model.text == "again" && model.worktreeName.isEmpty)
+    #expect(host.clones.isEmpty)
 }
 
 @MainActor @Test func theNewProjectStepShowsThePathAndItsButtonStaysOffForANameTheHostWouldRefuse() async throws {
@@ -660,46 +819,65 @@ private func projectsRoot(_ names: [String]) throws -> String {
     let model = await popover(FakeChat(), projects: root)
     model.openPicker()
     model.show(.project)
-    #expect(model.step == .project && model.projectPath == root + "/local/<name>" && model.canCreateNow == false && model.projectNameWarning == nil)
+    #expect(model.step == .project && model.projectPath == root + "/local/<name>" && model.canUseNow == false && model.projectNameWarning == nil)
     for bad in [".", "..", ".hidden", "a/b", "../x", "a b", "-x", String(repeating: "a", count: 101)] {
         model.projectName = bad
-        #expect(model.canCreateNow == false && model.projectNameWarning != nil, "\(bad)")
+        #expect(model.canUseNow == false && model.projectNameWarning != nil, "\(bad)")
     }
     model.projectName = "Taken"
-    #expect(model.canCreateNow == false && model.projectNameWarning == "Taken is already a project; choose another name")
+    #expect(model.canUseNow == false && model.projectNameWarning == "Taken is already a project; choose another name")
     model.projectName = "my-idea.2"
-    #expect(model.canCreateNow && model.projectNameWarning == nil && model.projectPath == root + "/local/my-idea.2")
+    #expect(model.canUseNow && model.projectNameWarning == nil && model.projectPath == root + "/local/my-idea.2")
     model.projectName = String(repeating: "a", count: 100)
-    #expect(model.canCreateNow)
+    #expect(model.canUseNow)
 }
 
-@MainActor @Test func creatingAProjectChoosesItsFolderAndOffersNoWorktreeUntilItHasACommit() async {
+@MainActor @Test func choosingAProjectOnlyFillsThePlanAndOffersNoWorktreeNorBranch() async {
     let host = FakeChat()
-    host.workspaces["/projects/local/my-idea"] = WorkspaceInfo(folder: "/projects/local/my-idea", branch: "main")
     let model = await popover(host)
     model.show(.project)
     model.projectName = "my-idea"
-    #expect(await model.createAndUse())
-    #expect(host.created == ["my-idea"] && model.projectName.isEmpty && model.createProblem == nil)
-    #expect(model.folder == "/projects/local/my-idea" && model.workspace?.branches.isEmpty == true)
+    #expect(model.useProject())
+    #expect(host.created.isEmpty && host.calls.isEmpty && model.projectName.isEmpty)
+    #expect(model.newProject == "my-idea" && model.folder == "/nowhere/local/my-idea")
+    #expect(model.projectNote == "/nowhere/local/my-idea will be created, with git ready, when the message is sent.")
     #expect(model.sentence == "Work in my-idea in the folder (new project, no commits yet: no worktree)")
-    #expect(model.offersWorktree == false && model.warning == nil)
+    #expect(model.offersWorktree == false && model.warning == nil && model.branchNote == nil && model.picked == nil)
     await model.useWorktree(true)
-    #expect(model.worktree == false)
-    #expect(model.watchNote == nil && model.watchFailed == false)
+    #expect(model.worktree == false && model.workspaceProblem == nil)
+    #expect(model.watchNotes.isEmpty)
+    model.clearWorkspace()
+    #expect(model.newProject == nil && model.folder == nil && model.projectNote == nil)
 }
 
-@MainActor @Test func aProjectTheHostRefusesIsSaidInWordsAndTheDraftKeepsItsWorkspace() async {
-    let host = FakeChat()
-    host.refuse["createProject"] = ControlError.remote("web is already a project; choose another name")
-    let model = await popover(host)
-    await model.choose(folder: "/w/api")
+@MainActor @Test func aNameTheHostWouldRefuseIsNotUsed() async throws {
+    let root = try projectsRoot(["local/taken"])
+    defer { try? FileManager.default.removeItem(atPath: root) }
+    let model = await popover(FakeChat(), projects: root)
+    model.openPicker()
     model.show(.project)
-    model.projectName = "web"
-    #expect(await model.createAndUse() == false)
-    #expect(model.createProblem == "web is already a project; choose another name" && model.folder == "/w/api" && model.step == .project && model.creating == false)
-    model.show(.menu)
-    #expect(model.createProblem == nil)
+    model.projectName = "Taken"
+    #expect(model.useProject() == false && model.newProject == nil && model.folder == nil && model.step == .project)
+}
+
+@MainActor @Test func sendingAProjectPlanAsksTheHostForTheProjectStepAndNothingElse() async {
+    let host = FakeChat()
+    let model = await popover(host)
+    model.show(.project)
+    model.projectName = "my-idea"
+    _ = model.useProject()
+    model.text = "build it"
+    #expect(await model.send() == opened)
+    #expect(host.plans == [SessionPlan(agent: "claude", workspace: .project("my-idea"), text: "build it")])
+    #expect(host.created.isEmpty)
+    #expect(model.newProject == nil && model.folder == nil)
+}
+
+@MainActor @Test func aCancelledProjectPlanComesBackInTheDraft() async {
+    let model = await popover(FakeChat())
+    model.restore(SessionPlan(agent: "claude", workspace: .project("my-idea"), text: "again"))
+    await model.load()
+    #expect(model.newProject == "my-idea" && model.folder == "/nowhere/local/my-idea" && model.text == "again")
 }
 
 @Test func cancellingTheCloneRequestClosesItsConnection() async throws {
@@ -740,7 +918,7 @@ private final class LateChat: ChatHost, @unchecked Sendable {
         return [ChatAgent(name: "claude", harness: "claude", found: true)]
     }
     func list(archived: Bool) async throws -> [ChatSession] { [] }
-    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String { opened }
+    func open(plan: SessionPlan) async throws -> String { opened }
     func workspace(_ folder: String) async throws -> WorkspaceInfo { cleanRepo(folder) }
     func fetch(_ folder: String) async throws -> WorkspaceInfo { cleanRepo(folder) }
     func suggestName(_ folder: String) async throws -> String { "x" }
@@ -753,7 +931,7 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     func setOption(_ id: String, option: String, value: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
-    func capabilities() async throws -> Set<ControlClient.Capability> { [] }
+    func capabilities() async throws -> Set<ControlClient.Capability> { [.plan] }
     func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
     func createProject(_ name: String) async throws -> String { throw ControlError.closed }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
@@ -786,82 +964,127 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     #expect(model.watching == false && model.watchProblem?.contains("same folder name as acme/web") == true)
 }
 
-@MainActor @Test func cloningWithTheBoxOnAddsTheRepoToTheConfigKeepingEverythingElseAndSaysItListensFromTheNextStart() async throws {
+/// A session of the host's list in the given stage of its preparation: still preparing, failed at a step, or answered (no preparation left).
+private func listed(_ id: String, _ stage: String) -> ChatSession {
+    let (state, preparation) = switch stage {
+    case "running": ("preparing", ",\"preparation\":\"running\"")
+    case "failed": ("idle", ",\"preparation\":\"failed\"")
+    default: ("working", "")
+    }
+    let json = """
+    {"id":"\(id)","agent":"claude","harness":"claude","folder":"/projects/AshuLab/carrier","state":"\(state)","createdAt":0,"lastActiveAt":0,"archived":false,"live":true\(preparation)}
+    """
+    return try! JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))
+}
+
+/// A draft that chose `repo`, wrote its first message and sent it: the session `opened` exists and the repository waits for its `message` step.
+@MainActor private func sentForRepo(_ host: FakeChat, config: FakeConfig, repo: String = "AshuLab/carrier") async -> NewSessionModel {
+    host.branchesOf[repo] = RepoBranches(defaultBranch: "main", branches: ["main"])
+    host.active = [listed(opened, "running")]
+    let model = await popover(host, config: config)
+    await model.choose(repo: repo)
+    model.text = "hello"
+    #expect(await model.send() == opened)
+    return model
+}
+
+@MainActor @Test func theRepositoryIsAddedToTheConfigOnlyOnceTheMessageStepIsDoneKeepingEverythingElseAndSaysItListensFromTheNextStart() async throws {
     let config = FakeConfig("""
     {"note": "kept", "limits": {"maxReviews": 7}, "repos": [{"name": "acme/web", "agents": {"author": {"profile": "p"}}}]}
     """)
-    let model = await popover(FakeChat(), config: config)
-    model.show(.url)
-    model.urlText = "https://github.com/AshuLab/carrier"
-    #expect(await model.cloneAndUse())
+    let host = FakeChat()
+    let model = await sentForRepo(host, config: config)
+    // preparing, then failed at a step: nothing is written
+    #expect(config.writes == 0)
+    await model.settleWatches()
+    host.active = [listed(opened, "failed")]
+    await model.settleWatches()
+    #expect(config.writes == 0 && model.watchNotes[opened] == nil)
+    // the agent answered: the message step is done
+    host.active = [listed(opened, "answered")]
+    await settle { config.writes == 1 }
     let saved = try #require(config.json)
     let file = try #require(try JSONSerialization.jsonObject(with: saved) as? [String: Any])
     let repos = try #require(file["repos"] as? [[String: Any]])
     #expect(repos.map { $0["name"] as? String } == ["acme/web", "AshuLab/carrier"] && repos[0]["agents"] != nil && repos[1].keys.sorted() == ["name"])
     #expect(file["note"] as? String == "kept" && (file["limits"] as? [String: Any])?["maxReviews"] as? Int == 7)
-    #expect(model.watchNote == "Carrier will listen to AshuLab/carrier from its next start." && model.watchFailed == false)
-    #expect(model.folder == "/projects/AshuLab/carrier")
+    #expect(model.watchNotes[opened] == WatchNote(text: "Carrier will listen to AshuLab/carrier from its next start.", failed: false))
+    // once: looking again changes nothing
+    await model.settleWatches()
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(config.writes == 1 && host.clones.isEmpty)
+}
+
+@MainActor @Test func aPreparationThatFailedAndThenWorksAfterTryAgainAddsTheRepositoryThen() async {
+    let config = FakeConfig()
+    let host = FakeChat()
+    let model = await sentForRepo(host, config: config)
+    host.active = [listed(opened, "failed")]
+    await model.settleWatches()
+    try? await Task.sleep(for: .milliseconds(30))
+    #expect(config.writes == 0)
+    host.active = [listed(opened, "running")]
+    await model.settleWatches()
+    #expect(config.writes == 0)
+    host.active = [listed(opened, "answered")]
+    await settle { config.writes == 1 }
+    #expect(configRepoNames(json: config.json ?? Data()) == ["acme/web", "AshuLab/carrier"])
+}
+
+@MainActor @Test func aCancelledOrDeletedSessionNeverAddsItsRepository() async throws {
+    let config = FakeConfig()
+    let host = FakeChat()
+    let model = await sentForRepo(host, config: config)
+    host.active = []  // cancelled: the host deleted the session
+    await model.settleWatches()
+    host.active = [listed(opened, "answered")]  // and nothing of the same id comes back to be counted
+    await model.settleWatches()
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(config.writes == 0 && model.watchNotes.isEmpty)
 }
 
 @MainActor @Test func theConfigIsReadAgainJustBeforeTheWrite() async throws {
-    let host = FakeChat()
-    host.holdClone = true
     let config = FakeConfig()
-    let model = await popover(host, config: config)
-    model.show(.url)
-    model.urlText = "AshuLab/carrier"
-    let running = Task { await model.cloneAndUse() }
-    await settle { host.clones.isEmpty == false }
-    // another tab saves while the clone runs
+    let host = FakeChat()
+    let model = await sentForRepo(host, config: config)
+    // another tab saves while the session is prepared
     config.json = Data(#"{"repos": [{"name": "acme/web"}, {"name": "vemec/encaja"}], "pollIntervalMinutes": 3}"#.utf8)
-    host.release = true
-    #expect(await running.value)
+    host.active = [listed(opened, "answered")]
+    await settle { config.writes == 1 }
     let saved = try #require(config.json)
     #expect(configRepoNames(json: saved) == ["acme/web", "vemec/encaja", "AshuLab/carrier"])
     #expect(String(decoding: saved, as: UTF8.self).contains("pollIntervalMinutes"))
+    withExtendedLifetime(model) {}  // the model is what watches the host and writes the config: it must outlive the wait
 }
 
-@MainActor @Test func withTheBoxOffOrNotAllowedTheCloneGoesAheadAndTheConfigIsNotTouched() async {
+@MainActor @Test func withTheBoxOffOrNotAllowedTheSessionIsPreparedAndTheConfigIsNotTouched() async throws {
     let config = FakeConfig()
-    let model = await popover(FakeChat(), config: config)
-    model.show(.url)
-    model.urlText = "AshuLab/carrier"
-    model.watch = false
-    #expect(await model.cloneAndUse())
-    #expect(config.writes == 0 && model.watchNote == nil)
-    model.show(.url)
-    model.urlText = "acme/web"
-    let boxOff = await model.cloneAndUse()
-    #expect(model.watch == false && boxOff)
-    model.watch = true
-    model.show(.url)
-    model.urlText = "acme/web"
-    #expect(model.watching == false)
-    let notAllowed = await model.cloneAndUse()
-    #expect(notAllowed)
-    #expect(config.writes == 0 && model.watchNote == nil && model.folder == "/projects/acme/web")
+    let host = FakeChat()
+    host.active = [listed(opened, "answered")]
+    for (name, watch) in [("AshuLab/carrier", false), ("acme/web", true), ("other/web", true)] {
+        host.branchesOf[name] = RepoBranches(defaultBranch: "main", branches: ["main"])
+        let model = await popover(host, config: config)
+        model.watch = watch
+        await model.choose(repo: name)
+        model.text = "hello"
+        #expect(await model.send() == opened)
+        await model.settleWatches()
+        #expect(host.plans.last?.workspace == .repo(name))
+    }
+    try await Task.sleep(for: .milliseconds(30))
+    #expect(config.writes == 0)
 }
 
-@MainActor @Test func aConfigThatCannotBeWrittenDoesNotUndoTheCloneAndTheDraftSaysSo() async {
+@MainActor @Test func aConfigThatCannotBeWrittenIsSaidInTheSessionsNoteAndTheSessionGoesOn() async {
     for config in [FakeConfig("[1]"), FakeConfig(nil), { let c = FakeConfig(); c.unwritable = true; return c }()] {
-        let model = await popover(FakeChat(), config: config)
-        model.show(.url)
-        model.urlText = "AshuLab/carrier"
-        #expect(await model.cloneAndUse())
-        #expect(model.folder == "/projects/AshuLab/carrier" && model.watchFailed)
-        #expect(model.watchNote?.hasPrefix("AshuLab/carrier could not be added to Carrier's list: ") == true)
+        let host = FakeChat()
+        let model = await sentForRepo(host, config: config)
+        host.active = [listed(opened, "answered")]
+        await settle { model.watchNotes[opened] != nil }
+        #expect(model.watchNotes[opened]?.failed == true)
+        #expect(model.watchNotes[opened]?.text.hasPrefix("AshuLab/carrier could not be added to Carrier's list: ") == true)
         #expect(config.writes == 0)
     }
-}
-
-@MainActor @Test func theNoteGoesWhenAnotherFolderIsChosen() async {
-    let model = await popover(FakeChat())
-    model.show(.url)
-    model.urlText = "AshuLab/carrier"
-    _ = await model.cloneAndUse()
-    #expect(model.watchNote != nil)
-    await model.choose(folder: "/elsewhere")
-    #expect(model.watchNote == nil && model.watchFailed == false)
 }
 
 // The footer's Change…: the config write, the refusals, and the next request using the new folder.
@@ -888,11 +1111,11 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     #expect(FileManager.default.fileExists(atPath: old + "/AshuLab/carrier"))
     model.show(.url)
     model.urlText = "acme/web"
-    #expect(await model.cloneAndUse())
-    #expect(model.folder == new + "/acme/web" && host.clones == ["acme/web"])
+    #expect(await model.useRepo())
+    #expect(model.folder == new + "/acme/web" && host.clones.isEmpty)
     model.show(.project)
     model.projectName = "idea"
-    #expect(await model.createAndUse())
+    #expect(model.useProject())
     #expect(model.folder == new + "/local/idea")
 }
 
@@ -998,56 +1221,16 @@ private func page(_ names: [String], more: Bool, login: String? = nil) -> Github
     #expect(model.repoRows().isEmpty)
 }
 
-@MainActor @Test func choosingARowClonesItLikeTheUrlStepAndAddsItToTheConfigWithTheBoxOn() async throws {
+@MainActor @Test func choosingARowFillsThePlanLikeTheUrlStepAndNothingIsClonedOrWritten() async {
     let host = FakeChat()
     host.repoPages = [1: page(["AshuLab/carrier"], more: false, login: "vemec")]
+    host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main"])
     let config = FakeConfig()
     let model = await popover(host, config: config)
     await model.showRepos()
-    #expect(await model.cloneAndUse(repo: "AshuLab/carrier"))
-    #expect(host.clones == ["AshuLab/carrier"] && model.folder == "/projects/AshuLab/carrier" && model.cloning == nil)
-    #expect(configRepoNames(json: try #require(config.json)) == ["acme/web", "AshuLab/carrier"])
-    #expect(model.watchNote == "Carrier will listen to AshuLab/carrier from its next start.")
-}
-
-@MainActor @Test func aRowClonesWithoutTouchingTheConfigWhenTheBoxIsOffOrTheRepoIsWatchedOrClashes() async {
-    let host = FakeChat()
-    host.repoPages = [1: page(["AshuLab/carrier", "acme/web", "other/web"], more: false)]
-    let config = FakeConfig()
-    let model = await popover(host, config: config)
-    await model.showRepos()
-    model.watch = false
-    #expect(await model.cloneAndUse(repo: "AshuLab/carrier"))
-    model.watch = true
-    model.show(.repos)
-    #expect(await model.cloneAndUse(repo: "acme/web") && model.watchProblem(for: "acme/web") == "acme/web is already watched")
-    #expect(await model.cloneAndUse(repo: "other/web"))
-    #expect(config.writes == 0 && model.watchNote == nil && model.folder == "/projects/other/web")
-}
-
-@MainActor @Test func aRefusedCloneFromTheListStaysOnTheStepWithItsReasonAndTheListIntact() async {
-    let host = FakeChat()
-    host.repoPages = [1: page(["AshuLab/carrier"], more: false, login: "vemec")]
-    host.refuse["cloneRepo"] = ControlError.remote("The clone took more than ten minutes and was stopped")
-    let model = await popover(host)
-    await model.showRepos()
-    #expect(await model.cloneAndUse(repo: "AshuLab/carrier") == false)
-    #expect(model.step == .repos && model.cloneProblem == "The clone took more than ten minutes and was stopped" && model.folder == nil)
+    await model.choose(repo: "AshuLab/carrier")
+    #expect(host.clones.isEmpty && config.writes == 0 && model.repo == "AshuLab/carrier" && model.toClone && model.folder == "/nowhere/AshuLab/carrier")
     #expect(model.repoList.repos.count == 1 && model.login == "vemec")
-}
-
-@MainActor @Test func theStepCannotBeOpenedWhileACloneRuns() async {
-    let host = FakeChat()
-    host.holdClone = true
-    let model = await popover(host)
-    model.show(.url)
-    model.urlText = "AshuLab/carrier"
-    let running = Task { await model.cloneAndUse() }
-    await settle { model.cloning != nil }
-    await model.showRepos()
-    #expect(model.step == .url && host.repoCalls.isEmpty)
-    host.release = true
-    #expect(await running.value)
 }
 
 // MARK: the agent's options before a session exists
@@ -1072,7 +1255,7 @@ private let claudeOptions = [
     #expect(model.chosenOptions == ["model": "haiku"] && optionsPill(model.shownOptions) == "Haiku · high")
     model.text = "hello"
     _ = await model.send()
-    #expect(host.openedWith == [["model": "haiku"]])
+    #expect(host.plans.map(\.options) == [["model": "haiku"]])
 }
 
 @MainActor @Test func aHostThatCannotListLeavesTheDraftWithoutOptionsAndAsksAgainLater() async {
@@ -1089,7 +1272,7 @@ private let claudeOptions = [
     #expect(host.optionAsks.count == 2)
 }
 
-@MainActor @Test func aFirstMessageThatStartsWithTheNameOfAListedCommandInvokesIt() async {
+@MainActor @Test func aFirstMessageThatNamesACommandTravelsInThePlanAsTyped() async {
     let host = FakeChat()
     host.offered["claude"] = claudeOptions
     host.commandsOffered["claude"] = [ChatCommand(id: "review", name: "review", description: "Review a change", argumentHint: "<pr>")]
@@ -1099,12 +1282,7 @@ private let claudeOptions = [
     #expect(model.agentCommands.map(\.name) == ["review"])
     model.text = "/review 42"
     _ = await model.send()
-    #expect(host.sentCommands == ["review"] && host.calls.last == "send \(opened) 42")
-    // a slash that names none is a message like any other
-    host.calls = []
-    model.text = "/nope here"
-    _ = await model.send()
-    #expect(host.sentCommands == ["review"] && host.calls.last == "send \(opened) /nope here")
+    #expect(host.plans.map(\.text) == ["/review 42"] && host.calls == ["open claude /w/api"])
 }
 
 
@@ -1297,4 +1475,45 @@ private func gitHealth(_ git: ToolState) -> HostHealth { HostHealth(git: git, gh
     await store.check(.refresh)
     model.show(.url)
     #expect(model.step == .url)
+}
+
+// MARK: the plan of a cancelled preparation comes back
+
+@MainActor @Test func aRestoredPlanBringsBackTheFolderTheBranchTheAgentTheOptionsAndTheText() async {
+    let host = FakeChat()
+    host.offered["claude"] = claudeOptions
+    host.workspaces["/w/api"] = WorkspaceInfo(folder: "/w/api", branch: "main", dirty: 0, branches: [.init(name: "main", remote: false), .init(name: "feat/x", remote: false)])
+    let model = await draft(host)
+    model.restore(SessionPlan(agent: "claude", folder: "/w/api", branch: "feat/x", options: ["model": "haiku"], text: "build the thing\nthen test it"))
+    // the draft that opens next is the one that takes it: opening starts blank and then puts the plan back
+    await model.load()
+    await model.loadOptions()
+    #expect(model.folder == "/w/api" && model.text == "build the thing\nthen test it" && model.agent == "claude")
+    #expect(model.branchChange?.to == "feat/x" && model.worktree == false)
+    #expect(model.chosenOptions == ["model": "haiku"])
+    // nothing was made on the machine
+    #expect(host.calls.filter { $0.hasPrefix("open") }.isEmpty && host.created.isEmpty && host.clones.isEmpty)
+    // and it is given back once: the next opening is blank
+    await model.load()
+    #expect(model.folder == nil && model.text.isEmpty)
+}
+
+@MainActor @Test func aRestoredWorktreePlanBringsBackTheBranchItStartsFromAndItsName() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    model.restore(SessionPlan(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "origin/main", name: "my-fix"), text: "again"))
+    await model.load()
+    #expect(model.worktree && model.worktreeName == "my-fix" && model.startBranch == "origin/main" && model.text == "again")
+    // a worktree the host was to name keeps the name the draft suggested
+    model.restore(SessionPlan(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "main", name: ""), text: "once more"))
+    await model.load()
+    #expect(model.worktree && model.worktreeName == "keen-ghost-char" && model.startBranch == "main")
+}
+
+@MainActor @Test func aRestoredPlanWhoseAgentCannotBeChosenAnyMoreKeepsTheFolderAndTheTextAndTakesAnAvailableAgent() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    model.restore(SessionPlan(agent: "codex", folder: "/w/api", text: "hello"))
+    await model.load()
+    #expect(model.folder == "/w/api" && model.text == "hello" && model.agent == "claude")
 }

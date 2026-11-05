@@ -125,3 +125,24 @@ export async function fetchFolder(git: Git, folder: string): Promise<WorkspaceIn
   }
   return inspectFolder(git, folder);
 }
+
+/**
+ * Checks out `branch` (a name `inspectFolder` lists) in `folder` (already checked, a real path), so the folder follows what the person picked. A folder
+ * with uncommitted changes is never switched: it refuses with the reason in words and the branch is left as it was. A remote branch is checked out as
+ * a local one that tracks it, or as the local one of the same name when there is one.
+ */
+export async function checkout(git: Git, folder: string, branch: string): Promise<void> {
+  const info = await inspectFolder(git, folder);
+  if (info.git === false || info.bare) throw new ChatRefused('That folder is not a git repository with a working folder, so it has no branch to check out');
+  const listed = info.branches.find((candidate) => candidate.name === branch);
+  if (listed === undefined) throw new ChatRefused('That branch is not one this repository lists');
+  if (info.branch === branch) return;
+  if (info.dirty > 0) throw new ChatRefused(`The folder has ${info.dirty} uncommitted ${info.dirty === 1 ? 'file' : 'files'}, so its branch was not changed to ${branch}. Save the work and try again.`);
+  const local = listed.remote ? branch.slice('origin/'.length) : branch;
+  const twin = listed.remote && info.branches.some((candidate) => candidate.remote === false && candidate.name === local);
+  const switched = await git.run(folder, listed.remote && twin === false ? ['switch', '--track', branch] : ['switch', local]);
+  if (switched.ok === false) {
+    log.error('git switch failed', { code: switched.code, timedOut: switched.timedOut === true });
+    throw new ChatRefused(`Git could not check out ${branch}`);
+  }
+}

@@ -48,6 +48,8 @@ struct CommandTextView: NSViewRepresentable {
         view.allowsUndo = true
         view.isAutomaticQuoteSubstitutionEnabled = false
         view.isAutomaticDashSubstitutionEnabled = false
+        // the system's Writing Tools (Apple Intelligence) offer to rewrite what is selected, over the text, and a message to an agent is not that
+        view.writingToolsBehavior = .none
         view.textContainerInset = NSSize.zero
         view.isVerticallyResizable = true
         view.isHorizontallyResizable = false

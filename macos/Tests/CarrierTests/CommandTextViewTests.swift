@@ -25,6 +25,7 @@ final class CommandTextViewTests: XCTestCase {
         host.layoutSubtreeIfNeeded()
         let view = try XCTUnwrap(textView(in: host))
         XCTAssertEqual(view.frame.width, 600, accuracy: 1)
+        XCTAssertEqual(view.writingToolsBehavior, .none)
         XCTAssertEqual(try XCTUnwrap(view.textContainer).size.width, 600, accuracy: 1)
 
         // SwiftUI measures with trial widths (sizeThatFits sets one on the container): the next layout puts the real one back

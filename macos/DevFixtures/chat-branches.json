@@ -1,0 +1,4 @@
+{
+  "AshuLab/web": { "default": "main", "branches": ["main", "feat/x"], "hasMore": false },
+  "AshuLab/api": { "default": "trunk", "branches": ["trunk"], "hasMore": true }
+}

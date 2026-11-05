@@ -36,7 +36,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .plan])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .repoBranches, .plan])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {
@@ -246,12 +246,56 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     await #expect(throws: ControlError.remote("the chat host does not support cancelPreparation")) { _ = try await host.cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01") }
 }
 
-@Test func aCancelledPlanForARepositoryIsNotReadByThisApp() async throws {
+@Test func aCancelledPlanForARepositoryIsReadBackWithItsBranchAndWorktree() async throws {
     let server = TestServer { connection in
         connection.send(hello("\"plan\""))
         guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
-        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"repo\",\"repo\":\"a/b\"},\"agent\":\"claude\",\"text\":\"hi\"}}}\n")
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"repo\",\"repo\":\"a/b\"},\"agent\":\"claude\",\"text\":\"hi\",\"branch\":\"feat/x\",\"worktree\":{}}}}\n")
+    }
+    defer { server.stop() }
+    let plan = try await SocketChatHost(socketPath: { server.path }).cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01")
+    #expect(plan == SessionPlan(agent: "claude", workspace: .repo("a/b"), worktree: WorktreeRequest(from: "feat/x"), text: "hi"))
+}
+
+@Test func aCancelledPlanWithAWorkspaceThisAppDoesNotKnowIsNotRead() async throws {
+    let server = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"remote\",\"repo\":\"a/b\"},\"agent\":\"claude\",\"text\":\"hi\"}}}\n")
     }
     defer { server.stop() }
     await #expect(throws: ControlError.badLine) { _ = try await SocketChatHost(socketPath: { server.path }).cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01") }
+}
+
+@Test func theFixtureHostAnswersRepoBranchesFromTheGoldenFileAndRefusesWhatItDoesNotList() async throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.chatSocketPath })
+    #expect(try await host.capabilities().contains(.repoBranches))
+    #expect(try await host.repoBranches("AshuLab/web") == RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"], hasMore: false))
+    #expect(try await host.repoBranches("AshuLab/api") == RepoBranches(defaultBranch: "trunk", branches: ["trunk"], hasMore: true))
+    await #expect(throws: ControlError.remote("AshuLab/nope was not found, or your GitHub login cannot see it")) { try await host.repoBranches("AshuLab/nope") }
+}
+
+@Test func repoBranchesGoesOnTheWireWithTheRepoAsAJSONStringAndOnlyForAHostThatListsIt() async throws {
+    var wire = ""
+    let server = TestServer { connection in
+        connection.send(hello("\"repoBranches\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        wire = line
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"default\":\"main\",\"branches\":[\"main\"],\"hasMore\":false}}\n")
+    }
+    defer { server.stop() }
+    _ = try await SocketChatHost(socketPath: { server.path }).repoBranches("AshuLab/carrier")
+    let sent = try #require(try JSONSerialization.jsonObject(with: Data(wire.utf8)) as? [String: Any])
+    #expect(sent["cmd"] as? String == "repoBranches" && sent["repo"] as? String == "AshuLab/carrier" && sent.keys.sorted() == ["cmd", "id", "repo"])
+
+    var asked = false
+    let older = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        asked = connection.readRequestId() != nil
+    }
+    defer { older.stop() }
+    await #expect(throws: ControlError.remote("the chat host does not support repoBranches")) { _ = try await SocketChatHost(socketPath: { older.path }).repoBranches("AshuLab/carrier") }
+    #expect(asked == false)
 }

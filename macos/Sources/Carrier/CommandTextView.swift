@@ -90,13 +90,23 @@ struct CommandTextView: NSViewRepresentable {
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView scroll: NSScrollView, context: Context) -> CGSize? {
-        guard let view = scroll.documentView as? PillTextView, let container = view.textContainer, let layout = view.layoutManager else { return nil }
+        guard let view = scroll.documentView as? PillTextView else { return nil }
         let width = proposal.width ?? 400
-        container.containerSize = NSSize(width: width, height: CGFloat.greatestFiniteMagnitude)
-        layout.ensureLayout(for: container)
-        let used = layout.usedRect(for: container).height
+        let used = Self.height(of: view.attributedString(), width: width)
         let lines = CGFloat(minLines)...CGFloat(maxLines)
         return CGSize(width: width, height: min(max(used, lines.lowerBound * Self.lineHeight), lines.upperBound * Self.lineHeight))
+    }
+
+    /// How tall `text` is at `width`, measured on a copy: SwiftUI asks with trial widths, and the box's own container keeps the real one.
+    static func height(of text: NSAttributedString, width: CGFloat) -> CGFloat {
+        let storage = NSTextStorage(attributedString: text)
+        let layout = NSLayoutManager()
+        let container = NSTextContainer(size: NSSize(width: width, height: CGFloat.greatestFiniteMagnitude))
+        container.lineFragmentPadding = 0
+        layout.addTextContainer(container)
+        storage.addLayoutManager(layout)
+        layout.ensureLayout(for: container)
+        return layout.usedRect(for: container).height
     }
 
     /// The text with each command written whole and followed by a space as a pill.
@@ -161,8 +171,17 @@ struct CommandTextView: NSViewRepresentable {
     }
 }
 
-/// The scroll view: a click under the text puts the caret at its end.
+/// The scroll view: the text is as wide as the view in every layout (`sizeThatFits` sets trial widths on the container while SwiftUI
+/// measures, and nothing else puts the real one back), and a click under the text puts the caret at its end.
 private final class PillScrollView: NSScrollView {
+    override func layout() {
+        super.layout()
+        guard let view = documentView as? NSTextView, let container = view.textContainer else { return }
+        let width = contentSize.width
+        if view.frame.width != width { view.setFrameSize(NSSize(width: width, height: view.frame.height)) }
+        if container.size.width != width { container.size = NSSize(width: width, height: CGFloat.greatestFiniteMagnitude) }
+    }
+
     override func mouseDown(with event: NSEvent) {
         guard let view = documentView as? NSTextView else { return super.mouseDown(with: event) }
         window?.makeFirstResponder(view)

@@ -32,10 +32,14 @@ public struct SessionRow: Equatable {
     public var folder: String
     /// Whether the host has a title for it; `title` says "Untitled session" when it has none.
     public var titled: Bool
+    /// An archived session the clock spares because its worktree holds unsaved work.
+    public var kept: Bool
+    /// When the clock deletes an archived session; nil when it will not.
+    public var deleteAt: Date?
 
     public init(
         id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil,
-        folder: String = "", titled: Bool = true
+        folder: String = "", titled: Bool = true, kept: Bool = false, deleteAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -47,6 +51,8 @@ public struct SessionRow: Equatable {
         self.branch = branch
         self.folder = folder
         self.titled = titled
+        self.kept = kept
+        self.deleteAt = deleteAt
     }
 }
 

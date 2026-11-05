@@ -1,7 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import type { ChatAgent } from './config.ts';
 import { FakeClock } from '../orchestration/fake.ts';
@@ -11,7 +12,7 @@ import { ChatRefused } from './runner.ts';
 import { chatCaps } from './transcript.ts';
 import { sessions as schemaSessions } from './schema.ts';
 import type { HealthProbes } from './health.ts';
-import { createSessions } from './sessions.ts';
+import { createSessions, type SessionAges } from './sessions.ts';
 
 let dir: string;
 let work: string;
@@ -34,7 +35,7 @@ function setup(chat?: { agents: Record<string, Omit<ChatAgent, 'name'>> }, extra
   const clock = new FakeClock();
   const claude = new FakeChatRunner();
   const onLiveChange = vi.fn();
-  const sessions = createSessions({ db, agents, clock, runners: { claude }, env: { SOME: 'env' }, git: new FakeGit(), binaryFound: (command) => command === 'claude', onLiveChange, ...extra });
+  const sessions = createSessions({ db, agents, clock, runners: { claude }, env: { SOME: 'env' }, git: new FakeGit(), binaryFound: (command) => command === 'claude', ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange, ...extra });
   return { db, clock, claude, sessions, onLiveChange };
 }
 async function openOne(s = setup()) {
@@ -553,6 +554,202 @@ test('archive marks a session and the archived listing shows it instead of the o
   expect(s.sessions.list({}).sessions).toHaveLength(2);
 });
 
+const DAY = 86_400_000;
+const ages = (archiveAfterDays: number | 'never' = 15) => ({ archiveAfterDays, deleteAfterDays: 'never' as const });
+const archivedIds = (s: { sessions: ReturnType<typeof createSessions> }) => s.sessions.list({ archived: true }).sessions.map((x) => x.id);
+
+test('the pass archives a session idle for the configured days and not one a day short of it', async () => {
+  const s = setup();
+  const due = await openOne(s);
+  await s.sessions.close({ sessionId: due.id });
+  s.clock.time = 1 * DAY;
+  const shortOfIt = (await s.sessions.open({ agent: 'claude', folder: work })).session.id;
+  await s.sessions.close({ sessionId: shortOfIt });
+  s.clock.time = 15 * DAY;
+  await s.sessions.applyClock(ages());
+  expect(archivedIds(s)).toEqual([due.id]); // `shortOfIt` has been idle 14 days
+});
+
+test('the pass skips a working session, one waiting for an approval and a live one, and archives each once it is idle and not live', async () => {
+  const s = setup();
+  const working = await openOne(s);
+  const waiting = (await s.sessions.open({ agent: 'claude', folder: work })).session.id;
+  const live = (await s.sessions.open({ agent: 'claude', folder: work })).session.id;
+  s.sessions.send({ sessionId: working.id, text: 'go' });
+  s.sessions.send({ sessionId: waiting, text: 'go' });
+  s.claude.conversations[1]!.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', choices: [{ id: 'yes', label: 'Yes', allow: true }] });
+  s.clock.time = 20 * DAY;
+  await s.sessions.applyClock(ages(1));
+  expect(archivedIds(s)).toEqual([]); // working, waiting and live
+  working.conversation.emit({ kind: 'turn_end', outcome: 'ok' });
+  s.claude.conversations[1]!.emit({ kind: 'turn_end', outcome: 'ok' });
+  await s.sessions.applyClock(ages(1));
+  expect(archivedIds(s)).toEqual([]); // idle now, but still live
+  for (const sessionId of [working.id, waiting, live]) await s.sessions.close({ sessionId });
+  s.clock.time = 22 * DAY;
+  await s.sessions.applyClock(ages(1));
+  expect(archivedIds(s).sort()).toEqual([working.id, waiting, live].sort());
+});
+
+test('with archiveAfterDays never the pass archives nothing', async () => {
+  const s = await openOne();
+  await s.sessions.close({ sessionId: s.id });
+  s.clock.time = 1000 * DAY;
+  await s.sessions.applyClock(ages('never'));
+  expect(archivedIds(s)).toEqual([]);
+});
+
+test('restoring a session counts as activity: the next pass does not archive it again', async () => {
+  const s = await openOne();
+  await s.sessions.archive({ sessionId: s.id, archived: true });
+  s.clock.time = 30 * DAY;
+  await s.sessions.archive({ sessionId: s.id, archived: false });
+  await s.sessions.applyClock(ages());
+  expect(archivedIds(s)).toEqual([]);
+  s.clock.time = 45 * DAY;
+  await s.sessions.applyClock(ages());
+  expect(archivedIds(s)).toEqual([s.id]);
+});
+
+const clockAges = (deleteAfterDays: number | 'never' = 30) => ({ archiveAfterDays: 15, deleteAfterDays });
+const sessionIds = (s: { db: ReturnType<typeof setup>['db'] }) => s.db.select().from(schemaSessions).all().map((x) => x.id);
+const keptAt = (s: { db: ReturnType<typeof setup>['db'] }, id: string) => s.db.select().from(schemaSessions).where(eq(schemaSessions.id, id)).get()?.keptAt;
+
+/** A host over a fake git with a base repository acme/app in `work`; `inWorktree` opens a session in a worktree of it and tells the fake what git finds there. */
+function worktreeSetup(ages?: () => SessionAges) {
+  const git = new FakeGit();
+  const s = setup(undefined, { git, ...(ages && { ages }) });
+  const repo = realpathSync(work);
+  const base = { head: 'main', branches: ['main'], remoteBranches: ['main'], origin: 'git@github.com:acme/app.git' };
+  git.repos.set(repo, base);
+  const inWorktree = async (name: string, found: { status?: string[]; unpushed?: number } = {}) => {
+    const { session } = await s.sessions.open({ agent: 'claude', folder: repo, worktree: { from: 'main', name } });
+    const workspace = session.workspace as { path: string; branch: string };
+    git.repos.set(workspace.path, { head: workspace.branch, branches: [workspace.branch], status: found.status, unpushed: { [workspace.branch]: found.unpushed ?? 0 } });
+    await s.sessions.close({ sessionId: session.id });
+    return { id: session.id, ...workspace };
+  };
+  return { ...s, git, repo, base, inWorktree };
+}
+
+test('the pass deletes an archived idle session past deleteAfterDays with its worktree and branch, keeps the clone, and spares one a day short', async () => {
+  const s = worktreeSetup();
+  const due = await s.inWorktree('due');
+  s.clock.time = 1 * DAY;
+  const shortOfIt = await s.inWorktree('short');
+  s.clock.time = 30 * DAY;
+  await s.sessions.applyClock(clockAges()); // `short` has been idle 29 days: archived, not deleted
+  expect(sessionIds(s)).toEqual([shortOfIt.id]);
+  expect(existsSync(due.path)).toBe(false);
+  expect(existsSync(shortOfIt.path)).toBe(true);
+  expect(s.base.branches).toEqual(['main', shortOfIt.branch]);
+  expect(existsSync(s.repo)).toBe(true);
+});
+
+test('the pass spares a worktree with uncommitted changes or with commits that exist nowhere else, marking it kept and archived', async () => {
+  const s = worktreeSetup();
+  const dirty = await s.inWorktree('dirty', { status: [' M a.ts'] });
+  const ahead = await s.inWorktree('ahead', { unpushed: 2 });
+  s.clock.time = 30 * DAY;
+  await s.sessions.applyClock(clockAges());
+  expect(sessionIds(s).sort()).toEqual([dirty.id, ahead.id].sort());
+  expect(archivedIds(s).sort()).toEqual([dirty.id, ahead.id].sort());
+  expect(keptAt(s, dirty.id)).toBe(30 * DAY);
+  expect(existsSync(dirty.path)).toBe(true);
+  s.clock.time = 31 * DAY;
+  await s.sessions.applyClock(clockAges());
+  expect(keptAt(s, dirty.id)).toBe(30 * DAY); // marked when first spared
+});
+
+test('two worktree sessions sharing a commit that exists nowhere else: the first is deleted and the second spared, in one pass', async () => {
+  const s = worktreeSetup();
+  const first = await s.inWorktree('first');
+  const second = await s.inWorktree('second');
+  // git finds the shared commit on both branches, so neither is ahead until the first branch is gone
+  const run = s.git.run.bind(s.git);
+  s.git.run = async (folder, args, options) => {
+    const result = await run(folder, args, options);
+    if (args[0] === 'branch' && args[1] === '-D' && args[2] === first.branch) s.git.repos.get(second.path)!.unpushed![second.branch] = 1;
+    return result;
+  };
+  s.clock.time = 30 * DAY;
+  await s.sessions.applyClock(clockAges());
+  expect(sessionIds(s)).toEqual([second.id]);
+  expect(keptAt(s, second.id)).toBe(30 * DAY);
+  const previews = s.git.calls.filter((call) => call.args[0] === 'rev-list').map((call) => call.args.filter((arg) => arg.startsWith('--exclude=')));
+  expect(previews).toEqual([[`--exclude=${first.branch}`], [`--exclude=${second.branch}`]]); // each one alone, never the batch
+});
+
+test('a kept session whose worktree is later clean is deleted by a later pass, and restoring a kept session clears keptAt', async () => {
+  const s = worktreeSetup();
+  const later = await s.inWorktree('later', { status: [' M a.ts'] });
+  const restored = await s.inWorktree('restored', { status: [' M a.ts'] });
+  s.clock.time = 30 * DAY;
+  await s.sessions.applyClock(clockAges());
+  expect(keptAt(s, later.id)).toBe(30 * DAY);
+  await s.sessions.archive({ sessionId: restored.id, archived: false });
+  expect(keptAt(s, restored.id)).toBeNull();
+  s.git.repos.get(later.path)!.status = [];
+  await s.sessions.applyClock(clockAges());
+  expect(sessionIds(s)).toEqual([restored.id]);
+  expect(existsSync(later.path)).toBe(false);
+});
+
+test('a git that fails on one session leaves it alone, logs the failure and does not stop the pass for the others', async () => {
+  const s = worktreeSetup();
+  const broken = await s.inWorktree('broken');
+  const fine = await s.inWorktree('fine');
+  const run = s.git.run.bind(s.git);
+  s.git.run = async (folder, args, options) => (folder === broken.path && args.includes('status') ? { ok: false, code: 128, stderr: 'fatal' } : run(folder, args, options));
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  s.clock.time = 30 * DAY;
+  await s.sessions.applyClock(clockAges());
+  expect(sessionIds(s)).toEqual([broken.id]);
+  expect(keptAt(s, broken.id)).toBeNull();
+  expect(errors).toHaveBeenCalled();
+  errors.mockRestore();
+});
+
+test('a session in the person\'s own folder is deleted without the check', async () => {
+  const s = await openOne();
+  await s.sessions.close({ sessionId: s.id });
+  s.clock.time = 30 * DAY;
+  await s.sessions.applyClock(clockAges());
+  expect(sessionIds(s)).toEqual([]);
+  expect(s.db.select().from(schemaSessions).all()).toEqual([]);
+});
+
+test('with archiveAfterDays or deleteAfterDays at never nothing is deleted by the clock', async () => {
+  const s = await openOne();
+  await s.sessions.close({ sessionId: s.id });
+  s.clock.time = 1000 * DAY;
+  await s.sessions.applyClock({ archiveAfterDays: 'never', deleteAfterDays: 30 });
+  await s.sessions.applyClock({ archiveAfterDays: 15, deleteAfterDays: 'never' });
+  expect(sessionIds(s)).toEqual([s.id]);
+});
+
+test('the pass deletes neither a working, a waiting nor a live archived session, and deletes each once it is idle and closed', async () => {
+  const s = setup();
+  const working = await openOne(s);
+  const waiting = (await s.sessions.open({ agent: 'claude', folder: work })).session.id;
+  const live = (await s.sessions.open({ agent: 'claude', folder: work })).session.id;
+  s.sessions.send({ sessionId: working.id, text: 'go' });
+  s.sessions.send({ sessionId: waiting, text: 'go' });
+  s.claude.conversations[1]!.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', choices: [{ id: 'yes', label: 'Yes', allow: true }] });
+  s.db.update(schemaSessions).set({ archived: true }).run(); // archived while still open: a person archiving one live would have closed it first
+  s.clock.time = 100 * DAY;
+  await s.sessions.applyClock(clockAges());
+  expect(sessionIds(s)).toHaveLength(3);
+  working.conversation.emit({ kind: 'turn_end', outcome: 'ok' });
+  s.claude.conversations[1]!.emit({ kind: 'turn_end', outcome: 'ok' });
+  await s.sessions.applyClock(clockAges());
+  expect(sessionIds(s)).toHaveLength(3); // idle now, but still live
+  for (const sessionId of [working.id, waiting, live]) await s.sessions.close({ sessionId });
+  s.clock.time = 200 * DAY;
+  await s.sessions.applyClock(clockAges());
+  expect(sessionIds(s)).toEqual([]);
+});
+
 test('archive and delete close a live idle session first', async () => {
   const s = setup();
   const a = await openOne(s);
@@ -690,4 +887,64 @@ test('the health reply carries only the states, whatever the probes could say', 
   const reply = await setup(undefined, { probes, ...allFound }).sessions.health({});
   expect(JSON.stringify(reply)).not.toMatch(/example|acme|ghp_/);
   expect(Object.keys(reply).sort()).toEqual(['agents', 'gh', 'git']);
+});
+
+test('list says when the clock deletes an archived session: lastActiveAt plus deleteAfterDays, and nothing for one not archived or kept', async () => {
+  const s = worktreeSetup();
+  const kept = await s.inWorktree('kept', { status: [' M a.ts'] });
+  s.clock.time = 10 * DAY;
+  const due = await s.inWorktree('due');
+  await s.sessions.archive({ sessionId: due.id, archived: true });
+  s.clock.time = 20 * DAY;
+  const active = await s.inWorktree('active');
+  s.clock.time = 30 * DAY;
+  await s.sessions.applyClock(clockAges()); // archives and spares `kept`; `due` has been idle 20 days and `active` 10
+  const listed = (archived: boolean) => Object.fromEntries(s.sessions.list({ archived }).sessions.map((x) => [x.id, x]));
+  expect(listed(false)[active.id]).toMatchObject({ kept: false, deleteAt: null });
+  expect(listed(true)[due.id]).toMatchObject({ kept: false, deleteAt: 40 * DAY });
+  expect(listed(true)[kept.id]).toMatchObject({ kept: true, deleteAt: null });
+  await s.sessions.archive({ sessionId: kept.id, archived: false });
+  expect(listed(false)[kept.id]).toMatchObject({ kept: false, deleteAt: null });
+});
+
+test('a kept session stops reading as kept once the ages no longer make it due, and reads kept again when they do', async () => {
+  const ages: { archiveAfterDays: number | 'never'; deleteAfterDays: number | 'never' } = clockAges();
+  const s = worktreeSetup(() => ages);
+  await s.inWorktree('kept', { status: [' M a.ts'] });
+  s.clock.time = 30 * DAY;
+  await s.sessions.applyClock(ages); // spared: due and unsaved
+  const row = () => s.sessions.list({ archived: true }).sessions[0];
+  expect(row()).toMatchObject({ kept: true, deleteAt: null });
+  ages.deleteAfterDays = 40;
+  expect(row()).toMatchObject({ kept: false, deleteAt: 40 * DAY });
+  ages.deleteAfterDays = 'never';
+  expect(row()).toMatchObject({ kept: false, deleteAt: null });
+  ages.deleteAfterDays = 30;
+  expect(row()).toMatchObject({ kept: true, deleteAt: null });
+});
+
+test('closeAll tells a pass in flight to leave the sessions it has not reached alone', async () => {
+  const s = worktreeSetup();
+  const first = await s.inWorktree('first');
+  const second = await s.inWorktree('second');
+  s.clock.time = 30 * DAY;
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const run = s.git.run.bind(s.git);
+  s.git.run = async (folder, args, options) => (await gate, run(folder, args, options));
+  const pass = s.sessions.applyClock(clockAges()); // waits in git for the first session
+  await s.sessions.closeAll();
+  release();
+  await pass;
+  expect(sessionIds(s).sort()).toEqual([first.id, second.id].sort());
+  expect(existsSync(first.path) && existsSync(second.path)).toBe(true);
+});
+
+test.each([
+  [{ archiveAfterDays: 'never', deleteAfterDays: 30 }],
+  [{ archiveAfterDays: 15, deleteAfterDays: 'never' }],
+] as const)('list gives no deleteAt for an archived session when an age is never (%j)', async (ages) => {
+  const s = await openOne(setup(undefined, { ages: () => ages }));
+  await s.sessions.archive({ sessionId: s.id, archived: true });
+  expect(s.sessions.list({ archived: true }).sessions[0]).toMatchObject({ kept: false, deleteAt: null });
 });

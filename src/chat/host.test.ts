@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -65,6 +65,9 @@ test.each([
   ['has an unknown key', '{"root":"/x"}', '(root)'],
   ['has a text where a number goes', '{"githubCallTimeoutSeconds":"30"}', 'githubCallTimeoutSeconds'],
   ['has a non-positive timeout', '{"githubCallTimeoutSeconds":0}', 'githubCallTimeoutSeconds'],
+  ['has a session age of zero', '{"archiveAfterDays":0}', 'archiveAfterDays'],
+  ['has a session age as a text', '{"deleteAfterDays":"30"}', 'deleteAfterDays'],
+  ['has a delete age not above the archive age', '{"archiveAfterDays":30,"deleteAfterDays":30}', 'deleteAfterDays'],
   ['has a relative projects folder', '{"projectsFolder":"projects"}', 'projectsFolder'],
   ['has an empty projects folder', '{"projectsFolder":""}', 'projectsFolder'],
 ])('a chat.json that %s stops the host with a message naming the file and the key, and no socket is made', async (_name, text, key) => {
@@ -323,10 +326,10 @@ test('suggestName and checkName answer a free name, say why a name is invalid or
 });
 
 /** A host with a fake git, a base repository acme/app and CARRIER_HOME under the temporary root. */
-async function worktreeHost() {
+async function worktreeHost(clock = new FakeClock()) {
   const git = new FakeGit();
   const claude = new FakeChatRunner();
-  await host(new FakeClock(), claude, git);
+  await host(clock, claude, git);
   mkdirSync(join(root, 'repo'));
   const repo = realpathSync(join(root, 'repo'));
   git.repos.set(repo, { head: 'feat/x', branches: ['main', 'feat/x'], remoteBranches: ['main', 'dev'], origin: 'git@github.com:acme/app.git', status: [' M a.ts'] });
@@ -633,4 +636,119 @@ test('archive and unarchive keep the worktree, its folder and its branch', async
   expect(h.base.branches).toContain('carrier/archived');
   expect(sessionRows()).toEqual([kept.id]);
   h.client.close();
+});
+
+const DAY = 86_400_000;
+/** A session opened and closed by a client at the clock's time, then the host stopped: what a host that was off leaves behind. */
+async function leaveIdleSession(clock: FakeClock) {
+  const first = await host(clock);
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  const { session } = (await client.request('open', { agent: 'claude', folder: root })) as { session: { id: string } };
+  await client.request('close', { sessionId: session.id });
+  client.close();
+  await first.stop();
+  return session.id;
+}
+const archivedIds = async () => {
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  const { sessions } = (await client.request('list', { archived: true })) as { sessions: { id: string }[] };
+  client.close();
+  return sessions.map((s) => s.id);
+};
+
+test('the host archives at its start what is due, and again after an hour of its clock, with a client connected', async () => {
+  const clock = new FakeClock();
+  const id = await leaveIdleSession(clock);
+  writeFileSync(join(root, 'chat', 'chat.json'), '{"deleteAfterDays":1000}'); // this test is about archiving
+  clock.time = 40 * DAY; // the host was off for 40 days
+  const first = await host(clock);
+  expect(await archivedIds()).toEqual([id]);
+  await first.stop();
+
+  const second = await leaveIdleSession(clock); // active at day 40
+  clock.time = 55 * DAY - 60_000; // a minute short of due at its start
+  await host(clock);
+  expect(await archivedIds()).toEqual([id]);
+  await clock.advance(60 * 60_000);
+  expect((await archivedIds()).sort()).toEqual([id, second].sort());
+});
+
+test('the pass reads chat.json each time: a change is used by the next pass and a wrong file skips it, saying why', async () => {
+  const clock = new FakeClock();
+  const id = await leaveIdleSession(clock);
+  clock.time = 20 * DAY;
+  const config = (text: string) => writeFileSync(join(root, 'chat', 'chat.json'), text);
+  config('{"archiveAfterDays":30,"deleteAfterDays":60}');
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  await host(clock);
+  expect(await archivedIds()).toEqual([]);
+  config('{"archiveAfterDays":0}');
+  await clock.advance(60 * 60_000);
+  expect(await archivedIds()).toEqual([]);
+  expect(errors.mock.calls.flat().join('\n')).toContain('archiveAfterDays');
+  config('{"archiveAfterDays":10,"deleteAfterDays":60}');
+  await clock.advance(60 * 60_000);
+  expect(await archivedIds()).toEqual([id]);
+  errors.mockRestore();
+});
+
+test('the host deletes at its start what is due for deletion, and again after an hour of its clock', async () => {
+  const clock = new FakeClock();
+  const first = await leaveIdleSession(clock);
+  clock.time = 30 * DAY - 60_000; // a minute short of 30 days at the host's start
+  await host(clock);
+  expect(await archivedIds()).toEqual([first]);
+  await clock.advance(60 * 60_000);
+  expect(await archivedIds()).toEqual([]);
+  expect(sessionRows()).toEqual([]);
+});
+
+test('list says the delete date from the ages in chat.json, read at each request, and a wrong file keeps the last good ages', async () => {
+  const clock = new FakeClock();
+  const id = await leaveIdleSession(clock);
+  const config = (text: string) => writeFileSync(join(root, 'chat', 'chat.json'), text);
+  config('{"archiveAfterDays":1,"deleteAfterDays":40}');
+  clock.time = 2 * DAY;
+  await host(clock); // archives it at its start
+  const deleteAt = async () => {
+    const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+    const { sessions } = (await client.request('list', { archived: true })) as { sessions: { id: string; deleteAt: number | null }[] };
+    client.close();
+    return sessions.find((s) => s.id === id)!.deleteAt;
+  };
+  expect(await deleteAt()).toBe(40 * DAY);
+  config('{"archiveAfterDays":1,"deleteAfterDays":50}');
+  expect(await deleteAt()).toBe(50 * DAY);
+  config('{"archiveAfterDays":0}');
+  expect(await deleteAt()).toBe(50 * DAY);
+  config('{"archiveAfterDays":1,"deleteAfterDays":"never"}');
+  expect(await deleteAt()).toBeNull();
+});
+
+test('stopping the host while a pass waits in git lets the pass finish without deleting anything, and no pass runs an hour later', async () => {
+  const clock = new FakeClock();
+  const h = await worktreeHost(clock);
+  const first = await inWorktree(h, 'first');
+  const second = await inWorktree(h, 'second');
+  await h.client.request('close', { sessionId: first.id });
+  await h.client.request('close', { sessionId: second.id });
+  let release = () => {};
+  let reached = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const arrived = new Promise<void>((resolve) => (reached = resolve));
+  const run = h.git.run.bind(h.git);
+  h.git.run = async (folder, args, options) => (reached(), await gate, run(folder, args, options));
+  const pass = clock.advance(31 * DAY); // the hourly passes run until the one at day 30 waits in git for the first session
+  await arrived;
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const stopping = stops.at(-1)!();
+  release();
+  await Promise.all([pass, stopping]);
+  expect(errors).not.toHaveBeenCalled();
+  expect(sessionRows().sort()).toEqual([first.id, second.id].sort());
+  expect(existsSync(first.path) && existsSync(second.path)).toBe(true);
+  h.git.calls.length = 0;
+  await clock.advance(2 * 60 * 60_000);
+  expect(h.git.calls).toEqual([]); // no pass was armed again
+  errors.mockRestore();
 });

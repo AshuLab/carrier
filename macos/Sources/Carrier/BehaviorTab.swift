@@ -184,7 +184,7 @@ struct ConfirmationCard: View {
 
 /// A text field that hands its number to `value` as it is typed, so Save is on at once; text that is not a number yet is
 /// reported through `unparsable` and the value keeps its last good number.
-private struct NumberField<Value: Equatable>: View {
+struct NumberField<Value: Equatable>: View {
     let key: String
     @Binding var value: Value
     @Binding var unparsable: Set<String>

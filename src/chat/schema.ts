@@ -23,6 +23,7 @@ export const sessions = sqliteTable('sessions', {
   createdAt: integer().notNull(), // ms since epoch
   lastActiveAt: integer().notNull(),
   archived: integer({ mode: 'boolean' }).notNull().default(false),
+  keptAt: integer(), // ms since epoch: when the clock's delete spared this archived session for unsaved work; null otherwise
 });
 
 /**

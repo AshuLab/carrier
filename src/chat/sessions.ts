@@ -16,6 +16,7 @@ import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, 
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
 import { checkName, suggestName } from './names.ts';
+import { createProject, projectFolder } from './projects.ts';
 import { createWorktree, deleteWorktree, previewWorktree, removeWorktree } from './worktree.ts';
 import { checkout, fetchFolder, inspectFolder } from './workspace.ts';
 
@@ -297,10 +298,27 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     }
   }
 
+  /** The `project` step of a plan: makes the folder with `git init` and records it as the session's. False once the step failed and was recorded. A project already made by an earlier try is reused. */
+  async function makeProject(sessionId: string, name: string): Promise<boolean> {
+    if (lastStatus(sessionId, 'project') === 'done') return true;
+    stepEvent(sessionId, 'project', 'running');
+    try {
+      const { folder } = await createProject(git, name);
+      db.update(sessions).set({ folder }).where(eq(sessions.id, sessionId)).run();
+      stepEvent(sessionId, 'project', 'done');
+      return true;
+    } catch (error) {
+      if (error instanceof ChatRefused === false) log.error('preparing a session failed at project', error);
+      failStep(sessionId, 'project', error instanceof ChatRefused ? error.message : 'The project could not be made');
+      return false;
+    }
+  }
+
   /** The steps of a plan, in the background: it never throws, a failure is recorded as a step that failed. */
   async function prepare(sessionId: string, chosen: ChatAgent, runner: ChatRunner, base: string, plan: Plan, signal: AbortSignal) {
     try {
-      const folder = await arrange(sessionId, base, plan, signal);
+      if (plan.workspace.kind === 'project' && (await makeProject(sessionId, plan.workspace.name)) === false) return;
+      const folder = await arrange(sessionId, plan.workspace.kind === 'project' ? row(sessionId).folder : base, plan, signal);
       if (folder === undefined || signal.aborted) return;
       stepEvent(sessionId, 'agent', 'running');
       const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...plan.options };
@@ -339,14 +357,14 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     }
   }
 
-  /** What a plan needs to run, refusing in words one that cannot: only a plan for a folder runs yet. */
+  /** What a plan needs to run, refusing in words one that cannot: only a plan for a folder or a project runs yet. A project's folder is the one it will be made at. */
   const targetOf = (plan: Plan) => {
-    if (plan.workspace.kind !== 'folder') throw new ChatRefused('A plan for a repository or a project is not supported yet; only a folder');
+    if (plan.workspace.kind === 'repo') throw new ChatRefused('A plan for a repository is not supported yet; only a folder or a new project');
     const chosen = agents.find((candidate) => candidate.name === plan.agent);
     if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${plan.agent}"`);
     const runner = runners[chosen.harness];
     if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
-    return { chosen, runner, folder: checkFolder(plan.workspace.folder, carrierHome()) };
+    return { chosen, runner, folder: plan.workspace.kind === 'project' ? projectFolder(plan.workspace.name) : checkFolder(plan.workspace.folder, carrierHome()) };
   };
   /** Runs the steps of a plan in the background. */
   const begin = (sessionId: string, { chosen, runner, folder }: ReturnType<typeof targetOf>, plan: Plan) => {
@@ -418,7 +436,7 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
 
     /**
      * Opens a session from a plan: it exists at once as `preparing`, and the steps run in the background and record their events. Only a plan for a
-     * folder runs yet, with the branch to check out or a worktree from it.
+     * folder (with the branch to check out or a worktree from it) or a new project runs yet.
      */
     async openPlan({ plan }: { plan: Plan }) {
       if (plan.text.length > chatCaps.message) throw new ChatRefused(`That message has ${plan.text.length} characters; the most a message can have is ${chatCaps.message}`);

@@ -195,12 +195,12 @@ final class WindowController: NSObject, NSWindowDelegate {
             let worked = await draft.cloneAndUse(repo: first.name)
             lines.append("new session repo \(first.name): \(worked ? "used" : "refused: \(draft.cloneProblem ?? "no reason")"), \"\(draft.sentence)\"")
         }
-        // New project against the host: a name it makes (and the draft then offers no worktree), then one it refuses as taken
+        // New project: only the plan is filled (the draft then offers no worktree), and a name that is taken is refused beforehand
         draft.show(.project)
         for name in ["my-idea", "web"] {
             draft.projectName = name
-            let worked = await draft.createAndUse()
-            lines.append("new session project \(name): \(worked ? "used" : "refused: \(draft.createProblem ?? draft.projectNameWarning ?? "no reason")"), \"\(draft.sentence)\", worktree \(draft.offersWorktree ? "offered" : "not offered")")
+            let worked = draft.useProject()
+            lines.append("new session project \(name): \(worked ? "used" : "refused: \(draft.projectNameWarning ?? "no reason")"), \"\(draft.sentence)\", worktree \(draft.offersWorktree ? "offered" : "not offered")")
         }
         return lines.joined(separator: "\n")
     }

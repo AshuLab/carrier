@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -788,12 +788,9 @@ test('the host is not idle while a session is preparing, and is again once the p
   expect(s.onLiveChange).toHaveBeenCalled();
 });
 
-test('openPlan refuses what is not a folder, a bad folder, an unknown agent and a long text, and makes no session', async () => {
+test('openPlan refuses a repo, a bad folder, a bad folder, an unknown agent and a long text, and makes no session', async () => {
   const { sessions, onLiveChange } = setup();
-  for (const [what, plan] of [
-    ['a repo', planFor({ workspace: { kind: 'repo', repo: 'AshuLab/carrier' } })],
-    ['a project', planFor({ workspace: { kind: 'project', name: 'my-app' } })],
-  ] as const) await expect(sessions.openPlan({ plan }), what).rejects.toThrow('not supported yet');
+  await expect(sessions.openPlan({ plan: planFor({ workspace: { kind: 'repo', repo: 'AshuLab/carrier' } }) })).rejects.toThrow('not supported yet');
   await expect(sessions.openPlan({ plan: planFor({ workspace: { kind: 'folder', folder: join(dir, 'missing') } }) })).rejects.toThrow('does not exist');
   await expect(sessions.openPlan({ plan: planFor({ agent: 'nope' }) })).rejects.toThrow('no chat agent named "nope"');
   await expect(sessions.openPlan({ plan: planFor({ agent: 'codex' }) })).rejects.toThrow('no chat runner for codex');
@@ -1067,4 +1064,62 @@ test('a failed preparation is still failed, with its failed step and plan, after
   expect((next.events({ sessionId: id, limit: 200 }).events as any[]).map((e) => `${e.step}:${e.status}:${e.detail}`)).toEqual(['agent:running:undefined', 'agent:failed:claude is not logged in']);
   await next.retryPreparation({ sessionId: id });
   await vi.waitFor(() => expect(next.list({}).sessions[0]).toMatchObject({ state: 'preparing', live: true }));
+});
+
+// A plan for a new project: the `project` step makes the folder with git init.
+const projectPlan = (name = 'my-app', extra: object = {}) => planFor({ workspace: { kind: 'project' as const, name }, ...extra });
+const projectsDir = () => join(dir, 'home', 'chat', 'projects', 'local');
+
+test('a project plan makes the folder with git init as its first step, and the agent works in it', async () => {
+  const s = setup(undefined, { git: new FakeGit() });
+  const { session } = await s.sessions.openPlan({ plan: projectPlan() });
+  expect(rows('sessions')[0]).toMatchObject({ folder: join(projectsDir(), 'my-app') }); // the path it will make, shown at once
+  expect(existsSync(join(projectsDir(), 'my-app'))).toBe(false);
+  await vi.waitFor(() => expect(stepsOf(s, session.id)).toEqual(['project:running', 'project:done', 'agent:running', 'agent:done', 'message:running']));
+  expect(existsSync(join(projectsDir(), 'my-app', '.git'))).toBe(true);
+  expect(s.claude.opened[0]).toMatchObject({ folder: join(projectsDir(), 'my-app') });
+});
+
+test('a project name that is taken fails the project step with the reason and leaves what exists as it was', async () => {
+  mkdirSync(join(projectsDir(), 'mine'), { recursive: true });
+  writeFileSync(join(projectsDir(), 'mine', 'mine.txt'), 'mine');
+  const s = setup();
+  const { session } = await s.sessions.openPlan({ plan: projectPlan('mine') });
+  await vi.waitFor(() => expect(stepsOf(s, session.id)).toEqual(['project:running', 'project:failed:mine is already a project; choose another name']));
+  expect(readFileSync(join(projectsDir(), 'mine', 'mine.txt'), 'utf8')).toBe('mine');
+  expect(existsSync(join(projectsDir(), 'mine', '.git'))).toBe(false);
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'idle', preparation: 'failed', live: false });
+  expect(s.claude.opened).toEqual([]);
+});
+
+test('a name that is not a plain folder name is refused and makes no session', async () => {
+  const s = setup();
+  for (const name of ['', '.', '..', 'a/b', '../x', '.hidden']) await expect(s.sessions.openPlan({ plan: projectPlan(name) }), name).rejects.toThrow('not a plain folder name');
+  expect(rows('sessions')).toEqual([]);
+  expect(existsSync(projectsDir())).toBe(false);
+});
+
+test('a git init that fails removes what the step made, fails it without git\'s words, and a retry makes the project once the name is free again', async () => {
+  const git = new FakeGit();
+  git.failures.set('init -b main', { ok: false, code: 1, stderr: 'fatal: something with a https://x:tok@github.com url' });
+  const s = setup(undefined, { git });
+  const { session } = await s.sessions.openPlan({ plan: projectPlan('broken') });
+  await vi.waitFor(() => expect(stepsOf(s, session.id)).toEqual(['project:running', 'project:failed:git could not start the project broken']));
+  expect(existsSync(join(projectsDir(), 'broken'))).toBe(false);
+  git.failures.clear();
+  await s.sessions.retryPreparation({ sessionId: session.id });
+  await vi.waitFor(() => expect(stepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(existsSync(join(projectsDir(), 'broken', '.git'))).toBe(true);
+});
+
+test('a retry after the project was made does not make it twice', async () => {
+  const git = new FakeGit();
+  const s = setup(undefined, { git });
+  const id = await failedAtAgent(s, { workspace: { kind: 'project', name: 'my-app' } });
+  expect(git.calls.filter((call) => call.args[0] === 'init')).toHaveLength(1);
+  await s.sessions.retryPreparation({ sessionId: id });
+  await vi.waitFor(() => expect(stepsOf(s, id).at(-1)).toBe('message:running'));
+  expect(git.calls.filter((call) => call.args[0] === 'init')).toHaveLength(1);
+  expect(s.claude.opened.at(-1)).toMatchObject({ folder: join(projectsDir(), 'my-app') });
+  expect(stepsOf(s, id).filter((step) => step.startsWith('project'))).toEqual(['project:running', 'project:done']);
 });

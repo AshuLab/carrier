@@ -57,7 +57,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         return AgentOffer(options: listed, commands: commandsOffered[agent] ?? [])
     }
     func open(plan: SessionPlan) async throws -> String {
-        calls.append("open \(plan.agent) \(plan.folder)")
+        calls.append("open \(plan.agent) \(plan.folder ?? "")")
         plans.append(plan)
         if let error = refuse["open"] { throw error }
         return opened
@@ -271,6 +271,21 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     let wired = try #require(sent["plan"] as? [String: Any])
     #expect(wired["agent"] as? String == "claude" && wired["text"] as? String == "say \"hi\"\nthen stop" && wired["options"] as? [String: String] == ["model": "haiku"])
     #expect(wired["workspace"] as? [String: String] == ["kind": "folder", "folder": "/w/\"odd\"\n/dir"] && wired["branch"] == nil && wired["worktree"] == nil)
+}
+
+@Test func aProjectPlanGoesOnTheWireWithItsNameAndNoBranchNorWorktree() async throws {
+    var lines: [String] = []
+    let server = TestServer { connection in
+        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"plan\"]}\n")
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        lines.append(line)
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"session\":{\"id\":\"\(opened)\",\"agent\":\"claude\"},\"options\":[]}}\n")
+    }
+    defer { server.stop() }
+    _ = try await SocketChatHost(socketPath: { server.path }).open(plan: SessionPlan(agent: "claude", workspace: .project("my-app"), text: "hi"))
+    let sent = try #require(lines.first.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] })
+    let wired = try #require(sent["plan"] as? [String: Any])
+    #expect(wired["workspace"] as? [String: String] == ["kind": "project", "name": "my-app"] && wired["branch"] == nil && wired["worktree"] == nil)
 }
 
 // MARK: the worktree half
@@ -763,46 +778,65 @@ private func projectsRoot(_ names: [String]) throws -> String {
     let model = await popover(FakeChat(), projects: root)
     model.openPicker()
     model.show(.project)
-    #expect(model.step == .project && model.projectPath == root + "/local/<name>" && model.canCreateNow == false && model.projectNameWarning == nil)
+    #expect(model.step == .project && model.projectPath == root + "/local/<name>" && model.canUseNow == false && model.projectNameWarning == nil)
     for bad in [".", "..", ".hidden", "a/b", "../x", "a b", "-x", String(repeating: "a", count: 101)] {
         model.projectName = bad
-        #expect(model.canCreateNow == false && model.projectNameWarning != nil, "\(bad)")
+        #expect(model.canUseNow == false && model.projectNameWarning != nil, "\(bad)")
     }
     model.projectName = "Taken"
-    #expect(model.canCreateNow == false && model.projectNameWarning == "Taken is already a project; choose another name")
+    #expect(model.canUseNow == false && model.projectNameWarning == "Taken is already a project; choose another name")
     model.projectName = "my-idea.2"
-    #expect(model.canCreateNow && model.projectNameWarning == nil && model.projectPath == root + "/local/my-idea.2")
+    #expect(model.canUseNow && model.projectNameWarning == nil && model.projectPath == root + "/local/my-idea.2")
     model.projectName = String(repeating: "a", count: 100)
-    #expect(model.canCreateNow)
+    #expect(model.canUseNow)
 }
 
-@MainActor @Test func creatingAProjectChoosesItsFolderAndOffersNoWorktreeUntilItHasACommit() async {
+@MainActor @Test func choosingAProjectOnlyFillsThePlanAndOffersNoWorktreeNorBranch() async {
     let host = FakeChat()
-    host.workspaces["/projects/local/my-idea"] = WorkspaceInfo(folder: "/projects/local/my-idea", branch: "main")
     let model = await popover(host)
     model.show(.project)
     model.projectName = "my-idea"
-    #expect(await model.createAndUse())
-    #expect(host.created == ["my-idea"] && model.projectName.isEmpty && model.createProblem == nil)
-    #expect(model.folder == "/projects/local/my-idea" && model.workspace?.branches.isEmpty == true)
+    #expect(model.useProject())
+    #expect(host.created.isEmpty && host.calls.isEmpty && model.projectName.isEmpty)
+    #expect(model.newProject == "my-idea" && model.folder == "/nowhere/local/my-idea")
+    #expect(model.projectNote == "/nowhere/local/my-idea will be created, with git ready, when the message is sent.")
     #expect(model.sentence == "Work in my-idea in the folder (new project, no commits yet: no worktree)")
-    #expect(model.offersWorktree == false && model.warning == nil)
+    #expect(model.offersWorktree == false && model.warning == nil && model.branchNote == nil && model.picked == nil)
     await model.useWorktree(true)
-    #expect(model.worktree == false)
+    #expect(model.worktree == false && model.workspaceProblem == nil)
     #expect(model.watchNote == nil && model.watchFailed == false)
+    model.clearWorkspace()
+    #expect(model.newProject == nil && model.folder == nil && model.projectNote == nil)
 }
 
-@MainActor @Test func aProjectTheHostRefusesIsSaidInWordsAndTheDraftKeepsItsWorkspace() async {
-    let host = FakeChat()
-    host.refuse["createProject"] = ControlError.remote("web is already a project; choose another name")
-    let model = await popover(host)
-    await model.choose(folder: "/w/api")
+@MainActor @Test func aNameTheHostWouldRefuseIsNotUsed() async throws {
+    let root = try projectsRoot(["local/taken"])
+    defer { try? FileManager.default.removeItem(atPath: root) }
+    let model = await popover(FakeChat(), projects: root)
+    model.openPicker()
     model.show(.project)
-    model.projectName = "web"
-    #expect(await model.createAndUse() == false)
-    #expect(model.createProblem == "web is already a project; choose another name" && model.folder == "/w/api" && model.step == .project && model.creating == false)
-    model.show(.menu)
-    #expect(model.createProblem == nil)
+    model.projectName = "Taken"
+    #expect(model.useProject() == false && model.newProject == nil && model.folder == nil && model.step == .project)
+}
+
+@MainActor @Test func sendingAProjectPlanAsksTheHostForTheProjectStepAndNothingElse() async {
+    let host = FakeChat()
+    let model = await popover(host)
+    model.show(.project)
+    model.projectName = "my-idea"
+    _ = model.useProject()
+    model.text = "build it"
+    #expect(await model.send() == opened)
+    #expect(host.plans == [SessionPlan(agent: "claude", workspace: .project("my-idea"), text: "build it")])
+    #expect(host.created.isEmpty)
+    #expect(model.newProject == nil && model.folder == nil)
+}
+
+@MainActor @Test func aCancelledProjectPlanComesBackInTheDraft() async {
+    let model = await popover(FakeChat())
+    model.restore(SessionPlan(agent: "claude", workspace: .project("my-idea"), text: "again"))
+    await model.load()
+    #expect(model.newProject == "my-idea" && model.folder == "/nowhere/local/my-idea" && model.text == "again")
 }
 
 @Test func cancellingTheCloneRequestClosesItsConnection() async throws {
@@ -995,7 +1029,7 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     #expect(model.folder == new + "/acme/web" && host.clones == ["acme/web"])
     model.show(.project)
     model.projectName = "idea"
-    #expect(await model.createAndUse())
+    #expect(model.useProject())
     #expect(model.folder == new + "/local/idea")
 }
 

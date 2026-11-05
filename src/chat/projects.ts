@@ -71,6 +71,39 @@ function refusal(result: Extract<GitResult, { ok: false }>, did: 'clone' | 'fetc
   return new ChatRefused(`git could not ${did} ${repo}`);
 }
 
+/** The projects folder of `chat.json`, read at each call. `inside` is a path below it that is checked again: a projects folder that is the Carrier folder itself would put `engine/x` in the engine's own folder. */
+const projectsFolder = (inside?: string): string => {
+  const loaded = readChatConfig();
+  if (loaded.ok === false) throw new ChatRefused(`chat.json is not valid: ${loaded.errors[0]!.path}: ${loaded.errors[0]!.message}`);
+  const folder = checkProjectsFolder(loaded.settings.projectsFolder, carrierHome());
+  return inside === undefined ? folder : checkProjectsFolder(join(folder, inside), carrierHome());
+};
+
+/** Where a new project of this name is made: `<projects folder>/local/<name>`. */
+export function projectFolder(name: string): string {
+  if (projectNamePattern.test(name) === false) throw new ChatRefused(`"${name}" is not a plain folder name`);
+  return join(projectsFolder(), 'local', name);
+}
+
+/** Makes the project's folder and runs `git init -b main` in it. A name that is taken is refused and nothing is changed; a `git init` that fails removes what this call made. */
+export async function createProject(git: Git, name: string): Promise<{ folder: string }> {
+  const dest = projectFolder(name);
+  await mkdir(dirname(dest), { recursive: true });
+  try {
+    await mkdir(dest); // not recursive: it fails when anything is there, and what is there is not ours to touch
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new ChatRefused(`${name} is already a project; choose another name`);
+    throw error;
+  }
+  const init = await git.run(dest, ['init', '-b', 'main']);
+  if (init.ok === false) {
+    log.error('git init failed', { name, code: init.code });
+    await rm(dest, { recursive: true, force: true });
+    throw new ChatRefused(`git could not start the project ${name}`);
+  }
+  return { folder: dest };
+}
+
 /** What the host takes of GitHub as a dependency, so a test injects a fake. Both throw a `ChatRefused` in words. */
 export type GithubRepos = { repos: (page: number) => Promise<{ repos: AvailableRepo[]; hasMore: boolean }>; login: () => Promise<string> };
 
@@ -83,14 +116,6 @@ type Job = { done: Promise<CloneReply>; waiters: number; abort: AbortController 
  */
 export function createProjects({ git, token, github }: { git: Git; token: () => Promise<string>; github: GithubRepos }) {
   const running = new Map<string, Job>();
-
-  // `inside` is a path below the folder that is checked again: a projects folder that is the Carrier folder itself would put `engine/x` in the engine's own folder.
-  const projectsFolder = (inside?: string): string => {
-    const loaded = readChatConfig();
-    if (loaded.ok === false) throw new ChatRefused(`chat.json is not valid: ${loaded.errors[0]!.path}: ${loaded.errors[0]!.message}`);
-    const folder = checkProjectsFolder(loaded.settings.projectsFolder, carrierHome());
-    return inside === undefined ? folder : checkProjectsFolder(join(folder, inside), carrierHome());
-  };
 
   // Not in argv, in a file or in a log: git reads the header from its environment, as `git-workspaces.ts` does.
   const authEnv = async (): Promise<NodeJS.ProcessEnv> => {
@@ -132,25 +157,8 @@ export function createProjects({ git, token, github }: { git: Git; token: () => 
       return { ...first, login: who };
     },
 
-    /** Makes `<projects folder>/local/<name>` and runs `git init -b main` in it. A name that is taken is refused and nothing is changed; a `git init` that fails removes what this request made. */
-    async createProject({ name }: { name: string }): Promise<{ folder: string }> {
-      if (projectNamePattern.test(name) === false) throw new ChatRefused(`"${name}" is not a plain folder name`);
-      const dest = join(projectsFolder(), 'local', name);
-      await mkdir(dirname(dest), { recursive: true });
-      try {
-        await mkdir(dest); // not recursive: it fails when anything is there, and what is there is not ours to touch
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new ChatRefused(`${name} is already a project; choose another name`);
-        throw error;
-      }
-      const init = await git.run(dest, ['init', '-b', 'main']);
-      if (init.ok === false) {
-        log.error('git init failed', { name, code: init.code });
-        await rm(dest, { recursive: true, force: true });
-        throw new ChatRefused(`git could not start the project ${name}`);
-      }
-      return { folder: dest };
-    },
+    /** Makes `<projects folder>/local/<name>` and runs `git init -b main` in it (the `createProject` request, for apps older than the plan). */
+    createProject: ({ name }: { name: string }) => createProject(git, name),
 
     /** Clones `repo` to `<projects folder>/<owner>/<name>`, or fetches it when it is already there. `signal` is the client's connection: when it closes, git is aborted and a destination this request made is removed. */
     async cloneRepo({ repo }: { repo: string }, signal: AbortSignal): Promise<CloneReply> {

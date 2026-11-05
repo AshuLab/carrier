@@ -37,12 +37,15 @@ struct HealthTabView: View {
             }
             .padding(.horizontal, 14)
             ForEach(healthSections(host: store.latest, facts: facts, doctor: doctor.state), id: \.title) { section in
-                SettingsGroup(title: section.title) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(section.title.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary).padding(.leading, 14).padding(.top, 8)
                     if let note = section.note {
-                        Text(note).font(.callout).foregroundStyle(.secondary).padding(.vertical, 12).frame(maxWidth: .infinity, alignment: .leading)
+                        Text(note).font(.callout).foregroundStyle(.secondary).padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
                     }
-                    ForEach(Array(section.rows.enumerated()), id: \.offset) { index, row in
-                        HealthRowView(row: row, first: index == 0)
+                    // cards side by side: as many as fit, so the tab stays short
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 10, alignment: .top)], alignment: .leading, spacing: 10) {
+                        ForEach(Array(section.rows.enumerated()), id: \.offset) { _, row in HealthCardView(row: row) }
                     }
                 }
             }
@@ -86,27 +89,26 @@ struct HealthTabView: View {
     }
 }
 
-private struct HealthRowView: View {
+/// One check as a card: its mark and name, what it says and, when the fixed list has one, its fix.
+private struct HealthCardView: View {
     let row: HealthRow
-    let first: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            mark
-            VStack(alignment: .leading, spacing: 1) {
-                Text(row.title).fontWeight(.medium)
-                if row.detail.isEmpty == false {
-                    Text(row.detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
-                if let fix = row.fix {
-                    Text("Fix: \(fix)").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                mark
+                Text(row.title).fontWeight(.medium).lineLimit(2)
             }
-            Spacer(minLength: 8)
+            if row.detail.isEmpty == false {
+                Text(row.detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            if let fix = row.fix {
+                Text("Fix: \(fix)").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             if let tool = row.tool { HealthFixButton(tool: tool, state: row.state) }
         }
-        .padding(.vertical, 10).frame(minHeight: 46)
-        .overlay(alignment: .top) { Divider().opacity(first ? 0 : 1) }
+        .padding(12).frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.07)))
         .accessibilityElement(children: .combine)
     }
 

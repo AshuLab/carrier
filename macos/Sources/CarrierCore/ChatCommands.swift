@@ -72,15 +72,6 @@ public func inserting(_ command: ChatCommand, over token: CommandToken, in text:
     return (replaced, token.range.location + (name as NSString).length + 1)
 }
 
-/// The text with a slash at its end, after a space when the text does not end in one, to open the list of commands for a person who does
-/// not know that a slash does.
-public func appendingSlash(to text: String) -> (text: String, cursor: Int) {
-    let ns = text as NSString
-    let spaced = ns.length > 0 && isBlank(ns.character(at: ns.length - 1)) == false
-    let appended = text + (spaced ? " /" : "/")
-    return (appended, (appended as NSString).length)
-}
-
 /// The commands a typed name leads to: skills before the provider's own commands, and in each the names that start with it before the
 /// ones that only contain it (or whose description does), each in the order the provider listed.
 public func commandMatches(_ commands: [ChatCommand], query: String) -> [ChatCommand] {

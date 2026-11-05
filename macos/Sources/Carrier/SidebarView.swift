@@ -24,6 +24,8 @@ struct SidebarView: View {
     let searchRequest: SearchRequest?
     /// Choosing a session from the Archive list.
     let chooseArchived: (String) -> Void
+    /// Settings is a sheet over the window, not a page: the row opens it and is never the selected one.
+    let openSettings: () -> Void
     /// Carrier's search: not remembered between launches.
     @State private var searching = false
     @State private var query = ""
@@ -101,7 +103,7 @@ struct SidebarView: View {
                 )
                 .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
                 Divider()
-                SidebarSectionRow(title: "Settings", icon: "gearshape", selected: selection == .settings, action: { selection = .settings })
+                SidebarSectionRow(title: "Settings", icon: "gearshape", selected: false, action: openSettings)
                     .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
             }
         }

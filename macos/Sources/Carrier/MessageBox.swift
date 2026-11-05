@@ -60,7 +60,6 @@ struct MessageBox<Selects: View>: View {
             // what the session runs with, under the box and at its left, side by side at their own width; a row that wraps when a provider
             // lists more than fit
             FlowLayout(spacing: 8) {
-                if commands.isEmpty == false { skillsButton }
                 selects()
             }
                 .padding(.leading, 4)
@@ -175,21 +174,6 @@ struct MessageBox<Selects: View>: View {
         text = taken.text
         cursor = taken.cursor
         focus.wrappedValue = true
-    }
-
-    /// Opens the list for a person who does not know that a slash does.
-    private var skillsButton: some View {
-        Button {
-            let appended = appendingSlash(to: text)
-            text = appended.text
-            cursor = appended.cursor
-            closedFor = nil
-            focus.wrappedValue = true
-        } label: {
-            Label("Skills", systemImage: "slash.circle").font(.callout).fontWeight(.medium)
-                .padding(.horizontal, 10).frame(height: controlHeight).controlSurface().contentShape(RoundedRectangle(cornerRadius: 8))
-        }
-        .buttonStyle(.plain).help("Skills and commands: type a slash")
     }
 
     /// Enter and the button: sends, and makes the arrow bounce when there is something to send.

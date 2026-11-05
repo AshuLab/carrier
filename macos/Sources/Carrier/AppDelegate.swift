@@ -28,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         WindowController.shared.addMenuItem(to: menu)
         if fixtureServer != nil { EmptyStatesWindowController.shared.addMenuItem(to: menu) }
-        SettingsWindowController.shared.addMenuItem(to: menu)
+        WindowController.shared.addSettingsItem(to: menu)
         WindowController.shared.addAboutItem(to: menu)
         let quit = menu.addItem(withTitle: "Quit Carrier", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         showIcon("power", on: quit)
@@ -196,8 +196,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("stop Carrier", { MenuControls.shared.selfTest(.stop) }),
             ("activation policy accessory", { "\(NSApp.activationPolicy() == .accessory)" }),
             ("setup", { SetupController.shared.summary }),
-            ("open settings", { SettingsWindowController.shared.open(); return SettingsWindowController.shared.status }),
-            ("close settings", { SettingsWindowController.shared.close(); return SettingsWindowController.shared.status }),
+            ("open settings", { WindowController.shared.showSettings(); return WindowController.shared.settingsStatus }),
+            ("close settings", { WindowController.shared.closeSettings(); return WindowController.shared.settingsStatus }),
             ("app windows open", { "\(NSApp.windows.filter { $0.isVisible && $0.level != .statusBar }.count)" }),
             ("quit enabled", {
                 guard let menu = self.statusItem?.menu else { return "false" }

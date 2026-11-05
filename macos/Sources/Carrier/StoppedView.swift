@@ -5,7 +5,7 @@ import SwiftUI
 /// lacks something the button is off and one line says what, with the way to Settings; with no config it says the engine is not configured.
 struct StoppedView: View {
     let state: ConnectionState?
-    @Binding var selection: Selection
+    let openSettings: () -> Void
     @ObservedObject private var setup = SetupController.shared
     @ObservedObject private var start = StartController.shared
 
@@ -56,7 +56,7 @@ struct StoppedView: View {
                 Label(banner.title, systemImage: banner.state == .detecting ? "magnifyingglass" : "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange)
                 if banner.state == .missing {
-                    Button("Open Settings") { selection = .settings }.buttonStyle(.glass).buttonBorderShape(.capsule).controlSize(.small)
+                    Button("Open Settings", action: openSettings).buttonStyle(.glass).buttonBorderShape(.capsule).controlSize(.small)
                 }
             }
         }

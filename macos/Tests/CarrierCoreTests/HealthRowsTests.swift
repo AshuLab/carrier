@@ -81,18 +81,45 @@ private func health(git: ToolState = .ready, gh: ToolState = .ready, claude: Too
     #expect(engine(facts).mark == .problem && engine(facts).detail.contains("not configured"))
 }
 
-@Test func theEnginesSetupListsTheDoctorsChecksWithTheirStateDetailAndFixText() {
+@Test func theEnginesSetupShowsAChecksWithItsStateDetailAndFixTextAsOneCard() {
     let checks = [
-        DoctorCheck(name: "config", status: .ok), DoctorCheck(name: "gh", status: .warn, detail: "old", fix: "brew upgrade gh"),
-        DoctorCheck(name: "labels", status: .fail, detail: "missing", fix: "carrier init"),
+        DoctorCheck(name: "config", status: .ok), DoctorCheck(name: "labels", status: .warn, detail: "old", fix: "carrier init"),
+        DoctorCheck(name: "token", status: .fail, detail: "missing", fix: "agent-forge add"),
     ]
     let section = healthSections(host: nil, facts: allWell, doctor: .checks(checks))[2]
     #expect(section.title == "Engine setup" && section.note == nil)
-    #expect(section.rows.map(\.title) == ["config", "gh", "labels"])
+    #expect(section.rows.map(\.title) == ["config", "labels", "token"])
     #expect(section.rows.map(\.mark) == [.ok, .warning, .problem])
     #expect(section.rows.map(\.detail) == ["", "old", "missing"])
-    #expect(section.rows.map(\.fix) == [nil, "brew upgrade gh", "carrier init"])
+    #expect(section.rows.map(\.fix) == [nil, "carrier init", "agent-forge add"])
     #expect(section.rows.allSatisfy { $0.tool == nil })
+}
+
+@Test func theDoctorsToolLoginAndAccessChecksAreGroupedIntoOneCardEach() {
+    let checks = [
+        DoctorCheck(name: "git installed", status: .ok), DoctorCheck(name: "gh installed", status: .ok),
+        DoctorCheck(name: "claude provider pro is logged in", status: .ok), DoctorCheck(name: "agy provider ai-pro is logged in", status: .ok),
+        DoctorCheck(name: "author and reviewer are different identities", status: .ok),
+        DoctorCheck(name: "forge agent a-agent can mint a token for acme/web", status: .ok),
+        DoctorCheck(name: "forge agent b-agent can mint a token for acme/web", status: .ok),
+        DoctorCheck(name: "forge agent a-agent can read acme/web", status: .ok),
+        DoctorCheck(name: "forge agent a-agent can mint a token for acme/api", status: .ok),
+    ]
+    let rows = healthSections(host: nil, facts: allWell, doctor: .checks(checks))[2].rows
+    #expect(rows.map(\.title) == ["Tools installed", "Provider logins", "author and reviewer are different identities", "Repository access"])
+    #expect(rows.map(\.detail) == ["git, gh", "claude pro, agy ai-pro", "", "2 repositories, 2 identities"])
+    #expect(rows.allSatisfy { $0.mark == .ok })
+}
+
+@Test func aGroupedCardIsAsBadAsItsWorstCheckAndNamesTheOnesThatAreNotOk() {
+    let checks = [
+        DoctorCheck(name: "git installed", status: .ok), DoctorCheck(name: "agy installed", status: .fail, detail: "not found", fix: "install agy"),
+        DoctorCheck(name: "forge agent a-agent can read acme/web", status: .warn, detail: "slow"),
+    ]
+    let rows = healthSections(host: nil, facts: allWell, doctor: .checks(checks))[2].rows
+    #expect(rows[0].title == "Tools installed" && rows[0].mark == .problem && rows[0].fix == "install agy")
+    #expect(rows[0].detail == "1 of 2 not ok\nagy installed: not found")
+    #expect(rows[1].title == "Repository access" && rows[1].mark == .warning && rows[1].fix == nil)
 }
 
 @Test func theEnginesSetupNeedsTheConfigAndRunsNothingWithoutOne() {

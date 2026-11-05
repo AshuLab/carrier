@@ -1044,6 +1044,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     let saved = try #require(config.json)
     #expect(configRepoNames(json: saved) == ["acme/web", "vemec/encaja", "AshuLab/carrier"])
     #expect(String(decoding: saved, as: UTF8.self).contains("pollIntervalMinutes"))
+    withExtendedLifetime(model) {}  // the model is what watches the host and writes the config: it must outlive the wait
 }
 
 @MainActor @Test func withTheBoxOffOrNotAllowedTheSessionIsPreparedAndTheConfigIsNotTouched() async throws {

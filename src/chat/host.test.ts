@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -326,10 +326,10 @@ test('suggestName and checkName answer a free name, say why a name is invalid or
 });
 
 /** A host with a fake git, a base repository acme/app and CARRIER_HOME under the temporary root. */
-async function worktreeHost() {
+async function worktreeHost(clock = new FakeClock()) {
   const git = new FakeGit();
   const claude = new FakeChatRunner();
-  await host(new FakeClock(), claude, git);
+  await host(clock, claude, git);
   mkdirSync(join(root, 'repo'));
   const repo = realpathSync(join(root, 'repo'));
   git.repos.set(repo, { head: 'feat/x', branches: ['main', 'feat/x'], remoteBranches: ['main', 'dev'], origin: 'git@github.com:acme/app.git', status: [' M a.ts'] });
@@ -723,4 +723,32 @@ test('list says the delete date from the ages in chat.json, read at each request
   expect(await deleteAt()).toBe(50 * DAY);
   config('{"archiveAfterDays":1,"deleteAfterDays":"never"}');
   expect(await deleteAt()).toBeNull();
+});
+
+test('stopping the host while a pass waits in git lets the pass finish without deleting anything, and no pass runs an hour later', async () => {
+  const clock = new FakeClock();
+  const h = await worktreeHost(clock);
+  const first = await inWorktree(h, 'first');
+  const second = await inWorktree(h, 'second');
+  await h.client.request('close', { sessionId: first.id });
+  await h.client.request('close', { sessionId: second.id });
+  let release = () => {};
+  let reached = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const arrived = new Promise<void>((resolve) => (reached = resolve));
+  const run = h.git.run.bind(h.git);
+  h.git.run = async (folder, args, options) => (reached(), await gate, run(folder, args, options));
+  const pass = clock.advance(31 * DAY); // the hourly passes run until the one at day 30 waits in git for the first session
+  await arrived;
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const stopping = stops.at(-1)!();
+  release();
+  await Promise.all([pass, stopping]);
+  expect(errors).not.toHaveBeenCalled();
+  expect(sessionRows().sort()).toEqual([first.id, second.id].sort());
+  expect(existsSync(first.path) && existsSync(second.path)).toBe(true);
+  h.git.calls.length = 0;
+  await clock.advance(2 * 60 * 60_000);
+  expect(h.git.calls).toEqual([]); // no pass was armed again
+  errors.mockRestore();
 });

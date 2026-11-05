@@ -12,7 +12,7 @@ import { ChatRefused } from './runner.ts';
 import { chatCaps } from './transcript.ts';
 import { sessions as schemaSessions } from './schema.ts';
 import type { HealthProbes } from './health.ts';
-import { createSessions } from './sessions.ts';
+import { createSessions, type SessionAges } from './sessions.ts';
 
 let dir: string;
 let work: string;
@@ -616,9 +616,9 @@ const sessionIds = (s: { db: ReturnType<typeof setup>['db'] }) => s.db.select().
 const keptAt = (s: { db: ReturnType<typeof setup>['db'] }, id: string) => s.db.select().from(schemaSessions).where(eq(schemaSessions.id, id)).get()?.keptAt;
 
 /** A host over a fake git with a base repository acme/app in `work`; `inWorktree` opens a session in a worktree of it and tells the fake what git finds there. */
-function worktreeSetup() {
+function worktreeSetup(ages?: () => SessionAges) {
   const git = new FakeGit();
-  const s = setup(undefined, { git });
+  const s = setup(undefined, { git, ...(ages && { ages }) });
   const repo = realpathSync(work);
   const base = { head: 'main', branches: ['main'], remoteBranches: ['main'], origin: 'git@github.com:acme/app.git' };
   git.repos.set(repo, base);
@@ -905,6 +905,39 @@ test('list says when the clock deletes an archived session: lastActiveAt plus de
   expect(listed(true)[kept.id]).toMatchObject({ kept: true, deleteAt: null });
   await s.sessions.archive({ sessionId: kept.id, archived: false });
   expect(listed(false)[kept.id]).toMatchObject({ kept: false, deleteAt: null });
+});
+
+test('a kept session stops reading as kept once the ages no longer make it due, and reads kept again when they do', async () => {
+  const ages: { archiveAfterDays: number | 'never'; deleteAfterDays: number | 'never' } = clockAges();
+  const s = worktreeSetup(() => ages);
+  await s.inWorktree('kept', { status: [' M a.ts'] });
+  s.clock.time = 30 * DAY;
+  await s.sessions.applyClock(ages); // spared: due and unsaved
+  const row = () => s.sessions.list({ archived: true }).sessions[0];
+  expect(row()).toMatchObject({ kept: true, deleteAt: null });
+  ages.deleteAfterDays = 40;
+  expect(row()).toMatchObject({ kept: false, deleteAt: 40 * DAY });
+  ages.deleteAfterDays = 'never';
+  expect(row()).toMatchObject({ kept: false, deleteAt: null });
+  ages.deleteAfterDays = 30;
+  expect(row()).toMatchObject({ kept: true, deleteAt: null });
+});
+
+test('closeAll tells a pass in flight to leave the sessions it has not reached alone', async () => {
+  const s = worktreeSetup();
+  const first = await s.inWorktree('first');
+  const second = await s.inWorktree('second');
+  s.clock.time = 30 * DAY;
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const run = s.git.run.bind(s.git);
+  s.git.run = async (folder, args, options) => (await gate, run(folder, args, options));
+  const pass = s.sessions.applyClock(clockAges()); // waits in git for the first session
+  await s.sessions.closeAll();
+  release();
+  await pass;
+  expect(sessionIds(s).sort()).toEqual([first.id, second.id].sort());
+  expect(existsSync(first.path) && existsSync(second.path)).toBe(true);
 });
 
 test.each([

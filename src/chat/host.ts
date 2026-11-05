@@ -54,10 +54,11 @@ const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: in
 
 /**
  * Runs the chat host from the Carrier folder alone (`CARRIER_HOME`, else `~/.carrier`): its own lock, database and socket under
- * `chat/state/` and its log under `chat/logs/`, sharing nothing with the engine. Its settings are `chat/chat.json`'s, read once here
- * (the projects folder again at each request); a file that is wrong throws ChatConfigInvalid before anything is created.
- * Throws HostBusy when another host holds the lock. Resolves once the socket answers;
- * the returned `stop()` is the one shutdown (`stop` request, idle exit, signals).
+ * `chat/state/` and its log under `chat/logs/`, sharing nothing with the engine. Its settings are `chat/chat.json`'s, read at start (the
+ * projects folder again at each request, the session ages at each `list` and at each hourly pass); a file that is wrong at start throws
+ * ChatConfigInvalid before anything is created. Throws HostBusy when another host holds the lock. Resolves once the socket answers and
+ * the first pass of the session clock is done; the returned `stop()` is the one shutdown (`stop` request, idle exit, signals), and it
+ * waits for a pass in flight.
  */
 export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   const loaded = readChatConfig();
@@ -83,7 +84,9 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   const sessions = createSessions({ db, agents: settings.agents, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, binaryFound: deps.binaryFound, probes: deps.probes, ages: currentAges, onLiveChange: () => idle?.recheck() });
   // The clock's pass, at start and every hour while the host runs; the ages are read from chat.json each time, and a wrong file skips the pass.
   let cancelPass = () => {};
-  const clockPass = async () => {
+  let stopped = false;
+  let passInFlight: Promise<void> = Promise.resolve();
+  const runPass = async () => {
     try {
       const current = readChatConfig();
       if (current.ok) await sessions.applyClock(current.settings);
@@ -91,10 +94,16 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     } catch (error) {
       log.error('the session lifecycle pass failed', error);
     }
-    cancelPass = deps.clock.after(HOUR_MS, clockPass);
+  };
+  const clockPass = async () => {
+    if (stopped) return;
+    passInFlight = runPass();
+    await passInFlight;
+    if (!stopped) cancelPass = deps.clock.after(HOUR_MS, clockPass);
   };
   const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github });
   const close = () => {
+    stopped = true;
     idle?.stop();
     cancelPass();
     closeServer();
@@ -104,7 +113,9 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   let stopping: Promise<void> | undefined;
   const stop = () =>
     (stopping ??= (async () => {
-      await sessions.closeAll();
+      stopped = true;
+      await sessions.closeAll(); // also tells the pass in flight to leave the next session alone
+      await passInFlight; // so the database is not closed under a worktree that is half removed
       close();
       log.info('chat host stopped');
       deps.exit(0);

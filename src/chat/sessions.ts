@@ -90,6 +90,8 @@ export function binaryFound(command: string): boolean {
 export function createSessions({ db, agents, clock, runners, env, git, binaryFound, probes = realProbes, ages, onLiveChange }: ChatSessionsDeps) {
   const health = createHealth({ agents, clock, binaryFound, probes });
   const lives = new Map<string, Live>();
+  /** Set by closeAll, the host's shutdown: a clock pass in flight leaves the sessions it has not reached alone. */
+  let closed = false;
   // Sessions being deleted: no agent may open in their folder while it is removed.
   const deleting = new Set<string>();
   let clients = 0;
@@ -249,16 +251,15 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
 
     health,
 
-    /** The rows, each with `kept` (spared by the clock for unsaved work) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
+    /** The rows, each with `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
     list: ({ archived = false }: { archived?: boolean }) => {
       const { archiveAfterDays, deleteAfterDays } = ages();
       return {
-        sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => ({
-          ...summary(found),
-          live: lives.has(found.id),
-          kept: found.keptAt !== null,
-          deleteAt: found.archived && found.keptAt === null && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? found.lastActiveAt + deleteAfterDays * DAY : null,
-        })),
+        sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => {
+          const dueAt = found.archived && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? found.lastActiveAt + deleteAfterDays * DAY : null;
+          const kept = found.keptAt !== null && dueAt !== null && clock.now() >= dueAt; // a session the clock no longer considers (ages raised or never) is not kept
+          return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt };
+        }),
       };
     },
 
@@ -469,9 +470,11 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
       }
       if (archiveAfterDays === 'never') return;
       for (const { id } of db.select().from(sessions).where(eq(sessions.archived, true)).all()) {
+        if (closed) return;
         try {
-          // read again after each wait: the person may have restored or resumed it meanwhile
+          // read again after each wait: the person may have restored or resumed it meanwhile, or the host may be shutting down
           const due = () => {
+            if (closed) return undefined;
             const found = db.select().from(sessions).where(eq(sessions.id, id)).get();
             return found?.archived === true && idleFor(found, lives.has(id), now, deleteAfterDays) ? found : undefined;
           };
@@ -526,6 +529,7 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
 
     /** Closes every live session: the host's stop. */
     async closeAll() {
+      closed = true;
       for (const sessionId of [...lives.keys()]) await close({ sessionId });
     },
   };

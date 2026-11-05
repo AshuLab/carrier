@@ -11,7 +11,7 @@ struct SessionsTabView: View {
     @State private var failure: String?
 
     private var problems: [SessionAgeField: String] {
-        sessionAgeProblems(draft).merging(unparsable.map { ($0 == "archive" ? .archive : .delete, "Must be a number") }) { _, text in text }
+        sessionAgeProblems(draft, unparsable: Set(unparsable.map { $0 == "archive" ? .archive : .delete }))
     }
 
     var body: some View {

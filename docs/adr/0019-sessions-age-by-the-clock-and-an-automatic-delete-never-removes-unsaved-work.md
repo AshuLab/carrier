@@ -25,7 +25,7 @@ Count from creation. A session someone keeps coming back to would be archived an
 
 Count the 30 days from the archive date. It gives a fixed grace period after archiving, but a session archived by hand on day 3 would live 33 days and the rule would need two clocks per session.
 
-A launchd service so the clock runs with the app closed. [0010](0010-carrier-runs-in-the-background-as-a-detached-process.md) and 0017 already rejected a service for the engine; the host applying the clock at its start gives the same result for a person who opens the app, which is the only way sessions are seen.
+A launchd service so the clock runs with the app closed. [0010](0010-carrier-runs-in-the-background-as-a-detached-process.md) already rejected a service for the engine; the host applying the clock at its start gives the same result for a person who opens the app, which is the only way sessions are seen.
 
 ## Consequences
 

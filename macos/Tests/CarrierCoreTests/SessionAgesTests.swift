@@ -49,3 +49,10 @@ private func object(_ data: Data?) throws -> [String: Any] {
     #expect(deleteAgeOffReason(SessionAges(archive: .never, delete: .days(30)))?.contains("archive is Never") == true)
     #expect(deleteAgeOffReason(SessionAges(archive: .days(15), delete: .never)) == nil && deleteAgeOffReason(SessionAges()) == nil)
 }
+
+@Test func aHalfTypedDeleteFieldDoesNotBlockSavingWhileItIsOffButDoesWhenItIsOn() {
+    let off = SessionAges(archive: .never, delete: .days(30))
+    #expect(sessionAgeProblems(off, unparsable: [.delete]).isEmpty)
+    #expect(sessionAgeProblems(off, unparsable: [.archive])[.archive] == "Must be a number")
+    #expect(sessionAgeProblems(SessionAges(), unparsable: [.delete])[.delete] == "Must be a number")
+}

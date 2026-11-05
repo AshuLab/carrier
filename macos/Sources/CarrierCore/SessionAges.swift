@@ -41,7 +41,7 @@ public func sessionAges(chatJSON: Data?) -> SessionAges {
 
 /// What the fields say is wrong, in words, by field: a number under one day, and (on delete) a delete age that is not greater than the
 /// archive age. The host's own rule: with `never` on either side there is no comparison.
-public func sessionAgeProblems(_ ages: SessionAges) -> [SessionAgeField: String] {
+public func sessionAgeProblems(_ ages: SessionAges, unparsable: Set<SessionAgeField> = []) -> [SessionAgeField: String] {
     var problems: [SessionAgeField: String] = [:]
     for (field, age) in [(SessionAgeField.archive, ages.archive), (.delete, ages.delete)] {
         if case .days(let days) = age, days < 1 { problems[field] = "Use a whole number of days, 1 or more" }
@@ -49,6 +49,8 @@ public func sessionAgeProblems(_ ages: SessionAges) -> [SessionAgeField: String]
     if case .days(let archive) = ages.archive, case .days(let delete) = ages.delete, problems[.delete] == nil, delete <= archive {
         problems[.delete] = "Must be greater than the archive age (\(archive) days)"
     }
+    // a field whose text is not a number is refused, except the delete one while it is off: it is not saved then, so it cannot block the other
+    for field in unparsable where !(field == .delete && deleteAgeOffReason(ages) != nil) { problems[field] = "Must be a number" }
     return problems
 }
 

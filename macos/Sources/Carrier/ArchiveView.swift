@@ -190,7 +190,7 @@ private struct ArchiveRow: View {
                             if let branch = row.branch { Text(branch).foregroundStyle(.blue) }
                         }
                         .font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                        if let note { Text(note).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                        if let note { Text(note).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
                     }
                     Spacer(minLength: 8)
                 }

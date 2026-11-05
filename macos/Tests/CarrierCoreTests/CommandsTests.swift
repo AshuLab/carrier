@@ -52,6 +52,19 @@ private let hello = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\
     #expect(received == ["pause", "resume", "checkNow", "stop"])
 }
 
+@Test func aCarrierOfAnotherProtocolGetsNoCommandAndTheSentenceSaysWhichSideToUpdate() {
+    for (version, sentence) in [(0, "carrier is older than this app. Run `brew upgrade carrier`."), (2, "This app is older than carrier. Run `brew upgrade --cask carrier`.")] {
+        var asked = false
+        let server = TestServer { connection in
+            connection.send("{\"event\":\"hello\",\"protocol\":\(version),\"pid\":42,\"startedAt\":1000}\n")
+            asked = connection.readRequestId() != nil
+        }
+        defer { server.stop() }
+        #expect(throws: ControlError.remote(sentence)) { try send(.pause, socketPath: server.path) }
+        #expect(asked == false)
+    }
+}
+
 @Test func stopIsOkWhenTheConnectionClosesRightAfterTheReply() throws {
     let server = TestServer { connection in
         connection.send(hello)

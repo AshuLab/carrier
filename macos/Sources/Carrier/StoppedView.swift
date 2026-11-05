@@ -41,6 +41,7 @@ struct StoppedView: View {
         switch state {
         case nil: "Looking for Carrier."
         case .stopped?: "Start it to watch your repositories and run agents on the epics that are ready."
+        case .incompatible(let update?)?: update
         default: "The app and Carrier speak different versions. Update whichever is older."
         }
     }

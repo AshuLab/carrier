@@ -29,7 +29,7 @@ struct WorkspaceSheet: View {
             Divider()
             footer
         }
-        .frame(width: 820, height: 580)
+        .windowSheetSize()
     }
 
     // MARK: Rail
@@ -37,18 +37,7 @@ struct WorkspaceSheet: View {
     /// The sheet's name, then where the workspace can come from: a step each, and the folder panel, which is not a step.
     private var rail: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 10) {
-                Image(systemName: "folder.fill")
-                    .font(.system(size: 15, weight: .medium)).foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
-                    .background(Circle().fill(LinearGradient(colors: [.accentColor, .accentColor.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Choose a workspace").font(.headline)
-                    Text("Where the agent works").font(.subheadline).foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 8).padding(.bottom, 14)
+            RailHeader(title: "Choose a workspace", detail: "Where the agent works", icon: "folder.fill")
             railRow("Recent", "Folders you used lately", "clock", selected: model.step == .menu) { model.show(.menu) }
             if model.sources.contains(.githubURL) {
                 railRow("From a GitHub URL", model.sourceReason(.githubURL) ?? "Clone owner/repo", "link", selected: model.step == .url, off: model.sourceReason(.githubURL) != nil) { model.show(.url) }
@@ -75,26 +64,13 @@ struct WorkspaceSheet: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(14).frame(width: 250)
+        // The header sits 24 from the top and 24 from the left (16 + the row's 8), as the step's header does on the right.
+        .padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 14).frame(width: 250)
         .background(Color.secondary.opacity(0.06))
     }
 
     private func railRow(_ title: String, _ detail: String, _ icon: String, selected: Bool, off: Bool = false, action: @escaping () -> Void) -> some View {
-        HoverRow(action: action, fill: selected ? Color.accentColor.opacity(0.22) : nil) { _ in
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .medium)).foregroundStyle(selected ? Color.accentColor : .secondary)
-                    .frame(width: 28, height: 28)
-                    .background(RoundedRectangle(cornerRadius: radius).fill(selected ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12)))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title).fontWeight(.medium)
-                    Text(detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(off ? 2 : 1)
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 8).padding(.vertical, 6)
-        }
-        .disabled(off)
+        RailRow(title: title, detail: detail, icon: icon, selected: selected, off: off, action: action)
     }
 
     // MARK: Footer
@@ -234,14 +210,7 @@ struct WorkspaceSheet: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                HStack(spacing: 10) {
-                    TextField("Search the loaded repositories", text: $model.reposQuery)
-                        .textFieldStyle(.roundedBorder).controlSize(.large).autocorrectionDisabled()
-                    Picker("Show", selection: $visibility) {
-                        ForEach(Visibility.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                    }
-                    .pickerStyle(.segmented).labelsHidden().frame(width: 190)
-                }
+                searchField
                 let rows = model.repoRows().filter { visibility == .all || (visibility == .private) == $0.isPrivate }
                 if rows.isEmpty {
                     reposEmpty
@@ -266,6 +235,29 @@ struct WorkspaceSheet: View {
                 Label("Click a repository to work there. It is cloned when you send the first message.", systemImage: "cursorarrow.click").font(.subheadline).foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// One field: a magnifier, the text, and the visibility filter as a menu at its end (it shows its choice while it is not All).
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
+            TextField("Search the loaded repositories", text: $model.reposQuery).textFieldStyle(.plain).autocorrectionDisabled()
+            Menu {
+                Picker("Show", selection: $visibility) {
+                    ForEach(Visibility.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.inline)
+            } label: {
+                HStack(spacing: 4) {
+                    if visibility != .all { Text(visibility.rawValue).font(.subheadline.weight(.semibold)) }
+                    Image(systemName: visibility == .all ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
+                }
+                .foregroundStyle(visibility == .all ? Color.secondary : Color.accentColor)
+            }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Show all, public or private repositories")
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: radius).fill(Color.secondary.opacity(0.12)))
     }
 
     /// The list has nothing to show: because there are no repositories, or because the search or the filter left none.
@@ -295,22 +287,24 @@ struct WorkspaceSheet: View {
 
     private func repoRow(_ row: GithubRepoRow) -> some View {
         HoverRow(action: { dismiss(); Task { await model.choose(repo: row.name) } }) { hovering in
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "book.closed").foregroundStyle(.secondary).frame(width: 18).padding(.top, 2).accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 3) {
-                    let parts = row.name.split(separator: "/", maxSplits: 1).map(String.init)
-                    Text("\(Text(parts[0] + "/").foregroundStyle(.secondary))\(Text(parts[1]).fontWeight(.semibold))").lineLimit(1).truncationMode(.middle)
-                    HStack(spacing: 6) {
-                        if row.isPrivate { badge("Private", "lock.fill", .indigo) } else { badge("Public", "globe", .secondary) }
-                        Text(row.pushed).font(.subheadline).foregroundStyle(.secondary)
-                    }
-                    if let reason = row.cannotWatch {
-                        Label("Carrier will not watch it: \(reason)", systemImage: "eye.slash").font(.subheadline).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .center, spacing: 10) {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "book.closed").foregroundStyle(.secondary).frame(width: 18).padding(.top, 2).accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        let parts = row.name.split(separator: "/", maxSplits: 1).map(String.init)
+                        Text("\(Text(parts[0] + "/").foregroundStyle(.secondary))\(Text(parts[1]).fontWeight(.semibold))").lineLimit(1).truncationMode(.middle)
+                        HStack(spacing: 6) {
+                            if row.isPrivate { badge("Private", "lock.fill", .indigo) } else { badge("Public", "globe", .secondary) }
+                            Text(row.pushed).font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        if let reason = row.cannotWatch {
+                            Label("Carrier will not watch it: \(reason)", systemImage: "eye.slash").font(.subheadline).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
                 Spacer(minLength: 8)
                 if row.watched { badge("Watched", "eye.fill", .green) }
-                RowHint(text: "Use", shown: hovering)
+                RowChevron(shown: hovering)
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
         }
@@ -349,9 +343,9 @@ struct WorkspaceSheet: View {
 
     /// The watch box, with what watching means: it is a choice made now and acted on once the agent has answered the first message, and the engine hears of it at its next start.
     private func watchCard(for what: String, on: Binding<Bool>, reason: String?) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .center, spacing: 12) {
             Image(systemName: on.wrappedValue && reason == nil ? "eye.fill" : "eye.slash")
-                .foregroundStyle(on.wrappedValue && reason == nil ? Color.green : .secondary).frame(width: 18).padding(.top, 1).accessibilityHidden(true)
+                .foregroundStyle(on.wrappedValue && reason == nil ? Color.green : .secondary).frame(width: 18).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Let Carrier watch \(what)")
                 Text(reason ?? "Carrier looks for epics marked ready and solves them with its agents. It starts listening the next time Carrier starts.")
@@ -366,15 +360,22 @@ struct WorkspaceSheet: View {
 
     /// A few lines on how the step works, each with its icon.
     private func howItWorks(_ points: [(String, String)]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("How it works").font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 14) {
+            Text("How it works").font(.callout.weight(.semibold)).foregroundStyle(.secondary)
             ForEach(points, id: \.1) { icon, text in
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Image(systemName: icon).foregroundStyle(.secondary).frame(width: 18).accessibilityHidden(true)
-                    Text(text).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 12) {
+                    Image(systemName: icon)
+                        .font(.system(size: 13, weight: .medium)).foregroundStyle(Color.accentColor)
+                        .frame(width: 30, height: 30)
+                        .background(RoundedRectangle(cornerRadius: radius).fill(Color.accentColor.opacity(0.16)))
+                        .accessibilityHidden(true)
+                    Text(text).font(.callout).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
                 }
             }
         }
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: radius).fill(Color.secondary.opacity(0.08)))
     }
 
     /// A path and what it is, on a faint fill.

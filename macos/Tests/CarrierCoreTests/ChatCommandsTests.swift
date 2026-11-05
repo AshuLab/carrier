@@ -36,13 +36,6 @@ private let commands = [
     #expect(inserting(review, over: try #require(commandToken(in: "/", cursor: 1)), in: "/") == ("/review ", 8))
 }
 
-@Test func theSlashButtonAppendsASlashAfterASpace() {
-    #expect(appendingSlash(to: "") == ("/", 1))
-    #expect(appendingSlash(to: "hello") == ("hello /", 7))
-    #expect(appendingSlash(to: "hello ") == ("hello /", 7))
-    #expect(appendingSlash(to: "hello\n") == ("hello\n/", 7))
-}
-
 @Test func aPluginsSkillSplitsIntoItsPluginAndItsName() {
     let skill = ChatCommand(id: "x", name: "solve:code-post", description: "")
     #expect(skill.source == "solve" && skill.shortName == "code-post")

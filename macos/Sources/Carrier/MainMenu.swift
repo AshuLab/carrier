@@ -97,7 +97,7 @@ extension AppDelegate {
     }
 
     @objc func showAbout() { WindowController.shared.showAbout() }
-    @objc func openSettings() { SettingsWindowController.shared.open() }
+    @objc func openSettings() { WindowController.shared.showSettings() }
     @objc func openWindow() { WindowController.shared.open() }
     @objc func newSession() { WindowController.shared.show(.newSession) }
     @objc func showHome() { WindowController.shared.show(.home) }

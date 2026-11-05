@@ -127,7 +127,7 @@ public func repoGroups(_ available: [AvailableRepo], watched: [String], selected
     return order.map { RepoGroup(owner: $0, choices: byOwner[$0]!) }
 }
 
-/// "pushed 3 d ago"; empty when GitHub gave no time.
+/// "pushed 3 d ago", "pushed 1 y 2 mo ago"; empty when GitHub gave no time.
 public func pushedLine(_ iso: String?, now: Date) -> String {
     guard let iso, let date = ISO8601DateFormatter().date(from: iso) else { return "" }
     let seconds = max(0, Int(now.timeIntervalSince(date)))
@@ -139,6 +139,8 @@ public func pushedLine(_ iso: String?, now: Date) -> String {
         if days == 1 { return "pushed yesterday" }
         if days < 14 { return "pushed \(days) d ago" }
         if days < 60 { return "pushed \(days / 7) w ago" }
-        return "pushed \(days / 30) mo ago"
+        if days < 365 { return "pushed \(days / 30) mo ago" }
+        let months = min(11, days % 365 / 30)
+        return "pushed \(days / 365) y\(months > 0 ? " \(months) mo" : "") ago"
     }
 }

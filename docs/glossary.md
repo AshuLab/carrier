@@ -126,11 +126,17 @@ _Avoid_: card, tab, panel.
 **User session** - A conversation the person starts inside the app with the agent of their choice, in a workspace. It belongs to no epic ([0012](adr/0012-sessions-and-epics-are-two-separate-worlds.md)), is disposable once its job is done, and can be archived. It is a Session in the sense above, when that conversation is not an epic's execution.
 _Avoid_: chat, thread.
 
-**Workspace** - The folder a user session works in: a folder on this Mac the person picks, a GitHub repository the chat cloned for them into the projects folder, or a new project it made there. The sidebar groups sessions by workspace. It is never the shared clone an epic runs in nor an epic's worktree, and Carrier's list of repos to watch is not where workspaces come from ([0015](adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)).
+**Workspace** - The folder a user session works in: a folder on this Mac the person picks, a GitHub repository the chat clones for them into the projects folder, or a new project it makes there, both when the first message is sent ([0018](adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)). The sidebar groups sessions by workspace. It is never the shared clone an epic runs in nor an epic's worktree, and Carrier's list of repos to watch is not where workspaces come from ([0015](adr/0015-the-chat-brings-projects-onto-the-mac-with-the-persons-own-github-login.md)).
 _Avoid_: project (for the folder; "project" is only the word of the New project action), epic checkout.
 
 **Projects folder** - The one folder where the chat puts what it brings onto this Mac: a clone at `<owner>/<repo>`, a new project at `local/<name>`. By default `<CARRIER_HOME>/chat/projects`, changeable in the chat config. It is the person's: Carrier fetches in it and never deletes anything from it. It is not the engine's `repos/`, where the engine keeps its own clones and the chat host refuses to work.
 _Avoid_: workspace folder, clones folder, repos folder.
+
+**New session draft** - What the app shows in New session before the first message: a plan (a folder, a repository to clone or a new project; the branch, worktree and its name; the agent and its options; the text). Choosing or changing any of it does nothing on the machine, and it is blank every time New session opens and after a send ([0018](adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)).
+_Avoid_: new chat, form.
+
+**Preparation** - What the chat host does after the first message is sent, in the background and in order, only the steps the plan needs: `clone` (or `fetch`) or `project`, `worktree` or `checkout`, `agent`, `message`. The session is `preparing` and shows the steps until the agent answers; a failed step stops it with the reason in words and Try again repeats what did not finish, while Cancel stops the running step and deletes the session (a finished clone stays in the projects folder). A repository to watch is added to the engine's `repos` only after the agent has answered.
+_Avoid_: setup, provisioning.
 
 **Base folder** - The workspace's own folder, as opposed to a worktree made from it. A session that works in the base folder edits the person's own checkout, with whatever branch and uncommitted changes it has.
 _Avoid_: main folder, original, source.

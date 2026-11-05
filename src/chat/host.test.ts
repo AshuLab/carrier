@@ -637,3 +637,56 @@ test('archive and unarchive keep the worktree, its folder and its branch', async
   expect(sessionRows()).toEqual([kept.id]);
   h.client.close();
 });
+
+const DAY = 86_400_000;
+/** A session opened and closed by a client at the clock's time, then the host stopped: what a host that was off leaves behind. */
+async function leaveIdleSession(clock: FakeClock) {
+  const first = await host(clock);
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  const { session } = (await client.request('open', { agent: 'claude', folder: root })) as { session: { id: string } };
+  await client.request('close', { sessionId: session.id });
+  client.close();
+  await first.stop();
+  return session.id;
+}
+const archivedIds = async () => {
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  const { sessions } = (await client.request('list', { archived: true })) as { sessions: { id: string }[] };
+  client.close();
+  return sessions.map((s) => s.id);
+};
+
+test('the host archives at its start what is due, and again after an hour of its clock, with a client connected', async () => {
+  const clock = new FakeClock();
+  const id = await leaveIdleSession(clock);
+  clock.time = 40 * DAY; // the host was off for 40 days
+  const first = await host(clock);
+  expect(await archivedIds()).toEqual([id]);
+  await first.stop();
+
+  const second = await leaveIdleSession(clock); // active at day 40
+  clock.time = 55 * DAY - 60_000; // a minute short of due at its start
+  await host(clock);
+  expect(await archivedIds()).toEqual([id]);
+  await clock.advance(60 * 60_000);
+  expect((await archivedIds()).sort()).toEqual([id, second].sort());
+});
+
+test('the pass reads chat.json each time: a change is used by the next pass and a wrong file skips it, saying why', async () => {
+  const clock = new FakeClock();
+  const id = await leaveIdleSession(clock);
+  clock.time = 20 * DAY;
+  const config = (text: string) => writeFileSync(join(root, 'chat', 'chat.json'), text);
+  config('{"archiveAfterDays":30,"deleteAfterDays":60}');
+  const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+  await host(clock);
+  expect(await archivedIds()).toEqual([]);
+  config('{"archiveAfterDays":0}');
+  await clock.advance(60 * 60_000);
+  expect(await archivedIds()).toEqual([]);
+  expect(errors.mock.calls.flat().join('\n')).toContain('archiveAfterDays');
+  config('{"archiveAfterDays":10,"deleteAfterDays":60}');
+  await clock.advance(60 * 60_000);
+  expect(await archivedIds()).toEqual([id]);
+  errors.mockRestore();
+});

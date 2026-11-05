@@ -25,7 +25,7 @@ const chatConfigSchema = z.strictObject({
   projectsFolder: z.string().min(1).transform(expandHome).refine(isAbsolute, 'must be an absolute path, or start with ~/').optional(),
   githubCallTimeoutSeconds: z.int().positive().optional(),
   logLevel: z.enum(LogLevel).optional(),
-  /** A session left alone this long is archived (nothing reads the two ages yet). */
+  /** A session left alone this long is archived by the host's clock pass (nothing reads `deleteAfterDays` yet). */
   archiveAfterDays: days.default(15),
   /** An archived session left alone this long is deleted, and it must be greater than `archiveAfterDays` when both are numbers. */
   deleteAfterDays: days.default(30),

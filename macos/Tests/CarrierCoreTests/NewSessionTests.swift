@@ -169,6 +169,16 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(model.sentence == "Work in api on the base folder (main)")
 }
 
+@MainActor @Test func aWorkspacePlusOpensTheDraftWithThatFolderChosenAndEveryLoadAfterItIsBlank() async {
+    let model = await draft(FakeChat())
+    model.start(in: "/w/api")
+    #expect(model.starts == 1)
+    await model.load()
+    #expect(model.folder == "/w/api")
+    await model.load()
+    #expect(model.folder == nil)
+}
+
 @MainActor @Test func theBoxCannotSendWithoutAWorkspaceAnAgentAndAMessage() async {
     let host = FakeChat()
     let model = await draft(host)

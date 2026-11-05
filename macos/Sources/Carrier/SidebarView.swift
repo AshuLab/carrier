@@ -1,11 +1,24 @@
 import CarrierCore
 import SwiftUI
 
-/// The two numbers every sidebar row is laid out with. The scroll area and the foot keep `edge` on both sides, so nothing inside has a
-/// side margin of its own; a row draws its fill edge to edge of that and keeps its content `inset` inside the fill.
+/// What every sidebar row is laid out with. The scroll area and the foot keep `edge` on both sides, so nothing inside has a side margin
+/// of its own; a row draws its fill edge to edge of that and keeps its content `inset` inside the fill. The type has four levels, one
+/// for each job: a section (Home, Sessions, Carrier), a group's title, an item's title (a session, an epic) and its detail.
 enum SidebarMetrics {
     static let edge: CGFloat = 8
-    static let inset: CGFloat = 10
+    static let inset: CGFloat = 12
+    static let section = Font.system(size: 16, weight: .medium)
+    static let group = Font.system(size: 12, weight: .semibold)
+    static let item = Font.system(size: 14)
+    static let detail = Font.system(size: 12)
+    /// Between rows: each one carries its own vertical padding.
+    static let rowGap: CGFloat = 2
+    /// The vertical padding of a section's row and of an item's row, and between an item's lines.
+    static let sectionPadding: CGFloat = 8
+    static let itemPadding: CGFloat = 7
+    static let lineGap: CGFloat = 3
+    /// Above a group's title, so it reads where a group begins; under it the first row is closer.
+    static let groupTop: CGFloat = 10
 }
 
 /// The sidebar: the Home row, Sessions, then Carrier with the epics in groups under it, in a scroll area; Archive and Settings are fixed
@@ -26,6 +39,8 @@ struct SidebarView: View {
     let chooseArchived: (String) -> Void
     /// Settings is a sheet over the window, not a page: the row opens it and is never the selected one.
     let openSettings: () -> Void
+    /// The + of a workspace's header: a new session in that folder.
+    let newSessionIn: (String) -> Void
     /// Carrier's search: not remembered between launches.
     @State private var searching = false
     @State private var query = ""
@@ -34,12 +49,12 @@ struct SidebarView: View {
     var body: some View {
         let epicCount = snapshot.map { sidebarGroups($0, by: groupBy).reduce(0) { $0 + $1.count } } ?? 0
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 4) {
+            LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
                 SidebarSectionRow(title: "Home", icon: "house", selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
                 SessionsRows(
                     sessions: sessions, sort: $sessionSort, selection: $selection, selected: selection == .sessions,
                     select: { selection = .sessions }, open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }),
-                    searchRequest: searchRequest, newSession: { selection = .newSession }
+                    searchRequest: searchRequest, newSession: { selection = .newSession }, newSessionIn: newSessionIn
                 )
                 CarrierRow(
                     state: state, selected: selection == .carrier, unfolded: open == .carrier, hasEpics: epicCount > 0,
@@ -70,8 +85,8 @@ struct SidebarView: View {
                                 Image(systemName: "chevron.right").imageScale(.small).rotationEffect(.degrees(expanded ? 90 : 0))
                                     .opacity(queried ? 0 : 1)
                             }
-                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                            .padding(.horizontal, SidebarMetrics.inset).padding(.top, 8).padding(.bottom, 2)
+                            .font(SidebarMetrics.group).foregroundStyle(.secondary)
+                            .padding(.horizontal, SidebarMetrics.inset).padding(.top, SidebarMetrics.groupTop).padding(.bottom, 2)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -134,7 +149,7 @@ private struct CarrierRow: View {
         let detail: String? = if let snapshot { Self.hover(snapshot) } else if case .incompatible? = state { state?.menuLine } else { nil }
         SidebarSectionRow(title: "Carrier", icon: "paperplane", selected: selected, action: select, actions: {
             Text(card.title)
-                .font(.caption.weight(.semibold))
+                .font(SidebarMetrics.detail.weight(.semibold))
                 .foregroundStyle(Self.tint(card.kind))
                 .padding(.horizontal, 8).padding(.vertical, 2)
                 .background(Capsule().fill(Self.tint(card.kind).opacity(0.28)))
@@ -286,9 +301,9 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
                 // row, but on its actions, still does through the tap below
                 Button(action: action) {
                     HStack(spacing: 8) {
-                        Image(systemName: icon).resizable().scaledToFit().frame(width: 15, height: 15)
+                        Image(systemName: icon).resizable().scaledToFit().frame(width: 18, height: 18)
                             .foregroundStyle(selected ? .primary : .secondary)
-                        Text(title).fontWeight(.medium)
+                        Text(title).font(SidebarMetrics.section)
                         Spacer(minLength: 0)
                     }
                     .contentShape(Rectangle())
@@ -298,10 +313,10 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
                 .accessibilityAddTraits(selected ? .isSelected : [])
                 actions
             }
-            .frame(minHeight: 20)
+            .frame(minHeight: 24)
             below
         }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, 6)
+        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.sectionPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
         .contentShape(RoundedRectangle(cornerRadius: 8))
@@ -317,24 +332,24 @@ struct SidebarRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             StateGlyph(state: row.state, attention: row.attention)
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 // two lines before the ellipsis: a title is a sentence, and the number no longer takes room from it
-                Text(row.title ?? row.name).font(.system(size: 12)).lineLimit(2)
+                Text(row.title ?? row.name).font(SidebarMetrics.item).lineLimit(2)
                 StateAndRepo {
                     // the number comes first so that, when the state is long, the tail is what gets cut
                     Text("\(Text("#\(row.issue) · ").foregroundStyle(.secondary))\(Text(row.detail).foregroundStyle(row.attention?.color ?? .secondary))")
-                        .font(.caption).monospacedDigit().lineLimit(1).truncationMode(.tail)
+                        .font(SidebarMetrics.detail).monospacedDigit().lineLimit(1).truncationMode(.tail)
                     if let repo = row.repoLabel {
                         HStack(spacing: 3) {
-                            GitHubMark.image.renderingMode(.template).resizable().scaledToFit().frame(width: 10, height: 10)
+                            GitHubMark.image.renderingMode(.template).resizable().scaledToFit().frame(width: 12, height: 12)
                             Text(repo).lineLimit(1).truncationMode(.tail)
                         }
-                        .font(.caption)
+                        .font(SidebarMetrics.detail)
                     }
                 }
             }
         }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, 4)
+        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.itemPadding)
         .help(row.tooltip)
     }
 }

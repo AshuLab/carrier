@@ -180,6 +180,10 @@ public struct WatchNote: Equatable {
     /// The plan of a cancelled preparation, put back in the draft the next time it loads, and the options of it that wait for the agent's list.
     @ObservationIgnored private var restoring: SessionPlan?
     @ObservationIgnored private var restoredOptions: [String: String]?
+    /// The folder a workspace header's + asked for, chosen when the draft loads next.
+    @ObservationIgnored private var startFolder: String?
+    /// Counts the asks for a folder, so the open draft loads again for the new one.
+    public private(set) var starts = 0
 
     /// `ensureHost` starts the chat host when it is not running (#503) and says whether it answers now.
     /// `sleep` is the wait before a typed name is checked, `watchEvery` how often the list is looked at for a session whose repository is to be watched. `projectsFolder` is where `chat.json` says the projects folder is, and
@@ -225,7 +229,16 @@ public struct WatchNote: Equatable {
         if let plan = restoring {
             restoring = nil
             await apply(plan)
+        } else if let path = startFolder {
+            startFolder = nil
+            await choose(folder: path)
         }
+    }
+
+    /// The + of a workspace in the sidebar: the draft opens (or starts over, if it is open) with that folder chosen.
+    public func start(in path: String) {
+        startFolder = path
+        starts += 1
     }
 
     /// A cancelled preparation gives the plan back: the draft that loads next has the folder, the branch or the worktree, the agent and its

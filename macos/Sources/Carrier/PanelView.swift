@@ -90,7 +90,10 @@ struct PanelView: View {
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, sessionSort: sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { shell.showSettings() })
+            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, sessionSort: sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { shell.showSettings() }, newSessionIn: { path in
+                model.newSession.start(in: path)
+                shell.selection = .newSession
+            })
                 .onChange(of: shell.open) { SidebarStore().open = shell.open }
                 // the menu or the + while the draft is open: it starts blank again
                 .onChange(of: shell.newSessionOpened) { model.newSession.blank() }

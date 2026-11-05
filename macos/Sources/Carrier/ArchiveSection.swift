@@ -32,7 +32,7 @@ struct ArchiveSection: View {
         VStack(spacing: 2) {
             SidebarSectionRow(title: "Archive", icon: "archivebox", selected: selection == .archive, action: { selection = .archive }, actions: {
                 if archived > 0 {
-                    Text("\(archived)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
+                    Text("\(archived)").font(SidebarMetrics.detail.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
                         .padding(.horizontal, 6).padding(.vertical, 1)
                         .background(Capsule().fill(Color.secondary.opacity(0.15)))
                         .accessibilityLabel("\(archived) archived")
@@ -70,7 +70,7 @@ struct ArchiveSection: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 1) {
                 ForEach(groups, id: \.title) { group in
-                    Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
+                    Text(group.title).font(SidebarMetrics.group).foregroundStyle(.secondary).lineLimit(1)
                         .padding(.horizontal, SidebarMetrics.inset).padding(.top, 4)
                     ForEach(group.rows, id: \.id) { row in
                         let chosen = selection == .session(id: row.id)

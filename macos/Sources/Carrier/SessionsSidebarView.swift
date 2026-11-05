@@ -16,6 +16,8 @@ struct SessionsRows: View {
     /// The last ⌘F: when it asks for Sessions, the search field opens and takes the keyboard.
     let searchRequest: SearchRequest?
     let newSession: () -> Void
+    /// The + of a workspace: a new session in that folder.
+    let newSessionIn: (String) -> Void
     @State private var sortOpen = false
     /// The search field's text while it is open, nil while it is closed; not remembered between launches.
     @State private var query: String?
@@ -32,7 +34,7 @@ struct SessionsRows: View {
     var body: some View {
         SidebarSectionRow(title: "Sessions", icon: "bubble.left.and.bubble.right", selected: selected, action: select, actions: {
             if sessions.open > 0 {
-                Text("\(sessions.open)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
+                Text("\(sessions.open)").font(SidebarMetrics.detail.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
                     .padding(.horizontal, 6).padding(.vertical, 1)
                     .background(Capsule().fill(Color.secondary.opacity(0.15)))
                     .accessibilityLabel(sessions.openLabel)
@@ -81,11 +83,7 @@ struct SessionsRows: View {
             case .rows, .empty: EmptyView()
             }
             ForEach(groups, id: \.title) { group in
-                if sort == .workspace {
-                    WorkspaceHeader(title: group.title)
-                } else {
-                    Text(group.title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1).padding(.horizontal, SidebarMetrics.inset)
-                }
+                GroupHeader(title: group.title, add: sort == .workspace ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil)
                 ForEach(group.rows, id: \.id) { row in
                     SessionRowView(row: row, showsWorkspace: sort != .workspace)
                         .selectableSidebarRow(selected: selection == .session(id: row.id)) { selection = .session(id: row.id) }
@@ -100,53 +98,29 @@ private extension SessionSort {
         switch self {
         case .workspace: "By workspace"
         case .age: "By age"
-        case .status: "By status"
+        case .status: "By state"
         }
     }
 }
 
-/// A workspace's name, with a + that appears on hover.
-private struct WorkspaceHeader: View {
+/// The title of a group of sessions, the same height in every order: a workspace's also has a + that appears on hover and starts a
+/// session in it (`add`; the other orders have none, and the room stays).
+private struct GroupHeader: View {
     let title: String
+    let add: (() -> Void)?
     @State private var hovered = false
 
     var body: some View {
         HStack {
-            Text(title).font(.caption.weight(.medium)).foregroundStyle(.secondary).lineLimit(1)
+            Text(title).font(SidebarMetrics.group).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 0)
-            IconButton(icon: "plus", name: "New session in \(title)") {}
-                .opacity(hovered ? 1 : 0)
-        }
-        .padding(.horizontal, SidebarMetrics.inset)
-        .onHover { hovered = $0 }
-    }
-}
-
-struct SessionRowView: View {
-    let row: SessionRow
-    /// Outside the workspace order the group is not the workspace, so the second line says it.
-    let showsWorkspace: Bool
-    private static let spokenAge: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter
-    }()
-
-    var body: some View {
-        HStack(spacing: 10) {
-            SessionGlyph(state: row.state)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.title).font(.system(size: 12)).lineLimit(1).truncationMode(.tail)
-                Text(showsWorkspace ? "\(row.workspace) · \(row.agent)" : row.agent).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            if let add {
+                IconButton(icon: "plus", name: "New session in \(title)", action: add).opacity(hovered ? 1 : 0)
             }
-            Spacer(minLength: 4)
-            // "5m" reads aloud as "5 m": say it in words
-            Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
-                .accessibilityLabel(Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date()))
         }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, 5)
-        .contextMenu { SessionMenuItems(row: row) }
-        .help(row.title)
+        .frame(height: 22)
+        .padding(.horizontal, SidebarMetrics.inset).padding(.top, SidebarMetrics.groupTop)
+        .onHover { hovered = $0 }
     }
 }
 

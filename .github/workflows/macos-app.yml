@@ -1,0 +1,23 @@
+name: macOS app
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "macos/**"
+      - ".github/workflows/macos-app.yml"
+
+jobs:
+  build-and-test:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: xcodebuild -version
+      - name: Build
+        working-directory: macos
+        run: swift build
+      - name: Test
+        working-directory: macos
+        run: swift test

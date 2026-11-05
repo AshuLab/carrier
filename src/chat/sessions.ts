@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, gt, isNotNull } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/default-path.ts';
-import type { ChatAgent } from './config.ts';
+import type { ChatAgent, ChatSettings } from './config.ts';
 import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
@@ -24,13 +24,18 @@ const log = createScopedLogger('chat');
 
 export const IDLE_CLOSE_MS = 60_000;
 
+const DAY = 86_400_000;
+/** The lifecycle's ages (ADR 0019), as `chat.json` gives them. */
+export type SessionAges = Pick<ChatSettings, 'archiveAfterDays' | 'deleteAfterDays'>;
+const idleFor = (row: { state: State; lastActiveAt: number }, live: boolean, now: number, days: number | 'never') => days !== 'never' && row.state === 'idle' && !live && now - row.lastActiveAt >= days * DAY;
+
 type Harness = (typeof sessions.$inferSelect)['harness'];
 type State = (typeof sessions.$inferSelect)['state'];
 
 /** Where a session works: the folder it was opened in, or a worktree made for it from that base folder. */
 export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: string; from: string; base: string; path: string };
 
-export type SessionSummary = Omit<typeof sessions.$inferSelect, 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath'> & {
+export type SessionSummary = Omit<typeof sessions.$inferSelect, 'keptAt' | 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath'> & {
   workspace: SessionWorkspace;
   /** `running` while the host prepares the session, `failed` when a step failed and the plan is kept, null otherwise. */
   preparation: 'running' | 'failed' | null;
@@ -68,6 +73,8 @@ export type ChatSessionsDeps = {
   binaryFound: (command: string) => boolean;
   /** What the `health` request runs; the machine's own tools unless a test replaces it. */
   probes?: HealthProbes;
+  /** The lifecycle's ages now: `list` says from them when the clock will delete each archived session. */
+  ages: () => SessionAges;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
   onLiveChange: () => void;
 };
@@ -90,9 +97,11 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, onLiveChange }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, ages, onLiveChange }: ChatSessionsDeps) {
   const health = createHealth({ agents, clock, binaryFound, probes });
   const lives = new Map<string, Live>();
+  /** Set by closeAll, the host's shutdown: a clock pass in flight leaves the sessions it has not reached alone. */
+  let closed = false;
   // Sessions being deleted: no agent may open in their folder while it is removed.
   const deleting = new Set<string>();
   let clients = 0;
@@ -102,7 +111,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (found === undefined) throw new ChatRefused('There is no such session');
     return found;
   };
-  const summary = ({ options: _options, pid: _pid, pgid: _pgid, command: _command, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
+  const summary = ({ keptAt: _keptAt, options: _options, pid: _pid, pgid: _pgid, command: _command, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
     ...rest,
     preparation: rest.state === 'preparing' ? 'running' : plan === null ? null : 'failed',
     workspace: workspaceKind === 'worktree' ? { kind: 'worktree', branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase!, path: worktreePath! } : { kind: 'folder' },
@@ -215,7 +224,18 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (lives.has(sessionId)) throw new ChatRefused('This session was resumed meanwhile; close it first'); // a resume that finished during the close
   }
 
-  async function remove({ sessionId }: { sessionId: string }) {
+  async function openConversation(chosen: ChatAgent, runner: ChatRunner, args: { folder: string; options: Record<string, string>; resume?: string }) {
+    try {
+      return await runner.open({ ...args, command: chosen.command, env });
+    } catch (error) {
+      if (error instanceof ChatRefused) throw error;
+      log.error('a chat runner failed to open', error);
+      throw new ChatRefused(`${chosen.name} could not be started`);
+    }
+  }
+
+  /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */
+  async function deleteSession({ sessionId }: { sessionId: string }) {
     // marked before the first await, so a resume that comes in meanwhile is refused
     deleting.add(sessionId);
     try {
@@ -232,16 +252,6 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       deleting.delete(sessionId);
     }
     return {};
-  }
-
-  async function openConversation(chosen: ChatAgent, runner: ChatRunner, args: { folder: string; options: Record<string, string>; resume?: string }) {
-    try {
-      return await runner.open({ ...args, command: chosen.command, env });
-    } catch (error) {
-      if (error instanceof ChatRefused) throw error;
-      log.error('a chat runner failed to open', error);
-      throw new ChatRefused(`${chosen.name} could not be started`);
-    }
   }
 
   /** Makes a conversation the live one of a session. */
@@ -420,9 +430,17 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     health,
 
-    list: ({ archived = false }: { archived?: boolean }) => ({
-      sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => ({ ...summary(found), live: lives.has(found.id) })),
-    }),
+    /** The rows, each with `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
+    list: ({ archived = false }: { archived?: boolean }) => {
+      const { archiveAfterDays, deleteAfterDays } = ages();
+      return {
+        sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => {
+          const dueAt = found.archived && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? found.lastActiveAt + deleteAfterDays * DAY : null;
+          const kept = found.keptAt !== null && dueAt !== null && clock.now() >= dueAt; // a session the clock no longer considers (ages raised or never) is not kept
+          return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt };
+        }),
+      };
+    },
 
     async open({ agent, folder, options, worktree }: { agent: string; folder: string; options?: Record<string, string>; worktree?: { from: string; name?: string } }) {
       const chosen = agents.find((candidate) => candidate.name === agent);
@@ -502,7 +520,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         await running?.done;
         await close({ sessionId }); // the agent that waits to answer the first message
         db.update(sessions).set({ state: 'idle' }).where(eq(sessions.id, sessionId)).run();
-        await remove({ sessionId });
+        await deleteSession({ sessionId });
       } finally {
         deleting.delete(sessionId);
       }
@@ -664,12 +682,49 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     async archive({ sessionId, archived }: { sessionId: string; archived: boolean }) {
       if (archived) await settle(sessionId, 'archive');
       else row(sessionId);
-      db.update(sessions).set({ archived }).where(eq(sessions.id, sessionId)).run();
+      db.update(sessions).set({ archived, ...(archived === false && { lastActiveAt: clock.now(), keptAt: null }) }).where(eq(sessions.id, sessionId)).run();
       return {};
     },
 
+    /**
+     * The clock's pass: archives each session left alone for `archiveAfterDays`, then deletes each archived one left alone for `deleteAfterDays`, sparing
+     * (marking `keptAt`) one whose worktree holds unsaved work. A working, waiting or live one is looked at again on the next pass.
+     */
+    async applyClock({ archiveAfterDays, deleteAfterDays }: SessionAges) {
+      const now = clock.now();
+      for (const found of db.select().from(sessions).where(eq(sessions.archived, false)).all()) {
+        if (idleFor(found, lives.has(found.id), now, archiveAfterDays)) db.update(sessions).set({ archived: true }).where(eq(sessions.id, found.id)).run();
+      }
+      if (archiveAfterDays === 'never') return;
+      for (const { id } of db.select().from(sessions).where(eq(sessions.archived, true)).all()) {
+        if (closed) return;
+        try {
+          // read again after each wait: the person may have restored or resumed it meanwhile, or the host may be shutting down
+          const due = () => {
+            if (closed) return undefined;
+            const found = db.select().from(sessions).where(eq(sessions.id, id)).get();
+            return found?.archived === true && idleFor(found, lives.has(id), now, deleteAfterDays) ? found : undefined;
+          };
+          const found = due();
+          if (found === undefined) continue;
+          if (found.workspaceKind === 'worktree') {
+            // one session at a time and just before deleting it, so a commit shared with one deleted a moment ago counts as lost
+            const { dirty, unpushed } = await previewWorktree(git, { path: found.worktreePath!, branch: found.worktreeBranch!, from: found.worktreeFrom!, base: found.worktreeBase! }, [found.worktreeBranch!]);
+            if (due() === undefined) continue;
+            if (dirty > 0 || unpushed > 0) {
+              if (found.keptAt === null) db.update(sessions).set({ keptAt: now }).where(eq(sessions.id, id)).run();
+              continue;
+            }
+          }
+          await deleteSession({ sessionId: id });
+        } catch (error) {
+          log.error('the clock could not delete a session; the next pass tries again', error); // git cannot read it, or it cannot be removed: left alone
+        }
+      }
+    },
+
     /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */
-    delete: remove,
+    delete: deleteSession,
 
     /** What deleting these sessions would discard: for each one in a worktree, its uncommitted files and the commits that exist nowhere else. An unknown id refuses the whole request. */
     async deletePreview({ sessionIds }: { sessionIds: string[] }) {
@@ -701,6 +756,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     /** Closes every live session: the host's stop. */
     async closeAll() {
+      closed = true;
       for (const sessionId of [...lives.keys()]) await close({ sessionId });
     },
   };

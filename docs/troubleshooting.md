@@ -53,6 +53,12 @@ Choosing a folder, a repository or a project in New session changes nothing on y
 - **The session says a step failed as interrupted (`Carrier stopped while this step was running`).** The chat host stopped in the middle of the step. Press Try again.
 - **A repository you let Carrier watch is not in the engine's `repos`.** It is added only once the agent has answered, and the engine listens from its next start. A session whose preparation failed or was cancelled adds nothing.
 
+## An archived session is kept and not deleted
+
+In the macOS app the Archive page says "Kept because its worktree has unsaved work" under the session. The clock never deletes a session whose worktree has uncommitted changes or commits that exist nowhere else, so it stays archived, however old, until its worktree is clean or you act (see [The session clock](configuration.md#the-session-clock)). A worktree that git could not read is left alone too, with the failure in `<folder>/chat/logs/chat-host.log`, and tried again an hour later. The clones in the projects folder are never deleted.
+
+To get rid of it, open the Archive page, hover the row and press Delete: the app first lists what would be lost ("3 uncommitted files and 2 commits that exist nowhere else will be removed with its worktree"), and nothing is deleted until you confirm. To keep the work, press Resume and commit and push it from the session's worktree; once nothing in it is unsaved, the session is archived and deleted by the clock again in time. Without the app, `carrier chat --delete <id>` deletes it at once with no question (`carrier chat --list --archived` shows the ids).
+
 ## Start-up errors
 
 - **`Invalid config <file>:` + fields.** Fix each listed field. `carrier schema` shows what is allowed.

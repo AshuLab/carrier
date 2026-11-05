@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Skills: use yours, write yours — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--acc:#0a84ff;--run:#30d158;--need:#ff9f0a;--err:#ff453a}body.light{--acc:#007aff;--run:#28a745;--need:#e08600;--err:#e5372d}
+h2.k-q{font-size:15px;margin:34px 0 2px}h2.k-q:first-of-type{margin-top:6px}
+.k-q+.sub{margin-bottom:12px}
+.k-opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:26px;align-items:start}
+.k-opt>h3{margin:0 0 2px;font-size:14px}.k-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:560px;min-height:52px}
+.k-cw{border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:16px 18px 18px;min-height:200px;position:relative}
+.k-tabs{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;margin-bottom:12px;box-shadow:0 0 0 .5px var(--line) inset}
+.k-tabs span{color:var(--dim);font-size:12px;font-weight:550;padding:4px 12px;border-radius:99px}.k-tabs span.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body.light .k-tabs span.on{background:#fff}
+.k-grp{margin:14px 2px 5px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;display:flex;justify-content:space-between}.k-grp:first-of-type{margin-top:0}
+.k-card{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 14px}
+.k-r{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:.5px solid var(--line);min-height:50px}.k-r:first-child{border:0}
+.k-r.sub2{padding-left:22px}
+.k-t{flex:1;min-width:0}.k-t b{display:block;font-weight:550}.k-t span{display:block;color:var(--dim);font-size:12px;margin-top:1px;line-height:1.35}
+.k-t span.k-bad,.k-bad{color:var(--err)}
+.k-c{display:flex;gap:8px;align-items:center;flex:none}
+.k-pill{display:inline-flex;align-items:center;gap:2px;font-size:12.5px;background:var(--card2);border-radius:8px;padding:4px 9px;box-shadow:0 0 0 .5px var(--line) inset;cursor:pointer;white-space:nowrap}
+.k-pill .k-p{color:var(--faint)}.k-pill .k-v{color:var(--faint);margin-left:6px;font-size:10px}
+.k-pill.k-miss{box-shadow:0 0 0 1.5px var(--err)}
+.k-chip{font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--card2);color:var(--dim);white-space:nowrap}
+.k-chip.b{background:color-mix(in srgb,var(--acc) 20%,transparent);color:var(--acc)}
+.k-chip.g{background:color-mix(in srgb,var(--run) 20%,transparent);color:var(--run)}
+.k-chip.o{background:color-mix(in srgb,var(--need) 18%,transparent);color:var(--need)}
+.k-chip.r{background:color-mix(in srgb,var(--err) 18%,transparent);color:var(--err)}
+.k-chip.p{background:color-mix(in srgb,var(--purple) 20%,transparent);color:var(--purple)}
+.k-rs{border:0;background:none;color:var(--acc);font-size:12.5px;cursor:pointer;padding:2px 6px;border-radius:6px}.k-rs:hover{background:var(--card2)}
+.k-btn{border:0;font:inherit;font-size:12.5px;font-weight:550;color:var(--text);background:var(--card2);padding:5px 14px;border-radius:99px;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset}.k-btn.pri{background:var(--acc);color:#fff}.k-btn[disabled]{opacity:.4;cursor:default}
+.k-foot{display:flex;align-items:center;gap:8px;margin-top:12px;min-height:30px}.k-foot .k-m{flex:1;color:var(--dim);font-size:12px}
+.k-pend{font-size:11px;font-weight:600;color:var(--need);background:color-mix(in srgb,var(--need) 14%,transparent);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.k-banner{border-radius:14px;padding:10px 14px;margin-bottom:12px;display:flex;gap:12px;align-items:center;background:color-mix(in srgb,var(--err) 12%,transparent)}
+.k-banner .k-t span{font-size:12px}
+.k-ctl{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:0 0 18px;padding:10px 16px;border-radius:14px;background:var(--card);max-width:980px;position:sticky;top:8px;z-index:9;backdrop-filter:blur(20px)}
+.k-ctl .k-l{color:var(--dim);font-size:12px}
+.k-seg{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.k-seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 10px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.k-seg button.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25)}body.light .k-seg button.on{background:#fff}
+.k-btnp{border:0;font:inherit;font-size:12.5px;color:var(--text);background:var(--card2);padding:5px 14px;border-radius:99px;cursor:pointer}
+/* loop diagram */
+.k-loop{display:flex;align-items:stretch;gap:0;margin:2px 0 8px}
+.k-node{flex:1;border-radius:14px;background:var(--card);padding:10px 12px;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset;min-width:0}
+.k-node.on{box-shadow:0 0 0 1.5px var(--acc);background:color-mix(in srgb,var(--acc) 10%,transparent)}
+.k-node b{display:flex;align-items:center;gap:6px;font-weight:600}
+.k-node small{display:block;color:var(--dim);font-size:11.5px;margin-top:1px}
+.k-node code{font-size:12px;color:var(--text)}
+.k-arrow{width:34px;display:grid;place-items:center;color:var(--faint);flex:none}
+.k-back{font-size:11.5px;color:var(--faint);text-align:center;margin:0 0 10px}
+/* contract */
+.k-ct{display:grid;grid-template-columns:78px 1fr;gap:6px 12px;padding:10px 0;font-size:12.5px}
+.k-ct dt{color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding-top:2px}
+.k-ct dd{margin:0;color:var(--dim)}.k-ct dd b{color:var(--text);font-weight:550}
+.k-chk{display:flex;gap:9px;align-items:flex-start;padding:6px 0;font-size:12.5px}
+.k-chk i{font-style:normal;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10px;flex:none;margin-top:1px}
+.k-chk i.y{background:var(--run);color:#fff}.k-chk i.n{background:var(--err);color:#fff}.k-chk i.q{background:var(--card2);color:var(--dim)}
+.k-chk span{color:var(--dim)}.k-chk b{font-weight:550;color:var(--text)}
+/* popover and sheet */
+.k-menu{border-radius:14px;background:var(--win);backdrop-filter:blur(40px) saturate(1.6);box-shadow:var(--shadow);padding:8px;margin-top:8px;width:100%}
+.k-search{display:flex;align-items:center;gap:8px;background:var(--card2);border-radius:9px;padding:6px 10px;color:var(--faint);margin-bottom:6px;box-shadow:0 0 0 .5px var(--line) inset}
+.k-mi{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:8px}
+.k-mi.on{background:var(--sel)}.k-mi.off{opacity:.45}
+.k-mi .k-t span{font-size:11.5px}
+.k-mi code{font-size:12.5px}
+.k-mg{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);padding:8px 10px 3px}
+.k-hr{border:0;border-top:.5px solid var(--line);margin:6px 4px}
+.k-sheet{border-radius:18px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:16px 18px}
+.k-sheet h4{margin:0 0 2px;font-size:15px}.k-sheet>p{margin:0 0 12px;color:var(--dim);font-size:12.5px}
+.k-field{margin:0 0 12px}.k-field>label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);margin:0 2px 4px}
+.k-in{width:100%;font:inherit;font-family:var(--mono);font-size:12.5px;color:var(--text);background:var(--card2);border:0;border-radius:8px;padding:6px 10px;box-shadow:0 0 0 .5px var(--line) inset}
+.k-code{background:#0d0d10;color:#d6d6dc;font:11.5px/1.55 var(--mono);border-radius:12px;padding:10px 14px;box-shadow:0 0 0 .5px rgba(255,255,255,.12) inset;white-space:pre-wrap}
+.k-code .c{color:#8b8b95}.k-code .k{color:#7ee787}
+.k-setc{display:flex;align-items:center;gap:12px;border-radius:14px;background:var(--card);padding:12px 14px;margin-bottom:10px;box-shadow:0 0 0 .5px var(--line) inset}
+.k-ul{max-width:900px;margin:26px 0 0;padding-left:18px;color:var(--dim)}.k-ul li{margin:6px 0}.k-ul b{color:var(--text)}
+</style></head><body>
+<h1>Skills: using yours, writing yours</h1>
+<div class="sub">A new <b>Skills</b> tab in Settings. Carrier runs three stages (<b>Ship</b>, <b>Review</b>, <b>Fix</b>) and each one calls a skill. By default those are the <code>solve</code> skills; the user can point a stage at their own or write one. Two questions: <b>A–C</b> how the tab is organized, <b>D–F</b> how a skill is picked, checked and written. Use the bar: <b>skills</b> flips between the defaults and a customized draft; <b>runs on</b> changes which harness the stage uses (the skill has to exist there, and Codex calls skills with <code>$</code> instead of <code>/</code>). The harness choice is the profile's, shown here only to preview the mismatch; it is not edited in this tab.</div>
+<div class="k-ctl">
+ <span class="k-l">Skills</span>
+ <div class="k-seg" id="state"><button data-v="defaults" class="on">Defaults (solve)</button><button data-v="custom">Customized</button></div>
+ <span class="k-l">Author runs on</span>
+ <div class="k-seg" id="author"><button data-v="claude" class="on">Claude Code</button><button data-v="codex">Codex</button></div>
+ <span class="k-l">Reviewer runs on</span>
+ <div class="k-seg" id="reviewer"><button data-v="claude" class="on">Claude Code</button><button data-v="codex">Codex</button></div>
+ <span style="flex:1"></span><button class="k-btnp" id="theme">☾ / ☀︎</button>
+</div>
+
+<h2 class="k-q">1 · How is the Skills tab organized?</h2>
+<div class="sub">Same Settings window as Behavior and Repos: edits are a draft, then “Save and restart” or “Save only”.</div>
+<div class="k-opts">
+ <div class="k-opt"><h3>A · Three slots, one list</h3><p>The plainest: a row per stage with its skill. Review has a second row because it publishes its findings as a separate step (it can be the same skill).</p><div class="k-cw" id="A"></div></div>
+ <div class="k-opt"><h3>B · The loop, then the stage</h3><p>The three stages drawn as the cycle Carrier runs (review and fix repeat). Click a stage to see its skill and what that skill has to do. Teaches the flow while you configure it.</p><div class="k-cw" id="B"></div></div>
+ <div class="k-opt"><h3>C · A skill set, with overrides</h3><p>Pick a whole set at once (solve today, a team's set tomorrow), then override single stages. Fits people who install a bundle rather than choose per stage.</p><div class="k-cw" id="C"></div></div>
+</div>
+
+<h2 class="k-q">2 · Picking, checking and writing a skill</h2>
+<div class="sub">What happens after clicking a skill pill, and how someone writes one for a stage.</div>
+<div class="k-opts">
+ <div class="k-opt"><h3>D · Pick from what is installed</h3><p>A list of the skills the stage's harness can see, grouped by where they live. The ones the harness doesn't have are dimmed with the reason. The engine does the scan (a control request, like the repo list).</p><div class="k-cw" id="D"></div></div>
+ <div class="k-opt"><h3>E · The contract, with a check</h3><p>What a skill for this stage has to do, written once, and a short check of the chosen one. Carrier can tell it exists and that a run returns its result; it cannot tell what the skill does, and the panel says so.</p><div class="k-cw" id="E"></div></div>
+ <div class="k-opt"><h3>F · Write your own</h3><p>“Write a new skill…” from the picker. Starts from a copy of the solve skill or from a blank one that already carries the contract, saved where the harness reads it, then opens in the user's editor.</p><div class="k-cw" id="F"></div></div>
+</div>
+
+<ul class="k-ul">
+ <li><b>Why three slots and not four:</b> <code>code-post</code> only makes sense after <code>code-review</code>, so it is the second step of Review, not a stage of its own. One skill can do both.</li>
+ <li><b>What the skill gets:</b> only the epic or PR number. It reads the rest from GitHub. Carrier appends the result format to the prompt, so a skill never has to know it.</li>
+ <li><b>What Carrier fixes, not configurable:</b> the states (<code>ready-for-test</code>, <code>needs-human</code>), the result JSON and “never merges”. The contract panel states these as rules, not options.</li>
+ <li><b>Where the list comes from:</b> the engine (the app never reads the user's home folders), via a new control request advertised in <code>hello.capabilities</code>; an older engine shows the skills as text fields without a list.</li>
+ <li><b>What is saved:</b> <code>skills: { ship, review: [review, publish], fix }</code> in <code>config.json</code>, defaults omitted. <code>carrier doctor</code> runs the same “found for this harness” check.</li>
+ <li><b>Not here yet:</b> a different set per repo, and other trackers or label names. Both are separate decisions.</li>
+</ul>
+
+<script>
+const $=s=>document.querySelector(s);
+const H={claude:{n:'Claude Code',p:'/'},codex:{n:'Codex',p:'$'}};
+const st={state:'defaults',author:'claude',reviewer:'claude',sel:'ship'};
+const SK={
+ 'ship':{src:'solve',on:['claude','codex'],d:'Carry a ticket or a whole epic to done'},
+ 'code-review':{src:'solve',on:['claude','codex'],d:'Adversarial review of a PR or branch'},
+ 'code-post':{src:'solve',on:['claude','codex'],d:'Publish a review report on the PR'},
+ 'code-resolve':{src:'solve',on:['claude','codex'],d:'Work through reviewer comments on your PR'},
+ 'team-ship':{src:'yours',path:'~/.claude/skills/team-ship',on:['claude'],d:'Our ship flow, with the migration checklist'},
+ 'strict-review':{src:'this repo',path:'.claude/skills/strict-review',on:['claude','codex'],d:'Review and post, our rules'}
+};
+const PICK={defaults:{ship:'ship',review:'code-review',publish:'code-post',fix:'code-resolve'},custom:{ship:'team-ship',review:'strict-review',publish:'strict-review',fix:'code-resolve'}};
+const SLOT={
+ ship:{n:'Ship',who:'author',line:'Builds every slice of the epic and leaves the integration PR open',recv:'The epic number',leaves:'Every slice done, the epic in its own worktree, the integration PR open',never:'Merge the PR',ret:'The result JSON'},
+ review:{n:'Review',who:'reviewer',line:'Reads the epic’s PR against its spec and tickets',recv:'The epic and its PR number',leaves:'A review of the PR against the spec, earlier findings checked',never:'Change the code',ret:'The result JSON'},
+ publish:{n:'Publish findings',who:'reviewer',line:'Posts the review on the PR as the reviewer identity',recv:'The review just made',leaves:'Each finding as a comment on the PR, from the reviewer account',never:'Post as the author',ret:'The result JSON'},
+ fix:{n:'Fix',who:'author',line:'Answers the review’s findings and fixes what applies',recv:'The PR number',leaves:'Every thread answered, what applies fixed and pushed',never:'Merge the PR',ret:'The result JSON'}
+};
+const hz=id=>st[SLOT[id].who];
+const cur=id=>PICK[st.state][id];
+const ok=id=>SK[cur(id)].on.includes(hz(id));
+const isDef=id=>cur(id)===PICK.defaults[id];
+const pr=id=>H[hz(id)].p;
+const pill=id=>'<span class="k-pill mono'+(ok(id)?'':' k-miss')+'"><span class="k-p">'+pr(id)+'</span>'+cur(id)+'<span class="k-v">▾</span></span>';
+const tag=id=>!ok(id)?'<span class="k-chip r">not installed</span>':isDef(id)?'<span class="k-chip">default</span>':(id==='publish'&&cur('publish')===cur('review')?'<span class="k-chip p">does both</span>':'<span class="k-chip b">'+SK[cur(id)].src+'</span>');
+const why=id=>ok(id)?'':'<span class="k-bad"><code>'+cur(id)+'</code> isn’t installed for '+H[hz(id)].n+' (found only for '+SK[cur(id)].on.map(x=>H[x].n).join(', ')+')</span>';
+const bad=()=>['ship','review','publish','fix'].filter(id=>!ok(id));
+const dirty=()=>st.state!=='defaults';
+const TABS='<div class="k-tabs"><span>Engine</span><span>Behavior</span><span>Repos</span><span class="on">Skills</span><span>Notifications</span><span>General</span></div>';
+const banner=()=>bad().length?'<div class="k-banner"><div class="k-t"><b>'+bad().length+' stage'+(bad().length>1?'s have':' has')+' a skill its harness can’t find</b><span>Save is off until every stage resolves. Pick another skill or change what the stage runs on.</span></div></div>':'';
+const foot=()=>'<div class="k-foot"><span class="k-m">'+(dirty()?'<span class="k-pend">Not saved</span>':'')+'</span><button class="k-btn" '+(dirty()?'':'disabled')+'>Revert</button><button class="k-btn" '+(dirty()&&!bad().length?'':'disabled')+'>Save only</button><button class="k-btn pri" '+(dirty()&&!bad().length?'':'disabled')+'>Save and restart</button></div>';
+const slotRow=(id,extra)=>'<div class="k-r'+(id==='publish'?' sub2':'')+'"><div class="k-t"><b>'+SLOT[id].n+'</b><span>'+(SLOT[id].who==='author'?'Author':'Reviewer')+' · runs on '+H[hz(id)].n+' · '+SLOT[id].line+'</span>'+why(id)+'</div><div class="k-c">'+(extra||tag(id))+pill(id)+(isDef(id)||!ok(id)&&false?'':'<button class="k-rs" title="Back to default">↺</button>')+'</div></div>';
+
+function A(){return TABS+banner()+
+ '<div class="k-grp"><span>Stages</span><span>Skill</span></div><div class="k-card">'+slotRow('ship')+slotRow('review')+slotRow('publish')+slotRow('fix')+'</div>'+foot()}
+
+function contract(id){const s=SLOT[id];return '<dl class="k-ct"><dt>Gets</dt><dd><b>'+s.recv+'</b>, nothing else; it reads the rest from GitHub</dd><dt>Leaves</dt><dd><b>'+s.leaves+'</b></dd><dt>Never</dt><dd><b>'+s.never+'</b></dd><dt>Returns</dt><dd><b>'+s.ret+'</b> (Carrier adds the format to the prompt)</dd></dl>'}
+function B(){
+ const N=(id,label)=>'<div class="k-node'+(st.sel===id?' on':'')+'" data-sel="'+id+'"><b>'+label+(ok(id)&&(id!=='review'||ok('publish'))?'':' <span class="dot r"></span>')+'</b><code class="mono">'+pr(id)+cur(id)+'</code><small>'+(SLOT[id].who==='author'?'Author':'Reviewer')+'</small></div>';
+ const sel=st.sel;
+ const second=sel==='review'?'<div class="k-r sub2" style="border-top:.5px solid var(--line)"><div class="k-t"><b>Then publish</b><span>'+SLOT.publish.line+'</span>'+why('publish')+'</div><div class="k-c">'+tag('publish')+pill('publish')+'</div></div>':'';
+ return TABS+banner()+'<div class="k-loop">'+N('ship','Ship')+'<div class="k-arrow">→</div>'+N('review','Review')+'<div class="k-arrow">⇄</div>'+N('fix','Fix')+'</div><div class="k-back">Review and Fix repeat until the review is clean or the rounds run out</div>'+
+ '<div class="k-card"><div class="k-r"><div class="k-t"><b>'+SLOT[sel].n+'</b><span>'+SLOT[sel].line+'</span>'+why(sel)+'</div><div class="k-c">'+tag(sel)+pill(sel)+(isDef(sel)?'':'<button class="k-rs">↺</button>')+'</div></div>'+second+'<div style="border-top:.5px solid var(--line)">'+contract(sel)+'</div></div>'+foot()}
+
+function C(){
+ const ovr=id=>!isDef(id);
+ const row=id=>'<div class="k-r'+(id==='publish'?' sub2':'')+'"><div class="k-t"><b>'+SLOT[id].n+'</b><span>'+(ovr(id)?'Overridden · the set would use <code>'+PICK.defaults[id]+'</code>':'From the set')+'</span>'+why(id)+'</div><div class="k-c">'+(ok(id)?'':'<span class="k-chip r">not installed</span>')+pill(id)+(ovr(id)?'<button class="k-rs">Back to set</button>':'<button class="k-rs">Override…</button>')+'</div></div>';
+ return TABS+banner()+'<div class="k-setc"><div class="k-t"><b>Skill set</b><span>The four skills Carrier was built around: <code class="mono">ship</code> · <code class="mono">code-review</code> · <code class="mono">code-post</code> · <code class="mono">code-resolve</code></span></div><span class="k-pill">solve <span class="k-v">▾</span></span></div>'+
+ '<div class="k-card">'+row('ship')+row('review')+row('publish')+row('fix')+'</div>'+foot()}
+
+function D(){
+ const id='ship',h=hz(id);
+ const item=(n,on)=>{const k=SK[n],avail=k.on.includes(h);return '<div class="k-mi'+(on?' on':'')+(avail?'':' off')+'"><div class="k-t"><code class="mono">'+H[h].p+n+'</code><span>'+(avail?k.d:'Not installed for '+H[h].n)+'</span></div>'+(n==='ship'?'<span class="k-chip">default</span>':'')+(on?'✓':'')+'</div>'};
+ return TABS+'<div class="k-card">'+slotRow(id)+'</div><div class="k-menu"><div class="k-search">⌕ <span>Search skills for '+H[h].n+'</span></div>'+
+ '<div class="k-mg">solve · set</div>'+['ship','code-review','code-post','code-resolve'].map(n=>item(n,cur(id)===n)).join('')+
+ '<div class="k-mg">Yours · ~/.claude/skills</div>'+item('team-ship',cur(id)==='team-ship')+
+ '<div class="k-mg">This repo · .claude/skills</div>'+item('strict-review',cur(id)==='strict-review')+
+ '<hr class="k-hr"><div class="k-mi"><div class="k-t"><b>Write a new skill…</b></div></div><div class="k-mi"><div class="k-t"><b>Type a name…</b><span>For a skill the list can’t see</span></div></div></div>'}
+
+function E(){
+ const id=st.sel==='publish'?'review':st.sel,s=cur(id),k=SK[s],h=hz(id);
+ const chk=(c,b,t)=>'<div class="k-chk"><i class="'+c+'">'+(c==='y'?'✓':c==='n'?'✕':'?')+'</i><div><b>'+b+'</b><br><span>'+t+'</span></div></div>';
+ return TABS+'<div class="k-card"><div class="k-r"><div class="k-t"><b>'+SLOT[id].n+'</b><span>'+SLOT[id].line+'</span></div><div class="k-c">'+tag(id)+pill(id)+'</div></div></div>'+
+ '<div class="k-grp" style="margin-top:14px"><span>A skill for this stage must</span></div><div class="k-card">'+contract(id)+'</div>'+
+ '<div class="k-grp" style="margin-top:14px"><span>Check · <span class="mono" style="text-transform:none">'+H[h].p+s+'</span></span><span style="text-transform:none;font-weight:400">just now</span></div><div class="k-card" style="padding-top:4px;padding-bottom:4px">'+
+ (k.on.includes(h)?chk('y','Found for '+H[h].n,k.path||'part of the solve set'):chk('n','Not found for '+H[h].n,'Only installed for '+k.on.map(x=>H[x].n).join(', ')))+
+ chk('y','Has a description','The harness can offer it and the agent can invoke it by name')+
+ chk('q','What it does is not checked','Carrier reads the result each run returns. A run that returns none is sent to you as needs-human.')+'</div>'+
+ '<div class="k-foot"><span class="k-m"></span><button class="k-btn">Check again</button></div>'}
+
+function F(){
+ return TABS+'<div class="k-card" style="opacity:.55">'+slotRow('ship')+'</div>'+
+ '<div class="k-sheet" style="margin-top:10px"><h4>New skill for Ship</h4><p>Carrier calls it for every epic. It is a normal skill file; nothing here is Carrier-only.</p>'+
+ '<div class="k-field"><label>Name</label><input class="k-in" value="team-ship" readonly></div>'+
+ '<div class="k-field"><label>Start from</label><div class="k-seg"><button class="on">A copy of solve’s ship</button><button>Blank, with the contract</button></div></div>'+
+ '<div class="k-field"><label>Save for</label><div class="k-seg"><button class="on">Me · ~/.claude/skills</button><button>This repo · .claude/skills</button></div> <span class="k-chip" style="margin-left:6px">+ Codex copy</span></div>'+
+ '<div class="k-field"><label>Starts as</label><div class="k-code"><span class="c">---</span>\nname: <span class="k">team-ship</span>\ndescription: <span class="k">Carry an epic to done: our flow</span>\n<span class="c">---</span>\n<span class="c"># Carrier calls this with the epic number. It must:\n#  - finish every slice, the epic in its own worktree\n#  - leave the integration PR open, never merge it\n#  - end with the result JSON Carrier asks for</span>\n…the body of solve’s ship, to edit</div></div>'+
+ '<div class="k-foot"><span class="k-m">Opens in your editor. Ship uses it as soon as you save the tab.</span><button class="k-btn">Cancel</button><button class="k-btn pri">Create and open</button></div></div>'}
+
+function draw(){for(const [k,f] of Object.entries({A,B,C,D,E,F}))$('#'+k).innerHTML=f()}
+function seg(id,key){$(id).onclick=e=>{const b=e.target.closest('button');if(!b)return;document.querySelectorAll(id+' button').forEach(x=>x.classList.toggle('on',x===b));st[key]=b.dataset.v;draw()}}
+seg('#state','state');seg('#author','author');seg('#reviewer','reviewer');
+document.addEventListener('click',e=>{const n=e.target.closest('[data-sel]');if(n){st.sel=n.dataset.sel;draw()}});
+$('#theme').onclick=()=>document.body.classList.toggle('light');
+// #custom, #custom,codex (author+reviewer on Codex) and #light open a state directly
+for(const f of location.hash.slice(1).split(',')){
+ if(f==='custom')st.state='custom';
+ if(f==='codex')st.author=st.reviewer='codex';
+ if(f==='light')document.body.classList.add('light');
+}
+for(const [id,key] of [['#state','state'],['#author','author'],['#reviewer','reviewer']])document.querySelectorAll(id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===st[key]));
+draw();
+</script></body></html>

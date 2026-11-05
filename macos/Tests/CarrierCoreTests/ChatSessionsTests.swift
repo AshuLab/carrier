@@ -200,9 +200,9 @@ private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
 private func row(
     _ id: String, _ title: String = "t", workspace: String = "web", agent: String = "claude", state: SessionState = .idle, ago: TimeInterval = 60,
-    archived: Bool = false
+    archived: Bool = false, kept: Bool = false, deleteAt: Date? = nil
 ) -> SessionRow {
-    SessionRow(id: id, title: title, workspace: workspace, agent: agent, state: state, updatedAt: now.addingTimeInterval(-ago), archived: archived)
+    SessionRow(id: id, title: title, workspace: workspace, agent: agent, state: state, updatedAt: now.addingTimeInterval(-ago), archived: archived, kept: kept, deleteAt: deleteAt)
 }
 
 private let sample = [
@@ -597,4 +597,38 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     ])
     await #expect(throws: ControlError.remote("There is no such session")) { try await host.deletePreview([baseSession, "3f2b6a52-8f5e-4a63-9d5b-0a1d2c3e4f50"]) }
     await #expect(throws: ControlError.remote("not a valid session id")) { try await host.deletePreview(["../x"]) }
+}
+
+// When the clock deletes an archived session, and why a kept one is still there.
+
+private func clockSession(_ extra: String) throws -> ChatSession {
+    let json = """
+        {"id":"c","agent":"codex","harness":"codex","folder":"/f","title":"t","state":"idle","createdAt":1,"lastActiveAt":1,"archived":true,"live":false\(extra)}
+        """
+    return try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))
+}
+
+@Test func aRowCarriesKeptAndTheDeleteDateAndAHostThatLeavesThemOutIsNotKeepingItAndGivesNoDate() throws {
+    let kept = sessionRows([try clockSession(",\"kept\":true,\"deleteAt\":null")])[0]
+    #expect(kept.kept && kept.deleteAt == nil)
+    let due = sessionRows([try clockSession(",\"kept\":false,\"deleteAt\":1792000123456")])[0]
+    #expect(due.kept == false && due.deleteAt == Date(timeIntervalSince1970: 1_792_000_123.456))
+    let older = sessionRows([try clockSession("")])[0]
+    #expect(older.kept == false && older.deleteAt == nil)
+}
+
+@Test func theArchivePageSaysWhenEachSessionIsDeletedAndWhyAKeptOneIsStillThere() {
+    let day: TimeInterval = 86400
+    func archivedRow(_ id: String, kept: Bool = false, deleteIn: TimeInterval? = nil) -> SessionRow {
+        row(id, "s \(id)", workspace: "api", ago: day, archived: true, kept: kept, deleteAt: deleteIn.map { now.addingTimeInterval($0) })
+    }
+    let page = archivePage([
+        archivedRow("due", deleteIn: 12 * day), archivedRow("part", deleteIn: 11.2 * day), archivedRow("tomorrow", deleteIn: day),
+        archivedRow("late", deleteIn: -3600), archivedRow("kept", kept: true), archivedRow("never"),
+    ], now: now)
+    #expect(page.notes == [
+        "due": "Deletes in 12 days", "part": "Deletes in 12 days", "tomorrow": "Deletes in 1 day", "late": "Deletes soon",
+        "kept": "Kept because its worktree has unsaved work",
+    ])
+    #expect(archivePage(activeSample, now: now).notes.isEmpty)
 }

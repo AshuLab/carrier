@@ -184,3 +184,12 @@ _Avoid_: account (an option is more than the login), provider (that is the model
 
 **Failover** - Carrier moving a role of a running epic from the agent option that ran out of credits to the next one in the config's `failover.order`, with no person involved. It is off until the config turns it on, it only ever moves to an option listed in `order`, and it is remembered for that epic only. Each switch is an epic event that says from which option to which, and why.
 _Avoid_: fallback, automatic retry (an execution retry repeats the same option; a failover changes it).
+
+**New session draft** - The page where a person chooses everything a session needs (where it works, the worktree and branch, the agent and its options) and writes the first message. It is a plan: nothing is cloned, created or written until the message is sent, and it is blank every time it opens ([0018](adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)).
+_Avoid_: new session (the session does not exist yet), form, wizard.
+
+**Preparation** - What the chat host does between the first message and the agent's first answer: clone or create the workspace, make the worktree, check out the branch, start the agent and deliver the message. Each is a step the conversation shows; a step that fails stops it and can be retried. A session is preparing while it runs.
+_Avoid_: setup (that is a repository's own scripts, out of scope), provisioning, bootstrap.
+
+**Session lifecycle** - The life of a user session: created by its first message, worked in, then archived or deleted by the person or by the clock. A session idle for 15 days is archived and an archived one idle for 30 days is deleted, both from its last activity and both configurable in `chat.json`; a delete by the clock spares a session with unsaved work ([0019](adr/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md)).
+_Avoid_: expiry, retention, auto-clean.

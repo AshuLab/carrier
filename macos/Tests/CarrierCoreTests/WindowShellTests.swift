@@ -180,3 +180,13 @@ import Testing
     shell.reset()
     #expect(shell.settingsShown == false)
 }
+
+@Test func settingsHasASessionsTabBetweenReposAndNotificationsAndOpensOnItWhenAsked() {
+    let tabs = SettingsTab.allCases
+    #expect(SettingsTab.sessions.rawValue == "Sessions" && tabs.firstIndex(of: .sessions) == tabs.firstIndex(of: .repos)! + 1 && tabs.firstIndex(of: .sessions)! + 1 == tabs.firstIndex(of: .notifications))
+    let shell = WindowShell()
+    shell.showSettings(.sessions)
+    #expect(shell.settingsShown && shell.settingsTab == .sessions)
+    shell.showSettings()
+    #expect(shell.settingsTab == .engine)
+}

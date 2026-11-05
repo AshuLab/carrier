@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>The thread rule of a slice and a group — options</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+.t-ctl{display:flex;gap:12px;align-items:center;margin:0 0 20px}
+.t-opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:26px;align-items:start}
+.t-opt>h3{margin:0 0 2px;font-size:14px}.t-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:540px;min-height:52px}
+.t-box{border-radius:22px;background:var(--win);box-shadow:var(--shadow);padding:14px}
+.t-card{border-radius:16px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;overflow:hidden;font-size:12px}
+
+/* rows: the measures of the app (icon column 12, title column 36, call line 26) */
+.t-row{display:flex;align-items:center;gap:8px;padding:0 12px;height:26px;color:var(--dim)}
+.t-row .ic{width:16px;text-align:center;flex:none;font-size:11px}
+.t-row .tx{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t-row .du{width:44px;text-align:right;font-size:11px;color:var(--faint)}
+.t-row:hover{background:color-mix(in srgb,var(--text) 5%,transparent)}
+.t-grp{height:28px}
+.t-head{position:relative;padding:0 12px;height:52px}
+.t-head .st{position:absolute;left:12px;top:18px;width:16px;height:16px;border-radius:50%;background:var(--tint);display:grid;place-items:center;color:#000;font-size:10px;font-weight:800}
+.t-head .l1{padding-left:24px;height:28px;display:flex;align-items:center;font-weight:600}
+.t-head .l1 i{font-style:normal;font-weight:500;color:var(--dim);margin-right:6px}
+.t-head .l2{padding-left:24px;font-size:11px;color:var(--dim)}
+.t-head .l2 span{background:var(--card2);border-radius:99px;padding:2px 8px;margin-right:6px;color:var(--dim)}
+.t-msg{margin:6px 12px 6px 12px;background:var(--card2);border-radius:12px;padding:9px 14px;color:var(--text);font-size:13px}
+
+/* the thread: children hang 24 in, the rule at x = 19 */
+.t-kids{--tint:var(--green);position:relative;padding-left:24px}
+.t-kids .t-row,.t-kids .t-msg{position:relative}
+/* the hover fill reaches the rule: 24 - 19.75 */
+.t-kids .t-row:hover{box-shadow:-4px 0 0 color-mix(in srgb,var(--text) 5%,transparent)}
+.t-kids::before{content:"";position:absolute;left:18.25px;top:0;bottom:0;width:1.5px;border-radius:99px;background:color-mix(in srgb,var(--text) 25%,transparent);transition:background .12s,width .12s}
+
+/* a group inside the slice hangs 18 in, its rule at 17 */
+.t-kids .t-kids{padding-left:18px}
+.t-kids .t-kids::before{left:16.25px}
+.t-kids .t-kids.oB::after{left:14px}
+.t-kids .t-kids.oE::before{left:16.5px}.t-kids .t-kids.oE:hover::before{left:15.5px}
+.t-kids .t-kids.oF::before{left:16px}
+
+/* A — what is in the app now: soft, rounded, tinted on hover */
+.oA:hover::before{background:color-mix(in srgb,var(--tint) 70%,transparent)}
+
+/* B — a rail that starts at the state glyph with a dot and fades out at the bottom */
+.oB::before{background:linear-gradient(color-mix(in srgb,var(--tint) 55%,transparent),color-mix(in srgb,var(--text) 14%,transparent) 70%,transparent);top:-6px}
+.oB::after{content:"";position:absolute;left:16px;top:-8px;width:6px;height:6px;border-radius:50%;background:var(--tint)}
+.oB:hover::before{background:linear-gradient(var(--tint),color-mix(in srgb,var(--tint) 35%,transparent) 80%,transparent)}
+
+/* C — tree: an elbow connector from the rule to each child's icon */
+.oC::before{bottom:13px}
+.oC>.t-row::before,.oC>.t-msg::before{content:"";position:absolute;left:-5.75px;top:0;height:13px;width:11px;border-left:1.5px solid color-mix(in srgb,var(--text) 25%,transparent);border-bottom:1.5px solid color-mix(in srgb,var(--text) 25%,transparent);border-bottom-left-radius:8px;transition:border-color .12s}
+.oC>.t-msg::before{top:-6px;height:19px;left:-5.75px}
+.oC:hover>.t-row::before,.oC:hover>.t-msg::before{border-color:color-mix(in srgb,var(--tint) 70%,transparent)}
+.oC:hover::before{background:color-mix(in srgb,var(--tint) 70%,transparent)}
+
+/* D — no line: the children sit in a faint tinted lane with a rounded left edge */
+.oD{margin:2px 10px 6px 14px;padding-left:10px;border-radius:12px;background:color-mix(in srgb,var(--text) 3.5%,transparent);transition:background .12s}
+.oD::before{display:none}
+.oD .t-row:hover{box-shadow:none;border-radius:8px}
+.oD:hover{background:color-mix(in srgb,var(--tint) 7%,transparent)}
+
+/* E — a thicker pill bar, only on hover it widens and glows; nothing at rest but a hairline */
+.oE::before{width:1px;left:18.5px;background:color-mix(in srgb,var(--text) 16%,transparent)}
+.oE:hover::before{width:3px;left:17.5px;background:var(--tint);box-shadow:0 0 8px color-mix(in srgb,var(--tint) 60%,transparent)}
+
+/* F — dotted rail: round dots, one per 6 px, like a thread stitched down */
+.oF::before{width:2px;left:18px;background:radial-gradient(circle,color-mix(in srgb,var(--text) 32%,transparent) 0 .9px,transparent 1.2px) 0 0/2px 6px repeat-y}
+.oF:hover::before{background:radial-gradient(circle,var(--tint) 0 .9px,transparent 1.2px) 0 0/2px 6px repeat-y}
+
+.t-note{max-width:900px;margin:26px 0 0;color:var(--dim)}.t-note b{color:var(--text)}.t-note li{margin:6px 0}
+</style></head><body>
+<h1>The thread rule of a slice and of a group</h1>
+<div class="sub">The same slice, opened, in six treatments of the line that says “these rows belong to this slice”. Hover the rows (or the lane) to see the hover: the fill reaches the line and the line takes the state's colour. The same line is used by “Ran N commands”, so the group inside each box shows it nested. The theme button is for light mode.</div>
+<div class="t-ctl"><button class="tab" id="theme">☾ / ☀︎</button></div>
+<div class="t-opts" id="opts"></div>
+<ul class="t-note">
+ <li><b>A</b> is what the app does now, so the others can be compared to it.</li>
+ <li><b>B</b> and <b>C</b> make the line tell more (where the thread starts, which row hangs from it) at the cost of a little more ink.</li>
+ <li><b>D</b> drops the line for a panel: calmest at rest, but the log loses the thin edge it has everywhere else, and a nested group would be a panel in a panel.</li>
+ <li><b>E</b> and <b>F</b> are the quietest at rest (a hairline, dots); E is the one that answers “which thread is this” most strongly on hover.</li>
+</ul>
+<script>
+const OPTS=[
+ ['A','Soft rounded line, tinted on hover (in the app now)','1.5 pt, round ends, 25% at rest, the slice\'s state colour at 70% while a row is hovered.','oA'],
+ ['B','Rail with a start dot, fading out','It starts at a dot under the state glyph and fades towards the bottom, so a long thread looks like it trails off instead of ending in a cut.','oB'],
+ ['C','Tree connectors','The line stops at the last child and each row hangs from it by a rounded elbow: the shape of a file tree.','oC'],
+ ['D','No line: a tinted lane','The children sit in a faint rounded panel, tinted by the state on hover. No edge at all.','oD'],
+ ['E','A hairline that thickens on hover','1 px at rest, nearly invisible; on hover it becomes a 3 px bar with a soft glow in the state colour.','oE'],
+ ['F','Stitched: a dotted rail','Round dots every 6 pt instead of a stroke. Reads as a thread, and is lighter than a line at rest.','oF']
+];
+const row=(ic,tx,du='')=>`<div class="t-row"><span class="ic">${ic}</span><span class="tx">${tx}</span><span class="du">${du}</span></div>`;
+const grp=`<div class="t-row t-grp"><span class="ic">›</span><span class="tx">Ran 8 commands</span><span class="du">10.2 s</span></div>`;
+const kids=cls=>`<div class="t-kids ${cls}">
+  ${grp}
+  <div class="t-msg">Now tests.</div>
+  ${row('▢','pnpm test --filter carrier','4.1 s')}
+  ${grp.replace('8 commands','5 commands').replace('10.2','48.0')}
+ </div>`;
+document.getElementById('opts').innerHTML=OPTS.map(([k,h,p,c])=>`
+ <div class="t-opt"><h3>${k} · ${h}</h3><p>${p}</p>
+  <div class="t-box"><div class="t-card">
+   <div class="t-head" style="--tint:var(--green)"><span class="st">✓</span>
+    <div class="l1"><i>#355</i>carrier init asks each role's persona</div>
+    <div class="l2"><span>13 calls</span><span>4 test runs</span>PR #361 merged</div></div>
+   ${kids(c)}
+  </div></div></div>`).join('');
+// the group nested in the slice: the first group, open, with its own thread of the same style
+document.querySelectorAll('.t-kids').forEach(k=>{
+  const c=[...k.classList].find(x=>/^o[A-F]$/.test(x));
+  const g=k.querySelector('.t-grp');
+  g.insertAdjacentHTML('afterend',`<div class="t-kids ${c}" style="--tint:var(--dim)">${row('▢','git switch -q -c feat/…','0.4 s')}${row('▢','pnpm typecheck','12.0 s')}</div>`);
+  g.querySelector('.ic').textContent='⌄';
+});
+document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');
+</script>
+</body></html>

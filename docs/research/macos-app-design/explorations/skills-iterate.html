@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Skills: the loop and writing your own — iteration</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+:root{--acc:#0a84ff;--run:#30d158;--need:#ff9f0a;--err:#ff453a}body.light{--acc:#007aff;--run:#28a745;--need:#e08600;--err:#e5372d}
+.k-cw{width:min(780px,100%);border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);padding:16px 18px 18px;min-height:700px;position:relative}
+.k-tabs{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;margin-bottom:12px;box-shadow:0 0 0 .5px var(--line) inset}
+.k-tabs span{color:var(--dim);font-size:12px;font-weight:550;padding:4px 12px;border-radius:99px}.k-tabs span.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25),0 0 0 .5px var(--line) inset}
+body.light .k-tabs span.on{background:#fff}
+.k-card{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 14px}
+.k-r{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:.5px solid var(--line);min-height:50px}.k-r:first-child{border:0}
+.k-r.sub2{padding-left:22px}
+.k-t{flex:1;min-width:0}.k-t b{display:block;font-weight:550}.k-t span{display:block;color:var(--dim);font-size:12px;margin-top:1px;line-height:1.35}
+.k-t span.k-bad,.k-bad{color:var(--err)}
+.k-c{display:flex;gap:8px;align-items:center;flex:none}
+.k-st{display:flex;gap:7px;align-items:baseline;font-size:12px;color:var(--dim);padding:0 0 9px;margin-top:-4px}
+.k-st i{font-style:normal;font-size:11px;flex:none}.k-st i.y{color:var(--run)}.k-st i.n{color:var(--err)}.k-st i.w{color:var(--need)}
+.k-st.sub2{padding-left:22px}
+.k-st a{color:var(--acc);cursor:pointer}
+.k-pill{display:inline-flex;align-items:center;gap:2px;font-size:12.5px;background:var(--card2);border-radius:8px;padding:4px 9px;box-shadow:0 0 0 .5px var(--line) inset;cursor:pointer;white-space:nowrap}
+.k-pill .k-p{color:var(--faint)}.k-pill .k-v{color:var(--faint);margin-left:6px;font-size:10px}
+.k-pill.k-miss{box-shadow:0 0 0 1.5px var(--err)}.k-pill.k-open{box-shadow:0 0 0 1.5px var(--acc)}
+.k-chip{font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;background:var(--card2);color:var(--dim);white-space:nowrap}
+.k-chip.b{background:color-mix(in srgb,var(--acc) 20%,transparent);color:var(--acc)}
+.k-chip.g{background:color-mix(in srgb,var(--run) 20%,transparent);color:var(--run)}
+.k-chip.o{background:color-mix(in srgb,var(--need) 18%,transparent);color:var(--need)}
+.k-chip.r{background:color-mix(in srgb,var(--err) 18%,transparent);color:var(--err)}
+.k-chip.p{background:color-mix(in srgb,var(--purple) 20%,transparent);color:var(--purple)}
+.k-rs{border:0;background:none;color:var(--acc);font-size:12.5px;cursor:pointer;padding:2px 6px;border-radius:6px}.k-rs:hover{background:var(--card2)}
+.k-btn{border:0;font:inherit;font-size:12.5px;font-weight:550;color:var(--text);background:var(--card2);padding:5px 14px;border-radius:99px;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset}.k-btn.pri{background:var(--acc);color:#fff}.k-btn[disabled]{opacity:.4;cursor:default}
+.k-foot{display:flex;align-items:center;gap:8px;margin-top:12px;min-height:30px}.k-foot .k-m{flex:1;color:var(--dim);font-size:12px;display:flex;gap:10px;align-items:center}
+.k-pend{font-size:11px;font-weight:600;color:var(--need);background:color-mix(in srgb,var(--need) 14%,transparent);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.k-ok{font-size:12px;color:var(--run)}
+.k-banner{border-radius:14px;padding:10px 14px;margin-bottom:12px;display:flex;gap:12px;align-items:center;background:color-mix(in srgb,var(--err) 12%,transparent)}
+.k-banner .k-t span{font-size:12px}
+.k-ctl{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:0 0 14px;padding:10px 16px;border-radius:14px;background:var(--card);max-width:980px;backdrop-filter:blur(20px)}
+.k-ctl.k-sticky{position:sticky;top:8px;z-index:9}
+.k-ctl .k-l{color:var(--dim);font-size:12px}
+.k-seg{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset}
+.k-seg button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 10px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.k-seg button.on{color:var(--text);background:rgba(255,255,255,.16);box-shadow:0 1px 4px rgba(0,0,0,.25)}body.light .k-seg button.on{background:#fff}
+.k-btnp{border:0;font:inherit;font-size:12.5px;color:var(--text);background:var(--card2);padding:5px 14px;border-radius:99px;cursor:pointer}
+.k-step{border:0;font:inherit;font-size:12px;font-weight:550;color:var(--text);background:var(--card2);padding:4px 11px 4px 5px;border-radius:99px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.k-step i{font-style:normal;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:10.5px;background:var(--card);color:var(--dim)}
+.k-step.on{background:var(--acc);color:#fff}.k-step.on i{background:rgba(255,255,255,.25);color:#fff}
+.k-loop{display:flex;align-items:stretch;gap:0;margin:2px 0 8px}
+.k-node{flex:1;border-radius:14px;background:var(--card);padding:10px 12px;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset;min-width:0}
+.k-node.on{box-shadow:0 0 0 1.5px var(--acc);background:color-mix(in srgb,var(--acc) 10%,transparent)}
+.k-node b{display:flex;align-items:center;gap:6px;font-weight:600}
+.k-node small{display:block;color:var(--dim);font-size:11.5px;margin-top:2px}
+.k-node code{font-size:12px;color:var(--text);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.k-arrow{width:34px;display:grid;place-items:center;color:var(--faint);flex:none}
+.k-back{font-size:11.5px;color:var(--faint);text-align:center;margin:0 0 10px}
+.k-ct{display:grid;grid-template-columns:78px 1fr;gap:6px 12px;padding:10px 0;font-size:12.5px;border-top:.5px solid var(--line)}
+.k-ct dt{color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding-top:2px}
+.k-ct dd{margin:0;color:var(--dim)}.k-ct dd b{color:var(--text);font-weight:550}
+.k-menu{border-radius:12px;background:var(--card2);padding:6px;margin:0 0 10px;box-shadow:0 0 0 .5px var(--line) inset}
+.k-search{display:flex;align-items:center;gap:8px;background:var(--card);border-radius:8px;padding:5px 10px;color:var(--faint);margin-bottom:4px}
+.k-mi{display:flex;align-items:center;gap:10px;padding:5px 10px;border-radius:8px;cursor:pointer}
+.k-mi:hover{background:var(--sel)}.k-mi.on{background:var(--sel)}.k-mi.off{opacity:.45;cursor:default}.k-mi.off:hover{background:none}
+.k-mi .k-t span{font-size:11.5px}.k-mi code{font-size:12.5px}
+.k-mg{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);padding:7px 10px 2px}
+.k-hr{border:0;border-top:.5px solid var(--line);margin:5px 4px}
+.k-scrim{position:absolute;inset:0;border-radius:22px;background:rgba(0,0,0,.42);display:grid;place-items:center;padding:18px}body.light .k-scrim{background:rgba(255,255,255,.5)}
+.k-sheet{width:100%;border-radius:18px;background:#2a2a2e;box-shadow:var(--shadow);padding:16px 18px}body.light .k-sheet{background:#fff}
+.k-sheet h4{margin:0 0 2px;font-size:15px}.k-sheet>p{margin:0 0 12px;color:var(--dim);font-size:12.5px}
+.k-field{margin:0 0 12px}.k-field>label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--faint);margin:0 2px 4px}
+.k-in{width:100%;font:inherit;font-family:var(--mono);font-size:12.5px;color:var(--text);background:var(--card2);border:0;border-radius:8px;padding:6px 10px;box-shadow:0 0 0 .5px var(--line) inset}
+.k-in.k-badin{box-shadow:0 0 0 1.5px var(--err)}
+.k-hint{font-size:12px;color:var(--dim);margin:4px 2px 0;min-height:16px}.k-hint.k-bad{color:var(--err)}
+.k-code{background:#0d0d10;color:#d6d6dc;font:11.5px/1.55 var(--mono);border-radius:12px;padding:10px 14px;box-shadow:0 0 0 .5px rgba(255,255,255,.12) inset;white-space:pre-wrap}
+.k-code .c{color:#8b8b95}.k-code .k{color:#7ee787}
+.k-tg{display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:550;padding:3px 10px;border-radius:99px;background:var(--card2);color:var(--dim);cursor:pointer}
+.k-tg.on{background:color-mix(in srgb,var(--acc) 22%,transparent);color:var(--acc)}.k-tg.lock{cursor:default}
+.k-toast{position:absolute;left:50%;transform:translateX(-50%);bottom:60px;background:var(--card2);backdrop-filter:blur(20px);border-radius:99px;padding:7px 16px;box-shadow:var(--shadow);font-size:12.5px}
+.k-ul{max-width:900px;margin:26px 0 0;padding-left:18px;color:var(--dim)}.k-ul li{margin:6px 0}.k-ul b{color:var(--text)}
+</style></head><body>
+<h1>Skills: the loop, and writing your own</h1>
+<div class="sub">B and F put together, as a single window you can click through. The loop is the screen; a stage's skill is picked inline; “Write a new skill…” opens the sheet over it. Use <b>Jump to</b> to land on each moment, or just click: stages, skill pills, ↺, the buttons. <b>Runs on</b> changes the harness a stage uses (that is the profile's, not edited here).</div>
+<div class="k-ctl k-sticky">
+ <span class="k-l">Jump to</span>
+ <button class="k-step" data-go="1"><i>1</i>Start</button>
+ <button class="k-step" data-go="2"><i>2</i>Pick</button>
+ <button class="k-step" data-go="3"><i>3</i>Write</button>
+ <button class="k-step" data-go="4"><i>4</i>Name taken</button>
+ <button class="k-step" data-go="5"><i>5</i>Just created</button>
+ <button class="k-step" data-go="6"><i>6</i>Review, two steps</button>
+ <button class="k-step" data-go="7"><i>7</i>Wrong harness</button>
+</div>
+<div class="k-ctl">
+ <span class="k-l">Author runs on</span>
+ <div class="k-seg" id="author"><button data-v="claude" class="on">Claude Code</button><button data-v="codex">Codex</button></div>
+ <span class="k-l">Reviewer runs on</span>
+ <div class="k-seg" id="reviewer"><button data-v="claude" class="on">Claude Code</button><button data-v="codex">Codex</button></div>
+ <span style="flex:1"></span><button class="k-btnp" id="theme">☾ / ☀︎</button>
+</div>
+<div class="k-cw" id="cw"></div>
+<ul class="k-ul">
+ <li><b>The file is made when you press “Create and open”; the stage only uses it after Save.</b> The sheet writes a normal skill file, and the stage's assignment is a draft like everything else in Settings. Revert undoes the assignment and leaves the file alone (it is yours).</li>
+ <li><b>The solve skills are read-only.</b> The way to change one is “A copy of solve's…”, so an update to solve never overwrites someone's edits and the user never edits what Carrier ships with.</li>
+ <li><b>Which harnesses get a copy:</b> the one this stage runs on is always on; the other is optional. That is what makes the “wrong harness” case rare for skills written here.</li>
+ <li><b>Checks are the engine's.</b> It reads the folders (the app never does), through the same request that fills the picker, and <code>carrier doctor</code> runs the same checks. “Found for Claude Code” means the harness will see it; nothing says what the skill does.</li>
+ <li><b>A blank skill gets a warning, not a block.</b> If the file is still only the template's comments the row says so in orange; Carrier does not judge more than that.</li>
+ <li><b>To confirm before building:</b> where Codex looks for skills (the sheet says “Codex copy” without a path for that reason), and what “Open” launches (the default app for <code>.md</code> is my assumption).</li>
+</ul>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const clone=x=>JSON.parse(JSON.stringify(x));
+const H={claude:{n:'Claude Code',p:'/'},codex:{n:'Codex',p:'$'}};
+const BASE={
+ 'ship':{src:'solve',on:['claude','codex'],d:'Carry a ticket or a whole epic to done'},
+ 'code-review':{src:'solve',on:['claude','codex'],d:'Adversarial review of a PR or branch'},
+ 'code-post':{src:'solve',on:['claude','codex'],d:'Publish a review report on the PR'},
+ 'code-resolve':{src:'solve',on:['claude','codex'],d:'Work through reviewer comments on your PR'},
+ 'strict-review':{src:'this repo',path:'.claude/skills/strict-review',on:['claude','codex'],d:'Review and post, our rules'}
+};
+const DEF={ship:'ship',review:'code-review',publish:'code-post',fix:'code-resolve'};
+const SLOT={
+ ship:{n:'Ship',who:'author',line:'Builds every slice of the epic and leaves the integration PR open',recv:'The epic number',leaves:'Every slice done, the epic in its own worktree, the integration PR open',never:'Merge the PR'},
+ review:{n:'Review',who:'reviewer',line:'Reads the epic’s PR against its spec and tickets',recv:'The epic and its PR number',leaves:'A review of the PR against the spec, earlier findings checked; then each finding posted on the PR from the reviewer account',never:'Change the code, or post as the author'},
+ publish:{n:'Publish findings',who:'reviewer',line:'Posts the review on the PR as the reviewer identity'},
+ fix:{n:'Fix',who:'author',line:'Answers the review’s findings and fixes what applies',recv:'The PR number',leaves:'Every thread answered, what applies fixed and pushed',never:'Merge the PR'}
+};
+let SK,st,saved;
+const fresh=()=>({author:st?st.author:'claude',reviewer:st?st.reviewer:'claude',sel:'ship',pick:null,sheet:null,form:null,assign:clone(DEF),note:''});
+function reset(){SK=clone(BASE);st=fresh();saved=clone(DEF)}
+const hz=id=>st[SLOT[id].who];
+const cur=id=>st.assign[id];
+const ok=id=>SK[cur(id)].on.includes(hz(id));
+const isDef=id=>cur(id)===DEF[id];
+const pr=id=>H[hz(id)].p;
+const dirty=()=>JSON.stringify(st.assign)!==JSON.stringify(saved);
+const bad=()=>['ship','review','publish','fix'].filter(id=>!ok(id));
+const pill=id=>'<span class="k-pill mono'+(ok(id)?'':' k-miss')+(st.pick===id?' k-open':'')+'" data-pick="'+id+'"><span class="k-p">'+pr(id)+'</span>'+esc(cur(id))+'<span class="k-v">▾</span></span>';
+const tag=id=>!ok(id)?'<span class="k-chip r">not installed</span>':SK[cur(id)].fresh?'<span class="k-chip g">new</span>':isDef(id)?'<span class="k-chip">default</span>':(id==='publish'&&cur('publish')===cur('review')?'<span class="k-chip p">does both</span>':'<span class="k-chip b">'+SK[cur(id)].src+'</span>');
+function status(id){
+ const k=SK[cur(id)],h=hz(id),s=id==='publish'?' sub2':'';
+ if(!k.on.includes(h))return '<div class="k-st'+s+'"><i class="n">✕</i><span class="k-bad"><b>'+esc(cur(id))+'</b> isn’t installed for '+H[h].n+' (found only for '+k.on.map(x=>H[x].n).join(', ')+'). Pick another skill'+(k.src==='solve'?'.':' or <a data-addcopy="'+h+'">add a '+H[h].n+' copy</a>.')+'</span></div>';
+ if(k.fresh)return '<div class="k-st'+s+'"><i class="y">✓</i><span>Created just now · '+(k.path?esc(k.path)+'/SKILL.md':'')+' · <a>Open</a> · <a>Show in Finder</a></span></div>'+(k.blank?'<div class="k-st'+s+'"><i class="w">!</i><span>The file is still only the template’s comments. Write what this stage should do.</span></div>':'');
+ return '<div class="k-st'+s+'"><i class="y">✓</i><span>Found for '+H[h].n+' · '+(k.path?esc(k.path):'part of the solve set')+'</span></div>';
+}
+const TABS='<div class="k-tabs"><span>Engine</span><span>Behavior</span><span>Repos</span><span class="on">Skills</span><span>Notifications</span><span>General</span></div>';
+const banner=()=>bad().length?'<div class="k-banner"><div class="k-t"><b>'+bad().length+' stage'+(bad().length>1?'s have':' has')+' a skill its harness can’t find</b><span>Save is off until every stage resolves.</span></div></div>':'';
+const foot=()=>'<div class="k-foot"><span class="k-m">'+(dirty()?'<span class="k-pend">Not saved</span>':'')+(st.note?'<span class="k-ok">'+st.note+'</span>':'')+(Object.keys(DEF).some(id=>!isDef(id))?'<button class="k-rs" data-resetall>Reset all to solve</button>':'')+'</span><button class="k-btn" data-revert '+(dirty()?'':'disabled')+'>Revert</button><button class="k-btn" data-save="only" '+(dirty()&&!bad().length?'':'disabled')+'>Save only</button><button class="k-btn pri" data-save="restart" '+(dirty()&&!bad().length?'':'disabled')+'>Save and restart</button></div>';
+
+function node(id,label){
+ const miss=id==='review'?!ok('review')||!ok('publish'):!ok(id);
+ const names=id==='review'&&cur('publish')!==cur('review')?cur('review')+' + '+cur('publish'):cur(id);
+ return '<div class="k-node'+(st.sel===id?' on':'')+'" data-sel="'+id+'"><b>'+label+(miss?' <span class="dot r"></span>':'')+'</b><code class="mono">'+pr(id)+esc(names)+'</code><small>'+(SLOT[id].who==='author'?'Author':'Reviewer')+' · '+H[hz(id)].n+'</small></div>';
+}
+function menu(id){
+ const h=hz(id);
+ const item=n=>{const k=SK[n],av=k.on.includes(h);return '<div class="k-mi'+(cur(id)===n?' on':'')+(av?'':' off')+'" '+(av?'data-choose="'+esc(n)+'"':'')+'><div class="k-t"><code class="mono">'+H[h].p+esc(n)+'</code><span>'+(av?esc(k.d):'Not installed for '+H[h].n)+'</span></div>'+(DEF[id]===n?'<span class="k-chip">default</span>':'')+(cur(id)===n?'✓':'')+'</div>'};
+ const by=src=>Object.keys(SK).filter(n=>SK[n].src===src);
+ const grp=(t,src)=>by(src).length?'<div class="k-mg">'+t+'</div>'+by(src).map(item).join(''):'';
+ return '<div class="k-menu"><div class="k-search">⌕ <span>Search skills for '+H[h].n+'</span></div>'+
+  grp('solve · set','solve')+grp('Yours · ~/.claude/skills','yours')+grp('This repo · .claude/skills','this repo')+
+  '<hr class="k-hr"><div class="k-mi" data-write="'+id+'"><div class="k-t"><b>Write a new skill…</b><span>A copy of solve’s, or from a blank that carries the contract</span></div></div></div>';
+}
+function row(id){
+ return '<div class="k-r'+(id==='publish'?' sub2':'')+'"><div class="k-t"><b>'+SLOT[id].n+'</b><span>'+SLOT[id].line+'</span></div><div class="k-c">'+tag(id)+pill(id)+(isDef(id)?'':'<button class="k-rs" data-reset="'+id+'" title="Back to the default">↺</button>')+'</div></div>'+status(id)+(st.pick===id?menu(id):'');
+}
+function main(){
+ const sel=st.sel,ids=sel==='review'?['review','publish']:[sel],s=SLOT[sel];
+ return TABS+banner()+
+ '<div class="k-loop">'+node('ship','Ship')+'<div class="k-arrow">→</div>'+node('review','Review')+'<div class="k-arrow">⇄</div>'+node('fix','Fix')+'</div>'+
+ '<div class="k-back">Review and Fix repeat until the review is clean or the rounds run out</div>'+
+ '<div class="k-card">'+ids.map(row).join('')+
+ '<dl class="k-ct"><dt>Gets</dt><dd><b>'+s.recv+'</b>, nothing else; it reads the rest from GitHub</dd><dt>Leaves</dt><dd><b>'+s.leaves+'</b></dd><dt>Never</dt><dd><b>'+s.never+'</b></dd><dt>Returns</dt><dd><b>The result JSON</b> (Carrier adds the format to the prompt)</dd></dl></div>'+foot();
+}
+
+const nameErr=n=>!n?'':!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(n)?'Lowercase letters, numbers and dashes only.':SK[n]?'A skill called “'+n+'” already exists ('+SK[n].src+'). Pick another name; solve’s are copied, not edited.':'';
+const baseName=id=>DEF[id];
+const dir=f=>f.where==='me'?'~/.claude/skills/':'.claude/skills/';
+function preview(f,id){
+ const n=f.name||'your-skill',b=baseName(id);
+ return f.from==='copy'
+  ? '<span class="c">---</span>\nname: <span class="k">'+esc(n)+'</span>\ndescription: <span class="k">'+esc(SK[b].d)+'</span>\n<span class="c">---</span>\n<span class="c"># Starts as a copy of solve’s '+b+'.</span>\n…its body, to edit'
+  : '<span class="c">---</span>\nname: <span class="k">'+esc(n)+'</span>\ndescription: <span class="k">Describe when Carrier should use this</span>\n<span class="c">---</span>\n<span class="c"># Carrier calls this with '+(SLOT[id].recv||'the epic number').toLowerCase()+'. It must:\n#  - '+SLOT[id].leaves.split(';')[0].toLowerCase()+'\n#  - never: '+(SLOT[id].never||'').toLowerCase()+'\n#  - end with the result JSON Carrier asks for</span>';
+}
+function sheet(){
+ const id=st.sheet,f=st.form,own=hz(id),other=own==='claude'?'codex':'claude';
+ const tg=(h,locked)=>'<span class="k-tg '+(f.on[h]?'on ':'')+(locked?'lock':'')+'" '+(locked?'':'data-hz="'+h+'"')+'>'+(f.on[h]?'✓ ':'')+H[h].n+(locked?' · runs this stage':'')+'</span>';
+ return '<div class="k-scrim"><div class="k-sheet"><h4>New skill for '+SLOT[id].n+'</h4><p>Carrier calls it for every epic. It is a normal skill file; nothing in it is Carrier-only.</p>'+
+ '<div class="k-field"><label>Name</label><input class="k-in" id="nm" value="'+esc(f.name)+'" placeholder="team-'+id+'" autocomplete="off" spellcheck="false"><div class="k-hint" id="nmh"></div></div>'+
+ '<div class="k-field"><label>Start from</label><div class="k-seg"><button data-from="copy" class="'+(f.from==='copy'?'on':'')+'">A copy of solve’s '+baseName(id)+'</button><button data-from="blank" class="'+(f.from==='blank'?'on':'')+'">Blank, with the contract</button></div></div>'+
+ '<div class="k-field"><label>Save for</label><div class="k-seg"><button data-where="me" class="'+(f.where==='me'?'on':'')+'">Me · ~/.claude/skills</button><button data-where="repo" class="'+(f.where==='repo'?'on':'')+'">This repo · .claude/skills</button></div></div>'+
+ '<div class="k-field"><label>Works with</label><div style="display:flex;gap:6px;flex-wrap:wrap">'+tg(own,true)+tg(other,false)+(id==='review'?'<span class="k-tg '+(f.both?'on':'')+'" data-both style="margin-left:8px">'+(f.both?'✓ ':'')+'Also publishes the findings</span>':'')+'</div></div>'+
+ '<div class="k-field"><label>Starts as</label><div class="k-code" id="pv"></div></div>'+
+ '<div class="k-foot"><span class="k-m" style="color:var(--dim)">Makes the file and opens it. '+SLOT[id].n+' uses it after you Save.</span><button class="k-btn" data-cancel>Cancel</button><button class="k-btn pri" id="crt" data-create>Create and open</button></div></div></div>';
+}
+function live(){
+ const f=st.form,e=nameErr(f.name);
+ $('#nmh').textContent=e||(f.name?'→ '+dir(f)+f.name+'/SKILL.md':'');$('#nmh').className='k-hint'+(e?' k-bad':'');
+ $('#nm').className='k-in'+(e?' k-badin':'');
+ $('#pv').innerHTML=preview(f,st.sheet);
+ $('#crt').disabled=!f.name||!!e;
+}
+function draw(){
+ $('#cw').innerHTML=main()+(st.sheet?sheet():'');
+ if(st.sheet)live();
+ for(const [id,key] of [['#author','author'],['#reviewer','reviewer']])document.querySelectorAll(id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===st[key]));
+}
+function openSheet(id,name){
+ const own=hz(id);
+ st.sheet=id;st.pick=null;st.form={name:name||'',from:'copy',where:'me',both:false,on:{claude:own==='claude',codex:own==='codex'}};
+}
+function create(){
+ const id=st.sheet,f=st.form,n=f.name;
+ SK[n]={src:f.where==='me'?'yours':'this repo',path:dir(f)+n,on:Object.keys(f.on).filter(h=>f.on[h]),d:f.from==='copy'?'A copy of '+baseName(id)+', yours to edit':'New skill',fresh:true,blank:f.from==='blank'};
+ st.assign[id]=n;if(id==='review'&&f.both)st.assign.publish=n;
+ st.sheet=null;st.form=null;st.sel=id==='publish'?'review':id;st.note='';
+}
+function go(n){
+ reset();st.author=st.reviewer='claude';
+ if(n>=2&&n<=4){st.pick=n===2?'ship':null}
+ if(n===3)openSheet('ship','team-ship');
+ if(n===4)openSheet('ship','ship');
+ if(n>=5&&n!==6){openSheet('ship','team-ship');create()}
+ if(n===6){st.sel='review'}
+ if(n===7)st.author='codex';
+ document.querySelectorAll('[data-go]').forEach(b=>b.classList.toggle('on',+b.dataset.go===n));
+ draw();
+}
+document.addEventListener('click',e=>{
+ const b=e.target.closest('[data-addcopy],[data-sel],[data-pick],[data-choose],[data-write],[data-cancel],[data-create],[data-from],[data-where],[data-hz],[data-both],[data-reset],[data-resetall],[data-revert],[data-save]');if(!b)return;const d=b.dataset;
+ if(d.addcopy)SK[cur(st.sel==='review'?'review':st.sel)].on.push(d.addcopy);
+ else if(d.sel){st.sel=d.sel;st.pick=null}
+ else if(d.pick)st.pick=st.pick===d.pick?null:d.pick;
+ else if(d.choose){st.assign[st.pick]=d.choose;st.pick=null}
+ else if(d.write)openSheet(d.write,'');
+ else if(d.cancel!==undefined){st.sheet=null;st.form=null}
+ else if(d.create!==undefined){if(b.disabled)return;create()}
+ else if(d.from)st.form.from=d.from;
+ else if(d.where)st.form.where=d.where;
+ else if(d.hz)st.form.on[d.hz]=!st.form.on[d.hz];
+ else if(d.both!==undefined)st.form.both=!st.form.both;
+ else if(d.reset)st.assign[d.reset]=DEF[d.reset];
+ else if(d.resetall!==undefined)st.assign=clone(DEF);
+ else if(d.revert!==undefined)st.assign=clone(saved);
+ else if(d.save){if(b.disabled)return;saved=clone(st.assign);st.note=d.save==='restart'?'Saved · engine restarting…':'Saved'}
+ if(!d.save)st.note='';
+ draw();
+});
+document.addEventListener('input',e=>{if(e.target.id==='nm'){st.form.name=e.target.value.trim();live()}});
+for(const [id,key] of [['#author','author'],['#reviewer','reviewer']])$(id).onclick=e=>{const b=e.target.closest('button');if(!b)return;st[key]=b.dataset.v;draw()};
+$('#theme').onclick=()=>document.body.classList.toggle('light');
+reset();
+const h=location.hash.slice(1);if(h==='light')document.body.classList.add('light');
+go(/^[1-7]$/.test(h)?+h:1);
+</script></body></html>

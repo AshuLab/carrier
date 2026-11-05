@@ -39,13 +39,17 @@ public struct ChatSession: Decodable, Equatable {
     /// Whether the session's agent process runs: a closed one is resumed before a message is sent to it.
     public let live: Bool
     public let preparation: Preparation?
+    /// True while the clock spares the session because its worktree holds unsaved work. A host that leaves it out is not keeping it.
+    public let kept: Bool
+    /// When the clock deletes the session, in milliseconds since the epoch; nil when it will not, and from a host that leaves it out.
+    public let deleteAt: Int?
 
     public struct Workspace: Decodable, Equatable {
         public let base: String
         public let branch: String?
     }
 
-    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation }
+    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt }
     private struct Kind: Decodable {
         let kind: String
         let base: String?
@@ -66,6 +70,8 @@ public struct ChatSession: Decodable, Equatable {
         live = try values.decode(Bool.self, forKey: .live)
         // a value this app does not know is no preparation, as a host that leaves the field out
         preparation = (try? values.decodeIfPresent(Preparation.self, forKey: .preparation)) ?? nil
+        kept = try values.decodeIfPresent(Bool.self, forKey: .kept) ?? false
+        deleteAt = try values.decodeIfPresent(Int.self, forKey: .deleteAt)
         let placed = try values.decodeIfPresent(Kind.self, forKey: .workspace)
         guard let placed, placed.kind == "worktree" else { workspace = nil; return }
         guard let base = placed.base else { throw DecodingError.keyNotFound(CodingKeys.workspace, .init(codingPath: decoder.codingPath, debugDescription: "a worktree without its base folder")) }

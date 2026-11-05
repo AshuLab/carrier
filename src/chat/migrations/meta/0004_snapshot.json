@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b179c49c-4709-419d-bb11-97574e658e4a",
+  "id": "e9c3e32d-c642-40dd-854c-c7b2eb0a53b7",
   "prevId": "3a212f58-70ac-4f04-8149-03dcb3dbf3c0",
   "tables": {
     "chat_events": {
@@ -241,13 +241,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "plan": {
-          "name": "plan",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "nativeId": {
           "name": "nativeId",
           "type": "text",
@@ -305,6 +298,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": false
+        },
+        "keptAt": {
+          "name": "keptAt",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {},

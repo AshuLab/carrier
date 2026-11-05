@@ -16,7 +16,7 @@ public enum Selection: Hashable {
 }
 
 /// The sections of the Settings sheet; the raw value is the title.
-public enum SettingsTab: String, CaseIterable { case engine = "Engine", behavior = "Behavior", repos = "Repos", notifications = "Notifications", health = "Health" }
+public enum SettingsTab: String, CaseIterable { case engine = "Engine", behavior = "Behavior", repos = "Repos", sessions = "Sessions", notifications = "Notifications", health = "Health" }
 
 /// Which of the Sessions, Carrier and Archive sections is unfolded; the others are folded.
 public enum OpenSection: String { case sessions, carrier, archive }

@@ -18,6 +18,7 @@ struct SettingsSheet: View {
         (.engine, "cpu", "How the app starts Carrier"),
         (.behavior, "slider.horizontal.3", "How epics run"),
         (.repos, "tray.full", "What Carrier watches"),
+        (.sessions, "clock.arrow.circlepath", "When sessions age out"),
         (.notifications, "bell", "What to tell you"),
         (.health, "stethoscope", "Is this Mac ready?"),
     ]
@@ -91,6 +92,7 @@ struct SettingsSheet: View {
             case .engine: engine(model, notConfigured: notConfigured)
             case .behavior: BehaviorTabView()
             case .repos: ReposTabView(state: state)
+            case .sessions: SessionsTabView()
             case .notifications: NotificationsTabView()
             case .health: HealthTabView(state: state)
             }

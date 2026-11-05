@@ -307,7 +307,7 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }));
 test('the host stores the transcript of the replayed conversation and the native thread id', async () => {
   const db = openChatDatabase(join(dir, 'chat.db'));
   const runner = codexChatRunner(deps(replay(main).transport));
-  const sessions = createSessions({ db, agents: [{ name: 'claude', harness: 'claude' }, { name: 'codex', harness: 'codex' }], clock: new FakeClock(), runners: { codex: runner }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, onLiveChange: () => {} });
+  const sessions = createSessions({ db, agents: [{ name: 'claude', harness: 'claude' }, { name: 'codex', harness: 'codex' }], clock: new FakeClock(), runners: { codex: runner }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
   const { session } = await sessions.open({ agent: 'codex', folder: join(dir, 'work') });
   for (const text of mainTexts.slice(0, 2)) {
     sessions.send({ sessionId: session.id, text });

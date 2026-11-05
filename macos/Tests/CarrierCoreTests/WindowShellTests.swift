@@ -166,3 +166,14 @@ import Testing
     shell.selection = .settings
     #expect(shell.settingsTab == .engine)
 }
+
+@Test func settingsHasASessionsTabBetweenReposAndNotificationsAndLeavingSettingsResetsIt() {
+    let tabs = SettingsTab.allCases
+    #expect(SettingsTab.sessions.rawValue == "Sessions" && tabs.firstIndex(of: .sessions) == tabs.firstIndex(of: .repos)! + 1 && tabs.firstIndex(of: .sessions)! + 1 == tabs.firstIndex(of: .notifications))
+    let shell = WindowShell()
+    shell.selection = .settings
+    shell.settingsTab = .sessions
+    shell.selection = .home
+    shell.selection = .settings
+    #expect(shell.settingsTab == .engine)
+}

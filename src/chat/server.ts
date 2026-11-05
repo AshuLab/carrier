@@ -15,8 +15,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'health' | 'plan' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'health', 'plan', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'plan' | 'stop';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'plan', 'stop'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -47,6 +47,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('cloneRepo'), repo: z.string().regex(repoNamePattern) }),
   z.strictObject({ id, cmd: z.literal('createProject'), name: z.string().regex(projectNamePattern) }),
   z.strictObject({ id, cmd: z.literal('githubRepos'), page: z.int().min(1).max(100) }),
+  z.strictObject({ id, cmd: z.literal('repoBranches'), repo: z.string().regex(repoNamePattern) }),
   z.strictObject({ id, cmd: z.literal('health'), refresh: z.boolean().optional() }),
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
@@ -84,6 +85,8 @@ export type ChatControls = {
   cloneRepo(args: Args<'cloneRepo'>, gone: AbortSignal): Promise<unknown>;
   createProject(args: Args<'createProject'>): Promise<unknown>;
   githubRepos(args: Args<'githubRepos'>): Promise<unknown>;
+  /** The default branch and the branches of a repository that need not be on disk; read-only. */
+  repoBranches(args: Args<'repoBranches'>): Promise<unknown>;
   health(args: Args<'health'>): Promise<unknown>;
 };
 
@@ -135,6 +138,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.createProject({ name: request.name });
     case 'githubRepos':
       return controls.githubRepos({ page: request.page });
+    case 'repoBranches':
+      return controls.repoBranches({ repo: request.repo });
     case 'health':
       return controls.health({ refresh: request.refresh });
   }

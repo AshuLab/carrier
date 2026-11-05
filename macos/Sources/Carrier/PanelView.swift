@@ -92,6 +92,8 @@ struct PanelView: View {
         NavigationSplitView(columnVisibility: columns) {
             SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, sessionSort: sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived)
                 .onChange(of: shell.open) { SidebarStore().open = shell.open }
+                // the menu or the + while the draft is open: it starts blank again
+                .onChange(of: shell.newSessionOpened) { model.newSession.blank() }
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
             // resizes and the app dies with "more Update Constraints passes than there are views"

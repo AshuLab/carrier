@@ -18,7 +18,7 @@ private func snapshot(_ epics: [PanelEpic] = [], problem: String? = nil) -> Conn
 
 @Test func stoppedAndIncompatibleAreNotConnected() {
     #expect(IconState(.stopped) == IconState(connected: false))
-    #expect(IconState(.incompatible) == IconState(connected: false))
+    #expect(IconState(.incompatible(update: nil)) == IconState(connected: false))
 }
 
 @Test func nothingRunningIsIdle() {

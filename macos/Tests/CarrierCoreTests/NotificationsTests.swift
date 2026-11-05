@@ -101,7 +101,7 @@ private func running(_ snapshot: PanelSnapshot) -> ConnectionState { .running(sn
     watcher.react(to: running(snapshot([epic(1, .needsHuman)], done: [ready(3)])))
     #expect(centre.posted.isEmpty)
 
-    watcher.react(to: .incompatible)
+    watcher.react(to: .incompatible(update: nil))
     watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)], done: [ready(3)])))
     #expect(centre.posted.isEmpty)
 }
@@ -222,7 +222,7 @@ private func clock(_ time: Date) -> (() -> Date, set: (Date) -> Void) {
     off.react(to: .stopped)
     let fresh = NotificationWatcher(centre: centre, kinds: { withProblems })
     fresh.react(to: .stopped)
-    fresh.react(to: .incompatible)
+    fresh.react(to: .incompatible(update: nil))
     #expect(centre.posted.isEmpty)
 }
 

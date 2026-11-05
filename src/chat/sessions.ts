@@ -17,7 +17,7 @@ import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
 import { checkName, suggestName } from './names.ts';
 import { createWorktree, deleteWorktree, previewWorktree, removeWorktree } from './worktree.ts';
-import { fetchFolder, inspectFolder } from './workspace.ts';
+import { checkout, fetchFolder, inspectFolder } from './workspace.ts';
 
 const log = createScopedLogger('chat');
 
@@ -243,9 +243,40 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     return live;
   };
 
-  /** The steps of a plan, in the background: it never throws, a failure is recorded as a step that failed. */
-  async function prepare(sessionId: string, chosen: ChatAgent, runner: ChatRunner, folder: string, plan: Plan) {
+  /**
+   * The `worktree` or `checkout` step of a plan, when it has one: the folder the agent runs in, or undefined once the step failed and was recorded.
+   * A worktree already recorded on the session is the one made before, so it is reused and not made twice.
+   */
+  async function arrange(sessionId: string, folder: string, plan: Plan): Promise<string | undefined> {
+    const { worktree, branch } = plan;
+    if (worktree === undefined && branch === undefined) return folder;
+    const step = worktree === undefined ? 'checkout' : 'worktree';
+    const recorded = row(sessionId);
+    if (recorded.workspaceKind === 'worktree') return recorded.worktreePath!;
+    stepEvent(sessionId, step, 'running');
     try {
+      if (worktree !== undefined) {
+        if (branch === undefined) throw new ChatRefused('A worktree needs the branch it starts from');
+        // an empty name is the host's to generate
+        const made = await exclusive(() => createWorktree(git, folder, { from: branch, ...(worktree.name !== undefined && worktree.name !== '' && { name: worktree.name }) }));
+        db.update(sessions).set({ folder: made.path, workspaceKind: 'worktree', worktreeBranch: made.branch, worktreeFrom: made.from, worktreeBase: made.base, worktreePath: made.path }).where(eq(sessions.id, sessionId)).run();
+        stepEvent(sessionId, step, 'done');
+        return made.path;
+      }
+      await checkout(git, folder, branch!);
+      stepEvent(sessionId, step, 'done');
+      return folder;
+    } catch (error) {
+      if (error instanceof ChatRefused === false) log.error(`preparing a session failed at ${step}`, error);
+      failStep(sessionId, step, error instanceof ChatRefused ? error.message : `The ${step} could not be done`);
+    }
+  }
+
+  /** The steps of a plan, in the background: it never throws, a failure is recorded as a step that failed. */
+  async function prepare(sessionId: string, chosen: ChatAgent, runner: ChatRunner, base: string, plan: Plan) {
+    try {
+      const folder = await arrange(sessionId, base, plan);
+      if (folder === undefined) return;
       stepEvent(sessionId, 'agent', 'running');
       const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...plan.options };
       let conversation: ChatConversation | undefined;
@@ -344,10 +375,10 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
 
     /**
      * Opens a session from a plan: it exists at once as `preparing`, and the steps run in the background and record their events. Only a plan for a
-     * folder with no branch and no worktree runs yet.
+     * folder runs yet, with the branch to check out or a worktree from it.
      */
     async openPlan({ plan }: { plan: Plan }) {
-      if (plan.workspace.kind !== 'folder' || plan.branch !== undefined || plan.worktree !== undefined) throw new ChatRefused('A plan for a repository, a project, a branch or a worktree is not supported yet; only a folder as it is');
+      if (plan.workspace.kind !== 'folder') throw new ChatRefused('A plan for a repository or a project is not supported yet; only a folder');
       if (plan.text.length > chatCaps.message) throw new ChatRefused(`That message has ${plan.text.length} characters; the most a message can have is ${chatCaps.message}`);
       const chosen = agents.find((candidate) => candidate.name === plan.agent);
       if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${plan.agent}"`);

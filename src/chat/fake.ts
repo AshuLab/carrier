@@ -173,6 +173,15 @@ export class FakeGit implements Git {
     if (verb === 'symbolic-ref') return repo.head === null ? no : out(repo.head);
     if (verb === 'for-each-ref') return out(...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`), ...(repo.originHead === undefined ? [] : ['refs/remotes/origin/HEAD']));
     if (verb === 'rev-list') return out(String(repo.unpushed?.[rest[1]!.replace('refs/heads/', '')] ?? 0));
+    if (verb === 'switch') {
+      // switch <branch>, or switch --track origin/<branch>, which makes the local branch
+      const target = rest.at(-1)!;
+      const local = target.replace(/^origin\//, '');
+      if (rest[0] === '--track') repo.branches.push(local);
+      else if (repo.branches.includes(target) === false) return { ok: false, code: 128, stderr: 'fatal: invalid reference' };
+      repo.head = local;
+      return out();
+    }
     if (verb === 'fetch') return out();
     if (verb === 'status') return out(...(repo.status ?? []));
     return { ok: false, code: 129, stderr: `the fake git does not know ${verb}` };

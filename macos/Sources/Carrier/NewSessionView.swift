@@ -117,6 +117,7 @@ struct NewSessionView: View {
             if let note = model.watchNote {
                 Label(note, systemImage: model.watchFailed ? "exclamationmark.triangle.fill" : "eye.fill").font(.subheadline).foregroundStyle(model.watchFailed ? .orange : .secondary).textSelection(.enabled)
             }
+            if let note = model.branchNote { Text(note).font(.callout).foregroundStyle(.secondary) }
             if let warning = model.warning { Text(warning).font(.callout).foregroundStyle(.orange) }
             if case .problem(let reason) = model.nameState, model.worktree {
                 Text(reason).font(.callout).foregroundStyle(.red).textSelection(.enabled)
@@ -128,7 +129,7 @@ struct NewSessionView: View {
 
     /// The branch the chosen folder is on: a chip that opens its local branches, like the other controls.
     private var currentBranch: some View {
-        Button { currentBranchOpen.toggle() } label: { chip(model.workspace?.branch ?? "detached HEAD", icon: "arrow.triangle.branch") }
+        Button { currentBranchOpen.toggle() } label: { chip(model.picked ?? model.workspace?.branch ?? "detached HEAD", icon: "arrow.triangle.branch") }
             .buttonStyle(.plain).accessibilityLabel("Branch of the folder")
             .sheet(isPresented: $currentBranchOpen) { BranchSheet(model: model, browsing: true) }
     }

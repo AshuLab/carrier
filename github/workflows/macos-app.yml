@@ -1,3 +1,5 @@
+# Lives in github/workflows (no dot) because the bot that pushed it cannot write .github/workflows.
+# The owner renames github/ to .github/; the paths filter below already names the final path.
 name: macOS app
 
 on:

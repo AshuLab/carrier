@@ -36,11 +36,14 @@ public struct ChatEvent: Codable, Equatable {
     public var model: String?
     /// As the provider reported it: its keys differ (`input_tokens` or `inputTokens`), and any of them can be missing.
     public var usage: [String: Double]?
+    /// A `step` event of a session's preparation: which step, and (in `status`, `running`, `done` or `failed`) how it stands; `detail` is the reason a step failed.
+    public var step: String?
+    public var detail: String?
 
     public init(
         id: Int, at: Int, kind: String, text: String? = nil, callId: String? = nil, tool: String? = nil, arg: String? = nil, output: [String]? = nil,
         status: String? = nil, approvalId: String? = nil, choices: [ChatChoice]? = nil, choiceId: String? = nil, outcome: String? = nil,
-        model: String? = nil, usage: [String: Double]? = nil
+        model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil
     ) {
         self.id = id
         self.at = at
@@ -57,6 +60,8 @@ public struct ChatEvent: Codable, Equatable {
         self.outcome = outcome
         self.model = model
         self.usage = usage
+        self.step = step
+        self.detail = detail
     }
 }
 
@@ -73,10 +78,14 @@ public struct ChatEvents: Decodable, Equatable {
     public let options: [ChatOption]
     /// What the provider lets the person invoke; empty for a closed session.
     public let commands: [ChatCommand]
+    /// How the session's preparation stands (from its summary), nil when it is not being prepared or the host does not say.
+    public let preparation: ChatSession.Preparation?
+    /// The latest line of git's own progress while a clone runs; nil when there is none or the host leaves it out.
+    public let progress: String?
 
     public init(
         events: [ChatEvent], cursor: Int, streaming: String = "", state: ChatSession.State? = nil, pending: Set<String> = [], options: [ChatOption] = [],
-        commands: [ChatCommand] = []
+        commands: [ChatCommand] = [], preparation: ChatSession.Preparation? = nil, progress: String? = nil
     ) {
         self.events = events
         self.cursor = cursor
@@ -85,10 +94,23 @@ public struct ChatEvents: Decodable, Equatable {
         self.pending = pending
         self.options = options
         self.commands = commands
+        self.preparation = preparation
+        self.progress = progress
     }
 
-    private enum CodingKeys: String, CodingKey { case events, cursor, streaming, session, approvals, options, commands }
-    private struct Summary: Decodable { let state: ChatSession.State }
+    private enum CodingKeys: String, CodingKey { case events, cursor, streaming, session, approvals, options, commands, progress }
+    private struct Summary: Decodable {
+        let state: ChatSession.State
+        let preparation: ChatSession.Preparation?
+
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            state = try values.decode(ChatSession.State.self, forKey: .state)
+            preparation = (try? values.decodeIfPresent(ChatSession.Preparation.self, forKey: .preparation)) ?? nil
+        }
+
+        private enum CodingKeys: String, CodingKey { case state, preparation }
+    }
     private struct Approval: Decodable { let approvalId: String }
 
     public init(from decoder: Decoder) throws {
@@ -96,7 +118,10 @@ public struct ChatEvents: Decodable, Equatable {
         events = try values.decode([ChatEvent].self, forKey: .events)
         cursor = try values.decode(Int.self, forKey: .cursor)
         streaming = try values.decode(String.self, forKey: .streaming)
-        state = try values.decodeIfPresent(Summary.self, forKey: .session)?.state
+        let summary = try values.decodeIfPresent(Summary.self, forKey: .session)
+        state = summary?.state
+        preparation = summary?.preparation
+        progress = try values.decodeIfPresent(String.self, forKey: .progress)
         pending = Set(try values.decodeIfPresent([Approval].self, forKey: .approvals)?.map(\.approvalId) ?? [])
         options = try values.decodeIfPresent([ChatOption].self, forKey: .options) ?? []
         commands = try values.decodeIfPresent([ChatCommand].self, forKey: .commands) ?? []
@@ -338,6 +363,11 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
             return ChatOption(id: option.id, label: option.label, values: option.values, current: chosen)
         }
     }
+    /// The steps of the session's preparation, from its `step` events, while the host prepares it; empty once the agent answers.
+    public private(set) var steps: [StepRow] = []
+    /// What the person sent as the first message of the session the draft opened, shown until the host's own record of it arrives (a failed
+    /// step before the message leaves none) so the text is never lost.
+    public private(set) var firstMessage: String?
     /// Counts the sends, so a poll that began before one does not tell the model the agent is idle when it is not.
     @ObservationIgnored private var sends = 0
 
@@ -347,6 +377,11 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     @ObservationIgnored private let memory: OptionsMemory
     @ObservationIgnored private var events: [ChatEvent] = []
     @ObservationIgnored private var streaming = ""
+    /// How the session's preparation stands: `failed` offers Try again, `running` offers Cancel; nil once the agent answered.
+    public private(set) var preparation: ChatSession.Preparation?
+    /// What the host refused when the person asked to try the preparation again or to cancel it, in words.
+    public private(set) var preparationRefusal: String?
+    @ObservationIgnored private var progress: String?
     /// The approvals the host still waits for, from the last reply.
     @ObservationIgnored private var pending: Set<String> = []
     /// The person's last message, which Try again sends again.
@@ -402,6 +437,8 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
             streaming = reply.streaming
             changed = changed || reply.pending != pending
             pending = reply.pending
+            if preparation != reply.preparation { preparation = reply.preparation }
+            progress = reply.progress
             loaded = true
             failure = nil
             options = reply.options
@@ -421,7 +458,9 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
             if failure != message { log("session \(sessionId): \(message)") }
             failure = message
         }
-        if changed { rows = chatFeed(events, streaming: streaming, pending: pending) }
+        let preparing = preparationSteps(events, preparation: preparation, progress: progress)
+        if preparing != steps { steps = preparing }
+        if changed { rows = feed() }
         if busy == false, let next = queued {
             queued = nil
             await deliver(next)
@@ -478,15 +517,46 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     /// Continue on the mark of a stopped turn.
     public func continueTurn() async { await deliver("Continue", refill: false) }
 
+    /// Try again on a failed preparation: the host repeats the steps that did not finish and the list fills in again.
+    public func retryPreparation() async {
+        do {
+            try await host.retryPreparation(sessionId)
+        } catch {
+            preparationRefusal = report(error, "try the preparation again")
+            return
+        }
+        preparationRefusal = nil
+        await poll()
+    }
+
+    /// Cancel while preparing: the host stops the running step and deletes the session, and answers the plan for the draft to take back; nil
+    /// when it refused, which is said in words and leaves the session as it was.
+    public func cancelPreparation() async -> SessionPlan? {
+        do {
+            let plan = try await host.cancelPreparation(sessionId)
+            preparationRefusal = nil
+            return plan
+        } catch {
+            preparationRefusal = report(error, "cancel the preparation")
+            return nil
+        }
+    }
+
     /// Try again on a banner: the refused message again, or the person's last message when the turn failed.
     public func retry() async {
         if let text = refusedText ?? lastUserText { await deliver(text, refill: false) }
     }
 
-    /// A first message whose send failed after the draft opened the session: the banner says why and Try again sends it.
-    public func showRefusal(of text: String, _ reason: String) {
-        refusal = reason
-        refusedText = text
+    /// The first message the draft sent with the plan of this session: it shows as the person's message until the host records it.
+    public func show(firstMessage text: String) {
+        firstMessage = text
+        rows = feed()
+    }
+
+    private func feed() -> [FeedRow] {
+        let rows = chatFeed(events, streaming: streaming, pending: pending)
+        guard let firstMessage, events.contains(where: { $0.kind == "user" }) == false else { return rows }
+        return [.user(id: "first-message", text: firstMessage)] + rows
     }
 
     /// Drops the queued message.

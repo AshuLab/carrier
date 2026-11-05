@@ -361,9 +361,25 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var refusing: ControlError?
     var sent: [String] = []
     var resumed = 0
+    var preparation: ChatSession.Preparation?
+    var progress: String?
+    var retried = 0
+    var cancelled = 0
+    var refusePreparation: ControlError?
+    var cancelPlan = SessionPlan(agent: "claude", folder: "/x", text: "hello")
 
     func agents() async throws -> [ChatAgent] { [] }
-    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String { "" }
+    func open(plan: SessionPlan) async throws -> String { "" }
+    func retryPreparation(_ id: String) async throws {
+        retried += 1
+        if let refusePreparation { throw refusePreparation }
+        preparation = .running
+    }
+    func cancelPreparation(_ id: String) async throws -> SessionPlan {
+        cancelled += 1
+        if let refusePreparation { throw refusePreparation }
+        return cancelPlan
+    }
     func workspace(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
     func fetch(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
     func suggestName(_ folder: String) async throws -> String { "" }
@@ -391,7 +407,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
         asked.append((after, limit))
         if let failing { throw failing }
         let page = Array(events.filter { $0.id > after }.prefix(limit))
-        return ChatEvents(events: page, cursor: page.last?.id ?? after, streaming: streaming)
+        return ChatEvents(events: page, cursor: page.last?.id ?? after, streaming: streaming, preparation: preparation, progress: progress)
     }
 }
 
@@ -490,4 +506,108 @@ private func say(_ id: Int) -> ChatEvent { ChatEvent(id: id, at: id, kind: "assi
     await model.poll()
     await model.retry()
     #expect(host.sent == ["hello again", "hello"])
+}
+
+// MARK: the steps of a preparation
+
+private func step(_ id: Int, _ step: String, _ status: String, _ detail: String? = nil) -> ChatEvent {
+    ChatEvent(id: id, at: id, kind: "step", status: status, step: step, detail: detail)
+}
+
+@Test func theStepsMakeOneRowEachInTheOrderTheyStartedWithTheLastStatusAndALineInWords() {
+    let rows = preparationSteps(
+        [step(1, "clone", "running"), step(2, "clone", "done"), step(3, "agent", "running"), say(4), step(5, "agent", "done"), step(6, "message", "running")],
+        preparation: .running
+    )
+    #expect(rows.map(\.step) == ["clone", "agent", "message"] && rows.map(\.status) == [.done, .done, .running])
+    #expect(rows.map(\.line) == ["Cloned the repository", "Started the agent", "Waiting for the agent to answer…"])
+    #expect(rows.allSatisfy { $0.reason == nil && $0.progress == nil })
+}
+
+@Test func aFailedStepShowsItsReasonAndOnlyTheRunningOneTakesTheProgress() {
+    let failed = preparationSteps([step(1, "clone", "done"), step(2, "worktree", "failed", "A branch called carrier/x already exists")], preparation: .failed, progress: "Receiving objects: 45%")
+    #expect(failed.map(\.status) == [.done, .failed] && failed[1].reason == "A branch called carrier/x already exists" && failed[1].line == "Could not make the worktree")
+    #expect(failed.allSatisfy { $0.progress == nil })
+    let cloning = preparationSteps([step(1, "clone", "running")], preparation: .running, progress: "Receiving objects: 45%")
+    #expect(cloning.first?.progress == "Receiving objects: 45%" && cloning.first?.line == "Cloning the repository…")
+}
+
+@Test func aStepThatRunsAgainAfterFailingTakesItsPlaceInTheSameRowWithoutTheOldReason() {
+    let rows = preparationSteps([step(1, "agent", "failed", "claude is not logged in"), step(2, "agent", "running")], preparation: .running)
+    #expect(rows.count == 1 && rows[0].status == .running && rows[0].reason == nil)
+}
+
+@Test func theListEndsWhenTheSessionIsNotBeingPreparedAnyMoreOrTheHostSaysNothing() {
+    let events = [step(1, "agent", "done"), step(2, "message", "done")]
+    #expect(preparationSteps(events, preparation: nil).isEmpty)
+    #expect(preparationSteps([], preparation: .running).isEmpty)
+    // a step or a status this app does not know does not break the list
+    #expect(preparationSteps([step(1, "later", "running"), step(2, "agent", "paused")], preparation: .running).map(\.line) == ["Working on later…"])
+}
+
+@MainActor @Test func theModelKeepsTheStepsWhileTheHostPreparesAndDropsThemWhenTheAgentAnswers() async {
+    let host = ScriptedHost()
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    host.preparation = .running
+    host.progress = "Receiving objects: 10%"
+    host.events = [step(1, "clone", "running")]
+    await model.poll()
+    #expect(model.steps.map(\.status) == [.running] && model.steps.first?.progress == "Receiving objects: 10%")
+    host.progress = "Receiving objects: 80%"
+    await model.poll()
+    #expect(model.steps.first?.progress == "Receiving objects: 80%")
+    // the agent answered: the host ends the preparation and the list goes
+    host.preparation = nil
+    host.progress = nil
+    host.events += [step(2, "clone", "done"), step(3, "message", "done"), say(4)]
+    await model.poll()
+    #expect(model.steps.isEmpty && model.rows.count == 1)
+}
+
+@MainActor @Test func theFirstMessageShowsUntilTheHostRecordsItSoAFailedStepKeepsTheText() async {
+    let host = ScriptedHost()
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    model.show(firstMessage: "hello")
+    #expect(model.rows == [.user(id: "first-message", text: "hello")])
+    host.preparation = .failed
+    host.events = [step(1, "agent", "failed", "claude is not logged in")]
+    await model.poll()
+    #expect(model.rows == [.user(id: "first-message", text: "hello")] && model.steps.map(\.reason) == ["claude is not logged in"])
+    host.events.append(ChatEvent(id: 2, at: 2, kind: "user", text: "hello"))
+    await model.poll()
+    #expect(model.rows == [.user(id: "e2", text: "hello")])
+}
+
+@MainActor @Test func tryAgainAsksTheHostAndTheNextPollShowsThePreparationRunningAgain() async {
+    let host = ScriptedHost()
+    host.preparation = .failed
+    host.events = [step(1, "agent", "failed", "claude is not logged in")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.preparation == .failed && model.steps.map(\.status) == [.failed])
+    host.events.append(step(2, "agent", "running"))
+    await model.retryPreparation()
+    #expect(host.retried == 1 && model.preparation == .running && model.steps.map(\.status) == [.running] && model.preparationRefusal == nil)
+}
+
+@MainActor @Test func aRefusedTryAgainOrCancelIsSaidInWordsAndChangesNothing() async {
+    let host = ScriptedHost()
+    host.preparation = .running
+    host.refusePreparation = .remote("This session is not in a failed preparation, so there is nothing to try again")
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    await model.retryPreparation()
+    #expect(model.preparationRefusal == "This session is not in a failed preparation, so there is nothing to try again" && model.preparation == .running)
+    host.refusePreparation = .remote("This session is not being prepared, so there is nothing to cancel")
+    #expect(await model.cancelPreparation() == nil)
+    #expect(model.preparationRefusal == "This session is not being prepared, so there is nothing to cancel")
+}
+
+@MainActor @Test func cancelGivesBackThePlanTheHostStoredWithTheText() async {
+    let host = ScriptedHost()
+    host.preparation = .running
+    host.cancelPlan = SessionPlan(agent: "claude", folder: "/w/api", branch: "feat/x", text: "build it")
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    let plan = await model.cancelPreparation()
+    #expect(host.cancelled == 1 && plan == host.cancelPlan && model.preparationRefusal == nil)
 }

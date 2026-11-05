@@ -8,7 +8,7 @@ import { claudeChatRunner } from './claude.ts';
 import { codexChatRunner } from './codex.ts';
 import { chatConfigProblem, chatDirOf, chatLogsOf, chatStateOf, readChatConfig, type ChatSettings } from './config.ts';
 import { realGit, type Git } from './git.ts';
-import { createProjects, ghLogin, ghRepos, ghToken, type GithubRepos } from './projects.ts';
+import { createProjects, ghBranches, ghLogin, ghRepos, ghToken, type GithubRepos } from './projects.ts';
 import { openChatDatabase } from './db.ts';
 import { idleExit } from './idle.ts';
 import { startChatServer } from './server.ts';
@@ -48,6 +48,7 @@ export interface ChatHostDeps {
 const realGithub = ({ githubCallTimeoutSeconds }: ChatSettings): GithubRepos => ({
   repos: (page) => ghRepos(page, githubCallTimeoutSeconds * 1000),
   login: () => ghLogin(githubCallTimeoutSeconds * 1000),
+  branches: (repo) => ghBranches(repo, githubCallTimeoutSeconds * 1000),
 });
 
 const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub(settings), binaryFound, probes: realProbes, processes: realProcesses });
@@ -81,7 +82,8 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     if (current.ok) ages = current.settings;
     return ages;
   };
-  const sessions = createSessions({ db, agents: settings.agents, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, binaryFound: deps.binaryFound, probes: deps.probes, ages: currentAges, onLiveChange: () => idle?.recheck() });
+  const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock });
+  const sessions = createSessions({ db, agents: settings.agents, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, ages: currentAges, onLiveChange: () => idle?.recheck() });
   // The clock's pass, at start and every hour while the host runs; the ages are read from chat.json each time, and a wrong file skips the pass.
   let cancelPass = () => {};
   let stopped = false;
@@ -101,7 +103,6 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     await passInFlight;
     if (!stopped) cancelPass = deps.clock.after(HOUR_MS, clockPass);
   };
-  const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github });
   const close = () => {
     stopped = true;
     idle?.stop();
@@ -126,7 +127,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
       joined: () => void (idle?.joined(), sessions.clientJoined()),
       left: () => void (idle?.left(), sessions.clientLeft()),
     };
-    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, cloneRepo: projects.cloneRepo, createProject: projects.createProject, githubRepos: projects.githubRepos }, stop, clients })).close;
+    closeServer = (await startChatServer({ stateDir, startedAt: deps.clock.now(), controls: { ...sessions, cloneRepo: projects.cloneRepo, createProject: projects.createProject, githubRepos: projects.githubRepos, repoBranches: projects.repoBranches }, stop, clients })).close;
   } catch (error) {
     close();
     throw error;

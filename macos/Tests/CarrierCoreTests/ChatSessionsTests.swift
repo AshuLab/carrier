@@ -43,6 +43,11 @@ private func session(
     #expect(rows.map(\.state) == [.idle, .idle])
 }
 
+@Test func aSessionThatIsPreparingShowsAtOnceAsWorkingWhetherOrNotItsAgentHasStarted() throws {
+    let rows = sessionRows([try session("p", state: "preparing", live: false), try session("q", state: "preparing", live: true)])
+    #expect(rows.map(\.state) == [.working, .working])
+}
+
 @Test func aWorktreeSessionIsGroupedUnderItsBaseFolderAndAFolderSessionUnderItsFolder() throws {
     let rows = sessionRows([
         try session("tree", folder: "/Users/dev/.carrier/worktrees/web/fix", base: "/Users/dev/web"), try session("plain", folder: "/Users/dev/web"),
@@ -78,7 +83,7 @@ private final class FakeHost: ChatHost, @unchecked Sendable {
     var calls: [Bool] = []
 
     func agents() async throws -> [ChatAgent] { [] }
-    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String { "" }
+    func open(plan: SessionPlan) async throws -> String { "" }
     func workspace(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
     func fetch(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
     func suggestName(_ folder: String) async throws -> String { "" }

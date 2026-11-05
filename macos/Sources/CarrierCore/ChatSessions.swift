@@ -16,6 +16,8 @@ public func sessionRows(_ sessions: [ChatSession]) -> [SessionRow] {
     }
     return sessions.map { session in
         let state: SessionState = switch (session.live, session.state) {
+        // the host prepares it in the background: it shows at once, working, whether or not its agent has started
+        case (_, .preparing): .working
         case (false, _), (_, .idle): .idle
         case (true, .working): .working
         case (true, .waitingApproval): .waiting

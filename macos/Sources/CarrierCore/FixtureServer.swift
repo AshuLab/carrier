@@ -13,7 +13,7 @@ public enum FixtureError: Error, Equatable {
 /// (kept in memory, refused for a working or waiting one as the host does), `deletePreview`, which says what `chat-delete-preview.json`
 /// holds for the sessions it names and `worktree: null` for the other listed ones, and the worktree requests from `chat-workspace.json`
 /// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder), `chat-clone.json` (`cloneRepo`, by
-/// `owner/repo`; one not listed is refused as the host does for a repository it cannot see), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-names.json` (`suggestName`,
+/// `owner/repo`; one not listed is refused as the host does for a repository it cannot see), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see), `chat-names.json` (`suggestName`,
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; anything else is an error.
@@ -33,6 +33,7 @@ public final class FixtureServer {
     private let chatClones: [String: [String: Any]]
     private let chatProjects: [String: [String: Any]]
     private let chatGithubRepos: [String: [String: Any]]
+    private let chatBranches: [String: [String: Any]]
     private let chatNames: [String: Any]
     private var suggested = 0
     /// `archive` and `delete` change it; the sockets' threads share it, so it is read and written with `lock`.
@@ -45,7 +46,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\"]}\n".utf8)
+    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"plan\"]}\n".utf8)
     private let data: [String: Data]
     private let hello: Data
     private var stopped = false
@@ -108,6 +109,7 @@ public final class FixtureServer {
         chatClones = try golden("chat-clone.json", as: [String: [String: Any]].self)
         chatProjects = try golden("chat-project.json", as: [String: [String: Any]].self)
         chatGithubRepos = try golden("chat-github-repos.json", as: [String: [String: Any]].self)
+        chatBranches = try golden("chat-branches.json", as: [String: [String: Any]].self)
         chatNames = try golden("chat-names.json", as: [String: Any].self)
         guard let previews = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-delete-preview.json"))) as? [String: Any])?["sessions"] as? [[String: Any]]
         else { throw FixtureError.unreadable("\(fixtures)/chat-delete-preview.json") }
@@ -264,6 +266,9 @@ public final class FixtureServer {
         case "githubRepos":
             guard let page = request?["page"] as? Int else { break }
             return chatGithubRepos[String(page)].map { Self.answer(id, $0) } ?? Self.refused(id, "GitHub did not answer; check \"gh auth status\"")
+        case "repoBranches":
+            guard let repo = request?["repo"] as? String else { break }
+            return chatBranches[repo].map { Self.answer(id, $0) } ?? Self.refused(id, "\(repo) was not found, or your GitHub login cannot see it")
         case "suggestName":
             let names = chatNames["suggestions"] as? [String] ?? []
             guard request?["folder"] is String, names.isEmpty == false else { break }
@@ -272,6 +277,7 @@ public final class FixtureServer {
             guard request?["folder"] is String, let name = request?["name"] as? String else { break }
             return Self.answer(id, nameCheck(name))
         case "open":
+            if let plan = request?["plan"] as? [String: Any] { return openPlan(id, plan) }
             return open(id, request ?? [:])
         case "send":
             guard let session = request?["sessionId"] as? String, let text = request?["text"] as? String else { break }
@@ -337,7 +343,27 @@ public final class FixtureServer {
         (chatNames["checks"] as? [String: [String: Any]])?[name] ?? chatNames["free"] as? [String: Any] ?? ["valid": true, "free": true]
     }
 
-    /// `open`: a session in memory, in a worktree of the folder when asked; refused as the host does.
+    /// `open`: a session in memory, in a worktree of the folder when asked; refused as the host does. A plan opens the same session with its
+    /// text already sent and every step done at once.
+    private func openPlan(_ id: Int, _ plan: [String: Any]) -> Data {
+        let place = plan["workspace"] as? [String: Any]
+        // a repository is cloned by the host under its projects folder, which the fixture only names
+        let folder = place?["folder"] as? String ?? (place?["repo"] as? String).map { "/Users/dev/projects/\($0)" }
+        guard let folder, let text = plan["text"] as? String else { return Self.refused(id, "invalid request") }
+        var request: [String: Any] = ["agent": plan["agent"] as Any, "folder": folder]
+        if let from = plan["branch"] as? String { request["worktree"] = ["from": from, "name": (plan["worktree"] as? [String: Any])?["name"] as Any].compactMapValues { $0 is NSNull ? nil : $0 } }
+        let opened = open(id, request)
+        guard let reply = (try? JSONSerialization.jsonObject(with: opened.dropLast())) as? [String: Any], reply["ok"] as? Bool == true,
+            let session = (reply["data"] as? [String: Any])?["session"] as? [String: Any], let sessionId = session["id"] as? String else { return opened }
+        let now = Int(Date().timeIntervalSince1970 * 1000)
+        locked {
+            chatConversations[sessionId, default: ([], "")].events = ["agent", "message"].enumerated().map { at, step in
+                ["id": at + 1, "at": now, "kind": "step", "step": step, "status": "done"]
+            } + [["id": 3, "at": now, "kind": "user", "text": text]]
+        }
+        return opened
+    }
+
     private func open(_ id: Int, _ request: [String: Any]) -> Data {
         guard let agent = request["agent"] as? String, let folder = request["folder"] as? String else { return Self.refused(id, "invalid request") }
         guard let chosen = ((try? JSONSerialization.jsonObject(with: chatAgents)) as? [[String: Any]])?.first(where: { $0["name"] as? String == agent }) else {

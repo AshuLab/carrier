@@ -63,6 +63,7 @@ public struct SearchRequest: Equatable {
     /// rest leave it. `chooseArchived` puts Archive back after choosing a session from its list.
     public var selection: Selection = .home {
         didSet {
+            if selection == .newSession { newSessionOpened += 1 }
             switch selection {
             case .sessions, .session, .newSession: open = .sessions
             case .carrier, .epic: open = .carrier
@@ -71,6 +72,8 @@ public struct SearchRequest: Equatable {
             }
         }
     }
+    /// Counts the times New session was asked for, the + while its draft is already open included: the draft starts blank each time.
+    public private(set) var newSessionOpened = 0
     /// The Settings sheet is over the window, on this section; the selection underneath stays.
     public var settingsShown = false
     public var settingsTab = SettingsTab.engine

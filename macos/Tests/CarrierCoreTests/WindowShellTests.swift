@@ -113,6 +113,15 @@ import Testing
     #expect(shell.aboutShown == false)
 }
 
+@Test func askingForNewSessionWhileItsDraftIsOpenCountsAsOpeningIt() {
+    let shell = WindowShell()
+    shell.selection = .newSession
+    shell.selection = .newSession
+    #expect(shell.newSessionOpened == 2)
+    shell.selection = .home
+    #expect(shell.newSessionOpened == 2)
+}
+
 @Test func commandAndANumberOrFSelectOrSearch() {
     #expect(shortcutAction(key: "1", modifiers: .command) == .select(.home))
     #expect(shortcutAction(key: "2", modifiers: .command) == .select(.sessions))

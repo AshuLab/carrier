@@ -92,6 +92,8 @@ struct PanelView: View {
         NavigationSplitView(columnVisibility: columns) {
             SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, sessionSort: sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { shell.showSettings() })
                 .onChange(of: shell.open) { SidebarStore().open = shell.open }
+                // the menu or the + while the draft is open: it starts blank again
+                .onChange(of: shell.newSessionOpened) { model.newSession.blank() }
         } detail: {
             // the right panel is ours, not `.inspector`: that one, inside a NavigationSplitView, loops AppKit's layout while the window
             // resizes and the app dies with "more Update Constraints passes than there are views"
@@ -117,7 +119,10 @@ struct PanelView: View {
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
                     } else if case .session(let id) = shell.selection {
-                        ConversationView(sessionId: id, draft: model.newSession).id(id)
+                        ConversationView(sessionId: id, draft: model.newSession) { plan in
+                            model.newSession.restore(plan)
+                            shell.selection = .newSession
+                        }.id(id)
                     } else if case .running(let snapshot)? = model.state {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 26) {

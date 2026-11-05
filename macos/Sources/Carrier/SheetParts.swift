@@ -125,8 +125,8 @@ struct RailRow: View {
     }
 }
 
-/// The clone action of a repository row: a round glass button with a chevron, shown under the pointer. The row itself is the button.
-struct CloneChevron: View {
+/// The action of a repository row: a round glass button with a chevron, shown under the pointer. The row itself is the button.
+struct RowChevron: View {
     let shown: Bool
 
     var body: some View {

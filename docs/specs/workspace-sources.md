@@ -2,6 +2,8 @@
 
 Status: spec
 
+> The sentence that has the clone happen when the repository is chosen, and the stories that follow from it, are superseded by [a session is prepared when the first message is sent](session-prepared-on-first-message.md) and [0018](../adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md).
+
 ## Problem
 
 Choosing where a new session works offers recent folders and Open folder…, and that is all. Diego opens New session wanting to talk to an agent about a project and either has it in some folder he has to go and find, has it only on GitHub, or has nothing yet; in the last two he must prepare a folder by hand before the draft lets him start. The config's six repositories, which he expected to find in the picker, are not an answer: they carry only `owner/name`, the clones that exist for them are the engine's and the chat host refuses them by design, and they are the list of what Carrier watches, not of what he talks about.

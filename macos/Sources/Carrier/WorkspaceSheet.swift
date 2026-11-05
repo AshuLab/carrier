@@ -3,8 +3,8 @@ import CarrierCore
 import SwiftUI
 
 /// Where a new session works, as a sheet (docs/specs/workspace-sources.md): the sources on the left, the one that is chosen on the right,
-/// and a footer with the projects folder and Cancel, which also stops a clone that is running. The model drives it (`step`, the clone and
-/// the lists); choosing a workspace closes the sheet.
+/// and a footer with the projects folder and Cancel. The model drives it (`step` and the lists); choosing a workspace closes the sheet, and
+/// nothing is cloned or written until the first message is sent.
 struct WorkspaceSheet: View {
     @Bindable var model: NewSessionModel
     /// Opens the Health tab of Settings.
@@ -70,7 +70,7 @@ struct WorkspaceSheet: View {
     }
 
     private func railRow(_ title: String, _ detail: String, _ icon: String, selected: Bool, off: Bool = false, action: @escaping () -> Void) -> some View {
-        RailRow(title: title, detail: detail, icon: icon, selected: selected, off: off || model.cloning != nil || model.creating, action: action)
+        RailRow(title: title, detail: detail, icon: icon, selected: selected, off: off, action: action)
     }
 
     // MARK: Footer
@@ -84,9 +84,9 @@ struct WorkspaceSheet: View {
                     Text((model.projectsPath as NSString).abbreviatingWithTildeInPath)
                         .font(.callout.monospaced()).lineLimit(1).truncationMode(.head).textSelection(.enabled)
                 }
-                Button("Change…", action: changeProjectsFolder).controlSize(.small).help("Where cloned repositories and new projects go")
+                Button("Change…", action: changeProjectsFolder).controlSize(.small).help("Where repositories are cloned and new projects are made")
                 Spacer(minLength: 16)
-                Button("Cancel") { model.cancelClone(); dismiss() }.keyboardShortcut(.cancelAction)
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
             }
             if let problem = model.projectsFolderProblem {
                 notice(problem, "exclamationmark.triangle.fill", .red)
@@ -164,38 +164,39 @@ struct WorkspaceSheet: View {
         }
     }
 
-    /// From a GitHub URL: the text and what will happen to it; while it clones, the clone, and Stop.
+    /// From a GitHub URL: the text and what will happen to it when the message is sent.
     private var urlStep: some View {
         stepPage("From a GitHub URL", "Bring in any repository you can read, by its name or address.", icon: "link") {
             VStack(alignment: .leading, spacing: 8) {
                 fieldLabel("Repository", "magnifyingglass")
                 TextField("owner/repo or https://github.com/owner/repo", text: $model.urlText)
                     .textFieldStyle(.roundedBorder).controlSize(.large).autocorrectionDisabled()
-                    .focused($focused, equals: .url).disabled(model.cloning != nil).onSubmit(clone)
+                    .focused($focused, equals: .url).onSubmit(useRepo)
                 if model.urlText.isEmpty == false && model.reference == nil {
                     notice("That does not look like a GitHub repository. Use owner/repo, or paste its github.com link.", "exclamationmark.triangle.fill", .orange)
                 } else if model.alreadyThere {
-                    notice("Already in your projects folder. It will be updated (fetch) and opened, not cloned again.", "arrow.triangle.2.circlepath", .orange)
+                    notice("Already in your projects folder. It will be updated (fetch) when the message is sent, not cloned again.", "arrow.triangle.2.circlepath", .orange)
                 } else if let reference = model.reference {
-                    pathLine("Will be cloned to", "\(model.projectsPath)/\(reference)")
+                    pathLine("Will be cloned when the message is sent, to", "\(model.projectsPath)/\(reference)")
                 }
             }
             watchCard(for: "this repo", on: Binding(get: { model.watching }, set: { model.watch = $0 }), reason: model.watchProblem)
             howItWorks([
                 ("person.badge.key", "Private repositories work too: Carrier uses your own GitHub sign-in (gh), never the engine's."),
-                ("arrow.down.circle", "A repository is cloned once. Next time it is only fetched, and nothing in it is deleted."),
+                ("arrow.down.circle", "Nothing is cloned until you send the first message. A repository is cloned once; next time it is only fetched, and nothing in it is deleted."),
             ])
             Spacer(minLength: 0)
-            cloneBar(trailing: true) {
-                Button(action: clone) { Label(model.cloneButton, systemImage: model.alreadyThere ? "arrow.triangle.2.circlepath" : "arrow.down.circle") }
-                    .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction).disabled(model.canCloneNow == false)
+            HStack {
+                Spacer(minLength: 0)
+                Button(action: useRepo) { Label(model.repoButton, systemImage: model.alreadyThere ? "arrow.triangle.2.circlepath" : "arrow.down.circle") }
+                    .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction).disabled(model.canUseRepo == false)
             }
         }
         .onAppear { focused = .url }
     }
 
     /// My repositories: a search and a filter over what is loaded, the rows (each says whether it is private and whether Carrier watches
-    /// it), a notice while the list is partial with Load more, and the watch box under the list; choosing a row clones it.
+    /// it), a notice while the list is partial with Load more, and the watch box under the list; choosing a row fills the plan with it.
     private var reposStep: some View {
         stepPage("My repositories", model.login.map { "Signed in to GitHub as \($0)." } ?? "The repositories your GitHub account can read.", icon: "list.bullet") {
             if model.repoList.blocked {
@@ -231,7 +232,7 @@ struct WorkspaceSheet: View {
                     }
                 }
                 watchCard(for: "the repo I choose", on: $model.watch, reason: nil)
-                cloneBar { EmptyView() }
+                Label("Click a repository to work there. It is cloned when you send the first message.", systemImage: "cursorarrow.click").font(.subheadline).foregroundStyle(.secondary)
             }
         }
     }
@@ -285,7 +286,7 @@ struct WorkspaceSheet: View {
     }
 
     private func repoRow(_ row: GithubRepoRow) -> some View {
-        HoverRow(action: { Task { if await model.cloneAndUse(repo: row.name) { dismiss() } } }) { hovering in
+        HoverRow(action: { dismiss(); Task { await model.choose(repo: row.name) } }) { hovering in
             HStack(alignment: .center, spacing: 10) {
                 HStack(alignment: .top, spacing: 10) {
                     Image(systemName: "book.closed").foregroundStyle(.secondary).frame(width: 18).padding(.top, 2).accessibilityHidden(true)
@@ -303,11 +304,10 @@ struct WorkspaceSheet: View {
                 }
                 Spacer(minLength: 8)
                 if row.watched { badge("Watched", "eye.fill", .green) }
-                CloneChevron(shown: hovering && model.cloning == nil)
+                RowChevron(shown: hovering)
             }
             .padding(.horizontal, 10).padding(.vertical, 8)
         }
-        .disabled(model.cloning != nil)
         .accessibilityLabel("\(row.name), \(row.isPrivate ? "private" : "public")\(row.watched ? ", watched" : "")")
     }
 
@@ -318,25 +318,22 @@ struct WorkspaceSheet: View {
                 fieldLabel("Name", "textformat")
                 TextField("my-project", text: $model.projectName)
                     .textFieldStyle(.roundedBorder).controlSize(.large).autocorrectionDisabled()
-                    .focused($focused, equals: .project).disabled(model.creating).onSubmit(create)
+                    .focused($focused, equals: .project).onSubmit(create)
                 if let warning = model.projectNameWarning {
                     notice(warning, "exclamationmark.triangle.fill", .orange)
-                } else if let problem = model.createProblem {
-                    notice(problem, "exclamationmark.triangle.fill", .red)
                 } else {
-                    pathLine("Will be created at", model.projectPath)
+                    pathLine("Will be created when the message is sent, at", model.projectPath)
                 }
             }
             howItWorks([
-                ("terminal", "Carrier makes the folder and runs git init on main."),
+                ("terminal", "When you send the first message, Carrier makes the folder and runs git init on main."),
                 ("icloud.slash", "It stays on this Mac. It has no GitHub repository, so Carrier does not watch it."),
             ])
             Spacer(minLength: 0)
             HStack {
                 Spacer(minLength: 0)
-                if model.creating { ProgressView().controlSize(.small) }
-                Button(action: create) { Label("Create and use", systemImage: "plus.circle") }
-                    .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction).disabled(model.canCreateNow == false)
+                Button(action: create) { Label("Use this project", systemImage: "plus.circle") }
+                    .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction).disabled(model.canUseNow == false)
             }
         }
         .onAppear { focused = .project }
@@ -344,27 +341,7 @@ struct WorkspaceSheet: View {
 
     // MARK: Pieces
 
-    /// The foot of a step that clones: the clone in progress with Stop, else the failure, else what the step puts there.
-    @ViewBuilder private func cloneBar<Extra: View>(trailing: Bool = false, @ViewBuilder _ extra: () -> Extra) -> some View {
-        if let repo = model.cloning {
-            HStack(spacing: 10) {
-                ProgressView().controlSize(.small)
-                Text("Cloning \(repo)…")
-                Spacer(minLength: 0)
-                Button { model.cancelClone() } label: { Label("Stop", systemImage: "stop.circle") }
-            }
-            .padding(12).background(RoundedRectangle(cornerRadius: radius).fill(Color.accentColor.opacity(0.12)))
-        } else {
-            if let problem = model.cloneProblem { notice(problem, "exclamationmark.triangle.fill", .red) }
-            HStack {
-                if trailing { Spacer(minLength: 0) }
-                extra()
-                if trailing == false { Spacer(minLength: 0) }
-            }
-        }
-    }
-
-    /// The watch box, with what watching means: it is a choice made when the repository comes in, and the engine hears of it at its next start.
+    /// The watch box, with what watching means: it is a choice made now and acted on once the agent has answered the first message, and the engine hears of it at its next start.
     private func watchCard(for what: String, on: Binding<Bool>, reason: String?) -> some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: on.wrappedValue && reason == nil ? "eye.fill" : "eye.slash")
@@ -378,7 +355,7 @@ struct WorkspaceSheet: View {
             Toggle("Let Carrier watch \(what)", isOn: on).labelsHidden().toggleStyle(.switch)
         }
         .padding(12).background(RoundedRectangle(cornerRadius: radius).fill(Color.secondary.opacity(0.08)))
-        .disabled(reason != nil || model.cloning != nil)
+        .disabled(reason != nil)
     }
 
     /// A few lines on how the step works, each with its icon.
@@ -448,13 +425,12 @@ struct WorkspaceSheet: View {
     // MARK: Actions
 
     private func create() {
-        guard model.canCreateNow else { return }
-        Task { if await model.createAndUse() { dismiss() } }
+        if model.useProject() { dismiss() }
     }
 
-    private func clone() {
-        guard model.canCloneNow else { return }
-        Task { if await model.cloneAndUse() { dismiss() } }
+    private func useRepo() {
+        guard model.canUseRepo else { return }
+        Task { if await model.useRepo() { dismiss() } }
     }
 
     /// The footer's Change…: the folder panel over the sheet, which then shows the new path or why it was refused.

@@ -2,7 +2,7 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// Settings as a screen of the main window: the readiness banner (only while something is missing or being looked for), five tabs.
+/// Settings as a screen of the main window: the readiness banner (only while something is missing or being looked for), six tabs.
 struct SettingsScreen: View {
     let state: ConnectionState?
     @ObservedObject var setup: SetupController = .shared
@@ -65,6 +65,8 @@ struct SettingsScreen: View {
                     BehaviorTabView(state: state)
                 } else if tab == .repos {
                     ReposTabView(state: state)
+                } else if tab == .sessions {
+                    SessionsTabView()
                 } else if tab == .notifications {
                     NotificationsTabView()
                 } else {

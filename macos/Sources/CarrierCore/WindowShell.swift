@@ -13,10 +13,9 @@ public enum Selection: Hashable {
     case archive
     case carrier
     case epic(repo: String, issue: Int)
-    case settings
 }
 
-/// The tabs of the Settings screen; the raw value is the title.
+/// The sections of the Settings sheet; the raw value is the title.
 public enum SettingsTab: String, CaseIterable { case engine = "Engine", behavior = "Behavior", repos = "Repos", sessions = "Sessions", notifications = "Notifications", health = "Health" }
 
 /// Which of the Sessions, Carrier and Archive sections is unfolded; the others are folded.
@@ -64,17 +63,16 @@ public struct SearchRequest: Equatable {
     /// rest leave it. `chooseArchived` puts Archive back after choosing a session from its list.
     public var selection: Selection = .home {
         didSet {
-            // Settings opens on its first tab, unless something asked for another one (`openHealth`)
-            if selection != .settings { settingsTab = .engine }
             switch selection {
             case .sessions, .session, .newSession: open = .sessions
             case .carrier, .epic: open = .carrier
             case .archive: open = .archive
-            case .home, .settings: break
+            case .home: break
             }
         }
     }
-    /// The tab Settings shows.
+    /// The Settings sheet is over the window, on this section; the selection underneath stays.
+    public var settingsShown = false
     public var settingsTab = SettingsTab.engine
     /// The unfolded section; nil when all are folded.
     public var open: OpenSection?
@@ -93,11 +91,14 @@ public struct SearchRequest: Equatable {
         open = .archive
     }
 
-    /// A reason that points to the Health tab (a provider, `gh` or `git` that cannot be used) opens it.
-    public func openHealth() {
-        selection = .settings
-        settingsTab = .health
+    /// Opens the Settings sheet on a section; it starts on the first one unless something asks for another.
+    public func showSettings(_ tab: SettingsTab = .engine) {
+        settingsTab = tab
+        settingsShown = true
     }
+
+    /// A reason that points to the Health tab (a provider, `gh` or `git` that cannot be used) opens it.
+    public func openHealth() { showSettings(.health) }
 
     public func toggleSidebar() { sidebarShown.toggle() }
     public func toggleInspector() { inspectorShown.toggle() }
@@ -124,6 +125,7 @@ public struct SearchRequest: Equatable {
         sidebarShown = true
         inspectorShown = true
         aboutShown = false
+        settingsShown = false
         searchRequest = nil
     }
 }

@@ -1,0 +1,138 @@
+# Lives in github/workflows (no dot) because the bot that pushed it cannot write .github/workflows.
+# The owner renames github/ to .github/; the formula path below already names the final path.
+#
+# A tag vX.Y.Z publishes @ashulab/carrier at X.Y.Z and rewrites the formula in the tap.
+# Run by hand with dry-run on, it does everything up to the publishing and pushes nothing.
+# Secrets: NPM_TOKEN (publish to the @ashulab scope), TAP_TOKEN (push to AshuLab/homebrew-tap).
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Build, pack and install the formula from the tarball; publish and push nothing
+        type: boolean
+        default: true
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 40
+    env:
+      # A tag is a real release; a manual run is real only when dry-run is switched off.
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run || 'false' }}
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_FROM_API: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: Version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_TYPE" = tag ]; then
+            echo "$REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || { echo "Tag $REF_NAME is not vX.Y.Z" >&2; exit 1; }
+            VERSION="${REF_NAME#v}"
+          else
+            VERSION="$(node -p "require('./package.json').version")"
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          # The tag is the version: set in this runner's copy only, nothing is committed back.
+          VERSION="$VERSION" node -e "
+            const fs = require('node:fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = process.env.VERSION;
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Pack
+        run: |
+          mkdir -p out
+          pnpm pack --pack-destination out
+          mv out/*.tgz "out/carrier-$VERSION.tgz"
+          echo "SHA256=$(shasum -a 256 "out/carrier-$VERSION.tgz" | cut -d' ' -f1)" >> "$GITHUB_ENV"
+
+      - name: Tap
+        if: env.DRY_RUN != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: AshuLab/homebrew-tap
+          token: ${{ secrets.TAP_TOKEN }}
+          path: tap
+
+      - name: Formula
+        run: |
+          mkdir -p formula
+          # The tap's formula is rewritten; the one in this repo only seeds a tap that has none yet.
+          if [ -f tap/Formula/carrier.rb ]; then cp tap/Formula/carrier.rb formula/carrier.rb; else cp .github/homebrew/carrier.rb formula/carrier.rb; fi
+          URL="https://registry.npmjs.org/@ashulab/carrier/-/carrier-$VERSION.tgz"
+          sed -i '' -E "s|^  url \".*\"|  url \"$URL\"|; s|^  sha256 \".*\"|  sha256 \"$SHA256\"|" formula/carrier.rb
+          brew tap-new --no-git local/ci
+          # Homebrew 7 refuses to load a formula from an untrusted tap; older ones have no `brew trust`.
+          if brew trust --help >/dev/null 2>&1; then brew trust local/ci; fi
+          mkdir -p "$(brew --repository local/ci)/Formula"
+          cp formula/carrier.rb "$(brew --repository local/ci)/Formula/carrier.rb"
+          brew audit --strict local/ci/carrier
+
+      - name: Install the formula from the tarball
+        run: |
+          TAP_DIR="$(brew --repository local/ci)/Formula"
+          sed -i '' -E "s|^  url \".*\"|  url \"file://$PWD/out/carrier-$VERSION.tgz\"|" "$TAP_DIR/carrier.rb"
+          brew install local/ci/carrier
+          test "$(carrier --version)" = "$VERSION" || { echo "carrier --version printed: $(carrier --version)" >&2; exit 1; }
+          brew uninstall carrier
+
+      - name: Publish to npm
+        if: env.DRY_RUN != 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish "out/carrier-$VERSION.tgz" --access public --no-git-checks
+
+      - name: Formula from the published tarball
+        if: env.DRY_RUN != 'true'
+        run: |
+          URL="https://registry.npmjs.org/@ashulab/carrier/-/carrier-$VERSION.tgz"
+          # The registry can take a moment to serve what was just published.
+          for i in 1 2 3 4 5 6; do
+            curl -fsSL "$URL" -o published.tgz && break
+            sleep 10
+          done
+          test -f published.tgz
+          PUBLISHED="$(shasum -a 256 published.tgz | cut -d' ' -f1)"
+          sed -i '' -E "s|^  sha256 \".*\"|  sha256 \"$PUBLISHED\"|" formula/carrier.rb
+
+      - name: Summary
+        run: |
+          {
+            echo "### Formula $([ "$DRY_RUN" = true ] && echo 'it would have written' || echo 'written') for $VERSION"
+            echo '```ruby'
+            cat formula/carrier.rb
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Push the formula to the tap
+        if: env.DRY_RUN != 'true'
+        working-directory: tap
+        run: |
+          mkdir -p Formula
+          cp ../formula/carrier.rb Formula/carrier.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/carrier.rb
+          git commit -m "carrier $VERSION"
+          git push

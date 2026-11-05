@@ -21,6 +21,7 @@ Workaround, unsupported: `swift build --sdk /Library/Developer/CommandLineTools/
 cd macos
 ./build-app.sh          # release build wrapped in Carrier.app (bundle id dev.ashulab.carrier), signed ad hoc
 ./build-app.sh --open   # same, then opens it
+./build-app.sh 1.2.3    # same, with 1.2.3 as the app's version in the plist (0.1.0 when none is given); the release workflow does this with the tag's version
 open Carrier.app
 ```
 

@@ -33,7 +33,7 @@ type State = (typeof sessions.$inferSelect)['state'];
 /** Where a session works: the folder it was opened in, or a worktree made for it from that base folder. */
 export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: string; from: string; base: string; path: string };
 
-export type SessionSummary = Omit<typeof sessions.$inferSelect, 'options' | 'pid' | 'pgid' | 'command' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath'> & { workspace: SessionWorkspace };
+export type SessionSummary = Omit<typeof sessions.$inferSelect, 'keptAt' | 'options' | 'pid' | 'pgid' | 'command' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath'> & { workspace: SessionWorkspace };
 
 export type PendingApproval = { approvalId: string; tool: string; arg?: string; choices: ChatChoice[] };
 
@@ -97,7 +97,7 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     if (found === undefined) throw new ChatRefused('There is no such session');
     return found;
   };
-  const summary = ({ options: _options, pid: _pid, pgid: _pgid, command: _command, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
+  const summary = ({ keptAt: _keptAt, options: _options, pid: _pid, pgid: _pgid, command: _command, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
     ...rest,
     workspace: workspaceKind === 'worktree' ? { kind: 'worktree', branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase!, path: worktreePath! } : { kind: 'folder' },
   });
@@ -180,6 +180,26 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
       log.error('a chat runner failed to open', error);
       throw new ChatRefused(`${chosen.name} could not be started`);
     }
+  }
+
+  /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */
+  async function deleteSession({ sessionId }: { sessionId: string }) {
+    // marked before the first await, so a resume that comes in meanwhile is refused
+    deleting.add(sessionId);
+    try {
+      await settle(sessionId, 'delete');
+      const { workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath } = row(sessionId);
+      // The worktree goes first: one that cannot be removed stops the deletion and the session stays.
+      if (workspaceKind === 'worktree') await deleteWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! });
+      db.transaction((tx) => {
+        tx.delete(chatEvents).where(eq(chatEvents.sessionId, sessionId)).run();
+        tx.delete(chatTurns).where(eq(chatTurns.sessionId, sessionId)).run();
+        tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
+      });
+    } finally {
+      deleting.delete(sessionId);
+    }
+    return {};
   }
 
   /** Makes a conversation the live one of a session. */
@@ -423,37 +443,47 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     async archive({ sessionId, archived }: { sessionId: string; archived: boolean }) {
       if (archived) await settle(sessionId, 'archive');
       else row(sessionId);
-      db.update(sessions).set({ archived, ...(archived === false && { lastActiveAt: clock.now() }) }).where(eq(sessions.id, sessionId)).run();
+      db.update(sessions).set({ archived, ...(archived === false && { lastActiveAt: clock.now(), keptAt: null }) }).where(eq(sessions.id, sessionId)).run();
       return {};
     },
 
-    /** The clock's pass: archives each session left alone for `archiveAfterDays`; a working, waiting or live one is looked at again on the next pass. */
-    archiveIdle({ archiveAfterDays }: SessionAges) {
+    /**
+     * The clock's pass: archives each session left alone for `archiveAfterDays`, then deletes each archived one left alone for `deleteAfterDays`, sparing
+     * (marking `keptAt`) one whose worktree holds unsaved work. A working, waiting or live one is looked at again on the next pass.
+     */
+    async applyClock({ archiveAfterDays, deleteAfterDays }: SessionAges) {
       const now = clock.now();
       for (const found of db.select().from(sessions).where(eq(sessions.archived, false)).all()) {
         if (idleFor(found, lives.has(found.id), now, archiveAfterDays)) db.update(sessions).set({ archived: true }).where(eq(sessions.id, found.id)).run();
       }
+      if (archiveAfterDays === 'never') return;
+      for (const { id } of db.select().from(sessions).where(eq(sessions.archived, true)).all()) {
+        try {
+          // read again after each wait: the person may have restored or resumed it meanwhile
+          const due = () => {
+            const found = db.select().from(sessions).where(eq(sessions.id, id)).get();
+            return found?.archived === true && idleFor(found, lives.has(id), now, deleteAfterDays) ? found : undefined;
+          };
+          const found = due();
+          if (found === undefined) continue;
+          if (found.workspaceKind === 'worktree') {
+            // one session at a time and just before deleting it, so a commit shared with one deleted a moment ago counts as lost
+            const { dirty, unpushed } = await previewWorktree(git, { path: found.worktreePath!, branch: found.worktreeBranch!, from: found.worktreeFrom!, base: found.worktreeBase! }, [found.worktreeBranch!]);
+            if (due() === undefined) continue;
+            if (dirty > 0 || unpushed > 0) {
+              if (found.keptAt === null) db.update(sessions).set({ keptAt: now }).where(eq(sessions.id, id)).run();
+              continue;
+            }
+          }
+          await deleteSession({ sessionId: id });
+        } catch (error) {
+          log.error('the clock could not delete a session; the next pass tries again', error); // git cannot read it, or it cannot be removed: left alone
+        }
+      }
     },
 
     /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */
-    async delete({ sessionId }: { sessionId: string }) {
-      // marked before the first await, so a resume that comes in meanwhile is refused
-      deleting.add(sessionId);
-      try {
-        await settle(sessionId, 'delete');
-        const { workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath } = row(sessionId);
-        // The worktree goes first: one that cannot be removed stops the deletion and the session stays.
-        if (workspaceKind === 'worktree') await deleteWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! });
-        db.transaction((tx) => {
-          tx.delete(chatEvents).where(eq(chatEvents.sessionId, sessionId)).run();
-          tx.delete(chatTurns).where(eq(chatTurns.sessionId, sessionId)).run();
-          tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
-        });
-      } finally {
-        deleting.delete(sessionId);
-      }
-      return {};
-    },
+    delete: deleteSession,
 
     /** What deleting these sessions would discard: for each one in a worktree, its uncommitted files and the commits that exist nowhere else. An unknown id refuses the whole request. */
     async deletePreview({ sessionIds }: { sessionIds: string[] }) {

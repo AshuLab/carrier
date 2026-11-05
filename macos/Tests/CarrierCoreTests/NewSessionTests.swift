@@ -1396,3 +1396,44 @@ private func gitHealth(_ git: ToolState) -> HostHealth { HostHealth(git: git, gh
     model.show(.url)
     #expect(model.step == .url)
 }
+
+// MARK: the plan of a cancelled preparation comes back
+
+@MainActor @Test func aRestoredPlanBringsBackTheFolderTheBranchTheAgentTheOptionsAndTheText() async {
+    let host = FakeChat()
+    host.offered["claude"] = claudeOptions
+    host.workspaces["/w/api"] = WorkspaceInfo(folder: "/w/api", branch: "main", dirty: 0, branches: [.init(name: "main", remote: false), .init(name: "feat/x", remote: false)])
+    let model = await draft(host)
+    model.restore(SessionPlan(agent: "claude", folder: "/w/api", branch: "feat/x", options: ["model": "haiku"], text: "build the thing\nthen test it"))
+    // the draft that opens next is the one that takes it: opening starts blank and then puts the plan back
+    await model.load()
+    await model.loadOptions()
+    #expect(model.folder == "/w/api" && model.text == "build the thing\nthen test it" && model.agent == "claude")
+    #expect(model.branchChange?.to == "feat/x" && model.worktree == false)
+    #expect(model.chosenOptions == ["model": "haiku"])
+    // nothing was made on the machine
+    #expect(host.calls.filter { $0.hasPrefix("open") }.isEmpty && host.created.isEmpty && host.clones.isEmpty)
+    // and it is given back once: the next opening is blank
+    await model.load()
+    #expect(model.folder == nil && model.text.isEmpty)
+}
+
+@MainActor @Test func aRestoredWorktreePlanBringsBackTheBranchItStartsFromAndItsName() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    model.restore(SessionPlan(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "origin/main", name: "my-fix"), text: "again"))
+    await model.load()
+    #expect(model.worktree && model.worktreeName == "my-fix" && model.startBranch == "origin/main" && model.text == "again")
+    // a worktree the host was to name keeps the name the draft suggested
+    model.restore(SessionPlan(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "main", name: ""), text: "once more"))
+    await model.load()
+    #expect(model.worktree && model.worktreeName == "keen-ghost-char" && model.startBranch == "main")
+}
+
+@MainActor @Test func aRestoredPlanWhoseAgentCannotBeChosenAnyMoreKeepsTheFolderAndTheTextAndTakesAnAvailableAgent() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    model.restore(SessionPlan(agent: "codex", folder: "/w/api", text: "hello"))
+    await model.load()
+    #expect(model.folder == "/w/api" && model.text == "hello" && model.agent == "claude")
+}

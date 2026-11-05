@@ -122,7 +122,10 @@ struct PanelView: View {
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
                     } else if case .session(let id) = shell.selection {
-                        ConversationView(sessionId: id, draft: model.newSession).id(id)
+                        ConversationView(sessionId: id, draft: model.newSession) { plan in
+                            model.newSession.restore(plan)
+                            shell.selection = .newSession
+                        }.id(id)
                     } else if case .running(let snapshot)? = model.state {
                         ScrollView {
                             VStack(alignment: .leading, spacing: 26) {

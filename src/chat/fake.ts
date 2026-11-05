@@ -112,6 +112,8 @@ export class FakeGit implements Git {
   calls: { folder: string; args: string[]; timeoutMs?: number; env?: NodeJS.ProcessEnv }[] = [];
   /** While set, a `clone` waits for it (or for its signal to abort) before it ends: a clone that is still running. */
   clonePending: Promise<void> | undefined;
+  /** While set, a `worktree add` waits for it (or for its signal to abort) before it makes anything: a worktree that is still being made. */
+  worktreePending: Promise<void> | undefined;
   /** Commands that fail instead of answering, by their arguments joined with a space. */
   failures = new Map<string, Extract<GitResult, { ok: false }>>();
 
@@ -147,6 +149,9 @@ export class FakeGit implements Git {
     const [verb, ...rest] = args[0] === '--no-optional-locks' ? args.slice(1) : args;
     if (verb === 'rev-parse' && rest.includes('--verify')) return [...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`)].includes(rest.at(-1)!) ? out(rest.at(-1)!) : no;
     if (verb === 'worktree' && rest[0] === 'add') {
+      const signal = options?.signal;
+      if (this.worktreePending !== undefined) await Promise.race([this.worktreePending, new Promise((resolve) => signal?.addEventListener('abort', resolve, { once: true }))]);
+      if (signal?.aborted === true) return { ok: false, code: null, stderr: 'killed' };
       // worktree add --no-track -b <branch> <path> <start>: the branch and the folder appear, as git makes them
       const [branch, path, start] = rest.slice(3);
       const known = [...repo.branches.map((name) => `refs/heads/${name}`), ...(repo.remoteBranches ?? []).map((name) => `refs/remotes/origin/${name}`)];

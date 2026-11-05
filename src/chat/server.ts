@@ -26,6 +26,8 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('list'), archived: z.boolean().optional() }),
   z.strictObject({ id, cmd: z.literal('open'), agent: z.string().min(1), folder: z.string().min(1), options: z.record(z.string(), z.string()).optional(), worktree: z.strictObject({ from: z.string().min(1).max(1000), name: z.string().max(1000).optional() }).optional() }),
   z.strictObject({ id, cmd: z.literal('open'), plan }),
+  z.strictObject({ id, cmd: z.literal('retryPreparation'), sessionId }),
+  z.strictObject({ id, cmd: z.literal('cancelPreparation'), sessionId }),
   z.strictObject({ id, cmd: z.literal('resume'), sessionId }),
   // a message has text, unless it invokes a command, which may take nothing after its name
   z.strictObject({ id, cmd: z.literal('send'), sessionId, text: z.string(), command: z.string().min(1).max(1000).optional() }).refine((r) => r.text.length > 0 || r.command !== undefined),
@@ -59,6 +61,10 @@ export type ChatControls = {
   open(args: Omit<Extract<Request, { cmd: 'open'; folder: string }>, 'id' | 'cmd'>): Promise<unknown>;
   /** Answers at once with the session, `preparing`; the steps run in the background. */
   openPlan(args: Omit<OpenPlan, 'id' | 'cmd'>): Promise<unknown>;
+  /** Repeats the steps of a failed preparation that did not finish; answers the session, `preparing` again. */
+  retryPreparation(args: Args<'retryPreparation'>): Promise<unknown>;
+  /** Stops the running step and deletes the session; answers the plan, for the draft to take back. */
+  cancelPreparation(args: Args<'cancelPreparation'>): Promise<unknown>;
   resume(args: Args<'resume'>): Promise<unknown>;
   send(args: Args<'send'>): unknown;
   answer(args: Args<'answer'>): unknown;
@@ -89,6 +95,10 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.list({ archived: request.archived });
     case 'open':
       return 'plan' in request ? controls.openPlan({ plan: request.plan }) : controls.open({ agent: request.agent, folder: request.folder, options: request.options, worktree: request.worktree });
+    case 'retryPreparation':
+      return controls.retryPreparation({ sessionId: request.sessionId });
+    case 'cancelPreparation':
+      return controls.cancelPreparation({ sessionId: request.sessionId });
     case 'resume':
       return controls.resume({ sessionId: request.sessionId });
     case 'send':

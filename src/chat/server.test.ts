@@ -28,6 +28,11 @@ const controls = (): ChatControls => ({
     throw new ChatRefused('That folder does not exist');
   },
   openPlan: async ({ plan }) => ({ session: { agent: plan.agent, state: 'preparing' } }),
+  retryPreparation: async ({ sessionId }) => ({ retried: sessionId }),
+  cancelPreparation: async ({ sessionId }) => {
+    if (sessionId === '00000000-0000-4000-8000-000000000000') throw new ChatRefused('This session is not being prepared, so there is nothing to cancel');
+    return { plan: { text: 'hi' } };
+  },
   resume: async () => ({}),
   send: () => {
     throw new Error('the disk says secret things');
@@ -256,6 +261,20 @@ test('open takes a plan, strictly: what it refuses and what it accepts', async (
   for (const [what, line] of bad) expect(await c.ask(line), what).toEqual({ id: 1, ok: false, error: 'invalid request' });
   // the old open is still the old open
   expect(await c.ask('{"id":2,"cmd":"open","agent":"claude","folder":"/nope"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist' });
+});
+
+test('retryPreparation and cancelPreparation take a session id and nothing else, and a refusal reaches the client in words', async () => {
+  await open();
+  const c = await client();
+  const sessionId = '11111111-1111-4111-8111-111111111111';
+  expect(await c.ask(`{"id":1,"cmd":"retryPreparation","sessionId":"${sessionId}"}`)).toEqual({ id: 1, ok: true, data: { retried: sessionId } });
+  expect(await c.ask(`{"id":2,"cmd":"cancelPreparation","sessionId":"${sessionId}"}`)).toEqual({ id: 2, ok: true, data: { plan: { text: 'hi' } } });
+  expect(await c.ask('{"id":3,"cmd":"cancelPreparation","sessionId":"00000000-0000-4000-8000-000000000000"}')).toEqual({ id: 3, ok: false, error: 'This session is not being prepared, so there is nothing to cancel' });
+  for (const cmd of ['retryPreparation', 'cancelPreparation']) {
+    for (const [what, fields] of [['no id', ''], ['an id that is not a UUID', ',"sessionId":"x"'], ['an extra field', `,"sessionId":"${sessionId}","force":true`]] as const) {
+      expect(await c.ask(`{"id":9,"cmd":"${cmd}"${fields}}`), `${cmd} with ${what}`).toEqual({ id: 9, ok: false, error: 'invalid request' });
+    }
+  }
 });
 
 test('githubRepos takes a page from 1 to 100 and nothing else', async () => {

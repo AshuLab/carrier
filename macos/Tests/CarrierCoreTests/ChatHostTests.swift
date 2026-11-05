@@ -214,3 +214,44 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     #expect(try decode(#"idle","preparation":"failed"#).preparation == .failed)
     #expect(try decode("idle").preparation == nil)
 }
+
+@Test func retryAndCancelOfAPreparationGoOnTheWireBehindPlanAndTheCancelReadsThePlanBack() async throws {
+    var lines: [String] = []
+    let server = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        lines.append(line)
+        if line.contains("retryPreparation") { return connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"session\":{\"id\":\"x\"}}}\n") }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"folder\",\"folder\":\"/w/api\"},\"agent\":\"claude\",\"text\":\"hi\\nthere\",\"options\":{\"model\":\"haiku\"},\"branch\":\"main\",\"worktree\":{\"name\":\"my-fix\"}}}}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    let sessionId = "5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01"
+    try await host.retryPreparation(sessionId)
+    let plan = try await host.cancelPreparation(sessionId)
+    #expect(plan == SessionPlan(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "main", name: "my-fix"), options: ["model": "haiku"], text: "hi\nthere"))
+    let sent = lines.compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+    #expect(sent.map { $0["cmd"] as? String } == ["retryPreparation", "cancelPreparation"] && sent.allSatisfy { $0["sessionId"] as? String == sessionId && $0.keys.sorted() == ["cmd", "id", "sessionId"] })
+}
+
+@Test func aPlanForABranchWithNoWorktreeComesBackAsABranchAndAHostWithoutPlanIsNotAsked() async throws {
+    let server = TestServer { connection in
+        connection.send(hello("\"agents\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"folder\",\"folder\":\"/w/api\"},\"agent\":\"claude\",\"text\":\"hi\",\"branch\":\"feat/x\"}}}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    // a host that does not list `plan` is never sent either request
+    await #expect(throws: ControlError.remote("the chat host does not support cancelPreparation")) { _ = try await host.cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01") }
+}
+
+@Test func aCancelledPlanForARepositoryIsNotReadByThisApp() async throws {
+    let server = TestServer { connection in
+        connection.send(hello("\"plan\""))
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"plan\":{\"workspace\":{\"kind\":\"repo\",\"repo\":\"a/b\"},\"agent\":\"claude\",\"text\":\"hi\"}}}\n")
+    }
+    defer { server.stop() }
+    await #expect(throws: ControlError.badLine) { _ = try await SocketChatHost(socketPath: { server.path }).cancelPreparation("5d1f7c3a-0b6e-4a52-9a1d-3c7e8b2f4a01") }
+}

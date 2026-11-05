@@ -5,6 +5,11 @@ import SwiftUI
 /// under the running one and the reason under the one that failed.
 struct PreparationStepsView: View {
     let steps: [StepRow]
+    let preparation: ChatSession.Preparation?
+    /// What the host refused when asked to try again or to cancel, in words.
+    let refusal: String?
+    let retry: () -> Void
+    let cancel: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -19,6 +24,12 @@ struct PreparationStepsView: View {
                     }
                 }
                 .accessibilityElement(children: .combine)
+            }
+            if let refusal { Text(refusal).font(.subheadline).foregroundStyle(.red).textSelection(.enabled) }
+            switch preparation {
+            case .failed: Button("Try again", action: retry).buttonStyle(.glassProminent).buttonBorderShape(.capsule)
+            case .running: Button("Cancel", action: cancel).buttonBorderShape(.capsule)
+            case nil: EmptyView()
             }
         }
         .padding(12)

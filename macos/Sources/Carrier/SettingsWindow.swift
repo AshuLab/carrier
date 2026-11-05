@@ -48,46 +48,21 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Field(title: "carrier", hint: "Path of the carrier binary", value: $setup.settings.carrier)
-            Field(title: "node", hint: "Path of node", value: $setup.settings.node)
-            Field(title: "PATH", hint: "PATH to find the tools with", value: $setup.settings.path)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("PATH Carrier will run with").font(.caption).foregroundStyle(.secondary)
-                Text(enginePath(detected: setup.settings.path, node: setup.settings.node))
-                    .font(.system(.caption, design: .monospaced)).textSelection(.enabled)
-            }
-
             HStack {
+                Text("Advanced").font(.headline)
+                Spacer()
                 Button("Detect again") { setup.detect() }.disabled(setup.detecting)
                 if setup.detecting {
                     ProgressView().controlSize(.small)
                     Text("Asking your shell…").foregroundStyle(.secondary)
                 }
             }
+            UseThisCarrierField(setup: setup)
             if let message = setup.message {
                 Label(message, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
             }
         }
         .padding(18)
         .frame(width: 560)
-    }
-}
-
-private struct Field: View {
-    let title: String
-    let hint: String
-    @Binding var value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title).font(.headline)
-                if value.isEmpty {
-                    Label("not found", systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
-                }
-            }
-            TextField(hint, text: $value).textFieldStyle(.roundedBorder).font(.system(.body, design: .monospaced))
-        }
     }
 }

@@ -24,8 +24,8 @@ import Observation
     func ensureRunning(done: @escaping (Bool) -> Void) { run(alertWhenMissing: true, done: done) }
 
     private func run(alertWhenMissing: Bool, done: @escaping (Bool) -> Void) {
-        let settings = SetupController.shared.settings
-        let command = startChatHostCommand(settings: settings, environment: ProcessInfo.processInfo.environment)
+        let settings = SetupController.shared.settings, carrier = SetupController.shared.carrier
+        let command = startChatHostCommand(settings: settings, carrier: carrier, environment: ProcessInfo.processInfo.environment)
         // the socket asked here and the one the start waits on are the same: the Carrier folder decides both
         let socket = command?.socketPath ?? chatSocketPath()
         let fixture = CommandLine.arguments.contains("--fixture")
@@ -33,7 +33,7 @@ import Observation
             let answers = ControlClient.connect(path: socket) != nil
             DispatchQueue.main.async {
                 let decision = chatHostAtOpen(
-                    settings: settings, hostAnswers: answers, startRunning: self.starting, fixture: fixture
+                    settings: settings, carrier: carrier, hostAnswers: answers, startRunning: self.starting, fixture: fixture
                 )
                 self.missing = if case .missing(let names) = decision { names } else { [] }
                 if answers == false { self.restartAdvised = false }
@@ -117,8 +117,9 @@ import Observation
     /// What `carrier --version` prints; nil, with the reason in the log, when the command fails or prints something else.
     static func installedVersion(_ command: StartCommand) -> String? {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: command.node)
-        process.arguments = [command.arguments[0], "--version"]
+        process.executableURL = URL(fileURLWithPath: command.program)
+        // the chat host's own arguments end with its subcommand; what comes before it (the script, for a `node` start) stays
+        process.arguments = command.arguments.dropLast() + ["--version"]
         process.environment = command.environment
         let output = Pipe()
         process.standardOutput = output

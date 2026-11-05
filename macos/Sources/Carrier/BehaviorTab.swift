@@ -33,7 +33,7 @@ struct BehaviorTabView: View {
 
     var body: some View {
         let dirty = draft != saved || unparsable.isEmpty == false
-        let footer = behaviorFooter(state: state, dirty: dirty, valid: problems.isEmpty, startMissing: startMissing(setup.settings))
+        let footer = behaviorFooter(state: state, dirty: dirty, valid: problems.isEmpty, startMissing: setup.missing)
         VStack(alignment: .leading, spacing: 12) {
             if unreadable {
                 Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")

@@ -29,15 +29,19 @@ private let sample = #"[{"name":"config","status":"ok"},{"name":"gh","status":"w
 }
 
 @Test func theCommandRunsTheDoctorOnTheConfigOfTheCarrierFolder() throws {
-    let settings = SetupSettings(carrier: "/opt/carrier.mjs", node: "/usr/bin/node", path: "/usr/bin")
-    let command = try #require(doctorCommand(settings: settings, environment: ["CARRIER_HOME": "/tmp/folder"], home: "/Users/x"))
-    #expect(command.node == "/usr/bin/node")
-    #expect(command.arguments == ["/opt/carrier.mjs", "doctor", "--config", "/tmp/folder/config.json", "--json"])
+    let settings = SetupSettings(node: "/usr/bin/node", path: "/usr/bin")
+    let command = try #require(doctorCommand(settings: settings, carrier: "/opt/carrier.js", environment: ["CARRIER_HOME": "/tmp/folder"], home: "/Users/x"))
+    #expect(command.program == "/usr/bin/node")
+    #expect(command.arguments == ["/opt/carrier.js", "doctor", "--config", "/tmp/folder/config.json", "--json"])
     #expect(command.environment["CARRIER_HOME"] == "/tmp/folder")
-    #expect(doctorCommand(settings: SetupSettings(), environment: [:]) == nil)
+    let binary = try #require(doctorCommand(settings: settings, carrier: "/opt/homebrew/bin/carrier", environment: [:], home: "/Users/x"))
+    #expect(binary.program == "/opt/homebrew/bin/carrier")
+    #expect(binary.arguments == ["doctor", "--config", "/Users/x/.carrier/config.json", "--json"])
+    #expect(doctorCommand(settings: SetupSettings(), carrier: nil, environment: [:]) == nil)
 }
 
-private let settings = SetupSettings(carrier: "/opt/carrier.mjs", node: "/usr/bin/node", path: "/usr/bin")
+private let settings = SetupSettings(node: "/usr/bin/node", path: "/usr/bin")
+private let carrier: String? = "/opt/carrier.js"
 
 private actor Runs {
     var count = 0
@@ -51,29 +55,29 @@ private actor Runs {
         try? await Task.sleep(for: .milliseconds(50))
         return ProcessOutcome(exitCode: 0, stdout: sample)
     }
-    await store.check(settings: settings, environment: [:], configExists: false)
+    await store.check(settings: settings, carrier: carrier, environment: [:], configExists: false)
     let none = await runs.count
     #expect(store.state == .idle && none == 0)
 
-    async let first: Void = store.check(settings: settings, environment: [:], configExists: true)
+    async let first: Void = store.check(settings: settings, carrier: carrier, environment: [:], configExists: true)
     try? await Task.sleep(for: .milliseconds(10))
     #expect(store.state == .running)
-    await store.check(settings: settings, environment: [:], configExists: true)
+    await store.check(settings: settings, carrier: carrier, environment: [:], configExists: true)
     await first
     let once = await runs.count
     #expect(once == 1)
     if case .checks(let checks) = store.state { #expect(checks.count == 3) } else { Issue.record("no checks") }
 
-    await store.check(settings: settings, environment: [:], configExists: true)
+    await store.check(settings: settings, carrier: carrier, environment: [:], configExists: true)
     let twice = await runs.count
     #expect(twice == 2)
 }
 
-@MainActor @Test func aStoreWithoutNodeOrCarrierSaysSoAndRunsNothing() async {
+@MainActor @Test func aStoreWithoutCarrierSaysSoAndRunsNothing() async {
     let store = DoctorStore { _ in
         Issue.record("ran")
         return ProcessOutcome()
     }
-    await store.check(settings: SetupSettings(), environment: [:], configExists: true)
+    await store.check(settings: SetupSettings(), carrier: nil, environment: [:], configExists: true)
     guard case .unknown = store.state else { Issue.record("not unknown"); return }
 }

@@ -4,21 +4,22 @@ import Foundation
 // outcome and alert. The app opening asks for it, and so does a session being started. The spawn lives in the shell.
 
 /// What the settings lack to start the chat host.
-public func chatHostMissing(_ settings: SetupSettings) -> [String] {
-    [("node", settings.node), ("carrier", settings.carrier)].filter { $0.1.isEmpty }.map(\.0)
+public func chatHostMissing(_ settings: SetupSettings, carrier: String?) -> [String] {
+    startMissing(settings, carrier: carrier)
 }
 
-/// `node <carrier> chat-host` with `CARRIER_HOME` set to the Carrier folder, its log in `<folder>/chat/logs/app-start.log`.
+/// `carrier chat-host` (`node <carrier> chat-host` for a script) with `CARRIER_HOME` set to the Carrier folder, its log in `<folder>/chat/logs/app-start.log`.
 /// nil when `chatHostMissing` is not empty.
-public func startChatHostCommand(settings: SetupSettings, environment: [String: String], home: String = NSHomeDirectory()) -> StartCommand? {
-    guard chatHostMissing(settings).isEmpty else { return nil }
+public func startChatHostCommand(settings: SetupSettings, carrier: String?, environment: [String: String], home: String = NSHomeDirectory()) -> StartCommand? {
+    guard let carrier, chatHostMissing(settings, carrier: carrier).isEmpty else { return nil }
     let folder = carrierFolder(environment: environment, home: home)
     var environment = environment
     environment["PATH"] = enginePath(detected: settings.path, node: settings.node)
     environment["CARRIER_HOME"] = folder
     let chat = folder + "/chat"
+    let run = carrierProgram(carrier: carrier, node: settings.node, arguments: ["chat-host"])
     return StartCommand(
-        node: settings.node, arguments: [settings.carrier, "chat-host"], environment: environment,
+        program: run.program, arguments: run.arguments, environment: environment,
         processDir: chat, logPath: chat + "/logs/app-start.log", socketPath: chat + "/state/chat.sock"
     )
 }
@@ -30,9 +31,9 @@ public enum ChatHostAtOpen: Equatable {
     case leave, start, missing([String])
 }
 
-public func chatHostAtOpen(settings: SetupSettings, hostAnswers: Bool, startRunning: Bool, fixture: Bool) -> ChatHostAtOpen {
+public func chatHostAtOpen(settings: SetupSettings, carrier: String?, hostAnswers: Bool, startRunning: Bool, fixture: Bool) -> ChatHostAtOpen {
     guard hostAnswers == false, startRunning == false, fixture == false else { return .leave }
-    let missing = chatHostMissing(settings)
+    let missing = chatHostMissing(settings, carrier: carrier)
     return missing.isEmpty ? .start : .missing(missing)
 }
 

@@ -59,12 +59,12 @@ public func doctorState(from outcome: ProcessOutcome) -> DoctorState {
     return checks.isEmpty ? .unknown("carrier doctor printed no checks" + exit) : .checks(checks)
 }
 
-/// `node <carrier> doctor --config <folder>/config.json --json`, with the engine's `PATH` and `CARRIER_HOME`; nil when the settings lack
-/// `node` or `carrier`.
-public func doctorCommand(settings: SetupSettings, environment: [String: String], home: String = NSHomeDirectory()) -> StartCommand? {
-    guard let start = startCommand(settings: settings, environment: environment, home: home) else { return nil }
+/// `carrier doctor --config <folder>/config.json --json` (behind `node` for a script), with the engine's `PATH` and `CARRIER_HOME`; nil
+/// when `carrier`, or the `node` a script needs, is missing.
+public func doctorCommand(settings: SetupSettings, carrier: String?, environment: [String: String], home: String = NSHomeDirectory()) -> StartCommand? {
+    guard let start = startCommand(settings: settings, carrier: carrier, environment: environment, home: home) else { return nil }
     return StartCommand(
-        node: start.node, arguments: start.arguments + ["doctor", "--config", configFilePath(environment: environment, home: home), "--json"],
+        program: start.program, arguments: start.arguments + ["doctor", "--config", configFilePath(environment: environment, home: home), "--json"],
         environment: start.environment, processDir: start.processDir, logPath: start.logPath, socketPath: start.socketPath
     )
 }
@@ -77,10 +77,10 @@ public func doctorCommand(settings: SetupSettings, environment: [String: String]
 
     public init(run: @escaping @Sendable (StartCommand) async -> ProcessOutcome) { self.run = run }
 
-    public func check(settings: SetupSettings, environment: [String: String], configExists: Bool) async {
+    public func check(settings: SetupSettings, carrier: String?, environment: [String: String], configExists: Bool) async {
         guard configExists, state != .running else { return }
-        guard let command = doctorCommand(settings: settings, environment: environment) else {
-            state = .unknown("node or carrier was not found: set their paths in the Engine tab")
+        guard let command = doctorCommand(settings: settings, carrier: carrier, environment: environment) else {
+            state = .unknown("carrier was not found (or node, for a carrier that is a script)")
             return
         }
         state = .running

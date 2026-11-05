@@ -48,7 +48,7 @@ struct StoppedView: View {
 
     /// Why the button is off, when it is: no config (nothing to do about it here), else the Engine tab's banner text and the way to the tab.
     @ViewBuilder private var missing: some View {
-        let banner = engineTab(setup.settings, detecting: setup.detecting).banner
+        let banner = readinessBanner(missing: setup.missing, detecting: setup.detecting)
         if let notice = engineNotConfiguredNotice(configExists: start.configExists) {
             Label(notice, systemImage: "exclamationmark.triangle.fill")
                 .font(.callout).foregroundStyle(.orange).multilineTextAlignment(.center).frame(maxWidth: 340)

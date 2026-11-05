@@ -2,48 +2,56 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-private let complete = SetupSettings(
-    carrier: "/n/bin/carrier", node: "/n/bin/node", path: "/usr/bin:/n/bin:/bin"
-)
+private let complete = SetupSettings(node: "/n/bin/node", path: "/usr/bin:/n/bin:/bin")
+private let homebrew = "/opt/homebrew/bin/carrier"
 
-@Test func theCommandLineIsNodeAndCarrierWithNoConfig() throws {
-    let command = try #require(startCommand(settings: complete, environment: ["HOME": "/h", "PATH": "/usr/bin"], home: "/h"))
-    #expect(command.node == "/n/bin/node")
-    #expect(command.arguments == ["/n/bin/carrier"])
+@Test func aBinaryIsRunAsItselfWithNoArguments() throws {
+    let command = try #require(startCommand(settings: complete, carrier: homebrew, environment: ["HOME": "/h", "PATH": "/usr/bin"], home: "/h"))
+    #expect(command.program == homebrew)
+    #expect(command.arguments.isEmpty)
+}
+
+@Test func aScriptIsRunUnderNode() throws {
+    let command = try #require(startCommand(settings: complete, carrier: "/work/main.ts", environment: [:], home: "/h"))
+    #expect(command.program == "/n/bin/node")
+    #expect(command.arguments == ["/work/main.ts"])
 }
 
 @Test func theEnvironmentCarriesTheCarrierFolder() throws {
-    let home = try #require(startCommand(settings: complete, environment: [:], home: "/h"))
+    let home = try #require(startCommand(settings: complete, carrier: homebrew, environment: [:], home: "/h"))
     #expect(home.environment["CARRIER_HOME"] == "/h/.carrier")
-    let scratch = try #require(startCommand(settings: complete, environment: ["CARRIER_HOME": "/scratch"], home: "/h"))
+    let scratch = try #require(startCommand(settings: complete, carrier: homebrew, environment: ["CARRIER_HOME": "/scratch"], home: "/h"))
     #expect(scratch.environment["CARRIER_HOME"] == "/scratch")
     #expect(scratch.logPath == "/scratch/engine/logs/app-start.log")
     #expect(scratch.socketPath == "/scratch/engine/state/control.sock")
 }
 
 @Test func theEnvironmentGetsTheEnginePathAndKeepsTheRest() throws {
-    let command = try #require(startCommand(settings: complete, environment: ["HOME": "/h", "PATH": "/usr/bin"], home: "/h"))
-    // node's directory first, then the rest of the detected one without repeating it
-    #expect(command.environment["PATH"] == "/n/bin:/usr/bin:/bin")
+    let command = try #require(startCommand(settings: complete, carrier: homebrew, environment: ["HOME": "/h", "PATH": "/usr/bin"], home: "/h"))
+    // node's directory first, then the rest of the detected one without repeating it, and Homebrew's at the end
+    #expect(command.environment["PATH"] == "/n/bin:/usr/bin:/bin:/opt/homebrew/bin")
     #expect(command.environment["HOME"] == "/h")
 }
 
 @Test func theLogAndTheSocketLiveUnderTheEnginesFolder() throws {
-    let command = try #require(startCommand(settings: complete, environment: [:], home: "/h"))
+    let command = try #require(startCommand(settings: complete, carrier: homebrew, environment: [:], home: "/h"))
     #expect(command.processDir == "/h/.carrier/engine")
     #expect(command.logsDir == "/h/.carrier/engine/logs")
     #expect(command.logPath == "/h/.carrier/engine/logs/app-start.log")
     #expect(command.socketPath == "/h/.carrier/engine/state/control.sock")
 }
 
-@Test func withoutNodeOrCarrierThereIsNoCommandAndTheMissingOnesAreNamed() {
-    var settings = complete
-    settings.node = ""
-    #expect(startMissing(settings) == ["node"])
-    #expect(startCommand(settings: settings, environment: [:], home: "/h") == nil)
-    settings.carrier = ""
-    #expect(startMissing(settings) == ["node", "carrier"])
-    #expect(startMissing(complete).isEmpty)
+@Test func withoutCarrierThereIsNoCommandAndItIsNamed() {
+    #expect(startMissing(complete, carrier: nil) == ["carrier"])
+    #expect(startCommand(settings: complete, carrier: nil, environment: [:], home: "/h") == nil)
+    #expect(startMissing(complete, carrier: homebrew).isEmpty)
+}
+
+@Test func theEngineStartNeedsNodeOnlyForAScript() {
+    let noNode = SetupSettings(path: "/usr/bin")
+    #expect(startMissing(noNode, carrier: "/work/main.ts") == ["node"])
+    #expect(startCommand(settings: noNode, carrier: "/work/main.ts", environment: [:], home: "/h") == nil)
+    #expect(startMissing(noNode, carrier: homebrew).isEmpty)
 }
 
 @Test func theSocketAnsweringMeansRunning() {
@@ -99,7 +107,7 @@ private let complete = SetupSettings(
     #expect(item() == ("Start Carrier", true))
     #expect(item(starting: true).enabled == false)
     #expect(item(.incompatible(update: nil)).enabled == false)
-    #expect(item(missing: ["node", "carrier"]) == ("Start Carrier (missing: node, carrier)", false))
+    #expect(item(missing: ["carrier"]) == ("Start Carrier (missing: carrier)", false))
     #expect(item(configExists: false) == ("Start Carrier (engine not configured)", false))
     #expect(item(missing: ["node"], configExists: false).enabled == false)
 }

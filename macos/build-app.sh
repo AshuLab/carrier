@@ -1,8 +1,15 @@
 #!/bin/bash
 # Builds Carrier.app with SwiftPM (needs Xcode selected, see README.md) and signs it ad hoc.
-# Usage: ./build-app.sh [--open]
+# Usage: ./build-app.sh [version] [--open]   (version is written into the plist, 0.1.0 when none is given)
 set -euo pipefail
 cd "$(dirname "$0")"
+VERSION=0.1.0
+OPEN=false
+for arg in "$@"; do
+  if [ "$arg" = "--open" ]; then OPEN=true; else VERSION="$arg"; fi
+done
+# the version lands in the plist as XML, so only X.Y.Z gets in
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "error: version '$VERSION' is not X.Y.Z" >&2; exit 1; }
 # SwiftUI's @State is a macro whose plugin ships only with Xcode, so the Command Line Tools cannot compile the views.
 case "$(xcode-select -p 2>/dev/null)" in
   */CommandLineTools*|"")
@@ -36,7 +43,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>CFBundleDisplayName</key><string>Carrier</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleShortVersionString</key><string>$VERSION</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>LSMinimumSystemVersion</key><string>26.0</string>
 <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
@@ -53,4 +60,4 @@ done
 grep -q "Permission is hereby granted" "$ICONS/LICENSE" || { echo "error: $APP lacks the Material Icon Theme licence text" >&2; exit 1; }
 codesign --force --sign - "$APP"
 echo "built $APP"
-if [ "${1:-}" = "--open" ]; then open "$APP"; fi
+if [ "$OPEN" = true ]; then open "$APP"; fi

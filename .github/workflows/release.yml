@@ -1,4 +1,4 @@
-# A tag vX.Y.Z publishes @ashulab/carrier at X.Y.Z and rewrites the formula in the tap.
+# A tag vX.Y.Z publishes @ashulab/carrier at X.Y.Z, puts the app's zip on the GitHub Release and rewrites the formula and the cask in the tap.
 # Run by hand with dry-run on, it does everything up to the publishing and pushes nothing.
 # Secrets: NPM_TOKEN (publish to the @ashulab scope), TAP_TOKEN (push to AshuLab/homebrew-tap).
 name: Release
@@ -10,12 +10,12 @@ on:
   workflow_dispatch:
     inputs:
       dry-run:
-        description: Build, pack and install the formula from the tarball; publish and push nothing
+        description: Build, pack and install the formula from the tarball, build and check the app and the cask; publish and push nothing
         type: boolean
         default: true
 
 permissions:
-  contents: read
+  contents: write # the GitHub Release of the tag
 
 jobs:
   release:
@@ -67,6 +67,29 @@ jobs:
           mv out/*.tgz "out/carrier-$VERSION.tgz"
           echo "SHA256=$(shasum -a 256 "out/carrier-$VERSION.tgz" | cut -d' ' -f1)" >> "$GITHUB_ENV"
 
+      # Nothing is published before this point, so a failed app build leaves nothing on npm or in the tap.
+      - name: Build the app
+        run: ./macos/build-app.sh "$VERSION"
+
+      # Its own step, so a Developer ID can replace the ad hoc signature without touching the rest.
+      - name: Sign the app
+        run: codesign --force --sign - macos/Carrier.app
+
+      - name: Zip the app
+        run: |
+          ditto -c -k --keepParent macos/Carrier.app "out/Carrier-$VERSION.zip"
+          (cd out && shasum -a 256 "Carrier-$VERSION.zip" > "Carrier-$VERSION.zip.sha256")
+          echo "APP_SHA256=$(cut -d' ' -f1 "out/Carrier-$VERSION.zip.sha256")" >> "$GITHUB_ENV"
+
+      - name: Check the zip
+        run: |
+          mkdir check
+          ditto -x -k "out/Carrier-$VERSION.zip" check
+          test -d check/Carrier.app
+          PLIST_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' check/Carrier.app/Contents/Info.plist)"
+          test "$PLIST_VERSION" = "$VERSION" || { echo "the app's plist says $PLIST_VERSION, not $VERSION" >&2; exit 1; }
+          codesign --verify --strict check/Carrier.app
+
       - name: Tap
         if: env.DRY_RUN != 'true'
         uses: actions/checkout@v4
@@ -97,6 +120,26 @@ jobs:
           test "$(carrier --version)" = "$VERSION" || { echo "carrier --version printed: $(carrier --version)" >&2; exit 1; }
           brew uninstall carrier
 
+      - name: Cask
+        run: |
+          mkdir -p cask
+          # Like the formula: the tap's cask is rewritten; the one in this repo only seeds a tap that has none yet.
+          if [ -f tap/Casks/carrier.rb ]; then cp tap/Casks/carrier.rb cask/carrier.rb; else cp .github/homebrew/carrier-cask.rb cask/carrier.rb; fi
+          sed -i '' -E "s|^  version \".*\"|  version \"$VERSION\"|; s|^  sha256 \".*\"|  sha256 \"$APP_SHA256\"|" cask/carrier.rb
+          mkdir -p "$(brew --repository local/ci)/Casks"
+          cp cask/carrier.rb "$(brew --repository local/ci)/Casks/carrier.rb"
+          # A finding about the quarantine step is named in a comment next to that step in the cask; any other one fails the run.
+          STATUS=0
+          brew audit --cask --strict local/ci/carrier > cask-audit.txt 2>&1 || STATUS=$?
+          cat cask-audit.txt
+          {
+            echo "### brew audit --cask --strict (exit $STATUS)"
+            echo '```'
+            if [ -s cask-audit.txt ]; then cat cask-audit.txt; else echo "no findings"; fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$STATUS"
+
       - name: Publish to npm
         if: env.DRY_RUN != 'true'
         env:
@@ -122,6 +165,19 @@ jobs:
           PUBLISHED="$(shasum -a 256 published.tgz | cut -d' ' -f1)"
           sed -i '' -E "s|^  sha256 \".*\"|  sha256 \"$PUBLISHED\"|" formula/carrier.rb
 
+      - name: GitHub Release
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # A re-run finds the release already there and replaces its files.
+        run: |
+          FILES=("out/Carrier-$VERSION.zip" "out/Carrier-$VERSION.zip.sha256")
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "v$VERSION" "${FILES[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "v$VERSION" "${FILES[@]}" --title "v$VERSION" --generate-notes --repo "$GITHUB_REPOSITORY"
+          fi
+
       - name: Summary
         run: |
           {
@@ -129,17 +185,22 @@ jobs:
             echo '```ruby'
             cat formula/carrier.rb
             echo '```'
+            echo "### Cask $([ "$DRY_RUN" = true ] && echo 'it would have written' || echo 'written') for $VERSION"
+            echo '```ruby'
+            cat cask/carrier.rb
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Push the formula to the tap
+      - name: Push the formula and the cask to the tap
         if: env.DRY_RUN != 'true'
         working-directory: tap
         run: |
-          mkdir -p Formula
+          mkdir -p Formula Casks
           cp ../formula/carrier.rb Formula/carrier.rb
+          cp ../cask/carrier.rb Casks/carrier.rb
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/carrier.rb
+          git add Formula/carrier.rb Casks/carrier.rb
           # nothing to commit when a re-run finds the tap already at this version
           git diff --cached --quiet || git commit -m "carrier $VERSION"
           git push

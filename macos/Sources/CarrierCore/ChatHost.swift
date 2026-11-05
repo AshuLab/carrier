@@ -134,6 +134,12 @@ public protocol ChatHost {
     /// the background (the `step` events of its conversation say how far). Only for a host whose hello lists `plan`. The host refuses a
     /// folder inside Carrier's own folders, a provider that is not logged in, and a message over its limit.
     func open(plan: SessionPlan) async throws -> String
+    /// Repeats the steps of a failed preparation that did not finish (what was made is reused); refused in words for a session that is not in
+    /// a failed preparation. Only for a host whose hello lists `plan`.
+    func retryPreparation(_ id: String) async throws
+    /// Stops the running step and deletes the session with its worktree; answers the plan it was opened with, for the draft to take back.
+    /// Refused in words for a session that is not being prepared. Only for a host whose hello lists `plan`.
+    func cancelPreparation(_ id: String) async throws -> SessionPlan
     /// What an agent offers (its options with the values it would start with, and the commands to invoke) before a session exists; the host
     /// starts the agent to know, and keeps the answer.
     func agentOptions(_ agent: String) async throws -> AgentOffer
@@ -186,6 +192,12 @@ public protocol ChatHost {
 }
 
 extension ChatHost {
+    /// A host that cannot prepare a session from a plan has nothing to try again.
+    public func retryPreparation(_ id: String) async throws { throw ControlError.remote("the chat host does not support retryPreparation") }
+
+    /// A host that cannot prepare a session from a plan has nothing to cancel.
+    public func cancelPreparation(_ id: String) async throws -> SessionPlan { throw ControlError.remote("the chat host does not support cancelPreparation") }
+
     /// A host that cannot list an agent's options before a session says it lists none.
     public func agentOptions(_ agent: String) async throws -> AgentOffer { AgentOffer() }
 
@@ -219,6 +231,20 @@ public struct SocketChatHost: ChatHost {
         let path = socketPath()
         let reply: OpenedReply = try await Task.detached { try chatRequest(path, "open", requires: .plan, fields: fields) }.value
         return reply.session.id
+    }
+
+    public func retryPreparation(_ id: String) async throws {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\""
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "retryPreparation", requires: .plan, fields: fields) }.value
+    }
+
+    /// Deleting a worktree takes git a while, so the wait for the reply is longer than the 5 seconds of the other requests.
+    public func cancelPreparation(_ id: String) async throws -> SessionPlan {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\""
+        let path = socketPath()
+        let reply: CancelledReply = try await Task.detached { try chatRequest(path, "cancelPreparation", requires: .plan, fields: fields, timeout: 30) }.value
+        return try reply.plan.plan
     }
 
     public func agentOptions(_ agent: String) async throws -> AgentOffer {
@@ -431,6 +457,33 @@ public struct AgentOffer: Decodable, Equatable {
 private struct OpenedReply: Decodable {
     struct Session: Decodable { let id: String }
     let session: Session
+}
+
+/// The reply of `cancelPreparation`: the plan as the host stored it. Only a plan for a folder exists yet.
+private struct CancelledReply: Decodable {
+    struct Stored: Decodable {
+        struct Workspace: Decodable {
+            let kind: String
+            let folder: String?
+        }
+        struct Worktree: Decodable { let name: String? }
+        let workspace: Workspace
+        let agent: String
+        let text: String
+        let options: [String: String]?
+        let branch: String?
+        let worktree: Worktree?
+
+        /// A worktree is cut from the branch, so the one field serves both, as the plan's wire has it.
+        var plan: SessionPlan {
+            get throws {
+                guard workspace.kind == "folder", let folder = workspace.folder else { throw ControlError.badLine }
+                let cut = worktree.flatMap { wanted in branch.map { WorktreeRequest(from: $0, name: wanted.name) } }
+                return SessionPlan(agent: agent, folder: folder, branch: worktree == nil ? branch : nil, worktree: cut, options: options ?? [:], text: text)
+            }
+        }
+    }
+    let plan: Stored
 }
 
 private struct SuggestedName: Decodable { let name: String }

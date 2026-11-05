@@ -164,6 +164,9 @@ public enum WorkspaceStep: Equatable {
     @ObservationIgnored private var verifiedName: String?
     /// The first message of each session the draft opened, by session id, until its conversation takes it.
     @ObservationIgnored private var firstMessages: [String: String] = [:]
+    /// The plan of a cancelled preparation, put back in the draft the next time it loads, and the options of it that wait for the agent's list.
+    @ObservationIgnored private var restoring: SessionPlan?
+    @ObservationIgnored private var restoredOptions: [String: String]?
 
     /// `ensureHost` starts the chat host when it is not running (#503) and says whether it answers now.
     /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where `chat.json` says the projects folder is, and
@@ -205,6 +208,29 @@ public enum WorkspaceStep: Equatable {
             log("new session: \(ConversationModel.words(error))")
         }
         pickAvailableAgent()
+        if let plan = restoring {
+            restoring = nil
+            await apply(plan)
+        }
+    }
+
+    /// A cancelled preparation gives the plan back: the draft that loads next has the folder, the branch or the worktree, the agent and its
+    /// options and the text it was sent with, so nothing typed is lost.
+    public func restore(_ plan: SessionPlan) { restoring = plan }
+
+    private func apply(_ plan: SessionPlan) async {
+        await choose(folder: plan.folder)
+        text = plan.text
+        if agents.contains(where: { $0.name == plan.agent && $0.available }) { agent = plan.agent }
+        restoredOptions = plan.options
+        if let wanted = plan.worktree {
+            picked = wanted.from
+            await useWorktree(true)
+            // an empty name is the host's to generate, which the draft already did
+            if let name = wanted.name, name.isEmpty == false, worktree { worktreeName = name }
+        } else if let branch = plan.branch {
+            picked = branch
+        }
     }
 
     /// Every opening of New session starts here: no workspace (nor the branch and worktree that depend on it), no text, nothing the last
@@ -248,6 +274,7 @@ public enum WorkspaceStep: Equatable {
     /// Asks the host what the chosen agent offers. A new agent starts from its own values: what was chosen for the other is dropped. A host
     /// that cannot list them, or fails, leaves the list empty and the draft goes on without options.
     public func loadOptions() async {
+        defer { takeRestoredOptions() }
         guard let name = agent, optionsAgent != name else { return }
         optionsAgent = name
         agentOptions = []
@@ -265,6 +292,13 @@ public enum WorkspaceStep: Equatable {
             optionsAgent = nil  // asked again the next time
         }
         loadingOptions = false
+    }
+
+    /// The options of a restored plan, as far as the agent lists them.
+    private func takeRestoredOptions() {
+        guard let wanted = restoredOptions, loadingOptions == false, agent == optionsAgent else { return }
+        restoredOptions = nil
+        for (option, value) in wanted { choose(option: option, value: value) }
     }
 
     /// What the selects list: the agent's options with the person's choices on top.

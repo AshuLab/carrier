@@ -363,9 +363,23 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     var resumed = 0
     var preparation: ChatSession.Preparation?
     var progress: String?
+    var retried = 0
+    var cancelled = 0
+    var refusePreparation: ControlError?
+    var cancelPlan = SessionPlan(agent: "claude", folder: "/x", text: "hello")
 
     func agents() async throws -> [ChatAgent] { [] }
     func open(plan: SessionPlan) async throws -> String { "" }
+    func retryPreparation(_ id: String) async throws {
+        retried += 1
+        if let refusePreparation { throw refusePreparation }
+        preparation = .running
+    }
+    func cancelPreparation(_ id: String) async throws -> SessionPlan {
+        cancelled += 1
+        if let refusePreparation { throw refusePreparation }
+        return cancelPlan
+    }
     func workspace(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
     func fetch(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
     func suggestName(_ folder: String) async throws -> String { "" }
@@ -562,4 +576,38 @@ private func step(_ id: Int, _ step: String, _ status: String, _ detail: String?
     host.events.append(ChatEvent(id: 2, at: 2, kind: "user", text: "hello"))
     await model.poll()
     #expect(model.rows == [.user(id: "e2", text: "hello")])
+}
+
+@MainActor @Test func tryAgainAsksTheHostAndTheNextPollShowsThePreparationRunningAgain() async {
+    let host = ScriptedHost()
+    host.preparation = .failed
+    host.events = [step(1, "agent", "failed", "claude is not logged in")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.preparation == .failed && model.steps.map(\.status) == [.failed])
+    host.events.append(step(2, "agent", "running"))
+    await model.retryPreparation()
+    #expect(host.retried == 1 && model.preparation == .running && model.steps.map(\.status) == [.running] && model.preparationRefusal == nil)
+}
+
+@MainActor @Test func aRefusedTryAgainOrCancelIsSaidInWordsAndChangesNothing() async {
+    let host = ScriptedHost()
+    host.preparation = .running
+    host.refusePreparation = .remote("This session is not in a failed preparation, so there is nothing to try again")
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    await model.retryPreparation()
+    #expect(model.preparationRefusal == "This session is not in a failed preparation, so there is nothing to try again" && model.preparation == .running)
+    host.refusePreparation = .remote("This session is not being prepared, so there is nothing to cancel")
+    #expect(await model.cancelPreparation() == nil)
+    #expect(model.preparationRefusal == "This session is not being prepared, so there is nothing to cancel")
+}
+
+@MainActor @Test func cancelGivesBackThePlanTheHostStoredWithTheText() async {
+    let host = ScriptedHost()
+    host.preparation = .running
+    host.cancelPlan = SessionPlan(agent: "claude", folder: "/w/api", branch: "feat/x", text: "build it")
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    let plan = await model.cancelPreparation()
+    #expect(host.cancelled == 1 && plan == host.cancelPlan && model.preparationRefusal == nil)
 }

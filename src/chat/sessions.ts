@@ -128,9 +128,14 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     if (data !== undefined) db.insert(chatEvents).values({ sessionId, at: clock.now(), kind: event.kind, data }).run();
   };
 
-  // Sessions whose steps run in the background and are not live yet: the host is not idle while one does.
-  const preparing = new Set<string>();
+  // Sessions whose steps run in the background and are not live yet: the host is not idle while one does. `abort` stops the running step, `done` ends when the steps stopped.
+  const preparing = new Map<string, { abort: AbortController; done: Promise<void> }>();
   const stepEvent = (sessionId: string, step: Step, status: StepEvent['status'], detail?: string) => store(sessionId, { kind: 'step', step, status, ...(detail !== undefined && { detail }) });
+  /** How the last event of a step left it, undefined when the step never ran. */
+  const lastStatus = (sessionId: string, step: Step) => {
+    const events = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'step'))).orderBy(desc(chatEvents.id)).all();
+    return events.find((event) => event.data.step === step)?.data.status as StepEvent['status'] | undefined;
+  };
   /** Stops a preparation at a step: the session is idle, the plan stays and the event says why. */
   const failStep = (sessionId: string, step: Step, detail: string) => {
     stepEvent(sessionId, step, 'failed', detail);
@@ -205,6 +210,25 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     if (lives.has(sessionId)) throw new ChatRefused('This session was resumed meanwhile; close it first'); // a resume that finished during the close
   }
 
+  async function remove({ sessionId }: { sessionId: string }) {
+    // marked before the first await, so a resume that comes in meanwhile is refused
+    deleting.add(sessionId);
+    try {
+      await settle(sessionId, 'delete');
+      const { workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath } = row(sessionId);
+      // The worktree goes first: one that cannot be removed stops the deletion and the session stays.
+      if (workspaceKind === 'worktree') await deleteWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! });
+      db.transaction((tx) => {
+        tx.delete(chatEvents).where(eq(chatEvents.sessionId, sessionId)).run();
+        tx.delete(chatTurns).where(eq(chatTurns.sessionId, sessionId)).run();
+        tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
+      });
+    } finally {
+      deleting.delete(sessionId);
+    }
+    return {};
+  }
+
   async function openConversation(chosen: ChatAgent, runner: ChatRunner, args: { folder: string; options: Record<string, string>; resume?: string }) {
     try {
       return await runner.open({ ...args, command: chosen.command, env });
@@ -245,20 +269,21 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
 
   /**
    * The `worktree` or `checkout` step of a plan, when it has one: the folder the agent runs in, or undefined once the step failed and was recorded.
-   * A worktree already recorded on the session is the one made before, so it is reused and not made twice.
+   * A worktree already recorded on the session is the one made before, so it is reused and not made twice; so is a checkout already done.
    */
-  async function arrange(sessionId: string, folder: string, plan: Plan): Promise<string | undefined> {
+  async function arrange(sessionId: string, folder: string, plan: Plan, signal: AbortSignal): Promise<string | undefined> {
     const { worktree, branch } = plan;
     if (worktree === undefined && branch === undefined) return folder;
     const step = worktree === undefined ? 'checkout' : 'worktree';
     const recorded = row(sessionId);
     if (recorded.workspaceKind === 'worktree') return recorded.worktreePath!;
+    if (step === 'checkout' && lastStatus(sessionId, step) === 'done') return folder; // a retry does not switch the branch again
     stepEvent(sessionId, step, 'running');
     try {
       if (worktree !== undefined) {
         if (branch === undefined) throw new ChatRefused('A worktree needs the branch it starts from');
         // an empty name is the host's to generate
-        const made = await exclusive(() => createWorktree(git, folder, { from: branch, ...(worktree.name !== undefined && worktree.name !== '' && { name: worktree.name }) }));
+        const made = await exclusive(() => createWorktree(git, folder, { from: branch, ...(worktree.name !== undefined && worktree.name !== '' && { name: worktree.name }) }, signal));
         db.update(sessions).set({ folder: made.path, workspaceKind: 'worktree', worktreeBranch: made.branch, worktreeFrom: made.from, worktreeBase: made.base, worktreePath: made.path }).where(eq(sessions.id, sessionId)).run();
         stepEvent(sessionId, step, 'done');
         return made.path;
@@ -273,10 +298,10 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
   }
 
   /** The steps of a plan, in the background: it never throws, a failure is recorded as a step that failed. */
-  async function prepare(sessionId: string, chosen: ChatAgent, runner: ChatRunner, base: string, plan: Plan) {
+  async function prepare(sessionId: string, chosen: ChatAgent, runner: ChatRunner, base: string, plan: Plan, signal: AbortSignal) {
     try {
-      const folder = await arrange(sessionId, base, plan);
-      if (folder === undefined) return;
+      const folder = await arrange(sessionId, base, plan, signal);
+      if (folder === undefined || signal.aborted) return;
       stepEvent(sessionId, 'agent', 'running');
       const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...plan.options };
       let conversation: ChatConversation | undefined;
@@ -288,12 +313,14 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
         if (error instanceof ChatRefused === false) log.error('preparing a session failed at the agent', error);
         return failStep(sessionId, 'agent', error instanceof ChatRefused ? error.message : 'The agent could not be started');
       }
+      if (signal.aborted) return void (await conversation.close().catch((closing) => log.error('closing the agent of a cancelled preparation failed', closing)));
       stepEvent(sessionId, 'agent', 'done');
       const live = attach(sessionId, conversation, 'preparing');
       stepEvent(sessionId, 'message', 'running');
       live.awaitingAnswer = true;
       live.turn = { startedAt: clock.now(), toolCalls: 0 };
-      store(sessionId, { kind: 'user', text: plan.text });
+      // a retry sends the same message again, which the conversation already shows
+      if (db.select({ id: chatEvents.id }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'user'))).limit(1).get() === undefined) store(sessionId, { kind: 'user', text: plan.text });
       try {
         conversation.send(plan.text);
       } catch (error) {
@@ -312,11 +339,27 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     }
   }
 
+  /** What a plan needs to run, refusing in words one that cannot: only a plan for a folder runs yet. */
+  const targetOf = (plan: Plan) => {
+    if (plan.workspace.kind !== 'folder') throw new ChatRefused('A plan for a repository or a project is not supported yet; only a folder');
+    const chosen = agents.find((candidate) => candidate.name === plan.agent);
+    if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${plan.agent}"`);
+    const runner = runners[chosen.harness];
+    if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
+    return { chosen, runner, folder: checkFolder(plan.workspace.folder, carrierHome()) };
+  };
+  /** Runs the steps of a plan in the background. */
+  const begin = (sessionId: string, { chosen, runner, folder }: ReturnType<typeof targetOf>, plan: Plan) => {
+    const running = { abort: new AbortController(), done: Promise.resolve() };
+    preparing.set(sessionId, running);
+    running.done = prepare(sessionId, chosen, runner, folder, plan, running.abort.signal);
+  };
+
   /** What each agent offered when it was last asked (a draft lists the models before a session exists), kept ten minutes. */
   const offered = new Map<string, { at: number; offer: Promise<{ options: ChatOption[]; commands: ChatCommand[] }> }>();
 
   return {
-    liveCount: () => new Set([...lives.keys(), ...preparing]).size,
+    liveCount: () => new Set([...lives.keys(), ...preparing.keys()]).size,
     clientJoined() {
       clients++;
       for (const live of lives.values()) live.cancelIdle?.();
@@ -378,22 +421,46 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
      * folder runs yet, with the branch to check out or a worktree from it.
      */
     async openPlan({ plan }: { plan: Plan }) {
-      if (plan.workspace.kind !== 'folder') throw new ChatRefused('A plan for a repository or a project is not supported yet; only a folder');
       if (plan.text.length > chatCaps.message) throw new ChatRefused(`That message has ${plan.text.length} characters; the most a message can have is ${chatCaps.message}`);
-      const chosen = agents.find((candidate) => candidate.name === plan.agent);
-      if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${plan.agent}"`);
-      const runner = runners[chosen.harness];
-      if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
-      const folder = checkFolder(plan.workspace.folder, carrierHome());
+      const target = targetOf(plan);
       const now = clock.now();
       const created = db
         .insert(sessions)
-        .values({ id: randomUUID(), agent: chosen.name, harness: chosen.harness, folder, plan, title: titleOf(plan.text), state: 'preparing', createdAt: now, lastActiveAt: now })
+        .values({ id: randomUUID(), agent: target.chosen.name, harness: target.chosen.harness, folder: target.folder, plan, title: titleOf(plan.text), state: 'preparing', createdAt: now, lastActiveAt: now })
         .returning()
         .get();
-      preparing.add(created.id); // before the answer, so the host is never idle between the reply and the first step
-      void prepare(created.id, chosen, runner, folder, plan);
+      begin(created.id, target, plan); // before the answer, so the host is never idle between the reply and the first step
       return { session: summary(created) };
+    },
+
+    /** Repeats the steps of a failed preparation that did not finish; what was made (the worktree, the checkout) is reused. */
+    async retryPreparation({ sessionId }: { sessionId: string }) {
+      const current = row(sessionId);
+      if (current.state === 'preparing') throw new ChatRefused('This session is still being prepared, so there is nothing to try again');
+      if (current.plan === null || preparing.has(sessionId)) throw new ChatRefused('This session is not in a failed preparation, so there is nothing to try again');
+      if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
+      const target = targetOf(current.plan);
+      const updated = db.update(sessions).set({ state: 'preparing', lastActiveAt: clock.now() }).where(eq(sessions.id, sessionId)).returning().get();
+      begin(sessionId, target, current.plan);
+      return { session: summary(updated) };
+    },
+
+    /** Stops the step that is running and deletes the session as a delete does, its worktree with it; answers the plan, for the app to put back in the draft. */
+    async cancelPreparation({ sessionId }: { sessionId: string }) {
+      const { state, plan } = row(sessionId);
+      if (state !== 'preparing') throw new ChatRefused('This session is not being prepared, so there is nothing to cancel');
+      deleting.add(sessionId); // a retry or a resume that comes in meanwhile is refused
+      try {
+        const running = preparing.get(sessionId);
+        running?.abort.abort();
+        await running?.done;
+        await close({ sessionId }); // the agent that waits to answer the first message
+        db.update(sessions).set({ state: 'idle' }).where(eq(sessions.id, sessionId)).run();
+        await remove({ sessionId });
+      } finally {
+        deleting.delete(sessionId);
+      }
+      return { plan };
     },
 
     /**
@@ -555,24 +622,7 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     },
 
     /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */
-    async delete({ sessionId }: { sessionId: string }) {
-      // marked before the first await, so a resume that comes in meanwhile is refused
-      deleting.add(sessionId);
-      try {
-        await settle(sessionId, 'delete');
-        const { workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath } = row(sessionId);
-        // The worktree goes first: one that cannot be removed stops the deletion and the session stays.
-        if (workspaceKind === 'worktree') await deleteWorktree(git, { path: worktreePath!, branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase! });
-        db.transaction((tx) => {
-          tx.delete(chatEvents).where(eq(chatEvents.sessionId, sessionId)).run();
-          tx.delete(chatTurns).where(eq(chatTurns.sessionId, sessionId)).run();
-          tx.delete(sessions).where(eq(sessions.id, sessionId)).run();
-        });
-      } finally {
-        deleting.delete(sessionId);
-      }
-      return {};
-    },
+    delete: remove,
 
     /** What deleting these sessions would discard: for each one in a worktree, its uncommitted files and the commits that exist nowhere else. An unknown id refuses the whole request. */
     async deletePreview({ sessionIds }: { sessionIds: string[] }) {

@@ -377,7 +377,10 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     @ObservationIgnored private let memory: OptionsMemory
     @ObservationIgnored private var events: [ChatEvent] = []
     @ObservationIgnored private var streaming = ""
-    @ObservationIgnored private var preparation: ChatSession.Preparation?
+    /// How the session's preparation stands: `failed` offers Try again, `running` offers Cancel; nil once the agent answered.
+    public private(set) var preparation: ChatSession.Preparation?
+    /// What the host refused when the person asked to try the preparation again or to cancel it, in words.
+    public private(set) var preparationRefusal: String?
     @ObservationIgnored private var progress: String?
     /// The approvals the host still waits for, from the last reply.
     @ObservationIgnored private var pending: Set<String> = []
@@ -434,7 +437,7 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
             streaming = reply.streaming
             changed = changed || reply.pending != pending
             pending = reply.pending
-            preparation = reply.preparation
+            if preparation != reply.preparation { preparation = reply.preparation }
             progress = reply.progress
             loaded = true
             failure = nil
@@ -513,6 +516,31 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
 
     /// Continue on the mark of a stopped turn.
     public func continueTurn() async { await deliver("Continue", refill: false) }
+
+    /// Try again on a failed preparation: the host repeats the steps that did not finish and the list fills in again.
+    public func retryPreparation() async {
+        do {
+            try await host.retryPreparation(sessionId)
+        } catch {
+            preparationRefusal = report(error, "try the preparation again")
+            return
+        }
+        preparationRefusal = nil
+        await poll()
+    }
+
+    /// Cancel while preparing: the host stops the running step and deletes the session, and answers the plan for the draft to take back; nil
+    /// when it refused, which is said in words and leaves the session as it was.
+    public func cancelPreparation() async -> SessionPlan? {
+        do {
+            let plan = try await host.cancelPreparation(sessionId)
+            preparationRefusal = nil
+            return plan
+        } catch {
+            preparationRefusal = report(error, "cancel the preparation")
+            return nil
+        }
+    }
 
     /// Try again on a banner: the refused message again, or the person's last message when the turn failed.
     public func retry() async {

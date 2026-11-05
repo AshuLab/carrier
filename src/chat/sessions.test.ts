@@ -902,3 +902,169 @@ test('a branch the repository does not list, or a folder that is not a repositor
   const plain = await bare.sessions.openPlan({ plan: planFor({ branch: 'main' }) });
   await vi.waitFor(() => expect(stepsOf(bare, plain.session.id).at(-1)).toContain('checkout:failed:That folder is not a git repository'));
 });
+
+// Retry and cancel of a preparation.
+const failedAtAgent = async (s: ReturnType<typeof setup>, extra: object = {}) => {
+  s.claude.refuseWith = 'claude is not logged in';
+  const { session } = await s.sessions.openPlan({ plan: planFor(extra) });
+  await vi.waitFor(() => expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'idle', preparation: 'failed' }));
+  s.claude.refuseWith = undefined;
+  return session.id;
+};
+
+test('retryPreparation repeats the steps that failed, the session is preparing again, and the first message is not shown twice', async () => {
+  const s = setup();
+  s.claude.setup = (conversation) => void (conversation.reply = () => {});
+  const id = await failedAtAgent(s);
+  const { session } = await s.sessions.retryPreparation({ sessionId: id });
+  expect(session).toMatchObject({ id, state: 'preparing', preparation: 'running' });
+  await vi.waitFor(() => expect(stepsOf(s, id).at(-1)).toBe('message:running'));
+  expect(stepsOf(s, id)).toEqual(['agent:running', 'agent:failed:claude is not logged in', 'agent:running', 'agent:done', 'message:running']);
+  s.claude.conversations[0]!.emit({ kind: 'assistant', text: 'done' });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'working', preparation: null });
+  expect(rows('sessions')[0].plan).toBeNull();
+  expect((s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((e) => e.kind === 'user')).toHaveLength(1);
+});
+
+test('a retry after the message failed starts the agent again and sends the same message once more', async () => {
+  const s = setup();
+  s.claude.setup = (conversation) => void (conversation.reply = () => { throw new Error('pipe closed'); });
+  const { session } = await s.sessions.openPlan({ plan: planFor() });
+  await vi.waitFor(() => expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'idle', preparation: 'failed', live: false }));
+  s.claude.setup = (conversation) => void (conversation.reply = () => {});
+  await s.sessions.retryPreparation({ sessionId: session.id });
+  await vi.waitFor(() => expect(s.claude.conversations).toHaveLength(2));
+  await vi.waitFor(() => expect(stepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(s.claude.conversations[1]!.sent).toEqual(['build it']);
+});
+
+test('a retry does not make the worktree twice: the one recorded on the session is reused and the agent works in it', async () => {
+  const s = repoSetup();
+  const id = await failedAtAgent(s, { branch: 'main', worktree: { name: 'my-fix' } });
+  const path = join(dir, 'home', 'chat', 'worktrees', 'local', 'work', 'my-fix');
+  expect(rows('sessions')[0]).toMatchObject({ workspaceKind: 'worktree', worktreePath: path });
+  const adds = () => s.git.calls.filter((call) => call.args[0] === 'worktree' && call.args[1] === 'add').length;
+  expect(adds()).toBe(1);
+  await s.sessions.retryPreparation({ sessionId: id });
+  await vi.waitFor(() => expect(stepsOf(s, id).at(-1)).toBe('message:running'));
+  expect(adds()).toBe(1);
+  expect(s.fake.worktrees).toHaveLength(1);
+  expect(s.claude.opened.at(-1)).toMatchObject({ folder: path });
+  // the worktree step is shown as done once, not run again
+  expect(stepsOf(s, id)).toEqual(['worktree:running', 'worktree:done', 'agent:running', 'agent:failed:claude is not logged in', 'agent:running', 'agent:done', 'message:running']);
+});
+
+test('a retry after a failed worktree step makes the worktree', async () => {
+  const s = repoSetup({ branches: ['main', 'carrier/taken'] });
+  const { session } = await s.sessions.openPlan({ plan: planFor({ branch: 'main', worktree: { name: 'taken' } }) });
+  await vi.waitFor(() => expect(stepsOf(s, session.id).at(-1)).toContain('worktree:failed'));
+  s.fake.branches = ['main'];
+  await s.sessions.retryPreparation({ sessionId: session.id });
+  await vi.waitFor(() => expect(stepsOf(s, session.id).at(-1)).toBe('message:running'));
+  expect(rows('sessions')[0]).toMatchObject({ workspaceKind: 'worktree', worktreeBranch: 'carrier/taken' });
+});
+
+test('a retry after a done checkout does not switch the branch again', async () => {
+  const s = repoSetup();
+  const id = await failedAtAgent(s, { branch: 'feat' });
+  expect(s.fake.head).toBe('feat');
+  s.git.calls.length = 0;
+  await s.sessions.retryPreparation({ sessionId: id });
+  await vi.waitFor(() => expect(stepsOf(s, id).at(-1)).toBe('message:running'));
+  expect(s.git.calls.some((call) => call.args[0] === 'switch')).toBe(false);
+  expect(stepsOf(s, id).filter((step) => step.startsWith('checkout'))).toEqual(['checkout:running', 'checkout:done']);
+});
+
+test('a retry that fails again leaves the session failed with the new reason, and it can be retried again', async () => {
+  const s = setup();
+  const id = await failedAtAgent(s);
+  s.claude.refuseWith = 'still not logged in';
+  await s.sessions.retryPreparation({ sessionId: id });
+  await vi.waitFor(() => expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'idle', preparation: 'failed' }));
+  expect(stepsOf(s, id).at(-1)).toBe('agent:failed:still not logged in');
+  await s.sessions.retryPreparation({ sessionId: id });
+});
+
+test('retry on a preparing session is refused', async () => {
+  const s = setup();
+  s.claude.open = () => new Promise(() => {});
+  const { session } = await s.sessions.openPlan({ plan: planFor() });
+  await expect(s.sessions.retryPreparation({ sessionId: session.id })).rejects.toThrow('still being prepared');
+});
+
+test('cancel on a failed preparation is refused and leaves the session as it was', async () => {
+  const s = setup();
+  const id = await failedAtAgent(s);
+  await expect(s.sessions.cancelPreparation({ sessionId: id })).rejects.toThrow('not being prepared');
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ id, preparation: 'failed' });
+});
+
+test('retry and cancel are refused for a session that was not prepared from a plan, and for one that does not exist', async () => {
+  const plain = await openOne();
+  await expect(plain.sessions.retryPreparation({ sessionId: plain.id })).rejects.toThrow('not in a failed preparation');
+  await expect(plain.sessions.cancelPreparation({ sessionId: plain.id })).rejects.toThrow('not being prepared');
+  await expect(plain.sessions.retryPreparation({ sessionId: '00000000-0000-4000-8000-000000000000' })).rejects.toThrow('no such session');
+});
+
+test('retry and cancel are refused for a session that answered, which has no plan left', async () => {
+  const s = setup();
+  s.claude.setup = (conversation) => void (conversation.reply = () => conversation.emit({ kind: 'assistant', text: 'hi' }, { kind: 'turn_end', outcome: 'ok' }));
+  const { session } = await s.sessions.openPlan({ plan: planFor() });
+  await vi.waitFor(() => expect(rows('sessions')[0].plan).toBeNull());
+  await expect(s.sessions.retryPreparation({ sessionId: session.id })).rejects.toThrow('not in a failed preparation');
+  await expect(s.sessions.cancelPreparation({ sessionId: session.id })).rejects.toThrow('not being prepared');
+});
+
+test('cancel in the middle of the worktree stops git, takes away what was made, deletes the session and answers the plan', async () => {
+  const s = repoSetup();
+  let release!: () => void;
+  s.git.worktreePending = new Promise<void>((resolve) => (release = resolve));
+  const plan = planFor({ branch: 'main', worktree: { name: 'my-fix' } });
+  const { session } = await s.sessions.openPlan({ plan });
+  await vi.waitFor(() => expect(s.git.calls.some((call) => call.args[0] === 'worktree' && call.args[1] === 'add')).toBe(true));
+  expect(await s.sessions.cancelPreparation({ sessionId: session.id })).toEqual({ plan });
+  release();
+  expect(rows('sessions')).toEqual([]);
+  expect(rows('chat_events')).toEqual([]);
+  expect(s.fake.worktrees ?? []).toEqual([]);
+  expect(s.fake.branches).toEqual(['main', 'feat']);
+  expect(s.claude.opened).toEqual([]);
+  expect(s.sessions.liveCount()).toBe(0);
+});
+
+test('cancel while the agent starts ends the agent that opened late, and cancel while it waits for the first answer closes it, the worktree going with the session', async () => {
+  const starting = repoSetup();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const open = starting.claude.open.bind(starting.claude);
+  starting.claude.open = async (args) => (await gate, open(args));
+  const { session } = await starting.sessions.openPlan({ plan: planFor({ branch: 'main', worktree: { name: 'late' } }) });
+  await vi.waitFor(() => expect(stepsOf(starting, session.id).at(-1)).toBe('agent:running'));
+  const cancelling = starting.sessions.cancelPreparation({ sessionId: session.id });
+  release();
+  await cancelling;
+  expect(starting.claude.conversations[0]!.closed).toBe(true);
+  expect(rows('sessions')).toEqual([]);
+  expect(starting.fake.worktrees ?? []).toEqual([]);
+
+  const waiting = repoSetup();
+  waiting.claude.setup = (conversation) => void (conversation.reply = () => {});
+  const second = await waiting.sessions.openPlan({ plan: planFor({ branch: 'main', worktree: { name: 'wait' } }) });
+  await vi.waitFor(() => expect(stepsOf(waiting, second.session.id).at(-1)).toBe('message:running'));
+  await waiting.sessions.cancelPreparation({ sessionId: second.session.id });
+  expect(waiting.claude.conversations[0]!.closed).toBe(true);
+  expect(rows('sessions')).toEqual([]);
+  expect(waiting.fake.worktrees ?? []).toEqual([]);
+  expect(waiting.sessions.liveCount()).toBe(0);
+});
+
+test('a failed preparation is still failed, with its failed step and plan, after the host restarts, and can be retried then', async () => {
+  const first = setup();
+  const id = await failedAtAgent(first);
+  first.db.$client.close();
+  const next = createSessions({ db: openChatDatabase(join(dir, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' } as ChatAgent], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: new FakeGit(), binaryFound: () => true, onLiveChange: () => {} });
+  expect(next.list({}).sessions[0]).toMatchObject({ id, state: 'idle', preparation: 'failed', live: false });
+  expect((next.events({ sessionId: id, limit: 200 }).events as any[]).map((e) => `${e.step}:${e.status}:${e.detail}`)).toEqual(['agent:running:undefined', 'agent:failed:claude is not logged in']);
+  await next.retryPreparation({ sessionId: id });
+  await vi.waitFor(() => expect(next.list({}).sessions[0]).toMatchObject({ state: 'preparing', live: true }));
+});

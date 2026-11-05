@@ -19,9 +19,12 @@ struct ConversationView: View {
 
     /// Where the first message of the session the draft opened is handed over, so it shows while the session is prepared.
     private let draft: NewSessionModel?
+    /// Told with the plan the host gave back when a preparation was cancelled, so the app can show the draft with it.
+    private let cancelled: (SessionPlan) -> Void
 
-    init(sessionId: String, draft: NewSessionModel? = nil) {
+    init(sessionId: String, draft: NewSessionModel? = nil, cancelled: @escaping (SessionPlan) -> Void = { _ in }) {
         self.draft = draft
+        self.cancelled = cancelled
         _model = State(initialValue: ConversationModel(host: SocketChatHost(), sessionId: sessionId, memory: .userDefaults))
     }
 
@@ -29,7 +32,16 @@ struct ConversationView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 if model.loaded {
-                    if model.steps.isEmpty == false { PreparationStepsView(steps: model.steps).transition(.opacity) }
+                    if model.steps.isEmpty == false {
+                        PreparationStepsView(steps: model.steps, preparation: model.preparation, refusal: model.preparationRefusal, retry: { Task { await model.retryPreparation() } }, cancel: {
+                            Task {
+                                guard let plan = await model.cancelPreparation() else { return }
+                                actions.changed()
+                                cancelled(plan)
+                            }
+                        })
+                        .transition(.opacity)
+                    }
                     let open = openOutcome(model.rows)
                     ForEach(model.rows) { row in
                         FeedRowView(

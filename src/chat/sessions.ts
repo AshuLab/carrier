@@ -1,7 +1,7 @@
 import { accessSync, constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, gt } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNotNull } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/default-path.ts';
 import type { ChatAgent } from './config.ts';
@@ -11,6 +11,7 @@ import type { ChatDb } from './db.ts';
 import { checkFolder } from './folder.ts';
 import { createHealth, realProbes, type HealthProbes } from './health.ts';
 import type { Git } from './git.ts';
+import type { Plan, Step, StepEvent } from './plan.ts';
 import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, titleOf } from './transcript.ts';
@@ -28,7 +29,11 @@ type State = (typeof sessions.$inferSelect)['state'];
 /** Where a session works: the folder it was opened in, or a worktree made for it from that base folder. */
 export type SessionWorkspace = { kind: 'folder' } | { kind: 'worktree'; branch: string; from: string; base: string; path: string };
 
-export type SessionSummary = Omit<typeof sessions.$inferSelect, 'options' | 'pid' | 'pgid' | 'command' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath'> & { workspace: SessionWorkspace };
+export type SessionSummary = Omit<typeof sessions.$inferSelect, 'options' | 'pid' | 'pgid' | 'command' | 'plan' | 'workspaceKind' | 'worktreeBranch' | 'worktreeFrom' | 'worktreeBase' | 'worktreePath'> & {
+  workspace: SessionWorkspace;
+  /** `running` while the host prepares the session, `failed` when a step failed and the plan is kept, null otherwise. */
+  preparation: 'running' | 'failed' | null;
+};
 
 export type PendingApproval = { approvalId: string; tool: string; arg?: string; choices: ChatChoice[] };
 
@@ -41,6 +46,8 @@ type Live = {
   /** The approvals asked and not yet answered, as they are stored (redacted and bounded). */
   approvals: Map<string, PendingApproval>;
   turn?: { startedAt: number; toolCalls: number };
+  /** True while the `message` step of a preparation waits for the agent's first answer. */
+  awaitingAnswer?: boolean;
   cancelIdle?: () => void;
 };
 
@@ -92,8 +99,9 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     if (found === undefined) throw new ChatRefused('There is no such session');
     return found;
   };
-  const summary = ({ options: _options, pid: _pid, pgid: _pgid, command: _command, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
+  const summary = ({ options: _options, pid: _pid, pgid: _pgid, command: _command, plan, workspaceKind, worktreeBranch, worktreeFrom, worktreeBase, worktreePath, ...rest }: typeof sessions.$inferSelect): SessionSummary => ({
     ...rest,
+    preparation: rest.state === 'preparing' ? 'running' : plan === null ? null : 'failed',
     workspace: workspaceKind === 'worktree' ? { kind: 'worktree', branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase!, path: worktreePath! } : { kind: 'folder' },
   });
 
@@ -115,12 +123,42 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     db.update(sessions).set({ state, lastActiveAt: clock.now(), ...(live.conversation.nativeId !== undefined && { nativeId: live.conversation.nativeId }) }).where(eq(sessions.id, sessionId)).run();
     armIdle(sessionId, live);
   };
-  const store = (sessionId: string, event: ChatEvent) => {
+  const store = (sessionId: string, event: ChatEvent | StepEvent) => {
     const data = boundEvent(event);
     if (data !== undefined) db.insert(chatEvents).values({ sessionId, at: clock.now(), kind: event.kind, data }).run();
   };
 
+  // Sessions whose steps run in the background and are not live yet: the host is not idle while one does.
+  const preparing = new Set<string>();
+  const stepEvent = (sessionId: string, step: Step, status: StepEvent['status'], detail?: string) => store(sessionId, { kind: 'step', step, status, ...(detail !== undefined && { detail }) });
+  /** Stops a preparation at a step: the session is idle, the plan stays and the event says why. */
+  const failStep = (sessionId: string, step: Step, detail: string) => {
+    stepEvent(sessionId, step, 'failed', detail);
+    db.update(sessions).set({ state: 'idle', lastActiveAt: clock.now() }).where(eq(sessions.id, sessionId)).run();
+  };
+  // A host that stopped mid-preparation left sessions whose last step is still running: it comes back failed as interrupted.
+  for (const { id: sessionId } of db.select({ id: sessions.id }).from(sessions).where(isNotNull(sessions.plan)).all()) {
+    const last = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'step'))).orderBy(desc(chatEvents.id)).limit(1).get();
+    if (last?.data.status === 'running') stepEvent(sessionId, last.data.step as Step, 'failed', 'Carrier stopped while this step was running');
+    db.update(sessions).set({ state: 'idle' }).where(and(eq(sessions.id, sessionId), eq(sessions.state, 'preparing'))).run();
+  }
+
   const onEvent = (sessionId: string, live: Live, event: ChatEvent) => {
+    // The first thing the agent does after the first message ends the `message` step: an answer, or an error that fails it.
+    if (live.awaitingAnswer === true && event.kind !== 'option') {
+      live.awaitingAnswer = false;
+      if (event.kind === 'error' || (event.kind === 'turn_end' && event.outcome === 'error')) {
+        store(sessionId, event);
+        failStep(sessionId, 'message', 'The agent ended with an error before it answered');
+        live.turn = undefined;
+        live.state = 'idle';
+        close({ sessionId }).catch((error) => log.error('closing an agent that failed its first answer failed', error));
+        return;
+      }
+      stepEvent(sessionId, 'message', 'done');
+      db.update(sessions).set({ plan: null }).where(eq(sessions.id, sessionId)).run();
+      touch(sessionId, live, 'working');
+    }
     if (event.kind === 'delta') return void (live.streaming += event.text);
     if (event.kind === 'turn_end' && live.turn === undefined) return; // a turn already recorded (an interrupt, then the adapter's own end)
     if (event.kind === 'assistant' || event.kind === 'turn_end') live.streaming = '';
@@ -159,7 +197,7 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
 
   /** Readies a session to be archived or deleted: refuses an unknown one, and one working or waiting for an approval; closes an idle live one. */
   async function settle(sessionId: string, verb: 'archive' | 'delete') {
-    row(sessionId);
+    if (row(sessionId).state === 'preparing') throw new ChatRefused(`This session is being prepared; wait for it to finish, then ${verb} it`);
     const live = lives.get(sessionId);
     if (live === undefined) return;
     if (live.state !== 'idle') throw new ChatRefused(`This session is ${live.state === 'working' ? 'working' : 'waiting for an approval'}; interrupt or close it first, then ${verb} it`);
@@ -178,8 +216,8 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
   }
 
   /** Makes a conversation the live one of a session. */
-  const attach = (sessionId: string, conversation: ChatConversation) => {
-    const live: Live = { conversation, state: 'idle', streaming: '', approvals: new Map() };
+  const attach = (sessionId: string, conversation: ChatConversation, state: State = 'idle') => {
+    const live: Live = { conversation, state, streaming: '', approvals: new Map() };
     lives.set(sessionId, live);
     const { pid = null, pgid = null, command = null } = conversation.process ?? {};
     db.update(sessions).set({ pid, pgid, command }).where(eq(sessions.id, sessionId)).run();
@@ -202,13 +240,52 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     });
     armIdle(sessionId, live);
     onLiveChange();
+    return live;
   };
+
+  /** The steps of a plan, in the background: it never throws, a failure is recorded as a step that failed. */
+  async function prepare(sessionId: string, chosen: ChatAgent, runner: ChatRunner, folder: string, plan: Plan) {
+    try {
+      stepEvent(sessionId, 'agent', 'running');
+      const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...plan.options };
+      let conversation: ChatConversation | undefined;
+      try {
+        conversation = await openConversation(chosen, runner, { folder, options });
+        for (const [id, value] of Object.entries(options)) checkOption(conversation.options, id, value);
+      } catch (error) {
+        await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
+        if (error instanceof ChatRefused === false) log.error('preparing a session failed at the agent', error);
+        return failStep(sessionId, 'agent', error instanceof ChatRefused ? error.message : 'The agent could not be started');
+      }
+      stepEvent(sessionId, 'agent', 'done');
+      const live = attach(sessionId, conversation, 'preparing');
+      stepEvent(sessionId, 'message', 'running');
+      live.awaitingAnswer = true;
+      live.turn = { startedAt: clock.now(), toolCalls: 0 };
+      store(sessionId, { kind: 'user', text: plan.text });
+      try {
+        conversation.send(plan.text);
+      } catch (error) {
+        log.error('the first message could not be sent to the agent', error);
+        live.awaitingAnswer = false;
+        live.turn = undefined;
+        live.state = 'idle';
+        failStep(sessionId, 'message', 'The message could not be delivered to the agent');
+        await close({ sessionId });
+      }
+    } catch (error) {
+      log.error('preparing a session failed', error);
+    } finally {
+      preparing.delete(sessionId);
+      onLiveChange();
+    }
+  }
 
   /** What each agent offered when it was last asked (a draft lists the models before a session exists), kept ten minutes. */
   const offered = new Map<string, { at: number; offer: Promise<{ options: ChatOption[]; commands: ChatCommand[] }> }>();
 
   return {
-    liveCount: () => lives.size,
+    liveCount: () => new Set([...lives.keys(), ...preparing]).size,
     clientJoined() {
       clients++;
       for (const live of lives.values()) live.cancelIdle?.();
@@ -266,6 +343,29 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     },
 
     /**
+     * Opens a session from a plan: it exists at once as `preparing`, and the steps run in the background and record their events. Only a plan for a
+     * folder with no branch and no worktree runs yet.
+     */
+    async openPlan({ plan }: { plan: Plan }) {
+      if (plan.workspace.kind !== 'folder' || plan.branch !== undefined || plan.worktree !== undefined) throw new ChatRefused('A plan for a repository, a project, a branch or a worktree is not supported yet; only a folder as it is');
+      if (plan.text.length > chatCaps.message) throw new ChatRefused(`That message has ${plan.text.length} characters; the most a message can have is ${chatCaps.message}`);
+      const chosen = agents.find((candidate) => candidate.name === plan.agent);
+      if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${plan.agent}"`);
+      const runner = runners[chosen.harness];
+      if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
+      const folder = checkFolder(plan.workspace.folder, carrierHome());
+      const now = clock.now();
+      const created = db
+        .insert(sessions)
+        .values({ id: randomUUID(), agent: chosen.name, harness: chosen.harness, folder, plan, title: titleOf(plan.text), state: 'preparing', createdAt: now, lastActiveAt: now })
+        .returning()
+        .get();
+      preparing.add(created.id); // before the answer, so the host is never idle between the reply and the first step
+      void prepare(created.id, chosen, runner, folder, plan);
+      return { session: summary(created) };
+    },
+
+    /**
      * The options and the commands an agent offers, with the values it would start with, before any session exists: it starts the agent in a folder of
      * nobody's, reads what it lists and ends it. Kept ten minutes, and a failure is not kept.
      */
@@ -296,6 +396,7 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     /** Opens a closed session again from its stored native id, folder and options; a live one is just attached to. */
     async resume({ sessionId }: { sessionId: string }) {
       const current = row(sessionId);
+      if (current.plan !== null) throw new ChatRefused('This session did not finish preparing');
       const present = lives.get(sessionId);
       if (present !== undefined) return { session: summary(current), options: present.conversation.options };
       if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');

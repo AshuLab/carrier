@@ -27,6 +27,7 @@ const controls = (): ChatControls => ({
   open: async () => {
     throw new ChatRefused('That folder does not exist');
   },
+  openPlan: async ({ plan }) => ({ session: { agent: plan.agent, state: 'preparing' } }),
   resume: async () => ({}),
   send: () => {
     throw new Error('the disk says secret things');
@@ -87,7 +88,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'health', 'stop'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'health', 'plan', 'stop'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -226,6 +227,35 @@ test('createProject takes one plain folder name and nothing else', async () => {
   expect(await c.ask('{"id":20,"cmd":"createProject"}')).toEqual({ id: 20, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":21,"cmd":"createProject","name":"a","force":true}')).toEqual({ id: 21, ok: false, error: 'invalid request' });
   expect(await c.ask(`{"id":22,"cmd":"createProject","name":"${'a'.repeat(100)}"}`)).toMatchObject({ ok: true });
+});
+
+const planOf = (extra: object = {}, workspace: object = { kind: 'folder', folder: '/work' }) => JSON.stringify({ id: 1, cmd: 'open', plan: { workspace, agent: 'claude', text: 'hi', ...extra } });
+
+test('open takes a plan, strictly: what it refuses and what it accepts', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask(planOf())).toEqual({ id: 1, ok: true, data: { session: { agent: 'claude', state: 'preparing' } } });
+  for (const branch of ['main', 'feat/x']) expect(await c.ask(planOf({ branch }))).toMatchObject({ ok: true });
+  expect(await c.ask(planOf({ options: { model: 'haiku' }, worktree: { name: 'mine' } }))).toMatchObject({ ok: true });
+  expect(await c.ask(planOf({}, { kind: 'repo', repo: 'AshuLab/carrier' }))).toMatchObject({ ok: true });
+  expect(await c.ask(planOf({}, { kind: 'project', name: 'my-app' }))).toMatchObject({ ok: true });
+  const bad: [string, string][] = [
+    ['an empty text', planOf({ text: '' })],
+    ['a branch with a leading dash', planOf({ branch: '-x' })],
+    ['a branch with a space', planOf({ branch: 'a b' })],
+    ['an empty branch', planOf({ branch: '' })],
+    ['a repo that climbs', planOf({}, { kind: 'repo', repo: 'a/../b' })],
+    ['an empty repo', planOf({}, { kind: 'repo', repo: '' })],
+    ['a project with a branch', planOf({ branch: 'main' }, { kind: 'project', name: 'my-app' })],
+    ['a project with a worktree', planOf({ worktree: {} }, { kind: 'project', name: 'my-app' })],
+    ['an unknown workspace kind', planOf({}, { kind: 'url', url: 'x' })],
+    ['an extra field of the plan', planOf({ force: true })],
+    ['a plan together with a folder', JSON.stringify({ id: 1, cmd: 'open', folder: '/work', plan: { workspace: { kind: 'folder', folder: '/work' }, agent: 'claude', text: 'hi' } })],
+    ['a plan together with an agent', JSON.stringify({ id: 1, cmd: 'open', agent: 'claude', plan: { workspace: { kind: 'folder', folder: '/work' }, agent: 'claude', text: 'hi' } })],
+  ];
+  for (const [what, line] of bad) expect(await c.ask(line), what).toEqual({ id: 1, ok: false, error: 'invalid request' });
+  // the old open is still the old open
+  expect(await c.ask('{"id":2,"cmd":"open","agent":"claude","folder":"/nope"}')).toEqual({ id: 2, ok: false, error: 'That folder does not exist' });
 });
 
 test('githubRepos takes a page from 1 to 100 and nothing else', async () => {

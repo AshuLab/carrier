@@ -691,3 +691,130 @@ test('the health reply carries only the states, whatever the probes could say', 
   expect(JSON.stringify(reply)).not.toMatch(/example|acme|ghp_/);
   expect(Object.keys(reply).sort()).toEqual(['agents', 'gh', 'git']);
 });
+
+// A plan for a folder, prepared: the session exists at once and the steps are recorded as events.
+const planFor = (extra: object = {}) => ({ workspace: { kind: 'folder' as const, folder: work }, agent: 'claude', text: 'build it', ...extra });
+const stepsOf = (s: ReturnType<typeof setup>, id: string) =>
+  (s.sessions.events({ sessionId: id, limit: 200 }).events as any[]).filter((e) => e.kind === 'step').map((e) => `${e.step}:${e.status}${e.detail === undefined ? '' : `:${e.detail}`}`);
+
+test('openPlan answers at once with the session preparing, and the steps run to the first answer: then working, idle, no plan', async () => {
+  const s = setup();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  const open = s.claude.open.bind(s.claude);
+  s.claude.open = async (args) => (await gate, open(args)); // the agent step is still running
+  s.claude.setup = (conversation) => void (conversation.reply = () => {});
+  const { session } = await s.sessions.openPlan({ plan: planFor() });
+  expect(session).toMatchObject({ state: 'preparing', preparation: 'running', title: 'build it', workspace: { kind: 'folder' } });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ id: session.id, state: 'preparing', preparation: 'running', live: false });
+  expect(stepsOf(s, session.id)).toEqual(['agent:running']);
+  release();
+  await vi.waitFor(() => expect(stepsOf(s, session.id)).toEqual(['agent:running', 'agent:done', 'message:running']));
+  const conversation = s.claude.conversations[0]!;
+  expect(conversation.sent).toEqual(['build it']);
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'preparing', preparation: 'running', live: true });
+  expect(rows('sessions')[0].plan).toContain('build it');
+  conversation.emit({ kind: 'assistant', text: 'done' });
+  expect(stepsOf(s, session.id)).toEqual(['agent:running', 'agent:done', 'message:running', 'message:done']);
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'working', preparation: null });
+  expect(rows('sessions')[0].plan).toBeNull();
+  conversation.emit({ kind: 'turn_end', outcome: 'ok' });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'idle', preparation: null });
+  // the user's message comes before the answer, and the message step is done before the answer
+  expect((s.sessions.events({ sessionId: session.id, limit: 200 }).events as any[]).map((e) => e.kind)).toEqual(['step', 'step', 'step', 'user', 'step', 'assistant', 'turn_end']);
+  expect(rows('chat_turns')).toHaveLength(1);
+});
+
+test('a failure at the agent leaves the session idle and not live, preparation failed, the reason in words and the plan kept', async () => {
+  const s = setup();
+  s.claude.refuseWith = 'claude is not logged in';
+  const { session } = await s.sessions.openPlan({ plan: planFor() });
+  await vi.waitFor(() => expect(stepsOf(s, session.id)).toEqual(['agent:running', 'agent:failed:claude is not logged in']));
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'idle', preparation: 'failed', live: false });
+  expect(rows('sessions')[0].plan).toContain('build it');
+  expect(s.sessions.liveCount()).toBe(0);
+  expect(s.onLiveChange).toHaveBeenCalled();
+  await expect(s.sessions.resume({ sessionId: session.id })).rejects.toThrow('did not finish preparing');
+});
+
+test('an option the agent does not offer fails the agent step, and the agent that was started is ended', async () => {
+  const s = setup();
+  s.claude.setup = offering(['model', ['haiku'], 'haiku']);
+  const { session } = await s.sessions.openPlan({ plan: planFor({ options: { speed: 'fast' } }) });
+  await vi.waitFor(() => expect(stepsOf(s, session.id)).toEqual(['agent:running', expect.stringContaining('agent:failed:This agent has no option "speed"')]));
+  expect(s.claude.conversations[0]!.closed).toBe(true);
+});
+
+test('an agent that errors before it answers fails the message step and ends up idle, not live, with the plan kept', async () => {
+  const s = setup();
+  s.claude.setup = (conversation) => void (conversation.reply = () => conversation.emit({ kind: 'error', text: 'rate limited' }, { kind: 'turn_end', outcome: 'error' }));
+  const { session } = await s.sessions.openPlan({ plan: planFor() });
+  await vi.waitFor(() => expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'idle', preparation: 'failed', live: false }));
+  expect(stepsOf(s, session.id)).toEqual(['agent:running', 'agent:done', 'message:running', 'message:failed:The agent ended with an error before it answered']);
+  expect(s.claude.conversations[0]!.closed).toBe(true);
+  expect(rows('sessions')[0].plan).toContain('build it');
+});
+
+test('a message the agent cannot take fails the message step', async () => {
+  const s = setup();
+  s.claude.setup = (conversation) => void (conversation.reply = () => { throw new Error('pipe closed'); });
+  const { session } = await s.sessions.openPlan({ plan: planFor() });
+  await vi.waitFor(() => expect(stepsOf(s, session.id).at(-1)).toBe('message:failed:The message could not be delivered to the agent'));
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'idle', preparation: 'failed', live: false });
+});
+
+test('a session that was preparing when the host stopped comes back with the running step failed as interrupted, and idle', async () => {
+  const first = setup();
+  first.claude.open = () => new Promise(() => {}); // the agent step never ends: the host stops here
+  const { session } = await first.sessions.openPlan({ plan: planFor() });
+  expect(stepsOf(first, session.id)).toEqual(['agent:running']);
+  first.db.$client.close();
+  const next = createSessions({ db: openChatDatabase(join(dir, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' } as ChatAgent], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: new FakeGit(), binaryFound: () => true, onLiveChange: () => {} });
+  expect(next.list({}).sessions[0]).toMatchObject({ id: session.id, state: 'idle', preparation: 'failed', live: false });
+  expect((next.events({ sessionId: session.id, limit: 200 }).events as any[]).map((e) => `${e.step}:${e.status}:${e.detail}`)).toEqual(['agent:running:undefined', 'agent:failed:Carrier stopped while this step was running']);
+});
+
+test('the host is not idle while a session is preparing, and is again once the preparation failed', async () => {
+  const s = setup();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  s.claude.open = async () => (await gate, Promise.reject(new ChatRefused('not today')));
+  expect(s.sessions.liveCount()).toBe(0);
+  const { session } = await s.sessions.openPlan({ plan: planFor() });
+  expect(s.sessions.liveCount()).toBe(1);
+  release();
+  await vi.waitFor(() => expect(stepsOf(s, session.id).at(-1)).toBe('agent:failed:not today'));
+  expect(s.sessions.liveCount()).toBe(0);
+  expect(s.onLiveChange).toHaveBeenCalled();
+});
+
+test('openPlan refuses what is not a folder as it is, a bad folder, an unknown agent and a long text, and makes no session', async () => {
+  const { sessions, onLiveChange } = setup();
+  for (const [what, plan] of [
+    ['a repo', planFor({ workspace: { kind: 'repo', repo: 'AshuLab/carrier' } })],
+    ['a project', planFor({ workspace: { kind: 'project', name: 'my-app' } })],
+    ['a branch', planFor({ branch: 'main' })],
+    ['a worktree', planFor({ worktree: {} })],
+  ] as const) await expect(sessions.openPlan({ plan }), what).rejects.toThrow('not supported yet');
+  await expect(sessions.openPlan({ plan: planFor({ workspace: { kind: 'folder', folder: join(dir, 'missing') } }) })).rejects.toThrow('does not exist');
+  await expect(sessions.openPlan({ plan: planFor({ agent: 'nope' }) })).rejects.toThrow('no chat agent named "nope"');
+  await expect(sessions.openPlan({ plan: planFor({ agent: 'codex' }) })).rejects.toThrow('no chat runner for codex');
+  await expect(sessions.openPlan({ plan: planFor({ text: 'x'.repeat(chatCaps.message + 1) }) })).rejects.toThrow('the most a message can have');
+  expect(rows('sessions')).toEqual([]);
+  expect(onLiveChange).not.toHaveBeenCalled();
+});
+
+test('the old open leaves preparation null and records no step events', async () => {
+  const s = await openOne();
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ state: 'idle', preparation: null });
+  expect(stepsOf(s, s.id)).toEqual([]);
+});
+
+test('a preparing session cannot be archived, deleted or resumed', async () => {
+  const s = setup();
+  s.claude.open = () => new Promise(() => {});
+  const { session } = await s.sessions.openPlan({ plan: planFor() });
+  await expect(s.sessions.archive({ sessionId: session.id, archived: true })).rejects.toThrow('being prepared');
+  await expect(s.sessions.delete({ sessionId: session.id })).rejects.toThrow('being prepared');
+  await expect(s.sessions.resume({ sessionId: session.id })).rejects.toThrow('did not finish preparing');
+});

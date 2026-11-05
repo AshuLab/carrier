@@ -1,11 +1,12 @@
 import { boundOutput, clean } from '../execution/events.ts';
+import type { StepEvent } from './plan.ts';
 import type { ChatEvent } from './runner.ts';
 
 // Characters, not bytes. The limits of a conversation, not of an epic's log (spec: The record).
 export const chatCaps = { message: 64_000, arg: 1024, title: 80, error: 4096 };
 
 /** What is stored of an event: redacted first and then cut, so a secret is never cut in a way that hides its shape. A `delta` is not stored. */
-export function boundEvent(event: ChatEvent): Record<string, unknown> | undefined {
+export function boundEvent(event: ChatEvent | StepEvent): Record<string, unknown> | undefined {
   switch (event.kind) {
     case 'delta':
       return undefined;

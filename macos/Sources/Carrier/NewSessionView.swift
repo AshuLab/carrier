@@ -60,7 +60,8 @@ struct NewSessionView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // nothing scrolls under the toolbar here, so it takes the page's own colour and not the system's band
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-        .task {
+        // a workspace's + while the draft is open asks again, for another folder
+        .task(id: model.starts) {
             await model.load()
             await model.loadOptions()
         }

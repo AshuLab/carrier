@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Carrier sidebar — the hover card</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* ch- = card hover. The card of each state, with its sections as switches */
+.ch-wrap{display:flex;gap:32px;align-items:flex-start;flex-wrap:wrap;margin-top:6px}
+.ch-ctl{width:300px;display:flex;flex-direction:column;gap:8px}
+.ch-ctl h3{margin:6px 0 0;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+.ch-sw{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:12px;background:var(--card);cursor:default;box-shadow:0 0 0 .5px var(--line) inset}
+.ch-sw.on{background:color-mix(in srgb,var(--blue) 22%,transparent)}
+.ch-sw .k{width:16px;height:16px;border-radius:5px;flex:none;margin-top:1px;box-shadow:0 0 0 1.5px var(--faint) inset;display:grid;place-items:center;font-size:11px;color:#fff}
+.ch-sw.on .k{background:var(--blue);box-shadow:none}
+.ch-sw b{display:block;font-size:13px;font-weight:600}.ch-sw span{display:block;font-size:12px;color:var(--dim);margin-top:1px}
+.ch-sw em{font-style:normal;display:inline-block;margin-top:3px;font-size:11px;color:var(--faint)}
+.ch-grid{flex:1;min-width:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,330px));gap:26px 24px;align-items:start}
+.ch-cell h3{margin:0 0 8px;font-size:13px;color:var(--dim);font-weight:600}
+.ch-cell h3 b{color:var(--text)}
+/* the card */
+.ch-card{width:320px;border-radius:16px;padding:14px 16px;background:color-mix(in srgb,#2a2a2e 92%,transparent);backdrop-filter:blur(30px) saturate(1.5);box-shadow:0 14px 40px rgba(0,0,0,.45),0 0 0 .5px rgba(255,255,255,.16) inset}
+body.light .ch-card{background:color-mix(in srgb,#fff 92%,transparent);box-shadow:0 14px 40px rgba(30,30,60,.22),0 0 0 .5px rgba(0,0,0,.12) inset}
+.ch-hd{display:flex;gap:10px;align-items:flex-start}
+.ch-av{position:relative;width:32px;height:32px;flex:none;border-radius:9px;display:grid;place-items:center;font-size:12px;font-weight:650;color:#fff}
+.ch-card h4{margin:0;font-size:14px;font-weight:600;line-height:1.3}
+.ch-card .sub2{font-size:12px;color:var(--dim);margin-top:2px}
+.ch-why{margin:10px 0 0;padding:8px 10px;border-radius:9px;font-size:12px;line-height:1.4;background:color-mix(in srgb,var(--orange) 16%,transparent);color:var(--text)}
+.ch-why.r{background:color-mix(in srgb,var(--red) 16%,transparent)}
+.ch-why b{display:block;font-weight:600;color:var(--orange);margin-bottom:1px}.ch-why.r b{color:var(--red)}
+.ch-steps{display:flex;gap:6px;margin:12px 0 0}
+.ch-stp{flex:1}
+.ch-stp i{display:block;height:4px;border-radius:2px;background:rgba(255,255,255,.16);position:relative;overflow:hidden}
+body.light .ch-stp i{background:rgba(0,0,0,.13)}
+.ch-stp.d i{background:var(--green)}.ch-stp.c i b{position:absolute;inset:0 auto 0 0;background:var(--blue)}
+.ch-stp.o i b{background:var(--orange)}.ch-stp.r i b{background:var(--red)}
+.ch-stp span{display:block;font-size:11px;color:var(--dim);margin-top:4px}.ch-stp.c span{color:var(--text);font-weight:550}
+.ch-card dl{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:12px 0 0;font-size:12px}
+.ch-card dt{color:var(--dim)}.ch-card dd{margin:0;min-width:0}
+.ch-card dd .pv{display:inline-flex;gap:5px;align-items:center}
+.ch-card dd .pv i{width:12px;height:12px;display:block;color:var(--dim)}.ch-card dd .pv i svg{width:100%;height:100%;display:block}
+.ch-bl{margin:10px 0 0;padding:0;list-style:none;font-size:12px;color:var(--dim)}
+.ch-bl li{display:flex;gap:6px;padding:2px 0}.ch-bl li:before{content:"";width:5px;height:5px;border-radius:50%;background:var(--orange);margin-top:6px;flex:none}
+.ch-now{margin-top:10px;padding:7px 10px;border-radius:9px;background:var(--card);font-size:12px;color:var(--dim)}.ch-now b{color:var(--text);font-weight:550}
+.ch-tl{margin:10px 0 0;font-size:11.5px;color:var(--faint)}
+.ch-acts{display:flex;gap:6px;margin-top:12px}
+.ch-acts span{font-size:12px;font-weight:550;padding:4px 11px;border-radius:99px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset}
+.ch-acts span.pri{background:var(--blue);color:#fff}
+.ch-rules{max-width:900px;margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ch-rules div{background:var(--card);border-radius:12px;padding:12px 14px;color:var(--dim);font-size:12.5px;line-height:1.45}
+.ch-rules b{display:block;color:var(--text);margin-bottom:3px}
+</style></head>
+<body>
+<h1>The hover card</h1>
+<div class="sub">The card of each state, with what it can carry as switches. The row says one thing; the card is for the person who stopped to look, so it answers "why, how far, who, what now". Turn sections off to see what the card is without them.</div>
+<div class="bar"><span class="sp"></span><button class="tog" id="ch-theme">Light / dark</button></div>
+
+<div class="ch-wrap">
+  <div class="ch-ctl" id="ch-ctl"></div>
+  <div class="ch-grid" id="ch-grid"></div>
+</div>
+
+<div class="ch-rules">
+  <div><b>When it opens</b>After the pointer rests on the row for about 0.6 s, so crossing the list opens nothing; once one is open, the next opens at once. It closes when the pointer leaves, on Escape and on scroll.</div>
+  <div><b>Keyboard and VoiceOver</b>The card is the row's tooltip, not a new control: ⌥-hover is not needed. VoiceOver already reads the row (title, state, reason); the card adds nothing a person cannot reach in the epic's own view.</div>
+  <div><b>If it has buttons</b>The pointer has to travel from the row to the card (12 pt of air) and keep it open, which is a bridge to build and test. Without buttons the card is only information and the actions stay in the row's context menu.</div>
+  <div><b>What it is made of</b>The snapshot has it all except two things: the age as its own field and the PR's checks. The "why" sentence is the app's own text for each kind of stop (<code>needsHumanKind</code>), because <code>needsHumanReason</code> is a short code.</div>
+</div>
+
+<script>
+const ICON={"claude": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z\"></path></svg>", "codex": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path clip-rule=\"evenodd\" d=\"M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.7a.117.117 0 00.107.029c1.408-.346 2.762-.224 4.061.366l.063.03.154.076c1.357.703 2.33 1.77 2.918 3.198.278.679.418 1.388.421 2.126a5.655 5.655 0 01-.18 1.631.167.167 0 00.04.155 5.982 5.982 0 011.578 2.891c.385 1.901-.01 3.615-1.183 5.14l-.182.22a6.063 6.063 0 01-2.934 1.851.162.162 0 00-.108.102c-.255.736-.511 1.364-.987 1.992-1.199 1.582-2.962 2.462-4.948 2.451-1.583-.008-2.986-.587-4.21-1.736a.145.145 0 00-.14-.032c-.518.167-1.04.191-1.604.185a5.924 5.924 0 01-2.595-.622 6.058 6.058 0 01-2.146-1.781c-.203-.269-.404-.522-.551-.821a7.74 7.74 0 01-.495-1.283 6.11 6.11 0 01-.017-3.064.166.166 0 00.008-.074.115.115 0 00-.037-.064 5.958 5.958 0 01-1.38-2.202 5.196 5.196 0 01-.333-1.589 6.915 6.915 0 01.188-2.132c.45-1.484 1.309-2.648 2.577-3.493.282-.188.55-.334.802-.438.286-.12.573-.22.861-.304a.129.129 0 00.087-.087A6.016 6.016 0 015.635 2.31C6.315 1.464 7.132.846 8.086.457zm-.804 7.85a.848.848 0 00-1.473.842l1.694 2.965-1.688 2.848a.849.849 0 001.46.864l1.94-3.272a.849.849 0 00.007-.854l-1.94-3.393zm5.446 6.24a.849.849 0 000 1.695h4.848a.849.849 0 000-1.696h-4.848z\"></path></svg>", "antigravity": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z\"></path></svg>"};
+const OPTS=[
+ {k:'why',b:'Why it stopped',d:'A sentence for an epic that needs attention, in the colour of its trouble: what happened and what the person can do.',def:0,e:'the app writes one per kind of stop'},
+ {k:'pipe',b:'Pipeline',d:'Ship, Review / Fix and Ready as three steps; the step in hand is filled, a stuck one in its colour.',def:1},
+ {k:'where',b:'Time, round and slices',d:'How long in this step, the round and the slices closed. The pipeline already says which step it is.',def:1},
+ {k:'blk',b:'Open blockers (titles)',d:'The titles of what the reviewer still asks for, at most three.',def:0,e:'blockerTitles'},
+ {k:'now',b:'What it does now',d:'The last action of the running agent.',def:0},
+ {k:'agents',b:'Author and reviewer',d:'One line: author \u2192 reviewer, with their marks and models. A queued epic has no pipeline to show.',def:0},
+ {k:'pr',b:'PR',d:'Its number, and on a ready epic how long it took and in which round it was approved.',def:1},
+ {k:'branch',b:'Branch',d:'Rarely needed; it is in the epic\'s own view.',def:1},
+ {k:'time',b:'Timeline',d:'Queued, started and finished times.',def:1},
+ {k:'acts',b:'Buttons',d:'Resume, Open PR, Open output. Needs the pointer to be able to reach the card.',def:0}
+];
+const on={};OPTS.forEach(o=>on[o.k]=!!o.def);
+const MODEL={author:['claude','claude-sonnet-5-5'],reviewer:['codex','gpt-5 via ollama']};
+const E=[
+ {st:'o',label:'Needs attention · agent asks',t:'api',repo:'api',n:5,stage:'ship',step:.4,since:'12m',why:['The agent needs you','It stopped to ask a question it cannot answer alone. Read its last message and answer in the epic\'s session; Resume sends it back to work.'],branch:'feat/issue-5/epic',acts:['Resume','Open issue'],tl:'queued 3h ago · started 2h 48m ago'},
+ {st:'o',label:'Needs attention · review limit',t:'Add login',repo:'web',n:14,stage:'review',step:1,round:'5/5',blockers:['Token is logged in plain text','Missing rate limit on /login'],since:'1h',why:['Review limit reached','Five rounds were not enough: two blockers are still open. Look at them in the PR, fix or accept, then Resume.'],pr:31,branch:'feat/issue-14/epic',acts:['Resume','Open PR'],tl:'queued 6h ago · started 5h 40m ago'},
+ {st:'r',label:'Needs attention · error',t:'Paginate the audit log',repo:'a-really-long-repo-name',n:6,stage:'ship',step:.57,slices:'4/7',since:'2h',why:['Timed out','The agent ran past its time limit while building slice 5 of 7. Nothing is lost; Resume starts a new execution.'],branch:'feat/issue-6/epic',acts:['Resume','Open issue'],tl:'queued 4h ago · started 3h 50m ago'},
+ {st:'run',label:'Running · ship',t:'Build the billing page and its invoices',repo:'web',n:22,stage:'ship',step:.43,slices:'3/7',since:'9m',live:'Editing src/billing/invoice.ts',branch:'feat/issue-22/epic',acts:['Open output','Open issue'],tl:'queued 20m ago · started 19m ago'},
+ {st:'run',label:'Running · review',t:'Rotate the signing keys without logging every session out, and keep the old ones valid for a week',repo:'web',n:12,stage:'review',step:.4,round:'2/5',slices:'5/5',blockers:['Old keys are not rotated after a week','Session cache is not cleared'],since:'38m',live:'Reading src/auth/token.ts',pr:28,branch:'feat/issue-12/epic',acts:['Open output','Open PR'],tl:'queued 2h ago · started 1h 50m ago'},
+ {st:'q',label:'Up next',t:'Export reports as CSV',repo:'web',n:20,stage:'queued',since:'6m',why:['Waiting for a slot','All 3 slots are busy. It is second in line and starts when one frees up.'],branch:null,acts:['Open issue'],tl:'queued 6m ago'},
+ {st:'b',label:'Ready for test',t:'web',repo:'web',n:30,stage:'ready',since:'5s',pr:31,done:'Approved on round 3 · 4 slices · 1h 12m in total',branch:'feat/issue-30/epic',acts:['Open PR','Open issue'],tl:'queued 1h 20m ago · finished just now'}
+];
+const COLOR={web:'#1d9bb0',api:'#3f70d1','a-really-long-repo-name':'#d9742c'};
+const ini=n=>{const w=n.split(/[-_ ]+/).filter(Boolean);return(w.length>1?w[0][0]+w[1][0]:n.slice(0,2)).toUpperCase()};
+function steps(e){
+  const names=['Ship','Review / Fix','Ready'],order=['ship','review','ready'];
+  const at=e.stage==='queued'?-1:order.indexOf(e.stage);
+  const trouble=e.st==='o'?'o':e.st==='r'?'r':'';
+  return `<div class="ch-steps">${names.map((nm,i)=>{
+    const cls=at>i||e.stage==='ready'?'d':at===i?'c '+trouble:'';
+    const w=at===i?Math.round((e.step??.5)*100):0;
+    return `<div class="ch-stp ${cls}"><i><b style="width:${w}%"></b></i><span>${nm}</span></div>`}).join('')}</div>`;
+}
+function card(e,c){
+  const rows=[];
+  if(c.where){
+    if(e.stage!=='queued'&&e.stage!=='ready')rows.push(['In this step',e.since]);
+    if(e.round)rows.push(['Review','round '+e.round]);
+    if(e.slices)rows.push(['Slices',e.slices+' closed']);
+  }
+  if(c.agents)rows.push(['Agents',`<span class="pv"><i>${ICON.claude}</i>sonnet-5-5 <u style="text-decoration:none;opacity:.6">\u2192</u> <i>${ICON.codex}</i>gpt-5</span>`]);
+  if(c.pr&&e.pr)rows.push(['PR','#'+e.pr]);
+  if(c.branch&&e.branch)rows.push(['Branch',e.branch]);
+  const why=c.why&&e.why?`<div class="ch-why ${e.st==='r'?'r':''}"><b>${e.why[0]}</b>${e.why[1]}</div>`:'';
+  const done=c.pr&&e.done?`<div class="ch-now"><b>${e.done}</b></div>`:'';
+  const blk=c.blk&&e.blockers?`<ul class="ch-bl">${e.blockers.slice(0,3).map(b=>`<li>${b}</li>`).join('')}</ul>`:'';
+  const now=c.now&&e.live?`<div class="ch-now"><b>Now</b> · ${e.live}</div>`:'';
+  return `<div class="ch-card"><div class="ch-hd"><div class="ch-av" style="background:${COLOR[e.repo]}">${ini(e.repo)}</div><div><h4>${e.t==='web'&&!e.pr?e.t:e.t}</h4><div class="sub2">${e.repo} #${e.n}</div></div></div>${why}${c.pipe&&e.stage!=='queued'?steps(e):''}${rows.length?`<dl>${rows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`:''}${blk}${now}${done}${c.time?`<div class="ch-tl">${e.tl}</div>`:''}${c.acts?`<div class="ch-acts">${e.acts.map((a,i)=>`<span class="${i===0?'pri':''}">${a}</span>`).join('')}</div>`:''}</div>`;
+}
+function draw(){
+  document.getElementById('ch-ctl').innerHTML='<h3>What the card carries</h3>'+OPTS.map(o=>`<div class="ch-sw ${on[o.k]?'on':''}" data-k="${o.k}"><div class="k">${on[o.k]?'✓':''}</div><div><b>${o.b}</b><span>${o.d}</span>${o.e?`<em>${o.e}</em>`:''}</div></div>`).join('');
+  document.getElementById('ch-grid').innerHTML=E.map(e=>`<div class="ch-cell"><h3><b>${e.label}</b></h3>${card(e,on)}</div>`).join('');
+  document.querySelectorAll('.ch-sw').forEach(el=>el.onclick=()=>{on[el.dataset.k]=!on[el.dataset.k];draw()});
+}
+document.getElementById('ch-theme').onclick=()=>document.body.classList.toggle('light');
+draw();
+</script>
+</body></html>

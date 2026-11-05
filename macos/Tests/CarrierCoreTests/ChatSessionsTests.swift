@@ -38,6 +38,12 @@ private func session(
     #expect(sessionRows([tree, try session("plain")]).map(\.branch) == ["carrier/fix", nil])
 }
 
+@Test func aRowCarriesTheBaseFolderItIsGroupedUnder() throws {
+    let rows = sessionRows([try session("w", folder: "/w/fix", base: "/Users/dev/web"), try session("plain", folder: "/Users/dev/api")])
+    #expect(rows.map(\.base) == ["/Users/dev/web", "/Users/dev/api"])
+    #expect(rows.map(\.providers) == [["codex"], ["codex"]])
+}
+
 @Test func aSessionThatIsNotLiveIsIdle() throws {
     let rows = sessionRows([try session("w", state: "working", live: false), try session("a", state: "waiting_approval", live: false)])
     #expect(rows.map(\.state) == [.idle, .idle])
@@ -235,7 +241,7 @@ private let sample = [
     var filter = SessionFilter(statuses: [.working, .waiting], agents: ["codex"])
     #expect(filter.count == 3 && SessionFilter().count == 0)
     #expect(filter.chips == [.status(.waiting), .status(.working), .agent("codex")])
-    #expect(filter.chips.map(\.title) == ["Waiting for you", "Working", "codex"])
+    #expect(filter.chips.map(\.title) == ["Needs attention", "Working", "codex"])
     filter.remove(.status(.working))
     #expect(filter.chips == [.status(.waiting), .agent("codex")])
     filter.remove(.agent("codex"))
@@ -260,7 +266,7 @@ private let sample = [
 @Test func theSortsGroupByWorkspaceByAgeAndByStatus() {
     #expect(sessionsPage(sample, by: .workspace, now: now).groups.map(\.title) == ["api", "web"])
     #expect(sessionsPage(sample, by: .age, now: now).groups.map(\.title) == ["Today", "Last 7 days"])
-    #expect(sessionsPage(sample, by: .status, now: now).groups.map(\.title) == ["Waiting for you", "Working", "Idle"])
+    #expect(sessionsPage(sample, by: .status, now: now).groups.map(\.title) == ["Needs attention", "Working", "Active"])
 }
 
 @Test func withNoActiveSessionsThePageIsNoSessionsYetEvenWhenSomethingIsArchived() {

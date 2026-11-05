@@ -43,13 +43,13 @@ private let homebrew = "/opt/homebrew/bin/carrier"
 
 @Test func withoutCarrierThereIsNoHostCommandAndOnlyItIsNamed() {
     #expect(startChatHostCommand(settings: complete, carrier: nil, environment: [:], home: "/h") == nil)
-    #expect(chatHostMissing(complete, carrier: nil) == ["carrier"])
+    #expect(startMissing(complete, carrier: nil) == ["carrier"])
 }
 
 @Test func aScriptWithoutNodeNeedsNodeButABinaryDoesNot() {
     #expect(startChatHostCommand(settings: SetupSettings(), carrier: "/work/main.ts", environment: [:], home: "/h") == nil)
-    #expect(chatHostMissing(SetupSettings(), carrier: "/work/main.js") == ["node"])
-    #expect(chatHostMissing(SetupSettings(), carrier: homebrew).isEmpty)
+    #expect(startMissing(SetupSettings(), carrier: "/work/main.js") == ["node"])
+    #expect(startMissing(SetupSettings(), carrier: homebrew).isEmpty)
 }
 
 @Test func opening_startsTheHostOnlyWhenNothingAnswersOrRunsAndCarrierIsKnown() {

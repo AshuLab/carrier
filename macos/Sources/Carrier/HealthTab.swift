@@ -23,7 +23,7 @@ struct HealthTabView: View {
 
     var body: some View {
         let facts = CarrierFacts(
-            carrierFound: setup.carrier != nil, installedVersion: probe.installedVersion,
+            carrierFound: setup.carrierRuns, installedVersion: probe.installedVersion,
             hostRunning: probe.hostRunning, hostVersion: probe.hostVersion,
             hostReportsHealth: probe.hostReportsHealth,
             configExists: start.configExists, engineRunning: { if case .running? = state { true } else { false } }()

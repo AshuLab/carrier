@@ -34,6 +34,12 @@ final class SetupController: ObservableObject {
     /// Where `carrier` is, asked of the disk each time: the override, else the Homebrew one when it is executable.
     var carrier: String? { carrierPath(override: carrierOverride, isExecutable: FileManager.default.isExecutableFile(atPath:)) }
 
+    /// Whether the `carrier` found runs: a script has to exist, anything else has to be executable. A typed path can be wrong.
+    var carrierRuns: Bool {
+        guard let carrier else { return false }
+        return carrierNeedsNode(carrier) ? FileManager.default.fileExists(atPath: carrier) : FileManager.default.isExecutableFile(atPath: carrier)
+    }
+
     /// What Start Carrier lacks.
     var missing: [String] { startMissing(settings, carrier: carrier) }
 
@@ -56,7 +62,7 @@ final class SetupController: ObservableObject {
                     self.settings.node = detection.node ?? ""
                     self.settings.path = detection.path ?? ""
                 } else {
-                    self.message = "The shell gave no answer within \(Int(ShellDetector.limit)) seconds. Edit the values or try again."
+                    self.message = "The shell gave no answer within \(Int(ShellDetector.limit)) seconds. Try again."
                     self.store.save(self.settings)
                 }
                 self.detecting = false

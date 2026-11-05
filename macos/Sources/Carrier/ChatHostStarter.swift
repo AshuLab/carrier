@@ -46,9 +46,9 @@ import Observation
                     done(answers)
                 case .missing(let names):
                     if alertWhenMissing {
-                        let list = names.joined(separator: ", ")
-                        FileHandle.standardError.write(Data("carrier: the chat host was not started, the settings lack: \(list)\n".utf8))
-                        StartController.showAlert(title: "The chat host did not start", reason: "The settings lack: \(list).", tail: "")
+                        let notice = chatHostNotice(missing: names)
+                        FileHandle.standardError.write(Data("carrier: the chat host was not started, missing: \(names.joined(separator: ", "))\n".utf8))
+                        StartController.showAlert(title: "The chat host did not start", reason: notice?.line ?? "", tail: "")
                     }
                     done(false)
                 case .start:

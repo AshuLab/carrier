@@ -3,15 +3,10 @@ import Foundation
 // Starting the chat host from the app, the way `StartCarrier.swift` starts the engine: same command shape, same `PATH`, same
 // outcome and alert. The app opening asks for it, and so does a session being started. The spawn lives in the shell.
 
-/// What the settings lack to start the chat host.
-public func chatHostMissing(_ settings: SetupSettings, carrier: String?) -> [String] {
-    startMissing(settings, carrier: carrier)
-}
-
 /// `carrier chat-host` (`node <carrier> chat-host` for a script) with `CARRIER_HOME` set to the Carrier folder, its log in `<folder>/chat/logs/app-start.log`.
-/// nil when `chatHostMissing` is not empty.
+/// nil when `startMissing` is not empty.
 public func startChatHostCommand(settings: SetupSettings, carrier: String?, environment: [String: String], home: String = NSHomeDirectory()) -> StartCommand? {
-    guard let carrier, chatHostMissing(settings, carrier: carrier).isEmpty else { return nil }
+    guard let carrier, startMissing(settings, carrier: carrier).isEmpty else { return nil }
     let folder = carrierFolder(environment: environment, home: home)
     var environment = environment
     environment["PATH"] = enginePath(detected: settings.path, node: settings.node)
@@ -33,7 +28,7 @@ public enum ChatHostAtOpen: Equatable {
 
 public func chatHostAtOpen(settings: SetupSettings, carrier: String?, hostAnswers: Bool, startRunning: Bool, fixture: Bool) -> ChatHostAtOpen {
     guard hostAnswers == false, startRunning == false, fixture == false else { return .leave }
-    let missing = chatHostMissing(settings, carrier: carrier)
+    let missing = startMissing(settings, carrier: carrier)
     return missing.isEmpty ? .start : .missing(missing)
 }
 

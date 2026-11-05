@@ -20,7 +20,7 @@ struct StoppedView: View {
                             .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
                             .padding(.bottom, 9)
                         Text(title).font(.title3.weight(.semibold))
-                        Text(line).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 340)
+                        Text(line).textSelection(.enabled).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 340)
                     }
                     if state == .stopped {
                         StartCarrierButton()

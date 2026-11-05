@@ -14,13 +14,16 @@ on:
         type: boolean
         default: true
 
+permissions:
+  contents: read
+
 jobs:
   release:
     runs-on: macos-26
     timeout-minutes: 40
     env:
-      # A tag is a real release; a manual run is real only when dry-run is switched off.
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run || 'false' }}
+      # Only a tag publishes: a tag is a real release, a manual run on a tag is real when dry-run is switched off, and anything else is a dry run.
+      DRY_RUN: ${{ github.ref_type != 'tag' && 'true' || (github.event_name == 'workflow_dispatch' && inputs.dry-run || 'false') }}
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_FROM_API: "1"
     steps:
@@ -98,7 +101,13 @@ jobs:
         if: env.DRY_RUN != 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm publish "out/carrier-$VERSION.tgz" --access public --no-git-checks
+        # A re-run after a failed push to the tap finds the version already published and goes on to the formula.
+        run: |
+          if npm view "@ashulab/carrier@$VERSION" version >/dev/null 2>&1; then
+            echo "@ashulab/carrier@$VERSION is already on npm, not publishing it again"
+          else
+            pnpm publish "out/carrier-$VERSION.tgz" --access public --no-git-checks
+          fi
 
       - name: Formula from the published tarball
         if: env.DRY_RUN != 'true'
@@ -131,5 +140,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Formula/carrier.rb
-          git commit -m "carrier $VERSION"
+          # nothing to commit when a re-run finds the tap already at this version
+          git diff --cached --quiet || git commit -m "carrier $VERSION"
           git push

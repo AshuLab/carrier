@@ -14,11 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
-        run: |
-          xcodebuild -version
-          xcode-select -p
-          swift --version
-          ls -d /Applications/Xcode*
+        run: xcodebuild -version
       - name: Build
         working-directory: macos
         run: swift build

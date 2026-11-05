@@ -76,9 +76,13 @@ private let answer = """
     #expect(enginePath(detected: "/usr/bin:/bin", node: "node") == "/usr/bin:/bin:/opt/homebrew/bin")
 }
 
-@Test func anEmptyPathIsNodesFolderAndHomebrew() {
-    #expect(enginePath(detected: "", node: "/Users/ana/.nvm/bin/node") == "/Users/ana/.nvm/bin:/opt/homebrew/bin")
-    #expect(enginePath(detected: "", node: "") == "/opt/homebrew/bin")
+@Test func anEmptyPathStartsFromTheSystemsSoGitIsStillFound() {
+    #expect(enginePath(detected: "", node: "/Users/ana/.nvm/bin/node") == "/Users/ana/.nvm/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin")
+    #expect(enginePath(detected: "", node: "") == "/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin")
+}
+
+@Test func aTypedCarrierWithATildeIsTheHomeFolderOne() {
+    #expect(carrierPath(override: "~/bin/carrier", isExecutable: { _ in false }) == NSHomeDirectory() + "/bin/carrier")
 }
 
 @Test func homebrewIsAddedAtTheEndOnceAndLeftWhereItWas() {

@@ -17,8 +17,8 @@ public enum ProtocolMatch: Equatable {
     public var update: String? {
         switch self {
         case .match: nil
-        case .carrierOlder: "carrier is older than this app. Run `brew upgrade carrier`."
-        case .appOlder: "This app is older than carrier. Run `brew upgrade --cask carrier`."
+        case .carrierOlder: "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier."
+        case .appOlder: "This app is older than carrier. Run brew upgrade --cask carrier in Terminal, then open the app again."
         }
     }
 }

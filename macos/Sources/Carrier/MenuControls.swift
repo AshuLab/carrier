@@ -7,9 +7,9 @@ import CarrierCore
 func showIcon(_ symbol: String, on item: NSMenuItem, color: NSColor? = nil) {
     let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
     item.image = color.map { image?.withSymbolConfiguration(.init(paletteColors: [$0])) } ?? image
-    #if compiler(>=6.4) // the macOS 27 SDK; the macos-26 runner's Xcode 26.6 has none of it
-    if #available(macOS 27.0, *) { item.preferredImageVisibility = .visible }
-    #endif
+    // `preferredImageVisibility` (.visible is 1) is in the macOS 27 SDK only, and the release is built with Xcode 26.6: set it by key, so the
+    // app built with either SDK keeps its icons on macOS 27, and an older macOS, which has no such property, is left alone.
+    if item.responds(to: NSSelectorFromString("setPreferredImageVisibility:")) { item.setValue(1, forKey: "preferredImageVisibility") }
 }
 
 final class MenuControls: NSObject, NSMenuItemValidation {

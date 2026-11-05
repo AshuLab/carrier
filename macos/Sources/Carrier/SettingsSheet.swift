@@ -122,7 +122,7 @@ struct SettingsSheet: View {
             .padding(.horizontal, 14)
             .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
         }
-        Text("Advanced").font(.headline).padding(.top, 6)
+        Text("Advanced").font(.headline).padding(.top, 6).accessibilityAddTraits(.isHeader)
         UseThisCarrierField(setup: setup)
     }
 }
@@ -174,7 +174,7 @@ struct UseThisCarrierField: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Use this carrier").fontWeight(.medium)
             HStack {
-                TextField("/opt/homebrew/bin/carrier", text: $setup.carrierOverride)
+                TextField("Use this carrier", text: $setup.carrierOverride, prompt: Text("/opt/homebrew/bin/carrier"))
                     .textFieldStyle(.roundedBorder).font(.system(.caption, design: .monospaced))
                 Button("Choose…") { choose() }
             }

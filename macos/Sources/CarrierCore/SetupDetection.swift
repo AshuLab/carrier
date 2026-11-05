@@ -46,6 +46,8 @@ public func parseDetection(_ output: String) -> Detection? {
     return detection
 }
 
+let systemPath = "/usr/bin:/bin:/usr/sbin:/sbin"
+
 /// Where Homebrew puts `carrier` and the `gh` its formula depends on.
 public let homebrewBin = "/opt/homebrew/bin"
 public let homebrewCarrier = homebrewBin + "/carrier"
@@ -54,7 +56,7 @@ public let homebrewCarrier = homebrewBin + "/carrier"
 /// it is executable, else nil. A saved value that does not run is not second-guessed here: the Health tab says so.
 public func carrierPath(override: String, isExecutable: (String) -> Bool) -> String? {
     let saved = override.trimmingCharacters(in: .whitespacesAndNewlines)
-    if saved.isEmpty == false { return saved }
+    if saved.isEmpty == false { return (saved as NSString).expandingTildeInPath }
     return isExecutable(homebrewCarrier) ? homebrewCarrier : nil
 }
 
@@ -68,8 +70,9 @@ public func carrierProgram(carrier: String, node: String, arguments: [String]) -
 
 /// The PATH the engine and the chat host run with, and so the tools they start: the detected one with the directory of `node` first,
 /// and `/opt/homebrew/bin` at the end when it is not in it, so the `gh` Homebrew installed is found from a shell that never loaded Homebrew.
+/// With no detected PATH (the shell gave no answer) it starts from the system's, so `git` is still found.
 public func enginePath(detected: String, node: String) -> String {
-    var entries = detected.split(separator: ":", omittingEmptySubsequences: true).map(String.init)
+    var entries = (detected.isEmpty ? systemPath : detected).split(separator: ":", omittingEmptySubsequences: true).map(String.init)
     if node.hasPrefix("/") {
         let folder = (node as NSString).deletingLastPathComponent
         entries.removeAll { $0 == folder }

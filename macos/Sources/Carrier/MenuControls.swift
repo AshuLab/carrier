@@ -7,7 +7,9 @@ import CarrierCore
 func showIcon(_ symbol: String, on item: NSMenuItem, color: NSColor? = nil) {
     let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
     item.image = color.map { image?.withSymbolConfiguration(.init(paletteColors: [$0])) } ?? image
+    #if compiler(>=6.4) // the macOS 27 SDK; the macos-26 runner's Xcode 26.6 has none of it
     if #available(macOS 27.0, *) { item.preferredImageVisibility = .visible }
+    #endif
 }
 
 final class MenuControls: NSObject, NSMenuItemValidation {

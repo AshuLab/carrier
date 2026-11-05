@@ -28,6 +28,7 @@ struct NewSessionView: View {
                 sentence
                 box
                 if let reason = model.noAgentReason { Text(reason).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
+                if model.hostOlder { Text(NewSessionModel.olderHostNotice).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
                 ForEach(model.agents.filter { $0.fix != nil }, id: \.name) { agent in
                     HStack(spacing: 8) {
                         Text("\(agent.name) is \(agent.note ?? "unavailable"):").font(.callout).foregroundStyle(.secondary)
@@ -191,7 +192,7 @@ struct NewSessionView: View {
     private var box: some View {
         MessageBox(
             text: $model.text, placeholder: model.folder == nil ? "Choose a workspace to start…" : "Write the first message…",
-            canSend: model.canSend, sendHelp: model.canSend ? "Send" : model.noAgentReason ?? "Choose a workspace and write a message",
+            canSend: model.canSend, sendHelp: model.canSend ? "Send" : model.hostOlder ? NewSessionModel.olderHostNotice : model.noAgentReason ?? "Choose a workspace and write a message",
             focus: $boxFocused, commands: model.agentCommands, send: send
         ) {
             providerSelect

@@ -52,12 +52,6 @@ public func agentChoices(_ agents: [ChatAgent], health: HostHealth? = nil) -> [A
     }
 }
 
-/// A first message whose send failed after `open` made the session.
-public struct FailedFirstSend: Equatable {
-    public let text: String
-    public let reason: String
-}
-
 /// A way into the workspace popover besides the folders it lists. One that is not built, or that the host cannot do, is not in `sources`.
 public enum WorkspaceSource: String {
     case localFolder = "Open local folder…"
@@ -71,7 +65,7 @@ public enum WorkspaceStep: Equatable {
     case menu, url, repos, project
 }
 
-/// The draft: loads what it offers, and `send()` opens the session and then sends the message, in two steps.
+/// The draft: loads what it offers, and `send()` opens the session with one request that carries the plan and the first message.
 @MainActor @Observable public final class NewSessionModel {
     public private(set) var recent: [RecentFolder] = []
     /// The host's agents, with the health the app last had for them.
@@ -108,6 +102,10 @@ public enum WorkspaceStep: Equatable {
     /// Why the last Fetch now failed, in the host's words; cleared by the next one.
     public private(set) var fetchProblem: String?
 
+    /// Whether a host answered and its hello does not list `plan`: it cannot take the first message as a plan, so the draft sends nothing.
+    public private(set) var hostOlder = false
+    /// What the draft says then, and why nothing is sent.
+    public static let olderHostNotice = "The chat host is older than this app, so it cannot start a session. Restart it to use the installed Carrier."
     /// Whether the host can clone (its hello lists `cloneRepo`); an older one is not offered From a GitHub URL…
     public private(set) var hostClones = false
     /// Whether the host can list the person's GitHub repositories (its hello lists `githubRepos`).
@@ -164,8 +162,8 @@ public enum WorkspaceStep: Equatable {
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
     /// The name the host last vouched for (suggested or checked), so a name it already vouched for is not asked about again.
     @ObservationIgnored private var verifiedName: String?
-    /// What a conversation shows when its first message failed to send, by session id, until it takes it.
-    @ObservationIgnored private var failedFirstSends: [String: FailedFirstSend] = [:]
+    /// The first message of each session the draft opened, by session id, until its conversation takes it.
+    @ObservationIgnored private var firstMessages: [String: String] = [:]
 
     /// `ensureHost` starts the chat host when it is not running (#503) and says whether it answers now.
     /// `sleep` is the wait before a typed name is checked. `projectsFolder` is where `chat.json` says the projects folder is, and
@@ -241,6 +239,7 @@ public enum WorkspaceStep: Equatable {
         listed = try await host.agents()
         recent = recentFolders(try await host.list(archived: false) + (try await host.list(archived: true)))
         let capabilities = try await host.capabilities()
+        hostOlder = capabilities.contains(.plan) == false
         hostClones = capabilities.contains(.cloneRepo)
         hostCreates = capabilities.contains(.createProject)
         hostLists = capabilities.contains(.githubRepos)
@@ -604,7 +603,7 @@ public enum WorkspaceStep: Equatable {
     }
 
     public var canSend: Bool {
-        guard folder != nil, agents.contains(where: { $0.name == agent && $0.available }), sending == false, text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return false }
+        guard folder != nil, hostOlder == false, agents.contains(where: { $0.name == agent && $0.available }), sending == false, text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return false }
         guard worktree else { return true }
         if case .problem = nameState { return false }
         return startBranch != nil && worktreeName.isEmpty == false
@@ -616,8 +615,9 @@ public enum WorkspaceStep: Equatable {
         return WorktreeRequest(from: from, name: worktreeName)
     }
 
-    /// Opens the session and sends the message; returns the session's id to select, nil when `open` was refused (the draft keeps
-    /// the text and says why). A `send` that fails after `open` still returns the id: the session exists and its conversation shows the failure.
+    /// Opens the session with one request that carries the plan and the first message, and returns the session's id to select, nil when
+    /// `open` was refused or was not made (the draft keeps the text and says why). The host prepares the session in the background and its
+    /// conversation shows the steps; the message is kept in `takeFirstMessage` for it.
     public func send() async -> String? {
         guard canSend, let folder, let agent else { return nil }
         let message = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -628,29 +628,23 @@ public enum WorkspaceStep: Equatable {
             refusal = hostNotRunning
             return nil
         }
+        // a host that was not running when the draft opened has not said yet whether it takes a plan
+        if let capabilities = try? await host.capabilities() { hostOlder = capabilities.contains(.plan) == false }
+        guard hostOlder == false else { return nil }
         let id: String
         do {
-            id = try await host.open(agent: agent, folder: folder, worktree: worktreeRequest, options: chosenOptions)
+            id = try await host.open(plan: SessionPlan(agent: agent, folder: folder, worktree: worktreeRequest, options: chosenOptions, text: message))
         } catch {
             refusal = report(error, "open the session")
             return nil
         }
-        do {
-            // a first message that starts with the name of a command the agent lists invokes it
-            if let invoked = invokedCommand(in: message, among: agentCommands) {
-                try await host.send(id, invoked.arguments, command: invoked.command.id)
-            } else {
-                try await host.send(id, message)
-            }
-        } catch {
-            failedFirstSends[id] = FailedFirstSend(text: message, reason: report(error, "send the first message"))
-        }
+        firstMessages[id] = message
         blank()
         return id
     }
 
-    /// The failure of a session's first send, handed over once to the conversation that shows it.
-    public func takeFailure(of id: String) -> FailedFirstSend? { failedFirstSends.removeValue(forKey: id) }
+    /// The first message of a session this draft opened, handed over once to the conversation that shows it.
+    public func takeFirstMessage(of id: String) -> String? { firstMessages.removeValue(forKey: id) }
 
     private func report(_ error: Error, _ doing: String) -> String {
         let message = ConversationModel.words(error)

@@ -26,15 +26,14 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var fetched: WorkspaceInfo?
     var names = ["brave-marine-aiur", "keen-ghost-char"]
     var taken: [String: NameCheck] = [:]
-    var opens: [WorktreeRequest?] = []
-    /// What `agentOptions` lists for each agent (one not listed fails), how often it was asked, and the options each `open` carried.
+    /// The plan of each `open`.
+    var plans: [SessionPlan] = []
+    /// What `agentOptions` lists for each agent (one not listed fails) and how often it was asked.
     var offered: [String: [ChatOption]] = [:]
     var optionAsks: [String] = []
-    /// What `agentOptions` lists to invoke, and the commands each `send` invoked.
+    /// What `agentOptions` lists to invoke.
     var commandsOffered: [String: [ChatCommand]] = [:]
-    var sentCommands: [String?] = []
-    var openedWith: [[String: String]] = []
-    var capabilities: Set<ControlClient.Capability> = [.cloneRepo, .createProject, .githubRepos]
+    var capabilities: Set<ControlClient.Capability> = [.cloneRepo, .createProject, .githubRepos, .plan]
     /// What `health` answers, and the `refresh` flags it was asked with.
     var healthReply = HostHealth(git: .ready, gh: .ready, agents: [])
     var healthAsks: [Bool] = []
@@ -57,17 +56,9 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         guard let listed = offered[agent] else { throw ControlError.remote("the chat host does not support agentOptions") }
         return AgentOffer(options: listed, commands: commandsOffered[agent] ?? [])
     }
-    func send(_ id: String, _ text: String, command: String?) async throws {
-        sentCommands.append(command)
-        try await send(id, text)
-    }
-    func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String {
-        openedWith.append(options)
-        return try await open(agent: agent, folder: folder, worktree: worktree)
-    }
-    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String {
-        calls.append("open \(agent) \(folder)")
-        opens.append(worktree)
+    func open(plan: SessionPlan) async throws -> String {
+        calls.append("open \(plan.agent) \(plan.folder)")
+        plans.append(plan)
         if let error = refuse["open"] { throw error }
         return opened
     }
@@ -195,15 +186,18 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(model.canSend == false)
 }
 
-@MainActor @Test func sendingOpensTheSessionWithTheAgentAndFolderAndThenSendsTheMessage() async {
+@MainActor @Test func sendingMakesOneOpenWithThePlanAndNothingElse() async {
     let host = FakeChat()
     let model = await draft(host)
     await model.choose(folder: "/w/api")
     model.text = " fix the bug \n"
     let id = await model.send()
     #expect(id == opened)
-    #expect(host.calls == ["open claude /w/api", "send \(opened) fix the bug"])
-    #expect(model.text == "" && model.refusal == nil && model.sending == false && model.takeFailure(of: opened) == nil)
+    #expect(host.calls == ["open claude /w/api"])
+    #expect(host.plans == [SessionPlan(agent: "claude", folder: "/w/api", text: "fix the bug")])
+    #expect(model.text == "" && model.refusal == nil && model.sending == false)
+    // the message goes to the conversation that shows the session, once
+    #expect(model.takeFirstMessage(of: opened) == "fix the bug" && model.takeFirstMessage(of: opened) == nil)
 }
 
 @MainActor @Test func aRefusedOpenIsSaidInTheDraftAndKeepsTheMessage() async {
@@ -218,16 +212,26 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(signInLine(refusal: model.refusal ?? "") != nil)
 }
 
-@MainActor @Test func aSendThatFailsAfterOpenStillSelectsTheSessionAndHandsOverTheFailure() async {
+@MainActor @Test func aHostThatDoesNotListPlanIsSaidToBeOlderAndSendsNothing() async {
     let host = FakeChat()
-    host.refuse["send"] = ControlError.remote("The message is too long")
+    host.capabilities = [.cloneRepo]
     let model = await draft(host)
     await model.choose(folder: "/w/api")
     model.text = "hello"
-    #expect(await model.send() == opened)
-    #expect(model.refusal == nil)
-    #expect(model.takeFailure(of: opened) == FailedFirstSend(text: "hello", reason: "The message is too long"))
-    #expect(model.takeFailure(of: opened) == nil)
+    #expect(model.hostOlder && model.canSend == false && NewSessionModel.olderHostNotice.contains("Restart"))
+    #expect(await model.send() == nil)
+    #expect(host.calls.isEmpty && model.text == "hello")
+}
+
+@MainActor @Test func theSendAsksTheHostForPlanAgainSoAHostReplacedByAnOlderOneIsFoundOut() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    model.text = "hello"
+    #expect(model.hostOlder == false && model.canSend)
+    host.capabilities = []
+    #expect(await model.send() == nil)
+    #expect(model.hostOlder && host.calls.isEmpty && model.text == "hello")
 }
 
 @MainActor @Test func aHostThatCannotStartStopsTheSendBeforeOpen() async {
@@ -250,25 +254,23 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(model.refusal == "The chat host is not answering" && logged.count == 1)
 }
 
-@MainActor @Test func aFailedFirstSendShowsInTheConversationWithTryAgain() async {
-    let conversation = ConversationModel(host: FakeChat(), sessionId: opened)
-    conversation.showRefusal(of: "hello", "The message is too long")
-    #expect(conversation.refusal == "The message is too long" && conversation.refusedText == "hello")
-}
-
-@Test func theClientOpensWithTheAgentAndFolderInsideJSONStringsAndReadsTheNewId() async throws {
+@Test func theClientOpensWithThePlanInsideJSONStringsAndReadsTheNewId() async throws {
     var lines: [String] = []
     let server = TestServer { connection in
-        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"open\"]}\n")
+        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"plan\"]}\n")
         guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
         lines.append(line)
         connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"session\":{\"id\":\"\(opened)\",\"agent\":\"claude\"},\"options\":[]}}\n")
     }
     defer { server.stop() }
-    let id = try await SocketChatHost(socketPath: { server.path }).open(agent: "claude", folder: "/w/\"odd\"\n/dir", worktree: nil)
+    let plan = SessionPlan(agent: "claude", folder: "/w/\"odd\"\n/dir", options: ["model": "haiku"], text: "say \"hi\"\nthen stop")
+    let id = try await SocketChatHost(socketPath: { server.path }).open(plan: plan)
     #expect(id == opened)
     let sent = try #require(lines.first.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] })
-    #expect(sent["cmd"] as? String == "open" && sent["agent"] as? String == "claude" && sent["folder"] as? String == "/w/\"odd\"\n/dir")
+    #expect(sent["cmd"] as? String == "open" && sent.keys.sorted() == ["cmd", "id", "plan"])
+    let wired = try #require(sent["plan"] as? [String: Any])
+    #expect(wired["agent"] as? String == "claude" && wired["text"] as? String == "say \"hi\"\nthen stop" && wired["options"] as? [String: String] == ["model": "haiku"])
+    #expect(wired["workspace"] as? [String: String] == ["kind": "folder", "folder": "/w/\"odd\"\n/dir"] && wired["branch"] == nil && wired["worktree"] == nil)
 }
 
 // MARK: the worktree half
@@ -418,8 +420,8 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     model.worktreeName = "my-fix"
     model.text = "two"
     #expect(await model.send() == opened)
-    #expect(host.opens == [nil, WorktreeRequest(from: "origin/main", name: "my-fix")])
-    #expect(host.calls == ["open claude /w/api", "send \(opened) one", "open claude /w/api", "send \(opened) two"])
+    #expect(host.plans.map(\.worktree) == [nil, WorktreeRequest(from: "origin/main", name: "my-fix")] && host.plans.map(\.text) == ["one", "two"])
+    #expect(host.calls == ["open claude /w/api", "open claude /w/api"])
 }
 
 @MainActor @Test func aRefusedWorktreeIsSaidInTheDraftAndKeepsTheMessageAndTheChoice() async {
@@ -514,35 +516,36 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     let server = try FixtureServer(fixtures: URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path)
     defer { server.stop() }
     let host = SocketChatHost(socketPath: { server.chatSocketPath })
-    let id = try await host.open(agent: "claude", folder: "/Users/dev/carrier", worktree: WorktreeRequest(from: "origin/main", name: "my-fix"))
+    func plan(_ folder: String, _ worktree: WorktreeRequest?) -> SessionPlan { SessionPlan(agent: "claude", folder: folder, worktree: worktree, text: "hello") }
+    let id = try await host.open(plan: plan("/Users/dev/carrier", WorktreeRequest(from: "origin/main", name: "my-fix")))
     let made = try #require(try await host.list(archived: false).first { $0.id == id })
     #expect(made.workspace == ChatSession.Workspace(base: "/Users/dev/carrier", branch: "carrier/my-fix") && made.folder.hasSuffix("/my-fix"))
-    try await host.send(id, "hello")
-    #expect(try await host.events(id, after: 0, limit: 10).events.count == 1)
+    #expect(try await host.events(id, after: 0, limit: 10).events.map(\.kind) == ["step", "step", "user"])
     // refused as the host does
     await #expect(throws: ControlError.remote("The branch to start from is not one this repository lists")) {
-        try await host.open(agent: "claude", folder: "/Users/dev/carrier", worktree: WorktreeRequest(from: "nope", name: "x"))
+        try await host.open(plan: plan("/Users/dev/carrier", WorktreeRequest(from: "nope", name: "x")))
     }
     await #expect(throws: ControlError.remote("A branch called carrier/fix-login already exists")) {
-        try await host.open(agent: "claude", folder: "/Users/dev/carrier", worktree: WorktreeRequest(from: "main", name: "fix-login"))
+        try await host.open(plan: plan("/Users/dev/carrier", WorktreeRequest(from: "main", name: "fix-login")))
     }
     await #expect(throws: ControlError.remote("Worktrees need a git repository")) {
-        try await host.open(agent: "claude", folder: "/Users/dev/notes", worktree: WorktreeRequest(from: "main"))
+        try await host.open(plan: plan("/Users/dev/notes", WorktreeRequest(from: "main")))
     }
 }
 
 @Test func theClientPutsTheWorktreeRequestOnTheWireInsideJSONStrings() async throws {
     var lines: [String] = []
     let server = TestServer { connection in
-        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"open\"]}\n")
+        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"plan\"]}\n")
         guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
         lines.append(line)
         connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"session\":{\"id\":\"\(opened)\"},\"options\":[]}}\n")
     }
     defer { server.stop() }
-    _ = try await SocketChatHost(socketPath: { server.path }).open(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "origin/feat\"x\"", name: "my-fix"))
+    _ = try await SocketChatHost(socketPath: { server.path }).open(plan: SessionPlan(agent: "claude", folder: "/w/api", worktree: WorktreeRequest(from: "origin/feat\"x\"", name: "my-fix"), text: "hi"))
     let sent = try #require(lines.first.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] })
-    #expect(sent["worktree"] as? [String: String] == ["from": "origin/feat\"x\"", "name": "my-fix"])
+    let wired = try #require(sent["plan"] as? [String: Any])
+    #expect(wired["branch"] as? String == "origin/feat\"x\"" && wired["worktree"] as? [String: String] == ["name": "my-fix"])
 }
 
 @Test func aSessionInTheBaseFolderIsListedByTheRealHostAsKindFolderAndDecodesWithNoWorkspace() throws {
@@ -788,7 +791,7 @@ private final class LateChat: ChatHost, @unchecked Sendable {
         return [ChatAgent(name: "claude", harness: "claude", found: true)]
     }
     func list(archived: Bool) async throws -> [ChatSession] { [] }
-    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String { opened }
+    func open(plan: SessionPlan) async throws -> String { opened }
     func workspace(_ folder: String) async throws -> WorkspaceInfo { cleanRepo(folder) }
     func fetch(_ folder: String) async throws -> WorkspaceInfo { cleanRepo(folder) }
     func suggestName(_ folder: String) async throws -> String { "x" }
@@ -801,7 +804,7 @@ private final class LateChat: ChatHost, @unchecked Sendable {
     func setOption(_ id: String, option: String, value: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
-    func capabilities() async throws -> Set<ControlClient.Capability> { [] }
+    func capabilities() async throws -> Set<ControlClient.Capability> { [.plan] }
     func cloneRepo(_ repo: String) async throws -> ClonedRepo { throw ControlError.closed }
     func createProject(_ name: String) async throws -> String { throw ControlError.closed }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
@@ -1120,7 +1123,7 @@ private let claudeOptions = [
     #expect(model.chosenOptions == ["model": "haiku"] && optionsPill(model.shownOptions) == "Haiku · high")
     model.text = "hello"
     _ = await model.send()
-    #expect(host.openedWith == [["model": "haiku"]])
+    #expect(host.plans.map(\.options) == [["model": "haiku"]])
 }
 
 @MainActor @Test func aHostThatCannotListLeavesTheDraftWithoutOptionsAndAsksAgainLater() async {
@@ -1137,7 +1140,7 @@ private let claudeOptions = [
     #expect(host.optionAsks.count == 2)
 }
 
-@MainActor @Test func aFirstMessageThatStartsWithTheNameOfAListedCommandInvokesIt() async {
+@MainActor @Test func aFirstMessageThatNamesACommandTravelsInThePlanAsTyped() async {
     let host = FakeChat()
     host.offered["claude"] = claudeOptions
     host.commandsOffered["claude"] = [ChatCommand(id: "review", name: "review", description: "Review a change", argumentHint: "<pr>")]
@@ -1147,13 +1150,7 @@ private let claudeOptions = [
     #expect(model.agentCommands.map(\.name) == ["review"])
     model.text = "/review 42"
     _ = await model.send()
-    #expect(host.sentCommands == ["review"] && host.calls.last == "send \(opened) 42")
-    // a slash that names none is a message like any other
-    host.calls = []
-    await model.choose(folder: "/w/api")
-    model.text = "/nope here"
-    _ = await model.send()
-    #expect(host.sentCommands == ["review"] && host.calls.last == "send \(opened) /nope here")
+    #expect(host.plans.map(\.text) == ["/review 42"] && host.calls == ["open claude /w/api"])
 }
 
 

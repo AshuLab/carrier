@@ -17,7 +17,7 @@ struct ConversationView: View {
     /// Whether rows are animated in: not the ones the first answer brings, which are the history.
     @State private var animatesRows = false
 
-    /// Where a first message that failed to send is handed over, by the session the draft opened.
+    /// Where the first message of the session the draft opened is handed over, so it shows while the session is prepared.
     private let draft: NewSessionModel?
 
     init(sessionId: String, draft: NewSessionModel? = nil) {
@@ -29,6 +29,7 @@ struct ConversationView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
                 if model.loaded {
+                    if model.steps.isEmpty == false { PreparationStepsView(steps: model.steps).transition(.opacity) }
                     let open = openOutcome(model.rows)
                     ForEach(model.rows) { row in
                         FeedRowView(
@@ -39,7 +40,7 @@ struct ConversationView: View {
                         .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
                     }
                     // between Enter and the first words of the answer
-                    if model.busy, case .user = model.rows.last {
+                    if model.busy, model.steps.isEmpty, case .user = model.rows.last {
                         ThinkingRow().transition(.opacity)
                     }
                 } else if model.failure == nil {
@@ -61,7 +62,7 @@ struct ConversationView: View {
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { if model.archived { archivedBox } else { box } }
         .task {
-            if let failed = draft?.takeFailure(of: model.sessionId) { model.showRefusal(of: failed.text, failed.reason) }
+            if let first = draft?.takeFirstMessage(of: model.sessionId) { model.show(firstMessage: first) }
             await model.run()
         }
     }

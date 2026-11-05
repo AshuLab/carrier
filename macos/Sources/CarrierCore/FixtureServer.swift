@@ -45,7 +45,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\"]}\n".utf8)
+    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"plan\"]}\n".utf8)
     private let data: [String: Data]
     private let hello: Data
     private var stopped = false
@@ -272,6 +272,7 @@ public final class FixtureServer {
             guard request?["folder"] is String, let name = request?["name"] as? String else { break }
             return Self.answer(id, nameCheck(name))
         case "open":
+            if let plan = request?["plan"] as? [String: Any] { return openPlan(id, plan) }
             return open(id, request ?? [:])
         case "send":
             guard let session = request?["sessionId"] as? String, let text = request?["text"] as? String else { break }
@@ -337,7 +338,24 @@ public final class FixtureServer {
         (chatNames["checks"] as? [String: [String: Any]])?[name] ?? chatNames["free"] as? [String: Any] ?? ["valid": true, "free": true]
     }
 
-    /// `open`: a session in memory, in a worktree of the folder when asked; refused as the host does.
+    /// `open`: a session in memory, in a worktree of the folder when asked; refused as the host does. A plan opens the same session with its
+    /// text already sent and every step done at once.
+    private func openPlan(_ id: Int, _ plan: [String: Any]) -> Data {
+        guard let folder = (plan["workspace"] as? [String: Any])?["folder"] as? String, let text = plan["text"] as? String else { return Self.refused(id, "invalid request") }
+        var request: [String: Any] = ["agent": plan["agent"] as Any, "folder": folder]
+        if let from = plan["branch"] as? String { request["worktree"] = ["from": from, "name": (plan["worktree"] as? [String: Any])?["name"] as Any].compactMapValues { $0 is NSNull ? nil : $0 } }
+        let opened = open(id, request)
+        guard let reply = (try? JSONSerialization.jsonObject(with: opened.dropLast())) as? [String: Any], reply["ok"] as? Bool == true,
+            let session = (reply["data"] as? [String: Any])?["session"] as? [String: Any], let sessionId = session["id"] as? String else { return opened }
+        let now = Int(Date().timeIntervalSince1970 * 1000)
+        locked {
+            chatConversations[sessionId, default: ([], "")].events = ["agent", "message"].enumerated().map { at, step in
+                ["id": at + 1, "at": now, "kind": "step", "step": step, "status": "done"]
+            } + [["id": 3, "at": now, "kind": "user", "text": text]]
+        }
+        return opened
+    }
+
     private func open(_ id: Int, _ request: [String: Any]) -> Data {
         guard let agent = request["agent"] as? String, let folder = request["folder"] as? String else { return Self.refused(id, "invalid request") }
         guard let chosen = ((try? JSONSerialization.jsonObject(with: chatAgents)) as? [[String: Any]])?.first(where: { $0["name"] as? String == agent }) else {

@@ -16,6 +16,8 @@ import { realProbes, type HealthProbes } from './health.ts';
 import { binaryFound, createSessions, type ChatSessionsDeps } from './sessions.ts';
 import { realProcesses, sweepDeadHost, type Processes } from './sweep.ts';
 
+const HOUR_MS = 3_600_000;
+
 export class HostBusy extends Error {}
 /** `chat.json` cannot be read or does not match its schema; the message names the file and each key. */
 export class ChatConfigInvalid extends Error {}
@@ -72,9 +74,22 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   let closeServer = () => {};
   let idle: ReturnType<typeof idleExit> | undefined;
   const sessions = createSessions({ db, agents: settings.agents, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, binaryFound: deps.binaryFound, probes: deps.probes, onLiveChange: () => idle?.recheck() });
+  // The clock's pass, at start and every hour while the host runs; the ages are read from chat.json each time, and a wrong file skips the pass.
+  let cancelPass = () => {};
+  const clockPass = async () => {
+    try {
+      const current = readChatConfig();
+      if (current.ok) sessions.archiveIdle(current.settings);
+      else log.error('the session lifecycle pass was skipped', new Error(chatConfigProblem(carrierHome(), current.errors)));
+    } catch (error) {
+      log.error('the session lifecycle pass failed', error);
+    }
+    cancelPass = deps.clock.after(HOUR_MS, clockPass);
+  };
   const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github });
   const close = () => {
     idle?.stop();
+    cancelPass();
     closeServer();
     db.$client.close();
     lock.release();
@@ -99,6 +114,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     throw error;
   }
   if (deps.signals) for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP'] as const) process.on(signal, () => void stop());
+  await clockPass();
   log.info('chat host started', { folder: carrierHome() });
   return { stop };
 }

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, gt } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/default-path.ts';
-import type { ChatAgent } from './config.ts';
+import type { ChatAgent, ChatSettings } from './config.ts';
 import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
@@ -21,6 +21,11 @@ import { fetchFolder, inspectFolder } from './workspace.ts';
 const log = createScopedLogger('chat');
 
 export const IDLE_CLOSE_MS = 60_000;
+
+const DAY = 86_400_000;
+/** The lifecycle's ages (ADR 0019), as `chat.json` gives them. */
+export type SessionAges = Pick<ChatSettings, 'archiveAfterDays' | 'deleteAfterDays'>;
+const idleFor = (row: { state: State; lastActiveAt: number }, live: boolean, now: number, days: number | 'never') => days !== 'never' && row.state === 'idle' && !live && now - row.lastActiveAt >= days * DAY;
 
 type Harness = (typeof sessions.$inferSelect)['harness'];
 type State = (typeof sessions.$inferSelect)['state'];
@@ -418,8 +423,16 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
     async archive({ sessionId, archived }: { sessionId: string; archived: boolean }) {
       if (archived) await settle(sessionId, 'archive');
       else row(sessionId);
-      db.update(sessions).set({ archived }).where(eq(sessions.id, sessionId)).run();
+      db.update(sessions).set({ archived, ...(archived === false && { lastActiveAt: clock.now() }) }).where(eq(sessions.id, sessionId)).run();
       return {};
+    },
+
+    /** The clock's pass: archives each session left alone for `archiveAfterDays`; a working, waiting or live one is looked at again on the next pass. */
+    archiveIdle({ archiveAfterDays }: SessionAges) {
+      const now = clock.now();
+      for (const found of db.select().from(sessions).where(eq(sessions.archived, false)).all()) {
+        if (idleFor(found, lives.has(found.id), now, archiveAfterDays)) db.update(sessions).set({ archived: true }).where(eq(sessions.id, found.id)).run();
+      }
     },
 
     /** Removes the session with all its events and turns. A live idle session is closed first; a working or waiting one is refused. */

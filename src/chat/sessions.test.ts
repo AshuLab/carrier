@@ -553,6 +553,63 @@ test('archive marks a session and the archived listing shows it instead of the o
   expect(s.sessions.list({}).sessions).toHaveLength(2);
 });
 
+const DAY = 86_400_000;
+const ages = (archiveAfterDays: number | 'never' = 15) => ({ archiveAfterDays, deleteAfterDays: 'never' as const });
+const archivedIds = (s: { sessions: ReturnType<typeof createSessions> }) => s.sessions.list({ archived: true }).sessions.map((x) => x.id);
+
+test('the pass archives a session idle for the configured days and not one a day short of it', async () => {
+  const s = setup();
+  const due = await openOne(s);
+  await s.sessions.close({ sessionId: due.id });
+  s.clock.time = 1 * DAY;
+  const shortOfIt = (await s.sessions.open({ agent: 'claude', folder: work })).session.id;
+  await s.sessions.close({ sessionId: shortOfIt });
+  s.clock.time = 15 * DAY;
+  s.sessions.archiveIdle(ages());
+  expect(archivedIds(s)).toEqual([due.id]); // `shortOfIt` has been idle 14 days
+});
+
+test('the pass skips a working session, one waiting for an approval and a live one, and archives each once it is idle and not live', async () => {
+  const s = setup();
+  const working = await openOne(s);
+  const waiting = (await s.sessions.open({ agent: 'claude', folder: work })).session.id;
+  const live = (await s.sessions.open({ agent: 'claude', folder: work })).session.id;
+  s.sessions.send({ sessionId: working.id, text: 'go' });
+  s.sessions.send({ sessionId: waiting, text: 'go' });
+  s.claude.conversations[1]!.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', choices: [{ id: 'yes', label: 'Yes', allow: true }] });
+  s.clock.time = 20 * DAY;
+  s.sessions.archiveIdle(ages(1));
+  expect(archivedIds(s)).toEqual([]); // working, waiting and live
+  working.conversation.emit({ kind: 'turn_end', outcome: 'ok' });
+  s.claude.conversations[1]!.emit({ kind: 'turn_end', outcome: 'ok' });
+  s.sessions.archiveIdle(ages(1));
+  expect(archivedIds(s)).toEqual([]); // idle now, but still live
+  for (const sessionId of [working.id, waiting, live]) await s.sessions.close({ sessionId });
+  s.clock.time = 22 * DAY;
+  s.sessions.archiveIdle(ages(1));
+  expect(archivedIds(s).sort()).toEqual([working.id, waiting, live].sort());
+});
+
+test('with archiveAfterDays never the pass archives nothing', async () => {
+  const s = await openOne();
+  await s.sessions.close({ sessionId: s.id });
+  s.clock.time = 1000 * DAY;
+  s.sessions.archiveIdle(ages('never'));
+  expect(archivedIds(s)).toEqual([]);
+});
+
+test('restoring a session counts as activity: the next pass does not archive it again', async () => {
+  const s = await openOne();
+  await s.sessions.archive({ sessionId: s.id, archived: true });
+  s.clock.time = 30 * DAY;
+  await s.sessions.archive({ sessionId: s.id, archived: false });
+  s.sessions.archiveIdle(ages());
+  expect(archivedIds(s)).toEqual([]);
+  s.clock.time = 45 * DAY;
+  s.sessions.archiveIdle(ages());
+  expect(archivedIds(s)).toEqual([s.id]);
+});
+
 test('archive and delete close a live idle session first', async () => {
   const s = setup();
   const a = await openOne(s);

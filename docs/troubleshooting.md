@@ -43,6 +43,12 @@ The reason is in the panel and the logs. Carrier stops the epic and leaves every
 
 **To continue an epic that is in `needs-human`:** fix what the reason says (outside Carrier), then use **Resume** on the epic in the macOS app, or `carrier restart <owner/name>#<issue>` in a terminal (add `--author <option>` or `--reviewer <option>` to run a role on another agent option: the same option continues its session, another one starts a new session in the same worktree and pull request). Underneath, Carrier does what you can do by hand: it puts the `solve:epic:ready` label back on the issue and checks at once (`r` in the panel does the check), so the epic is queued again and starts from `ship`, which reuses the epic's worktree and its PR; the review rounds start over. Without the app or the command, put the label back yourself and wait for the next check. Without that label the epic stays stopped, even across restarts. Nothing checks that the cause is fixed: if it is not, the epic stops again with the new reason. If the app says the epic did not restart, the label is on and the next check takes it.
 
+## An archived session is kept and not deleted
+
+In the macOS app the Archive page says "Kept because its worktree has unsaved work" under the session. The clock never deletes a session whose worktree has uncommitted changes or commits that exist nowhere else, so it stays archived, however old, until its worktree is clean or you act (see [The session clock](configuration.md#the-session-clock)). A worktree that git could not read is left alone too, with the failure in `<folder>/chat/logs/chat-host.log`, and tried again an hour later. The clones in the projects folder are never deleted.
+
+To get rid of it, open the Archive page, hover the row and press Delete: the app first lists what would be lost ("3 uncommitted files and 2 commits that exist nowhere else will be removed with its worktree"), and nothing is deleted until you confirm. To keep the work, press Resume and commit and push it from the session's worktree; once nothing in it is unsaved, the session is archived and deleted by the clock again in time. Without the app, `carrier chat --delete <id>` deletes it at once with no question (`carrier chat --list --archived` shows the ids).
+
 ## Start-up errors
 
 - **`Invalid config <file>:` + fields.** Fix each listed field. `carrier schema` shows what is allowed.

@@ -131,9 +131,9 @@ public enum WorkspaceStep: Equatable {
     public var reposQuery = ""
     /// What the New project step was given: the part after `local/`.
     public var projectName = ""
-    public private(set) var creating = false
-    /// Why the host refused the last project, in its words; cleared when the next one starts.
-    public private(set) var createProblem: String?
+    /// The name of the new project the draft is planned for, nil when the workspace is a folder that exists. Nothing is made until the
+    /// message is sent: `folder` is the path the host will make.
+    public private(set) var newProject: String?
     /// "Let Carrier watch this repo": the person's choice, on by default; `watching` is what it comes to for the repository typed.
     public var watch = true
     /// The `repos` of the config file as of the last time the popover opened or showed a step; nil when the file cannot be read.
@@ -219,7 +219,10 @@ public enum WorkspaceStep: Equatable {
     public func restore(_ plan: SessionPlan) { restoring = plan }
 
     private func apply(_ plan: SessionPlan) async {
-        await choose(folder: plan.folder)
+        switch plan.workspace {
+        case .folder(let path): await choose(folder: path)
+        case .project(let name): choose(project: name)
+        }
         text = plan.text
         if agents.contains(where: { $0.name == plan.agent && $0.available }) { agent = plan.agent }
         restoredOptions = plan.options
@@ -243,7 +246,6 @@ public enum WorkspaceStep: Equatable {
         urlText = ""
         projectName = ""
         cloneProblem = nil
-        createProblem = nil
         step = .menu
     }
 
@@ -328,7 +330,6 @@ public enum WorkspaceStep: Equatable {
         projectsFolderProblem = nil
         guard cloning == nil, cloneProblem == nil else { return }
         step = .menu
-        createProblem = nil
     }
 
     private func refreshFolders() {
@@ -358,13 +359,12 @@ public enum WorkspaceStep: Equatable {
     }
 
     public func show(_ next: WorkspaceStep) {
-        guard cloning == nil, creating == false else { return }
+        guard cloning == nil else { return }
         if next == .url, sourceReason(.githubURL) != nil { return }
         if next == .repos, sourceReason(.githubRepos) != nil { return }
         refreshFolders()
         step = next
         cloneProblem = nil
-        createProblem = nil
     }
 
     /// The repository being cloned without its owner: what the chip says while it runs.
@@ -475,26 +475,30 @@ public enum WorkspaceStep: Equatable {
         return nil
     }
 
-    /// "Create and use" stays off for a name the host would refuse, and while a project is being made.
-    public var canCreateNow: Bool { projectName.isEmpty == false && projectNameWarning == nil && creating == false }
+    /// "Use this project" stays off for a name the host would refuse.
+    public var canUseNow: Bool { projectName.isEmpty == false && projectNameWarning == nil }
 
-    /// Makes the project on the host and chooses its folder as the workspace; true when it did. A refusal is in `createProblem` and the
-    /// draft keeps its workspace.
-    public func createAndUse() async -> Bool {
-        guard canCreateNow else { return false }
-        let name = projectName
-        creating = true
-        createProblem = nil
-        defer { creating = false }
-        do {
-            let created = try await host.createProject(name)
-            projectName = ""
-            await choose(folder: created)
-            return true
-        } catch {
-            createProblem = report(error, "create \(name)")
-            return false
-        }
+    /// Chooses a new project as the workspace: only the plan is filled, the host makes the folder and runs `git init` when the message is
+    /// sent. A project has no commits, so the draft offers neither a branch nor a worktree.
+    public func choose(project name: String) {
+        let path = "\(projectsPath)/local/\(name)"
+        reset(folder: path)
+        newProject = name
+        workspace = WorkspaceInfo(folder: path)
+    }
+
+    /// The New project step's button: uses the name typed; false when it cannot be used.
+    public func useProject() -> Bool {
+        guard canUseNow else { return false }
+        choose(project: projectName)
+        projectName = ""
+        return true
+    }
+
+    /// The line that says beforehand what sending will make, nil unless the workspace is a new project.
+    public var projectNote: String? {
+        guard newProject != nil, let folder else { return nil }
+        return "\(folder) will be created, with git ready, when the message is sent."
     }
 
     /// Adds `repo` to the config's `repos`, the file read again just now; the engine reads it when it starts, so nothing is restarted.
@@ -541,6 +545,7 @@ public enum WorkspaceStep: Equatable {
 
     private func reset(folder path: String?) {
         folder = path
+        newProject = nil
         workspace = nil
         workspaceProblem = nil
         cloneProblem = nil
@@ -685,7 +690,7 @@ public enum WorkspaceStep: Equatable {
         guard hostOlder == false else { return nil }
         let id: String
         do {
-            id = try await host.open(plan: SessionPlan(agent: agent, folder: folder, branch: branchChange?.to, worktree: worktreeRequest, options: chosenOptions, text: message))
+            id = try await host.open(plan: SessionPlan(agent: agent, workspace: newProject.map(PlanWorkspace.project) ?? .folder(folder), branch: branchChange?.to, worktree: worktreeRequest, options: chosenOptions, text: message))
         } catch {
             refusal = report(error, "open the session")
             return nil

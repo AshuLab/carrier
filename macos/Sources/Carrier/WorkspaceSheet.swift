@@ -94,7 +94,7 @@ struct WorkspaceSheet: View {
             }
             .padding(.horizontal, 8).padding(.vertical, 6)
         }
-        .disabled(off || model.cloning != nil || model.creating)
+        .disabled(off || model.cloning != nil)
     }
 
     // MARK: Footer
@@ -324,25 +324,22 @@ struct WorkspaceSheet: View {
                 fieldLabel("Name", "textformat")
                 TextField("my-project", text: $model.projectName)
                     .textFieldStyle(.roundedBorder).controlSize(.large).autocorrectionDisabled()
-                    .focused($focused, equals: .project).disabled(model.creating).onSubmit(create)
+                    .focused($focused, equals: .project).onSubmit(create)
                 if let warning = model.projectNameWarning {
                     notice(warning, "exclamationmark.triangle.fill", .orange)
-                } else if let problem = model.createProblem {
-                    notice(problem, "exclamationmark.triangle.fill", .red)
                 } else {
-                    pathLine("Will be created at", model.projectPath)
+                    pathLine("Will be created when the message is sent, at", model.projectPath)
                 }
             }
             howItWorks([
-                ("terminal", "Carrier makes the folder and runs git init on main."),
+                ("terminal", "When you send the first message, Carrier makes the folder and runs git init on main."),
                 ("icloud.slash", "It stays on this Mac. It has no GitHub repository, so Carrier does not watch it."),
             ])
             Spacer(minLength: 0)
             HStack {
                 Spacer(minLength: 0)
-                if model.creating { ProgressView().controlSize(.small) }
-                Button(action: create) { Label("Create and use", systemImage: "plus.circle") }
-                    .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction).disabled(model.canCreateNow == false)
+                Button(action: create) { Label("Use this project", systemImage: "plus.circle") }
+                    .buttonStyle(.borderedProminent).controlSize(.large).keyboardShortcut(.defaultAction).disabled(model.canUseNow == false)
             }
         }
         .onAppear { focused = .project }
@@ -447,8 +444,7 @@ struct WorkspaceSheet: View {
     // MARK: Actions
 
     private func create() {
-        guard model.canCreateNow else { return }
-        Task { if await model.createAndUse() { dismiss() } }
+        if model.useProject() { dismiss() }
     }
 
     private func clone() {

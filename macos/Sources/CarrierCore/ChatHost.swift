@@ -401,20 +401,36 @@ private func wireId(_ id: String) throws -> String {
 private func jsonString(_ text: String) -> String { String(decoding: (try? JSONEncoder().encode(text)) ?? Data("\"\"".utf8), as: UTF8.self) }
 
 /// The reply of `open`: only the new session's id is read.
+/// Where a plan works: a folder that exists, or a new project of this name (the host makes `<projects folder>/local/<name>` when the message is sent).
+public enum PlanWorkspace: Equatable {
+    case folder(String)
+    case project(String)
+}
+
 /// What a new session is before it exists (docs/adr/0018): where it works, the agent and the options the person chose (an id and a value each,
 /// as `agentOptions` listed them), the first message and the branch to check out, or for a worktree the branch it starts from and its name.
 public struct SessionPlan: Equatable {
     public let agent: String
-    public let folder: String
+    public let workspace: PlanWorkspace
     /// The branch to check out in the folder, when the person picked one other than the checked-out one and asked for no worktree.
     public let branch: String?
     public let worktree: WorktreeRequest?
     public let options: [String: String]
     public let text: String
 
+    /// The folder of a plan for a folder; nil for a new project.
+    public var folder: String? {
+        if case .folder(let path) = workspace { return path }
+        return nil
+    }
+
     public init(agent: String, folder: String, branch: String? = nil, worktree: WorktreeRequest? = nil, options: [String: String] = [:], text: String) {
+        self.init(agent: agent, workspace: .folder(folder), branch: branch, worktree: worktree, options: options, text: text)
+    }
+
+    public init(agent: String, workspace: PlanWorkspace, branch: String? = nil, worktree: WorktreeRequest? = nil, options: [String: String] = [:], text: String) {
         self.agent = agent
-        self.folder = folder
+        self.workspace = workspace
         self.branch = branch
         self.worktree = worktree
         self.options = options
@@ -423,8 +439,12 @@ public struct SessionPlan: Equatable {
 
     /// The plan as the host's request takes it; every string goes on the wire JSON-encoded.
     var wire: String {
+        let place = switch workspace {
+        case .folder(let path): "{\"kind\":\"folder\",\"folder\":\(jsonString(path))}"
+        case .project(let name): "{\"kind\":\"project\",\"name\":\(jsonString(name))}"
+        }
         var fields = [
-            "\"workspace\":{\"kind\":\"folder\",\"folder\":\(jsonString(folder))}", "\"agent\":\(jsonString(agent))", "\"text\":\(jsonString(text))",
+            "\"workspace\":\(place)", "\"agent\":\(jsonString(agent))", "\"text\":\(jsonString(text))",
         ]
         if options.isEmpty == false { fields.append("\"options\":{" + options.sorted { $0.key < $1.key }.map { "\(jsonString($0.key)):\(jsonString($0.value))" }.joined(separator: ",") + "}") }
         // a worktree is cut from the branch, so the one field serves both
@@ -459,12 +479,13 @@ private struct OpenedReply: Decodable {
     let session: Session
 }
 
-/// The reply of `cancelPreparation`: the plan as the host stored it. Only a plan for a folder exists yet.
+/// The reply of `cancelPreparation`: the plan as the host stored it. Only a plan for a folder or a new project exists yet.
 private struct CancelledReply: Decodable {
     struct Stored: Decodable {
         struct Workspace: Decodable {
             let kind: String
             let folder: String?
+            let name: String?
         }
         struct Worktree: Decodable { let name: String? }
         let workspace: Workspace
@@ -477,9 +498,14 @@ private struct CancelledReply: Decodable {
         /// A worktree is cut from the branch, so the one field serves both, as the plan's wire has it.
         var plan: SessionPlan {
             get throws {
-                guard workspace.kind == "folder", let folder = workspace.folder else { throw ControlError.badLine }
+                let place: PlanWorkspace
+                switch (workspace.kind, workspace.folder, workspace.name) {
+                case ("folder", let folder?, _): place = .folder(folder)
+                case ("project", _, let name?): place = .project(name)
+                default: throw ControlError.badLine
+                }
                 let cut = worktree.flatMap { wanted in branch.map { WorktreeRequest(from: $0, name: wanted.name) } }
-                return SessionPlan(agent: agent, folder: folder, branch: worktree == nil ? branch : nil, worktree: cut, options: options ?? [:], text: text)
+                return SessionPlan(agent: agent, workspace: place, branch: worktree == nil ? branch : nil, worktree: cut, options: options ?? [:], text: text)
             }
         }
     }

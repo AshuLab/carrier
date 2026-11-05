@@ -117,6 +117,7 @@ struct NewSessionView: View {
             if let note = model.watchNote {
                 Label(note, systemImage: model.watchFailed ? "exclamationmark.triangle.fill" : "eye.fill").font(.subheadline).foregroundStyle(model.watchFailed ? .orange : .secondary).textSelection(.enabled)
             }
+            if let note = model.projectNote { Label(note, systemImage: "folder.badge.plus").font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
             if let note = model.branchNote { Text(note).font(.callout).foregroundStyle(.secondary) }
             if let warning = model.warning { Text(warning).font(.callout).foregroundStyle(.orange) }
             if case .problem(let reason) = model.nameState, model.worktree {

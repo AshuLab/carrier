@@ -412,6 +412,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     await model.choose(folder: "/w/api")
     model.text = "one"
     #expect(await model.send() == opened)
+    await model.choose(folder: "/w/api")
     await model.useWorktree(true)
     model.choose(startBranch: "origin/main")
     model.worktreeName = "my-fix"
@@ -440,6 +441,53 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     model.choose(startBranch: "origin/main")
     await model.choose(folder: "/w/web")
     #expect(model.worktree == false && model.worktreeName.isEmpty && model.startBranch == "main" && model.nameState == .suggesting)
+}
+
+@MainActor @Test func theDraftIsBlankAfterLoadWhateverWasChosenBefore() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.useWorktree(true)
+    model.choose(startBranch: "origin/main")
+    model.text = "half a thought"
+    await model.load()
+    #expect(model.folder == nil && model.workspace == nil && model.worktree == false && model.worktreeName.isEmpty && model.picked == nil && model.text.isEmpty)
+    #expect(model.sentence == "Work in Choose a workspace… on the base folder")
+}
+
+@MainActor @Test func theClearButtonDropsTheWorkspaceAndWhatDependsOnItButKeepsTheText() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.useWorktree(true)
+    model.choose(startBranch: "origin/main")
+    model.text = "hello"
+    model.clearWorkspace()
+    #expect(model.folder == nil && model.workspace == nil && model.worktree == false && model.worktreeName.isEmpty && model.picked == nil && model.canSend == false)
+    #expect(model.text == "hello")
+}
+
+@MainActor @Test func afterASendTheDraftIsBlankSoTheNextSendDoesNotCarryTheOldWorkspaceOrWorktree() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    await model.choose(folder: "/w/api")
+    await model.useWorktree(true)
+    model.text = "first"
+    #expect(await model.send() == opened)
+    #expect(model.folder == nil && model.worktree == false && model.worktreeName.isEmpty && model.text.isEmpty)
+    model.text = "second"
+    #expect(model.canSend == false)
+    #expect(await model.send() == nil)
+    #expect(host.calls.filter { $0.hasPrefix("open") }.count == 1)
+}
+
+@MainActor @Test func aBlankDraftHasNoTypedRepositoryNorProjectNameAndShowsTheMenu() async {
+    let host = FakeChat()
+    let model = await draft(host)
+    model.urlText = "AshuLab/web"
+    model.projectName = "scratch"
+    model.blank()
+    #expect(model.urlText.isEmpty && model.projectName.isEmpty && model.step == .menu && model.cloning == nil)
 }
 
 // MARK: the client
@@ -1102,6 +1150,7 @@ private let claudeOptions = [
     #expect(host.sentCommands == ["review"] && host.calls.last == "send \(opened) 42")
     // a slash that names none is a message like any other
     host.calls = []
+    await model.choose(folder: "/w/api")
     model.text = "/nope here"
     _ = await model.send()
     #expect(host.sentCommands == ["review"] && host.calls.last == "send \(opened) /nope here")

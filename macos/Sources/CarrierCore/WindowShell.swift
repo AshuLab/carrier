@@ -66,6 +66,7 @@ public struct SearchRequest: Equatable {
         didSet {
             // Settings opens on its first tab, unless something asked for another one (`openHealth`)
             if selection != .settings { settingsTab = .engine }
+            if selection == .newSession { newSessionOpened += 1 }
             switch selection {
             case .sessions, .session, .newSession: open = .sessions
             case .carrier, .epic: open = .carrier
@@ -74,6 +75,8 @@ public struct SearchRequest: Equatable {
             }
         }
     }
+    /// Counts the times New session was asked for, the + while its draft is already open included: the draft starts blank each time.
+    public private(set) var newSessionOpened = 0
     /// The tab Settings shows.
     public var settingsTab = SettingsTab.engine
     /// The unfolded section; nil when all are folded.

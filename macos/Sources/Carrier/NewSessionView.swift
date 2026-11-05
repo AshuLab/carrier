@@ -91,6 +91,10 @@ struct NewSessionView: View {
                 }
                 .buttonStyle(.plain).accessibilityLabel("Workspace")
                 .sheet(isPresented: $foldersOpen) { WorkspaceSheet(model: model, openHealth: openHealth) }
+                if model.folder != nil {
+                    Button { model.clearWorkspace() } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                        .buttonStyle(.plain).accessibilityLabel("Clear workspace").help("Clear the workspace")
+                }
                 if let repo = model.cloning {
                     ProgressView().controlSize(.small)
                     Text("Cloning \(repo)…")

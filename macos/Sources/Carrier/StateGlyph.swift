@@ -39,10 +39,10 @@ struct Disc: View {
     }
 }
 
-private extension EpicMenuState {
+extension EpicMenuState {
     var label: String {
         switch self {
-        case .needsYou: "Needs you"
+        case .needsYou: "Needs attention"
         case .running: "Running"
         case .waiting: "Up next"
         case .ready: "Ready for test"

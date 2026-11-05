@@ -57,14 +57,14 @@ public struct SidebarRow: Equatable {
     public var title: String?
     /// The repository's name, never its owner.
     public var name: String
-    /// Shown on the right of the second line; nil when the sidebar is grouped by repository or when `title` is nil.
-    public var repoLabel: String?
-    /// The stage and round or slices, the kind of intervention, "waiting for a slot" or how long ago.
+    /// The one thing that matters in its state: why it stopped, what the agent is doing, what it waits for, or its PR.
     public var detail: String
+    /// On the right of the first line, as a session's: "now", "5m", "3h", "2d"; how long in the state, empty when the engine has no time.
+    public var age: String
     /// Only for a stuck epic: decides the colour of its glyph and of `detail`.
     public var attention: Attention?
-    /// Shown on hover: the epic's title (or "name #issue" while the engine has none), then `owner/name`, then the reason of a cancelled epic.
-    public var tooltip: String
+    /// What opens when the pointer rests on the row.
+    public var card: EpicCard
 
     public var selection: Selection { .epic(repo: repo, issue: issue) }
 }
@@ -148,27 +148,37 @@ private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, wi
     let titles = Dictionary(
         uniqueKeysWithValues: (snapshot.epics.map { (key($0.repo, $0.issue), $0.title) } + snapshot.queue.map { (key($0.repo, $0.issue), $0.title) })
     )
-    func row(_ repo: String, _ issue: Int, _ state: EpicMenuState, _ detail: String, title own: String? = nil, note: String? = nil, attention: Attention? = nil) -> SidebarRow {
-        let name = shortName(repo)
+    func row(
+        _ subject: EpicSubject, _ state: EpicMenuState, _ detail: String, since: Int?, title own: String? = nil, attention: Attention? = nil
+    ) -> SidebarRow {
+        let (repo, issue) = (subject.repo, subject.issue)
         let title = (own ?? titles[key(repo, issue)].flatMap { $0 }).flatMap { $0.isEmpty ? nil : $0 }
         return SidebarRow(
-            repo: repo, issue: issue, state: state, title: title, name: name, repoLabel: groupBy == .status && title != nil ? name : nil,
-            detail: detail, attention: attention, tooltip: ([title ?? "\(name) #\(issue)", repo] + (note.map { [$0] } ?? [])).joined(separator: "\n")
+            repo: repo, issue: issue, state: state, title: title, name: shortName(repo), detail: detail,
+            age: since.map { sessionAge(Date(timeIntervalSince1970: Double($0) / 1000), now: Date(timeIntervalSince1970: Double(snapshot.now) / 1000)) } ?? "",
+            attention: attention, card: epicCard(subject, now: snapshot.now)
         )
     }
     func finished(_ status: PanelSnapshot.FinishedEpic.Status) -> [SidebarRow] {
         snapshot.finished.filter { $0.status == status }.map { epic in
-            let ago = agoLine(epic.finishedAt, now: snapshot.now)
-            guard status == .cancelled else { return row(epic.repo, epic.issue, .done, ago, title: epic.title) }
+            guard status == .cancelled else {
+                return row(.ended(epic), .done, epic.prNumber.map { "PR #\($0) merged" } ?? "merged", since: epic.finishedAt, title: epic.title)
+            }
             let reason = epic.cancelReason.flatMap { $0.isEmpty ? nil : $0 }
-            return row(epic.repo, epic.issue, .cancelled, reason.map { "\(ago) · \($0)" } ?? ago, title: epic.title, note: reason)
+            return row(.ended(epic), .cancelled, reason ?? "cancelled", since: epic.finishedAt, title: epic.title)
         }
     }
 
-    let needsYou = snapshot.epics.filter { $0.status == .needsHuman }.map { row($0.repo, $0.issue, .needsYou, interventionLine($0), attention: Attention(kind: $0.needsHumanKind)) }
-    let running = snapshot.epics.filter { $0.status == .running }.map { row($0.repo, $0.issue, .running, runningLine($0)) }
-    let waiting = snapshot.queue.map { row($0.repo, $0.issue, .waiting, "waiting for a slot") }
-    let ready = snapshot.done.map { row($0.repo, $0.issue, .ready, agoLine($0.finishedAt, now: snapshot.now)) }
+    /// What the epic's agent did last, while it runs: the line a person wants most of a running epic.
+    func doing(_ epic: PanelEpic) -> String? {
+        epic.executionId.flatMap { id in snapshot.sessions?.first { $0.executionId == id }?.last?.text }.flatMap { $0.isEmpty ? nil : $0 }
+    }
+    let needsYou = snapshot.epics.filter { $0.status == .needsHuman }.map {
+        row(.active($0), .needsYou, interventionLine($0), since: $0.stageSince, attention: Attention(kind: $0.needsHumanKind))
+    }
+    let running = snapshot.epics.filter { $0.status == .running }.map { row(.active($0), .running, doing($0) ?? runningLine($0), since: $0.stageSince) }
+    let waiting = snapshot.queue.enumerated().map { row(.queued($1, position: $0 + 1), .waiting, "waiting for a slot", since: $1.queuedAt) }
+    let ready = snapshot.done.map { row(.finished($0), .ready, $0.prNumber.map { "PR #\($0)" } ?? "ready for test", since: $0.finishedAt) }
 
     switch groupBy {
     case .status:
@@ -178,7 +188,7 @@ private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, wi
             SidebarGroup(title: "Cancelled", rows: finished(.cancelled), startsCollapsed: true),
         ].filter { $0.rows.isEmpty == false }
         return [
-            SidebarGroup(title: "Needs you", rows: needsYou), SidebarGroup(title: "Running", rows: running),
+            SidebarGroup(title: "Needs attention", rows: needsYou), SidebarGroup(title: "Running", rows: running),
             SidebarGroup(title: "Up next", rows: waiting),
         ] + hiddenWhenEmpty
     case .repo:

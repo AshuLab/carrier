@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Carrier sidebar — one smart line and a card</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* cs- = carrier smart. B with one line that says what matters per state, and a card on hover with the rest */
+.cs-wrap{display:flex;gap:36px;align-items:flex-start;flex-wrap:wrap;margin-top:6px}
+.cs-ctl{width:290px;display:flex;flex-direction:column;gap:8px}
+.cs-ctl h3{margin:6px 0 0;font-size:12px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+.cs-sw{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:12px;background:var(--card);cursor:default;box-shadow:0 0 0 .5px var(--line) inset}
+.cs-sw.on{background:color-mix(in srgb,var(--blue) 22%,transparent)}
+.cs-sw .k{width:16px;height:16px;border-radius:5px;flex:none;margin-top:1px;box-shadow:0 0 0 1.5px var(--faint) inset;display:grid;place-items:center;font-size:11px;color:#fff}
+.cs-sw.on .k{background:var(--blue);box-shadow:none}
+.cs-sw b{display:block;font-size:13px;font-weight:600}.cs-sw span{display:block;font-size:12px;color:var(--dim);margin-top:1px}
+.cs-panes{display:flex;gap:28px;flex-wrap:wrap}
+.cs-opt h3{margin:0 0 8px;font-size:14px}
+.cs-pane{width:268px;border-radius:18px;background:var(--side);box-shadow:0 0 0 .5px var(--line) inset;padding:8px}
+.cs-sec{border-radius:8px;padding:8px 12px;background:color-mix(in srgb,var(--purple) 38%,transparent)}
+.cs-sec .top{display:flex;align-items:center;gap:8px;min-height:24px}
+.cs-sec svg{width:18px;height:18px;opacity:.85}
+.cs-sec .ttl{font-size:16px;font-weight:500;flex:1}
+.cs-sec .pill{font-size:12px;font-weight:600;color:var(--green);background:color-mix(in srgb,var(--green) 26%,transparent);padding:1px 8px;border-radius:99px}
+.cs-sec .ic{opacity:.7;font-size:14px;width:22px;text-align:center}
+.cs-slots{display:flex;gap:4px;margin-top:8px;align-items:center}
+.cs-slots i{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.18)}.cs-slots i:first-child{background:var(--green)}
+.cs-slots em{font-style:normal;font-size:11px;color:var(--dim);margin-left:6px;white-space:nowrap}
+.cs-g{display:flex;align-items:center;gap:6px;margin-top:10px;padding:0 12px;color:var(--dim);font-size:12px;font-weight:600;height:22px}
+.cs-g .sp{flex:1}.cs-g .ch{width:9px;height:9px;opacity:.8}.cs-g small{font-size:11px;font-weight:500;color:var(--faint)}
+.cs-row{position:relative;display:flex;gap:10px;align-items:center;padding:7px 12px;border-radius:8px;margin-top:2px}
+.cs-row:hover,.cs-row.hot{background:rgba(255,255,255,.07)}
+body.light .cs-row:hover,body.light .cs-row.hot{background:rgba(0,0,0,.06)}
+.cs-t{flex:1;min-width:0}
+.cs-t b{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:14px;font-weight:400;line-height:17px}
+.cs-d{display:flex;gap:4px;align-items:center;font-size:12px;line-height:15px;margin-top:3px;color:var(--dim);white-space:nowrap;overflow:hidden}
+.cs-d i{font-style:normal;overflow:hidden;text-overflow:ellipsis}
+.cs-d.orange,.cs-d.orange i{color:var(--orange)}.cs-d.red,.cs-d.red i{color:var(--red)}
+.cs-live{background:linear-gradient(100deg,var(--dim) 35%,var(--text) 50%,var(--dim) 65%) 100% 0/250% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:cs-shim 1.8s linear infinite}
+@keyframes cs-shim{to{background-position:0 0}}
+.cs-av{position:relative;width:32px;height:32px;flex:none;border-radius:9px;display:grid;place-items:center;font-size:12px;font-weight:650;color:#fff;letter-spacing:.02em}
+.cs-bd{position:absolute;right:-4px;bottom:-4px;width:15px;height:15px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800;box-shadow:0 0 0 1.5px #2b2b2f}
+.cs-bd.o{background:var(--orange)}.cs-bd.r{background:var(--red)}.cs-bd.b{background:var(--blue)}
+.cs-halo{animation:cs-breath 1.8s ease-out infinite}
+@keyframes cs-breath{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--blue) 70%,transparent)}100%{box-shadow:0 0 0 8px transparent}}
+.cs-r{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;align-self:stretch;flex:none;gap:3px}
+.cs-age{font-size:12px;line-height:17px;color:var(--faint);font-variant-numeric:tabular-nums}
+.cs-repo{display:flex;gap:4px;align-items:center;font-size:12px;line-height:15px;color:var(--dim);max-width:92px}
+.cs-repo span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cs-pv{display:flex;gap:3px;align-items:center;color:var(--dim);height:15px}.cs-pv i{width:12px;height:12px;display:block}.cs-pv i svg{width:100%;height:100%;display:block}.cs-pv u{text-decoration:none;font-size:10px;opacity:.7}
+.cs-gh{width:11px;height:11px;flex:none}
+.cs-pl{display:flex;gap:3px;margin-top:6px}
+.cs-pl i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.16);position:relative;overflow:hidden}
+body.light .cs-pl i{background:rgba(0,0,0,.13)}
+.cs-pl i.d{background:var(--green)}.cs-pl i.c b{position:absolute;inset:0 auto 0 0;background:var(--blue);border-radius:2px}
+
+/* the card on hover */
+.cs-card{position:fixed;z-index:20;width:320px;border-radius:16px;padding:14px 16px;background:color-mix(in srgb,#2a2a2e 92%,transparent);backdrop-filter:blur(30px) saturate(1.5);box-shadow:0 18px 50px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.16) inset;pointer-events:none;opacity:0;transform:translateX(-4px);transition:opacity .12s,transform .12s}
+body.light .cs-card{background:color-mix(in srgb,#fff 92%,transparent);box-shadow:0 18px 50px rgba(30,30,60,.25),0 0 0 .5px rgba(0,0,0,.12) inset}
+.cs-card.show{opacity:1;transform:none}
+.cs-card h4{margin:0;font-size:14px;font-weight:600;line-height:1.3}
+.cs-card .sub2{font-size:12px;color:var(--dim);margin:2px 0 10px}
+.cs-card .steps{display:flex;gap:6px;margin-bottom:10px}
+.cs-card .stp{flex:1}
+.cs-card .stp i{display:block;height:4px;border-radius:2px;background:rgba(255,255,255,.16);position:relative;overflow:hidden}
+body.light .cs-card .stp i{background:rgba(0,0,0,.13)}
+.cs-card .stp.d i{background:var(--green)}.cs-card .stp.c i b{position:absolute;inset:0 auto 0 0;background:var(--blue)}
+.cs-card .stp.o i b{background:var(--orange)}.cs-card .stp.r i b{background:var(--red)}
+.cs-card .stp span{display:block;font-size:11px;color:var(--dim);margin-top:4px}
+.cs-card .stp.c span{color:var(--text);font-weight:550}
+.cs-card dl{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:0;font-size:12px}
+.cs-card dt{color:var(--dim)}.cs-card dd{margin:0;color:var(--text);min-width:0}
+.cs-card dd .pv{display:inline-flex;gap:5px;align-items:center}
+.cs-card dd .pv i{width:12px;height:12px;display:block;color:var(--dim)}.cs-card dd .pv i svg{width:100%;height:100%;display:block}
+.cs-card .now{margin-top:10px;padding:7px 10px;border-radius:9px;background:var(--card);font-size:12px;color:var(--dim)}
+.cs-card .now b{color:var(--text);font-weight:550}
+.cs-card .acts{display:flex;gap:6px;margin-top:12px}
+.cs-card .acts span{font-size:12px;font-weight:550;padding:4px 11px;border-radius:99px;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset}
+.cs-card .acts span.pri{background:var(--blue);color:#fff}
+</style></head>
+<body>
+<h1>Carrier sidebar: one smart line and a card</h1>
+<div class="sub">The row is B. Its second line says the one thing that matters in each state; everything else is in a card that opens beside the sidebar when the pointer rests on a row (hover the right-hand list). Left: the list as approved, for comparison. On the right the repo is its icon alone: no GitHub mark and no name in the row.</div>
+
+<div class="bar"><button class="tab on" data-g="status">By status</button><button class="tab" data-g="repo">By repository</button><span class="sp"></span><button class="tog" id="cs-theme">Light / dark</button></div>
+
+<div class="cs-wrap">
+  <div class="cs-ctl" id="cs-ctl"></div>
+  <div class="cs-panes" id="cs-panes"></div>
+</div>
+<div class="cs-card" id="cs-card"></div>
+
+<p class="note"><b>The line, by state.</b> Needs attention: why, in its colour. Running: what the agent is doing now. Up next: what it waits for. Ready: the PR. The number stays first in all of them. Round, blockers, slices, the agents, the branch and the times are in the card, not in the row. The repo's name is not in the row: its icon (initials and colour) says it, and the card and the tooltip spell it out. <b>The card</b> replaces today's text tooltip; it needs no new data beyond the age and the PR's checks (not in the snapshot yet).</p>
+
+<script>
+const ICON={"claude": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z\"></path></svg>", "codex": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path clip-rule=\"evenodd\" d=\"M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.7a.117.117 0 00.107.029c1.408-.346 2.762-.224 4.061.366l.063.03.154.076c1.357.703 2.33 1.77 2.918 3.198.278.679.418 1.388.421 2.126a5.655 5.655 0 01-.18 1.631.167.167 0 00.04.155 5.982 5.982 0 011.578 2.891c.385 1.901-.01 3.615-1.183 5.14l-.182.22a6.063 6.063 0 01-2.934 1.851.162.162 0 00-.108.102c-.255.736-.511 1.364-.987 1.992-1.199 1.582-2.962 2.462-4.948 2.451-1.583-.008-2.986-.587-4.21-1.736a.145.145 0 00-.14-.032c-.518.167-1.04.191-1.604.185a5.924 5.924 0 01-2.595-.622 6.058 6.058 0 01-2.146-1.781c-.203-.269-.404-.522-.551-.821a7.74 7.74 0 01-.495-1.283 6.11 6.11 0 01-.017-3.064.166.166 0 00.008-.074.115.115 0 00-.037-.064 5.958 5.958 0 01-1.38-2.202 5.196 5.196 0 01-.333-1.589 6.915 6.915 0 01.188-2.132c.45-1.484 1.309-2.648 2.577-3.493.282-.188.55-.334.802-.438.286-.12.573-.22.861-.304a.129.129 0 00.087-.087A6.016 6.016 0 015.635 2.31C6.315 1.464 7.132.846 8.086.457zm-.804 7.85a.848.848 0 00-1.473.842l1.694 2.965-1.688 2.848a.849.849 0 001.46.864l1.94-3.272a.849.849 0 00.007-.854l-1.94-3.393zm5.446 6.24a.849.849 0 000 1.695h4.848a.849.849 0 000-1.696h-4.848z\"></path></svg>", "antigravity": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z\"></path></svg>"};
+const GH='<svg class="cs-gh" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38v-1.33c-2.22.48-2.69-1.07-2.69-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.05-.49.05-.49.8.06 1.23.83 1.23.83.71 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.77-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.19c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>';
+const CH='<svg class="ch" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5l3 3 3-3"/></svg>';
+const AG={author:{icon:'claude',model:'claude-sonnet-5-5'},reviewer:{icon:'codex',model:'gpt-5 via ollama'}};
+const E=[
+ {g:'Needs attention',t:'api',noTitle:1,repo:'api',n:5,why:'the agent needs you',st:'o',age:'12m',stage:'ship',step:.4,since:'12m',branch:'feat/issue-5/epic',acts:['Resume','Open issue']},
+ {g:'Needs attention',t:'Add login',repo:'web',n:14,why:'review limit reached',st:'o',age:'1h',stage:'review',step:1,round:'5/5',blockers:2,since:'1h',branch:'feat/issue-14/epic',pr:31,acts:['Resume','Open PR']},
+ {g:'Needs attention',t:'Paginate the audit log',repo:'a-really-long-repo-name',n:6,why:'timed out',st:'r',age:'2h',stage:'ship',step:.57,slices:'4/7',since:'2h',branch:'feat/issue-6/epic',acts:['Resume','Open issue']},
+ {g:'Running',t:'Build the billing page and its invoices',repo:'web',n:22,st:'run',age:'9m',stage:'ship',step:.43,slices:'3/7',live:'Editing src/billing/invoice.ts',since:'9m',branch:'feat/issue-22/epic',acts:['Open output','Open issue']},
+ {g:'Running',t:'Rotate the signing keys without logging every session out, and keep the old ones valid for a week',repo:'web',n:12,st:'run',age:'38m',stage:'review',step:.4,round:'2/5',blockers:2,slices:'5/5',live:'Reading src/auth/token.ts',since:'38m',branch:'feat/issue-12/epic',pr:28,acts:['Open output','Open PR']},
+ {g:'Up next',t:'Export reports as CSV',repo:'web',n:20,why:'waiting for a slot',st:'q',age:'6m',stage:'queued',since:'6m',branch:null,acts:['Open issue']},
+ {g:'Ready for test',t:'web',noTitle:1,repo:'web',n:30,st:'b',age:'5s',stage:'ready',pr:31,prLine:'PR #31',since:'5s',branch:'feat/issue-30/epic',acts:['Open PR','Open issue']}
+];
+const COLOR={web:'#1d9bb0',api:'#3f70d1','a-really-long-repo-name':'#d9742c'};
+const ini=n=>{const w=n.split(/[-_ ]+/).filter(Boolean);return(w.length>1?w[0][0]+w[1][0]:n.slice(0,2)).toUpperCase()};
+const badge=s=>s==='o'?'<div class="cs-bd o">!</div>':s==='r'?'<div class="cs-bd r">!</div>':s==='b'?'<div class="cs-bd b">✓</div>':'';
+const tone=s=>s==='o'?'orange':s==='r'?'red':'';
+const OPTS=[
+ {k:'card',b:'Card on hover',d:'Pipeline, round, blockers, slices, agents, branch, PR, times and actions, beside the sidebar.',def:1},
+ {k:'strip',b:'Strip on running rows',d:'The three-step strip under the text, only on epics that run.',def:0},
+ {k:'prov',b:'Author and reviewer, bottom right',d:'Their marks under the age, as in Sessions. Off, that corner stays empty and the text gets the width.',def:0},
+ {k:'slots',b:'Slots and group summary',d:'"1/3 busy" in the header and "1 of 3 slots" beside Running.',def:1}
+];
+const on={};OPTS.forEach(o=>on[o.k]=!!o.def);
+let group='status';
+
+function line(e,smart){
+  if(!smart){
+    const text=e.why||(e.st==='run'?(e.stage==='review'?'review':'ship'):e.st==='b'?e.age+' ago':'');
+    return `<div class="cs-d ${tone(e.st)}"><i>#${e.n}${text?' · '+text:''}</i></div>`;
+  }
+  if(e.st==='run')return `<div class="cs-d"><i>#${e.n} · <span class="cs-live">${e.live}</span></i></div>`;
+  if(e.st==='b')return `<div class="cs-d"><i>#${e.n} · ${e.prLine}</i></div>`;
+  return `<div class="cs-d ${tone(e.st)}"><i>#${e.n} · ${e.why}</i></div>`;
+}
+function strip(e){
+  const order=['ship','review','ready'];const at=order.indexOf(e.stage);
+  return `<div class="cs-pl">${order.map((s,i)=>i<at?'<i class="d"></i>':i===at?`<i class="c"><b style="width:${Math.round(e.step*100)}%"></b></i>`:'<i></i>').join('')}</div>`;
+}
+function row(e,i,cfg,smart){
+  const pv=`<div class="cs-pv"><i>${ICON.claude}</i><u>\u2192</u><i>${ICON.codex}</i></div>`;
+  const repo=!smart?(group==='status'&&!e.noTitle?`<div class="cs-repo">${GH}<span>${e.repo}</span></div>`:'<div></div>'):(cfg.prov?pv:'');
+  return `<div class="cs-row" ${smart?`data-i="${i}"`:''}><div class="cs-av ${e.st==='run'?'cs-halo':''}" style="background:${COLOR[e.repo]}">${ini(e.repo)}${badge(e.st)}</div><div class="cs-t"><b>${e.t}</b>${line(e,smart)}${smart&&cfg.strip&&e.st==='run'?strip(e):''}</div><div class="cs-r"><div class="cs-age">${e.age}</div>${repo}</div></div>`;
+}
+function groups(){
+  if(group==='repo'){const by={};E.forEach(e=>(by[e.repo]=by[e.repo]||[]).push(e));return Object.entries(by).map(([t,rows])=>({t,rows}));}
+  return ['Needs attention','Running','Up next','Ready for test'].map(t=>({t,rows:E.filter(e=>e.g===t)}));
+}
+function pane(cfg,smart){
+  const sec=`<div class="cs-sec"><div class="top"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M14.5 1.5L1.5 7l4.5 1.6L7.6 13.5z M6 8.6l8.5-7.1"/></svg><span class="ttl">Carrier</span><span class="pill">Running</span><span class="ic">⌕</span><span class="ic">⋯</span></div><div class="cs-slots"><i></i><i></i><i></i>${smart&&cfg.slots?'<em>1/3 busy</em>':''}</div></div>`;
+  const body=groups().map(g=>`<div class="cs-g"><span>${g.t}</span>${smart&&cfg.slots&&g.t==='Running'?'<small>2 of 3 slots</small>':''}<span class="sp"></span><span>${g.rows.length}</span>${CH}</div>`+g.rows.map(e=>row(e,E.indexOf(e),cfg,smart)).join('')).join('');
+  return `<div class="cs-pane">${sec}${body}</div>`;
+}
+function draw(){
+  document.getElementById('cs-ctl').innerHTML='<h3>Options</h3>'+OPTS.map(o=>`<div class="cs-sw ${on[o.k]?'on':''}" data-k="${o.k}"><div class="k">${on[o.k]?'✓':''}</div><div><b>${o.b}</b><span>${o.d}</span></div></div>`).join('');
+  const none={};OPTS.forEach(o=>none[o.k]=0);
+  document.getElementById('cs-panes').innerHTML=`<div class="cs-opt"><h3>B · as approved</h3>${pane(none,false)}</div><div class="cs-opt"><h3>B · one smart line</h3>${pane(on,true)}</div>`;
+  document.querySelectorAll('.cs-sw').forEach(el=>el.onclick=()=>{on[el.dataset.k]=!on[el.dataset.k];draw()});
+  document.querySelectorAll('.cs-row[data-i]').forEach(el=>{
+    el.onmouseenter=()=>show(el);el.onmouseleave=hide;
+  });
+}
+const card=document.getElementById('cs-card');
+function stepsHtml(e){
+  const names=['Ship','Review / Fix','Ready'],order=['ship','review','ready'];
+  const at=e.stage==='queued'?-1:order.indexOf(e.stage);
+  const trouble=e.st==='o'?'o':e.st==='r'?'r':'';
+  return `<div class="steps">${names.map((nm,i)=>{
+    const cls=at>i||e.stage==='ready'?'d':at===i?'c '+trouble:'';
+    const w=at===i?Math.round((e.step??.5)*100):0;
+    return `<div class="stp ${cls}"><i><b style="width:${w}%"></b></i><span>${nm}</span></div>`}).join('')}</div>`;
+}
+function show(el){
+  if(!on.card)return;
+  const e=E[+el.dataset.i];
+  const rows=[];
+  rows.push(['Stage',e.stage==='queued'?'queued '+e.since+' ago':(e.stage==='ready'?'ready':e.stage)+' · '+e.since]);
+  if(e.round)rows.push(['Review',`round ${e.round}${e.blockers?` · ${e.blockers} blockers`:''}`]);
+  if(e.slices)rows.push(['Slices',e.slices+' closed']);
+  rows.push(['Author',`<span class="pv"><i>${ICON[AG.author.icon]}</i>${AG.author.model}</span>`]);
+  rows.push(['Reviewer',`<span class="pv"><i>${ICON[AG.reviewer.icon]}</i>${AG.reviewer.model}</span>`]);
+  if(e.branch)rows.push(['Branch',e.branch]);
+  if(e.pr)rows.push(['PR','#'+e.pr]);
+  card.innerHTML=`<h4>${e.t}</h4><div class="sub2">${e.repo} #${e.n}${e.why?' · '+e.why:''}</div>${stepsHtml(e)}<dl>${rows.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>${e.live?`<div class="now"><b>Now</b> · ${e.live}</div>`:''}<div class="acts">${e.acts.map((a,i)=>`<span class="${i===0?'pri':''}">${a}</span>`).join('')}</div>`;
+  const r=el.closest('.cs-pane').getBoundingClientRect(),y=el.getBoundingClientRect();
+  card.style.left=(r.right+12)+'px';
+  card.classList.add('show');
+  const h=card.offsetHeight;
+  card.style.top=Math.max(8,Math.min(y.top+y.height/2-h/2,innerHeight-h-8))+'px';
+  el.classList.add('hot');
+}
+function hide(){card.classList.remove('show');document.querySelectorAll('.cs-row.hot').forEach(x=>x.classList.remove('hot'))}
+document.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{group=b.dataset.g;document.querySelectorAll('[data-g]').forEach(x=>x.classList.toggle('on',x===b));draw()});
+document.getElementById('cs-theme').onclick=()=>document.body.classList.toggle('light');
+draw();
+</script>
+</body></html>

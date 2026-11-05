@@ -79,14 +79,14 @@ struct SidebarView: View {
                             if queried == false { collapse.toggle(group, by: groupBy) }
                         } label: {
                             HStack {
-                                Text(group.title).textCase(.uppercase)
+                                Text(group.title)
                                 Spacer(minLength: 0)
                                 Text("\(group.count)").monospacedDigit()
                                 Image(systemName: "chevron.right").imageScale(.small).rotationEffect(.degrees(expanded ? 90 : 0))
                                     .opacity(queried ? 0 : 1)
                             }
                             .font(SidebarMetrics.group).foregroundStyle(.secondary)
-                            .padding(.horizontal, SidebarMetrics.inset).padding(.top, SidebarMetrics.groupTop).padding(.bottom, 2)
+                            .frame(height: 22).padding(.horizontal, SidebarMetrics.inset).padding(.top, SidebarMetrics.groupTop)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -174,9 +174,12 @@ private struct CarrierRow: View {
                 Text(notice).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             }
             if let slots = card.slots {
-                SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(slots.busy) of \(slots.total) slots busy")
+                HStack(spacing: 8) {
+                    SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
+                    Text("\(slots.busy)/\(slots.total)").font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(slots.busy) of \(slots.total) slots busy")
             }
         })
         .help(([detail, "Carrier (⌘3)"].compactMap { $0 }).joined(separator: "\n"))
@@ -328,53 +331,41 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
 
 struct SidebarRowView: View {
     let row: SidebarRow
+    private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
+
+    /// What the project's icon wears for the epic's state: a halo while it runs, a mark on its corner when there is something to say.
+    private var mark: ProjectIcon.Mark? {
+        switch row.state {
+        case .needsYou: .init(text: "!", color: (row.attention ?? .input).color)
+        case .ready: .init(text: "✓", color: .blue)
+        case .done: .init(text: "✓", color: .green)
+        case .cancelled: .init(text: "✕", color: .gray)
+        case .running, .waiting: nil
+        }
+    }
+
+    private var detailColor: Color {
+        guard row.state == .needsYou else { return .secondary }
+        return row.attention == .error ? .red : SessionRowView.attention
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
-            StateGlyph(state: row.state, attention: row.attention)
+        HStack(spacing: SidebarMetrics.inset) {
+            ProjectIcon(name: row.name, colorKey: projectColorKey(row.repo), halo: row.state == .running, mark: mark)
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 // two lines before the ellipsis: a title is a sentence, and the number no longer takes room from it
                 Text(row.title ?? row.name).font(SidebarMetrics.item).lineLimit(2)
-                StateAndRepo {
-                    // the number comes first so that, when the state is long, the tail is what gets cut
-                    Text("\(Text("#\(row.issue) · ").foregroundStyle(.secondary))\(Text(row.detail).foregroundStyle(row.attention?.color ?? .secondary))")
-                        .font(SidebarMetrics.detail).monospacedDigit().lineLimit(1).truncationMode(.tail)
-                    if let repo = row.repoLabel {
-                        HStack(spacing: 3) {
-                            GitHubMark.image.renderingMode(.template).resizable().scaledToFit().frame(width: 12, height: 12)
-                            Text(repo).lineLimit(1).truncationMode(.tail)
-                        }
-                        .font(SidebarMetrics.detail)
-                    }
-                }
+                Text("#\(row.issue) · \(row.detail)").font(SidebarMetrics.detail).monospacedDigit().foregroundStyle(detailColor)
+                    .lineLimit(1).truncationMode(.tail).frame(height: Self.detailLine, alignment: .leading)
             }
+            Spacer(minLength: 4)
+            Text(row.age).font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary).lineLimit(1)
+                .frame(height: Self.titleLine).frame(maxHeight: .infinity, alignment: .top)
         }
         .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.itemPadding)
-        .help(row.tooltip)
-    }
-}
-
-/// The state on the left and, when there is one, the repository on the right. The state keeps what it needs; the repository takes
-/// at most half of the line and gives way first.
-private struct StateAndRepo: Layout {
-    /// The least space between the state and the repository.
-    static let gap: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let sizes = subviews.map { $0.sizeThatFits(.unspecified) }
-        return CGSize(width: proposal.width ?? sizes.map(\.width).reduce(0, +), height: sizes.map(\.height).max() ?? 0)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        guard let state = subviews.first else { return }
-        let stateWidth = min(state.sizeThatFits(.unspecified).width, bounds.width)
-        state.place(at: bounds.origin, proposal: ProposedViewSize(width: stateWidth, height: bounds.height))
-        guard subviews.count > 1 else { return }
-        let repo = subviews[1]
-        let repoWidth = max(0, min(repo.sizeThatFits(.unspecified).width, bounds.width / 2, bounds.width - stateWidth - Self.gap))
-        repo.place(
-            at: CGPoint(x: bounds.maxX - repoWidth, y: bounds.minY), proposal: ProposedViewSize(width: repoWidth, height: bounds.height)
-        )
+        .hoverCard { EpicCardView(card: row.card) }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(([row.title ?? row.name, row.state.label, row.detail] + (row.age.isEmpty ? [] : [row.age])).joined(separator: ", "))
     }
 }
 

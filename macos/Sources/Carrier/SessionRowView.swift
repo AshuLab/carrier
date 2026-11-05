@@ -35,7 +35,10 @@ struct SessionRowView: View {
 
     var body: some View {
         HStack(spacing: SidebarMetrics.inset) {
-            ProjectAvatar(row: row)
+            ProjectIcon(
+                name: row.workspace, colorKey: projectColorKey(row.base), halo: row.state == .working,
+                mark: row.state == .waiting ? .init(text: "!", color: .orange) : nil
+            )
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 Text(row.title).font(SidebarMetrics.item).fontWeight(row.state == .waiting ? .medium : .regular)
                     .lineLimit(1).truncationMode(.tail).frame(height: Self.titleLine, alignment: .leading)
@@ -67,10 +70,21 @@ struct SessionRowView: View {
     }
 }
 
-/// The project's icon: its initials in white on a colour that is the same every time (from its folder), in a rounded square. The state
-/// is on it: a halo that breathes around it while the agent works and an orange mark on its corner while it waits for the person.
-struct ProjectAvatar: View {
-    let row: SessionRow
+/// The project's icon: its initials in white on a colour that is the same every time (from its name, so a session's folder and an epic's
+/// repository that are one project look alike), in a rounded square. The state is on it: a halo that breathes around it while an agent works
+/// and a mark on its corner when there is something to say.
+struct ProjectIcon: View {
+    /// A mark on the corner: a letter or symbol on a disc.
+    struct Mark: Equatable {
+        var text: String
+        var color: Color
+    }
+
+    let name: String
+    /// What the colour is made from: `projectColorKey` of the folder or the repository.
+    let colorKey: String
+    var halo = false
+    var mark: Mark?
     static let size: CGFloat = 32
     static let radius: CGFloat = 9
     /// Mid tones, each at least 4.5:1 against the white of the letters.
@@ -82,14 +96,14 @@ struct ProjectAvatar: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
-            .fill(Self.palette[projectColorIndex(row.base, count: Self.palette.count)])
+            .fill(Self.palette[projectColorIndex(colorKey, count: Self.palette.count)])
             .frame(width: Self.size, height: Self.size)
-            .overlay { Text(projectInitials(row.workspace)).font(.system(size: 12, weight: .semibold)).tracking(0.3).foregroundStyle(.white) }
-            .overlay { if row.state == .working { SessionHalo() } }
+            .overlay { Text(projectInitials(name)).font(.system(size: 12, weight: .semibold)).tracking(0.3).foregroundStyle(.white) }
+            .overlay { if halo { SessionHalo() } }
             .overlay(alignment: .bottomTrailing) {
-                if row.state == .waiting {
-                    Text("!").font(.system(size: 10, weight: .heavy)).foregroundStyle(.white).frame(width: 15, height: 15)
-                        .background(Circle().fill(Color.orange))
+                if let mark {
+                    Text(mark.text).font(.system(size: 10, weight: .heavy)).foregroundStyle(.white).frame(width: 15, height: 15)
+                        .background(Circle().fill(mark.color))
                         .overlay(Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5))
                         .offset(x: 4, y: 4)
                 }
@@ -124,7 +138,7 @@ struct SessionHalo: NSViewRepresentable {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeNSView(context: Context) -> HaloHostView {
-        let view = HaloHostView(size: ProjectAvatar.size, radius: ProjectAvatar.radius)
+        let view = HaloHostView(size: ProjectIcon.size, radius: ProjectIcon.radius)
         view.reduceMotion = reduceMotion
         return view
     }
@@ -132,7 +146,7 @@ struct SessionHalo: NSViewRepresentable {
     func updateNSView(_ view: HaloHostView, context: Context) { view.reduceMotion = reduceMotion }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: HaloHostView, context: Context) -> CGSize? {
-        CGSize(width: ProjectAvatar.size, height: ProjectAvatar.size)
+        CGSize(width: ProjectIcon.size, height: ProjectIcon.size)
     }
 }
 

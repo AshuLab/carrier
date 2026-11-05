@@ -10,6 +10,12 @@ public func projectInitials(_ name: String) -> String {
     return letters.uppercased()
 }
 
+/// What a project's colour is made from: the last part of its folder or of `owner/name`, in lower case, so the folder of a session and
+/// the repository of an epic that are the same project have the same colour.
+public func projectColorKey(_ pathOrRepo: String) -> String {
+    (pathOrRepo.split(separator: "/").last.map(String.init) ?? pathOrRepo).lowercased()
+}
+
 /// Which of `count` colours a project has: the same one in every launch and for every session of it (`hashValue` is not, it changes
 /// at each launch). FNV-1a over the project's folder.
 public func projectColorIndex(_ folder: String, count: Int) -> Int {

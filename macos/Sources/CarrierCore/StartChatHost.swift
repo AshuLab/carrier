@@ -47,8 +47,6 @@ public struct ChatHostNotice: Equatable {
 public func chatHostNotice(missing: [String]) -> ChatHostNotice? {
     guard missing.isEmpty == false else { return nil }
     let names = missing.joined(separator: " and ")
-    return ChatHostNotice(
-        title: "The chat host cannot start",
-        line: "The app did not find \(names). Install it or set its path in Settings."
-    )
+    let how = missing.contains("carrier") ? "Run \(carrierInstallCommand.joined(separator: " ")) in Terminal." : "Install it."
+    return ChatHostNotice(title: "The chat host cannot start", line: "The app did not find \(names). \(how)")
 }

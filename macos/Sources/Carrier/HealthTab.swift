@@ -51,6 +51,8 @@ struct HealthTabView: View {
             runDoctor()
             await read()
         }
+        // back from Terminal, where `carrier` may have just been installed: it is looked for on the disk again
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await read() } }
     }
 
     /// Not awaited: the layer says it is running and the rest of the tab stays usable. The store ignores a run while one is running.

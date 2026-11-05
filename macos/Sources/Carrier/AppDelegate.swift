@@ -111,8 +111,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         StartController.shared.start()
     }
 
-    /// Coming back from Terminal, where the person may have just logged in, asks again.
-    func applicationDidBecomeActive(_ notification: Notification) { Task { @MainActor in await AppHealth.store.check(.active) } }
+    /// Coming back from Terminal, where the person may have just logged in or installed `carrier`, asks again. `carrier` is looked for on
+    /// the disk each time, so a host that could not start for lack of it starts now, without a restart.
+    func applicationDidBecomeActive(_ notification: Notification) {
+        if ChatHostStarter.shared.missing.isEmpty {
+            Task { @MainActor in await AppHealth.store.check(.active) }
+        } else {
+            ChatHostStarter.shared.checkAtOpen { _ in Task { @MainActor in await AppHealth.store.check(.active) } }
+        }
+    }
 
     // A menu bar app keeps running with no windows.
     func applicationShouldTerminateAfterLastWindowClosed(_ app: NSApplication) -> Bool { false }

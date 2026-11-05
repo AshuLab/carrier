@@ -16,16 +16,27 @@ export const chatAgent = z.strictObject({
 export const chatAgentName = /^[a-z][a-z0-9-]*$/;
 export type ChatAgent = z.infer<typeof chatAgent> & { name: string };
 
+/** Days of no activity before the session lifecycle acts (ADR 0019): a whole number, or `"never"` to turn that step off. */
+const days = z.union([z.int().positive(), z.literal('never')]);
+
 // The chat's own configuration level (ADR 0016): `<folder>/chat/chat.json`, every key optional, strict like the engine's config.
 const chatConfigSchema = z.strictObject({
   agents: z.record(z.string().regex(chatAgentName, 'a chat agent name is lowercase letters, digits and hyphens, starting with a letter'), chatAgent).optional(),
   projectsFolder: z.string().min(1).transform(expandHome).refine(isAbsolute, 'must be an absolute path, or start with ~/').optional(),
   githubCallTimeoutSeconds: z.int().positive().optional(),
   logLevel: z.enum(LogLevel).optional(),
+  /** A session left alone this long is archived (nothing reads the two ages yet). */
+  archiveAfterDays: days.default(15),
+  /** An archived session left alone this long is deleted, and it must be greater than `archiveAfterDays` when both are numbers. */
+  deleteAfterDays: days.default(30),
+}).refine((c) => typeof c.archiveAfterDays !== 'number' || typeof c.deleteAfterDays !== 'number' || c.deleteAfterDays > c.archiveAfterDays, {
+  path: ['deleteAfterDays'],
+  when: (payload) => payload.issues.length === 0, // a value already refused is not also reported against the other
+  error: 'must be greater than archiveAfterDays',
 });
 
 /** The chat's settings once the defaults are in. */
-export type ChatSettings = { agents: ChatAgent[]; projectsFolder: string; githubCallTimeoutSeconds: number; logLevel: LogLevel };
+export type ChatSettings = { agents: ChatAgent[]; projectsFolder: string; githubCallTimeoutSeconds: number; logLevel: LogLevel; archiveAfterDays: number | 'never'; deleteAfterDays: number | 'never' };
 export type ChatConfigError = { path: string; message: string };
 export type ChatConfigResult = { ok: true; settings: ChatSettings } | { ok: false; errors: ChatConfigError[] };
 
@@ -42,8 +53,8 @@ const defaultAgents = { claude: { harness: 'claude' }, codex: { harness: 'codex'
 export function loadChatConfig(user: unknown, folder = carrierHome()): ChatConfigResult {
   const parsed = chatConfigSchema.safeParse(user);
   if (parsed.success === false) return { ok: false, errors: parsed.error.issues.map((issue) => ({ path: issue.path.join('.') || '(root)', message: issue.message })) };
-  const { agents = defaultAgents, projectsFolder = join(chatDirOf(folder), 'projects'), githubCallTimeoutSeconds = 30, logLevel = LogLevel.INFO } = parsed.data;
-  return { ok: true, settings: { agents: Object.entries(agents).map(([name, agent]) => ({ name, ...agent })), projectsFolder, githubCallTimeoutSeconds, logLevel } };
+  const { agents = defaultAgents, projectsFolder = join(chatDirOf(folder), 'projects'), githubCallTimeoutSeconds = 30, logLevel = LogLevel.INFO, archiveAfterDays, deleteAfterDays } = parsed.data;
+  return { ok: true, settings: { agents: Object.entries(agents).map(([name, agent]) => ({ name, ...agent })), projectsFolder, githubCallTimeoutSeconds, logLevel, archiveAfterDays, deleteAfterDays } };
 }
 
 /** `chat.json` read and validated; a file that is not there is the defaults, one that cannot be read or does not match is an error naming the key. */

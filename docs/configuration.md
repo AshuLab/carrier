@@ -209,7 +209,9 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
   },
   "projectsFolder": "~/Projects/carrier",
   "githubCallTimeoutSeconds": 30,
-  "logLevel": "info"
+  "logLevel": "info",
+  "archiveAfterDays": 15,
+  "deleteAfterDays": 30
 }
 ```
 
@@ -219,6 +221,8 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
 | `projectsFolder` | `<folder>/chat/projects` | Where the host puts the repositories it clones (`<owner>/<repo>` inside it). An absolute path, or one starting with `~/`. It may not lie inside `<folder>/engine/` or the chat's own `state/`, `logs/` or `worktrees/`. Read at each request, so a change applies to the next clone with no restart. See [Projects folder](#projects-folder). |
 | `githubCallTimeoutSeconds` | `30` | A positive whole number: how long a call to GitHub (the repository list, the login) may take. Read when the host starts. |
 | `logLevel` | `info` | `debug`, `info`, `warn` or `error`. Read when the host starts. |
+| `archiveAfterDays` | `15` | Days of no activity after which a session is archived: a positive whole number, or `"never"`. A wrong value (`0`, a negative, a fraction, a text such as `"15"`, `null`) stops the host naming the key. Only loaded and checked for now; nothing archives by the clock yet. |
+| `deleteAfterDays` | `30` | Days of no activity after which an archived session is deleted: a positive whole number, or `"never"`. It must be greater than `archiveAfterDays` when both are numbers (the error is reported on `deleteAfterDays`); with `"never"` on either side there is no such rule. Same checks and same status as `archiveAfterDays`. See [ADR 0019](adr/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md). |
 
 A session never works inside `<folder>/engine/`, nor through a symlink into it. The engine's config has no `chat` section: it rejects one like any unknown key.
 

@@ -424,6 +424,58 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     #expect(host.calls == ["open claude /w/api", "open claude /w/api"])
 }
 
+@MainActor @Test func pickingAnotherBranchSaysTheFolderBranchWillChangeAndSendsItInThePlan() async {
+    let host = FakeChat()
+    host.workspaces["/w/clean"] = WorkspaceInfo(folder: "/w/clean", branch: "main", dirty: 0, branches: [.init(name: "main", remote: false), .init(name: "feat/x", remote: false)])
+    let model = await draft(host)
+    await model.choose(folder: "/w/clean")
+    // nothing picked, or the checked-out branch picked: the folder keeps its branch and says nothing
+    #expect(model.branchNote == nil && model.branchChange == nil)
+    model.choose(startBranch: "main")
+    #expect(model.branchNote == nil)
+    model.choose(startBranch: "feat/x")
+    #expect(model.branchNote == "The branch of the folder will change from main to feat/x when the message is sent.")
+    #expect(model.warning == nil)
+    model.text = "go"
+    #expect(await model.send() == opened)
+    #expect(host.plans.map(\.branch) == ["feat/x"] && host.plans.map(\.worktree) == [nil])
+}
+
+@MainActor @Test func aFolderWithUncommittedChangesWarnsThatTheBranchChangeWillFailAndSendingIsStillAllowed() async {
+    let host = FakeChat()
+    host.workspaces["/w/dirty"] = WorkspaceInfo(folder: "/w/dirty", branch: "main", dirty: 2, branches: [.init(name: "main", remote: false), .init(name: "feat/x", remote: false)])
+    let model = await draft(host)
+    await model.choose(folder: "/w/dirty")
+    // no change picked: the worktree way out is offered
+    #expect(model.warning == "2 uncommitted files in the folder. A worktree keeps them out of the agent's way.")
+    model.choose(startBranch: "feat/x")
+    #expect(model.branchNote == "The branch of the folder will change from main to feat/x when the message is sent.")
+    #expect(model.warning == "2 uncommitted files in the folder, so changing its branch will fail and it keeps the branch it is on. Save the work first, or use a worktree.")
+    model.text = "go"
+    #expect(model.canSend)
+    // a worktree is cut from the pick and changes no folder: no branch change, and the pick is the worktree's start
+    await model.useWorktree(true)
+    #expect(model.branchNote == nil && model.warning == nil)
+    model.worktreeName = "my-fix"
+    #expect(await model.send() == opened)
+    #expect(host.plans.map(\.branch) == [nil] && host.plans.map(\.worktree) == [WorktreeRequest(from: "feat/x", name: "my-fix")])
+}
+
+@Test func thePlanPutsTheBranchOnTheWireWithNoWorktree() async throws {
+    var lines: [String] = []
+    let server = TestServer { connection in
+        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":1,\"startedAt\":0,\"version\":\"x\",\"capabilities\":[\"plan\"]}\n")
+        guard let line = connection.readLine(), let id = (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["id"] as? Int else { return }
+        lines.append(line)
+        connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"session\":{\"id\":\"\(opened)\"},\"options\":[]}}\n")
+    }
+    defer { server.stop() }
+    _ = try await SocketChatHost(socketPath: { server.path }).open(plan: SessionPlan(agent: "claude", folder: "/w/api", branch: "feat/x", text: "hi"))
+    let sent = try #require(lines.first.flatMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] })
+    let wired = try #require(sent["plan"] as? [String: Any])
+    #expect(wired["branch"] as? String == "feat/x" && wired["worktree"] == nil)
+}
+
 @MainActor @Test func aRefusedWorktreeIsSaidInTheDraftAndKeepsTheMessageAndTheChoice() async {
     let host = FakeChat()
     host.refuse["open"] = ControlError.remote("A folder for that worktree already exists")

@@ -530,8 +530,26 @@ public enum WorkspaceStep: Equatable {
         return workSentence(folder: folder, workspace: workspace, worktree: worktree ? (worktreeName, startBranch) : nil, gitMissing: gitMissing)
     }
 
-    /// The line under the sentence: the uncommitted files of the base folder, which a worktree would keep out of the agent's way.
-    public var warning: String? { worktree || gitMissing ? nil : workspace.flatMap(uncommittedWarning) }
+    /// The branch the folder will be switched to when the message is sent: the person picked one other than the checked-out one and
+    /// asked for no worktree (a worktree is cut from the pick and changes no folder). Nil when the folder keeps its branch.
+    public var branchChange: (from: String, to: String)? {
+        guard worktree == false, gitMissing == false, let workspace, workspace.git, workspace.bare == false, let to = picked, to != workspace.branch else { return nil }
+        return (workspace.branch ?? "detached HEAD", to)
+    }
+
+    /// The line that says beforehand that the folder's branch will change.
+    public var branchNote: String? {
+        branchChange.map { "The branch of the folder will change from \($0.from) to \($0.to) when the message is sent." }
+    }
+
+    /// The line under the sentence: the uncommitted files of the base folder, which a worktree would keep out of the agent's way; when the
+    /// branch is to change, that this step will fail (sending is still allowed).
+    public var warning: String? {
+        guard worktree == false, gitMissing == false, let workspace else { return nil }
+        guard branchChange != nil else { return uncommittedWarning(workspace) }
+        guard workspace.dirty > 0 else { return nil }
+        return "\(workspace.dirty) uncommitted \(workspace.dirty == 1 ? "file" : "files") in the folder, so changing its branch will fail and it keeps the branch it is on. Save the work first, or use a worktree."
+    }
 
     /// What the host last said of `gh`; nil while it has not said (an older host, or none yet).
     public var ghState: ToolState? { health?.latest?.gh }
@@ -633,7 +651,7 @@ public enum WorkspaceStep: Equatable {
         guard hostOlder == false else { return nil }
         let id: String
         do {
-            id = try await host.open(plan: SessionPlan(agent: agent, folder: folder, worktree: worktreeRequest, options: chosenOptions, text: message))
+            id = try await host.open(plan: SessionPlan(agent: agent, folder: folder, branch: branchChange?.to, worktree: worktreeRequest, options: chosenOptions, text: message))
         } catch {
             refusal = report(error, "open the session")
             return nil

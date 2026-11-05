@@ -376,17 +376,20 @@ private func jsonString(_ text: String) -> String { String(decoding: (try? JSONE
 
 /// The reply of `open`: only the new session's id is read.
 /// What a new session is before it exists (docs/adr/0018): where it works, the agent and the options the person chose (an id and a value each,
-/// as `agentOptions` listed them), the first message and, for a worktree, the branch it starts from and its name.
+/// as `agentOptions` listed them), the first message and the branch to check out, or for a worktree the branch it starts from and its name.
 public struct SessionPlan: Equatable {
     public let agent: String
     public let folder: String
+    /// The branch to check out in the folder, when the person picked one other than the checked-out one and asked for no worktree.
+    public let branch: String?
     public let worktree: WorktreeRequest?
     public let options: [String: String]
     public let text: String
 
-    public init(agent: String, folder: String, worktree: WorktreeRequest? = nil, options: [String: String] = [:], text: String) {
+    public init(agent: String, folder: String, branch: String? = nil, worktree: WorktreeRequest? = nil, options: [String: String] = [:], text: String) {
         self.agent = agent
         self.folder = folder
+        self.branch = branch
         self.worktree = worktree
         self.options = options
         self.text = text
@@ -398,10 +401,9 @@ public struct SessionPlan: Equatable {
             "\"workspace\":{\"kind\":\"folder\",\"folder\":\(jsonString(folder))}", "\"agent\":\(jsonString(agent))", "\"text\":\(jsonString(text))",
         ]
         if options.isEmpty == false { fields.append("\"options\":{" + options.sorted { $0.key < $1.key }.map { "\(jsonString($0.key)):\(jsonString($0.value))" }.joined(separator: ",") + "}") }
-        if let worktree {
-            fields.append("\"branch\":\(jsonString(worktree.from))")
-            fields.append("\"worktree\":{" + (worktree.name.map { "\"name\":\(jsonString($0))" } ?? "") + "}")
-        }
+        // a worktree is cut from the branch, so the one field serves both
+        if let branch = worktree?.from ?? branch { fields.append("\"branch\":\(jsonString(branch))") }
+        if let worktree { fields.append("\"worktree\":{" + (worktree.name.map { "\"name\":\(jsonString($0))" } ?? "") + "}") }
         return "{" + fields.joined(separator: ",") + "}"
     }
 }

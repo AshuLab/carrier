@@ -659,6 +659,7 @@ const archivedIds = async () => {
 test('the host archives at its start what is due, and again after an hour of its clock, with a client connected', async () => {
   const clock = new FakeClock();
   const id = await leaveIdleSession(clock);
+  writeFileSync(join(root, 'chat', 'chat.json'), '{"deleteAfterDays":1000}'); // this test is about archiving
   clock.time = 40 * DAY; // the host was off for 40 days
   const first = await host(clock);
   expect(await archivedIds()).toEqual([id]);
@@ -689,4 +690,15 @@ test('the pass reads chat.json each time: a change is used by the next pass and 
   await clock.advance(60 * 60_000);
   expect(await archivedIds()).toEqual([id]);
   errors.mockRestore();
+});
+
+test('the host deletes at its start what is due for deletion, and again after an hour of its clock', async () => {
+  const clock = new FakeClock();
+  const first = await leaveIdleSession(clock);
+  clock.time = 30 * DAY - 60_000; // a minute short of 30 days at the host's start
+  await host(clock);
+  expect(await archivedIds()).toEqual([first]);
+  await clock.advance(60 * 60_000);
+  expect(await archivedIds()).toEqual([]);
+  expect(sessionRows()).toEqual([]);
 });

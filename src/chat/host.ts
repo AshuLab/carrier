@@ -79,7 +79,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
   const clockPass = async () => {
     try {
       const current = readChatConfig();
-      if (current.ok) sessions.archiveIdle(current.settings);
+      if (current.ok) await sessions.applyClock(current.settings);
       else log.error('the session lifecycle pass was skipped', new Error(chatConfigProblem(carrierHome(), current.errors)));
     } catch (error) {
       log.error('the session lifecycle pass failed', error);

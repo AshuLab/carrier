@@ -106,7 +106,7 @@ private let homebrew = "/opt/homebrew/bin/carrier"
     }
     #expect(item() == ("Start Carrier", true))
     #expect(item(starting: true).enabled == false)
-    #expect(item(.incompatible).enabled == false)
+    #expect(item(.incompatible(update: nil)).enabled == false)
     #expect(item(missing: ["carrier"]) == ("Start Carrier (missing: carrier)", false))
     #expect(item(configExists: false) == ("Start Carrier (engine not configured)", false))
     #expect(item(missing: ["node"], configExists: false).enabled == false)
@@ -126,7 +126,7 @@ private let homebrew = "/opt/homebrew/bin/carrier"
     #expect(decide())
     #expect(decide(enabled: false) == false)
     #expect(decide(first: running) == false)
-    #expect(decide(first: .incompatible) == false)
+    #expect(decide(first: .incompatible(update: nil)) == false)
     #expect(decide(ready: false) == false)
     #expect(decide(fixture: true) == false)
     #expect(decide(tried: true) == false)

@@ -14,7 +14,7 @@ private func running() throws -> ConnectionState {
 }
 
 @Test func aStoppedCarrierGetsAPlainSave() {
-    for state in [ConnectionState.stopped, .incompatible, nil] {
+    for state in [ConnectionState.stopped, .incompatible(update: nil), nil] {
         let stopped = footer(state)
         #expect(stopped.offersRestart == false && stopped.canSave && stopped.canRestart == false)
         #expect(stopped.message == "Carrier is stopped.")

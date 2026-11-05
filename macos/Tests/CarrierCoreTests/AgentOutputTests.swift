@@ -131,6 +131,19 @@ private let hello = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\
     #expect(received == 0)
 }
 
+@Test func aCarrierOfAnotherProtocolMeansNoTailClientAndNothingIsSent() {
+    for version in [0, 2] {
+        var asked = false
+        let server = TestServer { connection in
+            connection.send("{\"event\":\"hello\",\"protocol\":\(version),\"pid\":42,\"startedAt\":1000}\n")
+            asked = connection.readRequestId() != nil
+        }
+        defer { server.stop() }
+        #expect(connectForTail(socketPath: server.path) == nil)
+        #expect(asked == false)
+    }
+}
+
 @Test func noCarrierMeansNoTailClient() {
     #expect(connectForTail(socketPath: "/tmp/cc-missing-\(UUID().uuidString.prefix(8)).sock") == nil)
 }

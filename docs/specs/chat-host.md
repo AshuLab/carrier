@@ -43,7 +43,7 @@ Text is redacted first and then cut, as in [0006](../adr/0006-agent-events-store
 ```ts
 // requests, all strict objects with a positive integer id
 { cmd: 'agents' }                                          // the configured agents and their binaries
-{ cmd: 'list'; archived?: boolean }
+{ cmd: 'list'; archived?: boolean }                        // each row also says `kept` (spared by the lifecycle clock for unsaved work) and `deleteAt` (ms the clock deletes it; null unless archived, with both ages set and not kept)
 { cmd: 'open'; agent: string; folder: string; options?: Record<string, string> }
 { cmd: 'resume'; sessionId: string }
 { cmd: 'send'; sessionId: string; text: string; command?: string }   // `command` is the id of one the session lists; `text` is then what follows its name and may be empty

@@ -28,7 +28,7 @@ struct ArchiveView: View {
                         ForEach(page.groups, id: \.title) { group in
                             if searched == false { groupHeader(group) }
                             ForEach(group.rows, id: \.id) { row in
-                                ArchiveRow(row: row, open: { select(row.id) }, resume: { resume(row) }, delete: { delete(row) })
+                                ArchiveRow(row: row, note: page.notes[row.id], open: { select(row.id) }, resume: { resume(row) }, delete: { delete(row) })
                             }
                         }
                     }
@@ -157,9 +157,11 @@ private extension ArchiveSort {
     }
 }
 
-/// An archived session: title with its workspace, the agent and the age; on hover, Open, Resume and Delete.
+/// An archived session: title with its workspace, the agent, when it will be deleted and the age; on hover, Open, Resume and Delete.
 private struct ArchiveRow: View {
     let row: SessionRow
+    /// When the clock deletes the session, or why it is still there (`archiveNote`).
+    let note: String?
     let open: () -> Void
     let resume: () -> Void
     let delete: () -> Void
@@ -188,6 +190,7 @@ private struct ArchiveRow: View {
                             if let branch = row.branch { Text(branch).foregroundStyle(.blue) }
                         }
                         .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        if let note { Text(note).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
                     }
                     Spacer(minLength: 8)
                 }

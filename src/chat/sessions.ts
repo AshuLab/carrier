@@ -63,6 +63,8 @@ export type ChatSessionsDeps = {
   binaryFound: (command: string) => boolean;
   /** What the `health` request runs; the machine's own tools unless a test replaces it. */
   probes?: HealthProbes;
+  /** The lifecycle's ages now: `list` says from them when the clock will delete each archived session. */
+  ages: () => SessionAges;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
   onLiveChange: () => void;
 };
@@ -85,7 +87,7 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, binaryFound, probes = realProbes, onLiveChange }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, binaryFound, probes = realProbes, ages, onLiveChange }: ChatSessionsDeps) {
   const health = createHealth({ agents, clock, binaryFound, probes });
   const lives = new Map<string, Live>();
   // Sessions being deleted: no agent may open in their folder while it is removed.
@@ -247,9 +249,18 @@ export function createSessions({ db, agents, clock, runners, env, git, binaryFou
 
     health,
 
-    list: ({ archived = false }: { archived?: boolean }) => ({
-      sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => ({ ...summary(found), live: lives.has(found.id) })),
-    }),
+    /** The rows, each with `kept` (spared by the clock for unsaved work) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
+    list: ({ archived = false }: { archived?: boolean }) => {
+      const { archiveAfterDays, deleteAfterDays } = ages();
+      return {
+        sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => ({
+          ...summary(found),
+          live: lives.has(found.id),
+          kept: found.keptAt !== null,
+          deleteAt: found.archived && found.keptAt === null && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? found.lastActiveAt + deleteAfterDays * DAY : null,
+        })),
+      };
+    },
 
     async open({ agent, folder, options, worktree }: { agent: string; folder: string; options?: Record<string, string>; worktree?: { from: string; name?: string } }) {
       const chosen = agents.find((candidate) => candidate.name === agent);

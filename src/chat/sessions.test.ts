@@ -35,7 +35,7 @@ function setup(chat?: { agents: Record<string, Omit<ChatAgent, 'name'>> }, extra
   const clock = new FakeClock();
   const claude = new FakeChatRunner();
   const onLiveChange = vi.fn();
-  const sessions = createSessions({ db, agents, clock, runners: { claude }, env: { SOME: 'env' }, git: new FakeGit(), binaryFound: (command) => command === 'claude', onLiveChange, ...extra });
+  const sessions = createSessions({ db, agents, clock, runners: { claude }, env: { SOME: 'env' }, git: new FakeGit(), binaryFound: (command) => command === 'claude', ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange, ...extra });
   return { db, clock, claude, sessions, onLiveChange };
 }
 async function openOne(s = setup()) {
@@ -887,4 +887,31 @@ test('the health reply carries only the states, whatever the probes could say', 
   const reply = await setup(undefined, { probes, ...allFound }).sessions.health({});
   expect(JSON.stringify(reply)).not.toMatch(/example|acme|ghp_/);
   expect(Object.keys(reply).sort()).toEqual(['agents', 'gh', 'git']);
+});
+
+test('list says when the clock deletes an archived session: lastActiveAt plus deleteAfterDays, and nothing for one not archived or kept', async () => {
+  const s = worktreeSetup();
+  const kept = await s.inWorktree('kept', { status: [' M a.ts'] });
+  s.clock.time = 10 * DAY;
+  const due = await s.inWorktree('due');
+  await s.sessions.archive({ sessionId: due.id, archived: true });
+  s.clock.time = 20 * DAY;
+  const active = await s.inWorktree('active');
+  s.clock.time = 30 * DAY;
+  await s.sessions.applyClock(clockAges()); // archives and spares `kept`; `due` has been idle 20 days and `active` 10
+  const listed = (archived: boolean) => Object.fromEntries(s.sessions.list({ archived }).sessions.map((x) => [x.id, x]));
+  expect(listed(false)[active.id]).toMatchObject({ kept: false, deleteAt: null });
+  expect(listed(true)[due.id]).toMatchObject({ kept: false, deleteAt: 40 * DAY });
+  expect(listed(true)[kept.id]).toMatchObject({ kept: true, deleteAt: null });
+  await s.sessions.archive({ sessionId: kept.id, archived: false });
+  expect(listed(false)[kept.id]).toMatchObject({ kept: false, deleteAt: null });
+});
+
+test.each([
+  [{ archiveAfterDays: 'never', deleteAfterDays: 30 }],
+  [{ archiveAfterDays: 15, deleteAfterDays: 'never' }],
+] as const)('list gives no deleteAt for an archived session when an age is never (%j)', async (ages) => {
+  const s = await openOne(setup(undefined, { ages: () => ages }));
+  await s.sessions.archive({ sessionId: s.id, archived: true });
+  expect(s.sessions.list({ archived: true }).sessions[0]).toMatchObject({ kept: false, deleteAt: null });
 });

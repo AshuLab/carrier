@@ -65,6 +65,9 @@ test.each([
   ['has an unknown key', '{"root":"/x"}', '(root)'],
   ['has a text where a number goes', '{"githubCallTimeoutSeconds":"30"}', 'githubCallTimeoutSeconds'],
   ['has a non-positive timeout', '{"githubCallTimeoutSeconds":0}', 'githubCallTimeoutSeconds'],
+  ['has a session age of zero', '{"archiveAfterDays":0}', 'archiveAfterDays'],
+  ['has a session age as a text', '{"deleteAfterDays":"30"}', 'deleteAfterDays'],
+  ['has a delete age not above the archive age', '{"archiveAfterDays":30,"deleteAfterDays":30}', 'deleteAfterDays'],
   ['has a relative projects folder', '{"projectsFolder":"projects"}', 'projectsFolder'],
   ['has an empty projects folder', '{"projectsFolder":""}', 'projectsFolder'],
 ])('a chat.json that %s stops the host with a message naming the file and the key, and no socket is made', async (_name, text, key) => {

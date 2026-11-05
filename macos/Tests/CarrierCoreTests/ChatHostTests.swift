@@ -36,7 +36,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }
     let client = try #require(ControlClient.connect(path: server.chatSocketPath))
-    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos])
+    #expect(try client.hello().capabilities == [.agents, .list, .open, .send, .events, .answer, .setOption, .archive, .delete, .deletePreview, .workspace, .fetch, .suggestName, .checkName, .cloneRepo, .createProject, .githubRepos, .plan])
 }
 
 @Test func theFixtureHostAnswersAnythingElseWithAnError() throws {
@@ -178,4 +178,39 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     defer { server.stop() }
     await #expect(throws: ControlError.remote("the chat host does not support health")) { try await SocketChatHost(socketPath: { server.path }).health(refresh: false) }
     #expect(asked == false)
+}
+
+// MARK: the preparation of a session
+
+@Test func theEventsReplyCarriesStepEventsThePreparationAndTheProgress() throws {
+    let json = """
+    {"events":[{"id":1,"at":5,"kind":"step","step":"clone","status":"failed","detail":"Could not reach github.com"}],"cursor":1,"streaming":"",
+     "session":{"state":"preparing","preparation":"running"},"approvals":[],"options":[],"commands":[],"progress":"Receiving objects: 45%"}
+    """
+    let reply = try JSONDecoder().decode(ChatEvents.self, from: Data(json.utf8))
+    #expect(reply.events.first?.step == "clone" && reply.events.first?.status == "failed" && reply.events.first?.detail == "Could not reach github.com")
+    #expect(reply.state == .preparing && reply.preparation == .running && reply.progress == "Receiving objects: 45%")
+}
+
+@Test func aHostThatLeavesTheNewFieldsOutOrSaysNullStillDecodes() throws {
+    let bare = #"{"events":[],"cursor":0,"streaming":"","session":{"state":"idle"}}"#
+    let reply = try JSONDecoder().decode(ChatEvents.self, from: Data(bare.utf8))
+    #expect(reply.preparation == nil && reply.progress == nil)
+    let nulls = #"{"events":[],"cursor":0,"streaming":"","session":{"state":"idle","preparation":null},"progress":null}"#
+    let withNulls = try JSONDecoder().decode(ChatEvents.self, from: Data(nulls.utf8))
+    #expect(withNulls.preparation == nil && withNulls.progress == nil)
+    // a preparation this app does not know is none, not a failure to read the reply
+    let newer = #"{"events":[],"cursor":0,"streaming":"","session":{"state":"idle","preparation":"queued"}}"#
+    #expect(try JSONDecoder().decode(ChatEvents.self, from: Data(newer.utf8)).preparation == nil)
+}
+
+@Test func aSessionInTheListCarriesItsPreparationOrNone() throws {
+    func decode(_ extra: String) throws -> ChatSession {
+        let json = #"{"id":"a","agent":"claude","harness":"claude","folder":"/w","title":"t","state":"\#(extra)","createdAt":1,"lastActiveAt":2,"archived":false,"live":false}"#
+        return try JSONDecoder().decode(ChatSession.self, from: Data(json.utf8))
+    }
+    let preparing = try decode(#"preparing","preparation":"running"#)
+    #expect(preparing.state == .preparing && preparing.preparation == .running)
+    #expect(try decode(#"idle","preparation":"failed"#).preparation == .failed)
+    #expect(try decode("idle").preparation == nil)
 }

@@ -20,7 +20,9 @@ public struct ChatAgent: Decodable, Equatable {
 
 /// A session as the host's `list` carries it: times are milliseconds since the epoch.
 public struct ChatSession: Decodable, Equatable {
-    public enum State: String, Decodable { case working, waitingApproval = "waiting_approval", idle }
+    public enum State: String, Decodable { case working, waitingApproval = "waiting_approval", idle, preparing }
+    /// Whether the host is preparing the session from its plan, or a step failed; nil for a session that is not (or a host that does not say).
+    public enum Preparation: String, Decodable { case running, failed }
 
     public let id: String
     public let agent: String
@@ -36,13 +38,14 @@ public struct ChatSession: Decodable, Equatable {
     public let workspace: Workspace?
     /// Whether the session's agent process runs: a closed one is resumed before a message is sent to it.
     public let live: Bool
+    public let preparation: Preparation?
 
     public struct Workspace: Decodable, Equatable {
         public let base: String
         public let branch: String?
     }
 
-    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live }
+    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation }
     private struct Kind: Decodable {
         let kind: String
         let base: String?
@@ -61,6 +64,8 @@ public struct ChatSession: Decodable, Equatable {
         lastActiveAt = try values.decode(Int.self, forKey: .lastActiveAt)
         archived = try values.decode(Bool.self, forKey: .archived)
         live = try values.decode(Bool.self, forKey: .live)
+        // a value this app does not know is no preparation, as a host that leaves the field out
+        preparation = (try? values.decodeIfPresent(Preparation.self, forKey: .preparation)) ?? nil
         let placed = try values.decodeIfPresent(Kind.self, forKey: .workspace)
         guard let placed, placed.kind == "worktree" else { workspace = nil; return }
         guard let base = placed.base else { throw DecodingError.keyNotFound(CodingKeys.workspace, .init(codingPath: decoder.codingPath, debugDescription: "a worktree without its base folder")) }
@@ -125,14 +130,10 @@ public struct GithubReposPage: Decodable, Equatable {
 public protocol ChatHost {
     func agents() async throws -> [ChatAgent]
     func list(archived: Bool) async throws -> [ChatSession]
-    /// Creates a session with the agent in the folder (the agent's configured `options` apply on the host's side) and returns its id;
-    /// with a `worktree` it works in a new worktree of the folder instead. The host refuses a folder inside Carrier's own folders, a
-    /// provider that is not logged in, and a worktree request for a folder that is not a git repository, a branch it did not list
-    /// and a name that is invalid or taken.
-    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String
-    /// `open` with the options the person chose before the session existed (an id and a value each, as `agentOptions` listed them); the host
-    /// refuses a value the provider does not list.
-    func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String
+    /// Creates a session from the plan, in one request that carries the first message, and returns its id at once: the host prepares it in
+    /// the background (the `step` events of its conversation say how far). Only for a host whose hello lists `plan`. The host refuses a
+    /// folder inside Carrier's own folders, a provider that is not logged in, and a message over its limit.
+    func open(plan: SessionPlan) async throws -> String
     /// What an agent offers (its options with the values it would start with, and the commands to invoke) before a session exists; the host
     /// starts the agent to know, and keeps the answer.
     func agentOptions(_ agent: String) async throws -> AgentOffer
@@ -185,11 +186,6 @@ public protocol ChatHost {
 }
 
 extension ChatHost {
-    /// A host that knows nothing of options at open: the options are left out.
-    public func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String {
-        try await open(agent: agent, folder: folder, worktree: worktree)
-    }
-
     /// A host that cannot list an agent's options before a session says it lists none.
     public func agentOptions(_ agent: String) async throws -> AgentOffer { AgentOffer() }
 
@@ -218,18 +214,10 @@ public struct SocketChatHost: ChatHost {
         return reply.sessions
     }
 
-    public func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String {
-        try await open(agent: agent, folder: folder, worktree: worktree, options: [:])
-    }
-
-    public func open(agent: String, folder: String, worktree: WorktreeRequest?, options: [String: String]) async throws -> String {
-        let placed = worktree.map { request in
-            ",\"worktree\":{\"from\":\(jsonString(request.from))" + (request.name.map { ",\"name\":\(jsonString($0))" } ?? "") + "}"
-        } ?? ""
-        let chosen = options.isEmpty ? "" : ",\"options\":{" + options.sorted { $0.key < $1.key }.map { "\(jsonString($0.key)):\(jsonString($0.value))" }.joined(separator: ",") + "}"
-        let fields = ",\"agent\":\(jsonString(agent)),\"folder\":\(jsonString(folder))" + placed + chosen
+    public func open(plan: SessionPlan) async throws -> String {
+        let fields = ",\"plan\":" + plan.wire
         let path = socketPath()
-        let reply: OpenedReply = try await Task.detached { try chatRequest(path, "open", requires: .open, fields: fields) }.value
+        let reply: OpenedReply = try await Task.detached { try chatRequest(path, "open", requires: .plan, fields: fields) }.value
         return reply.session.id
     }
 
@@ -387,6 +375,37 @@ private func wireId(_ id: String) throws -> String {
 private func jsonString(_ text: String) -> String { String(decoding: (try? JSONEncoder().encode(text)) ?? Data("\"\"".utf8), as: UTF8.self) }
 
 /// The reply of `open`: only the new session's id is read.
+/// What a new session is before it exists (docs/adr/0018): where it works, the agent and the options the person chose (an id and a value each,
+/// as `agentOptions` listed them), the first message and, for a worktree, the branch it starts from and its name.
+public struct SessionPlan: Equatable {
+    public let agent: String
+    public let folder: String
+    public let worktree: WorktreeRequest?
+    public let options: [String: String]
+    public let text: String
+
+    public init(agent: String, folder: String, worktree: WorktreeRequest? = nil, options: [String: String] = [:], text: String) {
+        self.agent = agent
+        self.folder = folder
+        self.worktree = worktree
+        self.options = options
+        self.text = text
+    }
+
+    /// The plan as the host's request takes it; every string goes on the wire JSON-encoded.
+    var wire: String {
+        var fields = [
+            "\"workspace\":{\"kind\":\"folder\",\"folder\":\(jsonString(folder))}", "\"agent\":\(jsonString(agent))", "\"text\":\(jsonString(text))",
+        ]
+        if options.isEmpty == false { fields.append("\"options\":{" + options.sorted { $0.key < $1.key }.map { "\(jsonString($0.key)):\(jsonString($0.value))" }.joined(separator: ",") + "}") }
+        if let worktree {
+            fields.append("\"branch\":\(jsonString(worktree.from))")
+            fields.append("\"worktree\":{" + (worktree.name.map { "\"name\":\(jsonString($0))" } ?? "") + "}")
+        }
+        return "{" + fields.joined(separator: ",") + "}"
+    }
+}
+
 /// What an agent offers before a session exists.
 public struct AgentOffer: Decodable, Equatable {
     public let options: [ChatOption]
@@ -406,6 +425,7 @@ public struct AgentOffer: Decodable, Equatable {
     }
 }
 
+/// The reply of `open`: only the new session's id is read.
 private struct OpenedReply: Decodable {
     struct Session: Decodable { let id: String }
     let session: Session

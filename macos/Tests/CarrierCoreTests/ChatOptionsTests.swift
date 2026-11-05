@@ -63,7 +63,7 @@ private final class OptionsHost: ChatHost, @unchecked Sendable {
     var sent: [(text: String, command: String?)] = []
 
     func agents() async throws -> [ChatAgent] { [] }
-    func open(agent: String, folder: String, worktree: WorktreeRequest?) async throws -> String { "" }
+    func open(plan: SessionPlan) async throws -> String { "" }
     func workspace(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
     func fetch(_ folder: String) async throws -> WorkspaceInfo { WorkspaceInfo(folder: folder, git: false) }
     func suggestName(_ folder: String) async throws -> String { "" }

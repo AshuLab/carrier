@@ -53,7 +53,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict></plist>
 PLIST
 # the icons and their licence must be in the app: every icon of the source folder, and the upstream MIT text
-ICONS="$APP/Contents/Resources/Carrier_CarrierCore.bundle/Contents/Resources/FileIcons"
+# (the bundle's layout depends on the toolchain: Swift 6.4 nests Contents/Resources, 6.3 does not)
+ICONS="$(find "$APP/Contents/Resources/Carrier_CarrierCore.bundle" -type d -name FileIcons | head -n 1)"
+[ -n "$ICONS" ] || { echo "error: $APP has no FileIcons folder; its bundle holds:" >&2; find "$APP/Contents/Resources/Carrier_CarrierCore.bundle" -maxdepth 3 >&2; exit 1; }
 for svg in Sources/CarrierCore/Resources/FileIcons/*.svg; do
   [ -f "$ICONS/$(basename "$svg")" ] || { echo "error: $APP lacks the icon $(basename "$svg")" >&2; exit 1; }
 done

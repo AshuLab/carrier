@@ -1,6 +1,3 @@
-# Lives in github/workflows (no dot) because the bot that pushed it cannot write .github/workflows.
-# The owner renames github/ to .github/; the formula path below already names the final path.
-#
 # A tag vX.Y.Z publishes @ashulab/carrier at X.Y.Z and rewrites the formula in the tap.
 # Run by hand with dry-run on, it does everything up to the publishing and pushes nothing.
 # Secrets: NPM_TOKEN (publish to the @ashulab scope), TAP_TOKEN (push to AshuLab/homebrew-tap).

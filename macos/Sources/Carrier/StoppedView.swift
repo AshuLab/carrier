@@ -20,7 +20,7 @@ struct StoppedView: View {
                             .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
                             .padding(.bottom, 9)
                         Text(title).font(.title3.weight(.semibold))
-                        Text(line).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 340)
+                        Text(line).textSelection(.enabled).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 340)
                     }
                     if state == .stopped {
                         StartCarrierButton()
@@ -41,13 +41,14 @@ struct StoppedView: View {
         switch state {
         case nil: "Looking for Carrier."
         case .stopped?: "Start it to watch your repositories and run agents on the epics that are ready."
+        case .incompatible(let update?)?: update
         default: "The app and Carrier speak different versions. Update whichever is older."
         }
     }
 
     /// Why the button is off, when it is: no config (nothing to do about it here), else the Engine tab's banner text and the way to the tab.
     @ViewBuilder private var missing: some View {
-        let banner = engineTab(setup.settings, detecting: setup.detecting).banner
+        let banner = readinessBanner(missing: setup.missing, detecting: setup.detecting)
         if let notice = engineNotConfiguredNotice(configExists: start.configExists) {
             Label(notice, systemImage: "exclamationmark.triangle.fill")
                 .font(.callout).foregroundStyle(.orange).multilineTextAlignment(.center).frame(maxWidth: 340)

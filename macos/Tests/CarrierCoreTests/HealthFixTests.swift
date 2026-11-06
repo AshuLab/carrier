@@ -23,6 +23,8 @@ private func scratch() throws -> String {
     #expect(healthFix(.agent(harness: "codex"), .signedOut) == .command(["codex", "login"]))
     #expect(healthFix(.gh, .signedOut) == .command(["gh", "auth", "login"]))
     #expect(healthFix(.git, .missing) == .command(["xcode-select", "--install"]))
+    #expect(healthFix(.carrier, .missing) == .command(["brew", "install", "ashulab/tap/carrier"]))
+    #expect(healthFix(.carrier, .missing)?.label == "brew install ashulab/tap/carrier")
     #expect(healthFix(.agent(harness: "claude"), .signedOut)?.label == "claude auth login")
     for harness in ["claude", "codex"] {
         guard case .install(let url)? = healthFix(.agent(harness: harness), .missing) else { Issue.record("no install page for \(harness)"); continue }
@@ -34,9 +36,10 @@ private func scratch() throws -> String {
 
 @Test func nothingElseHasAFix() {
     for state in [ToolState.ready, .unknown] {
-        for tool in [HealthTool.agent(harness: "claude"), .agent(harness: "codex"), .gh, .git] { #expect(healthFix(tool, state) == nil) }
+        for tool in [HealthTool.agent(harness: "claude"), .agent(harness: "codex"), .gh, .git, .carrier] { #expect(healthFix(tool, state) == nil) }
     }
     #expect(healthFix(.git, .signedOut) == nil)
+    #expect(healthFix(.carrier, .signedOut) == nil)
     #expect(healthFix(.agent(harness: "agy"), .signedOut) == nil)
     #expect(healthFix(.agent(harness: "agy"), .missing) == nil)
 }
@@ -71,7 +74,7 @@ private func scratch() throws -> String {
 /// What a probe, the host or the doctor could hand back: the list has no key for it, so nothing is written, opened or run.
 @Test(arguments: [
     "claude'; touch PWNED; '", "claude\ntouch PWNED", "$(touch PWNED)", "`touch PWNED`", "claude && touch PWNED", "claude ", "Claude", "",
-    "claude\0", "../claude", "-n", "claude\"; touch PWNED; \"",
+    "claude\0", "../claude", "-n", "carrier", "brew", "claude\"; touch PWNED; \"",
 ])
 func aHostileValueFromAProbeRunsNone(value: String) throws {
     let directory = try scratch()
@@ -91,7 +94,7 @@ func aHostileValueFromAProbeRunsNone(value: String) throws {
     defer { try? FileManager.default.removeItem(atPath: directory) }
     let bin = directory + "/bin"
     try FileManager.default.createDirectory(atPath: bin, withIntermediateDirectories: true)
-    for name in ["claude", "codex", "gh", "xcode-select"] {
+    for name in ["claude", "codex", "gh", "xcode-select", "brew"] {
         let body = "#!/bin/sh\nprintf '%s\\n' \"$0\" \"$@\" > \"$RAN\"\n"
         try body.write(toFile: bin + "/" + name, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bin + "/" + name)
@@ -101,6 +104,7 @@ func aHostileValueFromAProbeRunsNone(value: String) throws {
         (.agent(harness: "codex"), .signedOut, "codex", ["login"]),
         (.gh, .signedOut, "gh", ["auth", "login"]),
         (.git, .missing, "xcode-select", ["--install"]),
+        (.carrier, .missing, "brew", ["install", "ashulab/tap/carrier"]),
     ]
     for (tool, state, name, arguments) in cases {
         let opener = RecordingOpener()

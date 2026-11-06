@@ -88,7 +88,7 @@ public func healthSections(host: HostHealth?, facts: CarrierFacts, doctor: Docto
     let versionLine = facts.installedVersion.map { " · version \($0)" } ?? ""
     let carrier = facts.carrierFound
         ? HealthRow(title: "carrier", mark: .ok, detail: "Found" + versionLine)
-        : HealthRow(title: "carrier", mark: .problem, detail: "Not found. Set its path in the Engine tab.")
+        : HealthRow(title: "carrier", mark: .problem, detail: "Not found", tool: .carrier, state: .missing)
 
     let hostRow: HealthRow
     if facts.hostRunning == false {

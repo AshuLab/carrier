@@ -130,7 +130,7 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(card(problem) == CarrierCardState(kind: .problem, slots: (3, 3)))
     #expect(card(both).kind == .problem)
     #expect(carrierCardState(.stopped) == CarrierCardState(kind: .stopped, slots: nil))
-    #expect(carrierCardState(.incompatible) == CarrierCardState(kind: .problem, slots: nil))
+    #expect(carrierCardState(.incompatible(update: nil)) == CarrierCardState(kind: .problem, slots: nil))
     #expect(carrierCardState(nil) == CarrierCardState(kind: .connecting, slots: nil))
     #expect([card(snapshot()), card(paused), card(problem), carrierCardState(.stopped), carrierCardState(nil)].map(\.title)
         == ["Running", "Paused", "Problem", "Stopped", "Connecting"])

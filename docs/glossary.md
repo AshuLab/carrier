@@ -185,6 +185,12 @@ _Avoid_: account (an option is more than the login), provider (that is the model
 **Failover** - Carrier moving a role of a running epic from the agent option that ran out of credits to the next one in the config's `failover.order`, with no person involved. It is off until the config turns it on, it only ever moves to an option listed in `order`, and it is remembered for that epic only. Each switch is an epic event that says from which option to which, and why.
 _Avoid_: fallback, automatic retry (an execution retry repeats the same option; a failover changes it).
 
+**Homebrew tap** - Our repository of Homebrew recipes, `AshuLab/homebrew-tap`: the formula `carrier` (the engine and the chat host, from the npm package) and the cask `carrier` (the app). A person installs with `brew install ashulab/tap/carrier`. Homebrew loads a tap's code only once it is trusted, and the full name trusts just that item ([0017](adr/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)).
+_Avoid_: repo (it is not where the code lives), registry, package (the npm package is what the formula installs).
+
+**Release** - One version of Carrier put out at once from a tag: the npm package, the formula, the app's zip on a GitHub Release and the cask, all with the same version. The app is signed ad hoc and its cask clears the quarantine; the app and `carrier` are matched by the sockets' protocol, not by version.
+_Avoid_: build (that is one step of it), deploy, publish (that is one step of it).
+
 **New session draft** - The page where a person chooses everything a session needs (where it works, the worktree and branch, the agent and its options) and writes the first message. It is a plan: nothing is cloned, created or written until the message is sent, and it is blank every time it opens ([0018](adr/0018-a-new-session-is-a-plan-and-the-host-prepares-it-when-the-first-message-is-sent.md)).
 _Avoid_: new session (the session does not exist yet), form, wizard.
 

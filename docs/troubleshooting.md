@@ -11,12 +11,41 @@ In the macOS app, open Settings and the Health tab first when **a session fails*
 | A session fails right after the first message | This Mac, the provider's row | `Signed out`: press its button (`claude auth login` or `codex login` in Terminal). `Not installed`: install the CLI from the link in the row. |
 | My GitHub repositories do not load, or cloning is off | This Mac, `gh` | `Signed out`: press `gh auth login`. `Not installed`: install `gh` from the link. |
 | New worktree is off | This Mac, `git` | `Not installed`: press `xcode-select --install`. |
-| The engine does not start | Carrier, then Engine setup | `carrier` not found: set its path in the Engine tab. Engine not configured: the setup wizard makes `config.json`. Otherwise read the failing doctor checks and their fix text. |
+| The engine does not start | Carrier, then Engine setup | `carrier` not found: press its fix in Health (`brew install ashulab/tap/carrier` in Terminal), or set “Use this carrier” under Advanced in the Engine tab. Engine not configured: the setup wizard makes `config.json`. Otherwise read the failing doctor checks and their fix text. |
 | A row says `Could not check` | The row | The probe timed out or could not be read; press Check again. It never blocks anything. |
 
 Without the app, `carrier doctor` is the same engine-setup check in a terminal; `carrier doctor --json` prints its checks as one JSON array (`{ name, status, detail?, fix? }`, `status` being `ok`, `warn` or `fail`) and exits 1 when any fails, as the app reads it.
 
 Where to look: the panel in the terminal shows each epic's stage, its history, round and reason (for a Carrier started with `carrier start`, `carrier status` prints it once and `carrier watch` follows it). `<folder>/engine/logs/orchestrator.log` has the process log and `<folder>/engine/logs/executions/<id>/` the full output of each agent run (`<folder>` is the Carrier folder: `~/.carrier`, or `CARRIER_HOME`). A detached Carrier writes what it prints to `<folder>/engine/logs/start.log`, replaced at each start (the macOS app's start uses `app-start.log`). None contains tokens. In the panel, select an epic with `↑`/`↓` and press `l` to read what its agent is doing, without leaving it; `?` lists the keys.
+
+## Installing and updating with Homebrew
+
+### macOS will not open the app
+
+The cask clears the quarantine attribute after it downloads the app, because the app is signed ad hoc and not notarized ([ADR 0017](adr/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)). If macOS still says it cannot open or verify `Carrier.app` (for example you copied the app from somewhere else, or the step did not run), clear the attribute by hand and open it again:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Carrier.app
+```
+
+The app needs an Apple Silicon Mac on macOS 26 or later; the cask refuses to install on anything else.
+
+### Homebrew refuses the formula because the tap is not trusted
+
+Homebrew 7 loads the code of a tap that is not its own only once you trust it. `brew install ashulab/tap/carrier` (the full name) trusts just that formula. If you installed or upgraded by the short name (`brew install carrier`) and Homebrew refuses it as untrusted, use the full name, or trust the formula once:
+
+```bash
+brew trust --formula ashulab/tap/carrier
+```
+
+### The app asks to update `carrier` or itself
+
+The app and `carrier` are two things `brew upgrade` can move at different moments. When their sockets speak different protocols the app says which one is behind and does not connect to that chat host or engine:
+
+- "carrier is older than this app": run `brew upgrade carrier` in Terminal, then restart Carrier.
+- "This app is older than carrier": run `brew upgrade --cask carrier` in Terminal, then open the app again.
+
+Running both (`brew upgrade carrier` and `brew upgrade --cask carrier`) leaves them at the same release.
 
 ## An epic ends in `solve:epic:needs-human`
 

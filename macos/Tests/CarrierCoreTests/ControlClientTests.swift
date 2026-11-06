@@ -129,6 +129,27 @@ private func object(_ data: Data) -> [String: Any]? { try? JSONSerialization.jso
     #expect(ControlClient.connect(path: "/tmp/" + String(repeating: "a", count: 5000)) == nil)
 }
 
+@Test func aLowerAnEqualAndAHigherProtocolAreToldApart() throws {
+    for (version, sentence) in [(0, "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier."), (1, nil), (2, "This app is older than carrier. Run brew upgrade --cask carrier in Terminal, then open the app again.")] as [(Int, String?)] {
+        var asked = false
+        let server = TestServer { connection in
+            connection.send("{\"event\":\"hello\",\"protocol\":\(version),\"pid\":42,\"startedAt\":1000}\n")
+            asked = connection.readRequestId() != nil
+        }
+        defer { server.stop() }
+        let client = try #require(ControlClient.connect(path: server.path))
+        defer { client.close() }
+        if let sentence {
+            #expect(throws: ControlError.remote(sentence)) { try client.supportedHello() }
+        } else {
+            #expect(try client.supportedHello().protocolVersion == 1)
+            _ = try? client.request("snapshot", fields: "")
+        }
+        client.close()
+        #expect(asked == (sentence == nil))
+    }
+}
+
 @Test func aHelloWithVersionAndCapabilitiesIsDecodedAndUnknownCapabilitiesAreDropped() throws {
     let newer = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\":1000,\"version\":\"0.2.0\",\"capabilities\":[\"events\",\"files\",\"telepathy\"]}\n"
     let server = TestServer { $0.send(newer) }

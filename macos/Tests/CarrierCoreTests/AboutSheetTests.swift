@@ -15,7 +15,7 @@ private func running() throws -> ConnectionState {
 }
 
 @Test func stoppedAnIncompatibleVersionAndNoAnswerYetAreGrey() {
-    for (state, line) in [(ConnectionState.stopped, "Stopped"), (.incompatible, "Incompatible version"), (nil, "Connecting…")] {
+    for (state, line) in [(ConnectionState.stopped, "Stopped"), (.incompatible(update: nil), "Incompatible version"), (nil, "Connecting…")] {
         let sheet = aboutSheet(version: "0.1.0", build: "1", state: state)
         #expect(sheet.connection == line && sheet.connected == false)
     }

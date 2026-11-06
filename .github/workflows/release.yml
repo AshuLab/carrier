@@ -1,6 +1,7 @@
 # A tag vX.Y.Z publishes @ashulab/carrier at X.Y.Z, puts the app's zip on the GitHub Release and rewrites the formula and the cask in the tap.
 # Run by hand with dry-run on, it does everything up to the publishing and pushes nothing.
-# Secrets: NPM_TOKEN (publish to the @ashulab scope), TAP_TOKEN (push to AshuLab/homebrew-tap).
+# npm publishes through trusted publishing (OIDC, configured for this workflow on the package): no npm token.
+# Secret: TAP_TOKEN (push to AshuLab/homebrew-tap).
 name: Release
 
 on:
@@ -16,6 +17,7 @@ on:
 
 permissions:
   contents: write # the GitHub Release of the tag
+  id-token: write # npm trusted publishing
 
 jobs:
   release:
@@ -142,8 +144,6 @@ jobs:
 
       - name: Publish to npm
         if: env.DRY_RUN != 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         # A re-run after a failed push to the tap finds the version already published and goes on to the formula.
         run: |
           if npm view "@ashulab/carrier@$VERSION" version >/dev/null 2>&1; then

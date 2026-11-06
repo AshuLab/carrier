@@ -111,10 +111,11 @@ carrier/
 ### 2. Install
 
 ```bash
-brew install ashulab/tap/carrier
+brew install ashulab/tap/carrier          # the `carrier` command
+brew install --cask ashulab/tap/carrier   # the app, in /Applications (optional)
 ```
 
-That installs the `carrier` command (with `node`, `git` and `gh` if they are missing) and the Carrier app in `/Applications`. Open the app with a double click: it finds `carrier` by itself, so there is nothing to fill in. Use the full name: it trusts only that formula under Homebrew's tap trust ([ADR 0017](docs/adr/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)). The app is signed ad hoc, not notarized, and the cask clears the quarantine attribute for you; if macOS still refuses to open it, see [troubleshooting](docs/troubleshooting.md#macos-will-not-open-the-app).
+The first installs the `carrier` command (with `node`, `git` and `gh` if they are missing). A formula and a cask have the same name, so the app needs `--cask`; it depends on the command, and Homebrew installs that first if it is missing. Open the app with a double click: it finds `carrier` by itself, so there is nothing to fill in. Use the full names: it trusts only that formula under Homebrew's tap trust ([ADR 0017](docs/adr/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)). The app is signed ad hoc, not notarized, and the cask clears the quarantine attribute for you; if macOS still refuses to open it, see [troubleshooting](docs/troubleshooting.md#macos-will-not-open-the-app).
 
 Without Homebrew, the command alone installs with `pnpm add -g @ashulab/carrier` (or `pnpm dlx @ashulab/carrier` to run it without installing). To work on Carrier itself, clone the repo and run `pnpm install`; the app is built from the clone as [`macos/README.md`](macos/README.md) says.
 

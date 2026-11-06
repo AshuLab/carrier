@@ -4,7 +4,7 @@ Menu bar app for Carrier. A SwiftPM package for macOS 26 or later: `CarrierCore`
 
 ## Install
 
-A person does not build the app: `brew install ashulab/tap/carrier` installs the `carrier` command and this app in `/Applications` (an Apple Silicon Mac on macOS 26 or later), and the app finds that `carrier` by itself. `brew upgrade carrier` moves the command and `brew upgrade --cask carrier` the app; the app says which one when their protocols differ. The app is signed ad hoc, not notarized, and the cask clears the quarantine attribute after the download; if macOS still refuses it, see [troubleshooting](../docs/troubleshooting.md#macos-will-not-open-the-app). The README at the root has the uninstall and what it leaves. The rest of this file is for developing the app.
+A person does not build the app: `brew install ashulab/tap/carrier` installs the `carrier` command and `brew install --cask ashulab/tap/carrier` this app in `/Applications` (an Apple Silicon Mac on macOS 26 or later), and the app finds that `carrier` by itself. `brew upgrade carrier` moves the command and `brew upgrade --cask carrier` the app; the app says which one when their protocols differ. The app is signed ad hoc, not notarized, and the cask clears the quarantine attribute after the download; if macOS still refuses it, see [troubleshooting](../docs/troubleshooting.md#macos-will-not-open-the-app). The README at the root has the uninstall and what it leaves. The rest of this file is for developing the app.
 
 ## Toolchain
 

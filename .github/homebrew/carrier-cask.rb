@@ -9,15 +9,14 @@ cask "carrier" do
 
   depends_on formula: "carrier"
   depends_on arch: :arm64
-  depends_on macos: ">= :tahoe"
+  depends_on macos: :tahoe
 
   app "Carrier.app"
 
   # The app is signed ad hoc, not notarized (ADR 0017), and Homebrew quarantines what it downloads, so
   # Gatekeeper would stop it. Homebrew's own repository would not accept this step; this tap does.
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Carrier.app"]
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/Carrier.app"]
   end
 
   zap trash: "~/Library/Preferences/dev.ashulab.carrier.plist"

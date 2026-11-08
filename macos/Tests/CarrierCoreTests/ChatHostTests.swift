@@ -5,8 +5,8 @@ import Testing
 private let fixtures = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path
 
-private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
-    "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\":1000,\"version\":\"x\",\"capabilities\":[\(capabilities)]}\n"
+private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol version: Int = 1) -> String {
+    "{\"event\":\"hello\",\"protocol\":\(version),\"pid\":42,\"startedAt\":1000,\"version\":\"x\",\"capabilities\":[\(capabilities)]}\n"
 }
 
 @Test func theChatSocketIsUnderTheCarrierFolderAndNeverReadsTheConfig() {
@@ -79,6 +79,31 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"") -> String {
     defer { server.stop() }
     await #expect(throws: ControlError.remote("the chat host does not support list")) { try await SocketChatHost(socketPath: { server.path }).list(archived: false) }
     #expect(asked == false)
+}
+
+@Test func aHostOfAnotherProtocolIsNotAskedAndSaysWhichSideToUpdate() async {
+    let cases = [
+        (0, "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier."),
+        (2, "This app is older than carrier. Run brew upgrade --cask carrier in Terminal, then open the app again."),
+    ]
+    for (version, sentence) in cases {
+        var asked = false
+        let server = TestServer { connection in
+            connection.send(hello(protocol: version))
+            asked = connection.readRequestId() != nil
+        }
+        defer { server.stop() }
+        let host = SocketChatHost(socketPath: { server.path })
+        await #expect(throws: ControlError.remote(sentence)) { try await host.list(archived: false) }
+        await #expect(throws: ControlError.remote(sentence)) { try await host.capabilities() }
+        #expect(asked == false)
+    }
+}
+
+@Test func aHelloWithNoIntegerProtocolIsABadLine() async {
+    let server = TestServer { $0.send("{\"event\":\"hello\",\"protocol\":\"1\",\"pid\":42,\"startedAt\":1000}\n") }
+    defer { server.stop() }
+    await #expect(throws: ControlError.badLine) { try await SocketChatHost(socketPath: { server.path }).list(archived: false) }
 }
 
 @Test func aReplyThatDoesNotDecodeIsABadLine() async {

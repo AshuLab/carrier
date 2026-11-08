@@ -23,7 +23,7 @@ struct HealthTabView: View {
 
     var body: some View {
         let facts = CarrierFacts(
-            carrierFound: setup.settings.carrier.isEmpty == false, installedVersion: probe.installedVersion,
+            carrierFound: setup.carrierRuns, installedVersion: probe.installedVersion,
             hostRunning: probe.hostRunning, hostVersion: probe.hostVersion,
             hostReportsHealth: probe.hostReportsHealth,
             configExists: start.configExists, engineRunning: { if case .running? = state { true } else { false } }()
@@ -54,12 +54,14 @@ struct HealthTabView: View {
             runDoctor()
             await read()
         }
+        // back from Terminal, where `carrier` may have just been installed: it is looked for on the disk again
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in Task { await read() } }
     }
 
     /// Not awaited: the layer says it is running and the rest of the tab stays usable. The store ignores a run while one is running.
     private func runDoctor() {
-        let settings = setup.settings, configExists = start.configExists
-        Task { await doctor.check(settings: settings, environment: ProcessInfo.processInfo.environment, configExists: configExists) }
+        let settings = setup.settings, carrier = setup.carrier, configExists = start.configExists
+        Task { await doctor.check(settings: settings, carrier: carrier, environment: ProcessInfo.processInfo.environment, configExists: configExists) }
     }
 
     private func checkAgain() async {
@@ -71,8 +73,8 @@ struct HealthTabView: View {
     }
 
     private func read() async {
-        let settings = setup.settings
-        let command = startChatHostCommand(settings: settings, environment: ProcessInfo.processInfo.environment)
+        let settings = setup.settings, carrier = setup.carrier
+        let command = startChatHostCommand(settings: settings, carrier: carrier, environment: ProcessInfo.processInfo.environment)
         let socket = command?.socketPath ?? chatSocketPath()
         probe = await Task.detached { () -> CarrierProbe in
             var result = CarrierProbe()

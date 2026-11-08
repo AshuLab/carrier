@@ -9,8 +9,6 @@ struct SettingsSheet: View {
     @ObservedObject var setup: SetupController = .shared
     @ObservedObject private var start = StartController.shared
     @Binding var tab: SettingsTab
-    /// the Engine section's paths, opened by the person while everything is found; not remembered
-    @State private var pathsOpen = false
     @AppStorage(startOnOpenKey) private var startOnOpen = false
     @Environment(\.dismiss) private var dismiss
 
@@ -79,17 +77,17 @@ struct SettingsSheet: View {
     }
 
     @ViewBuilder private var section: some View {
-        let model = engineTab(setup.settings, detecting: setup.detecting)
+        let banner = readinessBanner(missing: setup.missing, detecting: setup.detecting)
         let notConfigured = engineNotConfiguredNotice(configExists: start.configExists)
         VStack(alignment: .leading, spacing: 14) {
-            if model.banner.state != .ready {
-                ReadinessBannerView(banner: model.banner, detecting: setup.detecting) { setup.detect() }
+            if banner.state != .ready {
+                ReadinessBannerView(banner: banner, detecting: setup.detecting) { setup.detect() }
             }
             if let message = setup.message {
                 Label(message, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
             }
             switch tab {
-            case .engine: engine(model, notConfigured: notConfigured)
+            case .engine: engine(banner, notConfigured: notConfigured)
             case .behavior: BehaviorTabView()
             case .repos: ReposTabView(state: state)
             case .sessions: SessionsTabView()
@@ -99,43 +97,33 @@ struct SettingsSheet: View {
         }
     }
 
-    @ViewBuilder private func engine(_ model: EngineTabModel, notConfigured: String?) -> some View {
-        if enginePathsShown(model.banner, opened: pathsOpen) {
-            if let notConfigured {
-                Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
-            }
-            if model.banner.state == .ready {
-                Button("Hide paths ▴") { pathsOpen = false }.buttonStyle(.borderless).frame(maxWidth: .infinity, alignment: .trailing)
-            }
-            VStack(spacing: 0) {
-                ForEach(model.rows, id: \.field) { EngineRowView(row: $0, setup: setup) }
-            }
-            .padding(.horizontal, 14)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
-        } else {
+    @ViewBuilder private func engine(_ banner: ReadinessBanner, notConfigured: String?) -> some View {
+        if let notConfigured {
+            Label(notConfigured, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+        }
+        if banner.state == .ready {
             HStack(spacing: 12) {
                 HStack(spacing: 12) {
                     StatusDot(found: notConfigured == nil)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(notConfigured == nil ? "Carrier is ready to start" : "Carrier cannot start yet").fontWeight(.semibold)
-                        Text(notConfigured ?? "carrier and node were found").font(.caption).foregroundStyle(.secondary)
+                        Text(setup.carrier ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     }
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 8)
-                Button("Show paths ▾") { pathsOpen = true }.buttonStyle(.borderless)
                 Button("Detect again") { setup.detect(); start.refreshConfig() }.buttonStyle(.glass).buttonBorderShape(.capsule)
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
             .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
-        }
-        if model.banner.state == .ready {
             SettingsTabRow(title: "Start Carrier when the app opens", detail: notConfigured == nil ? "Carrier starts working on ready epics as soon as the app opens" : "Does nothing until the engine is configured", first: true) {
                 Toggle("Start Carrier when the app opens", isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
             }
             .padding(.horizontal, 14)
             .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
         }
+        Text("Advanced").font(.headline).padding(.top, 6).accessibilityAddTraits(.isHeader)
+        UseThisCarrierField(setup: setup)
     }
 }
 
@@ -178,53 +166,29 @@ struct StatusDot: View {
     }
 }
 
-struct EngineRowView: View {
-    let row: EngineRow
+/// The advanced setting: a `carrier` to run instead of the Homebrew one, a path as typed (a `.ts` or `.js` one runs under `node`).
+struct UseThisCarrierField: View {
     @ObservedObject var setup: SetupController
-    @State private var editing = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            StatusDot(found: row.found)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(row.title).fontWeight(.medium)
-                if editing {
-                    TextField("PATH", text: $setup.settings.path).textFieldStyle(.roundedBorder).font(.system(.caption, design: .monospaced))
-                        .onSubmit { editing = false }
-                } else if let value = row.value {
-                    Text(value).font(.system(size: 11.5, design: .monospaced)).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.middle).help(value)
-                    Text(row.hint).font(.caption).foregroundStyle(.secondary)
-                } else {
-                    Text("Not found · choose where it is").font(.caption).foregroundStyle(.orange)
-                }
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Use this carrier").fontWeight(.medium)
+            HStack {
+                TextField("Use this carrier", text: $setup.carrierOverride, prompt: Text("/opt/homebrew/bin/carrier"))
+                    .textFieldStyle(.roundedBorder).font(.system(.caption, design: .monospaced))
+                Button("Choose…") { choose() }
             }
-            Spacer(minLength: 8)
-            if let path = row.revealPath {
-                Button("Reveal") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }
-            }
-            Button(row.choice == .edit ? (editing ? "Done" : "Edit…") : "Choose…") {
-                switch row.choice {
-                case .edit: editing.toggle()
-                case .file, .folder: choose()
-                }
-            }
+            Text("Leave it empty to use the Homebrew one. A path ending in .ts or .js runs with node.").font(.caption).foregroundStyle(.secondary)
         }
-        .padding(.vertical, 10).frame(minHeight: 46)
-        .overlay(alignment: .top) { Divider().opacity(row.field == .carrier ? 0 : 1) }
     }
 
     private func choose() {
         let panel = NSOpenPanel()
-        panel.canChooseFiles = row.choice == .file
-        panel.canChooseDirectories = row.choice == .folder
-        panel.canCreateDirectories = row.choice == .folder
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.showsHiddenFiles = true
         panel.prompt = "Choose"
-        if let current = row.revealPath {
-            panel.directoryURL = URL(fileURLWithPath: current).deletingLastPathComponent()
-        }
-        if panel.runModal() == .OK, let url = panel.url { setup.settings[row.field] = url.path }
+        if panel.runModal() == .OK, let url = panel.url { setup.carrierOverride = url.path }
     }
 }

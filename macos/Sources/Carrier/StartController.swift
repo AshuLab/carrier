@@ -10,7 +10,7 @@ final class StartController: ObservableObject {
 
     @Published private(set) var starting = false
 
-    var missing: [String] { startMissing(SetupController.shared.settings) }
+    var missing: [String] { SetupController.shared.missing }
 
     /// Whether the Carrier folder has its `config.json`; without it the engine does not start. Published so the views that read it
     /// follow the file while Carrier stays stopped: it is read again every 3 seconds and whenever `refreshConfig` is called.
@@ -30,7 +30,7 @@ final class StartController: ObservableObject {
     /// `done` is called on the main thread with whether Carrier came up (also false when nothing was started).
     func start(done: ((Bool) -> Void)? = nil) {
         guard starting == false, refreshConfig() else { done?(false); return }
-        guard let command = startCommand(settings: SetupController.shared.settings, environment: ProcessInfo.processInfo.environment) else { done?(false); return }
+        guard let command = startCommand(settings: SetupController.shared.settings, carrier: SetupController.shared.carrier, environment: ProcessInfo.processInfo.environment) else { done?(false); return }
         starting = true
         DispatchQueue.global().async {
             let failure = Self.launch(command)
@@ -63,10 +63,10 @@ final class StartController: ObservableObject {
     /// For the self-test: what a press would do, without doing it (it would start the real Carrier).
     func selfTest(state: ConnectionState) -> String {
         let item = startMenuState(state: state, starting: starting, missing: missing, configExists: configExists)
-        guard item.enabled, let command = startCommand(settings: SetupController.shared.settings, environment: [:]) else {
+        guard item.enabled, let command = startCommand(settings: SetupController.shared.settings, carrier: SetupController.shared.carrier, environment: [:]) else {
             return "start disabled: \(item.title)"
         }
-        return "start enabled, would run \(command.node) \(command.arguments.joined(separator: " ")), log \(command.logPath)"
+        return "start enabled, would run \(command.program) \(command.arguments.joined(separator: " ")), log \(command.logPath)"
     }
 
     /// Spawns Carrier and waits for its socket; nil when it came up, else what to tell the person.
@@ -122,12 +122,12 @@ final class StartController: ObservableObject {
         posix_spawnattr_setsigmask(&attributes, &none)
         posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK))
 
-        let argv = ([command.node] + command.arguments).map { strdup($0) } + [nil]
+        let argv = ([command.program] + command.arguments).map { strdup($0) } + [nil]
         let envp = command.environment.map { strdup("\($0.key)=\($0.value)") } + [nil]
         defer { (argv + envp).forEach { free($0) } }
 
         var pid: pid_t = 0
-        let result = posix_spawn(&pid, command.node, &actions, &attributes, argv, envp)
+        let result = posix_spawn(&pid, command.program, &actions, &attributes, argv, envp)
         guard result == 0 else { throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EIO) }
         return pid
     }
@@ -185,7 +185,7 @@ struct StartCarrierButton: View {
     @ObservedObject private var setup = SetupController.shared
 
     var body: some View {
-        let missing = startMissing(setup.settings)
+        let missing = setup.missing
         VStack(spacing: 6) {
             HStack {
                 Button { start.start() } label: { Label("Start Carrier", systemImage: "play.fill") }

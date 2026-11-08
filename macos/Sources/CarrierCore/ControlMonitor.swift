@@ -2,7 +2,8 @@ import Foundation
 
 public enum ConnectionState: Equatable {
     case stopped
-    case incompatible
+    /// `update` says which side to update when the cause is the protocol; nil for a snapshot this app cannot read.
+    case incompatible(update: String?)
     case running(PanelSnapshot)
 
     /// The one line the menu shows.
@@ -22,7 +23,7 @@ public enum ConnectionState: Equatable {
     public var menuStatus: (title: String, detail: String?, tone: MenuTone) {
         switch self {
         case .stopped: return ("Carrier is stopped", nil, .stopped)
-        case .incompatible: return ("Carrier is an incompatible version", nil, .attention)
+        case .incompatible(let update): return ("Carrier is an incompatible version", update, .attention)
         case .running(let snapshot):
             let epics = snapshot.epics.count
             let detail = "\(epics) \(epics == 1 ? "epic" : "epics") · \(snapshot.slots.busy)/\(snapshot.slots.total) slots"
@@ -78,8 +79,9 @@ public final class ControlMonitor {
     /// Polls until the connection ends; false when `wait` asked to stop.
     private func poll(_ client: ControlClient) -> Bool {
         do {
-            guard try client.hello().protocolVersion == 1 else {
-                onChange(.incompatible)
+            let match = protocolMatch(try client.hello().protocolVersion)
+            guard match == .match else {
+                onChange(.incompatible(update: match.update))
                 return true
             }
             while true {
@@ -89,7 +91,7 @@ public final class ControlMonitor {
             }
         } catch let error as SnapshotError {
             log("snapshot does not match this app: \(error)")
-            onChange(.incompatible)
+            onChange(.incompatible(update: nil))
         } catch ControlError.closed {
             onChange(.stopped)
         } catch {

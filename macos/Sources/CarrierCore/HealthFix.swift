@@ -5,11 +5,12 @@ import Foundation
 // harness, a detail) is ever part of a command, and a key that is not in the list has no fix. The script and the opener are Continue in
 // Terminal's (docs/adr/0007).
 
-/// What was checked: a chat agent by its harness, `gh` or `git`.
+/// What was checked: a chat agent by its harness, `gh`, `git` or `carrier` itself.
 public enum HealthTool: Equatable {
     case agent(harness: String)
     case gh
     case git
+    case carrier
 }
 
 public enum HealthFix: Equatable {
@@ -24,14 +25,18 @@ public enum HealthFix: Equatable {
     }
 }
 
-/// The fixed list: `signedOut` has the command that signs in (`claude`, `codex`, `gh`), `missing` a CLI's installation page and `git`'s
-/// installer (`xcode-select --install`). `ready` and `unknown` have none, and neither has any harness the list does not name.
+/// How `carrier` is installed (docs/adr/0017); the Health tab's fix and the Sessions notice both name it.
+public let carrierInstallCommand = ["brew", "install", "ashulab/tap/carrier"]
+
+/// The fixed list: `signedOut` has the command that signs in (`claude`, `codex`, `gh`), `missing` a CLI's installation page, `git`'s
+/// installer (`xcode-select --install`) and `carrier`'s (`brew install ashulab/tap/carrier`). `ready` and `unknown` have none, and neither has any harness the list does not name.
 public func healthFix(_ tool: HealthTool, _ state: ToolState) -> HealthFix? {
     switch (tool, state) {
     case (.agent("claude"), .signedOut): .command(["claude", "auth", "login"])
     case (.agent("codex"), .signedOut): .command(["codex", "login"])
     case (.gh, .signedOut): .command(["gh", "auth", "login"])
     case (.git, .missing): .command(["xcode-select", "--install"])
+    case (.carrier, .missing): .command(carrierInstallCommand)
     case (.agent("claude"), .missing): .install(URL(string: "https://docs.claude.com/en/docs/claude-code/setup")!)
     case (.agent("codex"), .missing): .install(URL(string: "https://developers.openai.com/codex/cli")!)
     case (.gh, .missing): .install(URL(string: "https://cli.github.com")!)

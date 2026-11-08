@@ -7,6 +7,26 @@ public enum ControlError: Error, Equatable {
     case remote(String)
 }
 
+/// The one protocol number this app speaks; a hello's is compared with it only through `protocolMatch`.
+public let supportedProtocol = 1
+
+public enum ProtocolMatch: Equatable {
+    case match, carrierOlder, appOlder
+
+    /// What to tell the person when the protocols differ: which side to update and with which command; nil when they match.
+    public var update: String? {
+        switch self {
+        case .match: nil
+        case .carrierOlder: "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier."
+        case .appOlder: "This app is older than carrier. Run brew upgrade --cask carrier in Terminal, then open the app again."
+        }
+    }
+}
+
+public func protocolMatch(_ host: Int) -> ProtocolMatch {
+    host == supportedProtocol ? .match : host < supportedProtocol ? .carrierOlder : .appOlder
+}
+
 /// One connection to Carrier's control socket: newline-delimited JSON, blocking, so it belongs on its own thread.
 /// A POSIX socket rather than Network.framework: a missing or stale socket fails at once instead of waiting and retrying,
 /// and a path that does not fit is refused here instead of crashing the process.
@@ -84,6 +104,13 @@ public final class ControlClient {
         let names = hello["capabilities"] as? [String] ?? []
         capabilities = Set(names.compactMap(Capability.init(rawValue:)))
         return Hello(protocolVersion: protocolVersion, version: hello["version"] as? String, capabilities: capabilities)
+    }
+
+    /// `hello`, but throws the sentence that says which side to update when the protocols differ, so nothing is sent after it.
+    public func supportedHello() throws -> Hello {
+        let hello = try hello()
+        if let update = protocolMatch(hello.protocolVersion).update { throw ControlError.remote(update) }
+        return hello
     }
 
     /// `request`, but only when the engine said it can answer it: nil, with nothing sent, when it did not.

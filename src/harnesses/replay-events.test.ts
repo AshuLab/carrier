@@ -36,8 +36,9 @@ test('a missing file fails with a clear error and prints no event', () => {
 
 test('no argument, or one option without the other, is a usage error', () => {
   expect(replay().status).toBe(2);
-  expect(replay(fixture, '--db', join(dir, 'x.db')).status).toBe(2);
-  expect(replay(fixture, '--db', join(dir, 'x.db')).stderr).toContain('usage');
+  const dbWithoutExecution = replay(fixture, '--db', join(dir, 'x.db'));
+  expect(dbWithoutExecution.status).toBe(2);
+  expect(dbWithoutExecution.stderr).toContain('usage');
 });
 
 test('with --db and --execution it fills the events of an execution once, and refuses a second time', () => {

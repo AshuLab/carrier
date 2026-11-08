@@ -15,6 +15,8 @@ final class SetupController: ObservableObject {
     private(set) var detectionRuns = 0
 
     @Published var settings: SetupSettings { didSet { store.save(settings) } }
+    /// The advanced "use this carrier" value, as typed; saved on every edit.
+    @Published var carrierOverride: String { didSet { store.carrierOverride = carrierOverride } }
     @Published private(set) var detecting = false
     @Published private(set) var message: String?
 
@@ -26,14 +28,27 @@ final class SetupController: ObservableObject {
         let saved = store.load()
         isFirstLaunch = saved == nil
         settings = saved ?? SetupSettings()
+        carrierOverride = store.carrierOverride
     }
+
+    /// Where `carrier` is, asked of the disk each time: the override, else the Homebrew one when it is executable.
+    var carrier: String? { carrierPath(override: carrierOverride, isExecutable: FileManager.default.isExecutableFile(atPath:)) }
+
+    /// Whether the `carrier` found runs: a script has to exist, anything else has to be executable. A typed path can be wrong.
+    var carrierRuns: Bool {
+        guard let carrier else { return false }
+        return carrierNeedsNode(carrier) ? FileManager.default.fileExists(atPath: carrier) : FileManager.default.isExecutableFile(atPath: carrier)
+    }
+
+    /// What Start Carrier lacks.
+    var missing: [String] { startMissing(settings, carrier: carrier) }
 
     /// Asks the shell only when nothing was saved. `done` runs once the settings are known: at once, or when the shell answered.
     func detectIfFirstLaunch(then done: @escaping () -> Void) {
         if isFirstLaunch { detect(then: done) } else { done() }
     }
 
-    /// Runs the shell off the main thread and puts what it found in the three values. A shell that gave no answer leaves
+    /// Runs the shell off the main thread and puts what it found in `node` and the `PATH`. A shell that gave no answer leaves
     /// every value as it was.
     func detect(then done: (() -> Void)? = nil) {
         guard detecting == false else { return }
@@ -44,11 +59,10 @@ final class SetupController: ObservableObject {
             let detection = self.detector()
             DispatchQueue.main.async {
                 if let detection {
-                    self.settings.carrier = detection.carrier ?? ""
                     self.settings.node = detection.node ?? ""
                     self.settings.path = detection.path ?? ""
                 } else {
-                    self.message = "The shell gave no answer within \(Int(ShellDetector.limit)) seconds. Edit the values or try again."
+                    self.message = "The shell gave no answer within \(Int(ShellDetector.limit)) seconds. Try again."
                     self.store.save(self.settings)
                 }
                 self.detecting = false
@@ -59,6 +73,6 @@ final class SetupController: ObservableObject {
 
     /// For the self-test.
     var summary: String {
-        "saved \(store.load() != nil), shell runs this launch \(detectionRuns), not found [\(settings.missing.joined(separator: ", "))]"
+        "saved \(store.load() != nil), shell runs this launch \(detectionRuns), carrier \(carrier ?? "not found"), not found [\(settings.missing.joined(separator: ", "))]"
     }
 }

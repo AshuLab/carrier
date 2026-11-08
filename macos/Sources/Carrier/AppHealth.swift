@@ -8,12 +8,12 @@ enum AppHealth {
     @MainActor static let doctor = DoctorStore(run: runProcess)
 }
 
-/// Runs `command` (`node <carrier> ...` with its environment) off the main thread and returns what it printed; ended after `doctorTimeout`
+/// Runs `command` (`carrier ...` with its environment) off the main thread and returns what it printed; ended after `doctorTimeout`
 /// (killed a second later). The output of the doctor is the JSON on stdout; stderr is dropped.
 @Sendable func runProcess(_ command: StartCommand) async -> ProcessOutcome {
     await Task.detached { () -> ProcessOutcome in
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: command.node)
+        process.executableURL = URL(fileURLWithPath: command.program)
         process.arguments = command.arguments
         process.environment = command.environment
         let output = Pipe()

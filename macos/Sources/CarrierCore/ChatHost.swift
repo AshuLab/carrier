@@ -312,7 +312,7 @@ public struct SocketChatHost: ChatHost {
         return try await Task.detached {
             guard let client = ControlClient.connect(path: path) else { throw ControlError.closed }
             defer { client.close() }
-            guard try client.hello().protocolVersion == 1 else { throw ControlError.remote("incompatible chat host") }
+            _ = try client.supportedHello()
             return client.capabilities
         }.value
     }
@@ -598,7 +598,7 @@ fileprivate func chatRequest<Reply: Decodable>(
         abortable?.detach()
         client.close()
     }
-    guard try client.hello().protocolVersion == 1 else { throw ControlError.remote("incompatible chat host") }
+    _ = try client.supportedHello()
     guard let data = try client.request(command, requires: capability, fields: fields) else {
         throw ControlError.remote("the chat host does not support \(command)")
     }

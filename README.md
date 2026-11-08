@@ -103,8 +103,7 @@ carrier/
 
 ### 1. Prerequisites
 
-- macOS and Node.js 22 or newer. Working from a clone needs Node.js 26 and pnpm 12.
-- `git` and the GitHub CLI (`gh`).
+- A Mac with [Homebrew](https://brew.sh). The install below brings Node.js 22 or newer, `git` and the GitHub CLI (`gh`) if they are missing. The app needs an Apple Silicon Mac on macOS 26 or later. Working from a clone needs Node.js 26 and pnpm 12.
 - At least one of the `claude`, `codex` and `agy` (Antigravity) CLIs, installed and logged in from the terminal where you run Carrier. For local models, LM Studio or Ollama running.
 - Two different GitHub identities, one per role: [Agent Forge](https://github.com/AshuLab/agent-forge) bot profiles, or your own `gh` login for one of them. Or, if you cannot get a second one, a **shared identity**: your `gh` login for both roles (`carrier init` offers it, or `--identities shared`). Both roles then act with everything that login's token can do.
 - The target repos use the [Solve](https://github.com/AshuLab/skills) flow.
@@ -112,10 +111,39 @@ carrier/
 ### 2. Install
 
 ```bash
-pnpm add -g @ashulab/carrier
+brew install ashulab/tap/carrier          # the `carrier` command
+brew install --cask ashulab/tap/carrier   # the app, in /Applications (optional)
 ```
 
-Or run it without installing: `pnpm dlx @ashulab/carrier`. To work on Carrier itself, clone the repo and run `pnpm install`.
+The first installs the `carrier` command (with `node`, `git` and `gh` if they are missing). A formula and a cask have the same name, so the app needs `--cask`; it depends on the command, and Homebrew installs that first if it is missing. Open the app with a double click: it finds `carrier` by itself, so there is nothing to fill in. Use the full names: it trusts only that formula under Homebrew's tap trust ([ADR 0017](docs/adr/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)). The app is signed ad hoc, not notarized, and the cask clears the quarantine attribute for you; if macOS still refuses to open it, see [troubleshooting](docs/troubleshooting.md#macos-will-not-open-the-app).
+
+Without Homebrew, the command alone installs with `pnpm add -g @ashulab/carrier` (or `pnpm dlx @ashulab/carrier` to run it without installing). To work on Carrier itself, clone the repo and run `pnpm install`; the app is built from the clone as [`macos/README.md`](macos/README.md) says.
+
+#### Upgrade
+
+```bash
+brew upgrade carrier          # the command: the engine and the chat host
+brew upgrade --cask carrier   # the app
+```
+
+Both move to the same release. They can be upgraded at different moments, and when they speak different protocols the app says which one to update and does not connect until you do ([troubleshooting](docs/troubleshooting.md#the-app-asks-to-update-carrier-or-itself)).
+
+#### Uninstall
+
+```bash
+brew uninstall --cask carrier   # the app first: it depends on the command
+brew uninstall carrier          # the command
+```
+
+This leaves `~/.carrier` (or your `CARRIER_HOME`), with your config, sessions and clones. Add `--zap` to the cask (`brew uninstall --zap --cask carrier`) to remove also the app's own preferences (`~/Library/Preferences/dev.ashulab.carrier.plist`), and nothing else.
+
+To remove the Carrier folder as well, stop Carrier first (`carrier stop` and `carrier chat --stop`), then delete it by hand:
+
+```bash
+rm -rf ~/.carrier
+```
+
+That deletes everything in it, for good: `config.json`; `engine/` (its `state/` with `carrier.db`, the control socket and the lock, its `logs/`, the managed clones in `repos/`, the reviewer's checkouts in `reviews/` and the epics' `worktrees/`); and `chat/` (its `state/` with `chat.db`, the chat socket and the lock, its `logs/`, the repositories it cloned in `projects/`, the session `worktrees/` and `chat.json`). Commit and push any work you want to keep from those worktrees first. See [Where it keeps things](#where-it-keeps-things).
 
 ### 3. Create the config
 
@@ -216,10 +244,10 @@ The host creates `$CARRIER_HOME/chat/` (`state/`, `logs/`) on its own and uses t
 
 ```bash
 (cd macos && ./build-app.sh)
-macos/Carrier.app/Contents/MacOS/Carrier               # opens the window; with node and carrier found, starts the host in $CARRIER_HOME/chat/ if none answers
+macos/Carrier.app/Contents/MacOS/Carrier               # opens the window; with `carrier` found, starts the host in $CARRIER_HOME/chat/ if none answers
 ```
 
-The app finds `node` and `carrier` the way [`macos/README.md`](macos/README.md) says, and says in the Sessions section what it lacks; to test your clone's `carrier`, run `pnpm build` and put `dist/terminal/cli/main.js` as the `carrier` path in the app's Settings (those paths are the app's preferences, not part of the folder). The app replaces a running host only when the installed `carrier` has a newer version, and a build under development keeps the same one, so stop the host with `carrier chat --stop` after changing the code. When you are done, `carrier chat --stop` and delete the folder.
+The app finds `carrier` by itself (the Homebrew one, `/opt/homebrew/bin/carrier`) and says in the Sessions section when it does not. To test your clone's `carrier` instead, run `pnpm build` and put the path of `dist/terminal/cli/main.js` (or of `src/terminal/cli/main.ts`) in the advanced "Use this carrier" setting of Settings > Engine; a path ending in `.ts` or `.js` runs under `node`, which the app finds from your login shell. That setting is the app's preference, not part of the folder. The app replaces a running host only when the installed `carrier` has a newer version, and a build under development keeps the same one, so stop the host with `carrier chat --stop` after changing the code. When you are done, `carrier chat --stop`, clear the setting and delete the folder.
 
 ## Security
 

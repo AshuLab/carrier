@@ -146,7 +146,7 @@ private struct CarrierRow: View {
         let card = carrierCardState(state, lastTotal: SidebarStore().slotsTotal)
         let snapshot: PanelSnapshot? = if case .running(let snapshot)? = state { snapshot } else { nil }
         // the hover: running says when the next check is, uptime and rate limit; an incompatible engine says why
-        let detail: String? = if let snapshot { Self.hover(snapshot) } else if case .incompatible? = state { state?.menuLine } else { nil }
+        let detail: String? = if let snapshot { Self.hover(snapshot) } else if case .incompatible(let update)? = state { update ?? state?.menuLine } else { nil }
         SidebarSectionRow(title: "Carrier", icon: "paperplane", selected: selected, action: select, actions: {
             Text(card.title)
                 .font(SidebarMetrics.detail.weight(.semibold))

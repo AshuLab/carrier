@@ -37,12 +37,35 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     #expect(seen.states == [.stopped])
 }
 
-@Test func aProtocolOtherThanOneIsIncompatible() {
-    let server = TestServer { $0.send(hello(protocol: 2)) }
+@Test func aHigherProtocolSaysTheAppIsOlderAndSendsNothing() {
+    var asked = false
+    let server = TestServer { connection in
+        connection.send(hello(protocol: 2))
+        asked = connection.readRequestId() != nil
+    }
     defer { server.stop() }
     let seen = observe(path: server.path, waits: 1)
-    #expect(seen.states == [.incompatible])
+    #expect(seen.states == [.incompatible(update: "This app is older than carrier. Run brew upgrade --cask carrier in Terminal, then open the app again.")])
     #expect(seen.intervals == [3])
+    #expect(asked == false)
+}
+
+@Test func aLowerProtocolSaysCarrierIsOlderAndSendsNothing() {
+    var asked = false
+    let server = TestServer { connection in
+        connection.send(hello(protocol: 0))
+        asked = connection.readRequestId() != nil
+    }
+    defer { server.stop() }
+    #expect(observe(path: server.path, waits: 1).states == [.incompatible(update: "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier.")])
+    #expect(asked == false)
+}
+
+@Test func theProtocolRuleHasThreeCases() {
+    #expect(protocolMatch(supportedProtocol) == .match)
+    #expect(protocolMatch(supportedProtocol - 1) == .carrierOlder)
+    #expect(protocolMatch(supportedProtocol + 1) == .appOlder)
+    #expect(ProtocolMatch.match.update == nil)
 }
 
 @Test func aSnapshotThatDoesNotDecodeIsIncompatible() {
@@ -52,7 +75,7 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
         connection.send("{\"id\":\(id),\"ok\":true,\"data\":{\"now\":1}}\n")
     }
     defer { server.stop() }
-    #expect(observe(path: server.path, waits: 1).states == [.incompatible])
+    #expect(observe(path: server.path, waits: 1).states == [.incompatible(update: nil)])
 }
 
 @Test func connectedItAsksEverySecondAndWhenTheConnectionClosesItIsStoppedAndRetriesEveryThree() throws {
@@ -77,7 +100,7 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
 @Test func theMenuLineSaysWhatCarrierIsDoing() throws {
     let snapshot = try decodeSnapshot(fixture())
     #expect(ConnectionState.stopped.menuLine == "Carrier is stopped")
-    #expect(ConnectionState.incompatible.menuLine == "Carrier is an incompatible version")
+    #expect(ConnectionState.incompatible(update: nil).menuLine == "Carrier is an incompatible version")
     #expect(ConnectionState.running(snapshot).menuLine == "Carrier running · \(snapshot.epics.count) epics · 2/3 slots")
 }
 
@@ -87,7 +110,7 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     snapshot.problem = nil
     snapshot.epics = snapshot.epics.map { var epic = $0; epic.status = .running; return epic }
     #expect(ConnectionState.stopped.menuStatus.tone == .stopped)
-    #expect(ConnectionState.incompatible.menuStatus.tone == .attention)
+    #expect(ConnectionState.incompatible(update: nil).menuStatus.tone == .attention)
     #expect(ConnectionState.running(snapshot).menuStatus.title == "Carrier running")
     #expect(ConnectionState.running(snapshot).menuStatus.tone == .running)
     snapshot.paused = true
@@ -112,4 +135,10 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
         tick: { _ in log.append("tick") }, onChange: { _ in log.append("snapshot") }
     ).run()
     #expect(log == ["snapshot", "tick", "snapshot", "tick"])
+}
+
+@Test func theMenuAndTheCardShowTheSentenceOfTheSideToUpdate() {
+    let state = ConnectionState.incompatible(update: "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier.")
+    #expect(state.menuStatus.detail == "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier.")
+    #expect(ConnectionState.incompatible(update: nil).menuStatus.detail == nil)
 }

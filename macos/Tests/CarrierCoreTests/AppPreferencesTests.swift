@@ -182,3 +182,50 @@ private let idle = PanelSnapshot(
     #expect(Density.comfortable.rowPadding == 7)
     #expect(Density.comfortable.messageGap == 12)
 }
+
+@Test func monospaceSettingsStartOnTheirDefaults() {
+    let mono = AppPreferences(defaults: UserDefaults(suiteName: "mono-\(UUID().uuidString)")!).monospace
+    #expect(mono == MonospaceSettings())
+    #expect(mono.family == MonospaceSettings.systemFamily && mono.size == 12 && mono.lineHeight == .normal)
+    #expect(mono.ligatures && mono.wrapLongLines && mono.lineNumbers == false)
+}
+
+@Test func monospaceSettingsSurviveARelaunchAndResetWithAppearance() {
+    let name = "mono-\(UUID().uuidString)"
+    let store = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    let chosen = MonospaceSettings(family: "Menlo", size: 14, lineHeight: .loose, ligatures: false, wrapLongLines: false, lineNumbers: true)
+    store.monospace = chosen
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).monospace == chosen)
+    store.confirmStop = false
+    store.reset(.appearance)
+    #expect(store.monospace == MonospaceSettings())
+    #expect(store.confirmStop == false)
+}
+
+@Test func aBadSavedMonospaceValueReadsAsTheDefaultAndTheSizeStaysInRange() {
+    let defaults = UserDefaults(suiteName: "mono-\(UUID().uuidString)")!
+    defaults.set("huge", forKey: AppPreferences.monospaceLineHeightKey)
+    defaults.set("yes", forKey: AppPreferences.monospaceWrapKey)
+    defaults.set(300.0, forKey: AppPreferences.monospaceSizeKey)
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.monospace.lineHeight == .normal && store.monospace.wrapLongLines)
+    #expect(store.monospace.size == 20)
+    defaults.set(2.0, forKey: AppPreferences.monospaceSizeKey)
+    #expect(store.monospace.size == 9)
+}
+
+@Test func aFamilyThatIsNoLongerInstalledFallsBackToTheSystemsMonospacedFont() {
+    let installed = ["Menlo", "Courier New"]
+    #expect(MonospaceSettings(family: "Menlo").resolved(installed: installed).family == "Menlo")
+    #expect(MonospaceSettings(family: "Gone Mono").resolved(installed: installed).family == MonospaceSettings.systemFamily)
+    #expect(MonospaceSettings().resolved(installed: []).family == MonospaceSettings.systemFamily)
+    // only the family changes
+    #expect(MonospaceSettings(family: "Gone Mono", size: 15).resolved(installed: installed).size == 15)
+}
+
+@Test func eachLineHeightMapsToItsMultipleAndItsExtraSpacing() {
+    #expect(LineHeight.tight.multiple == 1.2 && LineHeight.normal.multiple == 1.45 && LineHeight.loose.multiple == 1.7)
+    #expect(LineHeight.tight.extraSpacing(forSize: 12) == 0)
+    #expect(abs(LineHeight.normal.extraSpacing(forSize: 12) - 3) < 0.0001)
+    #expect(abs(LineHeight.loose.extraSpacing(forSize: 12) - 6) < 0.0001)
+}

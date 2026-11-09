@@ -78,7 +78,7 @@ private struct CallRowView: View {
                     LogChevron(open: open)
                     Image(systemName: call.kind.icon).font(.scaled(11)).frame(width: 16)
                     Text(call.tool).fontWeight(.medium)
-                    Text(call.arg).font(.scaled(12, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                    Text(call.arg).codeFont(12).lineLimit(1).truncationMode(.middle)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if call.status == .running {
                         SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor).overlay { StateMark(shape: .working, size: 6).foregroundStyle(.secondary) }
@@ -112,7 +112,7 @@ private struct CallDetailView: View {
                 if call.output.isEmpty {
                     Text(call.status == .running ? "running…" : "no output").foregroundStyle(ConsoleColor.text.opacity(0.6)).padding(.horizontal, 14)
                 } else {
-                    Text(call.output.joined(separator: "\n")).foregroundStyle(ConsoleColor.text).textSelection(.enabled).padding(.horizontal, 14)
+                    MonoLines(lines: call.output).foregroundStyle(ConsoleColor.text).textSelection(.enabled).padding(.horizontal, 14)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }

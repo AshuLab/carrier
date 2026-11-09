@@ -222,7 +222,7 @@ private struct FeedRowView: View {
         case .decided(_, let text, let allow):
             ApprovalDecidedView(text: text, allow: allow)
         case .line(_, let text):
-            Text(text).font(.scaled(12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
+            Text(text).codeFont(12).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         case .error(_, let text):
             BannerView(banner: failedTurnBanner(agent: agent, error: text), copyDetails: true, retry: offersWayOut ? retry : nil)
         case .stopped:
@@ -269,8 +269,8 @@ private struct BannerView: View {
     }
 }
 
-/// A fenced block of an agent's message: its language, a Copy button that puts the code on the pasteboard, and the code, which
-/// scrolls sideways instead of wrapping.
+/// A fenced block of an agent's message: its language, a Copy button that puts the code on the pasteboard, and the code, wrapped or
+/// scrolling sideways as the monospace settings say.
 struct CodeBlockView: View {
     let language: String?
     let code: String
@@ -284,9 +284,8 @@ struct CodeBlockView: View {
             }
             .padding(.horizontal, 12).padding(.vertical, 6)
             Rectangle().fill(Color.secondary.opacity(0.2)).frame(height: 0.5)
-            ScrollView(.horizontal) {
-                Text(code).font(.scaled(11.5, design: .monospaced)).textSelection(.enabled).padding(12)
-            }
+            MonoLines(lines: code.components(separatedBy: "\n")).codeFont(11.5).textSelection(.enabled).padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.12)))
         .clipShape(RoundedRectangle(cornerRadius: 10))

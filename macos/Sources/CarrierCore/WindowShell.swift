@@ -18,7 +18,7 @@ public enum Selection: Hashable {
 /// Which of the Sessions, Carrier and Archive sections is unfolded; the others are folded.
 public enum OpenSection: String { case sessions, carrier, archive }
 
-/// The modifier keys a shortcut can carry; only ⌘ alone makes one.
+/// The modifier keys a shortcut can carry.
 public struct ShortcutModifiers: OptionSet {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
@@ -35,18 +35,10 @@ public enum ShortcutAction: Equatable {
     case search
 }
 
-/// ⌘1 Home, ⌘2 the Sessions home, ⌘3 the Carrier home, ⌘N the new session's draft, ⌘F the search of the open section; anything else, or these keys with another
-/// modifier, is nothing. `key` is the character without modifiers.
-public func shortcutAction(key: String, modifiers: ShortcutModifiers) -> ShortcutAction? {
-    guard modifiers == .command else { return nil }
-    switch key.lowercased() {
-    case "1": return .select(.home)
-    case "2": return .select(.sessions)
-    case "3": return .select(.carrier)
-    case "n": return .select(.newSession)
-    case "f": return .search
-    default: return nil
-    }
+/// The action a key runs, from the shortcut table; a combination no action has, or one without ⌘, ⌃ or ⌥, is nothing. `key` is the character
+/// without modifiers.
+public func shortcutAction(key: String, modifiers: ShortcutModifiers, in table: ShortcutTable = ShortcutTable()) -> ShortcutAction? {
+    KeyCombo(key: key, modifiers: modifiers).flatMap { table.command(for: $0)?.action }
 }
 
 /// A request to open the search of a section; `count` makes asking twice a change the views can see.

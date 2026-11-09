@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var fixtureServer: FixtureServer?
     /// Start on open looks once, at the first state the monitor delivers (main thread).
     private var triedStartOnOpen = false
+    /// The combinations the main menu was built with (MainMenu.swift).
+    var shortcutsInMenu: [KeyCombo?] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMainMenu()
@@ -38,7 +40,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         watchCarrier(stateLine)
         SystemNotificationCentre.shared.attachDelegate()
         // the Notifications page writes user defaults: the badge follows its switch at once
-        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { _ in NotificationWatcher.app.refreshBadge() }
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            NotificationWatcher.app.refreshBadge()
+            // the Keybindings page writes user defaults: the menu carries the new keys at once
+            self?.rebuildMainMenuIfShortcutsChanged()
+        }
         // the host starts when the app opens, once the settings are known; the self-test only checks what would run
         let underSelfTest = CommandLine.arguments.contains("--selftest")
         SetupController.shared.detectIfFirstLaunch {

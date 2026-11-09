@@ -264,6 +264,7 @@ public struct AppPreferences {
                 sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,
                 toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, confirmDeleteKey,
             ]
+        case .keybindings: [ShortcutTable.key]
         default: []
         }
     }

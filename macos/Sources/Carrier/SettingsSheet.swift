@@ -107,7 +107,7 @@ struct SettingsRail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            RailHeader(title: "Settings", detail: "How Carrier runs here", icon: "gearshape.fill")
+            RailHeader(title: "Settings", detail: "How Carrier runs here")
             // the pages scroll under the header, so the last ones stay in reach in a short window
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {

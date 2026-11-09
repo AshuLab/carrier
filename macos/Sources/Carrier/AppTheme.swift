@@ -48,8 +48,13 @@ extension Color {
 }
 
 extension View {
-    /// The theme's accent on the root of a window or a sheet: it colors the controls, and does not carry into a sheet, which is another window.
-    func themed() -> some View { tint(AppTheme.shared.surfaces.accent.map(Color.init)) }
+    /// The theme's accent and window color on the root of a window or a sheet. A sheet is another window: it takes neither the accent nor
+    /// the color of the window it opens over. Carrier's translucent windows have no color of their own, so the sheet keeps the system's.
+    func themed() -> some View {
+        let surfaces = AppTheme.shared.surfaces
+        return tint(surfaces.accent.map(Color.init))
+            .presentationBackground(surfaces.window.alpha > 0 ? AnyShapeStyle(Color(surfaces.window)) : AnyShapeStyle(.background))
+    }
 
     /// The color the theme gives the windows, under the content.
     func themedWindowBackground() -> some View { background(Color(AppTheme.shared.surfaces.window)) }

@@ -26,10 +26,10 @@ public struct RGBA: Equatable {
 /// The two versions a theme is drawn in; the color scheme picks the one that shows.
 public enum ThemeScheme: CaseIterable { case light, dark }
 
-/// The six themes of the gallery. A theme sets the color of the windows, the color of the sidebar and an accent of its own, each for
+/// The nine themes of the gallery. A theme sets the color of the windows, the color of the sidebar and an accent of its own, each for
 /// the light and the dark version (`docs/research/macos-app-design/theme-reach.md`: nothing else a theme says is promised).
 public enum Theme: String, CaseIterable {
-    case carrier, graphite, ocean, forest, sunset, paper
+    case carrier, graphite, ocean, forest, sunset, paper, rose, lavender, midnight
 
     public var title: String { rawValue.capitalized }
 
@@ -48,6 +48,12 @@ public enum Theme: String, CaseIterable {
         case (.sunset, .light): (0xfbf1e6, 0xf1dcc3, 0xd97706)
         case (.paper, .dark): (0x222120, 0x32302d, 0x6ea8ff)
         case (.paper, .light): (0xf6f4ef, 0xe6e1d4, 0x007aff)
+        case (.rose, .dark): (0x1f1418, 0x35212a, 0xff6b9a)
+        case (.rose, .light): (0xfbeff2, 0xf2d6de, 0xd6336c)
+        case (.lavender, .dark): (0x18141f, 0x2a2238, 0xb58cff)
+        case (.lavender, .light): (0xf3effb, 0xe0d6f2, 0x7c3aed)
+        case (.midnight, .dark): (0x0a0e1a, 0x141b30, 0x2dd4bf)
+        case (.midnight, .light): (0xeceef8, 0xd3d8ee, 0x0f9d8a)
         }
     }
 }

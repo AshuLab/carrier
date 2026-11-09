@@ -80,9 +80,11 @@ private func watched(_ repo: String, ok: Bool = true, error: String? = nil) -> P
 private final class FakeCentre: NotificationCentre {
     var posted: [[String]] = []
     var sounds: [Bool] = []
+    var quiets: [Bool] = []
     func post(_ notifications: [EpicNotification]) {
         posted.append(notifications.map(\.title))
         sounds += notifications.map(\.sound)
+        quiets += notifications.map(\.quiet)
     }
 }
 
@@ -129,6 +131,60 @@ private func running(_ snapshot: PanelSnapshot) -> ConnectionState { .running(sn
     #expect(defaults.notifiesWithSound)
     defaults.set(false, forKey: notifySoundKey)
     #expect(defaults.notifiesWithSound == false)
+}
+
+// quiet hours
+
+private func at(_ hour: Int, _ minute: Int = 0) -> Date {
+    Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date(timeIntervalSince1970: 1_800_000_000))!
+}
+
+@Test func quietHoursAreOffUntilTurnedOnAndOfferTenPMToEightAM() {
+    let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
+    #expect(defaults.quietHours == QuietHours(enabled: false, start: 22 * 60, end: 8 * 60))
+    #expect(defaults.quietHours.contains(at(23)) == false)
+    defaults.set(true, forKey: notifyQuietKey)
+    defaults.set(9 * 60 + 30, forKey: notifyQuietStartKey)
+    #expect(defaults.quietHours == QuietHours(enabled: true, start: 9 * 60 + 30, end: 8 * 60))
+}
+
+@Test func aWindowInsideOneDayIsQuietFromItsStartUntilItsEnd() {
+    let hours = QuietHours(enabled: true, start: 13 * 60, end: 15 * 60)
+    #expect(hours.contains(at(12, 59)) == false)
+    #expect(hours.contains(at(13)))
+    #expect(hours.contains(at(14, 59)))
+    #expect(hours.contains(at(15)) == false)
+}
+
+@Test func aWindowThatCrossesMidnightIsQuietOnBothSidesOfIt() {
+    let hours = QuietHours(enabled: true, start: 22 * 60, end: 8 * 60)
+    #expect(hours.contains(at(21, 59)) == false)
+    #expect(hours.contains(at(22)))
+    #expect(hours.contains(at(23, 30)))
+    #expect(hours.contains(at(0)))
+    #expect(hours.contains(at(7, 59)))
+    #expect(hours.contains(at(8)) == false)
+    #expect(hours.contains(at(12)) == false)
+}
+
+@Test func aWindowWithEqualStartAndEndIsNeverQuiet_AndOffIsNeverQuiet() {
+    let same = QuietHours(enabled: true, start: 6 * 60, end: 6 * 60)
+    #expect([0, 6, 12, 23].allSatisfy { same.contains(at($0)) == false })
+    #expect(QuietHours(enabled: false, start: 22 * 60, end: 8 * 60).contains(at(23)) == false)
+}
+
+@Test func insideTheQuietHoursEveryNotificationIsPostedQuietAndWithoutASound_OutsideAsTheSettingsSay() {
+    let centre = FakeCentre()
+    var now = at(23)
+    let watcher = NotificationWatcher(centre: centre, quietHours: { QuietHours(enabled: true) }, now: { now })
+    watcher.react(to: running(snapshot()))
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)], done: [ready(3)])))
+    #expect(centre.quiets == [true, true])
+    #expect(centre.sounds == [false, false])
+    now = at(12)
+    watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)], done: [ready(3)])))
+    #expect(centre.quiets == [true, true, false])
+    #expect(centre.sounds == [false, false, true])
 }
 
 // the switches

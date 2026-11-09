@@ -10,6 +10,9 @@ public let notifyReadyForTestKey = "notify.readyForTest"
 public let notifyProblemKey = "notify.problem"
 public let notifyOnlyWhenAwayKey = "notify.onlyWhenAway"
 public let notifySoundKey = "notify.sound"
+public let notifyQuietKey = "notify.quiet"
+public let notifyQuietStartKey = "notify.quietStart"
+public let notifyQuietEndKey = "notify.quietEnd"
 
 extension UserDefaults {
     /// The switches: needs attention and ready for test are on until the person turns them off, a problem is off until turned on. The
@@ -27,6 +30,40 @@ extension UserDefaults {
 
     /// A banner plays a sound; on until turned off.
     public var notifiesWithSound: Bool { object(forKey: notifySoundKey) as? Bool ?? true }
+
+    /// Quiet hours: off until turned on, from 22:00 to 08:00 until the person picks others.
+    public var quietHours: QuietHours {
+        QuietHours(
+            enabled: object(forKey: notifyQuietKey) as? Bool ?? false,
+            start: object(forKey: notifyQuietStartKey) as? Int ?? QuietHours.defaultStart,
+            end: object(forKey: notifyQuietEndKey) as? Int ?? QuietHours.defaultEnd
+        )
+    }
+}
+
+/// The hours in which a notification is kept and not shown: `start` and `end` are minutes after midnight. The window may cross
+/// midnight (22:00 to 08:00); with equal start and end it is never quiet.
+public struct QuietHours: Equatable {
+    public static let defaultStart = 22 * 60
+    public static let defaultEnd = 8 * 60
+
+    public var enabled: Bool
+    public var start: Int
+    public var end: Int
+
+    public init(enabled: Bool = false, start: Int = defaultStart, end: Int = defaultEnd) {
+        self.enabled = enabled
+        self.start = start
+        self.end = end
+    }
+
+    /// Whether `date` is inside the hours, read on the clock of `calendar`. The start is in and the end is out.
+    public func contains(_ date: Date, calendar: Calendar = .current) -> Bool {
+        guard enabled, start != end else { return false }
+        let parts = calendar.dateComponents([.hour, .minute], from: date)
+        let minute = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+        return start < end ? (start <= minute && minute < end) : (minute >= start || minute < end)
+    }
 }
 
 /// Whether a banner shows: always the test, and anything else unless the person asked for none while the app is in front and it is.

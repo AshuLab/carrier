@@ -140,3 +140,48 @@ public struct ToolGroup: Equatable {
         return end - startedAt
     }
 }
+
+extension ToolCall {
+    /// Whether the call opens by itself, by what the person chose for the tools.
+    public func opensByDefault(_ mode: ToolOutputMode, opensFailed: Bool) -> Bool { mode.opens(failed: status == .failed, opensFailed: opensFailed) }
+}
+
+extension ToolGroup {
+    /// Whether the run opens by itself: when it is expanded, or when a call that failed opens and the run is where it is.
+    public func opensByDefault(_ mode: ToolOutputMode, opensFailed: Bool) -> Bool { mode.opens(failed: failed > 0, opensFailed: opensFailed) }
+}
+
+/// The feed without its runs of calls when the tools are hidden, and without the reasoning when the person does not want it.
+public func visibleFeed(_ rows: [FeedRow], mode: ToolOutputMode, showsReasoning: Bool = true) -> [FeedRow] {
+    rows.filter {
+        switch $0 {
+        case .tools: mode != .hidden
+        case .reasoning: showsReasoning
+        default: true
+        }
+    }
+}
+
+/// What the person has flipped after Fold or unfold the tool calls: every run of the feed folded, or all unfolded when all are folded
+/// already. `flipped` is the ids flipped from how the tools open by default.
+public func togglingToolGroups(in rows: [FeedRow], mode: ToolOutputMode, opensFailed: Bool, flipped: Set<String>) -> Set<String> {
+    let groups = rows.compactMap { row -> (id: String, byDefault: Bool, open: Bool)? in
+        guard case .tools(let id, let group) = row else { return nil }
+        let byDefault = group.opensByDefault(mode, opensFailed: opensFailed)
+        return (id, byDefault, byDefault != flipped.contains(id))
+    }
+    let unfold = groups.allSatisfy { $0.open == false }
+    var next = flipped
+    for group in groups {
+        if group.byDefault == unfold { next.remove(group.id) } else { next.insert(group.id) }
+    }
+    return next
+}
+
+/// The text of the agent's last answer; nil when it has not written one.
+public func lastAnswer(in rows: [FeedRow]) -> String? {
+    for row in rows.reversed() {
+        if case .agent(_, let text, _) = row, text.isEmpty == false { return text }
+    }
+    return nil
+}

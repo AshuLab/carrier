@@ -31,7 +31,7 @@ struct ResumeCardView: View {
         .background(RoundedRectangle(cornerRadius: 12).fill(color.opacity(0.12)))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(color.opacity(0.35)))
         .accessibilityElement(children: .contain)
-        .sheet(isPresented: $confirming) { confirmation }
+        .sheet(isPresented: $confirming) { confirmation.themed() }
     }
 
     private var confirmation: some View {

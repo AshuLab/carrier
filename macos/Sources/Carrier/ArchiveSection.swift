@@ -80,7 +80,7 @@ struct ArchiveSection: View {
                             SessionRowView(row: row, showsWorkspace: true)
                                 .padding(.vertical, 2)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(chosen ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.45) : .clear))
+                                .background(RoundedRectangle(cornerRadius: 8).fill(chosen ? Color.themeAccent.opacity(0.45) : .clear))
                                 .contentShape(RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)

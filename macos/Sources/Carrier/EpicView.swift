@@ -105,7 +105,7 @@ private struct EpicHeaderView: View {
                             .buttonStyle(.plain).help("Open the issue")
                     }
                     ForEach(header.labels, id: \.self) { label in
-                        Text(label).font(.system(size: 12, weight: .medium)).padding(.horizontal, 8).padding(.vertical, 2)
+                        Text(label).font(.scaled(12, weight: .medium)).padding(.horizontal, 8).padding(.vertical, 2)
                             .background(Capsule().fill(Color.secondary.opacity(0.15)))
                     }
                 }
@@ -121,11 +121,11 @@ private struct HeaderGlyph: View {
     var body: some View {
         Group {
             switch state {
-            case .running: SpinningRing(diameter: 26, lineWidth: 3)
-            case .needsYou: disc(.orange, "!")
-            case .ready: disc(.blue, "✓")
-            case .done: disc(.green, "✓")
-            case .cancelled: disc(.gray, "✕")
+            case .running: SpinningRing(diameter: 26, lineWidth: 3).overlay { StateMark(shape: .working, size: 12).foregroundStyle(.secondary) }
+            case .needsYou: disc(.orange, "!", state.shape())
+            case .ready: disc(.blue, "✓", .ready)
+            case .done: disc(.green, "✓", nil)
+            case .cancelled: disc(.gray, "✕", nil)
             case .waiting: Circle().strokeBorder(Color.gray, lineWidth: 3).frame(width: 24, height: 24)
             }
         }
@@ -133,14 +133,15 @@ private struct HeaderGlyph: View {
         .accessibilityHidden(true)
     }
 
-    private func disc(_ color: Color, _ mark: String) -> some View {
-        Circle().fill(color).frame(width: 30, height: 30).overlay { Text(mark).font(.system(size: 15, weight: .heavy)).foregroundStyle(.white) }
+    private func disc(_ color: Color, _ mark: String, _ shape: StateShape?) -> some View {
+        Circle().fill(color).frame(width: 30, height: 30).overlay { StateMark(text: mark, shape: shape, size: 15).foregroundStyle(.white) }
     }
 }
 
 private struct StatePill: View {
     let state: EpicMenuState
     let text: String
+    @AppStorage(AppPreferences.statesByShapeKey) private var byShape = false
 
     var body: some View {
         let color: Color = switch state {
@@ -151,10 +152,14 @@ private struct StatePill: View {
         case .done: .green
         }
         HStack(spacing: 6) {
-            Circle().fill(color).frame(width: 6, height: 6)
+            if byShape, let shape = state.shape() {
+                Image(systemName: stateSymbol(shape)).font(.scaled(11, weight: .bold))
+            } else {
+                Circle().fill(color).frame(width: 6, height: 6)
+            }
             Text(text).lineLimit(1).truncationMode(.tail)
         }
-        .font(.system(size: 12, weight: .semibold)).foregroundStyle(color)
+        .font(.scaled(12, weight: .semibold)).foregroundStyle(color)
         .help(text)
         .padding(.horizontal, 11).padding(.vertical, 4)
         .background(Capsule().fill(color.opacity(0.2)))
@@ -171,9 +176,9 @@ private struct Chip: View {
         HStack(spacing: 5) {
             if let mark { mark.renderingMode(.template).resizable().scaledToFit().frame(width: 13, height: 13) }
             Text(text).lineLimit(1)
-            if opens { Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.tertiary) }
+            if opens { Image(systemName: "arrow.up.right").font(.scaled(9, weight: .bold)).foregroundStyle(.tertiary) }
         }
-        .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+        .font(.scaled(12, weight: .medium)).foregroundStyle(.secondary)
         .padding(.horizontal, 10).padding(.vertical, 4)
         .background(Capsule().fill(Color.secondary.opacity(0.15)))
     }
@@ -214,7 +219,7 @@ struct PipelineStepView: View {
                 if step.loops {
                     SpinningGlyph(symbol: "arrow.triangle.2.circlepath", diameter: 10)
                 } else {
-                    Text(mark).font(.system(size: 10, weight: .bold)).foregroundStyle(fill == nil ? Color.secondary : .white)
+                    StateMark(text: mark, shape: step.state.shape, size: 10, weight: .bold).foregroundStyle(fill == nil ? Color.secondary : .white)
                 }
             }
             .frame(width: 17, height: 17)
@@ -254,7 +259,7 @@ struct PipelineStepView: View {
     private var fill: Color? {
         switch step.state {
         case .done: .green
-        case .current: .accentColor
+        case .current: .themeAccent
         case .input: .orange
         case .error: .red
         case .waiting, .cancelled: nil
@@ -282,7 +287,7 @@ struct EpicLinks: View {
         HStack(spacing: 0) {
             link("Open PR", url: pr) { GitHubMark.image.renderingMode(.template).resizable().scaledToFit().frame(width: 13, height: 13) }
             if pr != nil, issue != nil { Divider().frame(height: 14) }
-            link("Open issue", url: issue) { Image(systemName: "number").font(.system(size: 12, weight: .medium)) }
+            link("Open issue", url: issue) { Image(systemName: "number").font(.scaled(12, weight: .medium)) }
         }
     }
 

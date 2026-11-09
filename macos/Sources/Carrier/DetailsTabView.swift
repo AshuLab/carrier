@@ -4,6 +4,7 @@ import SwiftUI
 /// The Details tab: the four groups of rows, each a card with its title in capitals above it. A row is an icon, a label with its
 /// note and the value at the far end; a value too long for that (a branch name) goes under the label.
 struct DetailsTabView: View {
+    private let timeChanges = TimeFormatChanges()
     let subject: EpicSubject?
     let reply: EpicReply?
     let sessions: SessionsReply?
@@ -36,7 +37,7 @@ struct DetailsRowView: View {
     var body: some View {
         let stacked = row.value.count > Self.longValue
         HStack(alignment: stacked ? .top : .firstTextBaseline, spacing: 10) {
-            Image(systemName: row.icon).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary).frame(width: 18)
+            Image(systemName: row.icon).font(.scaled(12, weight: .medium)).foregroundStyle(.secondary).frame(width: 18)
             if stacked {
                 VStack(alignment: .leading, spacing: 3) {
                     label
@@ -72,7 +73,7 @@ struct DetailsRowView: View {
         switch row.style {
         case .badge:
             if let link {
-                Link(destination: link) { DetailsBadge(text: row.value, color: row.tone == .normal ? .accentColor : color, linked: true) }
+                Link(destination: link) { DetailsBadge(text: row.value, color: row.tone == .normal ? .themeAccent : color, linked: true) }
                     .buttonStyle(.plain).help(link.absoluteString)
             } else {
                 DetailsBadge(text: row.value, color: color, linked: false)
@@ -92,7 +93,7 @@ private struct DetailsBadge: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(text).lineLimit(1).truncationMode(.middle)
-            if linked { Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .bold)) }
+            if linked { Image(systemName: "arrow.up.right").font(.scaled(9, weight: .bold)) }
         }
         .font(.caption.weight(.semibold).monospacedDigit())
         .foregroundStyle(color)

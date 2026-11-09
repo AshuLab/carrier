@@ -114,7 +114,7 @@ struct SessionsHomeView: View {
                 Label("Filter", systemImage: "line.3.horizontal.decrease").labelStyle(.titleAndIcon)
                 if filter.count > 0 {
                     Text("\(filter.count)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.white)
-                        .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.accentColor))
+                        .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.themeAccent))
                         .accessibilityLabel("\(filter.count) filters applied")
                 }
             }
@@ -130,10 +130,10 @@ struct SessionsHomeView: View {
                 Button { filter.remove(chip) } label: {
                     HStack(spacing: 4) {
                         Text(chip.title)
-                        Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                        Image(systemName: "xmark").font(.scaled(8, weight: .bold))
                     }
                     .font(.caption.weight(.medium)).foregroundStyle(.white)
-                    .padding(.horizontal, 9).padding(.vertical, 3).background(Capsule().fill(Color.accentColor))
+                    .padding(.horizontal, 9).padding(.vertical, 3).background(Capsule().fill(Color.themeAccent))
                 }
                 .buttonStyle(.plain).accessibilityLabel("Remove filter \(chip.title)")
             }
@@ -201,7 +201,7 @@ private struct SessionFilterPopover: View {
     }
 }
 
-private extension SessionSort {
+extension SessionSort {
     var title: String {
         switch self {
         case .workspace: "Workspace"
@@ -215,15 +215,11 @@ private extension SessionSort {
 /// a worktree session; on the right the Archived tag, for an archived match that is dimmed, and the age. A session that waits for
 /// the person is orange.
 private struct SessionHomeRow: View {
+    private let timeChanges = TimeFormatChanges()
     let row: SessionRow
     let showsWorkspace: Bool
     let open: () -> Void
     @State private var hovered = false
-    private static let spokenAge: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter
-    }()
 
     var body: some View {
         Button(action: open) {
@@ -231,7 +227,7 @@ private struct SessionHomeRow: View {
                 SessionGlyph(state: row.state)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Text(row.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                        Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
                             .foregroundStyle(row.state == .waiting ? Color.orange : .primary)
                         if showsWorkspace { tag(row.workspace) }
                     }
@@ -243,8 +239,8 @@ private struct SessionHomeRow: View {
                 }
                 Spacer(minLength: 8)
                 if row.archived { tag("Archived") }
-                Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    .accessibilityLabel(Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date()))
+                Text(timeText(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    .accessibilityLabel(spokenAge(row.updatedAt, now: Date()))
             }
             .opacity(row.archived ? 0.55 : 1)
             .padding(.horizontal, 8).padding(.vertical, 6)

@@ -129,10 +129,15 @@ public func sessionMenu(_ row: SessionRow) -> [SessionMenuItem] {
 @Observable public final class SessionActions {
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let log: (String) -> Void
+    @ObservationIgnored private let preferences: AppPreferences
     @ObservationIgnored public var changed: () -> Void = {}
 
-    public init(host: ChatHost, log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }) {
+    public init(
+        host: ChatHost, preferences: AppPreferences = AppPreferences(),
+        log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }
+    ) {
         self.host = host
+        self.preferences = preferences
         self.log = log
     }
 
@@ -145,14 +150,18 @@ public func sessionMenu(_ row: SessionRow) -> [SessionMenuItem] {
     /// What an alert before a delete is: the question to ask, or what the host refused when it was asked what the deletion would discard.
     public enum Confirmation: Equatable {
         case ask(Question)
+        /// The person switched the question off: delete without asking.
+        case proceed
         case refused(String)
     }
 
-    /// Asks the host what deleting the session would discard and builds its question; the deletion must not go ahead without it.
+    /// Asks the host what deleting the session would discard and builds its question; the deletion must not go ahead without it,
+    /// unless the person switched the question off.
     public func confirmDelete(_ row: SessionRow) async -> Confirmation {
+        guard preferences.confirmDelete else { return .proceed }
         switch await preview("delete \(row.id)", [row.id]) {
-        case .success(let previews): .ask(deleteSessionQuestion(row, worktree: previews.first { $0.sessionId == row.id }?.worktree))
-        case .failure(let refusal): .refused(refusal.words)
+        case .success(let previews): return .ask(deleteSessionQuestion(row, worktree: previews.first { $0.sessionId == row.id }?.worktree))
+        case .failure(let refusal): return .refused(refusal.words)
         }
     }
 

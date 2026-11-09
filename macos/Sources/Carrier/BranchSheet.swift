@@ -36,9 +36,9 @@ struct BranchSheet: View {
     private var header: some View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accentColor)
+                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
                 .frame(width: 36, height: 36)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.16)))
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(browsing ? "Branches in \(model.folder.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "this folder")" : "Start from a branch").font(.title3.weight(.semibold))
@@ -53,7 +53,7 @@ struct BranchSheet: View {
         if local.isEmpty && remote.isEmpty {
             VStack(spacing: 8) {
                 Image(systemName: query.isEmpty ? "arrow.triangle.branch" : "magnifyingglass")
-                    .font(.system(size: 32, weight: .light)).foregroundStyle(.secondary).accessibilityHidden(true)
+                    .font(.scaled(32, weight: .light)).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text(query.isEmpty ? "No branches" : "No branch matches “\(query)”").font(.headline)
                 Text(query.isEmpty ? "This repository has no branch to start from yet." : "Search looks at the local and the remote branches. Fetch to see new ones.")
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 360)
@@ -93,7 +93,7 @@ struct BranchSheet: View {
     /// The folder part of a name (`carrier/`, `origin/`, `feature/x/`) is quiet and the last part is the branch; a row is a button that picks it.
     @ViewBuilder private func branchRow(_ row: BranchRow) -> some View {
         let chosen = model.startBranch == row.name
-        HoverRow(action: { model.choose(startBranch: row.name); dismiss() }, fill: chosen ? Color.accentColor.opacity(0.18) : nil) { hovering in
+        HoverRow(action: { model.choose(startBranch: row.name); dismiss() }, fill: chosen ? Color.themeAccent.opacity(0.18) : nil) { hovering in
             rowContent(row, chosen: chosen, hovering: hovering)
         }
     }
@@ -101,13 +101,13 @@ struct BranchSheet: View {
     private func rowContent(_ row: BranchRow, chosen: Bool, hovering: Bool) -> some View {
         let cut = row.name.lastIndex(of: "/").map { row.name.index(after: $0) } ?? row.name.startIndex
         return HStack(spacing: 10) {
-            Image(systemName: "arrow.triangle.branch").foregroundStyle(chosen ? Color.accentColor : .secondary).frame(width: 18).accessibilityHidden(true)
+            Image(systemName: "arrow.triangle.branch").foregroundStyle(chosen ? Color.themeAccent : .secondary).frame(width: 18).accessibilityHidden(true)
             Text("\(Text(row.name[..<cut]).foregroundStyle(.secondary))\(Text(row.name[cut...]).fontWeight(chosen ? .semibold : .medium))")
                 .lineLimit(1).truncationMode(.middle)
-            if row.isDefault { Badge(text: "default", icon: "star.fill", tint: .accentColor) }
-            if row.checkedOut { Badge(text: browsing ? "current" : "checked out", icon: "checkmark.circle", tint: browsing ? .accentColor : .secondary) }
+            if row.isDefault { Badge(text: "default", icon: "star.fill", tint: .themeAccent) }
+            if row.checkedOut { Badge(text: browsing ? "current" : "checked out", icon: "checkmark.circle", tint: browsing ? .themeAccent : .secondary) }
             Spacer(minLength: 8)
-            if chosen { Image(systemName: "checkmark").foregroundStyle(Color.accentColor).accessibilityLabel("Chosen") }
+            if chosen { Image(systemName: "checkmark").foregroundStyle(Color.themeAccent).accessibilityLabel("Chosen") }
             else { RowHint(text: "Select", shown: hovering) }
         }
         .frame(minHeight: 20).padding(.horizontal, 10).padding(.vertical, 8)

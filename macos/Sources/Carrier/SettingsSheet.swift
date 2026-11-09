@@ -8,23 +8,14 @@ struct SettingsSheet: View {
     let state: ConnectionState?
     @ObservedObject var setup: SetupController = .shared
     @ObservedObject private var start = StartController.shared
-    @Binding var tab: SettingsTab
+    @Binding var tab: SettingsPage
     @AppStorage(startOnOpenKey) private var startOnOpen = false
     @Environment(\.dismiss) private var dismiss
-
-    private static let rows: [(tab: SettingsTab, icon: String, detail: String)] = [
-        (.engine, "cpu", "How the app starts Carrier"),
-        (.behavior, "slider.horizontal.3", "How epics run"),
-        (.repos, "tray.full", "What Carrier watches"),
-        (.sessions, "clock.arrow.circlepath", "When sessions age out"),
-        (.notifications, "bell", "What to tell you"),
-        (.health, "stethoscope", "Is this Mac ready?"),
-    ]
 
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                rail
+                SettingsRail(page: $tab)
                 Divider()
                 page.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
@@ -40,36 +31,11 @@ struct SettingsSheet: View {
         .onDisappear { ChatHostStarter.shared.checkAtOpen() }
     }
 
-    /// The sheet's name, then a row for each section.
-    private var rail: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            RailHeader(title: "Settings", detail: "How Carrier runs here", icon: "gearshape.fill")
-            ForEach(Self.rows, id: \.tab) { row in
-                RailRow(title: row.tab.rawValue, detail: row.detail, icon: row.icon, selected: tab == row.tab) { tab = row.tab }
-            }
-            Spacer(minLength: 0)
-        }
-        // the header sits 24 from the top and 24 from the left (16 + the row's 8), as a page's header does on the right
-        .padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 14).frame(width: 250)
-        .background(Color.secondary.opacity(0.06))
-    }
-
-    /// The chosen section under its title, in a scroll of its own.
+    /// The chosen page under its title, in a scroll of its own.
     private var page: some View {
-        let row = Self.rows.first { $0.tab == tab } ?? Self.rows[0]
-        return ScrollView {
+        ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: row.icon)
-                        .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accentColor)
-                        .frame(width: 36, height: 36)
-                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.16)))
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(tab.rawValue).font(.title3.weight(.semibold))
-                        Text(row.detail).font(.callout).foregroundStyle(.secondary)
-                    }
-                }
+                SettingsPageHeader(page: tab)
                 section
             }
             .padding(24).frame(maxWidth: .infinity, alignment: .topLeading)
@@ -87,6 +53,11 @@ struct SettingsSheet: View {
                 Label(message, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
             }
             switch tab {
+            case .general: GeneralTabView()
+            case .appearance: AppearanceTabView()
+            case .sidebar: SidebarTabView()
+            case .chat: ChatTabView()
+            case .keybindings: KeybindingsTabView()
             case .engine: engine(banner, notConfigured: notConfigured)
             case .behavior: BehaviorTabView()
             case .repos: ReposTabView(state: state)
@@ -127,6 +98,37 @@ struct SettingsSheet: View {
     }
 }
 
+/// The rail: the pages of each group in order, the heading of a group over its pages when it has one.
+struct SettingsRail: View {
+    @Binding var page: SettingsPage
+
+    /// What the rail draws: each group with its pages.
+    static let sections = SettingsPage.Group.allCases.map { (group: $0, pages: SettingsPage.pages(in: $0)) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            RailHeader(title: "Settings", detail: "How Carrier runs here", icon: "gearshape.fill")
+            // the pages scroll under the header, so the last ones stay in reach in a short window
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Self.sections, id: \.group) { section in
+                        if let heading = section.group.heading {
+                            Text(heading.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary)
+                                .padding(.leading, 8).padding(.top, 10).accessibilityAddTraits(.isHeader)
+                        }
+                        ForEach(section.pages, id: \.self) { row in
+                            RailRow(title: row.rawValue, detail: row.detail, icon: row.icon, selected: page == row) { page = row }
+                        }
+                    }
+                }
+            }
+        }
+        // the header sits 24 from the top and 24 from the left (16 + the row's 8), as a page's header does on the right
+        .padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 14).frame(width: 250)
+        .background(Color.secondary.opacity(0.06))
+    }
+}
+
 struct ReadinessBannerView: View {
     let banner: ReadinessBanner
     let detecting: Bool
@@ -159,7 +161,7 @@ struct StatusDot: View {
 
     var body: some View {
         Image(systemName: found ? "checkmark" : "exclamationmark")
-            .font(.system(size: 10, weight: .heavy)).foregroundStyle(.white)
+            .font(.scaled(10, weight: .heavy)).foregroundStyle(.white)
             .frame(width: 18, height: 18)
             .background(Circle().fill(found ? Color.green : Color.orange))
             .accessibilityLabel(found ? "Found" : "Not found")

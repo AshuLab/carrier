@@ -9,43 +9,83 @@ public enum GroupBy: String, CaseIterable {
 
 /// The grouping, the Sessions and Archive sorts and the unfolded section, kept in user defaults so they survive a relaunch.
 public struct SidebarStore {
+    public static let groupByKey = "sidebar.groupBy"
+    public static let sessionSortKey = "sidebar.sessionSort"
+    public static let archiveSortKey = "sidebar.archiveSort"
+    public static let showsIconKey = "sidebar.row.icon"
+    public static let showsBranchKey = "sidebar.row.branch"
+    public static let showsProvidersKey = "sidebar.row.providers"
+    public static let showsAgeKey = "sidebar.row.age"
+    private static let openKey = "sidebar.open"
+    private static let slotsTotalKey = "sidebar.slotsTotal"
+
     private let defaults: UserDefaults
-    private let key = "sidebar.groupBy"
-    private let sortKey = "sidebar.sessionSort"
-    private let archiveSortKey = "sidebar.archiveSort"
-    private let openKey = "sidebar.open"
-    private let slotsTotalKey = "sidebar.slotsTotal"
 
     public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
     public var groupBy: GroupBy {
-        get { defaults.string(forKey: key).flatMap(GroupBy.init(rawValue:)) ?? .status }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: key) }
+        get { defaults.string(forKey: Self.groupByKey).flatMap(GroupBy.init(rawValue:)) ?? .status }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.groupByKey) }
     }
 
     public var sessionSort: SessionSort {
-        get { defaults.string(forKey: sortKey).flatMap(SessionSort.init(rawValue:)) ?? .workspace }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: sortKey) }
+        get { defaults.string(forKey: Self.sessionSortKey).flatMap(SessionSort.init(rawValue:)) ?? .workspace }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.sessionSortKey) }
     }
 
     public var archiveSort: ArchiveSort {
-        get { defaults.string(forKey: archiveSortKey).flatMap(ArchiveSort.init(rawValue:)) ?? .dateArchived }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: archiveSortKey) }
+        get { defaults.string(forKey: Self.archiveSortKey).flatMap(ArchiveSort.init(rawValue:)) ?? .dateArchived }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.archiveSortKey) }
     }
 
     /// The slots total the engine last reported, for the bars of a stopped engine; nil until one was seen.
     public var slotsTotal: Int? {
-        get { defaults.object(forKey: slotsTotalKey) as? Int }
-        nonmutating set { defaults.set(newValue, forKey: slotsTotalKey) }
+        get { defaults.object(forKey: Self.slotsTotalKey) as? Int }
+        nonmutating set { defaults.set(newValue, forKey: Self.slotsTotalKey) }
     }
 
     /// The unfolded section. Both folded is stored as "none"; a value that is not a section brings back Sessions.
     public var open: OpenSection? {
         get {
-            let stored = defaults.string(forKey: openKey)
+            let stored = defaults.string(forKey: Self.openKey)
             return stored == "none" ? nil : stored.flatMap(OpenSection.init(rawValue:)) ?? .sessions
         }
-        nonmutating set { defaults.set(newValue?.rawValue ?? "none", forKey: openKey) }
+        nonmutating set { defaults.set(newValue?.rawValue ?? "none", forKey: Self.openKey) }
+    }
+}
+
+/// What a session row shows besides its title: each part is on until the person switches it off in Settings.
+public struct SessionRowParts: Equatable {
+    public var icon = true
+    public var branch = true
+    public var providers = true
+    public var age = true
+
+    public init(icon: Bool = true, branch: Bool = true, providers: Bool = true, age: Bool = true) {
+        (self.icon, self.branch, self.providers, self.age) = (icon, branch, providers, age)
+    }
+}
+
+/// Where a session works, as its row says it.
+public enum SessionPlace: Equatable {
+    case branch(String), baseFolder
+}
+
+/// A session row as the view draws it: the title is always there, the rest follows `parts`. `workspace` is the second line's first
+/// part, only outside the workspace order (`showsWorkspace`), where the group is not the workspace; the place goes with the branch switch.
+public struct SessionRowContent: Equatable {
+    public var showsIcon: Bool
+    public var workspace: String?
+    public var place: SessionPlace?
+    public var age: String?
+    public var providers: [String]
+
+    public init(_ row: SessionRow, showsWorkspace: Bool, parts: SessionRowParts, now: Date) {
+        showsIcon = parts.icon
+        workspace = showsWorkspace ? row.workspace : nil
+        place = parts.branch ? row.branch.map(SessionPlace.branch) ?? .baseFolder : nil
+        age = parts.age ? timeText(row.updatedAt, now: now) : nil
+        providers = parts.providers ? row.providers : []
     }
 }
 
@@ -155,7 +195,7 @@ private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, wi
         let title = (own ?? titles[key(repo, issue)].flatMap { $0 }).flatMap { $0.isEmpty ? nil : $0 }
         return SidebarRow(
             repo: repo, issue: issue, state: state, title: title, name: shortName(repo), detail: detail,
-            age: since.map { sessionAge(Date(timeIntervalSince1970: Double($0) / 1000), now: Date(timeIntervalSince1970: Double(snapshot.now) / 1000)) } ?? "",
+            age: since.map { timeText(Date(ms: $0), now: Date(ms: snapshot.now)) } ?? "",
             attention: attention, card: epicCard(subject, now: snapshot.now)
         )
     }

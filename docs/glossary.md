@@ -199,3 +199,9 @@ _Avoid_: setup (that is a repository's own scripts, out of scope), provisioning,
 
 **Session lifecycle** - The life of a user session: created by its first message, worked in, then archived or deleted by the person or by the clock. A session idle for 15 days is archived and an archived one idle for 30 days is deleted, both from its last activity and both configurable in `chat.json`; a delete by the clock spares a session with unsaved work ([0019](adr/0019-sessions-age-by-the-clock-and-an-automatic-delete-never-removes-unsaved-work.md)).
 _Avoid_: expiry, retention, auto-clean.
+
+**Settings group** - One heading of the Settings rail, by what its pages configure: App (how the app looks and behaves on this Mac: the app's preferences, a config level), Carrier (the engine, its `config.json`) and Chat (the chat host, its `chat.json`). App has no heading in the rail and comes first; Carrier and Chat have theirs. A page belongs to one group, and the group says where its settings live without the page naming a file.
+_Avoid_: tab (a page is a row of the rail, not a tab), section (that is a part of a page, or a sidebar section), category.
+
+**Legacy group** - The Settings group that holds the pages that existed before the groups (Engine, Behavior, Repos, Sessions, Health) as they were, until each one is redesigned into the App, Carrier or Chat group. It is meant to empty out, not to grow.
+_Avoid_: old settings, misc, other.

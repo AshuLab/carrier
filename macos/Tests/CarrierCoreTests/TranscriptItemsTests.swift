@@ -227,7 +227,7 @@ private func shell(_ id: Int, _ call: String, status: String, output: [String]?)
 @Test func outputIsCollapsedUnlessTheCommandFailed() {
     let cards = transcriptItems(shell(1, "a", status: "ok", output: ["fine"]) + shell(3, "b", status: "err", output: ["boom"]) + [start(5, "c", "Bash")]).compactMap(card)
     #expect(cards.map(\.output) == [["fine"], ["boom"], []])
-    #expect(cards.map(\.outputOpenByDefault) == [false, true, false])
+    #expect(cards.map { $0.opensByDefault(.collapsed, opensFailed: true) } == [false, true, false])
 }
 
 @Test func onlyAnExitCodeFirstLineOfAFailedCallIsTheFailureLine() {
@@ -247,14 +247,48 @@ private func shell(_ id: Int, _ call: String, status: String, output: [String]?)
     let items = transcriptItems(shell(1, "a", status: "ok", output: ["fine"]) + shell(3, "b", status: "err", output: ["boom"]))
     let (ok, failed) = (card(items[0])!, card(items[1])!)
     var folds = OutputFolds()
-    #expect(folds.isOpen(items[0].id, ok) == false)
-    #expect(folds.isOpen(items[1].id, failed))
-    folds.toggle(items[0].id, ok)
-    folds.toggle(items[1].id, failed)
-    #expect(folds.isOpen(items[0].id, ok))
-    #expect(folds.isOpen(items[1].id, failed) == false)
-    folds.toggle(items[0].id, ok)
-    #expect(folds.isOpen(items[0].id, ok) == false)
+    func isOpen(_ index: Int, _ card: TranscriptCard) -> Bool { folds.isOpen(items[index].id, card, mode: .collapsed, opensFailed: true) }
+    #expect(isOpen(0, ok) == false)
+    #expect(isOpen(1, failed))
+    folds.toggle(items[0].id, ok, mode: .collapsed, opensFailed: true)
+    folds.toggle(items[1].id, failed, mode: .collapsed, opensFailed: true)
+    #expect(isOpen(0, ok))
+    #expect(isOpen(1, failed) == false)
+    folds.toggle(items[0].id, ok, mode: .collapsed, opensFailed: true)
+    #expect(isOpen(0, ok) == false)
+}
+
+@Test func theToolsModeAndTheFailedSwitchSetWhichOutputsOpenByThemselves() {
+    let items = transcriptItems(shell(1, "a", status: "ok", output: ["fine"]) + shell(3, "b", status: "err", output: ["boom"]))
+    let (ok, failed) = (card(items[0])!, card(items[1])!)
+    let folds = OutputFolds()
+    func opens(_ mode: ToolOutputMode, _ opensFailed: Bool) -> [Bool] {
+        [folds.isOpen(items[0].id, ok, mode: mode, opensFailed: opensFailed), folds.isOpen(items[1].id, failed, mode: mode, opensFailed: opensFailed)]
+    }
+    #expect(opens(.collapsed, true) == [false, true])
+    #expect(opens(.collapsed, false) == [false, false])
+    #expect(opens(.expanded, true) == [true, true])
+    #expect(opens(.expanded, false) == [true, true])
+    #expect(opens(.hidden, true) == [false, false])
+}
+
+@Test func aGroupFollowsTheModeUntilTheUserFlipsItAndTheFlipIsKeptPerGroup() {
+    var folds = GroupFolds()
+    #expect(folds.isOpen(1, mode: .collapsed) == false && folds.isOpen(1, mode: .expanded))
+    folds.toggle(1)
+    #expect(folds.isOpen(1, mode: .collapsed) && folds.isOpen(1, mode: .expanded) == false)
+    #expect(folds.isOpen(2, mode: .collapsed) == false)
+    folds.toggle(1)
+    #expect(folds.isOpen(1, mode: .collapsed) == false)
+}
+
+@Test func hiddenToolsLeaveTheFlowWithNoCallAndNoGroupAndKeepTheRest() {
+    let events = [ExecEvent(id: 1, at: 1, kind: "say", text: "reading")] + shell(2, "a", status: "ok", output: ["x"]) + shell(4, "b", status: "ok", output: ["y"])
+        + [ExecEvent(id: 6, at: 6, kind: "say", text: "done")] + shell(7, "c", status: "err", output: ["boom"])
+    let flow = flowItems(transcriptItems(events))
+    #expect(flow.map(\.id) == [1, 2, 6, 7])
+    #expect(visibleFlow(flow, mode: .hidden).map(\.id) == [1, 6])
+    #expect(visibleFlow(flow, mode: .collapsed) == flow && visibleFlow(flow, mode: .expanded) == flow)
 }
 
 @Test func aSliceRowIsClosedUntilTheUserOpensItAndTheChoiceIsKeptPerSubagent() {
@@ -345,4 +379,43 @@ private func call(_ tool: String = "Bash", status: ToolStatus = .ok, ms: Int? = 
     #expect(call(status: .error).showsChevron(active: false, open: false))
     #expect(call(status: .pending, ms: nil).showsChevron(active: true, open: false) == false)
     #expect(call("Read").showsChevron(active: true, open: false) == false)
+}
+
+private func rows(_ spec: String) -> [DiffRow] {
+    spec.map { c in
+        switch c {
+        case "+": DiffRow(sign: .added, text: "a")
+        case "-": DiffRow(sign: .removed, text: "r")
+        case "@": DiffRow(sign: .hunk, text: "@@")
+        default: DiffRow(sign: .context, text: "c")
+        }
+    }
+}
+
+private func shape(_ pairs: [DiffPair]) -> [String] {
+    pairs.map { p in
+        func mark(_ row: DiffRow?) -> String { row.map { $0.sign == .removed ? "-" : $0.sign == .added ? "+" : $0.sign == .hunk ? "@" : "=" } ?? "_" }
+        return mark(p.left) + mark(p.right)
+    }
+}
+
+@Test func aPureAdditionIsAddedLinesWithNothingOnTheLeft() {
+    #expect(shape(splitDiffPairs(rows("++"))) == ["_+", "_+"])
+}
+
+@Test func aPureRemovalIsRemovedLinesWithNothingOnTheRight() {
+    #expect(shape(splitDiffPairs(rows("--"))) == ["-_", "-_"])
+}
+
+@Test func aChangedBlockWithMoreRemovedThanAddedLeavesTheRightEmptyAtTheEnd() {
+    #expect(shape(splitDiffPairs(rows("---+"))) == ["-+", "-_", "-_"])
+}
+
+@Test func aChangedBlockWithMoreAddedThanRemovedLeavesTheLeftEmptyAtTheEnd() {
+    #expect(shape(splitDiffPairs(rows("-+++"))) == ["-+", "_+", "_+"])
+}
+
+@Test func contextAndHunkLinesFillBothSidesAndEndABlock() {
+    #expect(shape(splitDiffPairs(rows("@=-+=+"))) == ["@@", "==", "-+", "==", "_+"])
+    #expect(splitDiffPairs([]).isEmpty)
 }

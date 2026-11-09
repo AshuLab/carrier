@@ -38,7 +38,7 @@ final class AgentOutputWindow: NSObject, NSWindowDelegate {
     private init(title: String, executionId: String) {
         key = executionId
         let model = OutputModel()
-        window = NSWindow(contentViewController: NSHostingController(rootView: AgentOutputView(model: model)))
+        window = NSWindow(contentViewController: NSHostingController(rootView: AgentOutputView(model: model).themed()))
         super.init()
         window.title = "\(title) · output"
         window.styleMask = [.titled, .closable, .resizable]
@@ -88,36 +88,49 @@ private struct AgentOutputView: View {
                 Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange).padding(10)
             }
             if let lines = model.lines, lines.isEmpty == false {
-                OutputText(lines: lines)
+                OutputText(lines: lines, mono: MonospaceStyle.shared.settings, textSize: TextSize.shared.percent)
             } else {
                 Text(model.lines == nil ? "Reading output…" : "No output yet")
-                    .foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .font(.scaled(13)).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(minWidth: 480, minHeight: 240)
     }
 }
 
-/// The lines in a read-only text view. It follows new lines only while it is at the bottom, so reading further up is not interrupted.
+/// The lines in a read-only text view, in the monospace settings' font, line height and wrapping. It follows new lines only while it is
+/// at the bottom, so reading further up is not interrupted. `mono` and `textSize` are here so a change of either draws it again.
 private struct OutputText: NSViewRepresentable {
     let lines: [String]
+    let mono: MonospaceSettings
+    let textSize: Int
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSTextView.scrollableTextView()
         let text = scroll.documentView as! NSTextView
         text.isEditable = false
-        text.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         text.textContainerInset = NSSize(width: 8, height: 8)
         return scroll
     }
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         let text = scroll.documentView as! NSTextView
-        let joined = lines.joined(separator: "\n")
-        guard text.string != joined else { return }
+        let font = NSFont.code(12)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = mono.lineHeight.extraSpacing(forSize: font.pointSize)
+        let styled = NSAttributedString(
+            string: lines.joined(separator: "\n"), attributes: [.font: font, .paragraphStyle: paragraph, .foregroundColor: NSColor.textColor]
+        )
+        // wrapping off keeps each line whole: the view grows to its longest line and the scroll view scrolls sideways
+        let wraps = mono.wrapLongLines
+        scroll.hasHorizontalScroller = wraps == false
+        text.isHorizontallyResizable = wraps == false
+        text.textContainer?.widthTracksTextView = wraps
+        text.textContainer?.containerSize = NSSize(width: wraps ? scroll.contentSize.width : .greatestFiniteMagnitude, height: .greatestFiniteMagnitude)
+        guard text.attributedString().isEqual(to: styled) == false else { return }
         let visible = scroll.contentView.bounds
         let atBottom = visible.maxY >= (scroll.documentView?.frame.height ?? 0) - 4
-        text.string = joined
+        text.textStorage?.setAttributedString(styled)
         if atBottom { text.scrollToEndOfDocument(nil) }
     }
 }

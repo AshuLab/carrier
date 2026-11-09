@@ -4,6 +4,7 @@ import SwiftUI
 
 /// The Carrier home's watched repositories; a thin mapping of `carrierBox(_:)`. What Carrier itself is doing is in the sidebar.
 struct WatchedReposView: View {
+    private let timeChanges = TimeFormatChanges()
     let snapshot: PanelSnapshot
 
     var body: some View {

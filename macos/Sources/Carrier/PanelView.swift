@@ -3,7 +3,12 @@ import CarrierCore
 import SwiftUI
 
 struct PanelView: View {
+    private let timeChanges = TimeFormatChanges()
     let model: PanelModel
+    // the sidebar's preferences are read from the defaults, so the sidebar's menus and the Sidebar page of Settings change one value
+    @AppStorage(SidebarStore.groupByKey) private var groupBy = GroupBy.status
+    @AppStorage(SidebarStore.sessionSortKey) private var sessionSort = SessionSort.workspace
+    @AppStorage(SidebarStore.archiveSortKey) private var archiveSort = ArchiveSort.dateArchived
     /// The last Check now pressed from the toolbar, for the button to say it is checking.
     @State private var checkAsked: CheckAsked?
     /// The window's size, for the sheets over it.
@@ -65,7 +70,7 @@ struct PanelView: View {
     private var subtitle: String {
         switch model.shell.selection {
         case .carrier: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
-        case .sessions: sessionsPage(model.sessions.rows, by: model.sessionSort).subtitle
+        case .sessions: sessionsPage(model.sessions.rows, by: sessionSort).subtitle
         case .session: openSession.map(conversationSubtitle) ?? ""
         default: ""
         }
@@ -82,15 +87,12 @@ struct PanelView: View {
     var body: some View {
         @Bindable var shell = model.shell
         @Bindable var epics = model.epics
-        let groupBy = Binding(get: { model.groupBy }, set: { model.groupBy = $0; SidebarStore().groupBy = $0 })
         let collapse = Binding(get: { model.collapse }, set: { model.collapse = $0 })
-        let archiveSort = Binding(get: { model.archiveSort }, set: { model.archiveSort = $0; SidebarStore().archiveSort = $0 })
-        let sessionSort = Binding(get: { model.sessionSort }, set: { model.sessionSort = $0; SidebarStore().sessionSort = $0 })
         let columns = Binding<NavigationSplitViewVisibility>(
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, sessionSort: sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { shell.showSettings() }, newSessionIn: { path in
+            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: $groupBy, sessionSort: $sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { shell.showSettings() }, newSessionIn: { path in
                 model.newSession.start(in: path)
                 shell.selection = .newSession
             })
@@ -114,15 +116,15 @@ struct PanelView: View {
                         )
                             .id("\(epic.subject.repo)#\(epic.subject.issue)")
                     } else if shell.selection == .sessions {
-                        SessionsHomeView(sessions: model.sessions, sort: sessionSort, newSession: { shell.selection = .newSession }) { shell.selection = .session(id: $0) }
+                        SessionsHomeView(sessions: model.sessions, sort: $sessionSort, newSession: { shell.selection = .newSession }) { shell.selection = .session(id: $0) }
                     } else if shell.selection == .archive {
-                        ArchiveView(rows: model.sessions.rows, sort: archiveSort) { shell.selection = .session(id: $0) }
+                        ArchiveView(rows: model.sessions.rows, sort: $archiveSort) { shell.selection = .session(id: $0) }
                     } else if shell.selection == .newSession {
                         NewSessionView(model: model.newSession, openHealth: shell.openHealth) { shell.selection = .session(id: $0) }
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
                     } else if case .session(let id) = shell.selection {
-                        ConversationView(sessionId: id, draft: model.newSession) { plan in
+                        ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest) { plan in
                             model.newSession.restore(plan)
                             shell.selection = .newSession
                         }.id(id)
@@ -136,7 +138,7 @@ struct PanelView: View {
                         }
                     } else {
                         // Carrier is not answering (or has not yet): what to do about it
-                        StoppedView(state: model.state, openSettings: { shell.showSettings() })
+                        StoppedView(state: model.state, openSettings: { shell.showSettings(.engine) })
                     }
                 }
                 // only an epic has something to inspect; the other pages are a single column. The panel runs up behind the
@@ -155,6 +157,7 @@ struct PanelView: View {
                     .allowsHitTesting(shell.inspectorShown)
                 }
             }
+            .themedWindowBackground()
             .navigationTitle(title)
             .navigationSubtitle(subtitle)
             // an open session has a header of its own (SessionHeader), which says more than a title and a line
@@ -221,10 +224,15 @@ struct PanelView: View {
             }
         }
         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
-        .sheet(isPresented: $shell.settingsShown) { SettingsSheet(state: model.state, tab: $shell.settingsTab) }
+        .sheet(isPresented: $shell.settingsShown) { SettingsSheet(state: model.state, tab: $shell.settingsTab).themed() }
         .frame(minWidth: 1100, minHeight: 600)
+        .themed()
         .environment(model.actions)
         .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
+        .onChange(of: shell.archiveRequest) {
+            guard let id = shell.archiveRequest?.sessionId else { return }
+            Task { if let refusal = await model.actions.archive(id) { tell(refusal) } }
+        }
         .onChange(of: snapshot) { if let snapshot { model.epics.settleResuming(snapshot) } }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }
         .environment(\.windowSize, windowSize)

@@ -48,9 +48,6 @@ public enum ToolKind: Hashable {
 /// How many rows of an edit's diff are drawn before "Show N more lines".
 public let collapsedDiffRows = 30
 
-/// How many lines of a command's output an opened call shows before "Show N more lines".
-public let collapsedOutputLines = 7
-
 public struct TranscriptCard: Equatable {
     public var tool: String
     public var kind: ToolKind
@@ -125,12 +122,6 @@ public struct TranscriptCard: Equatable {
     /// What the Copy button puts on the clipboard: the command, then what it printed.
     public var copyText: String { ((kind == .shell ? [arg] : []) + output).joined(separator: "\n") }
 
-    /// The output as the opened call first shows it: `collapsedOutputLines` lines, and how many are left out. All of it once expanded.
-    public func visibleOutput(expanded: Bool) -> (lines: [String], hidden: Int) {
-        guard expanded == false, output.count > collapsedOutputLines else { return (output, 0) }
-        return (Array(output.prefix(collapsedOutputLines)), output.count - collapsedOutputLines)
-    }
-
     /// The first output line of a failed call when it starts with `Exit code`: the only line drawn red. Any other failure prints plain.
     public var failureLine: String? {
         guard status == .error, let first = output.first, first.hasPrefix("Exit code") else { return nil }
@@ -140,8 +131,8 @@ public struct TranscriptCard: Equatable {
     /// "11 lines" for the footer; nil when the call printed nothing (the body says "no output").
     public var lineCount: String? { output.isEmpty ? nil : "\(output.count) \(output.count == 1 ? "line" : "lines")" }
 
-    /// Output opens by itself only for a call that failed; any other opens on a click.
-    public var outputOpenByDefault: Bool { status == .error }
+    /// Whether the call's output opens by itself, by what the person chose for the tools.
+    func opensByDefault(_ mode: ToolOutputMode, opensFailed: Bool) -> Bool { mode.opens(failed: status == .error, opensFailed: opensFailed) }
 }
 
 /// `hunk` is the quiet separator between fragments that are not adjacent; its text is git's `@@ -a,b +c,d @@`.
@@ -156,6 +147,38 @@ public func visibleDiffRows(_ rows: [DiffRow], expanded: Bool) -> (rows: [DiffRo
 public struct DiffRow: Equatable {
     public var sign: DiffSign
     public var text: String
+}
+
+/// One line of the split view: what was removed on the left and what was added on the right, either missing when the other side has
+/// no match. A context line or a hunk separator fills both sides with the same row.
+public struct DiffPair: Equatable {
+    public var left: DiffRow?
+    public var right: DiffRow?
+}
+
+/// The rows of a diff as the split view draws them: each block of changed rows pairs its removed lines with its added ones, in order.
+public func splitDiffPairs(_ rows: [DiffRow]) -> [DiffPair] {
+    var pairs: [DiffPair] = []
+    var removed: [DiffRow] = []
+    var added: [DiffRow] = []
+    func flush() {
+        for i in 0..<max(removed.count, added.count) {
+            pairs.append(DiffPair(left: i < removed.count ? removed[i] : nil, right: i < added.count ? added[i] : nil))
+        }
+        removed = []
+        added = []
+    }
+    for row in rows {
+        switch row.sign {
+        case .removed: removed.append(row)
+        case .added: added.append(row)
+        case .context, .hunk:
+            flush()
+            pairs.append(DiffPair(left: row, right: row))
+        }
+    }
+    flush()
+    return pairs
 }
 
 public struct CardDiff: Equatable {
@@ -194,9 +217,13 @@ public struct OutputFolds: Equatable {
 
     public init() {}
 
-    public func isOpen(_ id: Int, _ card: TranscriptCard) -> Bool { chosen[id] ?? card.outputOpenByDefault }
+    public func isOpen(_ id: Int, _ card: TranscriptCard, mode: ToolOutputMode, opensFailed: Bool) -> Bool {
+        chosen[id] ?? card.opensByDefault(mode, opensFailed: opensFailed)
+    }
 
-    public mutating func toggle(_ id: Int, _ card: TranscriptCard) { chosen[id] = !isOpen(id, card) }
+    public mutating func toggle(_ id: Int, _ card: TranscriptCard, mode: ToolOutputMode, opensFailed: Bool) {
+        chosen[id] = !isOpen(id, card, mode: mode, opensFailed: opensFailed)
+    }
 }
 
 public enum TranscriptItem: Equatable, Identifiable {
@@ -293,8 +320,8 @@ public enum TranscriptBody: Equatable {
 
 public func transcriptBody(
     _ transcript: Transcript?, slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000),
-    timeZone: TimeZone = .current
+    time: TimeFormat = .stored()
 ) -> TranscriptBody {
     guard let transcript else { return .loading }
-    return transcript.structured ? .items(transcript.flow(slices: slices, running: running, now: now, timeZone: timeZone)) : .tail(transcript.tail)
+    return transcript.structured ? .items(transcript.flow(slices: slices, running: running, now: now, time: time)) : .tail(transcript.tail)
 }

@@ -7,9 +7,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var fixtureServer: FixtureServer?
     /// Start on open looks once, at the first state the monitor delivers (main thread).
     private var triedStartOnOpen = false
+    /// The combinations the main menu was built with (MainMenu.swift).
+    var shortcutsInMenu: [KeyCombo?] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMainMenu()
+        followColorScheme()
         // before anything reads the socket path: the fake engine's home becomes CARRIER_HOME
         if let fixtures = Self.fixturesPath() { startFixtureMode(fixtures) }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -36,6 +39,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
         watchCarrier(stateLine)
         SystemNotificationCentre.shared.attachDelegate()
+        // the Notifications page writes user defaults: the badge follows its switch at once
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            NotificationWatcher.app.refreshBadge()
+            // the Keybindings page writes user defaults: the menu carries the new keys at once
+            self?.rebuildMainMenuIfShortcutsChanged()
+        }
         // the host starts when the app opens, once the settings are known; the self-test only checks what would run
         let underSelfTest = CommandLine.arguments.contains("--selftest")
         SetupController.shared.detectIfFirstLaunch {
@@ -98,6 +107,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         Thread.detachNewThread { monitor.run() }
+        watchChatSessions()
+        // the app lives on with its window closed, so a timer here is enough for the reminders
+        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in NotificationWatcher.app.remind() }
+    }
+
+    /// The chat sessions notify with the window closed, so they are read for the life of the app, beside the engine's monitor. A host
+    /// that does not answer (not started yet, or stopped) is not an event: the last list is kept and the next answer is compared to it.
+    private func watchChatSessions() {
+        let host = SocketChatHost()
+        Task.detached {
+            // a host that does not answer is asked less and less often (up to every 30 s), and the first miss after an answer is logged
+            var wait = 1.0
+            var answering = true
+            while true {
+                do {
+                    let rows = sessionRows(try await host.list(archived: false))
+                    await MainActor.run { NotificationWatcher.app.react(toSessions: rows) }
+                    wait = 1
+                    answering = true
+                } catch {
+                    if answering { NSLog("Carrier: the chat host does not answer, asking again in a while: %@", String(describing: error)) }
+                    answering = false
+                    wait = min(wait * 2, 30)
+                }
+                try? await Task.sleep(for: .seconds(wait))
+            }
+        }
     }
 
     /// The person's standing choice: start Carrier once when the app opens and finds it stopped.
@@ -189,7 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("icon styles", {
                 guard let icon = IconController.shared else { return "no icon" }
                 // what the Menu bar tab does: write the preference, the icon follows with no relaunch
-                let store = MenuBarStore(), saved = store.style
+                let store = AppPreferences(), saved = store.style
                 defer { store.style = saved; icon.reloadSettings() }
                 return IconStyle.allCases.map { style in
                     store.style = style

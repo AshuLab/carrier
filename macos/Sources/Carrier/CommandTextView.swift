@@ -19,15 +19,21 @@ struct CommandTextView: NSViewRepresentable {
     var commands: [ChatCommand]
     /// What a key does for the box; true when the box took it.
     var onKey: (Key) -> Bool
+    var sendKey = AppPreferences.defaultSendKey
+    var writingTools = AppPreferences.defaultWritingTools
+    var checksSpelling = AppPreferences.defaultChecksSpelling
+    var correctsSpelling = AppPreferences.defaultCorrectsSpelling
+    /// The text size the box is drawn at: read when the box is built, so a change of it reaches `updateNSView`.
+    var textSize = TextSize.shared.percent
 
-    static let font = NSFont.systemFont(ofSize: 14)
-    static let lineHeight: CGFloat = 22
-    static let attributes: [NSAttributedString.Key: Any] = {
+    static var font: NSFont { NSFont.scaled(14) }
+    static var lineHeight: CGFloat { TextSize.shared.scale.size(22) }
+    static var attributes: [NSAttributedString.Key: Any] {
         let style = NSMutableParagraphStyle()
         style.minimumLineHeight = lineHeight
         style.maximumLineHeight = lineHeight
         return [.font: font, .foregroundColor: NSColor.labelColor, .paragraphStyle: style]
-    }()
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -48,8 +54,6 @@ struct CommandTextView: NSViewRepresentable {
         view.allowsUndo = true
         view.isAutomaticQuoteSubstitutionEnabled = false
         view.isAutomaticDashSubstitutionEnabled = false
-        // the system's Writing Tools (Apple Intelligence) offer to rewrite what is selected, over the text, and a message to an agent is not that
-        view.writingToolsBehavior = .none
         view.textContainerInset = NSSize.zero
         view.isVerticallyResizable = true
         view.isHorizontallyResizable = false
@@ -74,9 +78,15 @@ struct CommandTextView: NSViewRepresentable {
         coordinator.updating = true
         defer { coordinator.updating = false }
         view.placeholder = placeholder
+        // Writing Tools (Apple Intelligence) offer to rewrite what is selected, over the text: they are the person's to switch on
+        view.writingToolsBehavior = writingTools ? .default : .none
+        view.isContinuousSpellCheckingEnabled = checksSpelling
+        view.isAutomaticSpellingCorrectionEnabled = correctsSpelling
+        let rescaled = coordinator.textSize != textSize
+        coordinator.textSize = textSize
         if view.hasMarkedText() == false {
             let rendered = render(text, commands: commands)
-            if view.plain != text || view.string != rendered.string {
+            if rescaled || view.plain != text || view.string != rendered.string {
                 view.replace(with: rendered, plainCursor: min(cursor, (text as NSString).length))
             } else if view.plainOffset(of: view.selectedRange().location) != cursor {
                 view.setSelectedRange(NSRange(location: view.location(ofPlainOffset: cursor), length: 0))
@@ -130,8 +140,13 @@ struct CommandTextView: NSViewRepresentable {
         var parent: CommandTextView
         /// Set while the box is the one changing the text view, so what it reports back is not taken for the person's edit.
         var updating = false
+        /// The text size the text view was last drawn at.
+        var textSize: Int
 
-        init(_ parent: CommandTextView) { self.parent = parent }
+        init(_ parent: CommandTextView) {
+            self.parent = parent
+            textSize = parent.textSize
+        }
 
         func textDidChange(_ notification: Notification) {
             guard updating == false, let view = notification.object as? PillTextView, view.hasMarkedText() == false else { return }
@@ -154,15 +169,19 @@ struct CommandTextView: NSViewRepresentable {
             if parent.cursor != cursor { parent.cursor = cursor }
         }
 
+        /// Return with these modifiers: the key chosen in Settings sends, any other makes a new line.
+        func pressedReturn(in textView: NSTextView, modifiers: NSEvent.ModifierFlags) -> Bool {
+            if parent.sendKey.sends(command: modifiers.contains(.command), shift: modifiers.contains(.shift)) { return parent.onKey(.send) }
+            textView.insertNewlineIgnoringFieldEditor(nil)
+            return true
+        }
+
         func textView(_ textView: NSTextView, doCommandBy selector: Selector) -> Bool {
             switch selector {
-            case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.insertLineBreak(_:)):
-                // Enter sends, Shift+Enter adds a line
-                if selector == #selector(NSResponder.insertLineBreak(_:)) || NSApp.currentEvent?.modifierFlags.contains(.shift) == true {
-                    textView.insertNewlineIgnoringFieldEditor(nil)
-                    return true
-                }
-                return parent.onKey(.send)
+            case #selector(NSResponder.insertNewline(_:)): return pressedReturn(in: textView, modifiers: NSApp.currentEvent?.modifierFlags ?? [])
+            case #selector(NSResponder.insertLineBreak(_:)):
+                textView.insertNewlineIgnoringFieldEditor(nil)
+                return true
             case #selector(NSResponder.insertTab(_:)): return parent.onKey(.tab)
             case #selector(NSResponder.moveUp(_:)): return parent.onKey(.up)
             case #selector(NSResponder.moveDown(_:)): return parent.onKey(.down)
@@ -207,6 +226,15 @@ final class PillTextView: NSTextView {
     }
 
     override func paste(_ sender: Any?) { pasteAsPlainText(sender) }
+
+    /// ⌘Return does not reach `insertNewline` on its own (the system reads it as a shortcut), so the box asks the coordinator itself.
+    override func keyDown(with event: NSEvent) {
+        let isReturn = event.keyCode == 36 || event.keyCode == 76
+        guard isReturn, event.modifierFlags.contains(.command), let coordinator = delegate as? CommandTextView.Coordinator else {
+            return super.keyDown(with: event)
+        }
+        _ = coordinator.pressedReturn(in: self, modifiers: event.modifierFlags)
+    }
 
     override func copy(_ sender: Any?) {
         guard selectedRange().length > 0, let storage = textStorage else { return }
@@ -282,7 +310,7 @@ final class PillAttachment: NSTextAttachment {
     required init?(coder: NSCoder) { fatalError("a pill is not stored") }
 
     static func image(for command: ChatCommand) -> NSImage {
-        let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .medium)
+        let font = NSFont.scaledMono(12, weight: .medium)
         let name = NSAttributedString(string: "/\(command.name)", attributes: [.font: font, .foregroundColor: NSColor.labelColor])
         let nameSize = name.size()
         let padding: CGFloat = 7, icon: CGFloat = 12, gap: CGFloat = 5, height: CGFloat = 20

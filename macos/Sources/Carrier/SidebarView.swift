@@ -7,15 +7,14 @@ import SwiftUI
 enum SidebarMetrics {
     static let edge: CGFloat = 8
     static let inset: CGFloat = 12
-    static let section = Font.system(size: 16, weight: .medium)
-    static let group = Font.system(size: 12, weight: .semibold)
-    static let item = Font.system(size: 14)
-    static let detail = Font.system(size: 12)
+    static var section: Font { Font.scaled(16, weight: .medium) }
+    static var group: Font { Font.scaled(12, weight: .semibold) }
+    static var item: Font { Font.scaled(14) }
+    static var detail: Font { Font.scaled(12) }
     /// Between rows: each one carries its own vertical padding.
     static let rowGap: CGFloat = 2
-    /// The vertical padding of a section's row and of an item's row, and between an item's lines.
+    /// The vertical padding of a section's row, and between an item's lines; an item's row takes its padding from the density.
     static let sectionPadding: CGFloat = 8
-    static let itemPadding: CGFloat = 7
     static let lineGap: CGFloat = 3
     /// Above a group's title, so it reads where a group begins; under it the first row is closer.
     static let groupTop: CGFloat = 10
@@ -24,6 +23,7 @@ enum SidebarMetrics {
 /// The sidebar: the Home row, Sessions, then Carrier with the epics in groups under it, in a scroll area; Archive and Settings are fixed
 /// in the foot. The rows draw their own fill, selected or hovered, so what is under a section is plain rows and not a `List`.
 struct SidebarView: View {
+    private let timeChanges = TimeFormatChanges()
     let snapshot: PanelSnapshot?
     let state: ConnectionState?
     let sessions: Sessions
@@ -109,6 +109,7 @@ struct SidebarView: View {
                 searchFocused = true
             }
         }
+        .themedSidebarBackground()
         .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 320)
         .safeAreaBar(edge: .bottom, spacing: 0) {
             // Archive above the divider and Settings alone under it; both stay while the list above scrolls, over the system's scroll pocket
@@ -164,7 +165,7 @@ private struct CarrierRow: View {
                 IconButton(icon: "ellipsis", name: "Group epics by") { groupMenu = true }
                     .popover(isPresented: $groupMenu, arrowEdge: .trailing) {
                         ChoiceMenu(
-                            title: "Group by", options: [("Status", GroupBy.status), ("Repository", .repo)], selection: $groupBy,
+                            title: "Group by", options: GroupBy.allCases.map { ($0.title, $0) }, selection: $groupBy,
                             close: { groupMenu = false }
                         )
                     }
@@ -176,7 +177,7 @@ private struct CarrierRow: View {
             if let slots = card.slots {
                 HStack(spacing: 8) {
                     SegmentedProgress(done: slots.busy, total: slots.total, tint: Self.tint(card.kind))
-                    Text("\(slots.busy)/\(slots.total)").font(.system(size: 11).monospacedDigit()).foregroundStyle(.secondary)
+                    Text("\(slots.busy)/\(slots.total)").font(.scaled(11).monospacedDigit()).foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(slots.busy) of \(slots.total) slots busy")
@@ -226,6 +227,10 @@ struct IconButton: View {
         .accessibilityHint(enabled ? "" : why ?? "")
         .accessibilityAddTraits(pressed ? .isSelected : [])
     }
+}
+
+extension GroupBy {
+    var title: String { self == .status ? "Status" : "Repository" }
 }
 
 /// A popover of choices, one ticked; choosing one closes it.
@@ -321,7 +326,7 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
         }
         .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.sectionPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
+        .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.themeAccent.opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
         .contentShape(RoundedRectangle(cornerRadius: 8))
         .onTapGesture(perform: action)
         .onHover { hovered = $0 }
@@ -331,16 +336,18 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
 
 struct SidebarRowView: View {
     let row: SidebarRow
+    @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
 
     /// What the project's icon wears for the epic's state: a halo while it runs, a mark on its corner when there is something to say.
     private var mark: ProjectIcon.Mark? {
         switch row.state {
-        case .needsYou: .init(text: "!", color: (row.attention ?? .input).color)
-        case .ready: .init(text: "✓", color: .blue)
+        case .needsYou: .init(text: "!", color: (row.attention ?? .input).color, shape: row.state.shape(attention: row.attention))
+        case .ready: .init(text: "✓", color: .blue, shape: .ready)
         case .done: .init(text: "✓", color: .green)
         case .cancelled: .init(text: "✕", color: .gray)
-        case .running, .waiting: nil
+        case .running: .init(text: "", color: .blue, shape: .working)
+        case .waiting: nil
         }
     }
 
@@ -362,7 +369,7 @@ struct SidebarRowView: View {
             Text(row.age).font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary).lineLimit(1)
                 .frame(height: Self.titleLine).frame(maxHeight: .infinity, alignment: .top)
         }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.itemPadding)
+        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, density.rowPadding)
         .hoverCard { EpicCardView(card: row.card) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(([row.title ?? row.name, row.state.label, row.detail] + (row.age.isEmpty ? [] : [row.age])).joined(separator: ", "))
@@ -379,7 +386,7 @@ private struct SelectableSidebarRow: ViewModifier {
         let dark = scheme == .dark
         content
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
+            .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.themeAccent.opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
             .contentShape(RoundedRectangle(cornerRadius: 8))
             .onTapGesture(perform: action)
             .onHover { hovered = $0 }

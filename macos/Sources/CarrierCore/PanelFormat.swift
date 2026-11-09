@@ -39,7 +39,7 @@ public func blockersLine(_ blockers: Int) -> String { "\(blockers) \(blockers ==
 public func stageTimeLine(_ epic: PanelEpic, now: Int) -> String { "\(formatDuration(now - epic.stageSince)) in stage" }
 
 public func activityLine(_ epic: PanelEpic, now: Int) -> String {
-    epic.lastActivityAt.map { "active \(formatDuration(now - $0)) ago" } ?? "no activity yet"
+    epic.lastActivityAt.map { "active \(agoText($0, now: now))" } ?? "no activity yet"
 }
 
 public func uptimeLine(_ snapshot: PanelSnapshot) -> String { "up \(formatDuration(snapshot.now - snapshot.startedAt))" }
@@ -56,8 +56,8 @@ public func nextCheckLine(_ snapshot: PanelSnapshot) -> String {
     return at <= snapshot.now ? "checking now" : "next check in \(formatDuration(at - snapshot.now))"
 }
 
-/// "2m 05s ago"; "a while ago" when the engine has no time.
-public func agoLine(_ at: Int?, now: Int) -> String { at.map { "\(formatDuration(now - $0)) ago" } ?? "a while ago" }
+/// "2m 05s ago", or the time of the event when Time format is clock; "a while ago" when the engine has no time.
+public func agoLine(_ at: Int?, now: Int, time: TimeFormat = .stored()) -> String { at.map { agoText($0, now: now, format: time) } ?? "a while ago" }
 
 /// A link from the engine as a URL the browser may open: https or http only.
 public func browserURL(_ string: String) -> URL? {

@@ -9,7 +9,7 @@ struct ApprovalCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(card.question).font(.system(size: 13, weight: .semibold))
+            Text(card.question).font(.scaled(13, weight: .semibold))
             if let arg = card.arg { CodeBlockView(language: card.tool, code: arg) }
             HStack(spacing: 8) {
                 ForEach(Array(card.choices.enumerated()), id: \.element.id) { index, choice in
@@ -38,6 +38,6 @@ struct ApprovalDecidedView: View {
             Image(systemName: allow ? "checkmark" : "xmark").foregroundStyle(allow ? Color.green : Color.red)
             Text(text).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         }
-        .font(.system(size: 12, design: .monospaced))
+        .codeFont(12)
     }
 }

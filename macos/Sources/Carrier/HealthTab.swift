@@ -121,7 +121,7 @@ private struct HealthCardView: View {
         case .problem: ("exclamationmark", .orange, "Needs attention")
         case .neutral: ("questionmark", .gray, "Not known")
         }
-        return Image(systemName: symbol).font(.system(size: 10, weight: .heavy)).foregroundStyle(.white)
+        return Image(systemName: symbol).font(.scaled(10, weight: .heavy)).foregroundStyle(.white)
             .frame(width: 18, height: 18).background(Circle().fill(color)).accessibilityLabel(label)
     }
 }

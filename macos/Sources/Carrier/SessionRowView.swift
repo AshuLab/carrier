@@ -7,66 +7,102 @@ import SwiftUI
 /// the title and under it where it works, and on the right the age of its last activity over the providers it has used. The two
 /// lines on each side have the same height, so the age sits on the title's line and the providers on the second one.
 struct SessionRowView: View {
+    private let timeChanges = TimeFormatChanges()
     let row: SessionRow
     /// Outside the workspace order the group is not the workspace, so the second line says it.
     let showsWorkspace: Bool
-    private static let spokenAge: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter
-    }()
+    @AppStorage(SidebarStore.showsIconKey) private var showsIcon = true
+    @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
+    @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
+    @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
+    @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
     /// The orange of "Waiting for you" as text: the system's on dark, a deeper one on light, where the system's is too pale to read.
     static let attention = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .systemOrange : NSColor(red: 0.70, green: 0.36, blue: 0, alpha: 1)
     })
 
-    private var place: Text {
-        row.branch.map { Text("\(Image(systemName: "arrow.triangle.branch")) \($0)") } ?? Text("Base folder")
+    private var content: SessionRowContent {
+        SessionRowContent(
+            row, showsWorkspace: showsWorkspace,
+            parts: SessionRowParts(icon: showsIcon, branch: showsBranch, providers: showsProviders, age: showsAge), now: Date()
+        )
     }
 
-    @ViewBuilder private var detail: some View {
+    private func place(_ place: SessionPlace) -> Text {
+        switch place {
+        case .branch(let name): Text("\(Image(systemName: "arrow.triangle.branch")) \(name)")
+        case .baseFolder: Text("Base folder")
+        }
+    }
+
+    @ViewBuilder private func detail(_ content: SessionRowContent) -> some View {
         if row.state == .waiting {
             Text("Waiting for you").fontWeight(.medium).foregroundStyle(Self.attention)
         } else {
-            (showsWorkspace ? Text("\(row.workspace) · \(place)") : place).foregroundStyle(.secondary)
+            switch (content.workspace, content.place) {
+            case (let workspace?, let placed?): Text("\(workspace) · \(place(placed))").foregroundStyle(.secondary)
+            case (let workspace?, nil): Text(workspace).foregroundStyle(.secondary)
+            case (nil, let placed?): place(placed).foregroundStyle(.secondary)
+            case (nil, nil): Text("")
+            }
+        }
+    }
+
+    /// A session that waits wears a "!"; one that works wears a mark only when the states are told apart by shape.
+    private var sessionMark: ProjectIcon.Mark? {
+        switch row.state {
+        case .waiting: .init(text: "!", color: .orange, shape: .needsAttention)
+        case .working: .init(text: "", color: .blue, shape: .working)
+        case .idle, .done: nil
         }
     }
 
     var body: some View {
+        let content = content
         HStack(spacing: SidebarMetrics.inset) {
-            ProjectIcon(
-                name: row.workspace, colorKey: projectColorKey(row.base), halo: row.state == .working,
-                mark: row.state == .waiting ? .init(text: "!", color: .orange) : nil
-            )
+            if content.showsIcon {
+                ProjectIcon(
+                    name: row.workspace, colorKey: projectColorKey(row.base), halo: row.state == .working,
+                    mark: sessionMark
+                )
+            }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 Text(row.title).font(SidebarMetrics.item).fontWeight(row.state == .waiting ? .medium : .regular)
                     .lineLimit(1).truncationMode(.tail).frame(height: Self.titleLine, alignment: .leading)
-                detail.font(SidebarMetrics.detail).lineLimit(1).truncationMode(.tail).frame(height: Self.detailLine, alignment: .leading)
+                detail(content).font(SidebarMetrics.detail).lineLimit(1).truncationMode(.tail).frame(height: Self.detailLine, alignment: .leading)
             }
             Spacer(minLength: 4)
-            VStack(alignment: .trailing, spacing: SidebarMetrics.lineGap) {
-                Text(sessionAge(row.updatedAt, now: Date())).font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary)
-                    .lineLimit(1).frame(height: Self.titleLine)
-                ProviderMarks(names: row.providers).frame(height: Self.detailLine)
+            if content.age != nil || content.providers.isEmpty == false {
+                VStack(alignment: .trailing, spacing: SidebarMetrics.lineGap) {
+                    Text(content.age ?? "").font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary)
+                        .lineLimit(1).frame(height: Self.titleLine)
+                    ProviderMarks(names: content.providers).frame(height: Self.detailLine)
+                }
             }
         }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.itemPadding)
+        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, density.rowPadding)
         .contextMenu { SessionMenuItems(row: row) }
         .help(row.title)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(label)
+        .accessibilityLabel(label(content))
     }
 
-    /// What the row says aloud: the title, the state in words (the icon draws it), where it works, the providers and "5 minutes ago".
-    private var label: String {
+    /// What the row says aloud: the title, the state in words (the icon draws it), where it works, the providers and "5 minutes ago",
+    /// the parts the person switched off left out.
+    private func label(_ content: SessionRowContent) -> String {
         let state: String? = switch row.state {
         case .working: "Working"
         case .waiting: "Needs attention"
         case .idle, .done: nil
         }
-        let age = Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date())
-        return ([row.title, state, row.workspace, row.branch ?? "Base folder"] + row.providers + [age]).compactMap { $0 }.joined(separator: ", ")
+        let place: String? = switch content.place {
+        case .branch(let name)?: name
+        case .baseFolder?: "Base folder"
+        case nil: nil
+        }
+        let age = content.age == nil ? nil : spokenAge(row.updatedAt, now: Date())
+        return ([row.title, state, row.workspace, place] + content.providers + [age]).compactMap { $0 }.joined(separator: ", ")
     }
 }
 
@@ -78,6 +114,7 @@ struct ProjectIcon: View {
     struct Mark: Equatable {
         var text: String
         var color: Color
+        var shape: StateShape?
     }
 
     let name: String
@@ -85,6 +122,7 @@ struct ProjectIcon: View {
     let colorKey: String
     var halo = false
     var mark: Mark?
+    @AppStorage(AppPreferences.statesByShapeKey) private var byShape = false
     static let size: CGFloat = 32
     static let radius: CGFloat = 9
     /// Mid tones, each at least 4.5:1 against the white of the letters.
@@ -98,11 +136,11 @@ struct ProjectIcon: View {
         RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
             .fill(Self.palette[projectColorIndex(colorKey, count: Self.palette.count)])
             .frame(width: Self.size, height: Self.size)
-            .overlay { Text(projectInitials(name)).font(.system(size: 12, weight: .semibold)).tracking(0.3).foregroundStyle(.white) }
+            .overlay { Text(projectInitials(name)).font(.scaled(12, weight: .semibold)).tracking(0.3).foregroundStyle(.white) }
             .overlay { if halo { SessionHalo() } }
             .overlay(alignment: .bottomTrailing) {
-                if let mark {
-                    Text(mark.text).font(.system(size: 10, weight: .heavy)).foregroundStyle(.white).frame(width: 15, height: 15)
+                if let mark, byShape || mark.text.isEmpty == false {
+                    StateMark(text: mark.text, shape: mark.shape, size: 10).foregroundStyle(.white).frame(width: 15, height: 15)
                         .background(Circle().fill(mark.color))
                         .overlay(Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5))
                         .offset(x: 4, y: 4)
@@ -122,10 +160,10 @@ struct ProviderMarks: View {
                 if let image = AgentAvatar.mark(name) {
                     Image(nsImage: image).renderingMode(.template).resizable().scaledToFit().frame(width: 12, height: 12)
                 } else {
-                    Text(String(name.prefix(1)).uppercased()).font(.system(size: 10, weight: .bold))
+                    Text(String(name.prefix(1)).uppercased()).font(.scaled(10, weight: .bold))
                 }
             }
-            if names.count > Self.shown { Text("+\(names.count - Self.shown)").font(.system(size: 10, weight: .semibold)) }
+            if names.count > Self.shown { Text("+\(names.count - Self.shown)").font(.scaled(10, weight: .semibold)) }
         }
         .foregroundStyle(.secondary)
     }

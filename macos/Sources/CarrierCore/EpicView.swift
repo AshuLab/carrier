@@ -132,7 +132,7 @@ public struct EpicHeader: Equatable {
     public var issueURL: String
     /// The glyph beside the title.
     public var state: EpicMenuState
-    /// The state in words, for the pill: "Running · review · round 2/5", "Needs you · review limit reached", "Up next · 2nd in queue", "Ready for test", "Done", "Cancelled · closed before start".
+    /// The state in words, for the pill: "Running · review · round 2/5", "Needs attention · review limit reached", "Up next · 2nd in queue", "Ready for test", "Done", "Cancelled · closed before start".
     public var status: String
 }
 
@@ -152,7 +152,7 @@ public func epicHeader(_ subject: EpicSubject, reply: EpicReply? = nil) -> EpicH
         (state, status) = epic.status == .merged ? (.done, "Done") : (.cancelled, epic.cancelReason.flatMap { $0.isEmpty ? nil : "Cancelled · \($0)" } ?? "Cancelled")
     case .active(let epic):
         (title, labels, prURL, issueURL) = (epic.title, epic.labels ?? [], epic.prUrl, epic.issueUrl)
-        (state, status) = epic.status == .running ? (.running, "Running · \(runningLine(epic))") : (.needsYou, "Needs you · \(interventionLine(epic))")
+        (state, status) = epic.status == .running ? (.running, "Running · \(runningLine(epic))") : (.needsYou, "Needs attention · \(interventionLine(epic))")
     }
     prURL = prURL ?? reply?.pr?.url
     let number = reply?.pr?.number ?? prURL.flatMap { URL(string: $0)?.lastPathComponent }.flatMap(Int.init)

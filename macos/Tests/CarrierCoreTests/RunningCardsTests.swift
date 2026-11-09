@@ -12,16 +12,16 @@ private func load(_ change: (inout PanelSnapshot) -> Void = { _ in }) throws -> 
     return snapshot
 }
 
-private let utc = TimeZone(identifier: "UTC")!
+private let utc = TimeFormat(style: .relative, hours: .h24, timeZone: TimeZone(identifier: "UTC")!)
 
 @Test func nothingRunningHasNoCardsAndNamesTheRoom() throws {
-    let section = runningSection(try load { $0.epics = []; $0.slots.busy = 0 }, timeZone: utc)
+    let section = runningSection(try load { $0.epics = []; $0.slots.busy = 0 }, time: utc)
     #expect(section.cards.isEmpty)
     #expect(section.room == FreeRoom(title: "3 free", line: "web #20 starts on the next check"))
 }
 
 @Test func partlyFullShowsACardPerRunningEpicAndHowMuchIsFree() throws {
-    let section = runningSection(try load(), timeZone: utc)
+    let section = runningSection(try load(), time: utc)
     #expect(section.cards.map(\.title) == ["Issue 12 of acme/web", "Issue 13 of acme/web"])
     #expect(section.cards[0].subtitle == "acme/web · #12")
     #expect(section.cards[0].selection == .epic(repo: "acme/web", issue: 12))
@@ -30,31 +30,31 @@ private let utc = TimeZone(identifier: "UTC")!
 }
 
 @Test func fullWithAQueueSaysTheNextOneStartsWhenOneFinishes() throws {
-    let room = runningSection(try load { $0.slots.busy = 3 }, timeZone: utc).room
+    let room = runningSection(try load { $0.slots.busy = 3 }, time: utc).room
     #expect(room == FreeRoom(title: "All 3 in use", line: "web #20 starts when one finishes", hasRoom: false))
 }
 
 @Test func fullWithNoQueueSaysNothingIsWaiting() throws {
-    let room = runningSection(try load { $0.slots.busy = 3; $0.queue = [] }, timeZone: utc).room
+    let room = runningSection(try load { $0.slots.busy = 3; $0.queue = [] }, time: utc).room
     #expect(room == FreeRoom(title: "All 3 in use", line: "Nothing waiting", hasRoom: false))
 }
 
 @Test func progressIsSlicesMergedInShipAndRoundOverMaximumOtherwise() throws {
     let snapshot = try load { $0.epics[1].slices = .init(done: 1, total: 4) }
-    let cards = runningSection(snapshot, timeZone: utc).cards
+    let cards = runningSection(snapshot, time: utc).cards
     #expect(cards[0].progressLine == "round 2/5" && cards[0].progress == 0.4)
     #expect(cards[1].progressLine == "1/4 slices" && cards[1].progress == 0.25)
 }
 
 @Test func anEpicWithNothingToCountYetHasNoBar() throws {
-    let cards = runningSection(try load(), timeZone: utc).cards
+    let cards = runningSection(try load(), time: utc).cards
     #expect(cards[1].progressLine == "ship" && cards[1].progress == nil)
-    let starting = runningSection(try load { $0.epics[1].stage = nil }, timeZone: utc).cards[1]
+    let starting = runningSection(try load { $0.epics[1].stage = nil }, time: utc).cards[1]
     #expect(starting.progressLine == "starting" && starting.progress == nil)
 }
 
 @Test func anAgentRowHasTheAgentRoleRoundActionAndStart() throws {
-    let rows = runningSection(try load { $0.sessions![0].startedAt = 1_700_000_000_000 }, timeZone: utc).cards[0].agents
+    let rows = runningSection(try load { $0.sessions![0].startedAt = 1_700_000_000_000 }, time: utc).cards[0].agents
     #expect(rows == [
         AgentRow(
             agent: "Codex", initial: "X", role: "Reviewer", round: "round 2/5", action: "Read src/auth/token.ts",
@@ -64,27 +64,27 @@ private let utc = TimeZone(identifier: "UTC")!
 }
 
 @Test func aShipRowHasNoRoundAndABuilderRole() throws {
-    let row = try #require(runningSection(try load(), timeZone: utc).cards[1].agents.first)
+    let row = try #require(runningSection(try load(), time: utc).cards[1].agents.first)
     #expect(row.agent == "Claude" && row.initial == "C" && row.role == "Builder" && row.round == nil)
     #expect(row.action == "Writing the migration")
 }
 
 @Test func aSessionWithoutAnEventSaysWorking() throws {
-    let row = try #require(runningSection(try load { $0.sessions![1].last = nil }, timeZone: utc).cards[1].agents.first)
+    let row = try #require(runningSection(try load { $0.sessions![1].last = nil }, time: utc).cards[1].agents.first)
     #expect(row.action == "working")
 }
 
 @Test func aRunningEpicWithNoSessionsYetHasACardWithoutRows() throws {
-    #expect(runningSection(try load { $0.sessions = [] }, timeZone: utc).cards.allSatisfy { $0.agents.isEmpty })
-    #expect(runningSection(try load { $0.sessions = nil }, timeZone: utc).cards.count == 2)
+    #expect(runningSection(try load { $0.sessions = [] }, time: utc).cards.allSatisfy { $0.agents.isEmpty })
+    #expect(runningSection(try load { $0.sessions = nil }, time: utc).cards.count == 2)
 }
 
 @Test func theRowSaysItIsNotRunningWhenItsEpicIsNotRunning() throws {
     let snapshot = try load()
     var epic = snapshot.epics[0]
-    #expect(agentRow(snapshot.sessions![0], epic: epic, timeZone: utc).running)
+    #expect(agentRow(snapshot.sessions![0], epic: epic, time: utc).running)
     epic.status = .needsHuman
-    #expect(agentRow(snapshot.sessions![0], epic: epic, timeZone: utc).running == false)
+    #expect(agentRow(snapshot.sessions![0], epic: epic, time: utc).running == false)
 }
 
 @Test func upNextListsTheQueueInOrderWithItsWait() throws {

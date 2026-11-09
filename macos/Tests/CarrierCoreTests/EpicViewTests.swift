@@ -185,7 +185,7 @@ private func reply(stages: [EpicReply.Stage], rounds: Int = 0) -> EpicReply {
     #expect((running.repo, running.issue) == ("acme/web", 12))
     let stuck = epicHeader(.active(epic(.needsHuman, stage: .review, round: 5, kind: "review_limit")))
     #expect(stuck.state == .needsYou)
-    #expect(stuck.status == "Needs you · review limit reached")
+    #expect(stuck.status == "Needs attention · review limit reached")
     #expect(epicHeader(.queued(queuedEpic, position: 2)).status == "Up next · 2nd in queue")
     #expect(epicHeader(.queued(queuedEpic, position: 2)).state == .waiting)
     #expect(epicHeader(.finished(doneEpic)).state == .ready)

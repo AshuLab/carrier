@@ -22,14 +22,14 @@ final class IconController {
     let host = PassthroughView()
     private let text = CATextLayer(), track = CALayer(), fill = CALayer(), segment = CALayer(), badge = CALayer()
     private var state = IconState()
-    private let store = MenuBarStore()
+    private let store = AppPreferences()
     private var defaultsWatch: NSObjectProtocol?
     /// How far the attached animation travels; the animation is only replaced when this changes, or it would restart every second.
     private var attachedTravel: Double?
     private var appearanceWatch: NSKeyValueObservation?
 
     private let trackWidth: CGFloat = 18
-    private let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
+    private let font = NSFont.statusItemDigits
 
     private init(item: NSStatusItem) {
         self.item = item

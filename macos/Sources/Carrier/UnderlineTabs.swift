@@ -24,7 +24,7 @@ struct UnderlineTabs<ID: Hashable>: View {
                 let chosen = item.id == selection
                 Button { withAnimation(.smooth(duration: 0.22)) { selection = item.id } } label: {
                     HStack(spacing: 5) {
-                        if let icon = item.icon { Image(systemName: icon).font(.system(size: 11, weight: .medium)) }
+                        if let icon = item.icon { Image(systemName: icon).font(.scaled(11, weight: .medium)) }
                         Text(item.title).fontWeight(chosen ? .semibold : .regular)
                         if let count = item.count { Text(count).foregroundStyle(item.countColor) }
                     }

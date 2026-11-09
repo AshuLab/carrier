@@ -48,7 +48,7 @@ struct SessionsRows: View {
             IconButton(icon: "ellipsis", name: "Sort sessions") { sortOpen.toggle() }
                 .popover(isPresented: $sortOpen, arrowEdge: .bottom) {
                     ChoiceMenu(
-                        title: "Sort sessions", options: SessionSort.allCases.map { ($0.title, $0) },
+                        title: "Sort sessions", options: SessionSort.allCases.map { ($0.menuTitle, $0) },
                         selection: $sort, close: { sortOpen = false }
                     )
                 }
@@ -94,7 +94,7 @@ struct SessionsRows: View {
 }
 
 private extension SessionSort {
-    var title: String {
+    var menuTitle: String {
         switch self {
         case .workspace: "By workspace"
         case .age: "By age"
@@ -134,8 +134,8 @@ struct SessionGlyph: View {
 
     @ViewBuilder private var glyph: some View {
         switch state {
-        case .working: SpinningRing(diameter: 14, lineWidth: 2, color: .systemBlue)
-        case .waiting: Disc(color: .orange, mark: "!")
+        case .working: SpinningRing(diameter: 14, lineWidth: 2, color: .systemBlue).overlay { StateMark(shape: .working, size: 7).foregroundStyle(.secondary) }
+        case .waiting: Disc(color: .orange, mark: "!", shape: .needsAttention)
         case .idle: Circle().strokeBorder(Color.gray, lineWidth: 2).frame(width: 14, height: 14)
         case .done: Disc(color: .green, mark: "✓")
         }

@@ -3,6 +3,7 @@ import SwiftUI
 
 /// The Carrier home's Running section; a thin mapping of `runningSection(_:)`. Clicking a card selects the epic.
 struct RunningView: View {
+    private let timeChanges = TimeFormatChanges()
     let snapshot: PanelSnapshot
     @Binding var selection: Selection
 
@@ -22,7 +23,7 @@ struct RunningView: View {
     /// What is left of the slots, drawn like a row of the cards above but empty: the same fill, with a dashed edge.
     private func freeRoom(_ room: FreeRoom) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: room.hasRoom ? "plus" : "circle.fill").font(.system(size: room.hasRoom ? 12 : 5, weight: .semibold))
+            Image(systemName: room.hasRoom ? "plus" : "circle.fill").font(.scaled(room.hasRoom ? 12 : 5, weight: .semibold))
                 .foregroundStyle(.tertiary)
                 .frame(width: 28, height: 28)
                 .overlay(Circle().strokeBorder(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])))
@@ -86,7 +87,7 @@ struct RunningAvatar: View {
     var ring: SpinningRing? { running ? SpinningRing(diameter: 22, lineWidth: 2, color: .white) : nil }
 
     var body: some View {
-        Text(initial).font(.system(size: 12, weight: .bold)).foregroundStyle(.white)
+        Text(initial).font(.scaled(12, weight: .bold)).foregroundStyle(.white)
             .frame(width: 28, height: 28)
             .background(Circle().fill(Color.gray))
             .overlay { if let ring { ring.frame(width: 28, height: 28) } }

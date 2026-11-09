@@ -20,7 +20,7 @@ final class StatusHeaderView: NSView {
 
     func show(_ status: (title: String, detail: String?, tone: ConnectionState.MenuTone)) {
         let text = NSMutableAttributedString(string: status.title, attributes: [
-            .font: NSFont.systemFont(ofSize: NSFont.menuFont(ofSize: 0).pointSize, weight: .semibold),
+            .font: NSFont.menuTitle,
             .foregroundColor: NSColor.labelColor,
         ])
         if let detail = status.detail {

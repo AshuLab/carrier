@@ -30,13 +30,13 @@ private func watched(_ repo: String, ok: Bool = true, error: String? = nil) -> P
 
 @Test func anEpicThatNowNeedsAPersonNotifiesWithItsReason() {
     let due = notifications(from: snapshot([epic(7)]), to: snapshot([epic(7, .needsHuman, reason: "review limit")]))
-    #expect(due == [EpicNotification(title: "a/b #7 needs you", body: "review limit", epic: EpicRef(repo: "a/b", issue: 7))])
+    #expect(due == [EpicNotification(title: "a/b #7 needs attention", body: "review limit", epic: EpicRef(repo: "a/b", issue: 7))])
 }
 
 @Test func aNeedsHumanWithoutAReasonStillSaysWhatHappened() {
     let due = notifications(from: snapshot(), to: snapshot([epic(7, .needsHuman)]))
     #expect(due.count == 1)
-    #expect(due[0].title == "a/b #7 needs you")
+    #expect(due[0].title == "a/b #7 needs attention")
     #expect(due[0].body.isEmpty == false)
 }
 
@@ -58,7 +58,7 @@ private func watched(_ repo: String, ok: Bool = true, error: String? = nil) -> P
 
 @Test func theSameIssueNumberInAnotherRepoIsAnotherEpic() {
     let due = notifications(from: snapshot([epic(7, .needsHuman)]), to: snapshot([epic(7, .needsHuman), epic(7, .needsHuman, repo: "c/d")]))
-    #expect(due.map(\.title) == ["c/d #7 needs you"])
+    #expect(due.map(\.title) == ["c/d #7 needs attention"])
 }
 
 @Test func theFirstSnapshotOnlySeeds() {
@@ -79,7 +79,13 @@ private func watched(_ repo: String, ok: Bool = true, error: String? = nil) -> P
 
 private final class FakeCentre: NotificationCentre {
     var posted: [[String]] = []
-    func post(_ notifications: [EpicNotification]) { posted.append(notifications.map(\.title)) }
+    var sounds: [Bool] = []
+    var quiets: [Bool] = []
+    func post(_ notifications: [EpicNotification]) {
+        posted.append(notifications.map(\.title))
+        sounds += notifications.map(\.sound)
+        quiets += notifications.map(\.quiet)
+    }
 }
 
 private func running(_ snapshot: PanelSnapshot) -> ConnectionState { .running(snapshot) }
@@ -90,7 +96,7 @@ private func running(_ snapshot: PanelSnapshot) -> ConnectionState { .running(sn
     watcher.react(to: running(snapshot([epic(1, .needsHuman)], done: [ready(3)])))
     watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)], done: [ready(3)])))
     watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)], done: [ready(3)])))
-    #expect(centre.posted == [["a/b #2 needs you"]])
+    #expect(centre.posted == [["a/b #2 needs attention"]])
 }
 
 @Test func theFirstSnapshotAfterCarrierWasStoppedAndStartedAgainSeedsToo() {
@@ -106,6 +112,81 @@ private func running(_ snapshot: PanelSnapshot) -> ConnectionState { .running(sn
     #expect(centre.posted.isEmpty)
 }
 
+// the sound
+
+@Test func aBannerPlaysASoundOnlyWhileTheSoundSwitchIsOn() {
+    let centre = FakeCentre()
+    var sound = true
+    let watcher = NotificationWatcher(centre: centre, sound: { sound })
+    watcher.react(to: running(snapshot()))
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)], done: [ready(3)])))
+    #expect(centre.sounds == [true, true])
+    sound = false
+    watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)], done: [ready(3)])))
+    #expect(centre.sounds == [true, true, false])
+}
+
+@Test func theSoundIsOnUntilTurnedOff() {
+    let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
+    #expect(defaults.notifiesWithSound)
+    defaults.set(false, forKey: notifySoundKey)
+    #expect(defaults.notifiesWithSound == false)
+}
+
+// quiet hours
+
+private func at(_ hour: Int, _ minute: Int = 0) -> Date {
+    Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date(timeIntervalSince1970: 1_800_000_000))!
+}
+
+@Test func quietHoursAreOffUntilTurnedOnAndOfferTenPMToEightAM() {
+    let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
+    #expect(defaults.quietHours == QuietHours(enabled: false, start: 22 * 60, end: 8 * 60))
+    #expect(defaults.quietHours.contains(at(23)) == false)
+    defaults.set(true, forKey: notifyQuietKey)
+    defaults.set(9 * 60 + 30, forKey: notifyQuietStartKey)
+    #expect(defaults.quietHours == QuietHours(enabled: true, start: 9 * 60 + 30, end: 8 * 60))
+}
+
+@Test func aWindowInsideOneDayIsQuietFromItsStartUntilItsEnd() {
+    let hours = QuietHours(enabled: true, start: 13 * 60, end: 15 * 60)
+    #expect(hours.contains(at(12, 59)) == false)
+    #expect(hours.contains(at(13)))
+    #expect(hours.contains(at(14, 59)))
+    #expect(hours.contains(at(15)) == false)
+}
+
+@Test func aWindowThatCrossesMidnightIsQuietOnBothSidesOfIt() {
+    let hours = QuietHours(enabled: true, start: 22 * 60, end: 8 * 60)
+    #expect(hours.contains(at(21, 59)) == false)
+    #expect(hours.contains(at(22)))
+    #expect(hours.contains(at(23, 30)))
+    #expect(hours.contains(at(0)))
+    #expect(hours.contains(at(7, 59)))
+    #expect(hours.contains(at(8)) == false)
+    #expect(hours.contains(at(12)) == false)
+}
+
+@Test func aWindowWithEqualStartAndEndIsNeverQuiet_AndOffIsNeverQuiet() {
+    let same = QuietHours(enabled: true, start: 6 * 60, end: 6 * 60)
+    #expect([0, 6, 12, 23].allSatisfy { same.contains(at($0)) == false })
+    #expect(QuietHours(enabled: false, start: 22 * 60, end: 8 * 60).contains(at(23)) == false)
+}
+
+@Test func insideTheQuietHoursEveryNotificationIsPostedQuietAndWithoutASound_OutsideAsTheSettingsSay() {
+    let centre = FakeCentre()
+    var now = at(23)
+    let watcher = NotificationWatcher(centre: centre, quietHours: { QuietHours(enabled: true) }, now: { now })
+    watcher.react(to: running(snapshot()))
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)], done: [ready(3)])))
+    #expect(centre.quiets == [true, true])
+    #expect(centre.sounds == [false, false])
+    now = at(12)
+    watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)], done: [ready(3)])))
+    #expect(centre.quiets == [true, true, false])
+    #expect(centre.sounds == [false, false, true])
+}
+
 // the switches
 
 private let both = snapshot([epic(7, .needsHuman, reason: "x")], done: [ready(9, pr: 4)])
@@ -113,9 +194,9 @@ private let both = snapshot([epic(7, .needsHuman, reason: "x")], done: [ready(9,
 @Test func aKindWhoseSwitchIsOffDoesNotNotify() {
     let before = snapshot([epic(7)])
     let titles = { (kinds: NotificationKinds) in notifications(from: before, to: both, kinds: kinds).map(\.title) }
-    #expect(titles(NotificationKinds()) == ["a/b #7 needs you", "a/b #9 is ready for test"])
+    #expect(titles(NotificationKinds()) == ["a/b #7 needs attention", "a/b #9 is ready for test"])
     #expect(titles(NotificationKinds(needsYou: false)) == ["a/b #9 is ready for test"])
-    #expect(titles(NotificationKinds(readyForTest: false)) == ["a/b #7 needs you"])
+    #expect(titles(NotificationKinds(readyForTest: false)) == ["a/b #7 needs attention"])
     #expect(titles(NotificationKinds(needsYou: false, readyForTest: false)).isEmpty)
 }
 
@@ -129,7 +210,7 @@ private let both = snapshot([epic(7, .needsHuman, reason: "x")], done: [ready(9,
     kinds.needsYou = true
     // the epic that needed a person while the switch was off is not news when it goes on
     watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)])))
-    #expect(centre.posted == [["a/b #2 needs you"]])
+    #expect(centre.posted == [["a/b #2 needs attention"]])
 }
 
 @Test func theSwitchesAreOnUntilTurnedOff() {
@@ -268,4 +349,217 @@ private let banners = NotificationDelivery(style: .banners, soundOn: true)
     #expect(NotificationPermission.allowed(.init(style: .none, soundOn: false)).testAdvice != nil)
     #expect(NotificationPermission.allowed(banners).testAdvice == nil)
     #expect(NotificationPermission.notAsked.testAdvice == nil)
+}
+
+// the chat sessions
+
+private func session(_ id: String, _ state: SessionState, archived: Bool = false) -> SessionRow {
+    SessionRow(id: id, title: "Session \(id)", workspace: "w", agent: "a", state: state, updatedAt: Date(timeIntervalSince1970: 0), archived: archived)
+}
+
+private let chatDoneOn = NotificationKinds(chatDone: true)
+
+@Test func aSessionThatGoesFromWorkingToWaitingNeedsAttentionAndOpensOnItself() {
+    let due = chatNotifications(from: [session("1", .working)], to: [session("1", .waiting)])
+    #expect(due == [EpicNotification(title: "Session 1 needs attention", body: "It waits for an approval", session: "1")])
+}
+
+@Test func aSessionThatGoesFromWorkingToIdleIsDoneOnlyWithTheSwitchOn() {
+    #expect(chatNotifications(from: [session("1", .working)], to: [session("1", .idle)]).isEmpty)
+    #expect(chatNotifications(from: [session("1", .working)], to: [session("1", .idle)], kinds: chatDoneOn).map(\.title) == ["Session 1 is done"])
+}
+
+@Test func anyOtherChangeOfASessionSaysNothing() {
+    for (was, now) in [(SessionState.idle, SessionState.waiting), (.waiting, .idle), (.waiting, .working), (.idle, .working), (.working, .working), (.waiting, .waiting), (.working, .done)] {
+        #expect(chatNotifications(from: [session("1", was)], to: [session("1", now)], kinds: chatDoneOn).isEmpty)
+    }
+}
+
+@Test func aSessionSeenForTheFirstTimeNeverNotifies() {
+    #expect(chatNotifications(from: nil, to: [session("1", .waiting), session("2", .idle)], kinds: chatDoneOn).isEmpty)
+    #expect(chatNotifications(from: [session("1", .working)], to: [session("1", .working), session("2", .waiting)], kinds: chatDoneOn).isEmpty)
+}
+
+@Test func aSessionThatDisappearsOrIsArchivedSaysNothing() {
+    #expect(chatNotifications(from: [session("1", .working)], to: [], kinds: chatDoneOn).isEmpty)
+    #expect(chatNotifications(from: [session("1", .working)], to: [session("1", .idle, archived: true)], kinds: chatDoneOn).isEmpty)
+}
+
+@Test func theChatSwitchesSilenceEachKindAlone() {
+    let before = [session("1", .working), session("2", .working)]
+    let after = [session("1", .waiting), session("2", .idle)]
+    #expect(chatNotifications(from: before, to: after, kinds: NotificationKinds(chatNeedsAttention: false, chatDone: true)).map(\.title) == ["Session 2 is done"])
+    #expect(chatNotifications(from: before, to: after, kinds: NotificationKinds(chatNeedsAttention: true, chatDone: false)).map(\.title) == ["Session 1 needs attention"])
+    #expect(chatNotifications(from: before, to: after, kinds: NotificationKinds(chatNeedsAttention: false, chatDone: false)).isEmpty)
+}
+
+@Test func theChatSwitchesStartWithNeedsAttentionOnAndDoneOff() {
+    let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
+    #expect(defaults.notificationKinds.chatNeedsAttention)
+    #expect(defaults.notificationKinds.chatDone == false)
+    defaults.set(true, forKey: notifyChatDoneKey)
+    defaults.set(false, forKey: notifyChatNeedsAttentionKey)
+    #expect(defaults.notificationKinds == NotificationKinds(chatNeedsAttention: false, chatDone: true))
+}
+
+@Test func theWatcherSeedsOnTheFirstListAndPostsTheChangesAfterWithTheSound() {
+    let centre = FakeCentre()
+    var sound = true
+    let watcher = NotificationWatcher(centre: centre, sound: { sound })
+    watcher.react(toSessions: [session("1", .working)])
+    #expect(centre.posted.isEmpty)
+    watcher.react(toSessions: [session("1", .waiting)])
+    watcher.react(toSessions: [session("1", .waiting)])
+    #expect(centre.posted == [["Session 1 needs attention"]])
+    sound = false
+    watcher.react(toSessions: [session("1", .working)])
+    watcher.react(toSessions: [session("1", .waiting)])
+    #expect(centre.posted.count == 2)
+    #expect(centre.sounds == [true, false])
+}
+
+@Test func theDockBadgeCountsEpicsThatNeedAPersonPlusSessionsWaitingForAnApproval() {
+    let epics = snapshot([epic(1, .needsHuman), epic(2), epic(3, .needsHuman)])
+    let sessions = [session("1", .waiting), session("2", .working), session("3", .idle), session("4", .waiting), session("5", .waiting, archived: true)]
+    #expect(dockBadgeCount(snapshot: snapshot([epic(1)]), sessions: [session("1", .working)]) == 0)
+    #expect(dockBadgeCount(snapshot: nil, sessions: []) == 0)
+    #expect(dockBadgeCount(snapshot: epics, sessions: [session("1", .idle)]) == 2)
+    #expect(dockBadgeCount(snapshot: snapshot(), sessions: sessions) == 2)
+    #expect(dockBadgeCount(snapshot: epics, sessions: sessions) == 4)
+}
+
+@Test func theDockBadgeIsOnUntilTurnedOff() {
+    let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
+    #expect(defaults.showsDockBadge)
+    defaults.set(false, forKey: notifyDockBadgeKey)
+    #expect(defaults.showsDockBadge == false)
+}
+
+@Test func theWatcherSetsTheBadgeFromTheTwoLastStatesAndClearsItAtZeroOrWithTheSwitchOff() {
+    var shown = true
+    var badge = -1
+    let watcher = NotificationWatcher(centre: FakeCentre(), showsBadge: { shown }, setBadge: { badge = $0 })
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)])))
+    #expect(badge == 1)
+    watcher.react(toSessions: [session("1", .waiting)])
+    #expect(badge == 2)
+    shown = false
+    watcher.refreshBadge()
+    #expect(badge == 0)
+    shown = true
+    watcher.refreshBadge()
+    #expect(badge == 2)
+    watcher.react(to: .stopped)
+    #expect(badge == 1)
+    watcher.react(toSessions: [session("1", .idle)])
+    #expect(badge == 0)
+}
+
+// reminders
+
+private let start = Date(timeIntervalSince1970: 1_000_000)
+private func after(_ minutes: Double) -> Date { start.addingTimeInterval(minutes * 60) }
+
+@Test func aReminderIsDueOnceTheIntervalHasPassedSinceTheLastNotification() {
+    let last = ["epic a/b#1": start]
+    #expect(remindersDue(needing: ["epic a/b#1"], lastNotified: last, every: .quarterHour, now: after(14)).isEmpty)
+    #expect(remindersDue(needing: ["epic a/b#1"], lastNotified: last, every: .quarterHour, now: after(15)) == ["epic a/b#1"])
+    #expect(remindersDue(needing: ["epic a/b#1"], lastNotified: last, every: .hour, now: after(59)).isEmpty)
+    #expect(remindersDue(needing: ["epic a/b#1"], lastNotified: last, every: .hour, now: after(60)) == ["epic a/b#1"])
+}
+
+@Test func neverRemindsNothing() {
+    #expect(remindersDue(needing: ["a"], lastNotified: ["a": start], every: .never, now: after(10_000)).isEmpty)
+}
+
+@Test func anItemThatStoppedNeedingAttentionIsNotDueAndOneWithoutAHistoryYetIsNotEither() {
+    let last = ["a": start, "b": start]
+    #expect(remindersDue(needing: ["a", "c"], lastNotified: last, every: .quarterHour, now: after(20)) == ["a"])
+}
+
+@Test func theReminderIntervalIsNeverUntilChosenAndABadValueReadsAsNever() {
+    let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
+    #expect(defaults.reminderInterval == .never)
+    defaults.set(900, forKey: notifyReminderKey)
+    #expect(defaults.reminderInterval == .quarterHour)
+    defaults.set(3600, forKey: notifyReminderKey)
+    #expect(defaults.reminderInterval == .hour)
+    defaults.set(7, forKey: notifyReminderKey)
+    #expect(defaults.reminderInterval == .never)
+}
+
+@Test func theWatcherRemindsAnEpicAndASessionAtTheirOwnPaceAndLeavesTheRestAlone() {
+    let centre = FakeCentre()
+    var clock = start
+    let watcher = NotificationWatcher(centre: centre, reminder: { .quarterHour }, now: { clock })
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)], done: [ready(3)])))
+    watcher.react(toSessions: [session("1", .working)])
+    clock = after(10)
+    watcher.react(toSessions: [session("1", .waiting)])
+    #expect(centre.posted == [["Session 1 needs attention"]])
+
+    clock = after(15)
+    watcher.remind()
+    #expect(centre.posted.last == ["a/b #1 needs attention"])
+    clock = after(24)
+    watcher.remind()
+    #expect(centre.posted.count == 2)
+    clock = after(25)
+    watcher.remind()
+    #expect(centre.posted.last == ["Session 1 needs attention"])
+    clock = after(30)
+    watcher.remind()
+    #expect(centre.posted.count == 4)
+    #expect(centre.posted.flatMap { $0 }.contains { $0.contains("ready") } == false)
+}
+
+@Test func anItemThatStopsNeedingAttentionStopsRemindingAndOneThatReturnsStartsOver() {
+    let centre = FakeCentre()
+    var clock = start
+    let watcher = NotificationWatcher(centre: centre, reminder: { .quarterHour }, now: { clock })
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)])))
+    clock = after(10)
+    watcher.react(to: running(snapshot([epic(1)])))
+    clock = after(11)
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)])))
+    // its return notified at 11, so the clock started over then and the first 10 minutes did not count
+    clock = after(25)
+    watcher.remind()
+    #expect(centre.posted == [["a/b #1 needs attention"]])
+    clock = after(26)
+    watcher.remind()
+    #expect(centre.posted.count == 2)
+}
+
+@Test func withNeverOrASwitchOffTheWatcherDoesNotRemind() {
+    let centre = FakeCentre()
+    var clock = start
+    var interval = ReminderInterval.never
+    var kinds = NotificationKinds()
+    let watcher = NotificationWatcher(centre: centre, kinds: { kinds }, reminder: { interval }, now: { clock })
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)])))
+    clock = after(120)
+    watcher.remind()
+    #expect(centre.posted.isEmpty)
+    interval = .hour
+    kinds.needsYou = false
+    watcher.remind()
+    #expect(centre.posted.isEmpty)
+}
+
+@Test func aReminderIsPostedLikeTheOriginalWouldBeWithTheSoundAndTheQuietHours() {
+    let centre = FakeCentre()
+    var clock = start
+    var sound = true
+    var quiet = QuietHours()
+    let watcher = NotificationWatcher(centre: centre, sound: { sound }, quietHours: { quiet }, reminder: { .quarterHour }, now: { clock })
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)])))
+    clock = after(15)
+    watcher.remind()
+    #expect(centre.sounds == [true] && centre.quiets == [false])
+    sound = false
+    quiet = QuietHours(enabled: true, start: 0, end: 24 * 60 - 1)
+    clock = after(30)
+    watcher.remind()
+    #expect(centre.sounds == [true, false] && centre.quiets == [false, true])
 }

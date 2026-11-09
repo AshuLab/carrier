@@ -8,9 +8,6 @@ import SwiftUI
     var state: ConnectionState?
     let shell = WindowShell(open: SidebarStore().open)
     let epics = EpicStore()
-    var groupBy = SidebarStore().groupBy
-    var sessionSort = SidebarStore().sessionSort
-    var archiveSort = SidebarStore().archiveSort
     /// Archive, restore and delete; `startMonitor` makes the lists read again after each.
     let actions = SessionActions(host: SocketChatHost())
     var collapse = SidebarCollapse()
@@ -25,7 +22,7 @@ import SwiftUI
     }
 }
 
-private extension ShortcutModifiers {
+extension ShortcutModifiers {
     init(_ flags: NSEvent.ModifierFlags) {
         var modifiers: ShortcutModifiers = []
         if flags.contains(.command) { modifiers.insert(.command) }
@@ -33,6 +30,15 @@ private extension ShortcutModifiers {
         if flags.contains(.option) { modifiers.insert(.option) }
         if flags.contains(.control) { modifiers.insert(.control) }
         self = modifiers
+    }
+
+    var flags: NSEvent.ModifierFlags {
+        var flags: NSEvent.ModifierFlags = []
+        if contains(.command) { flags.insert(.command) }
+        if contains(.shift) { flags.insert(.shift) }
+        if contains(.option) { flags.insert(.option) }
+        if contains(.control) { flags.insert(.control) }
+        return flags
     }
 }
 
@@ -112,6 +118,19 @@ final class WindowController: NSObject, NSWindowDelegate {
         model.shell.perform(.search)
     }
 
+    /// For the Conversation menu: acts only while a conversation is open.
+    func conversation(_ action: ConversationAction) { model.shell.perform(.conversation(action)) }
+
+    /// A shortcut that reads the sessions, from the main menu.
+    func perform(_ action: ShortcutAction) {
+        open()
+        run(action)
+    }
+
+    private func run(_ action: ShortcutAction) {
+        model.shell.perform(action, sessions: model.sessions.rows, sort: SidebarStore().sessionSort)
+    }
+
     func toggleSidebar() { model.shell.toggleSidebar() }
 
     func toggleInspector() { model.shell.toggleInspector() }
@@ -127,6 +146,11 @@ final class WindowController: NSObject, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    func open(session id: String) {
+        open(epic: nil)
+        model.shell.selection = .session(id: id)
     }
 
     func close() { window?.close() }
@@ -155,7 +179,7 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     /// For `--smoke-window`, with the Archive selected: what the page lists and says, then the window's layout as it is with it on screen.
     var archiveStructure: String {
-        let page = archivePage(model.sessions.rows, by: model.archiveSort)
+        let page = archivePage(model.sessions.rows, by: SidebarStore().archiveSort)
         let line = "archive: \(page.subtitle.isEmpty ? "no count" : page.subtitle), groups \(page.groups.map(\.title)), \(page.emptyState?.title ?? "listed"), clear \(page.canClear ? "enabled" : "disabled")"
         return line + "\n" + structure
     }
@@ -250,7 +274,7 @@ final class WindowController: NSObject, NSWindowDelegate {
             lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)\(frame.map { " at x \(Int($0.minX)) width \(Int($0.width))" } ?? "")")
         }
         lines.append("sessions: \(model.sessions.rows.count) rows, \(archivedCount(model.sessions.rows)) archived, groups \(sessionGroups(model.sessions.rows).map(\.title))")
-        let home = sessionsPage(model.sessions.rows, by: model.sessionSort)
+        let home = sessionsPage(model.sessions.rows, by: SidebarStore().sessionSort)
         lines.append("sessions home: \(home.subtitle.isEmpty ? "no count" : home.subtitle), \(home.emptyState?.title ?? "listed")")
         lines.append("transcript: \(SessionSectionsView.layout)")
         let events = longTranscriptEvents(rounds: 556)
@@ -314,7 +338,7 @@ final class WindowController: NSObject, NSWindowDelegate {
             guard let self, let window, window.isKeyWindow, event.window === window,
                 let action = shortcutAction(key: event.charactersIgnoringModifiers ?? "", modifiers: .init(event.modifierFlags))
             else { return event }
-            self.model.shell.perform(action)
+            self.run(action)
             return nil
         }
         // where it was and how big, as a Mac app keeps its window; the smoke check starts from the default so it measures the same every time

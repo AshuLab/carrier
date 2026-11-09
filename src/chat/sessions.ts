@@ -1,7 +1,7 @@
 import { accessSync, constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, gt, isNotNull } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNotNull, ne } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/default-path.ts';
 import type { ChatAgent, ChatSettings } from './config.ts';
@@ -659,9 +659,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       return { options: live.conversation.options };
     },
 
-    events({ sessionId, after = 0, limit }: { sessionId: string; after?: number; limit: number }) {
+    /** `reasoning` is the client asking for the `reasoning` events: one that does not keeps getting the events it knew. */
+    events({ sessionId, after = 0, limit, reasoning = false }: { sessionId: string; after?: number; limit: number; reasoning?: boolean }) {
       const current = row(sessionId);
-      const rows = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), gt(chatEvents.id, after))).orderBy(asc(chatEvents.id)).limit(limit).all();
+      const rows = db.select().from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), gt(chatEvents.id, after), reasoning ? undefined : ne(chatEvents.kind, 'reasoning'))).orderBy(asc(chatEvents.id)).limit(limit).all();
       const live = lives.get(sessionId);
       return {
         // an option event's data has the option's own `id`, which must not take the place of the row's: a client reads `id` as the cursor

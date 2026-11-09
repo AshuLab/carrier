@@ -15,13 +15,10 @@ public enum Selection: Hashable {
     case epic(repo: String, issue: Int)
 }
 
-/// The sections of the Settings sheet; the raw value is the title.
-public enum SettingsTab: String, CaseIterable { case engine = "Engine", behavior = "Behavior", repos = "Repos", sessions = "Sessions", notifications = "Notifications", health = "Health" }
-
 /// Which of the Sessions, Carrier and Archive sections is unfolded; the others are folded.
 public enum OpenSection: String { case sessions, carrier, archive }
 
-/// The modifier keys a shortcut can carry; only ⌘ alone makes one.
+/// The modifier keys a shortcut can carry.
 public struct ShortcutModifiers: OptionSet {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
@@ -36,25 +33,40 @@ public enum ShortcutAction: Equatable {
     case select(Selection)
     /// Search the section that is open.
     case search
+    /// The session after or before the open one in the order the sidebar shows, stopping at the ends.
+    case nextSession, previousSession
+    /// Archive the open session.
+    case archiveSession
+    /// Something in the open conversation; nothing without one.
+    case conversation(ConversationAction)
 }
 
-/// ⌘1 Home, ⌘2 the Sessions home, ⌘3 the Carrier home, ⌘N the new session's draft, ⌘F the search of the open section; anything else, or these keys with another
-/// modifier, is nothing. `key` is the character without modifiers.
-public func shortcutAction(key: String, modifiers: ShortcutModifiers) -> ShortcutAction? {
-    guard modifiers == .command else { return nil }
-    switch key.lowercased() {
-    case "1": return .select(.home)
-    case "2": return .select(.sessions)
-    case "3": return .select(.carrier)
-    case "n": return .select(.newSession)
-    case "f": return .search
-    default: return nil
-    }
+/// What a shortcut asks of the open conversation.
+public enum ConversationAction: Equatable {
+    case focusBox, stopAgent, jumpToLatest, toggleToolFolds, copyLastAnswer
+}
+
+/// A request to the open conversation; `count` makes asking twice a change the view can see.
+public struct ConversationRequest: Equatable {
+    public let action: ConversationAction
+    public let count: Int
+}
+
+/// The action a key runs, from the shortcut table; a combination no action has, or one without ⌘, ⌃ or ⌥, is nothing. `key` is the character
+/// without modifiers.
+public func shortcutAction(key: String, modifiers: ShortcutModifiers, in table: ShortcutTable = ShortcutTable()) -> ShortcutAction? {
+    KeyCombo(key: key, modifiers: modifiers).flatMap { table.command(for: $0)?.action }
 }
 
 /// A request to open the search of a section; `count` makes asking twice a change the views can see.
 public struct SearchRequest: Equatable {
     public let section: OpenSection
+    public let count: Int
+}
+
+/// A request to archive the open session; `count` makes asking twice a change the views can see.
+public struct ArchiveRequest: Equatable {
+    public let sessionId: String
     public let count: Int
 }
 
@@ -76,7 +88,7 @@ public struct SearchRequest: Equatable {
     public private(set) var newSessionOpened = 0
     /// The Settings sheet is over the window, on this section; the selection underneath stays.
     public var settingsShown = false
-    public var settingsTab = SettingsTab.engine
+    public var settingsTab = SettingsPage.general
     /// The unfolded section; nil when all are folded.
     public var open: OpenSection?
     public var sidebarShown = true
@@ -85,6 +97,10 @@ public struct SearchRequest: Equatable {
     public var aboutShown = false
     /// The last ⌘F, for the open section's search to show itself.
     public private(set) var searchRequest: SearchRequest?
+    /// The last request to the open conversation.
+    public private(set) var conversationRequest: ConversationRequest?
+    /// The last ⇧⌘A, for the window to archive that session through the host.
+    public private(set) var archiveRequest: ArchiveRequest?
 
     public init(open: OpenSection? = .sessions) { self.open = open }
 
@@ -94,8 +110,8 @@ public struct SearchRequest: Equatable {
         open = .archive
     }
 
-    /// Opens the Settings sheet on a section; it starts on the first one unless something asks for another.
-    public func showSettings(_ tab: SettingsTab = .engine) {
+    /// Opens the Settings sheet on a page; it starts on the first one unless something asks for another.
+    public func showSettings(_ tab: SettingsPage = .general) {
         settingsTab = tab
         settingsShown = true
     }
@@ -107,12 +123,26 @@ public struct SearchRequest: Equatable {
     public func toggleInspector() { inspectorShown.toggle() }
     public func showAbout() { aboutShown = true }
 
-    /// Runs a shortcut: a selection as a click on it would, ⌘F as a request to the open section (nothing with both folded).
-    public func perform(_ action: ShortcutAction) {
+    /// Runs a shortcut: a selection as a click on it would, ⌘F as a request to the open section (nothing with both folded). The
+    /// session shortcuts read `sessions` in the order `sort` gives the sidebar; with none open, next picks the first and previous the last.
+    public func perform(_ action: ShortcutAction, sessions: [SessionRow] = [], sort: SessionSort = .workspace) {
         switch action {
         case .select(let next): selection = next
         case .search:
             if let open { searchRequest = SearchRequest(section: open, count: (searchRequest?.count ?? 0) + 1) }
+        case .nextSession, .previousSession:
+            let ids = sessionGroups(sessions, by: sort).flatMap(\.rows).map(\.id)
+            let step = action == .nextSession ? 1 : -1
+            var current: Int?
+            if case .session(let id) = selection { current = ids.firstIndex(of: id) }
+            let target = current.map { $0 + step } ?? (step > 0 ? 0 : ids.count - 1)
+            if ids.indices.contains(target) { selection = .session(id: ids[target]) }
+        case .archiveSession:
+            if case .session(let id) = selection, sessions.contains(where: { $0.id == id && $0.archived == false }) {
+                archiveRequest = ArchiveRequest(sessionId: id, count: (archiveRequest?.count ?? 0) + 1)
+            }
+        case .conversation(let action):
+            if case .session = selection { conversationRequest = ConversationRequest(action: action, count: (conversationRequest?.count ?? 0) + 1) }
         }
     }
 
@@ -130,5 +160,7 @@ public struct SearchRequest: Equatable {
         aboutShown = false
         settingsShown = false
         searchRequest = nil
+        conversationRequest = nil
+        archiveRequest = nil
     }
 }

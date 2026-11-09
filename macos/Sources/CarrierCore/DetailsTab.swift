@@ -31,7 +31,7 @@ public struct DetailsTabModel: Equatable {
 }
 
 public func detailsTab(
-    _ subject: EpicSubject?, reply: EpicReply?, sessions: SessionsReply? = nil, now: Int, timeZone: TimeZone = .current
+    _ subject: EpicSubject?, reply: EpicReply?, sessions: SessionsReply? = nil, now: Int, time: TimeFormat = .stored()
 ) -> DetailsTabModel {
     guard let subject else { return DetailsTabModel(groups: []) }
     var active: PanelEpic?
@@ -59,7 +59,7 @@ public func detailsTab(
         let name = [PanelEpic.Stage.ship: "Shipping", .review: "In review", .fix: "Fixing"][active.stage ?? .ship] ?? "Working"
         stageRow = row("Stage", active.status == .needsHuman ? "\(name) · needs you" : name, formatDuration(now - active.stageSince))
     } else if let finished {
-        stageRow = row("Stage", cancelled ? "Cancelled" : "Finished", finished.finishedAt.map { agoLine($0, now: now) })
+        stageRow = row("Stage", cancelled ? "Cancelled" : "Finished", finished.finishedAt.map { agoLine($0, now: now, time: time) })
     } else {
         stageRow = row("Stage", queuePlace, queuedAt.map { formatDuration(now - $0) })
     }
@@ -69,11 +69,11 @@ public func detailsTab(
     if let active {
         timing.append(row(
             "Last activity", active.status == .needsHuman ? "no movement since" : "agent output",
-            active.lastActivityAt.map { agoLine($0, now: now) } ?? "No activity yet"
+            active.lastActivityAt.map { agoLine($0, now: now, time: time) } ?? "No activity yet"
         ))
     }
     timing += [
-        row("Started", nil, started.map { dateLine($0, now: now, timeZone: timeZone) }),
+        row("Started", nil, started.map { timeText(Date(ms: $0), now: Date(ms: now), format: time.asClock) }),
         row("Total time", nil, started.flatMap { start in end.map { formatDuration($0 - start) } }),
     ]
 
@@ -165,24 +165,4 @@ public func detailsTab(
         DetailsGroup(title: "Timing", rows: timing), DetailsGroup(title: "Progress", rows: progress),
         DetailsGroup(title: "Pull request", rows: pull), DetailsGroup(title: "Run", rows: run),
     ])
-}
-
-/// "Today 14:02", "Yesterday 11:14", "Oct 19 14:02".
-private func dateLine(_ at: Int, now: Int, timeZone: TimeZone) -> String {
-    var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = timeZone
-    let date = Date(timeIntervalSince1970: Double(at) / 1000)
-    let formatter = DateFormatter()
-    formatter.calendar = calendar
-    formatter.timeZone = timeZone
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "HH:mm"
-    let time = formatter.string(from: date)
-    let today = Date(timeIntervalSince1970: Double(now) / 1000)
-    if calendar.isDate(date, inSameDayAs: today) { return "Today \(time)" }
-    if let yesterday = calendar.date(byAdding: .day, value: -1, to: today), calendar.isDate(date, inSameDayAs: yesterday) {
-        return "Yesterday \(time)"
-    }
-    formatter.dateFormat = "MMM d HH:mm"
-    return formatter.string(from: date)
 }

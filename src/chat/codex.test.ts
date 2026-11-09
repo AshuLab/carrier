@@ -105,6 +105,25 @@ async function turn(conversation: ChatConversation, events: ChatEvent[], text: s
   await vi.waitFor(() => expect(events.slice(from).some((e) => e.kind === 'turn_end')).toBe(true));
   return events.slice(from);
 }
+test('a reasoning item of the recording is a reasoning event before the answer; one with nothing in it yields none', async () => {
+  // the recording kept the reasoning items empty: the summary (else the content) is put into them here
+  const reasoning = (patch: Line) => main.map((line) => (line.method === 'item/completed' && line.params.item.type === 'reasoning' ? { ...line, params: { ...line.params, item: { ...line.params.item, ...patch } } } : line));
+  const shown = await openWith(reasoning({ summary: ['First thought', '', 'Second thought'], content: ['raw'] }), { options: { model: 'gpt-5.6-luna' } });
+  await turn(shown.conversation, shown.events, mainTexts[0]!);
+  const first = await turn(shown.conversation, shown.events, mainTexts[1]!); // the first turn of the recording has no reasoning item
+  expect(first.filter((e) => e.kind === 'reasoning')).toEqual([{ kind: 'reasoning', text: 'First thought\n\nSecond thought' }]);
+  expect(first.map((e) => e.kind).indexOf('reasoning')).toBeLessThan(first.map((e) => e.kind).indexOf('assistant'));
+
+  const raw = await openWith(reasoning({ content: ['raw thought'] }), { options: { model: 'gpt-5.6-luna' } });
+  await turn(raw.conversation, raw.events, mainTexts[0]!);
+  expect((await turn(raw.conversation, raw.events, mainTexts[1]!)).filter((e) => e.kind === 'reasoning')).toEqual([{ kind: 'reasoning', text: 'raw thought' }]);
+
+  const none = await openWith(main, { options: { model: 'gpt-5.6-luna' } });
+  await turn(none.conversation, none.events, mainTexts[0]!);
+  await turn(none.conversation, none.events, mainTexts[1]!);
+  expect(none.events.some((e) => e.kind === 'reasoning')).toBe(false); // the recorded items are empty
+});
+
 /** Answers every approval as the person would: with the choice in `choice.id`. */
 const answering = (conversation: ChatConversation, choice = { id: 'accept' }) => {
   conversation.onEvent((e) => e.kind === 'approval' && queueMicrotask(() => conversation.answer(e.approvalId, choice.id)));

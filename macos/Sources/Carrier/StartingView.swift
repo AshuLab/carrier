@@ -8,7 +8,7 @@ struct StartingView: View {
     var body: some View {
         VStack(spacing: 5) {
             Image(systemName: "clock")
-                .font(.system(size: 26, weight: .regular))
+                .font(.scaled(26, weight: .regular))
                 .foregroundStyle(.blue)
                 .frame(width: 54, height: 54)
                 .background(RoundedRectangle(cornerRadius: 16).fill(Color.blue.opacity(0.14)))

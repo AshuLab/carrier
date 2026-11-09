@@ -425,3 +425,89 @@ private func found(_ query: String, by: GroupBy = .status) -> [String] {
     }
     #expect(defaults.dictionaryRepresentation().keys.filter { $0.hasPrefix("sidebar.") } == ["sidebar.groupBy"])
 }
+
+// MARK: what a session row shows (Settings, Sidebar page)
+
+private let sessionNow = Date(timeIntervalSince1970: 1_000_000)
+private let workRow = SessionRow(
+    id: "s", title: "Fix it", workspace: "carrier", agent: "claude", state: .idle, updatedAt: sessionNow.addingTimeInterval(-11 * 60),
+    branch: "fix/it", folder: "/w", providers: ["claude", "codex"]
+)
+
+private func content(_ row: SessionRow = workRow, workspace: Bool = true, parts: SessionRowParts = SessionRowParts()) -> SessionRowContent {
+    SessionRowContent(row, showsWorkspace: workspace, parts: parts, now: sessionNow)
+}
+
+@Test func everyPartOfARowIsOnByDefaultAndShows() {
+    #expect(SessionRowParts() == SessionRowParts(icon: true, branch: true, providers: true, age: true))
+    #expect(content() == SessionRowContent(workRow, showsWorkspace: true, parts: SessionRowParts(), now: sessionNow))
+    let all = content()
+    #expect(all.showsIcon && all.workspace == "carrier" && all.place == .branch("fix/it") && all.age == "11m" && all.providers == ["claude", "codex"])
+}
+
+@Test func theProjectIconFlagShowsAndHidesTheIcon() {
+    #expect(content(parts: SessionRowParts(icon: true)).showsIcon)
+    #expect(content(parts: SessionRowParts(icon: false)).showsIcon == false)
+}
+
+@Test func theBranchFlagShowsAndHidesWhereTheSessionWorks() {
+    #expect(content(parts: SessionRowParts(branch: true)).place == .branch("fix/it"))
+    #expect(content(parts: SessionRowParts(branch: false)).place == nil)
+    // a plain folder has no branch: its place is the base folder, which goes with the same switch
+    var folder = workRow
+    folder.branch = nil
+    #expect(content(folder, parts: SessionRowParts(branch: true)).place == .baseFolder)
+    #expect(content(folder, parts: SessionRowParts(branch: false)).place == nil)
+}
+
+@Test func theProvidersFlagShowsAndHidesTheMarks() {
+    #expect(content(parts: SessionRowParts(providers: true)).providers == ["claude", "codex"])
+    #expect(content(parts: SessionRowParts(providers: false)).providers.isEmpty)
+}
+
+@Test func theAgeFlagShowsAndHidesTheAge() {
+    #expect(content(parts: SessionRowParts(age: true)).age == "11m")
+    #expect(content(parts: SessionRowParts(age: false)).age == nil)
+}
+
+@Test func theWorkspaceShowsOnlyOutsideTheWorkspaceOrderWhateverTheFlagsSay() {
+    #expect(content(workspace: false).workspace == nil)
+    #expect(content(workspace: true, parts: SessionRowParts(icon: false, branch: false, providers: false, age: false)).workspace == "carrier")
+}
+
+// MARK: the sidebar's preferences (Settings, Sidebar page)
+
+@Test func theSidebarPreferencesKeepTheirKeysAndDefaultsAndSurviveARelaunch() {
+    let name = "sidebar-prefs-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    #expect(SidebarStore.groupByKey == "sidebar.groupBy" && SidebarStore.sessionSortKey == "sidebar.sessionSort" && SidebarStore.archiveSortKey == "sidebar.archiveSort")
+    let store = SidebarStore(defaults: defaults)
+    #expect(store.groupBy == .status && store.sessionSort == .workspace && store.archiveSort == .dateArchived)
+    store.groupBy = .repo
+    store.sessionSort = .age
+    store.archiveSort = .project
+    let relaunched = SidebarStore(defaults: UserDefaults(suiteName: name)!)
+    #expect(relaunched.groupBy == .repo && relaunched.sessionSort == .age && relaunched.archiveSort == .project)
+}
+
+@Test func resetOfTheSidebarPageRestoresItsDefaultsAndLeavesTheOtherPages() {
+    let defaults = UserDefaults(suiteName: "sidebar-prefs-\(UUID().uuidString)")!
+    let store = SidebarStore(defaults: defaults)
+    store.groupBy = .repo
+    store.sessionSort = .status
+    store.archiveSort = .project
+    for key in [SidebarStore.showsIconKey, SidebarStore.showsBranchKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey] {
+        #expect(defaults.object(forKey: key) == nil)
+        defaults.set(false, forKey: key)
+    }
+    store.open = .archive
+    defaults.set(false, forKey: AppPreferences.animatesKey)
+    AppPreferences(defaults: defaults).reset(.sidebar)
+    #expect(store.groupBy == .status && store.sessionSort == .workspace && store.archiveSort == .dateArchived)
+    for key in [SidebarStore.showsIconKey, SidebarStore.showsBranchKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey] {
+        #expect(defaults.object(forKey: key) == nil)
+    }
+    // the unfolded section is not a setting of the page, and the General keys are another page's
+    #expect(store.open == .archive)
+    #expect(defaults.object(forKey: AppPreferences.animatesKey) as? Bool == false)
+}

@@ -362,6 +362,12 @@ class CodexConversation implements ChatConversation {
       }
       case 'item/completed': {
         const item = params?.item;
+        if (item?.type === 'reasoning') {
+          // what the provider shows of its thinking: the summary, else the raw content
+          const parts = [item.summary, item.content].map((p) => (Array.isArray(p) ? p.filter((t) => typeof t === 'string' && t.trim() !== '') : []));
+          const text = (parts[0]!.length > 0 ? parts[0]! : parts[1]!).join('\n\n');
+          return text === '' ? [] : [{ kind: 'reasoning', text }];
+        }
         if (item?.type === 'agentMessage' && typeof item.text === 'string' && item.text !== '') return [{ kind: 'assistant', text: item.text }];
         if (item?.type !== 'commandExecution' || typeof item.id !== 'string') return [];
         return [{ kind: 'tool_end', callId: item.id, tool: 'command', ...(typeof item.aggregatedOutput === 'string' && { output: item.aggregatedOutput.split('\n') }), status: item.status === 'completed' && item.exitCode === 0 ? 'ok' : 'err' }];

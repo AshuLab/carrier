@@ -106,7 +106,7 @@ struct ResultCardView: View {
                     .padding(.horizontal, LogMetrics.iconColumn).padding(.bottom, 10)
             }
             if open, let ci = card.ci {
-                Text(linkedText(ci.evidence)).font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+                Text(linkedText(ci.evidence)).font(.scaled(11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 10).padding(.vertical, 8)
                     .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
@@ -118,13 +118,13 @@ struct ResultCardView: View {
 
     private var row: some View {
         HStack(spacing: LogMetrics.gap) {
-            Image(systemName: icon).font(.system(size: 13)).foregroundStyle(tint)
+            Image(systemName: icon).font(.scaled(13)).foregroundStyle(tint)
                 .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
             HStack(spacing: 4) {
                 Text(card.outcome).fontWeight(.semibold)
                 if let ci = card.ci { Text("· \(verdict(ci.verdict))").foregroundStyle(verdictColor(ci.verdict)) }
             }
-            .font(.system(size: 12)).lineLimit(1)
+            .font(.scaled(12)).lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
             // the columns of a call, so the chevron stands where the log's chevrons stand
             CallColumns(duration: nil, status: .ok, chevron: (card.hasDetails, open))
@@ -196,7 +196,7 @@ struct SessionHeaderView: View {
                 Text(time).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             // a round button, as in the mockup, not a bare glyph: it says the whole header folds
-            Image(systemName: "chevron.right").font(.system(size: 11, weight: .bold)).foregroundStyle(.secondary)
+            Image(systemName: "chevron.right").font(.scaled(11, weight: .bold)).foregroundStyle(.secondary)
                 .rotationEffect(.degrees(open ? 90 : 0))
                 .frame(width: 26, height: 26)
                 .background(Circle().fill(Color.secondary.opacity(0.16)))
@@ -231,7 +231,7 @@ struct CountPills: View {
 
     private func pill(_ symbol: String, _ count: Int, _ noun: String?, tint: Color? = nil, lines: Bool = false) -> some View {
         HStack(spacing: 4) {
-            Image(systemName: symbol).font(.system(size: 10, weight: .semibold))
+            Image(systemName: symbol).font(.scaled(10, weight: .semibold))
             Text("\(count)").fontWeight(.semibold).foregroundStyle(tint ?? .primary)
             if let noun { Text(count == 1 ? noun : noun + "s") }
             if lines {
@@ -267,7 +267,7 @@ struct AgentAvatar: View {
         if let image = Self.mark(harness) {
             Image(nsImage: image).renderingMode(.template).resizable().scaledToFit().frame(width: 15, height: 15)
         } else {
-            Text(initial).font(.system(size: 13, weight: .bold))
+            Text(initial).font(.scaled(13, weight: .bold))
         }
     }
 

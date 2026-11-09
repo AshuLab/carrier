@@ -15,6 +15,7 @@ private func texts(_ rows: [FeedRow]) -> [String] {
         switch $0 {
         case .user(_, let text): "user: \(text)"
         case .agent(_, let text, let inProgress): "agent\(inProgress ? "…" : ""): \(text.prefix(24))"
+        case .reasoning(_, let text): "reasoning: \(text)"
         case .turnEnd(_, let text): "end: \(text)"
         case .tools(_, let group): "tools: \(group.title) | \(group.summary)"
         case .approval(_, let card): "card: \(card.question) | \(card.arg ?? "") | \(card.choices.map(\.label).joined(separator: " / "))"
@@ -251,6 +252,21 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     #expect(["Reading a", "Searching b", "Editing c", "Using Mystery d"] == [("Read", "a"), ("Grep", "b"), ("Edit", "c"), ("Mystery", "d")].map {
         group(chatFeed([ChatEvent(id: 1, at: 0, kind: "tool_start", callId: "x", tool: $0.0, arg: $0.1)])).doing!
     })
+}
+
+@Test func aTurnStoppedToSendAMessageReadsAsStoppedAndThenTheNewMessageAndItsCallsAreNotEnded() {
+    let events = [
+        ChatEvent(id: 1, at: 0, kind: "user", text: "first"),
+        ChatEvent(id: 2, at: 1, kind: "tool_start", callId: "a", tool: "Bash", arg: "sleep 60"),
+        ChatEvent(id: 3, at: 2, kind: "turn_end", outcome: "interrupted"),
+        ChatEvent(id: 4, at: 3, kind: "user", text: "instead"),
+        ChatEvent(id: 5, at: 4, kind: "tool_start", callId: "b", tool: "Bash", arg: "pnpm test"),
+    ]
+    let rows = chatFeed(events)
+    #expect(texts(rows).filter { $0.hasPrefix("tools") == false } == ["user: first", "end: 0s", "stopped", "user: instead"])
+    let calls = rows.compactMap { if case .tools(_, let group) = $0 { group } else { nil } }
+    #expect(calls.count == 2 && calls[0].isWorking == false && calls[0].calls.map(\.status) == [.stopped])
+    #expect(calls[1].isWorking && openOutcome(rows) == nil)
 }
 
 @Test func textBetweenCallsOpensANewRowAndTheCallsOfOneRunStayTogetherWhateverOrderTheyEnd() {
@@ -610,4 +626,194 @@ private func step(_ id: Int, _ step: String, _ status: String, _ detail: String?
     let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
     let plan = await model.cancelPreparation()
     #expect(host.cancelled == 1 && plan == host.cancelPlan && model.preparationRefusal == nil)
+}
+
+// MARK: following new output
+
+/// A model that has read what the host has and is told whether it follows and whether the view is at the end, then reads one more message.
+@MainActor private func scrolls(follows: Bool, atEnd: Bool) async -> Int {
+    let host = ScriptedHost()
+    host.events = [say(1)]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    (model.followsOutput, model.atEnd) = (follows, atEnd)
+    let before = model.scrolls
+    host.events.append(say(2))
+    await model.poll()
+    return model.scrolls - before
+}
+
+@MainActor @Test func withFollowOnNewOutputScrollsToTheEndWhileThePersonIsAtTheEnd() async {
+    #expect(await scrolls(follows: true, atEnd: true) == 1)
+}
+
+@MainActor @Test func withFollowOnNewOutputLeavesAPersonWhoScrolledUpWhereTheyAre() async {
+    #expect(await scrolls(follows: true, atEnd: false) == 0)
+}
+
+@MainActor @Test func withFollowOffTheViewNeverScrollsByItself() async {
+    #expect(await scrolls(follows: false, atEnd: true) == 0)
+    #expect(await scrolls(follows: false, atEnd: false) == 0)
+}
+
+@MainActor @Test func aPollThatBringsNothingNewDoesNotScroll() async {
+    let host = ScriptedHost()
+    host.events = [say(1)]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    let before = model.scrolls
+    await model.poll()
+    #expect(model.scrolls == before)
+}
+
+@MainActor @Test func theTextBeingWrittenCountsAsNewOutput() async {
+    let host = ScriptedHost()
+    host.events = [say(1)]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    let before = model.scrolls
+    host.streaming = "Hel"
+    await model.poll()
+    #expect(model.scrolls == before + 1)
+}
+
+@MainActor @Test func aMessageKnowsWhenItWasWrittenAndTheOneInProgressDoesNot() async {
+    let host = ScriptedHost()
+    host.events = [ChatEvent(id: 1, at: 1_000, kind: "user", text: "hi"), ChatEvent(id: 2, at: 2_000, kind: "assistant", text: "hello"), ChatEvent(id: 3, at: 3_000, kind: "turn_end")]
+    host.streaming = "more"
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.times == ["e1": 1_000, "e2": 2_000])
+    #expect(model.times["streaming"] == nil)
+}
+
+// MARK: what the tools show
+
+private func toolsFeed() -> [FeedRow] {
+    func event(_ id: Int, _ kind: String, _ call: String, _ tool: String, status: String? = nil) -> ChatEvent {
+        ChatEvent(id: id, at: id, kind: kind, callId: call, tool: tool, arg: "x", output: status == nil ? nil : ["out"], status: status)
+    }
+    return chatFeed([
+        ChatEvent(id: 1, at: 1, kind: "user", text: "go"),
+        event(2, "tool_start", "a", "Read"), event(3, "tool_end", "a", "Read", status: "ok"),
+        event(4, "tool_start", "b", "Bash"), event(5, "tool_end", "b", "Bash", status: "err"),
+        ChatEvent(id: 6, at: 6, kind: "assistant", text: "done"),
+        event(7, "tool_start", "c", "Read"), event(8, "tool_end", "c", "Read", status: "ok"),
+    ])
+}
+
+private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case .tools(_, let group) = $0 { group } else { nil } } }
+
+// MARK: the agent's reasoning
+
+@Test func aReasoningEventIsFoldedUnderTheMessageOfItsTurnAndAnUnknownKindFromANewerHostIsNotDrawn() throws {
+    let json = """
+    {"events":[
+      {"id":1,"at":1,"kind":"user","text":"go"},
+      {"id":2,"at":2,"kind":"reasoning","text":"Look at the file first."},
+      {"id":3,"at":3,"kind":"tool_start","callId":"a","tool":"Read","arg":"x"},
+      {"id":4,"at":4,"kind":"tool_end","callId":"a","tool":"Read","status":"ok","output":["out"]},
+      {"id":5,"at":5,"kind":"hologram","text":"from a newer host"},
+      {"id":6,"at":6,"kind":"reasoning","text":"Now answer."},
+      {"id":7,"at":7,"kind":"assistant","text":"done"},
+      {"id":8,"at":8,"kind":"turn_end","outcome":"ok"}
+    ],"cursor":8,"streaming":""}
+    """
+    let reply = try JSONDecoder().decode(ChatEvents.self, from: Data(json.utf8))
+    #expect(reply.events[1].kind == "reasoning" && reply.events[1].text == "Look at the file first.")
+    #expect(texts(chatFeed(reply.events)) == ["user: go", "tools: Explored | 1 file read", "agent: done", "reasoning: Look at the file first.", "reasoning: Now answer.", "end: 0s"])
+}
+
+@Test func reasoningWaitsForTheMessageBeingWrittenAndComesBeforeAnErrorOrTheNextTurnWhenThereIsNoMessage() {
+    let think = ChatEvent(id: 2, at: 2, kind: "reasoning", text: "Hm.")
+    let user = ChatEvent(id: 1, at: 1, kind: "user", text: "go")
+    // the message is still streaming: the reasoning sits under it
+    #expect(texts(chatFeed([user, think], streaming: "Hel")) == ["user: go", "agent…: Hel", "reasoning: Hm."])
+    // nothing written yet: it is the last thing
+    #expect(texts(chatFeed([user, think])) == ["user: go", "reasoning: Hm."])
+    // the turn failed with no message: it stays inside its turn
+    let failed = [user, think, ChatEvent(id: 3, at: 3, kind: "error", text: "boom"), ChatEvent(id: 4, at: 4, kind: "user", text: "again")]
+    #expect(texts(chatFeed(failed)) == ["user: go", "reasoning: Hm.", "error: boom", "user: again"])
+    // an empty thinking block draws nothing
+    #expect(texts(chatFeed([user, ChatEvent(id: 2, at: 2, kind: "reasoning", text: "")])) == ["user: go"])
+}
+
+@Test func theShowReasoningSwitchTakesTheRowsOutOfTheVisibleFeedAndNothingElse() {
+    let rows = chatFeed([
+        ChatEvent(id: 1, at: 1, kind: "user", text: "go"), ChatEvent(id: 2, at: 2, kind: "reasoning", text: "Hm."),
+        ChatEvent(id: 3, at: 3, kind: "assistant", text: "done"),
+    ])
+    #expect(texts(visibleFeed(rows, mode: .collapsed)) == ["user: go", "agent: done", "reasoning: Hm."])
+    #expect(texts(visibleFeed(rows, mode: .collapsed, showsReasoning: false)) == ["user: go", "agent: done"])
+}
+
+@MainActor @Test func aHostThatSendsNoReasoningLeavesTheConversationAsItWas() async {
+    let host = ScriptedHost()
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "go"), ChatEvent(id: 2, at: 2, kind: "assistant", text: "done")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(texts(model.rows) == ["user: go", "agent: done"] && model.failure == nil)
+}
+
+private final class Asked: @unchecked Sendable {
+    private let lock = NSLock()
+    private var line = ""
+    var value: String {
+        get { lock.withLock { line } }
+        set { lock.withLock { line = newValue } }
+    }
+}
+
+/// The `events` request a host that lists `capabilities` got.
+private func eventsRequest(capabilities: [String]) async throws -> String {
+    let asked = Asked()
+    let listed = capabilities.map { "\"\($0)\"" }.joined(separator: ",")
+    let server = TestServer { connection in
+        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"capabilities\":[\(listed)]}\n")
+        guard let line = connection.readLine() else { return }
+        asked.value = line
+        connection.send("{\"id\":1,\"ok\":true,\"data\":{\"events\":[],\"cursor\":0,\"streaming\":\"\"}}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    _ = try await host.events(UUID().uuidString, after: 0, limit: 50)
+    return asked.value
+}
+
+@Test func theAppAsksForReasoningOnlyOfAHostThatListsIt() async throws {
+    #expect(try await eventsRequest(capabilities: ["events", "reasoning"]).contains("\"reasoning\":true"))
+    #expect(try await eventsRequest(capabilities: ["events"]).contains("reasoning") == false)
+}
+
+@Test func hiddenShowsNoToolRowsAndTheOthersStay() {
+    let rows = toolsFeed()
+    #expect(texts(visibleFeed(rows, mode: .hidden)) == ["user: go", "agent: done"])
+    #expect(visibleFeed(rows, mode: .collapsed) == rows && visibleFeed(rows, mode: .expanded) == rows)
+}
+
+@Test func collapsedFoldsEachRunAndExpandedOpensEveryRunAndCall() {
+    let groups = runs(toolsFeed())
+    #expect(groups.map { $0.opensByDefault(.collapsed, opensFailed: false) } == [false, false])
+    #expect(groups.map { $0.opensByDefault(.expanded, opensFailed: false) } == [true, true])
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.expanded, opensFailed: false) } == [true, true, true])
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.collapsed, opensFailed: false) } == [false, false, false])
+}
+
+@Test func aFailedCallOpensByItselfWhileTheSwitchIsOnAndOnlyItsRunAndItself() {
+    let groups = runs(toolsFeed())
+    #expect(groups.map { $0.opensByDefault(.collapsed, opensFailed: true) } == [true, false])
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.collapsed, opensFailed: true) } == [false, true, false])
+    // expanded opens everything with the switch either way, and hidden opens nothing
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.expanded, opensFailed: true) } == [true, true, true])
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.hidden, opensFailed: true) } == [false, false, false])
+    #expect(groups.map { $0.opensByDefault(.hidden, opensFailed: true) } == [false, false])
+}
+
+@Test func aCallsOutputIsCutAtTheChosenLengthAndSaysHowManyAreLeft() {
+    var call = ToolCall(start: ChatEvent(id: 1, at: 1, kind: "tool_start", callId: "a", tool: "Bash", arg: "ls"))
+    call.finish(ChatEvent(id: 2, at: 2, kind: "tool_end", callId: "a", tool: "Bash", output: (1...60).map { "line \($0)" }, status: "ok"))
+    #expect(OutputLength.short.visible(call.output, expanded: false).hidden == 40)
+    #expect(OutputLength.medium.visible(call.output, expanded: false).lines.count == 50 && OutputLength.medium.visible(call.output, expanded: false).hidden == 10)
+    #expect(OutputLength.long.visible(call.output, expanded: false).hidden == 0 && OutputLength.long.visible(call.output, expanded: false).lines.count == 60)
+    #expect(OutputLength.medium.visible(call.output, expanded: true).hidden == 0)
 }

@@ -50,6 +50,8 @@ struct ArchiveView: View {
             case .refused(let refusal): tell(refusal)
             case .ask(let question):
                 guard ask(question) else { return }
+                fallthrough
+            case .proceed:
                 if let refusal = await actions.delete(row.id) { tell(refusal) }
             }
         }
@@ -63,6 +65,8 @@ struct ArchiveView: View {
             case .refused(let refusal): tell(refusal)
             case .ask(let question):
                 guard ask(question) else { return }
+                fallthrough
+            case .proceed:
                 if let refusal = await actions.clear(ids) { tell(refusal) }
             }
         }
@@ -148,7 +152,7 @@ struct ArchiveView: View {
     }
 }
 
-private extension ArchiveSort {
+extension ArchiveSort {
     var title: String {
         switch self {
         case .dateArchived: "Date archived"
@@ -159,6 +163,7 @@ private extension ArchiveSort {
 
 /// An archived session: title with its workspace, the agent, when it will be deleted and the age; on hover, Open, Resume and Delete.
 private struct ArchiveRow: View {
+    private let timeChanges = TimeFormatChanges()
     let row: SessionRow
     /// When the clock deletes the session, or why it is still there (`archiveNote`).
     let note: String?
@@ -168,11 +173,6 @@ private struct ArchiveRow: View {
     @State private var hovered = false
     /// Whether the keyboard is on one of the actions, which shows them as the pointer does.
     @FocusState private var actionsFocused: Bool
-    private static let spokenAge: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter
-    }()
 
     var body: some View {
         HStack(spacing: 10) {
@@ -181,7 +181,7 @@ private struct ArchiveRow: View {
                 HStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text(row.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                            Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
                             Text(row.workspace).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                                 .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().strokeBorder(Color.secondary.opacity(0.5)))
                         }
@@ -205,8 +205,8 @@ private struct ArchiveRow: View {
             }
             .focused($actionsFocused)
             .opacity(hovered || actionsFocused ? 1 : 0)
-            Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                .accessibilityLabel(Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date()))
+            Text(timeText(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                .accessibilityLabel(spokenAge(row.updatedAt, now: Date()))
         }
         .padding(.horizontal, 8).padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 10).fill(hovered ? Color.primary.opacity(0.07) : .clear))

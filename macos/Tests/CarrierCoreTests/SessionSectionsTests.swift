@@ -79,7 +79,7 @@ func otherCommandsAreNot(command: String) {
         session("c", "fix", round: 2, status: "running", at: 90_000),
         session("b", "review", round: 2, status: "finished", harness: "codex", at: 60_000, until: 85_000),
         session("a", "ship", status: "finished", at: 1000, until: 39_000)
-    ), timeZone: TimeZone(identifier: "UTC")!)
+    ), time: TimeFormat(hours: .h24, timeZone: TimeZone(identifier: "UTC")!))
     // oldest first, the running one at the bottom
     #expect(list.sections.map(\.id) == ["a", "b", "c"])
     #expect(list.sections.map(\.state) == [.done, .done, .running])

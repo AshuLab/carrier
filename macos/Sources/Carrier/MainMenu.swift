@@ -43,6 +43,9 @@ extension AppDelegate {
         // File
         let file = submenu(of: main, title: "File")
         item(file, "New Session", #selector(newSession), shortcut: .newSession, in: shortcuts, target: self)
+        item(file, "Next Session", #selector(nextSession), shortcut: .nextSession, in: shortcuts, target: self)
+        item(file, "Previous Session", #selector(previousSession), shortcut: .previousSession, in: shortcuts, target: self)
+        item(file, "Archive Session", #selector(archiveSession), shortcut: .archiveSession, in: shortcuts, target: self)
         file.addItem(.separator())
         item(file, "Close Window", #selector(NSWindow.performClose(_:)), key: "w")
 
@@ -63,7 +66,7 @@ extension AppDelegate {
         item(view, "Home", #selector(showHome), shortcut: .home, in: shortcuts, target: self)
         item(view, "Sessions", #selector(showSessions), shortcut: .sessions, in: shortcuts, target: self)
         item(view, "Carrier", #selector(showCarrier), shortcut: .carrier, in: shortcuts, target: self)
-        item(view, "Archive", #selector(showArchive), target: self)
+        item(view, "Archive", #selector(showArchive), shortcut: .archive, in: shortcuts, target: self)
         view.addItem(.separator())
         item(view, "Show or Hide Sidebar", #selector(toggleSidebar), key: "s", modifiers: [.command, .control], target: self)
         item(view, "Show or Hide Inspector", #selector(toggleInspector), key: "i", modifiers: [.command, .option], target: self)
@@ -124,6 +127,9 @@ extension AppDelegate {
     @objc func showSessions() { WindowController.shared.show(.sessions) }
     @objc func showCarrier() { WindowController.shared.show(.carrier) }
     @objc func showArchive() { WindowController.shared.show(.archive) }
+    @objc func nextSession() { WindowController.shared.perform(.nextSession) }
+    @objc func previousSession() { WindowController.shared.perform(.previousSession) }
+    @objc func archiveSession() { WindowController.shared.perform(.archiveSession) }
     @objc func findInSection() { WindowController.shared.search() }
     @objc func toggleSidebar() { WindowController.shared.toggleSidebar() }
     @objc func toggleInspector() { WindowController.shared.toggleInspector() }

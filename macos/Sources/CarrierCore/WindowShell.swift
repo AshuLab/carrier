@@ -33,6 +33,10 @@ public enum ShortcutAction: Equatable {
     case select(Selection)
     /// Search the section that is open.
     case search
+    /// The session after or before the open one in the order the sidebar shows, stopping at the ends.
+    case nextSession, previousSession
+    /// Archive the open session.
+    case archiveSession
 }
 
 /// The action a key runs, from the shortcut table; a combination no action has, or one without ⌘, ⌃ or ⌥, is nothing. `key` is the character
@@ -44,6 +48,12 @@ public func shortcutAction(key: String, modifiers: ShortcutModifiers, in table: 
 /// A request to open the search of a section; `count` makes asking twice a change the views can see.
 public struct SearchRequest: Equatable {
     public let section: OpenSection
+    public let count: Int
+}
+
+/// A request to archive the open session; `count` makes asking twice a change the views can see.
+public struct ArchiveRequest: Equatable {
+    public let sessionId: String
     public let count: Int
 }
 
@@ -74,6 +84,8 @@ public struct SearchRequest: Equatable {
     public var aboutShown = false
     /// The last ⌘F, for the open section's search to show itself.
     public private(set) var searchRequest: SearchRequest?
+    /// The last ⇧⌘A, for the window to archive that session through the host.
+    public private(set) var archiveRequest: ArchiveRequest?
 
     public init(open: OpenSection? = .sessions) { self.open = open }
 
@@ -96,12 +108,24 @@ public struct SearchRequest: Equatable {
     public func toggleInspector() { inspectorShown.toggle() }
     public func showAbout() { aboutShown = true }
 
-    /// Runs a shortcut: a selection as a click on it would, ⌘F as a request to the open section (nothing with both folded).
-    public func perform(_ action: ShortcutAction) {
+    /// Runs a shortcut: a selection as a click on it would, ⌘F as a request to the open section (nothing with both folded). The
+    /// session shortcuts read `sessions` in the order `sort` gives the sidebar; with none open, next picks the first and previous the last.
+    public func perform(_ action: ShortcutAction, sessions: [SessionRow] = [], sort: SessionSort = .workspace) {
         switch action {
         case .select(let next): selection = next
         case .search:
             if let open { searchRequest = SearchRequest(section: open, count: (searchRequest?.count ?? 0) + 1) }
+        case .nextSession, .previousSession:
+            let ids = sessionGroups(sessions, by: sort).flatMap(\.rows).map(\.id)
+            let step = action == .nextSession ? 1 : -1
+            var current: Int?
+            if case .session(let id) = selection { current = ids.firstIndex(of: id) }
+            let target = current.map { $0 + step } ?? (step > 0 ? 0 : ids.count - 1)
+            if ids.indices.contains(target) { selection = .session(id: ids[target]) }
+        case .archiveSession:
+            if case .session(let id) = selection, sessions.contains(where: { $0.id == id && $0.archived == false }) {
+                archiveRequest = ArchiveRequest(sessionId: id, count: (archiveRequest?.count ?? 0) + 1)
+            }
         }
     }
 
@@ -119,5 +143,6 @@ public struct SearchRequest: Equatable {
         aboutShown = false
         settingsShown = false
         searchRequest = nil
+        archiveRequest = nil
     }
 }

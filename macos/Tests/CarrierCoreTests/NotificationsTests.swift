@@ -418,6 +418,43 @@ private let chatDoneOn = NotificationKinds(chatDone: true)
     #expect(centre.sounds == [true, false])
 }
 
+@Test func theDockBadgeCountsEpicsThatNeedAPersonPlusSessionsWaitingForAnApproval() {
+    let epics = snapshot([epic(1, .needsHuman), epic(2), epic(3, .needsHuman)])
+    let sessions = [session("1", .waiting), session("2", .working), session("3", .idle), session("4", .waiting), session("5", .waiting, archived: true)]
+    #expect(dockBadgeCount(snapshot: snapshot([epic(1)]), sessions: [session("1", .working)]) == 0)
+    #expect(dockBadgeCount(snapshot: nil, sessions: []) == 0)
+    #expect(dockBadgeCount(snapshot: epics, sessions: [session("1", .idle)]) == 2)
+    #expect(dockBadgeCount(snapshot: snapshot(), sessions: sessions) == 2)
+    #expect(dockBadgeCount(snapshot: epics, sessions: sessions) == 4)
+}
+
+@Test func theDockBadgeIsOnUntilTurnedOff() {
+    let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
+    #expect(defaults.showsDockBadge)
+    defaults.set(false, forKey: notifyDockBadgeKey)
+    #expect(defaults.showsDockBadge == false)
+}
+
+@Test func theWatcherSetsTheBadgeFromTheTwoLastStatesAndClearsItAtZeroOrWithTheSwitchOff() {
+    var shown = true
+    var badge = -1
+    let watcher = NotificationWatcher(centre: FakeCentre(), showsBadge: { shown }, setBadge: { badge = $0 })
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)])))
+    #expect(badge == 1)
+    watcher.react(toSessions: [session("1", .waiting)])
+    #expect(badge == 2)
+    shown = false
+    watcher.refreshBadge()
+    #expect(badge == 0)
+    shown = true
+    watcher.refreshBadge()
+    #expect(badge == 2)
+    watcher.react(to: .stopped)
+    #expect(badge == 1)
+    watcher.react(toSessions: [session("1", .idle)])
+    #expect(badge == 0)
+}
+
 // reminders
 
 private let start = Date(timeIntervalSince1970: 1_000_000)

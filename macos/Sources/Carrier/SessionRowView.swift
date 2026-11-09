@@ -15,6 +15,7 @@ struct SessionRowView: View {
     @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
     @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
     @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
+    @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
     /// The orange of "Waiting for you" as text: the system's on dark, a deeper one on light, where the system's is too pale to read.
     static let attention = Color(nsColor: NSColor(name: nil) { appearance in
@@ -71,7 +72,7 @@ struct SessionRowView: View {
                 }
             }
         }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.itemPadding)
+        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, density.rowPadding)
         .contextMenu { SessionMenuItems(row: row) }
         .help(row.title)
         .accessibilityElement(children: .ignore)

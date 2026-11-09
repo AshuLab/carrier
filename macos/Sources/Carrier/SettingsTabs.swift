@@ -168,6 +168,39 @@ struct GeneralTabView: View {
     }
 }
 
+/// How the app looks: the color scheme of every window, the text size of the whole interface and how tight the rows are.
+struct AppearanceTabView: View {
+    @AppStorage(AppPreferences.colorSchemeKey) private var colorScheme = AppPreferences.defaultColorScheme
+    @AppStorage(TypeScale.percentKey) private var textSize = 100
+    @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+
+    var body: some View {
+        SettingsPageBody(reset: { AppPreferences().reset(.appearance) }) {
+            SettingsGroup(title: "Look") {
+                SettingsTabRow(title: "Color scheme", detail: "System follows the Mac; light and dark stay as chosen", first: true) {
+                    Picker("Color scheme", selection: $colorScheme) {
+                        ForEach(ColorSchemeChoice.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Text size", detail: "The size of the text of the whole app, \(textSize)%") {
+                    Slider(
+                        value: Binding(get: { Double(textSize) }, set: { textSize = Int($0) }),
+                        in: Double(TypeScale.range.lowerBound)...Double(TypeScale.range.upperBound), step: 5
+                    )
+                    .frame(width: 160).accessibilityLabel("Text size").accessibilityValue("\(textSize) percent")
+                }
+                SettingsTabRow(title: "Density", detail: "The space in the sidebar rows and between the messages") {
+                    Picker("Density", selection: $density) {
+                        ForEach(Density.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
+            }
+        }
+    }
+}
+
 /// The sidebar's grouping and sorts, which its own menus change too (one preference, two controls), and what each session row shows.
 struct SidebarTabView: View {
     @AppStorage(SidebarStore.groupByKey) private var groupBy = GroupBy.status

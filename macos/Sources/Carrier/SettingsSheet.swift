@@ -54,6 +54,7 @@ struct SettingsSheet: View {
             }
             switch tab {
             case .general: GeneralTabView()
+            case .appearance: AppearanceTabView()
             case .sidebar: SidebarTabView()
             case .chat: ChatTabView()
             case .engine: engine(banner, notConfigured: notConfigured)

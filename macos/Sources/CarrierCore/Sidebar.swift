@@ -7,11 +7,19 @@ public enum GroupBy: String, CaseIterable {
     case status, repo
 }
 
+/// The ids in a stored `SidebarStore.pinnedKey`.
+public func pinnedIds(_ stored: String) -> Set<String> { Set(stored.split(separator: ",").map(String.init)) }
+
+/// The string to store for these ids.
+public func storedPins(_ ids: Set<String>) -> String { ids.sorted().joined(separator: ",") }
+
 /// The grouping, the Sessions and Archive sorts and the unfolded section, kept in user defaults so they survive a relaunch.
 public struct SidebarStore {
     public static let groupByKey = "sidebar.groupBy"
     public static let sessionSortKey = "sidebar.sessionSort"
     public static let archiveSortKey = "sidebar.archiveSort"
+    /// The pinned sessions' ids, comma-separated (an `@AppStorage` string; read it with `pinnedIds`).
+    public static let pinnedKey = "sidebar.pinned"
     public static let showsIconKey = "sidebar.row.icon"
     public static let showsBranchKey = "sidebar.row.branch"
     public static let showsProvidersKey = "sidebar.row.providers"
@@ -32,6 +40,8 @@ public struct SidebarStore {
         get { defaults.string(forKey: Self.sessionSortKey).flatMap(SessionSort.init(rawValue:)) ?? .workspace }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.sessionSortKey) }
     }
+
+    public var pinned: Set<String> { pinnedIds(defaults.string(forKey: Self.pinnedKey) ?? "") }
 
     public var archiveSort: ArchiveSort {
         get { defaults.string(forKey: Self.archiveSortKey).flatMap(ArchiveSort.init(rawValue:)) ?? .dateArchived }

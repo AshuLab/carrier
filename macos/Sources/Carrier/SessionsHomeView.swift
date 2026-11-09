@@ -13,10 +13,11 @@ struct SessionsHomeView: View {
     @State private var query: String?
     @State private var filter = SessionFilter()
     @State private var filterOpen = false
+    @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
     @FocusState private var searching: Bool
 
     var body: some View {
-        let page = sessionsPage(sessions.rows, by: sort, query: query ?? "", filter: filter)
+        let page = sessionsPage(sessions.rows, by: sort, query: query ?? "", filter: filter, pinned: pinnedIds(pinnedStored))
         let searched = (query ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
         VStack(spacing: 0) {
             if ChatHostStarter.shared.restartAdvised {
@@ -51,7 +52,7 @@ struct SessionsHomeView: View {
                         ForEach(page.groups, id: \.title) { group in
                             if searched == false { groupHeader(group) }
                             ForEach(group.rows, id: \.id) { row in
-                                SessionHomeRow(row: row, showsWorkspace: searched || sort != .workspace) { select(row.id) }
+                                SessionHomeRow(row: row, showsWorkspace: searched || sort != .workspace, filterWorkspace: { filter.workspaces.insert($0) }) { select(row.id) }
                             }
                         }
                     }
@@ -218,6 +219,7 @@ private struct SessionHomeRow: View {
     private let timeChanges = TimeFormatChanges()
     let row: SessionRow
     let showsWorkspace: Bool
+    let filterWorkspace: (String) -> Void
     let open: () -> Void
     @State private var hovered = false
 
@@ -249,7 +251,7 @@ private struct SessionHomeRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
-        .contextMenu { SessionMenuItems(row: row) }
+        .contextMenu { SessionMenuItems(row: row, filterWorkspace: filterWorkspace) }
         .help(row.title)
     }
 

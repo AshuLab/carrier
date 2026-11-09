@@ -7,30 +7,34 @@ import Foundation
 public struct SessionFilter: Equatable {
     public var statuses: Set<SessionState>
     public var agents: Set<String>
+    /// Only the row menu's "Filter by" sets it; the popover does not offer workspaces.
+    public var workspaces: Set<String>
 
-    public init(statuses: Set<SessionState> = [], agents: Set<String> = []) {
+    public init(statuses: Set<SessionState> = [], agents: Set<String> = [], workspaces: Set<String> = []) {
         self.statuses = statuses
         self.agents = agents
+        self.workspaces = workspaces
     }
 
     /// The statuses the popover offers: `done` is in the type but nothing produces it.
     public static let offeredStatuses: [SessionState] = [.waiting, .working, .idle]
 
-    public var count: Int { statuses.count + agents.count }
+    public var count: Int { statuses.count + agents.count + workspaces.count }
 
     public func matches(_ row: SessionRow) -> Bool {
-        (statuses.isEmpty || statuses.contains(row.state)) && (agents.isEmpty || agents.contains(row.agent))
+        (statuses.isEmpty || statuses.contains(row.state)) && (agents.isEmpty || agents.contains(row.agent)) && (workspaces.isEmpty || workspaces.contains(row.workspace))
     }
 
-    /// One chip per ticked value: the statuses in the popover's order, then the agents by name.
+    /// One chip per ticked value: the statuses in the popover's order, then the agents by name, then the workspaces by name.
     public var chips: [SessionChip] {
-        Self.offeredStatuses.filter(statuses.contains).map(SessionChip.status) + agents.sorted().map(SessionChip.agent)
+        Self.offeredStatuses.filter(statuses.contains).map(SessionChip.status) + agents.sorted().map(SessionChip.agent) + workspaces.sorted().map(SessionChip.workspace)
     }
 
     public mutating func remove(_ chip: SessionChip) {
         switch chip {
         case .status(let state): statuses.remove(state)
         case .agent(let name): agents.remove(name)
+        case .workspace(let name): workspaces.remove(name)
         }
     }
 }
@@ -38,11 +42,12 @@ public struct SessionFilter: Equatable {
 public enum SessionChip: Hashable {
     case status(SessionState)
     case agent(String)
+    case workspace(String)
 
     public var title: String {
         switch self {
         case .status(let state): state.title
-        case .agent(let name): name
+        case .agent(let name), .workspace(let name): name
         }
     }
 }
@@ -58,13 +63,13 @@ public struct SessionsPage: Equatable {
 /// filter on, "2 results" with a search); it says nothing while there are no active sessions. With no search the page is empty
 /// ("No sessions yet") when no session is active, and "No sessions match" when a search or a filter leaves nothing.
 public func sessionsPage(
-    _ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", filter: SessionFilter = SessionFilter(), now: Date = Date(),
+    _ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", filter: SessionFilter = SessionFilter(), pinned: Set<String> = [], now: Date = Date(),
     calendar: Calendar = .current
 ) -> SessionsPage {
     let searching = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
     let active = rows.filter { $0.archived == false }
     let kept = rows.filter(filter.matches)
-    let groups = searching ? searchResults(kept, query) : sessionGroups(kept, by: sort, now: now, calendar: calendar)
+    let groups = searching ? searchResults(kept, query) : sessionGroups(kept, by: sort, pinned: pinned, now: now, calendar: calendar)
     let shown = groups.reduce(0) { $0 + $1.rows.count }
     let waiting = active.filter { $0.state == .waiting }.count
     let subtitle: String

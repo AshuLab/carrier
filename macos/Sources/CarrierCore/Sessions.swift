@@ -92,10 +92,17 @@ public enum SessionSort: String, CaseIterable { case workspace, age, status }
 /// Yesterday, Last 7 days and Older, counted from the start of today in `calendar`. By state: Needs attention, Working, Active and
 /// Done. Empty groups are left out, the rows of a group are newest first and no archived row is listed, searching included. A
 /// non-empty `query` keeps the groups of that order, filtered to the rows whose title, workspace or agent contain it ignoring case.
+/// The `pinned` rows leave their groups for a "Pinned" one first.
 public func sessionGroups(
-    _ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", now: Date = Date(), calendar: Calendar = .current
+    _ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", pinned: Set<String> = [], now: Date = Date(), calendar: Calendar = .current
 ) -> [SessionGroup] {
-    let listed = matching(rows.filter { $0.archived == false }, query)
+    let active = matching(rows.filter { $0.archived == false }, query)
+    let pins = newestFirst("Pinned", active.filter { pinned.contains($0.id) })
+    let listed = active.filter { pinned.contains($0.id) == false }
+    return (pins.map { [$0] } ?? []) + ordered(listed, by: sort, now: now, calendar: calendar)
+}
+
+private func ordered(_ listed: [SessionRow], by sort: SessionSort, now: Date, calendar: Calendar) -> [SessionGroup] {
     switch sort {
     case .workspace:
         return Dictionary(grouping: listed, by: \.workspace)

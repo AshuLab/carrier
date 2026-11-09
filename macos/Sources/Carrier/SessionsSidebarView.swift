@@ -6,6 +6,7 @@ import SwiftUI
 /// field under the row.
 struct SessionsRows: View {
     let sessions: Sessions
+    @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
     /// The order, shared with the Sessions home and remembered by the model.
     @Binding var sort: SessionSort
     @Binding var selection: Selection
@@ -66,7 +67,7 @@ struct SessionsRows: View {
                     close: { query = nil }
                 )
             }
-            let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", now: Date(), calendar: .current)
+            let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", pinned: pinnedIds(pinnedStored), now: Date(), calendar: .current)
             if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
                 SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
             }
@@ -83,7 +84,7 @@ struct SessionsRows: View {
             case .rows, .empty: EmptyView()
             }
             ForEach(groups, id: \.title) { group in
-                GroupHeader(title: group.title, add: sort == .workspace ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil)
+                GroupHeader(title: group.title, add: sort == .workspace && group.title != "Pinned" ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil)
                 ForEach(group.rows, id: \.id) { row in
                     SessionRowView(row: row, showsWorkspace: sort != .workspace)
                         .selectableSidebarRow(selected: selection == .session(id: row.id)) { selection = .session(id: row.id) }

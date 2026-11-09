@@ -212,6 +212,10 @@ public protocol ChatHost {
     /// Removes the session and its transcript, and the worktree and branch of one in a worktree; refused like `archive` for a working or waiting
     /// one, and for a worktree that cannot be removed (the session stays).
     func delete(_ id: String) async throws
+    /// Gives the session a title of the person's own; the host refuses an empty one and keeps it from then on. Only for a host whose hello lists `rename`.
+    func rename(_ id: String, _ title: String) async throws
+    /// Asks the host to write the session's title again from what was said in it and answers the new one. Only for a host whose hello lists `regenerateTitle`.
+    func regenerateTitle(_ id: String) async throws -> String
     /// What deleting these sessions would discard, one entry per id in the order asked; the host refuses the whole request when an id is unknown.
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview]
 }
@@ -231,6 +235,12 @@ extension ChatHost {
 
     /// A host that cannot say how the machine is refuses; the app only asks one that lists `health`.
     public func health(refresh: Bool) async throws -> HostHealth { throw ControlError.remote("the chat host does not support health") }
+
+    /// A host that cannot rename refuses; the app only asks one that lists `rename`.
+    public func rename(_ id: String, _ title: String) async throws { throw ControlError.remote("the chat host does not support rename") }
+
+    /// A host that cannot write titles refuses; the app only asks one that lists `regenerateTitle`.
+    public func regenerateTitle(_ id: String) async throws -> String { throw ControlError.remote("the chat host does not support regenerateTitle") }
 
     /// A host that knows no commands sends the text as it is.
     public func send(_ id: String, _ text: String, command: String?) async throws { try await send(id, text) }
@@ -410,6 +420,21 @@ public struct SocketChatHost: ChatHost {
         let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
         let _: AnyReply = try await Task.detached { try chatRequest(path, "delete", requires: .delete, fields: fields) }.value
+    }
+
+    public func rename(_ id: String, _ title: String) async throws {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"title\":" + jsonString(title)
+        let path = socketPath()
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "rename", requires: .rename, fields: fields) }.value
+    }
+
+    private struct TitleReply: Decodable { let title: String }
+
+    public func regenerateTitle(_ id: String) async throws -> String {
+        let fields = ",\"sessionId\":\"\(try wireId(id))\""
+        let path = socketPath()
+        let reply: TitleReply = try await Task.detached { try chatRequest(path, "regenerateTitle", requires: .regenerateTitle, fields: fields) }.value
+        return reply.title
     }
 
     /// The host takes 1 to 500 ids a request, so a longer list goes in several; a commit shared by two worktrees counts for both only when they are asked together.

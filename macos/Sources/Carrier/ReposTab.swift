@@ -142,13 +142,13 @@ private struct RepoRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).lineLimit(1).truncationMode(.middle)
                 Text(row.line).font(.caption).foregroundStyle(row.health == .error ? Color.red : Color.secondary).lineLimit(2)
-                Text(tildePath(clone)).font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary)
+                Text(tildePath(clone)).font(.scaled(11, design: .monospaced)).foregroundStyle(.tertiary)
                     .lineLimit(1).truncationMode(.middle)
                 chips
             }
             Spacer(minLength: 8)
             Menu { actions(clone: clone, cloned: cloned) } label: {
-                Image(systemName: "ellipsis").font(.system(size: 15, weight: .semibold))
+                Image(systemName: "ellipsis").font(.scaled(15, weight: .semibold))
                     .foregroundStyle(hovering ? Color.primary : Color.secondary)
                     .frame(width: 28, height: 28)
                     .background(Circle().fill(Color.primary.opacity(hovering ? 0.12 : 0)))

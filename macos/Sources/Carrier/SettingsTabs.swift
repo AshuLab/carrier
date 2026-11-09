@@ -17,7 +17,7 @@ struct SettingsTabRow<Control: View>: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).fontWeight(.medium)
-                Text(detail).font(mono ? .system(size: 11.5, design: .monospaced) : .caption).foregroundStyle(.secondary)
+                Text(detail).font(mono ? .scaled(11.5, design: .monospaced) : .caption).foregroundStyle(.secondary)
                     .lineLimit(2).truncationMode(.middle)
             }
             Spacer(minLength: 8)

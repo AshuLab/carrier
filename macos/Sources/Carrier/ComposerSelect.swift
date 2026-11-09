@@ -36,8 +36,8 @@ struct ComposerSelect: View {
         Button { open.toggle() } label: {
             Text(showsValue ? (chosen?.label ?? title) : (selected == nil ? title : chosen?.label ?? title)).fontWeight(.medium)
                 .padding(.leading, 18).padding(.trailing, locked ? 0 : 15)
-                .overlay(alignment: .leading) { Image(systemName: icon).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary) }
-                .overlay(alignment: .trailing) { if locked == false { Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary) } }
+                .overlay(alignment: .leading) { Image(systemName: icon).font(.scaled(11, weight: .medium)).foregroundStyle(.secondary) }
+                .overlay(alignment: .trailing) { if locked == false { Image(systemName: "chevron.down").font(.scaled(9, weight: .bold)).foregroundStyle(.secondary) } }
                 .font(.callout).lineLimit(1).truncationMode(.tail)
                 .padding(.horizontal, 10).frame(height: controlHeight)
                 .controlSurface()
@@ -60,7 +60,7 @@ struct ComposerSelect: View {
                     HStack(alignment: .center, spacing: 10) {
                         if let rowIcon = row.icon {
                             Image(systemName: rowIcon)
-                                .font(.system(size: 12, weight: .medium)).foregroundStyle(ticked ? Color.accentColor : .secondary)
+                                .font(.scaled(12, weight: .medium)).foregroundStyle(ticked ? Color.accentColor : .secondary)
                                 .frame(width: 26, height: 26)
                                 .background(RoundedRectangle(cornerRadius: 7).fill(ticked ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12)))
                                 .accessibilityHidden(true)

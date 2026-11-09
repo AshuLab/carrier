@@ -61,7 +61,7 @@ struct SettingsSheet: View {
             VStack(alignment: .leading, spacing: 20) {
                 HStack(alignment: .center, spacing: 12) {
                     Image(systemName: row.icon)
-                        .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accentColor)
+                        .font(.scaled(16, weight: .medium)).foregroundStyle(Color.accentColor)
                         .frame(width: 36, height: 36)
                         .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.16)))
                         .accessibilityHidden(true)
@@ -159,7 +159,7 @@ struct StatusDot: View {
 
     var body: some View {
         Image(systemName: found ? "checkmark" : "exclamationmark")
-            .font(.system(size: 10, weight: .heavy)).foregroundStyle(.white)
+            .font(.scaled(10, weight: .heavy)).foregroundStyle(.white)
             .frame(width: 18, height: 18)
             .background(Circle().fill(found ? Color.green : Color.orange))
             .accessibilityLabel(found ? "Found" : "Not found")

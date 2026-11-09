@@ -10,6 +10,8 @@ import Testing
         ("View", "Home", .home), ("View", "Sessions", .sessions), ("View", "Carrier", .carrier),
         ("File", "New Session", .newSession), ("Edit", "Find…", .search), ("View", "Archive", .archive),
         ("File", "Next Session", .nextSession), ("File", "Previous Session", .previousSession), ("File", "Archive Session", .archiveSession),
+        ("Conversation", "Focus the Message Box", .focusBox), ("Conversation", "Jump to the Latest Message", .latestMessage),
+        ("Conversation", "Fold or Unfold the Tool Calls", .foldTools), ("Conversation", "Copy the Last Answer", .copyAnswer),
     ]
 
     private func table() -> ShortcutTable {

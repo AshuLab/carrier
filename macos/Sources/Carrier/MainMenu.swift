@@ -73,6 +73,13 @@ extension AppDelegate {
         view.addItem(.separator())
         item(view, "Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), key: "f", modifiers: [.command, .control])
 
+        // Conversation
+        let conversation = submenu(of: main, title: "Conversation")
+        item(conversation, "Focus the Message Box", #selector(focusMessageBox), shortcut: .focusBox, in: shortcuts, target: self)
+        item(conversation, "Jump to the Latest Message", #selector(jumpToLatestMessage), shortcut: .latestMessage, in: shortcuts, target: self)
+        item(conversation, "Fold or Unfold the Tool Calls", #selector(toggleToolFolds), shortcut: .foldTools, in: shortcuts, target: self)
+        item(conversation, "Copy the Last Answer", #selector(copyLastAnswer), shortcut: .copyAnswer, in: shortcuts, target: self)
+
         // Window
         let window = submenu(of: main, title: "Window")
         item(window, "Minimize", #selector(NSWindow.performMiniaturize(_:)), key: "m")
@@ -131,6 +138,10 @@ extension AppDelegate {
     @objc func previousSession() { WindowController.shared.perform(.previousSession) }
     @objc func archiveSession() { WindowController.shared.perform(.archiveSession) }
     @objc func findInSection() { WindowController.shared.search() }
+    @objc func focusMessageBox() { WindowController.shared.conversation(.focusBox) }
+    @objc func jumpToLatestMessage() { WindowController.shared.conversation(.jumpToLatest) }
+    @objc func toggleToolFolds() { WindowController.shared.conversation(.toggleToolFolds) }
+    @objc func copyLastAnswer() { WindowController.shared.conversation(.copyLastAnswer) }
     @objc func toggleSidebar() { WindowController.shared.toggleSidebar() }
     @objc func toggleInspector() { WindowController.shared.toggleInspector() }
     @objc func openHelp() { NSWorkspace.shared.open(URL(string: "https://github.com/AshuLab/carrier")!) }

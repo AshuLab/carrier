@@ -15,6 +15,8 @@ private func freshTable() -> (ShortcutTable, UserDefaults) {
     #expect(shown == [
         "Go to Home ⌘1", "Go to Sessions ⌘2", "Go to Carrier ⌘3", "Go to Archive ⌘4", "Sessions New session ⌘N", "Sessions Search ⌘F",
         "Sessions Next session ⌘]", "Sessions Previous session ⌘[", "Sessions Archive the session ⇧⌘A",
+        "Conversation Focus the message box ⌘L", "Conversation Jump to the latest message ⌘↓", "Conversation Fold or unfold the tool calls ⌥⌘E",
+        "Conversation Copy the last answer ⇧⌘C",
     ])
     #expect(ShortcutCommand.allCases.allSatisfy { table.isDefault($0) })
 }

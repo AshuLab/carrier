@@ -118,4 +118,19 @@ final class CommandTextViewTests: XCTestCase {
         XCTAssertFalse(on.isContinuousSpellCheckingEnabled)
         XCTAssertTrue(on.isAutomaticSpellingCorrectionEnabled)
     }
+
+    /// ⌘L sets the box's focus flag: the caret goes to the text view.
+    func testTheFocusFlagPutsTheCaretInTheBox() async throws {
+        let box = CommandTextView(
+            text: .constant(""), cursor: .constant(0), focus: .constant(true), placeholder: "", minLines: 3, commands: [], onKey: { _ in false }
+        )
+        let host = NSHostingView(rootView: box.frame(width: 600).fixedSize(horizontal: false, vertical: true))
+        host.frame = NSRect(x: 0, y: 0, width: 600, height: 200)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let view = try XCTUnwrap(textView(in: host))
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertTrue(window.firstResponder === view)
+    }
 }

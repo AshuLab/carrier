@@ -21,8 +21,12 @@ public struct KeyCombo: Equatable {
     /// As the menus write it: ⌃⌥⇧⌘ and the key.
     public var text: String {
         let symbols = [(ShortcutModifiers.control, "⌃"), (.option, "⌥"), (.shift, "⇧"), (.command, "⌘")]
-        return symbols.filter { modifiers.contains($0.0) }.map(\.1).joined() + key.uppercased()
+        return symbols.filter { modifiers.contains($0.0) }.map(\.1).joined() + (Self.arrows[key] ?? key.uppercased())
     }
+
+    /// The down arrow as the keyboard reports it (NSDownArrowFunctionKey), and how it is written.
+    static let downArrow = "\u{F701}"
+    private static let arrows = [downArrow: "↓"]
 
     /// The form kept in the preferences: the modifiers, a colon, the key.
     var stored: String { "\(modifiers.rawValue):\(key)" }
@@ -36,12 +40,13 @@ public struct KeyCombo: Equatable {
 
 /// A group of the Keybindings page.
 public enum ShortcutGroup: String, CaseIterable {
-    case goTo = "Go to", sessions = "Sessions"
+    case goTo = "Go to", sessions = "Sessions", conversation = "Conversation"
 }
 
 /// An action that has a shortcut; the raw value is its id.
 public enum ShortcutCommand: String, CaseIterable {
     case home, sessions, carrier, archive, newSession, search, nextSession, previousSession, archiveSession
+    case focusBox, latestMessage, foldTools, copyAnswer
 
     public var title: String {
         switch self {
@@ -54,6 +59,10 @@ public enum ShortcutCommand: String, CaseIterable {
         case .nextSession: "Next session"
         case .previousSession: "Previous session"
         case .archiveSession: "Archive the session"
+        case .focusBox: "Focus the message box"
+        case .latestMessage: "Jump to the latest message"
+        case .foldTools: "Fold or unfold the tool calls"
+        case .copyAnswer: "Copy the last answer"
         }
     }
 
@@ -61,6 +70,7 @@ public enum ShortcutCommand: String, CaseIterable {
         switch self {
         case .home, .sessions, .carrier, .archive: .goTo
         case .newSession, .search, .nextSession, .previousSession, .archiveSession: .sessions
+        case .focusBox, .latestMessage, .foldTools, .copyAnswer: .conversation
         }
     }
 
@@ -76,6 +86,10 @@ public enum ShortcutCommand: String, CaseIterable {
         case .nextSession: .nextSession
         case .previousSession: .previousSession
         case .archiveSession: .archiveSession
+        case .focusBox: .conversation(.focusBox)
+        case .latestMessage: .conversation(.jumpToLatest)
+        case .foldTools: .conversation(.toggleToolFolds)
+        case .copyAnswer: .conversation(.copyLastAnswer)
         }
     }
 
@@ -91,6 +105,10 @@ public enum ShortcutCommand: String, CaseIterable {
         case .nextSession: KeyCombo(key: "]", modifiers: .command)
         case .previousSession: KeyCombo(key: "[", modifiers: .command)
         case .archiveSession: KeyCombo(key: "a", modifiers: [.command, .shift])
+        case .focusBox: KeyCombo(key: "l", modifiers: .command)
+        case .latestMessage: KeyCombo(key: KeyCombo.downArrow, modifiers: .command)
+        case .foldTools: KeyCombo(key: "e", modifiers: [.command, .option])
+        case .copyAnswer: KeyCombo(key: "c", modifiers: [.command, .shift])
         }
     }
 }

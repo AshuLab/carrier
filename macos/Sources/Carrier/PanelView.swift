@@ -124,7 +124,7 @@ struct PanelView: View {
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
                     } else if case .session(let id) = shell.selection {
-                        ConversationView(sessionId: id, draft: model.newSession) { plan in
+                        ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest) { plan in
                             model.newSession.restore(plan)
                             shell.selection = .newSession
                         }.id(id)

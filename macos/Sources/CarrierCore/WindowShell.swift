@@ -37,6 +37,19 @@ public enum ShortcutAction: Equatable {
     case nextSession, previousSession
     /// Archive the open session.
     case archiveSession
+    /// Something in the open conversation; nothing without one.
+    case conversation(ConversationAction)
+}
+
+/// What a shortcut asks of the open conversation.
+public enum ConversationAction: Equatable {
+    case focusBox, jumpToLatest, toggleToolFolds, copyLastAnswer
+}
+
+/// A request to the open conversation; `count` makes asking twice a change the view can see.
+public struct ConversationRequest: Equatable {
+    public let action: ConversationAction
+    public let count: Int
 }
 
 /// The action a key runs, from the shortcut table; a combination no action has, or one without ⌘, ⌃ or ⌥, is nothing. `key` is the character
@@ -84,6 +97,8 @@ public struct ArchiveRequest: Equatable {
     public var aboutShown = false
     /// The last ⌘F, for the open section's search to show itself.
     public private(set) var searchRequest: SearchRequest?
+    /// The last request to the open conversation.
+    public private(set) var conversationRequest: ConversationRequest?
     /// The last ⇧⌘A, for the window to archive that session through the host.
     public private(set) var archiveRequest: ArchiveRequest?
 
@@ -126,6 +141,8 @@ public struct ArchiveRequest: Equatable {
             if case .session(let id) = selection, sessions.contains(where: { $0.id == id && $0.archived == false }) {
                 archiveRequest = ArchiveRequest(sessionId: id, count: (archiveRequest?.count ?? 0) + 1)
             }
+        case .conversation(let action):
+            if case .session = selection { conversationRequest = ConversationRequest(action: action, count: (conversationRequest?.count ?? 0) + 1) }
         }
     }
 
@@ -143,6 +160,7 @@ public struct ArchiveRequest: Equatable {
         aboutShown = false
         settingsShown = false
         searchRequest = nil
+        conversationRequest = nil
         archiveRequest = nil
     }
 }

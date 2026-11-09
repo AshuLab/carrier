@@ -118,6 +118,9 @@ final class WindowController: NSObject, NSWindowDelegate {
         model.shell.perform(.search)
     }
 
+    /// For the Conversation menu: acts only while a conversation is open.
+    func conversation(_ action: ConversationAction) { model.shell.perform(.conversation(action)) }
+
     /// A shortcut that reads the sessions, from the main menu.
     func perform(_ action: ShortcutAction) {
         open()

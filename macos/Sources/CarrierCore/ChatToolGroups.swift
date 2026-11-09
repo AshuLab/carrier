@@ -140,3 +140,18 @@ public struct ToolGroup: Equatable {
         return end - startedAt
     }
 }
+
+extension ToolCall {
+    /// Whether the call opens by itself, by what the person chose for the tools.
+    public func opensByDefault(_ mode: ToolOutputMode, opensFailed: Bool) -> Bool { mode.opens(failed: status == .failed, opensFailed: opensFailed) }
+}
+
+extension ToolGroup {
+    /// Whether the run opens by itself: when it is expanded, or when a call that failed opens and the run is where it is.
+    public func opensByDefault(_ mode: ToolOutputMode, opensFailed: Bool) -> Bool { mode.opens(failed: failed > 0, opensFailed: opensFailed) }
+}
+
+/// The feed without its runs of calls when the tools are hidden.
+public func visibleFeed(_ rows: [FeedRow], mode: ToolOutputMode) -> [FeedRow] {
+    mode == .hidden ? rows.filter { if case .tools = $0 { false } else { true } } : rows
+}

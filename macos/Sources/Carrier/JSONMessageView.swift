@@ -35,7 +35,7 @@ private struct SliceReportView: View {
             }
             if let branch = report.branch {
                 Label(branch, systemImage: "arrow.triangle.branch")
-                    .font(.scaled(11.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                    .codeFont(11.5).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                     .padding(.horizontal, 8).padding(.vertical, 3).background(Capsule().fill(Color.secondary.opacity(0.14)))
             }
             let done = report.checks.filter(\.passed).count
@@ -112,7 +112,7 @@ private struct FieldsView: View {
         case .number(let text): Text(text).fontWeight(.semibold)
         case .text(let text): Text(text).foregroundStyle(.secondary).textSelection(.enabled)
         case .code(let text):
-            Text(text).font(.scaled(11.5, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+            Text(text).codeFont(11.5).foregroundStyle(.secondary).textSelection(.enabled)
         case .link(let link): Link(link.label, destination: link.url).foregroundStyle(.blue)
         case .list(let items):
             VStack(alignment: .leading, spacing: 2) { ForEach(Array(items.enumerated()), id: \.offset) { _, item in Text("· \(item)") } }

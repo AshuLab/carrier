@@ -49,13 +49,22 @@ struct SessionRowView: View {
         }
     }
 
+    /// A session that waits wears a "!"; one that works wears a mark only when the states are told apart by shape.
+    private var sessionMark: ProjectIcon.Mark? {
+        switch row.state {
+        case .waiting: .init(text: "!", color: .orange, shape: .needsAttention)
+        case .working: .init(text: "", color: .blue, shape: .working)
+        case .idle, .done: nil
+        }
+    }
+
     var body: some View {
         let content = content
         HStack(spacing: SidebarMetrics.inset) {
             if content.showsIcon {
                 ProjectIcon(
                     name: row.workspace, colorKey: projectColorKey(row.base), halo: row.state == .working,
-                    mark: row.state == .waiting ? .init(text: "!", color: .orange) : nil
+                    mark: sessionMark
                 )
             }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
@@ -105,6 +114,7 @@ struct ProjectIcon: View {
     struct Mark: Equatable {
         var text: String
         var color: Color
+        var shape: StateShape?
     }
 
     let name: String
@@ -112,6 +122,7 @@ struct ProjectIcon: View {
     let colorKey: String
     var halo = false
     var mark: Mark?
+    @AppStorage(AppPreferences.statesByShapeKey) private var byShape = false
     static let size: CGFloat = 32
     static let radius: CGFloat = 9
     /// Mid tones, each at least 4.5:1 against the white of the letters.
@@ -128,8 +139,8 @@ struct ProjectIcon: View {
             .overlay { Text(projectInitials(name)).font(.scaled(12, weight: .semibold)).tracking(0.3).foregroundStyle(.white) }
             .overlay { if halo { SessionHalo() } }
             .overlay(alignment: .bottomTrailing) {
-                if let mark {
-                    Text(mark.text).font(.scaled(10, weight: .heavy)).foregroundStyle(.white).frame(width: 15, height: 15)
+                if let mark, byShape || mark.text.isEmpty == false {
+                    StateMark(text: mark.text, shape: mark.shape, size: 10).foregroundStyle(.white).frame(width: 15, height: 15)
                         .background(Circle().fill(mark.color))
                         .overlay(Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5))
                         .offset(x: 4, y: 4)

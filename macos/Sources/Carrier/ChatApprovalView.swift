@@ -38,6 +38,6 @@ struct ApprovalDecidedView: View {
             Image(systemName: allow ? "checkmark" : "xmark").foregroundStyle(allow ? Color.green : Color.red)
             Text(text).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         }
-        .font(.scaled(12, design: .monospaced))
+        .codeFont(12)
     }
 }

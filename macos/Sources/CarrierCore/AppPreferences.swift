@@ -14,6 +14,13 @@ public struct AppPreferences {
     public static let accentKey = "appearance.accent"
     public static let tintKey = "appearance.tint"
     public static let translucentKey = "appearance.translucent"
+    public static let monospaceFamilyKey = "appearance.mono.family"
+    public static let monospaceSizeKey = "appearance.mono.size"
+    public static let monospaceLineHeightKey = "appearance.mono.lineHeight"
+    public static let monospaceLigaturesKey = "appearance.mono.ligatures"
+    public static let monospaceWrapKey = "appearance.mono.wrap"
+    public static let monospaceLineNumbersKey = "appearance.mono.lineNumbers"
+    public static let statesByShapeKey = "appearance.statesByShape"
     public static let sendKeyKey = "chat.sendKey"
     public static let writingToolsKey = "chat.writingTools"
     public static let checksSpellingKey = "chat.checkSpelling"
@@ -109,6 +116,36 @@ public struct AppPreferences {
 
     public func setTranslucent(_ value: Bool) { defaults.set(value, forKey: Self.translucentKey) }
 
+    /// The font, size, line height, ligatures, wrapping and line numbers of code and output; a bad saved value reads as its default.
+    public var monospace: MonospaceSettings {
+        get {
+            let standard = MonospaceSettings()
+            let size = defaults.object(forKey: Self.monospaceSizeKey) as? Double
+            return MonospaceSettings(
+                family: defaults.string(forKey: Self.monospaceFamilyKey) ?? standard.family,
+                size: size.map { min(max(CGFloat($0), MonospaceSettings.sizeRange.lowerBound), MonospaceSettings.sizeRange.upperBound) } ?? standard.size,
+                lineHeight: defaults.string(forKey: Self.monospaceLineHeightKey).flatMap(LineHeight.init(rawValue:)) ?? standard.lineHeight,
+                ligatures: defaults.object(forKey: Self.monospaceLigaturesKey) as? Bool ?? standard.ligatures,
+                wrapLongLines: defaults.object(forKey: Self.monospaceWrapKey) as? Bool ?? standard.wrapLongLines,
+                lineNumbers: defaults.object(forKey: Self.monospaceLineNumbersKey) as? Bool ?? standard.lineNumbers
+            )
+        }
+        nonmutating set {
+            defaults.set(newValue.family, forKey: Self.monospaceFamilyKey)
+            defaults.set(Double(newValue.size), forKey: Self.monospaceSizeKey)
+            defaults.set(newValue.lineHeight.rawValue, forKey: Self.monospaceLineHeightKey)
+            defaults.set(newValue.ligatures, forKey: Self.monospaceLigaturesKey)
+            defaults.set(newValue.wrapLongLines, forKey: Self.monospaceWrapKey)
+            defaults.set(newValue.lineNumbers, forKey: Self.monospaceLineNumbersKey)
+        }
+    }
+
+    /// Whether each state wears a symbol beside its color, so that color is not the only clue.
+    public var statesByShape: Bool {
+        get { defaults.object(forKey: Self.statesByShapeKey) as? Bool ?? false }
+        nonmutating set { defaults.set(newValue, forKey: Self.statesByShapeKey) }
+    }
+
     /// The key that sends in the message box; the other one makes a new line.
     public var sendKey: SendKey {
         get { defaults.string(forKey: Self.sendKeyKey).flatMap(SendKey.init(rawValue:)) ?? Self.defaultSendKey }
@@ -145,7 +182,11 @@ public struct AppPreferences {
                 SidebarStore.groupByKey, SidebarStore.sessionSortKey, SidebarStore.archiveSortKey, SidebarStore.showsIconKey,
                 SidebarStore.showsBranchKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey,
             ]
-        case .appearance: [colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey]
+        case .appearance:
+            [
+                colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey,
+                monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
+            ]
         case .chat: [sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey]
         default: []
         }

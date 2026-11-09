@@ -39,7 +39,7 @@ public enum SettingsPage: String, CaseIterable {
         switch self {
         case .general: "The menu bar and the questions Carrier asks"
         case .notifications: "What to tell you"
-        case .appearance: "Theme, color, text size and density"
+        case .appearance: "Theme, color, text size, density and the font of code"
         case .sidebar: "What the sessions list shows"
         case .chat: "The message box"
         case .engine: "How the app starts Carrier"

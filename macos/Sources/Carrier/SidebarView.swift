@@ -342,11 +342,12 @@ struct SidebarRowView: View {
     /// What the project's icon wears for the epic's state: a halo while it runs, a mark on its corner when there is something to say.
     private var mark: ProjectIcon.Mark? {
         switch row.state {
-        case .needsYou: .init(text: "!", color: (row.attention ?? .input).color)
-        case .ready: .init(text: "✓", color: .blue)
+        case .needsYou: .init(text: "!", color: (row.attention ?? .input).color, shape: row.state.shape(attention: row.attention))
+        case .ready: .init(text: "✓", color: .blue, shape: .ready)
         case .done: .init(text: "✓", color: .green)
         case .cancelled: .init(text: "✕", color: .gray)
-        case .running, .waiting: nil
+        case .running: .init(text: "", color: .blue, shape: .working)
+        case .waiting: nil
         }
     }
 

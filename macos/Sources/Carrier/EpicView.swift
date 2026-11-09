@@ -121,11 +121,11 @@ private struct HeaderGlyph: View {
     var body: some View {
         Group {
             switch state {
-            case .running: SpinningRing(diameter: 26, lineWidth: 3)
-            case .needsYou: disc(.orange, "!")
-            case .ready: disc(.blue, "✓")
-            case .done: disc(.green, "✓")
-            case .cancelled: disc(.gray, "✕")
+            case .running: SpinningRing(diameter: 26, lineWidth: 3).overlay { StateMark(shape: .working, size: 12).foregroundStyle(.secondary) }
+            case .needsYou: disc(.orange, "!", state.shape())
+            case .ready: disc(.blue, "✓", .ready)
+            case .done: disc(.green, "✓", nil)
+            case .cancelled: disc(.gray, "✕", nil)
             case .waiting: Circle().strokeBorder(Color.gray, lineWidth: 3).frame(width: 24, height: 24)
             }
         }
@@ -133,14 +133,15 @@ private struct HeaderGlyph: View {
         .accessibilityHidden(true)
     }
 
-    private func disc(_ color: Color, _ mark: String) -> some View {
-        Circle().fill(color).frame(width: 30, height: 30).overlay { Text(mark).font(.scaled(15, weight: .heavy)).foregroundStyle(.white) }
+    private func disc(_ color: Color, _ mark: String, _ shape: StateShape?) -> some View {
+        Circle().fill(color).frame(width: 30, height: 30).overlay { StateMark(text: mark, shape: shape, size: 15).foregroundStyle(.white) }
     }
 }
 
 private struct StatePill: View {
     let state: EpicMenuState
     let text: String
+    @AppStorage(AppPreferences.statesByShapeKey) private var byShape = false
 
     var body: some View {
         let color: Color = switch state {
@@ -151,7 +152,11 @@ private struct StatePill: View {
         case .done: .green
         }
         HStack(spacing: 6) {
-            Circle().fill(color).frame(width: 6, height: 6)
+            if byShape, let shape = state.shape() {
+                Image(systemName: stateSymbol(shape)).font(.scaled(11, weight: .bold))
+            } else {
+                Circle().fill(color).frame(width: 6, height: 6)
+            }
             Text(text).lineLimit(1).truncationMode(.tail)
         }
         .font(.scaled(12, weight: .semibold)).foregroundStyle(color)
@@ -214,7 +219,7 @@ struct PipelineStepView: View {
                 if step.loops {
                     SpinningGlyph(symbol: "arrow.triangle.2.circlepath", diameter: 10)
                 } else {
-                    Text(mark).font(.scaled(10, weight: .bold)).foregroundStyle(fill == nil ? Color.secondary : .white)
+                    StateMark(text: mark, shape: step.state.shape, size: 10, weight: .bold).foregroundStyle(fill == nil ? Color.secondary : .white)
                 }
             }
             .frame(width: 17, height: 17)

@@ -173,9 +173,30 @@ struct AppearanceTabView: View {
     @AppStorage(AppPreferences.colorSchemeKey) private var colorScheme = AppPreferences.defaultColorScheme
     @AppStorage(TypeScale.percentKey) private var textSize = 100
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+    @AppStorage(AppPreferences.statesByShapeKey) private var statesByShape = false
+
+    /// The four states as the app draws them now, with or without their symbols.
+    private var statesPreview: some View {
+        SettingsGroup(title: "Preview") {
+            HStack(spacing: 28) {
+                state("Working") { StateGlyph(state: .running) }
+                state("Needs attention") { StateGlyph(state: .needsYou, attention: .input) }
+                state("Ready for test") { StateGlyph(state: .ready) }
+                state("A problem") { StateGlyph(state: .needsYou, attention: .error) }
+            }
+            .frame(maxWidth: .infinity).padding(.vertical, 14)
+        }
+    }
+
+    private func state(_ title: String, @ViewBuilder glyph: () -> some View) -> some View {
+        VStack(spacing: 6) {
+            glyph()
+            Text(title).font(.scaled(12)).foregroundStyle(.secondary)
+        }
+    }
 
     var body: some View {
-        SettingsPageBody(reset: { AppPreferences().reset(.appearance) }) {
+        SettingsPageBody(reset: { AppPreferences().reset(.appearance) }, preview: { statesPreview }) {
             SettingsGroup(title: "Look") {
                 SettingsTabRow(title: "Color scheme", detail: "System follows the Mac; light and dark stay as chosen", first: true) {
                     Picker("Color scheme", selection: $colorScheme) {
@@ -195,6 +216,9 @@ struct AppearanceTabView: View {
                         ForEach(Density.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Tell states apart by shape", detail: "A symbol in each state, so that color is not the only clue") {
+                    Toggle("Tell states apart by shape", isOn: $statesByShape).labelsHidden().toggleStyle(.switch)
                 }
             }
         }

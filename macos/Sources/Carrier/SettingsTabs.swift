@@ -202,6 +202,18 @@ struct AppearanceTabView: View {
     }
 
     @AppStorage(AppPreferences.statesByShapeKey) private var statesByShape = false
+    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
+    @State private var previewRoom: CGFloat = 0
+
+    /// A message of the agent in a column that is to the room as the chosen width is to the widest one, so the three read differently.
+    private var messagePreview: some View {
+        SettingsGroup(title: "Preview") {
+            MarkdownView(text: "The width of a message is how far a line runs before it wraps. A narrow column is easy on the eye; a wide one fits more of a table or a long command.")
+                .frame(width: previewRoom * messageWidth.points / MessageWidth.wide.points, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12)
+                .onGeometryChange(for: CGFloat.self, of: \.size.width) { previewRoom = $0 }
+        }
+    }
 
     /// The four states as the app draws them now, with or without their symbols.
     private var statesPreview: some View {
@@ -224,7 +236,7 @@ struct AppearanceTabView: View {
     }
 
     var body: some View {
-        SettingsPageBody(reset: { AppPreferences().reset(.appearance) }, preview: { codePreview(); statesPreview }) {
+        SettingsPageBody(reset: { AppPreferences().reset(.appearance) }, preview: { codePreview(); statesPreview; messagePreview }) {
             SettingsGroup(title: "Look") {
                 SettingsTabRow(title: "Color scheme", detail: "System follows the Mac; light and dark stay as chosen", first: true) {
                     Picker("Color scheme", selection: $colorScheme) {
@@ -242,6 +254,12 @@ struct AppearanceTabView: View {
                 SettingsTabRow(title: "Density", detail: "The space in the sidebar rows and between the messages") {
                     Picker("Density", selection: $density) {
                         ForEach(Density.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Message width", detail: "How wide a message gets before it wraps") {
+                    Picker("Message width", selection: $messageWidth) {
+                        ForEach(MessageWidth.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .labelsHidden().fixedSize()
                 }
@@ -470,6 +488,7 @@ struct NotificationsTabView: View {
     @AppStorage(notifyOnlyWhenAwayKey) private var onlyWhenAway = true
     @AppStorage(notifyDockBadgeKey) private var dockBadge = true
     @AppStorage(notifySoundKey) private var sound = true
+    @AppStorage(notifyReminderKey) private var reminder = ReminderInterval.never.rawValue
     @AppStorage(notifyQuietKey) private var quiet = false
     @AppStorage(notifyQuietStartKey) private var quietStart = QuietHours.defaultStart
     @AppStorage(notifyQuietEndKey) private var quietEnd = QuietHours.defaultEnd
@@ -510,6 +529,17 @@ struct NotificationsTabView: View {
             SettingsGroup(title: "Sound") {
                 SettingsTabRow(title: "Play a sound", detail: "A banner plays the notification sound", first: true) {
                     Toggle("Play a sound", isOn: $sound).labelsHidden().toggleStyle(.switch)
+                }
+            }
+            SettingsGroup(title: "Reminders") {
+                SettingsTabRow(title: "Remind me again", detail: "While an epic or a session still needs attention. Ready for test and Done never remind", first: true) {
+                    // a saved value that is not a choice reads as Never, as the watcher does
+                    Picker("Remind me again", selection: Binding(
+                        get: { ReminderInterval(rawValue: reminder) ?? .never }, set: { reminder = $0.rawValue }
+                    )) {
+                        ForEach(ReminderInterval.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
                 }
             }
             SettingsGroup(title: "Quiet hours") {

@@ -6,9 +6,6 @@ import SwiftUI
 struct ConversationView: View {
     /// The smoke check reports how the feed is laid out from these.
     static let layout = "lazy stack, pages of \(ConversationModel.page) events, polled every \(ConversationModel.intervalMilliseconds) ms"
-    /// The feed's column, as in the mockups (chat-ui-conv2.html).
-    private static let column: CGFloat = 760
-
     @State private var model: ConversationModel
     @Environment(SessionActions.self) private var actions
     /// The tool groups and calls the person opened, by id; here and not in each row, which the lazy stack may recreate.
@@ -17,6 +14,8 @@ struct ConversationView: View {
     /// Whether rows are animated in: not the ones the first answer brings, which are the history.
     @State private var animatesRows = false
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+    /// The feed's column; medium is the one of the mockups (chat-ui-conv2.html).
+    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
 
     /// Where the first message of the session the draft opened is handed over, so it shows while the session is prepared.
     private let draft: NewSessionModel?
@@ -65,7 +64,7 @@ struct ConversationView: View {
                 if let failure = model.failure { Text(failure).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled) }
             }
             .padding(.horizontal, 40).padding(.vertical, 16)
-            .frame(maxWidth: Self.column, alignment: .leading)
+            .frame(maxWidth: messageWidth.points, alignment: .leading)
             .frame(maxWidth: .infinity)
             .animation(animatesRows ? .smooth(duration: 0.28) : nil, value: model.rows.count)
         }
@@ -96,7 +95,7 @@ struct ConversationView: View {
         .padding(.horizontal, 14).padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: 18).fill(Color.secondary.opacity(0.10)))
         .padding(.horizontal, 40).padding(.vertical, 12)
-        .frame(maxWidth: Self.column).frame(maxWidth: .infinity)
+        .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
     }
 
     /// The message box, the same as the draft's (chat-ui-conv.html, section 3): the queued message above it, then the box with the
@@ -150,7 +149,7 @@ struct ConversationView: View {
         // taller than the window (a closed session's notice made it ask for 450 points more than it had)
         .frame(minWidth: 320)
         .padding(.horizontal, 40).padding(.vertical, 12)
-        .frame(maxWidth: Self.column).frame(maxWidth: .infinity)
+        .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
         .onAppear { boxFocused = true }
     }
 }

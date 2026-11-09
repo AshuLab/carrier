@@ -42,6 +42,35 @@ public struct NotificationKinds: Equatable {
     }
 }
 
+private func needsAttention(_ epic: PanelEpic) -> EpicNotification {
+    EpicNotification(title: "\(epic.repo) #\(epic.issue) needs attention", body: epic.needsHumanReason ?? "It stopped and waits for a person", epic: EpicRef(repo: epic.repo, issue: epic.issue))
+}
+
+private func needsAttention(_ row: SessionRow) -> EpicNotification {
+    EpicNotification(title: "\(row.title) needs attention", body: "It waits for an approval", session: row.id)
+}
+
+/// How long a Needs attention waits before it notifies again; the person's choice in Settings.
+public enum ReminderInterval: Int, CaseIterable {
+    case never = 0, quarterHour = 900, hour = 3600
+
+    public var title: String {
+        switch self {
+        case .never: "Never"
+        case .quarterHour: "After 15 minutes"
+        case .hour: "After an hour"
+        }
+    }
+}
+
+/// Which of the items that still need attention (an epic or a session, by key) are due a reminder at `now`: those whose last
+/// notification is at least `every` old. An item with no last notification yet is not due (its first one is still to come), one
+/// that is not in `needing` any more is not either, and with `.never` nothing is.
+public func remindersDue(needing: Set<String>, lastNotified: [String: Date], every: ReminderInterval, now: Date) -> [String] {
+    guard every != .never else { return [] }
+    return needing.filter { key in lastNotified[key].map { now.timeIntervalSince($0) >= TimeInterval(every.rawValue) } ?? false }.sorted()
+}
+
 /// The notifications that `new` earns against `previous`, the chat sessions listed before and now: a live session that was working
 /// and now waits for an approval (Needs attention) or is idle (Done). A session `previous` did not list, an archived one and any
 /// other change say nothing; with no `previous` it only seeds. A kind whose switch is off in `kinds` is not notified.
@@ -51,7 +80,7 @@ public func chatNotifications(from previous: [SessionRow]?, to new: [SessionRow]
     return new.compactMap { row in
         guard row.archived == false, before[row.id] == .working else { return nil }
         switch row.state {
-        case .waiting where kinds.chatNeedsAttention: return EpicNotification(title: "\(row.title) needs attention", body: "It waits for an approval", session: row.id)
+        case .waiting where kinds.chatNeedsAttention: return needsAttention(row)
         case .idle where kinds.chatDone: return EpicNotification(title: "\(row.title) is done", body: "The agent finished its turn", session: row.id)
         default: return nil
         }
@@ -76,7 +105,7 @@ public func notifications(from previous: PanelSnapshot?, to new: PanelSnapshot, 
 
     let needsAPerson = new.epics
         .filter { $0.status == .needsHuman && neededAPerson.contains(EpicKey(repo: $0.repo, issue: $0.issue)) == false }
-        .map { EpicNotification(title: "\($0.repo) #\($0.issue) needs attention", body: $0.needsHumanReason ?? "It stopped and waits for a person", epic: EpicRef(repo: $0.repo, issue: $0.issue)) }
+        .map(needsAttention)
     let ready = new.done
         .filter { wasReady.contains(EpicKey(repo: $0.repo, issue: $0.issue)) == false }
         .map { EpicNotification(title: "\($0.repo) #\($0.issue) is ready for test", body: $0.prNumber.map { "Pull request #\($0)" } ?? "Its work is done", epic: EpicRef(repo: $0.repo, issue: $0.issue)) }
@@ -116,14 +145,17 @@ public final class NotificationWatcher {
     private let quietHours: () -> QuietHours
     private let showsBadge: () -> Bool
     private let setBadge: (Int) -> Void
+    private let reminder: () -> ReminderInterval
     private var previous: PanelSnapshot?
     private var previousSessions: [SessionRow]?
+    /// When each item that needs attention (by key) last notified, or was first seen needing it.
+    private var lastNotified: [String: Date] = [:]
 
     public init(
         centre: NotificationCentre, kinds: @escaping () -> NotificationKinds = { NotificationKinds() },
         sound: @escaping () -> Bool = { true }, quietHours: @escaping () -> QuietHours = { QuietHours() },
         showsBadge: @escaping () -> Bool = { true }, setBadge: @escaping (Int) -> Void = { _ in },
-        now: @escaping () -> Date = Date.init
+        reminder: @escaping () -> ReminderInterval = { .never }, now: @escaping () -> Date = Date.init
     ) {
         self.centre = centre
         self.kinds = kinds
@@ -131,6 +163,7 @@ public final class NotificationWatcher {
         self.quietHours = quietHours
         self.showsBadge = showsBadge
         self.setBadge = setBadge
+        self.reminder = reminder
         self.now = now
     }
 
@@ -159,6 +192,38 @@ public final class NotificationWatcher {
         previousSessions = sessions
         refreshBadge()
         if due.isEmpty == false { post(due) }
+        track()
+    }
+
+    /// What still needs attention now, by key, for the kinds that are switched on.
+    private func needing() -> [String: EpicNotification] {
+        let kinds = kinds()
+        var found: [String: EpicNotification] = [:]
+        if kinds.needsYou {
+            for epic in previous?.epics ?? [] where epic.status == .needsHuman { found["epic \(epic.repo)#\(epic.issue)"] = needsAttention(epic) }
+        }
+        if kinds.chatNeedsAttention {
+            for row in previousSessions ?? [] where row.state == .waiting && row.archived == false { found["session \(row.id)"] = needsAttention(row) }
+        }
+        return found
+    }
+
+    /// Forgets what stopped needing attention and starts the clock of what began to: the original notification, when there was
+    /// one, is posted in the same call.
+    private func track() {
+        let needing = needing()
+        lastNotified = lastNotified.filter { needing[$0.key] != nil }
+        for key in needing.keys where lastNotified[key] == nil { lastNotified[key] = now() }
+    }
+
+    /// Called by the app's timer: notifies again, as the original would be, whatever still needs attention for the interval.
+    public func remind() {
+        track()
+        let needing = needing()
+        let due = remindersDue(needing: Set(needing.keys), lastNotified: lastNotified, every: reminder(), now: now())
+        guard due.isEmpty == false else { return }
+        for key in due { lastNotified[key] = now() }
+        post(due.compactMap { needing[$0] })
     }
 
     public func react(to state: ConnectionState) {
@@ -172,11 +237,13 @@ public final class NotificationWatcher {
             }
             previous = nil
             refreshBadge()
+            track()
             return
         }
         let due = notifications(from: previous, to: snapshot, kinds: kinds())
         previous = snapshot
         refreshBadge()
         if due.isEmpty == false { post(due) }
+        track()
     }
 }

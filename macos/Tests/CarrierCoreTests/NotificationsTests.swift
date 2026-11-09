@@ -454,3 +454,112 @@ private let chatDoneOn = NotificationKinds(chatDone: true)
     watcher.react(toSessions: [session("1", .idle)])
     #expect(badge == 0)
 }
+
+// reminders
+
+private let start = Date(timeIntervalSince1970: 1_000_000)
+private func after(_ minutes: Double) -> Date { start.addingTimeInterval(minutes * 60) }
+
+@Test func aReminderIsDueOnceTheIntervalHasPassedSinceTheLastNotification() {
+    let last = ["epic a/b#1": start]
+    #expect(remindersDue(needing: ["epic a/b#1"], lastNotified: last, every: .quarterHour, now: after(14)).isEmpty)
+    #expect(remindersDue(needing: ["epic a/b#1"], lastNotified: last, every: .quarterHour, now: after(15)) == ["epic a/b#1"])
+    #expect(remindersDue(needing: ["epic a/b#1"], lastNotified: last, every: .hour, now: after(59)).isEmpty)
+    #expect(remindersDue(needing: ["epic a/b#1"], lastNotified: last, every: .hour, now: after(60)) == ["epic a/b#1"])
+}
+
+@Test func neverRemindsNothing() {
+    #expect(remindersDue(needing: ["a"], lastNotified: ["a": start], every: .never, now: after(10_000)).isEmpty)
+}
+
+@Test func anItemThatStoppedNeedingAttentionIsNotDueAndOneWithoutAHistoryYetIsNotEither() {
+    let last = ["a": start, "b": start]
+    #expect(remindersDue(needing: ["a", "c"], lastNotified: last, every: .quarterHour, now: after(20)) == ["a"])
+}
+
+@Test func theReminderIntervalIsNeverUntilChosenAndABadValueReadsAsNever() {
+    let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
+    #expect(defaults.reminderInterval == .never)
+    defaults.set(900, forKey: notifyReminderKey)
+    #expect(defaults.reminderInterval == .quarterHour)
+    defaults.set(3600, forKey: notifyReminderKey)
+    #expect(defaults.reminderInterval == .hour)
+    defaults.set(7, forKey: notifyReminderKey)
+    #expect(defaults.reminderInterval == .never)
+}
+
+@Test func theWatcherRemindsAnEpicAndASessionAtTheirOwnPaceAndLeavesTheRestAlone() {
+    let centre = FakeCentre()
+    var clock = start
+    let watcher = NotificationWatcher(centre: centre, reminder: { .quarterHour }, now: { clock })
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)], done: [ready(3)])))
+    watcher.react(toSessions: [session("1", .working)])
+    clock = after(10)
+    watcher.react(toSessions: [session("1", .waiting)])
+    #expect(centre.posted == [["Session 1 needs attention"]])
+
+    clock = after(15)
+    watcher.remind()
+    #expect(centre.posted.last == ["a/b #1 needs attention"])
+    clock = after(24)
+    watcher.remind()
+    #expect(centre.posted.count == 2)
+    clock = after(25)
+    watcher.remind()
+    #expect(centre.posted.last == ["Session 1 needs attention"])
+    clock = after(30)
+    watcher.remind()
+    #expect(centre.posted.count == 4)
+    #expect(centre.posted.flatMap { $0 }.contains { $0.contains("ready") } == false)
+}
+
+@Test func anItemThatStopsNeedingAttentionStopsRemindingAndOneThatReturnsStartsOver() {
+    let centre = FakeCentre()
+    var clock = start
+    let watcher = NotificationWatcher(centre: centre, reminder: { .quarterHour }, now: { clock })
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)])))
+    clock = after(10)
+    watcher.react(to: running(snapshot([epic(1)])))
+    clock = after(11)
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)])))
+    // its return notified at 11, so the clock started over then and the first 10 minutes did not count
+    clock = after(25)
+    watcher.remind()
+    #expect(centre.posted == [["a/b #1 needs attention"]])
+    clock = after(26)
+    watcher.remind()
+    #expect(centre.posted.count == 2)
+}
+
+@Test func withNeverOrASwitchOffTheWatcherDoesNotRemind() {
+    let centre = FakeCentre()
+    var clock = start
+    var interval = ReminderInterval.never
+    var kinds = NotificationKinds()
+    let watcher = NotificationWatcher(centre: centre, kinds: { kinds }, reminder: { interval }, now: { clock })
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)])))
+    clock = after(120)
+    watcher.remind()
+    #expect(centre.posted.isEmpty)
+    interval = .hour
+    kinds.needsYou = false
+    watcher.remind()
+    #expect(centre.posted.isEmpty)
+}
+
+@Test func aReminderIsPostedLikeTheOriginalWouldBeWithTheSoundAndTheQuietHours() {
+    let centre = FakeCentre()
+    var clock = start
+    var sound = true
+    var quiet = QuietHours()
+    let watcher = NotificationWatcher(centre: centre, sound: { sound }, quietHours: { quiet }, reminder: { .quarterHour }, now: { clock })
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)])))
+    clock = after(15)
+    watcher.remind()
+    #expect(centre.sounds == [true] && centre.quiets == [false])
+    sound = false
+    quiet = QuietHours(enabled: true, start: 0, end: 24 * 60 - 1)
+    clock = after(30)
+    watcher.remind()
+    #expect(centre.sounds == [true, false] && centre.quiets == [false, true])
+}

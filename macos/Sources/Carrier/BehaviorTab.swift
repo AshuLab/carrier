@@ -228,7 +228,7 @@ struct NumberField<Value: Equatable>: View {
             value = next
             text = format(next)
         } label: {
-            Image(systemName: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary).frame(width: 24, height: 24).contentShape(Rectangle())
+            Image(systemName: symbol).font(.scaled(11, weight: .semibold)).foregroundStyle(.secondary).frame(width: 24, height: 24).contentShape(Rectangle())
         }
         .buttonStyle(.plain).accessibilityLabel(direction < 0 ? "Less" : "More")
     }

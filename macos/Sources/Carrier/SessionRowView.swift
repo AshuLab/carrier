@@ -98,11 +98,11 @@ struct ProjectIcon: View {
         RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
             .fill(Self.palette[projectColorIndex(colorKey, count: Self.palette.count)])
             .frame(width: Self.size, height: Self.size)
-            .overlay { Text(projectInitials(name)).font(.system(size: 12, weight: .semibold)).tracking(0.3).foregroundStyle(.white) }
+            .overlay { Text(projectInitials(name)).font(.scaled(12, weight: .semibold)).tracking(0.3).foregroundStyle(.white) }
             .overlay { if halo { SessionHalo() } }
             .overlay(alignment: .bottomTrailing) {
                 if let mark {
-                    Text(mark.text).font(.system(size: 10, weight: .heavy)).foregroundStyle(.white).frame(width: 15, height: 15)
+                    Text(mark.text).font(.scaled(10, weight: .heavy)).foregroundStyle(.white).frame(width: 15, height: 15)
                         .background(Circle().fill(mark.color))
                         .overlay(Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5))
                         .offset(x: 4, y: 4)
@@ -122,10 +122,10 @@ struct ProviderMarks: View {
                 if let image = AgentAvatar.mark(name) {
                     Image(nsImage: image).renderingMode(.template).resizable().scaledToFit().frame(width: 12, height: 12)
                 } else {
-                    Text(String(name.prefix(1)).uppercased()).font(.system(size: 10, weight: .bold))
+                    Text(String(name.prefix(1)).uppercased()).font(.scaled(10, weight: .bold))
                 }
             }
-            if names.count > Self.shown { Text("+\(names.count - Self.shown)").font(.system(size: 10, weight: .semibold)) }
+            if names.count > Self.shown { Text("+\(names.count - Self.shown)").font(.scaled(10, weight: .semibold)) }
         }
         .foregroundStyle(.secondary)
     }

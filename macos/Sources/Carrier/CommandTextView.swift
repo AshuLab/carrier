@@ -20,14 +20,14 @@ struct CommandTextView: NSViewRepresentable {
     /// What a key does for the box; true when the box took it.
     var onKey: (Key) -> Bool
 
-    static let font = NSFont.systemFont(ofSize: 14)
-    static let lineHeight: CGFloat = 22
-    static let attributes: [NSAttributedString.Key: Any] = {
+    static var font: NSFont { NSFont.systemFont(ofSize: TypeScale.stored().size(14)) }
+    static var lineHeight: CGFloat { TypeScale.stored().size(22) }
+    static var attributes: [NSAttributedString.Key: Any] {
         let style = NSMutableParagraphStyle()
         style.minimumLineHeight = lineHeight
         style.maximumLineHeight = lineHeight
         return [.font: font, .foregroundColor: NSColor.labelColor, .paragraphStyle: style]
-    }()
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -282,7 +282,7 @@ final class PillAttachment: NSTextAttachment {
     required init?(coder: NSCoder) { fatalError("a pill is not stored") }
 
     static func image(for command: ChatCommand) -> NSImage {
-        let font = NSFont.monospacedSystemFont(ofSize: 12, weight: .medium)
+        let font = NSFont.monospacedSystemFont(ofSize: TypeScale.stored().size(12), weight: .medium)
         let name = NSAttributedString(string: "/\(command.name)", attributes: [.font: font, .foregroundColor: NSColor.labelColor])
         let nameSize = name.size()
         let padding: CGFloat = 7, icon: CGFloat = 12, gap: CGFloat = 5, height: CGFloat = 20

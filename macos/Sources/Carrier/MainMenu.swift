@@ -43,6 +43,9 @@ extension AppDelegate {
         // File
         let file = submenu(of: main, title: "File")
         item(file, "New Session", #selector(newSession), shortcut: .newSession, in: shortcuts, target: self)
+        item(file, "Next Session", #selector(nextSession), shortcut: .nextSession, in: shortcuts, target: self)
+        item(file, "Previous Session", #selector(previousSession), shortcut: .previousSession, in: shortcuts, target: self)
+        item(file, "Archive Session", #selector(archiveSession), shortcut: .archiveSession, in: shortcuts, target: self)
         file.addItem(.separator())
         item(file, "Close Window", #selector(NSWindow.performClose(_:)), key: "w")
 
@@ -63,12 +66,19 @@ extension AppDelegate {
         item(view, "Home", #selector(showHome), shortcut: .home, in: shortcuts, target: self)
         item(view, "Sessions", #selector(showSessions), shortcut: .sessions, in: shortcuts, target: self)
         item(view, "Carrier", #selector(showCarrier), shortcut: .carrier, in: shortcuts, target: self)
-        item(view, "Archive", #selector(showArchive), target: self)
+        item(view, "Archive", #selector(showArchive), shortcut: .archive, in: shortcuts, target: self)
         view.addItem(.separator())
         item(view, "Show or Hide Sidebar", #selector(toggleSidebar), key: "s", modifiers: [.command, .control], target: self)
         item(view, "Show or Hide Inspector", #selector(toggleInspector), key: "i", modifiers: [.command, .option], target: self)
         view.addItem(.separator())
         item(view, "Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), key: "f", modifiers: [.command, .control])
+
+        // Conversation
+        let conversation = submenu(of: main, title: "Conversation")
+        item(conversation, "Focus the Message Box", #selector(focusMessageBox), shortcut: .focusBox, in: shortcuts, target: self)
+        item(conversation, "Jump to the Latest Message", #selector(jumpToLatestMessage), shortcut: .latestMessage, in: shortcuts, target: self)
+        item(conversation, "Fold or Unfold the Tool Calls", #selector(toggleToolFolds), shortcut: .foldTools, in: shortcuts, target: self)
+        item(conversation, "Copy the Last Answer", #selector(copyLastAnswer), shortcut: .copyAnswer, in: shortcuts, target: self)
 
         // Engine: the controls of the menu bar item, with a shortcut when the person gives one
         let engine = submenu(of: main, title: "Engine")
@@ -130,7 +140,14 @@ extension AppDelegate {
     @objc func showSessions() { WindowController.shared.show(.sessions) }
     @objc func showCarrier() { WindowController.shared.show(.carrier) }
     @objc func showArchive() { WindowController.shared.show(.archive) }
+    @objc func nextSession() { WindowController.shared.perform(.nextSession) }
+    @objc func previousSession() { WindowController.shared.perform(.previousSession) }
+    @objc func archiveSession() { WindowController.shared.perform(.archiveSession) }
     @objc func findInSection() { WindowController.shared.search() }
+    @objc func focusMessageBox() { WindowController.shared.conversation(.focusBox) }
+    @objc func jumpToLatestMessage() { WindowController.shared.conversation(.jumpToLatest) }
+    @objc func toggleToolFolds() { WindowController.shared.conversation(.toggleToolFolds) }
+    @objc func copyLastAnswer() { WindowController.shared.conversation(.copyLastAnswer) }
     @objc func toggleSidebar() { WindowController.shared.toggleSidebar() }
     @objc func toggleInspector() { WindowController.shared.toggleInspector() }
     @objc func openHelp() { NSWorkspace.shared.open(URL(string: "https://github.com/AshuLab/carrier")!) }

@@ -118,6 +118,19 @@ final class WindowController: NSObject, NSWindowDelegate {
         model.shell.perform(.search)
     }
 
+    /// For the Conversation menu: acts only while a conversation is open.
+    func conversation(_ action: ConversationAction) { model.shell.perform(.conversation(action)) }
+
+    /// A shortcut that reads the sessions, from the main menu.
+    func perform(_ action: ShortcutAction) {
+        open()
+        run(action)
+    }
+
+    private func run(_ action: ShortcutAction) {
+        model.shell.perform(action, sessions: model.sessions.rows, sort: SidebarStore().sessionSort)
+    }
+
     func toggleSidebar() { model.shell.toggleSidebar() }
 
     func toggleInspector() { model.shell.toggleInspector() }
@@ -325,7 +338,7 @@ final class WindowController: NSObject, NSWindowDelegate {
             guard let self, let window, window.isKeyWindow, event.window === window,
                 let action = shortcutAction(key: event.charactersIgnoringModifiers ?? "", modifiers: .init(event.modifierFlags))
             else { return event }
-            self.model.shell.perform(action)
+            self.run(action)
             return nil
         }
         // where it was and how big, as a Mac app keeps its window; the smoke check starts from the default so it measures the same every time

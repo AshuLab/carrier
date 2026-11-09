@@ -124,7 +124,7 @@ struct PanelView: View {
                     } else if let emptyPage {
                         EmptyStateView(state: emptyPage)
                     } else if case .session(let id) = shell.selection {
-                        ConversationView(sessionId: id, draft: model.newSession) { plan in
+                        ConversationView(sessionId: id, draft: model.newSession, request: shell.conversationRequest) { plan in
                             model.newSession.restore(plan)
                             shell.selection = .newSession
                         }.id(id)
@@ -229,6 +229,10 @@ struct PanelView: View {
         .themed()
         .environment(model.actions)
         .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
+        .onChange(of: shell.archiveRequest) {
+            guard let id = shell.archiveRequest?.sessionId else { return }
+            Task { if let refusal = await model.actions.archive(id) { tell(refusal) } }
+        }
         .onChange(of: snapshot) { if let snapshot { model.epics.settleResuming(snapshot) } }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }
         .environment(\.windowSize, windowSize)

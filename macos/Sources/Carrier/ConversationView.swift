@@ -14,6 +14,7 @@ struct ConversationView: View {
     /// Whether rows are animated in: not the ones the first answer brings, which are the history.
     @State private var animatesRows = false
     @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
+    @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
     @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
@@ -26,9 +27,12 @@ struct ConversationView: View {
     private let draft: NewSessionModel?
     /// Told with the plan the host gave back when a preparation was cancelled, so the app can show the draft with it.
     private let cancelled: (SessionPlan) -> Void
+    /// The last shortcut that asked something of the conversation (focus the box, the latest message, fold the tools, copy the answer).
+    private let request: ConversationRequest?
 
-    init(sessionId: String, draft: NewSessionModel? = nil, cancelled: @escaping (SessionPlan) -> Void = { _ in }) {
+    init(sessionId: String, draft: NewSessionModel? = nil, request: ConversationRequest? = nil, cancelled: @escaping (SessionPlan) -> Void = { _ in }) {
         self.draft = draft
+        self.request = request
         self.cancelled = cancelled
         _model = State(initialValue: ConversationModel(host: SocketChatHost(), sessionId: sessionId, memory: .userDefaults))
     }
@@ -81,6 +85,7 @@ struct ConversationView: View {
         .onScrollGeometryChange(for: Bool.self) { $0.visibleRect.maxY >= $0.contentSize.height - 24 } action: { _, atEnd in model.atEnd = atEnd }
         .onChange(of: followsOutput, initial: true) { _, follows in model.followsOutput = follows }
         .onChange(of: model.scrolls) { position.scrollTo(edge: .bottom) }
+        .onChange(of: request) { if let request { perform(request.action) } }
         .onChange(of: model.loaded) { _, loaded in
             guard loaded else { return }
             Task { try? await Task.sleep(for: .milliseconds(400)); animatesRows = true }
@@ -90,6 +95,19 @@ struct ConversationView: View {
         .task {
             if let first = draft?.takeFirstMessage(of: model.sessionId) { model.show(firstMessage: first) }
             await model.run()
+        }
+    }
+
+    private func perform(_ action: ConversationAction) {
+        switch action {
+        case .focusBox: boxFocused = true
+        case .jumpToLatest: position.scrollTo(edge: .bottom)
+        case .toggleToolFolds:
+            flipped = togglingToolGroups(in: visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning), mode: toolOutput, opensFailed: opensFailed, flipped: flipped)
+        case .copyLastAnswer:
+            guard let answer = lastAnswer(in: model.rows) else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(answer, forType: .string)
         }
     }
 

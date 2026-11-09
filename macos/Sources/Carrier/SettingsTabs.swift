@@ -259,14 +259,15 @@ struct NotificationsTabView: View {
     @AppStorage(notifyReadyForTestKey) private var readyForTest = true
     @AppStorage(notifyProblemKey) private var problem = false
     @AppStorage(notifyOnlyWhenAwayKey) private var onlyWhenAway = true
+    @AppStorage(notifySoundKey) private var sound = true
     @State private var permission: NotificationPermission?
     @State private var testAdvice: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SettingsGroup(title: "What to tell me") {
-                SettingsTabRow(title: "Needs you", detail: "An epic stopped and waits for a person", first: true) {
-                    Toggle("Needs you", isOn: $needsYou).labelsHidden().toggleStyle(.switch)
+        SettingsPageBody {
+            SettingsGroup(title: "Carrier") {
+                SettingsTabRow(title: "Needs attention", detail: "An epic stopped and waits for a person", first: true) {
+                    Toggle("Needs attention", isOn: $needsYou).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(title: "Ready for test", detail: "An epic finished and has a PR to try") {
                     Toggle("Ready for test", isOn: $readyForTest).labelsHidden().toggleStyle(.switch)
@@ -275,9 +276,14 @@ struct NotificationsTabView: View {
                     Toggle("A problem", isOn: $problem).labelsHidden().toggleStyle(.switch)
                 }
             }
-            SettingsGroup(title: "How") {
+            SettingsGroup(title: "When") {
                 SettingsTabRow(title: "Only when Carrier is not in front", detail: "No banner while its window is the one you are looking at", first: true) {
                     Toggle("Only when Carrier is not in front", isOn: $onlyWhenAway).labelsHidden().toggleStyle(.switch)
+                }
+            }
+            SettingsGroup(title: "Sound") {
+                SettingsTabRow(title: "Play a sound", detail: "A banner plays the notification sound", first: true) {
+                    Toggle("Play a sound", isOn: $sound).labelsHidden().toggleStyle(.switch)
                 }
             }
             SettingsGroup(title: "Permission") {
@@ -296,8 +302,6 @@ struct NotificationsTabView: View {
             if let testAdvice {
                 Label(testAdvice, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange).padding(.horizontal, 14)
             }
-            Text("Sound and the style of the banner are set per app in System Settings › Notifications › Carrier.")
-                .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 14)
         }
         .buttonStyle(.glass).buttonBorderShape(.capsule)
         .task { refresh() }

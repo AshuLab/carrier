@@ -9,9 +9,10 @@ public let notifyNeedsYouKey = "notify.needsYou"
 public let notifyReadyForTestKey = "notify.readyForTest"
 public let notifyProblemKey = "notify.problem"
 public let notifyOnlyWhenAwayKey = "notify.onlyWhenAway"
+public let notifySoundKey = "notify.sound"
 
 extension UserDefaults {
-    /// The switches: needs you and ready for test are on until the person turns them off, a problem is off until turned on. The
+    /// The switches: needs attention and ready for test are on until the person turns them off, a problem is off until turned on. The
     /// defaults are not registered here: an unset key reads as its default.
     public var notificationKinds: NotificationKinds {
         NotificationKinds(
@@ -23,6 +24,9 @@ extension UserDefaults {
 
     /// No banner while the app's window is in front; on until turned off.
     public var notifiesOnlyWhenAway: Bool { object(forKey: notifyOnlyWhenAwayKey) as? Bool ?? true }
+
+    /// A banner plays a sound; on until turned off.
+    public var notifiesWithSound: Bool { object(forKey: notifySoundKey) as? Bool ?? true }
 }
 
 /// Whether a banner shows: always the test, and anything else unless the person asked for none while the app is in front and it is.

@@ -53,7 +53,7 @@ public struct EpicMenu: Equatable {
     public var more: String?
 }
 
-/// The section for `snapshot`, or nil when the setting is off or there are no epics. Order: needs you, running, waiting, ready.
+/// The section for `snapshot`, or nil when the setting is off or there are no epics. Order: needs attention, running, waiting, ready.
 public func epicMenu(_ snapshot: PanelSnapshot, showEpics: Bool) -> EpicMenu? {
     guard showEpics else { return nil }
     func name(_ repo: String, _ issue: Int) -> String { "\(repo.split(separator: "/").last.map(String.init) ?? repo) #\(issue)" }
@@ -61,7 +61,7 @@ public func epicMenu(_ snapshot: PanelSnapshot, showEpics: Bool) -> EpicMenu? {
     let needsYou = snapshot.epics.filter { $0.status == .needsHuman }.map { epic in
         EpicMenuItem(
             repo: epic.repo, issue: epic.issue, state: .needsYou, title: name(epic.repo, epic.issue),
-            detail: epic.needsHumanReason ?? "needs you", badge: slicesBadge(epic.slices)
+            detail: epic.needsHumanReason ?? "needs attention", badge: slicesBadge(epic.slices)
         )
     }
     let running = snapshot.epics.filter { $0.status == .running }.map { epic in

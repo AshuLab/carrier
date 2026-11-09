@@ -4,7 +4,7 @@ import UserNotifications
 
 extension NotificationWatcher {
     /// The app's watcher, fed from the main queue.
-    static let app = NotificationWatcher(centre: SystemNotificationCentre.shared, kinds: { UserDefaults.standard.notificationKinds }, sound: { UserDefaults.standard.notifiesWithSound })
+    static let app = NotificationWatcher(centre: SystemNotificationCentre.shared, kinds: { UserDefaults.standard.notificationKinds }, sound: { UserDefaults.standard.notifiesWithSound }, quietHours: { UserDefaults.standard.quietHours })
 }
 
 /// The system's notification centre. `UNUserNotificationCenter.current()` aborts a process that is not inside a bundle with an
@@ -36,7 +36,8 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
     /// Settings' "Send a test": asks again even after a denial, since the person may have just allowed it in System Settings.
     func sendTest() {
         denied = false
-        post([EpicNotification(title: "Carrier test", body: "Notifications work", isTest: true, sound: UserDefaults.standard.notifiesWithSound)])
+        let quiet = UserDefaults.standard.quietHours.contains(Date())
+        post([EpicNotification(title: "Carrier test", body: "Notifications work", isTest: true, sound: UserDefaults.standard.notifiesWithSound && quiet == false, quiet: quiet)])
     }
 
     /// Takes the clicks on notifications, also those of ones shown before the app was last started. Needs a bundle.
@@ -84,7 +85,8 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
             content.title = notification.title
             content.body = notification.body
             content.sound = notification.sound ? .default : nil
-            var info: [String: Any] = ["test": notification.isTest]
+            if notification.quiet { content.interruptionLevel = .passive }
+            var info: [String: Any] = ["test": notification.isTest, "quiet": notification.quiet]
             if let epic = notification.epic { info["repo"] = epic.repo; info["issue"] = epic.issue }
             if let session = notification.session { info["session"] = session }
             content.userInfo = info
@@ -106,7 +108,10 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
     /// Show the banner even while the app is frontmost, unless the person asked for none then (the test always shows).
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler done: @escaping (UNNotificationPresentationOptions) -> Void) {
-        let isTest = notification.request.content.userInfo["test"] as? Bool ?? false
+        let info = notification.request.content.userInfo
+        // a quiet one goes straight to the Notification Center, with no banner, even while the app is in front
+        if info["quiet"] as? Bool == true { return done([.list]) }
+        let isTest = info["test"] as? Bool ?? false
         let show = shouldPresent(onlyWhenAway: UserDefaults.standard.notifiesOnlyWhenAway, appIsActive: NSApp.isActive, isTest: isTest)
         done(show ? [.banner, .sound] : [])
     }

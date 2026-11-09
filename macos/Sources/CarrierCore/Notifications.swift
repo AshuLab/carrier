@@ -1,7 +1,8 @@
 import Foundation
 
 /// A notification to show: what happened and, when it is about one epic or one chat session, which. `isTest` is the one Settings sends: it shows
-/// even while the window is in front. `sound` is whether its banner plays one.
+/// even while the window is in front. `sound` is whether its banner plays one. `quiet` is posted inside the quiet hours: no
+/// banner and no sound, it waits in the Notification Center.
 public struct EpicNotification: Equatable {
     public var title: String
     public var body: String
@@ -9,14 +10,16 @@ public struct EpicNotification: Equatable {
     public var session: String?
     public var isTest: Bool
     public var sound: Bool
+    public var quiet: Bool
 
-    public init(title: String, body: String, epic: EpicRef? = nil, session: String? = nil, isTest: Bool = false, sound: Bool = true) {
+    public init(title: String, body: String, epic: EpicRef? = nil, session: String? = nil, isTest: Bool = false, sound: Bool = true, quiet: Bool = false) {
         self.title = title
         self.body = body
         self.epic = epic
         self.session = session
         self.isTest = isTest
         self.sound = sound
+        self.quiet = quiet
     }
 }
 
@@ -104,23 +107,28 @@ public final class NotificationWatcher {
     /// when the switch goes on: the snapshot is remembered either way.
     private let kinds: () -> NotificationKinds
     private let sound: () -> Bool
+    private let quietHours: () -> QuietHours
     private var previous: PanelSnapshot?
     private var previousSessions: [SessionRow]?
 
     public init(
         centre: NotificationCentre, kinds: @escaping () -> NotificationKinds = { NotificationKinds() },
-        sound: @escaping () -> Bool = { true }, now: @escaping () -> Date = Date.init
+        sound: @escaping () -> Bool = { true }, quietHours: @escaping () -> QuietHours = { QuietHours() },
+        now: @escaping () -> Date = Date.init
     ) {
         self.centre = centre
         self.kinds = kinds
         self.sound = sound
+        self.quietHours = quietHours
         self.now = now
     }
 
-    /// Every banner plays a sound, or none does, as the switch says when it is posted.
+    /// Every banner plays a sound, or none does, as the switch says when it is posted; inside the quiet hours all are quiet and
+    /// none plays one.
     private func post(_ notifications: [EpicNotification]) {
-        let sound = sound()
-        centre.post(notifications.map { var made = $0; made.sound = sound; return made })
+        let quiet = quietHours().contains(now())
+        let sound = sound() && quiet == false
+        centre.post(notifications.map { var made = $0; made.sound = sound; made.quiet = quiet; return made })
     }
 
     /// The app is about to stop Carrier itself: the stop that follows is not a problem. It lapses after `seconds`, so a stop

@@ -295,6 +295,9 @@ struct NotificationsTabView: View {
     @AppStorage(notifyChatDoneKey) private var chatDone = false
     @AppStorage(notifyOnlyWhenAwayKey) private var onlyWhenAway = true
     @AppStorage(notifySoundKey) private var sound = true
+    @AppStorage(notifyQuietKey) private var quiet = false
+    @AppStorage(notifyQuietStartKey) private var quietStart = QuietHours.defaultStart
+    @AppStorage(notifyQuietEndKey) private var quietEnd = QuietHours.defaultEnd
     @State private var permission: NotificationPermission?
     @State private var testAdvice: String?
 
@@ -329,6 +332,19 @@ struct NotificationsTabView: View {
                     Toggle("Play a sound", isOn: $sound).labelsHidden().toggleStyle(.switch)
                 }
             }
+            SettingsGroup(title: "Quiet hours") {
+                SettingsTabRow(title: "Quiet hours", detail: "No banner and no sound: notifications wait in the Notification Center", first: true) {
+                    Toggle("Quiet hours", isOn: $quiet).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "From", detail: "When the quiet starts") {
+                    DatePicker("From", selection: time($quietStart), displayedComponents: .hourAndMinute).labelsHidden()
+                }
+                .disabled(quiet == false)
+                SettingsTabRow(title: "Until", detail: "When it ends, the next day if it is earlier than the start") {
+                    DatePicker("Until", selection: time($quietEnd), displayedComponents: .hourAndMinute).labelsHidden()
+                }
+                .disabled(quiet == false)
+            }
             SettingsGroup(title: "Permission") {
                 SettingsTabRow(title: "System permission", detail: permission?.text ?? "Checking…", first: true) {
                     HStack {
@@ -350,6 +366,14 @@ struct NotificationsTabView: View {
         .task { refresh() }
         // back from System Settings, where the person may have changed the answer
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
+    }
+
+    /// A time of day kept as minutes after midnight, as the date picker wants it.
+    private func time(_ minutes: Binding<Int>) -> Binding<Date> {
+        Binding(
+            get: { Calendar.current.date(bySettingHour: minutes.wrappedValue / 60, minute: minutes.wrappedValue % 60, second: 0, of: Date()) ?? Date() },
+            set: { let parts = Calendar.current.dateComponents([.hour, .minute], from: $0); minutes.wrappedValue = (parts.hour ?? 0) * 60 + (parts.minute ?? 0) }
+        )
     }
 
     private static let systemSettingsURL = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!

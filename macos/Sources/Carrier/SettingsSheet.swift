@@ -57,6 +57,7 @@ struct SettingsSheet: View {
             case .appearance: AppearanceTabView()
             case .sidebar: SidebarTabView()
             case .chat: ChatTabView()
+            case .keybindings: KeybindingsTabView()
             case .engine: engine(banner, notConfigured: notConfigured)
             case .behavior: BehaviorTabView()
             case .repos: ReposTabView(state: state)

@@ -2,6 +2,7 @@
 /// these, in the order of the cases.
 public enum SettingsPage: String, CaseIterable {
     case general = "General", notifications = "Notifications", appearance = "Appearance", sidebar = "Sidebar", chat = "Chat"
+    case keybindings = "Keybindings"
     case engine = "Engine", behavior = "Behavior", repos = "Repos", sessions = "Sessions", health = "Health"
 
     /// A group of the rail: the App one has no heading, Legacy has its own.
@@ -13,7 +14,7 @@ public enum SettingsPage: String, CaseIterable {
 
     public var group: Group {
         switch self {
-        case .general, .notifications, .appearance, .sidebar, .chat: .app
+        case .general, .notifications, .appearance, .sidebar, .chat, .keybindings: .app
         case .engine, .behavior, .repos, .sessions, .health: .legacy
         }
     }
@@ -26,6 +27,7 @@ public enum SettingsPage: String, CaseIterable {
         case .appearance: "paintbrush"
         case .sidebar: "sidebar.left"
         case .chat: "bubble.left.and.text.bubble.right"
+        case .keybindings: "keyboard"
         case .engine: "cpu"
         case .behavior: "slider.horizontal.3"
         case .repos: "tray.full"
@@ -42,6 +44,7 @@ public enum SettingsPage: String, CaseIterable {
         case .appearance: "Theme, color, text size, density and the font of code"
         case .sidebar: "What the sessions list shows"
         case .chat: "The message box and the conversation"
+        case .keybindings: "The keys that run the app's actions"
         case .engine: "How the app starts Carrier"
         case .behavior: "How epics run"
         case .repos: "What Carrier watches"

@@ -5,9 +5,24 @@ import CarrierCore
 // (the Edit menu is what makes ⌘C and ⌘V reach a field) and the window is driven from the top of the screen as well as from its sidebar.
 // The menu bar item at the right of the screen (the status item) is another thing and stays as it was.
 extension AppDelegate {
+    /// Puts the main menu in place, built from the shortcut table; it is built again when a combination changes.
     func installMainMenu() {
-        let main = NSMenu()
+        let table = ShortcutTable()
+        shortcutsInMenu = table.combos
+        let main = makeMainMenu(shortcuts: table)
         NSApp.mainMenu = main
+        NSApp.servicesMenu = main.item(withTitle: "Carrier")?.submenu?.item(withTitle: "Services")?.submenu
+        NSApp.windowsMenu = main.item(withTitle: "Window")?.submenu
+        NSApp.helpMenu = main.item(withTitle: "Help")?.submenu
+    }
+
+    /// Builds it again when a combination of the table is not the one the menu carries.
+    func rebuildMainMenuIfShortcutsChanged() {
+        if ShortcutTable().combos != shortcutsInMenu { installMainMenu() }
+    }
+
+    func makeMainMenu(shortcuts: ShortcutTable) -> NSMenu {
+        let main = NSMenu()
 
         // Carrier
         let app = submenu(of: main, title: "Carrier")
@@ -18,7 +33,6 @@ extension AppDelegate {
         let services = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
         services.submenu = NSMenu(title: "Services")
         app.addItem(services)
-        NSApp.servicesMenu = services.submenu
         app.addItem(.separator())
         item(app, "Hide Carrier", #selector(NSApplication.hide(_:)), key: "h")
         item(app, "Hide Others", #selector(NSApplication.hideOtherApplications(_:)), key: "h", modifiers: [.command, .option])
@@ -28,7 +42,7 @@ extension AppDelegate {
 
         // File
         let file = submenu(of: main, title: "File")
-        item(file, "New Session", #selector(newSession), key: "n", target: self)
+        item(file, "New Session", #selector(newSession), shortcut: .newSession, in: shortcuts, target: self)
         file.addItem(.separator())
         item(file, "Close Window", #selector(NSWindow.performClose(_:)), key: "w")
 
@@ -42,13 +56,13 @@ extension AppDelegate {
         item(edit, "Paste", #selector(NSText.paste(_:)), key: "v")
         item(edit, "Select All", #selector(NSText.selectAll(_:)), key: "a")
         edit.addItem(.separator())
-        item(edit, "Find…", #selector(findInSection), key: "f", target: self)
+        item(edit, "Find…", #selector(findInSection), shortcut: .search, in: shortcuts, target: self)
 
         // View
         let view = submenu(of: main, title: "View")
-        item(view, "Home", #selector(showHome), key: "1", target: self)
-        item(view, "Sessions", #selector(showSessions), key: "2", target: self)
-        item(view, "Carrier", #selector(showCarrier), key: "3", target: self)
+        item(view, "Home", #selector(showHome), shortcut: .home, in: shortcuts, target: self)
+        item(view, "Sessions", #selector(showSessions), shortcut: .sessions, in: shortcuts, target: self)
+        item(view, "Carrier", #selector(showCarrier), shortcut: .carrier, in: shortcuts, target: self)
         item(view, "Archive", #selector(showArchive), target: self)
         view.addItem(.separator())
         item(view, "Show or Hide Sidebar", #selector(toggleSidebar), key: "s", modifiers: [.command, .control], target: self)
@@ -62,12 +76,11 @@ extension AppDelegate {
         item(window, "Zoom", #selector(NSWindow.performZoom(_:)))
         window.addItem(.separator())
         item(window, "Bring All to Front", #selector(NSApplication.arrangeInFront(_:)))
-        NSApp.windowsMenu = window
 
         // Help
         let help = submenu(of: main, title: "Help")
         item(help, "Carrier on GitHub", #selector(openHelp), target: self)
-        NSApp.helpMenu = help
+        return main
     }
 
     /// The menu of the Dock icon, over the system's own items.
@@ -94,6 +107,13 @@ extension AppDelegate {
         if key.isEmpty == false { made.keyEquivalentModifierMask = modifiers }
         made.target = target
         return made
+    }
+
+    /// An item that carries the table's combination for its action, none when the table has none.
+    @discardableResult
+    private func item(_ menu: NSMenu, _ title: String, _ action: Selector, shortcut: ShortcutCommand, in table: ShortcutTable, target: AnyObject?) -> NSMenuItem {
+        let combo = table.combo(for: shortcut)
+        return item(menu, title, action, key: combo?.key ?? "", modifiers: combo?.modifiers.flags ?? .command, target: target)
     }
 
     @objc func showAbout() { WindowController.shared.showAbout() }

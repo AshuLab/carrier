@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CarrierCore
 
@@ -122,20 +123,38 @@ import Testing
     #expect(shell.newSessionOpened == 2)
 }
 
+private func freshTable() -> ShortcutTable {
+    let suite = "shortcuts-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defaults.removePersistentDomain(forName: suite)
+    return ShortcutTable(defaults: defaults)
+}
+
 @Test func commandAndANumberOrFSelectOrSearch() {
-    #expect(shortcutAction(key: "1", modifiers: .command) == .select(.home))
-    #expect(shortcutAction(key: "2", modifiers: .command) == .select(.sessions))
-    #expect(shortcutAction(key: "3", modifiers: .command) == .select(.carrier))
-    #expect(shortcutAction(key: "n", modifiers: .command) == .select(.newSession))
-    #expect(shortcutAction(key: "f", modifiers: .command) == .search)
-    #expect(shortcutAction(key: "F", modifiers: .command) == .search)
+    let table = freshTable()
+    #expect(shortcutAction(key: "1", modifiers: .command, in: table) == .select(.home))
+    #expect(shortcutAction(key: "2", modifiers: .command, in: table) == .select(.sessions))
+    #expect(shortcutAction(key: "3", modifiers: .command, in: table) == .select(.carrier))
+    #expect(shortcutAction(key: "n", modifiers: .command, in: table) == .select(.newSession))
+    #expect(shortcutAction(key: "f", modifiers: .command, in: table) == .search)
+    #expect(shortcutAction(key: "F", modifiers: .command, in: table) == .search)
 }
 
 @Test func anotherModifierOrAnotherKeyIsNothing() {
+    let table = freshTable()
     for modifiers in [ShortcutModifiers([]), .shift, .option, .control, [.command, .shift], [.command, .option], [.command, .control]] {
-        for key in ["1", "2", "3", "n", "f"] { #expect(shortcutAction(key: key, modifiers: modifiers) == nil) }
+        for key in ["1", "2", "3", "n", "f"] { #expect(shortcutAction(key: key, modifiers: modifiers, in: table) == nil) }
     }
-    for key in ["4", "0", "g", "", "12"] { #expect(shortcutAction(key: key, modifiers: .command) == nil) }
+    for key in ["4", "0", "g", "", "12"] { #expect(shortcutAction(key: key, modifiers: .command, in: table) == nil) }
+}
+
+@Test func shortcutActionReadsThePersonsOwnCombinations() {
+    let table = freshTable()
+    table.set(KeyCombo(key: "j", modifiers: [.command, .option]), for: .search)
+    #expect(shortcutAction(key: "j", modifiers: [.command, .option], in: table) == .search)
+    #expect(shortcutAction(key: "f", modifiers: .command, in: table) == nil)
+    table.set(nil, for: .home)
+    #expect(shortcutAction(key: "1", modifiers: .command, in: table) == nil)
 }
 
 @Test func theSelectionShortcutsActAsAClickDoes() {

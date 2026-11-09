@@ -1,0 +1,85 @@
+import Foundation
+import Testing
+@testable import CarrierCore
+
+private func freshTable() -> (ShortcutTable, UserDefaults) {
+    let suite = "shortcuts-\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defaults.removePersistentDomain(forName: suite)
+    return (ShortcutTable(defaults: defaults), defaults)
+}
+
+@Test func theDefaultsAreHomeSessionsCarrierNewSessionAndSearch() {
+    let (table, _) = freshTable()
+    let shown = ShortcutCommand.allCases.map { "\($0.group.rawValue) \($0.title) \(table.combo(for: $0)?.text ?? "")" }
+    #expect(shown == ["Go to Home ⌘1", "Go to Sessions ⌘2", "Go to Carrier ⌘3", "Sessions New session ⌘N", "Sessions Search ⌘F"])
+    #expect(ShortcutCommand.allCases.allSatisfy { table.isDefault($0) })
+}
+
+@Test func aCombinationOfThePersonReplacesTheDefaultAndSurvivesANewTable() {
+    let (table, defaults) = freshTable()
+    let own = KeyCombo(key: "k", modifiers: [.command, .shift])
+    table.set(own, for: .newSession)
+    #expect(table.combo(for: .newSession) == own && table.combo(for: .newSession)?.text == "⇧⌘K")
+    #expect(table.isDefault(.newSession) == false && table.isDefault(.home))
+    #expect(ShortcutTable(defaults: defaults).combo(for: .newSession) == own)
+}
+
+@Test func clearingLeavesNoCombinationAndGoingBackToTheDefaultKeepsNoOverride() {
+    let (table, defaults) = freshTable()
+    table.set(nil, for: .search)
+    #expect(table.combo(for: .search) == nil && table.isDefault(.search) == false)
+    table.set(ShortcutCommand.search.defaultCombo, for: .search)
+    #expect(table.combo(for: .search)?.text == "⌘F" && table.isDefault(.search))
+    #expect((defaults.dictionary(forKey: ShortcutTable.key) ?? [:]).isEmpty)
+}
+
+@Test func aBadSavedValueReadsAsTheDefault() {
+    let (table, defaults) = freshTable()
+    defaults.set(["home": "garbage", "search": "0:f", "carrier": "1:"], forKey: ShortcutTable.key)
+    #expect(table.combo(for: .home)?.text == "⌘1")
+    #expect(table.combo(for: .search)?.text == "⌘F")
+    #expect(table.combo(for: .carrier)?.text == "⌘3")
+}
+
+@Test func aRecordedCombinationMustCarryCommandControlOrOption() {
+    #expect(KeyCombo(key: "a", modifiers: []) == nil)
+    #expect(KeyCombo(key: "a", modifiers: .shift) == nil)
+    #expect(KeyCombo(key: "a", modifiers: .command) != nil)
+    #expect(KeyCombo(key: "a", modifiers: .control) != nil)
+    #expect(KeyCombo(key: "a", modifiers: .option) != nil)
+    #expect(KeyCombo(key: "a", modifiers: [.shift, .command]) != nil)
+    // more than one key, or no key, or a control character, is not a key
+    #expect(KeyCombo(key: "ab", modifiers: .command) == nil)
+    #expect(KeyCombo(key: "", modifiers: .command) == nil)
+    #expect(KeyCombo(key: "\u{1B}", modifiers: .command) == nil)
+}
+
+@Test func aCombinationAnotherActionHasIsAClash() {
+    let (table, _) = freshTable()
+    let notes = KeyCombo(key: "1", modifiers: .command)!
+    #expect(table.clash(of: notes, for: .search) == .home)
+    #expect(table.clash(of: notes, for: .home) == nil)
+    #expect(table.clash(of: KeyCombo(key: "9", modifiers: .command)!, for: .home) == nil)
+    // a clash is flagged and kept: the first action of the table runs
+    table.set(notes, for: .search)
+    #expect(table.command(for: notes) == .home)
+    // a cleared action has no combination to clash with
+    table.set(nil, for: .home)
+    #expect(table.clash(of: notes, for: .sessions) == .search)
+}
+
+@Test func combosChangeWhenACombinationDoes() {
+    let (table, _) = freshTable()
+    let before = table.combos
+    table.set(KeyCombo(key: "k", modifiers: .command), for: .home)
+    #expect(table.combos != before)
+}
+
+@Test func resetOfTheKeybindingsPageRestoresEveryDefault() {
+    let (table, defaults) = freshTable()
+    table.set(KeyCombo(key: "k", modifiers: .command), for: .home)
+    table.set(nil, for: .search)
+    AppPreferences(defaults: defaults).reset(.keybindings)
+    #expect(ShortcutCommand.allCases.allSatisfy { table.isDefault($0) })
+}

@@ -100,6 +100,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         Thread.detachNewThread { monitor.run() }
         watchChatSessions()
+        // the app lives on with its window closed, so a timer here is enough for the reminders
+        Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in NotificationWatcher.app.remind() }
     }
 
     /// The chat sessions notify with the window closed, so they are read for the life of the app, beside the engine's monitor. A host

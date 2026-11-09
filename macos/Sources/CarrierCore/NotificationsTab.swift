@@ -12,6 +12,7 @@ public let notifyChatNeedsAttentionKey = "notify.chatNeedsAttention"
 public let notifyChatDoneKey = "notify.chatDone"
 public let notifyOnlyWhenAwayKey = "notify.onlyWhenAway"
 public let notifySoundKey = "notify.sound"
+public let notifyReminderKey = "notify.reminder"
 public let notifyQuietKey = "notify.quiet"
 public let notifyQuietStartKey = "notify.quietStart"
 public let notifyQuietEndKey = "notify.quietEnd"
@@ -34,6 +35,9 @@ extension UserDefaults {
 
     /// A banner plays a sound; on until turned off.
     public var notifiesWithSound: Bool { object(forKey: notifySoundKey) as? Bool ?? true }
+
+    /// How long before a Needs attention that still stands notifies again; never until the person picks one, and a saved value that is not a choice reads as never.
+    public var reminderInterval: ReminderInterval { ReminderInterval(rawValue: integer(forKey: notifyReminderKey)) ?? .never }
 
     /// Quiet hours: off until turned on, from 22:00 to 08:00 until the person picks others.
     public var quietHours: QuietHours {

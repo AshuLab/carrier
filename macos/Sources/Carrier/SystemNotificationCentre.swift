@@ -4,7 +4,7 @@ import UserNotifications
 
 extension NotificationWatcher {
     /// The app's watcher, fed from the main queue.
-    static let app = NotificationWatcher(centre: SystemNotificationCentre.shared, kinds: { UserDefaults.standard.notificationKinds }, sound: { UserDefaults.standard.notifiesWithSound }, quietHours: { UserDefaults.standard.quietHours })
+    static let app = NotificationWatcher(centre: SystemNotificationCentre.shared, kinds: { UserDefaults.standard.notificationKinds }, sound: { UserDefaults.standard.notifiesWithSound }, quietHours: { UserDefaults.standard.quietHours }, reminder: { UserDefaults.standard.reminderInterval })
 }
 
 /// The system's notification centre. `UNUserNotificationCenter.current()` aborts a process that is not inside a bundle with an

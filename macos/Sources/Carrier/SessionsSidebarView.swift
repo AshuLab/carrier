@@ -124,30 +124,3 @@ private struct GroupHeader: View {
         .onHover { hovered = $0 }
     }
 }
-
-/// A spinner while working, an orange mark while it waits for the person, a hollow circle when idle and a green check when done.
-struct SessionGlyph: View {
-    let state: SessionState
-
-    var body: some View {
-        glyph.frame(width: 20, height: 20).accessibilityLabel(label)
-    }
-
-    @ViewBuilder private var glyph: some View {
-        switch state {
-        case .working: SpinningRing(diameter: 14, lineWidth: 2, color: .systemBlue).overlay { StateMark(shape: .working, size: 7).foregroundStyle(.secondary) }
-        case .waiting: Disc(color: .orange, mark: "!", shape: .needsAttention)
-        case .idle: Circle().strokeBorder(Color.gray, lineWidth: 2).frame(width: 14, height: 14)
-        case .done: Disc(color: .green, mark: "✓")
-        }
-    }
-
-    private var label: String {
-        switch state {
-        case .working: "Working"
-        case .waiting: "Waiting for you"
-        case .idle: "Idle"
-        case .done: "Done"
-        }
-    }
-}

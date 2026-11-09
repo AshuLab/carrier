@@ -15,6 +15,9 @@ struct SessionsHomeView: View {
     @State private var filterOpen = false
     @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
     @FocusState private var searching: Bool
+    @FocusState private var listFocused: Bool
+    /// The row the arrow keys are on, by id; Return opens it.
+    @State private var highlighted: String?
 
     var body: some View {
         let page = sessionsPage(sessions.rows, by: sort, query: query ?? "", filter: filter, pinned: pinnedIds(pinnedStored))
@@ -46,21 +49,47 @@ struct SessionsHomeView: View {
                 }
             } else {
                 // the scroll view is the page, so the list runs up under the toolbar as Carrier's does and the bar is the system's
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 2) {
-                        if filter.chips.isEmpty == false { chips.padding(.horizontal, 8).padding(.bottom, 8) }
-                        ForEach(page.groups, id: \.title) { group in
-                            if searched == false { groupHeader(group) }
-                            ForEach(group.rows, id: \.id) { row in
-                                SessionHomeRow(row: row, showsWorkspace: searched || sort != .workspace, filterWorkspace: { filter.workspaces.insert($0) }) { select(row.id) }
+                let ids = page.groups.flatMap { $0.rows.map(\.id) }
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 2) {
+                            if filter.chips.isEmpty == false { chips.padding(.horizontal, 8).padding(.bottom, 8) }
+                            ForEach(page.groups, id: \.title) { group in
+                                if searched == false { groupHeader(group) }
+                                ForEach(group.rows, id: \.id) { row in
+                                    SessionHomeRow(
+                                        row: row, showsWorkspace: searched || sort != .workspace, highlighted: highlighted == row.id && listFocused,
+                                        filterWorkspace: { filter.workspaces.insert($0) }
+                                    ) { select(row.id) }
+                                    .id(row.id)
+                                }
                             }
                         }
+                        .padding(.horizontal, 12).padding(.vertical, 8)
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    // Up and Down move through the rows and Return opens the one they are on
+                    .focusable().focused($listFocused).focusEffectDisabled()
+                    .onKeyPress(.downArrow) { move(1, in: ids, proxy) }
+                    .onKeyPress(.upArrow) { move(-1, in: ids, proxy) }
+                    .onAppear { listFocused = true }
+                    .onKeyPress(.return) {
+                        guard let highlighted, ids.contains(highlighted) else { return .ignored }
+                        select(highlighted)
+                        return .handled
+                    }
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func move(_ step: Int, in ids: [String], _ proxy: ScrollViewProxy) -> KeyPress.Result {
+        guard ids.isEmpty == false else { return .ignored }
+        let current = highlighted.flatMap(ids.firstIndex(of:))
+        let next = current.map { min(max($0 + step, 0), ids.count - 1) } ?? (step > 0 ? 0 : ids.count - 1)
+        highlighted = ids[next]
+        proxy.scrollTo(ids[next])
+        return .handled
     }
 
     /// Search and the filters back to nothing.
@@ -212,47 +241,105 @@ extension SessionSort {
     }
 }
 
-/// A wide row: state glyph, title (with the workspace as a tag outside the workspace order) and under it the agent and the branch of
-/// a worktree session; on the right the Archived tag, for an archived match that is dimmed, and the age. A session that waits for
-/// the person is orange.
+/// A wide row of the Sessions home: the project's icon (the session's state is on it, as in the sidebar), the title with the workspace as a tag
+/// outside the workspace order, what the agent last wrote under it (or what the session waits for), and a line of where it works, how many turns
+/// it took and the model. On the right the age and the providers; under the pointer they give way to Pin and Archive. A session that waits for
+/// the person is orange; an archived match is dimmed and tagged.
 private struct SessionHomeRow: View {
     private let timeChanges = TimeFormatChanges()
     let row: SessionRow
     let showsWorkspace: Bool
+    let highlighted: Bool
     let filterWorkspace: (String) -> Void
     let open: () -> Void
     @State private var hovered = false
+    @Environment(SessionActions.self) private var actions
+    @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
+
+    private var pinned: Bool { pinnedIds(pinnedStored).contains(row.id) }
 
     var body: some View {
-        Button(action: open) {
-            HStack(spacing: 10) {
-                SessionGlyph(state: row.state)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
-                            .foregroundStyle(row.state == .waiting ? Color.orange : .primary)
-                        if showsWorkspace { tag(row.workspace) }
-                    }
-                    HStack(spacing: 6) {
-                        Text(row.agent)
-                        if let branch = row.branch { Text(branch).foregroundStyle(.blue) }
-                    }
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        let active = hovered || highlighted
+        HStack(alignment: .top, spacing: 12) {
+            ProjectIcon(name: row.workspace, colorKey: projectColorKey(row.base), halo: row.state == .working, mark: .session(row.state))
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    if pinned { Image(systemName: "pin.fill").font(.scaled(10)).foregroundStyle(.secondary).accessibilityLabel("Pinned") }
+                    Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                    if showsWorkspace { tag(row.workspace) }
+                    if row.archived { tag("Archived") }
                 }
-                Spacer(minLength: 8)
-                if row.archived { tag("Archived") }
+                status
+                meta
+            }
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 6) {
                 Text(timeText(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     .accessibilityLabel(spokenAge(row.updatedAt, now: Date()))
+                ProviderMarks(names: row.providers)
             }
-            .opacity(row.archived ? 0.55 : 1)
-            .padding(.horizontal, 8).padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 10).fill(hovered ? Color.primary.opacity(0.07) : .clear))
-            .contentShape(Rectangle())
+            .opacity(active ? 0 : 1)
+            .overlay(alignment: .topTrailing) { actionButtons.opacity(active ? 1 : 0).allowsHitTesting(active) }
         }
-        .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.15), value: active)
+        .opacity(row.archived ? 0.55 : 1)
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 12).fill(active ? Color.primary.opacity(0.07) : .clear))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: open)
         .onHover { hovered = $0 }
         .sessionContextMenu(row, filterWorkspace: filterWorkspace)
         .help(row.title)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Open", open)
+    }
+
+    /// What the session is doing, or the last thing the agent said.
+    @ViewBuilder private var status: some View {
+        switch row.state {
+        case .waiting: Text("Waiting for you").fontWeight(.medium).foregroundStyle(SessionRowView.attention).font(.callout)
+        case .working: Text("Working…").foregroundStyle(.secondary).font(.callout)
+        case .idle, .done:
+            if let message = row.lastMessage {
+                Text(message).foregroundStyle(.secondary).font(.callout).lineLimit(1).truncationMode(.tail)
+            } else {
+                Text("No reply yet").foregroundStyle(.tertiary).font(.callout)
+            }
+        }
+    }
+
+    /// Where it works, how many turns it took and the model of the last.
+    private var meta: some View {
+        HStack(spacing: 6) {
+            Label(row.branch ?? "Base folder", systemImage: row.branch == nil ? "folder" : "arrow.triangle.branch")
+                .labelStyle(.titleAndIcon).lineLimit(1).truncationMode(.middle)
+            if row.turns > 0 { Text("·"); Text(row.turns == 1 ? "1 turn" : "\(row.turns) turns") }
+            if let model = TurnSummary(model: row.model).shortModel { Text("·"); Text(model) }
+        }
+        .font(.caption).foregroundStyle(.tertiary).lineLimit(1)
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: 4) {
+            iconButton(pinned ? "pin.slash" : "pin", pinned ? "Unpin" : "Pin") {
+                let ids = pinnedIds(pinnedStored)
+                pinnedStored = storedPins(pinned ? ids.subtracting([row.id]) : ids.union([row.id]))
+            }
+            if row.archived {
+                iconButton("arrow.uturn.backward", "Restore") { Task { if let refusal = await actions.restore(row.id) { tell(refusal) } } }
+            } else {
+                iconButton("archivebox", "Archive") { Task { if let refusal = await actions.archive(row.id) { tell(refusal) } } }
+            }
+        }
+    }
+
+    private func iconButton(_ symbol: String, _ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.scaled(12)).foregroundStyle(.secondary).frame(width: 26, height: 26)
+                .background(Circle().fill(Color.secondary.opacity(0.14)))
+        }
+        .buttonStyle(.plain).help(title).accessibilityLabel(title)
     }
 
     private func tag(_ text: String) -> some View {

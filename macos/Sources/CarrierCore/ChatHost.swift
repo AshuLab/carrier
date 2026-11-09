@@ -43,13 +43,18 @@ public struct ChatSession: Decodable, Equatable {
     public let kept: Bool
     /// When the clock deletes the session, in milliseconds since the epoch; nil when it will not, and from a host that leaves it out.
     public let deleteAt: Int?
+    /// What the agent last wrote, on one line and cut; nil before it answered, and from a host or a reply that leaves it out.
+    public let lastMessage: String?
+    /// The turns that finished, and the model of the last; zero and nil from a host or a reply that leaves them out.
+    public let turns: Int
+    public let model: String?
 
     public struct Workspace: Decodable, Equatable {
         public let base: String
         public let branch: String?
     }
 
-    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt }
+    private enum CodingKeys: String, CodingKey { case id, agent, harness, folder, title, state, createdAt, lastActiveAt, archived, workspace, live, preparation, kept, deleteAt, lastMessage, turns, model }
     private struct Kind: Decodable {
         let kind: String
         let base: String?
@@ -72,6 +77,9 @@ public struct ChatSession: Decodable, Equatable {
         preparation = (try? values.decodeIfPresent(Preparation.self, forKey: .preparation)) ?? nil
         kept = try values.decodeIfPresent(Bool.self, forKey: .kept) ?? false
         deleteAt = try values.decodeIfPresent(Int.self, forKey: .deleteAt)
+        lastMessage = try values.decodeIfPresent(String.self, forKey: .lastMessage)
+        turns = try values.decodeIfPresent(Int.self, forKey: .turns) ?? 0
+        model = try values.decodeIfPresent(String.self, forKey: .model)
         let placed = try values.decodeIfPresent(Kind.self, forKey: .workspace)
         guard let placed, placed.kind == "worktree" else { workspace = nil; return }
         guard let base = placed.base else { throw DecodingError.keyNotFound(CodingKeys.workspace, .init(codingPath: decoder.codingPath, debugDescription: "a worktree without its base folder")) }

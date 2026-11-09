@@ -40,10 +40,16 @@ public struct SessionRow: Equatable {
     public var kept: Bool
     /// When the clock deletes an archived session; nil when it will not.
     public var deleteAt: Date?
+    /// What the agent last wrote, on one line; nil before it answered.
+    public var lastMessage: String?
+    /// The turns that finished, and the model of the last.
+    public var turns: Int
+    public var model: String?
 
     public init(
         id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil,
-        folder: String = "", base: String? = nil, providers: [String] = [], titled: Bool = true, kept: Bool = false, deleteAt: Date? = nil
+        folder: String = "", base: String? = nil, providers: [String] = [], titled: Bool = true, kept: Bool = false, deleteAt: Date? = nil,
+        lastMessage: String? = nil, turns: Int = 0, model: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -59,6 +65,7 @@ public struct SessionRow: Equatable {
         self.titled = titled
         self.kept = kept
         self.deleteAt = deleteAt
+        (self.lastMessage, self.turns, self.model) = (lastMessage, turns, model)
     }
 }
 

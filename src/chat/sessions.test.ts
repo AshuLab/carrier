@@ -166,6 +166,18 @@ test('a conversation over several turns: events come in order after the cursor, 
   sessions.send({ sessionId: id, text: 'again' });
   expect(conversation.sent).toEqual(['first line\nsecond line', 'again']);
   expect(sessions.list({}).sessions[0]!.title).toBe('first line'); // the title is the first message's
+  // the list says how it went: the last words of the agent on one line, the finished turns and the model of the last
+  expect(sessions.list({}).sessions[0]).toMatchObject({ lastMessage: 'Hello there', turns: 1, model: 'haiku' });
+});
+
+test('the list has the words of the agent on one line, cut, and nothing for a session it has not answered', async () => {
+  const { sessions, conversation, id } = await openOne();
+  expect(sessions.list({}).sessions[0]).toMatchObject({ lastMessage: null, turns: 0, model: null });
+  sessions.send({ sessionId: id, text: 'hi' });
+  conversation.emit({ kind: 'assistant', text: `first\n\n  second ${'x'.repeat(400)}` }, { kind: 'turn_end', outcome: 'ok' });
+  const { lastMessage } = sessions.list({}).sessions[0]!;
+  expect(lastMessage).toMatch(/^first second x+/);
+  expect(lastMessage!.length).toBeLessThanOrEqual(201);
 });
 
 test('options are those of the live conversation', async () => {

@@ -49,22 +49,13 @@ struct SessionRowView: View {
         }
     }
 
-    /// A session that waits wears a "!"; one that works wears a mark only when the states are told apart by shape.
-    private var sessionMark: ProjectIcon.Mark? {
-        switch row.state {
-        case .waiting: .init(text: "!", color: .orange, shape: .needsAttention)
-        case .working: .init(text: "", color: .blue, shape: .working)
-        case .idle, .done: nil
-        }
-    }
-
     var body: some View {
         let content = content
         HStack(spacing: SidebarMetrics.inset) {
             if content.showsIcon {
                 ProjectIcon(
                     name: row.workspace, colorKey: projectColorKey(row.base), halo: row.state == .working,
-                    mark: sessionMark
+                    mark: .session(row.state)
                 )
             }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
@@ -81,7 +72,7 @@ struct SessionRowView: View {
                 }
             }
         }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, density.rowPadding)
+        .padding(.horizontal, content.showsIcon ? density.rowPadding : SidebarMetrics.inset).padding(.vertical, density.rowPadding)
         .sessionContextMenu(row)
         .help(row.title)
         .accessibilityElement(children: .ignore)
@@ -146,6 +137,18 @@ struct ProjectIcon: View {
                         .offset(x: 4, y: 4)
                 }
             }
+    }
+}
+
+extension ProjectIcon.Mark {
+    /// What a session's state wears on its icon: a "!" while it waits for the person, and while it works a mark only when the states are told
+    /// apart by shape (the halo around the icon says it otherwise).
+    static func session(_ state: SessionState) -> ProjectIcon.Mark? {
+        switch state {
+        case .waiting: .init(text: "!", color: .orange, shape: .needsAttention)
+        case .working: .init(text: "", color: .blue, shape: .working)
+        case .idle, .done: nil
+        }
     }
 }
 

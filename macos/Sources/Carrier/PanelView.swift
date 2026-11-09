@@ -4,6 +4,10 @@ import SwiftUI
 
 struct PanelView: View {
     let model: PanelModel
+    // the sidebar's preferences are read from the defaults, so the sidebar's menus and the Sidebar page of Settings change one value
+    @AppStorage(SidebarStore.groupByKey) private var groupBy = GroupBy.status
+    @AppStorage(SidebarStore.sessionSortKey) private var sessionSort = SessionSort.workspace
+    @AppStorage(SidebarStore.archiveSortKey) private var archiveSort = ArchiveSort.dateArchived
     /// The last Check now pressed from the toolbar, for the button to say it is checking.
     @State private var checkAsked: CheckAsked?
     /// The window's size, for the sheets over it.
@@ -65,7 +69,7 @@ struct PanelView: View {
     private var subtitle: String {
         switch model.shell.selection {
         case .carrier: snapshot.map { overviewSubtitle($0, repos: $0.watched?.count ?? $0.repos) } ?? ""
-        case .sessions: sessionsPage(model.sessions.rows, by: model.sessionSort).subtitle
+        case .sessions: sessionsPage(model.sessions.rows, by: sessionSort).subtitle
         case .session: openSession.map(conversationSubtitle) ?? ""
         default: ""
         }
@@ -82,15 +86,12 @@ struct PanelView: View {
     var body: some View {
         @Bindable var shell = model.shell
         @Bindable var epics = model.epics
-        let groupBy = Binding(get: { model.groupBy }, set: { model.groupBy = $0; SidebarStore().groupBy = $0 })
         let collapse = Binding(get: { model.collapse }, set: { model.collapse = $0 })
-        let archiveSort = Binding(get: { model.archiveSort }, set: { model.archiveSort = $0; SidebarStore().archiveSort = $0 })
-        let sessionSort = Binding(get: { model.sessionSort }, set: { model.sessionSort = $0; SidebarStore().sessionSort = $0 })
         let columns = Binding<NavigationSplitViewVisibility>(
             get: { shell.sidebarShown ? .all : .detailOnly }, set: { shell.sidebarShown = $0 != .detailOnly }
         )
         NavigationSplitView(columnVisibility: columns) {
-            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: groupBy, sessionSort: sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { shell.showSettings() }, newSessionIn: { path in
+            SidebarView(snapshot: snapshot, state: model.state, sessions: model.sessions, selection: $shell.selection, open: $shell.open, groupBy: $groupBy, sessionSort: $sessionSort, collapse: collapse, searchRequest: shell.searchRequest, chooseArchived: shell.chooseArchived, openSettings: { shell.showSettings() }, newSessionIn: { path in
                 model.newSession.start(in: path)
                 shell.selection = .newSession
             })
@@ -114,9 +115,9 @@ struct PanelView: View {
                         )
                             .id("\(epic.subject.repo)#\(epic.subject.issue)")
                     } else if shell.selection == .sessions {
-                        SessionsHomeView(sessions: model.sessions, sort: sessionSort, newSession: { shell.selection = .newSession }) { shell.selection = .session(id: $0) }
+                        SessionsHomeView(sessions: model.sessions, sort: $sessionSort, newSession: { shell.selection = .newSession }) { shell.selection = .session(id: $0) }
                     } else if shell.selection == .archive {
-                        ArchiveView(rows: model.sessions.rows, sort: archiveSort) { shell.selection = .session(id: $0) }
+                        ArchiveView(rows: model.sessions.rows, sort: $archiveSort) { shell.selection = .session(id: $0) }
                     } else if shell.selection == .newSession {
                         NewSessionView(model: model.newSession, openHealth: shell.openHealth) { shell.selection = .session(id: $0) }
                     } else if let emptyPage {

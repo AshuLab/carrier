@@ -8,9 +8,6 @@ import SwiftUI
     var state: ConnectionState?
     let shell = WindowShell(open: SidebarStore().open)
     let epics = EpicStore()
-    var groupBy = SidebarStore().groupBy
-    var sessionSort = SidebarStore().sessionSort
-    var archiveSort = SidebarStore().archiveSort
     /// Archive, restore and delete; `startMonitor` makes the lists read again after each.
     let actions = SessionActions(host: SocketChatHost())
     var collapse = SidebarCollapse()
@@ -155,7 +152,7 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     /// For `--smoke-window`, with the Archive selected: what the page lists and says, then the window's layout as it is with it on screen.
     var archiveStructure: String {
-        let page = archivePage(model.sessions.rows, by: model.archiveSort)
+        let page = archivePage(model.sessions.rows, by: SidebarStore().archiveSort)
         let line = "archive: \(page.subtitle.isEmpty ? "no count" : page.subtitle), groups \(page.groups.map(\.title)), \(page.emptyState?.title ?? "listed"), clear \(page.canClear ? "enabled" : "disabled")"
         return line + "\n" + structure
     }
@@ -250,7 +247,7 @@ final class WindowController: NSObject, NSWindowDelegate {
             lines.append("toolbar item: \(item.label.isEmpty ? item.itemIdentifier.rawValue : item.label)\(frame.map { " at x \(Int($0.minX)) width \(Int($0.width))" } ?? "")")
         }
         lines.append("sessions: \(model.sessions.rows.count) rows, \(archivedCount(model.sessions.rows)) archived, groups \(sessionGroups(model.sessions.rows).map(\.title))")
-        let home = sessionsPage(model.sessions.rows, by: model.sessionSort)
+        let home = sessionsPage(model.sessions.rows, by: SidebarStore().sessionSort)
         lines.append("sessions home: \(home.subtitle.isEmpty ? "no count" : home.subtitle), \(home.emptyState?.title ?? "listed")")
         lines.append("transcript: \(SessionSectionsView.layout)")
         let events = longTranscriptEvents(rounds: 556)

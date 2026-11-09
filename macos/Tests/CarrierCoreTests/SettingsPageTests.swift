@@ -3,7 +3,7 @@ import Testing
 
 @Test func theAppGroupHasNoHeadingAndHoldsGeneralThenNotifications() {
     #expect(SettingsPage.Group.app.heading == nil)
-    #expect(SettingsPage.pages(in: .app) == [.general, .notifications])
+    #expect(SettingsPage.pages(in: .app) == [.general, .notifications, .sidebar])
 }
 
 @Test func legacyHasItsHeadingAndHoldsExactlyTheFivePagesThatExistedInOrder() {

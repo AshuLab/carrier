@@ -148,7 +148,7 @@ struct ArchiveView: View {
     }
 }
 
-private extension ArchiveSort {
+extension ArchiveSort {
     var title: String {
         switch self {
         case .dateArchived: "Date archived"

@@ -359,7 +359,7 @@ public struct SocketChatHost: ChatHost {
     public func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         let fields = ",\"sessionId\":\"\(try wireId(id))\",\"after\":\(after),\"limit\":\(limit)"
         let path = socketPath()
-        return try await Task.detached { try chatRequest(path, "events", requires: .events, fields: fields) }.value
+        return try await Task.detached { try chatRequest(path, "events", requires: .events, fields: fields, also: (.reasoning, ",\"reasoning\":true")) }.value
     }
 
     public func resume(_ id: String) async throws {
@@ -590,7 +590,8 @@ private final class Abortable: @unchecked Sendable {
 
 /// Connects, reads the hello, makes one request the host said it can answer and decodes its reply.
 fileprivate func chatRequest<Reply: Decodable>(
-    _ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String = "", timeout: TimeInterval = 5, abortable: Abortable? = nil
+    _ path: String, _ command: String, requires capability: ControlClient.Capability, fields: String = "", also: (capability: ControlClient.Capability, fields: String)? = nil,
+    timeout: TimeInterval = 5, abortable: Abortable? = nil
 ) throws -> Reply {
     guard let client = ControlClient.connect(path: path, timeout: timeout) else { throw ControlError.closed }
     abortable?.attach(client)
@@ -599,7 +600,9 @@ fileprivate func chatRequest<Reply: Decodable>(
         client.close()
     }
     _ = try client.supportedHello()
-    guard let data = try client.request(command, requires: capability, fields: fields) else {
+    // fields only a host that lists their capability understands: an older one is not sent them
+    let sent = fields + (also.flatMap { client.capabilities.contains($0.capability) ? $0.fields : nil } ?? "")
+    guard let data = try client.request(command, requires: capability, fields: sent) else {
         throw ControlError.remote("the chat host does not support \(command)")
     }
     do { return try JSONDecoder().decode(Reply.self, from: data) } catch { throw ControlError.badLine }

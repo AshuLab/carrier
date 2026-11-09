@@ -365,6 +365,19 @@ private let idle = PanelSnapshot(
     #expect(AppPreferences(defaults: defaults).confirmDelete)
 }
 
+@Test func showReasoningIsOnByDefaultSurvivesARelaunchFallsBackAndResetsWithChat() {
+    let name = "prefs-\(UUID().uuidString)"
+    let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(first.showsReasoning)
+    first.showsReasoning = false
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).showsReasoning == false)
+    first.reset(.chat)
+    #expect(first.showsReasoning)
+    let defaults = UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!
+    defaults.set("never", forKey: AppPreferences.showsReasoningKey)
+    #expect(AppPreferences(defaults: defaults).showsReasoning)
+}
+
 @Test func theDiffStyleIsUnifiedByDefaultSurvivesARelaunchAndResetsWithChat() {
     let name = "prefs-\(UUID().uuidString)"
     let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)

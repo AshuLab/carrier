@@ -151,7 +151,13 @@ extension ToolGroup {
     public func opensByDefault(_ mode: ToolOutputMode, opensFailed: Bool) -> Bool { mode.opens(failed: failed > 0, opensFailed: opensFailed) }
 }
 
-/// The feed without its runs of calls when the tools are hidden.
-public func visibleFeed(_ rows: [FeedRow], mode: ToolOutputMode) -> [FeedRow] {
-    mode == .hidden ? rows.filter { if case .tools = $0 { false } else { true } } : rows
+/// The feed without its runs of calls when the tools are hidden, and without the reasoning when the person does not want it.
+public func visibleFeed(_ rows: [FeedRow], mode: ToolOutputMode, showsReasoning: Bool = true) -> [FeedRow] {
+    rows.filter {
+        switch $0 {
+        case .tools: mode != .hidden
+        case .reasoning: showsReasoning
+        default: true
+        }
+    }
 }

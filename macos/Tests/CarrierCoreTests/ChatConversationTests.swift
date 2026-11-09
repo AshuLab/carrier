@@ -15,6 +15,7 @@ private func texts(_ rows: [FeedRow]) -> [String] {
         switch $0 {
         case .user(_, let text): "user: \(text)"
         case .agent(_, let text, let inProgress): "agent\(inProgress ? "…" : ""): \(text.prefix(24))"
+        case .reasoning(_, let text): "reasoning: \(text)"
         case .turnEnd(_, let text): "end: \(text)"
         case .tools(_, let group): "tools: \(group.title) | \(group.summary)"
         case .approval(_, let card): "card: \(card.question) | \(card.arg ?? "") | \(card.choices.map(\.label).joined(separator: " / "))"
@@ -702,6 +703,87 @@ private func toolsFeed() -> [FeedRow] {
 }
 
 private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case .tools(_, let group) = $0 { group } else { nil } } }
+
+// MARK: the agent's reasoning
+
+@Test func aReasoningEventIsFoldedUnderTheMessageOfItsTurnAndAnUnknownKindFromANewerHostIsNotDrawn() throws {
+    let json = """
+    {"events":[
+      {"id":1,"at":1,"kind":"user","text":"go"},
+      {"id":2,"at":2,"kind":"reasoning","text":"Look at the file first."},
+      {"id":3,"at":3,"kind":"tool_start","callId":"a","tool":"Read","arg":"x"},
+      {"id":4,"at":4,"kind":"tool_end","callId":"a","tool":"Read","status":"ok","output":["out"]},
+      {"id":5,"at":5,"kind":"hologram","text":"from a newer host"},
+      {"id":6,"at":6,"kind":"reasoning","text":"Now answer."},
+      {"id":7,"at":7,"kind":"assistant","text":"done"},
+      {"id":8,"at":8,"kind":"turn_end","outcome":"ok"}
+    ],"cursor":8,"streaming":""}
+    """
+    let reply = try JSONDecoder().decode(ChatEvents.self, from: Data(json.utf8))
+    #expect(reply.events[1].kind == "reasoning" && reply.events[1].text == "Look at the file first.")
+    #expect(texts(chatFeed(reply.events)) == ["user: go", "tools: Explored | 1 file read", "agent: done", "reasoning: Look at the file first.", "reasoning: Now answer.", "end: 0s"])
+}
+
+@Test func reasoningWaitsForTheMessageBeingWrittenAndComesBeforeAnErrorOrTheNextTurnWhenThereIsNoMessage() {
+    let think = ChatEvent(id: 2, at: 2, kind: "reasoning", text: "Hm.")
+    let user = ChatEvent(id: 1, at: 1, kind: "user", text: "go")
+    // the message is still streaming: the reasoning sits under it
+    #expect(texts(chatFeed([user, think], streaming: "Hel")) == ["user: go", "agent…: Hel", "reasoning: Hm."])
+    // nothing written yet: it is the last thing
+    #expect(texts(chatFeed([user, think])) == ["user: go", "reasoning: Hm."])
+    // the turn failed with no message: it stays inside its turn
+    let failed = [user, think, ChatEvent(id: 3, at: 3, kind: "error", text: "boom"), ChatEvent(id: 4, at: 4, kind: "user", text: "again")]
+    #expect(texts(chatFeed(failed)) == ["user: go", "reasoning: Hm.", "error: boom", "user: again"])
+    // an empty thinking block draws nothing
+    #expect(texts(chatFeed([user, ChatEvent(id: 2, at: 2, kind: "reasoning", text: "")])) == ["user: go"])
+}
+
+@Test func theShowReasoningSwitchTakesTheRowsOutOfTheVisibleFeedAndNothingElse() {
+    let rows = chatFeed([
+        ChatEvent(id: 1, at: 1, kind: "user", text: "go"), ChatEvent(id: 2, at: 2, kind: "reasoning", text: "Hm."),
+        ChatEvent(id: 3, at: 3, kind: "assistant", text: "done"),
+    ])
+    #expect(texts(visibleFeed(rows, mode: .collapsed)) == ["user: go", "agent: done", "reasoning: Hm."])
+    #expect(texts(visibleFeed(rows, mode: .collapsed, showsReasoning: false)) == ["user: go", "agent: done"])
+}
+
+@MainActor @Test func aHostThatSendsNoReasoningLeavesTheConversationAsItWas() async {
+    let host = ScriptedHost()
+    host.events = [ChatEvent(id: 1, at: 1, kind: "user", text: "go"), ChatEvent(id: 2, at: 2, kind: "assistant", text: "done")]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(texts(model.rows) == ["user: go", "agent: done"] && model.failure == nil)
+}
+
+private final class Asked: @unchecked Sendable {
+    private let lock = NSLock()
+    private var line = ""
+    var value: String {
+        get { lock.withLock { line } }
+        set { lock.withLock { line = newValue } }
+    }
+}
+
+/// The `events` request a host that lists `capabilities` got.
+private func eventsRequest(capabilities: [String]) async throws -> String {
+    let asked = Asked()
+    let listed = capabilities.map { "\"\($0)\"" }.joined(separator: ",")
+    let server = TestServer { connection in
+        connection.send("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"capabilities\":[\(listed)]}\n")
+        guard let line = connection.readLine() else { return }
+        asked.value = line
+        connection.send("{\"id\":1,\"ok\":true,\"data\":{\"events\":[],\"cursor\":0,\"streaming\":\"\"}}\n")
+    }
+    defer { server.stop() }
+    let host = SocketChatHost(socketPath: { server.path })
+    _ = try await host.events(UUID().uuidString, after: 0, limit: 50)
+    return asked.value
+}
+
+@Test func theAppAsksForReasoningOnlyOfAHostThatListsIt() async throws {
+    #expect(try await eventsRequest(capabilities: ["events", "reasoning"]).contains("\"reasoning\":true"))
+    #expect(try await eventsRequest(capabilities: ["events"]).contains("reasoning") == false)
+}
 
 @Test func hiddenShowsNoToolRowsAndTheOthersStay() {
     let rows = toolsFeed()

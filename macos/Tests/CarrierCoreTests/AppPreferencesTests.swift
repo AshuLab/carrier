@@ -352,6 +352,19 @@ private let idle = PanelSnapshot(
     #expect(store.toolOutput == .collapsed && store.opensFailedCalls && store.outputLength == .medium)
 }
 
+@Test func askingBeforeDeletingASessionIsOnByDefaultSurvivesARelaunchFallsBackAndResetsWithChat() {
+    let name = "delete-\(UUID().uuidString)"
+    let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(first.confirmDelete)
+    first.confirmDelete = false
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).confirmDelete == false)
+    first.reset(.chat)
+    #expect(first.confirmDelete)
+    let defaults = UserDefaults(suiteName: "delete-\(UUID().uuidString)")!
+    defaults.set("never", forKey: AppPreferences.confirmDeleteKey)
+    #expect(AppPreferences(defaults: defaults).confirmDelete)
+}
+
 @Test func theDiffStyleIsUnifiedByDefaultSurvivesARelaunchAndResetsWithChat() {
     let name = "prefs-\(UUID().uuidString)"
     let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)

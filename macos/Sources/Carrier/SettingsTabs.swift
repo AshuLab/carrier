@@ -461,6 +461,7 @@ struct ChatTabView: View {
     @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailedCalls = AppPreferences.defaultOpensFailedCalls
     @AppStorage(AppPreferences.diffStyleKey) private var diffStyle = AppPreferences.defaultDiffStyle
     @AppStorage(AppPreferences.outputLengthKey) private var outputLength = AppPreferences.defaultOutputLength
+    @AppStorage(AppPreferences.confirmDeleteKey) private var confirmDelete = AppPreferences.defaultConfirmDelete
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.chat) }) {
@@ -519,6 +520,11 @@ struct ChatTabView: View {
                         ForEach(OutputLength.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .labelsHidden().fixedSize()
+                }
+            }
+            SettingsGroup(title: "Sessions") {
+                SettingsTabRow(title: "Ask before deleting a session", detail: "The question says that its worktree is removed with it", first: true) {
+                    Toggle("Ask before deleting a session", isOn: $confirmDelete).labelsHidden().toggleStyle(.switch)
                 }
             }
         }

@@ -50,6 +50,8 @@ struct ArchiveView: View {
             case .refused(let refusal): tell(refusal)
             case .ask(let question):
                 guard ask(question) else { return }
+                fallthrough
+            case .proceed:
                 if let refusal = await actions.delete(row.id) { tell(refusal) }
             }
         }
@@ -63,6 +65,8 @@ struct ArchiveView: View {
             case .refused(let refusal): tell(refusal)
             case .ask(let question):
                 guard ask(question) else { return }
+                fallthrough
+            case .proceed:
                 if let refusal = await actions.clear(ids) { tell(refusal) }
             }
         }

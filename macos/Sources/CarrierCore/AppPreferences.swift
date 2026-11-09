@@ -33,6 +33,7 @@ public struct AppPreferences {
     public static let opensFailedCallsKey = "chat.opensFailedCalls"
     public static let diffStyleKey = "chat.diffStyle"
     public static let outputLengthKey = "chat.outputLength"
+    public static let confirmDeleteKey = "chat.confirmDelete"
 
     public static let defaultStyle = IconStyle.countAndBar
     public static let defaultAnimates = true
@@ -54,6 +55,7 @@ public struct AppPreferences {
     public static let defaultOpensFailedCalls = true
     public static let defaultDiffStyle = DiffStyle.unified
     public static let defaultOutputLength = OutputLength.medium
+    public static let defaultConfirmDelete = true
 
     private let defaults: UserDefaults
 
@@ -232,6 +234,12 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.outputLengthKey) }
     }
 
+    /// Whether deleting a session asks first.
+    public var confirmDelete: Bool {
+        get { defaults.object(forKey: Self.confirmDeleteKey) as? Bool ?? Self.defaultConfirmDelete }
+        nonmutating set { defaults.set(newValue, forKey: Self.confirmDeleteKey) }
+    }
+
     /// Takes the keys of one page out, so it reads as its defaults again; the other pages are not touched.
     public func reset(_ page: SettingsPage) {
         for key in Self.keys(of: page) { defaults.removeObject(forKey: key) }
@@ -254,7 +262,7 @@ public struct AppPreferences {
         case .chat:
             [
                 sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,
-                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey,
+                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, confirmDeleteKey,
             ]
         default: []
         }

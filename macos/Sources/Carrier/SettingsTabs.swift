@@ -17,7 +17,7 @@ struct SettingsTabRow<Control: View>: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).fontWeight(.medium)
-                Text(detail).font(mono ? .system(size: 11.5, design: .monospaced) : .caption).foregroundStyle(.secondary)
+                Text(detail).font(mono ? .scaled(11.5, design: .monospaced) : .caption).foregroundStyle(.secondary)
                     .lineLimit(2).truncationMode(.middle)
             }
             Spacer(minLength: 8)
@@ -58,7 +58,7 @@ struct SettingsPageHeader: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: page.icon)
-                .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accentColor)
+                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.accentColor)
                 .frame(width: 36, height: 36)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.16)))
                 .accessibilityHidden(true)

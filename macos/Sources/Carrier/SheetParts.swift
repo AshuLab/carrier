@@ -44,7 +44,7 @@ extension View {
 struct ChosenMark: View {
     var body: some View {
         Image(systemName: "checkmark")
-            .font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+            .font(.scaled(9, weight: .bold)).foregroundStyle(.white)
             .frame(width: 18, height: 18).background(Circle().fill(Color.accentColor))
             .accessibilityLabel("Chosen")
     }
@@ -84,7 +84,7 @@ struct RailHeader: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 15, weight: .medium)).foregroundStyle(.white)
+                .font(.scaled(15, weight: .medium)).foregroundStyle(.white)
                 .frame(width: 36, height: 36)
                 .background(Circle().fill(LinearGradient(colors: [.accentColor, .accentColor.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
                 .accessibilityHidden(true)
@@ -110,7 +110,7 @@ struct RailRow: View {
         HoverRow(action: action, fill: selected ? Color.accentColor.opacity(0.22) : nil) { _ in
             HStack(spacing: 10) {
                 Image(systemName: icon)
-                    .font(.system(size: 13, weight: .medium)).foregroundStyle(selected ? Color.accentColor : .secondary)
+                    .font(.scaled(13, weight: .medium)).foregroundStyle(selected ? Color.accentColor : .secondary)
                     .frame(width: 28, height: 28)
                     .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12)))
                 VStack(alignment: .leading, spacing: 1) {

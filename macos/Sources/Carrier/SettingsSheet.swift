@@ -153,7 +153,7 @@ struct StatusDot: View {
 
     var body: some View {
         Image(systemName: found ? "checkmark" : "exclamationmark")
-            .font(.system(size: 10, weight: .heavy)).foregroundStyle(.white)
+            .font(.scaled(10, weight: .heavy)).foregroundStyle(.white)
             .frame(width: 18, height: 18)
             .background(Circle().fill(found ? Color.green : Color.orange))
             .accessibilityLabel(found ? "Found" : "Not found")

@@ -42,7 +42,7 @@ struct SidebarEmptyBlock<Action: View>: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: 26)).foregroundStyle(.secondary).padding(.bottom, 4)
+            Image(systemName: icon).font(.scaled(26)).foregroundStyle(.secondary).padding(.bottom, 4)
             Text(title).font(.headline)
             Text(line).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).lineLimit(3)
             action.padding(.top, 4)

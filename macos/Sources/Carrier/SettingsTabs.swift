@@ -202,6 +202,18 @@ struct AppearanceTabView: View {
     }
 
     @AppStorage(AppPreferences.statesByShapeKey) private var statesByShape = false
+    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
+    @State private var previewRoom: CGFloat = 0
+
+    /// A message of the agent in a column that is to the room as the chosen width is to the widest one, so the three read differently.
+    private var messagePreview: some View {
+        SettingsGroup(title: "Preview") {
+            MarkdownView(text: "The width of a message is how far a line runs before it wraps. A narrow column is easy on the eye; a wide one fits more of a table or a long command.")
+                .frame(width: previewRoom * messageWidth.points / MessageWidth.wide.points, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12)
+                .onGeometryChange(for: CGFloat.self, of: \.size.width) { previewRoom = $0 }
+        }
+    }
 
     /// The four states as the app draws them now, with or without their symbols.
     private var statesPreview: some View {
@@ -224,7 +236,7 @@ struct AppearanceTabView: View {
     }
 
     var body: some View {
-        SettingsPageBody(reset: { AppPreferences().reset(.appearance) }, preview: { codePreview(); statesPreview }) {
+        SettingsPageBody(reset: { AppPreferences().reset(.appearance) }, preview: { codePreview(); statesPreview; messagePreview }) {
             SettingsGroup(title: "Look") {
                 SettingsTabRow(title: "Color scheme", detail: "System follows the Mac; light and dark stay as chosen", first: true) {
                     Picker("Color scheme", selection: $colorScheme) {
@@ -242,6 +254,12 @@ struct AppearanceTabView: View {
                 SettingsTabRow(title: "Density", detail: "The space in the sidebar rows and between the messages") {
                     Picker("Density", selection: $density) {
                         ForEach(Density.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Message width", detail: "How wide a message gets before it wraps") {
+                    Picker("Message width", selection: $messageWidth) {
+                        ForEach(MessageWidth.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .labelsHidden().fixedSize()
                 }

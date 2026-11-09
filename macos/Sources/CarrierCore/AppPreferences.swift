@@ -8,6 +8,8 @@ public struct AppPreferences {
     public static let confirmStopKey = "stop.confirm"
     public static let timeStyleKey = "display.timeStyle"
     public static let clockHoursKey = "display.clock"
+    public static let colorSchemeKey = "appearance.colorScheme"
+    public static let densityKey = "appearance.density"
     public static let sendKeyKey = "chat.sendKey"
     public static let writingToolsKey = "chat.writingTools"
     public static let checksSpellingKey = "chat.checkSpelling"
@@ -17,6 +19,8 @@ public struct AppPreferences {
     public static let defaultAnimates = true
     public static let defaultShowsEpics = true
     public static let defaultConfirmStop = true
+    public static let defaultColorScheme = ColorSchemeChoice.system
+    public static let defaultDensity = Density.comfortable
     public static let defaultSendKey = SendKey.return
     public static let defaultWritingTools = false
     public static let defaultChecksSpelling = true
@@ -59,6 +63,23 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.clockHoursKey) }
     }
 
+    /// The appearance of every window of the app: the Mac's, or light or dark whatever the Mac is.
+    public var colorScheme: ColorSchemeChoice {
+        get { defaults.string(forKey: Self.colorSchemeKey).flatMap(ColorSchemeChoice.init(rawValue:)) ?? Self.defaultColorScheme }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.colorSchemeKey) }
+    }
+
+    /// The text size of the whole interface in percent, the one the type scale reads.
+    public var textSize: Int {
+        get { TypeScale.stored(in: defaults).percent }
+        nonmutating set { defaults.set(TypeScale(percent: newValue).percent, forKey: TypeScale.percentKey) }
+    }
+
+    public var density: Density {
+        get { defaults.string(forKey: Self.densityKey).flatMap(Density.init(rawValue:)) ?? Self.defaultDensity }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.densityKey) }
+    }
+
     /// The key that sends in the message box; the other one makes a new line.
     public var sendKey: SendKey {
         get { defaults.string(forKey: Self.sendKeyKey).flatMap(SendKey.init(rawValue:)) ?? Self.defaultSendKey }
@@ -95,10 +116,26 @@ public struct AppPreferences {
                 SidebarStore.groupByKey, SidebarStore.sessionSortKey, SidebarStore.archiveSortKey, SidebarStore.showsIconKey,
                 SidebarStore.showsBranchKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey,
             ]
+        case .appearance: [colorSchemeKey, TypeScale.percentKey, densityKey]
         case .chat: [sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey]
         default: []
         }
     }
+}
+
+public enum ColorSchemeChoice: String, CaseIterable {
+    case system, light, dark
+
+    public var title: String { rawValue.capitalized }
+}
+
+/// How tight the app packs its rows: the vertical padding of a sidebar row and the space between the messages of a conversation.
+public enum Density: String, CaseIterable {
+    case compact, comfortable
+
+    public var title: String { rawValue.capitalized }
+    public var rowPadding: CGFloat { self == .compact ? 4 : 7 }
+    public var messageGap: CGFloat { self == .compact ? 8 : 12 }
 }
 
 /// The key that sends a message: Return, or ⌘Return. Shift+Return makes a new line whichever is chosen.

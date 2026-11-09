@@ -16,6 +16,7 @@ struct ConversationView: View {
     @State private var boxFocused = false
     /// Whether rows are animated in: not the ones the first answer brings, which are the history.
     @State private var animatesRows = false
+    @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
 
     /// Where the first message of the session the draft opened is handed over, so it shows while the session is prepared.
     private let draft: NewSessionModel?
@@ -30,7 +31,7 @@ struct ConversationView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
+            LazyVStack(alignment: .leading, spacing: density.messageGap) {
                 if model.loaded {
                     if model.steps.isEmpty == false {
                         PreparationStepsView(steps: model.steps, preparation: model.preparation, refusal: model.preparationRefusal, retry: { Task { await model.retryPreparation() } }, cancel: {

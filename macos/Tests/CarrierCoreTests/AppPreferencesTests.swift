@@ -132,3 +132,53 @@ private let idle = PanelSnapshot(
     #expect(SendKey.return.sends(command: false, shift: true) == false)
     #expect(SendKey.commandReturn.sends(command: true, shift: true) == false)
 }
+
+@Test func appearanceStartsOnTheDefaultsAndSurvivesARelaunch() {
+    let name = "appearance-\(UUID().uuidString)"
+    let store = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(store.colorScheme == .system)
+    #expect(store.textSize == 100)
+    #expect(store.density == .comfortable)
+    store.colorScheme = .dark
+    store.textSize = 115
+    store.density = .compact
+    let relaunched = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(relaunched.colorScheme == .dark)
+    #expect(relaunched.textSize == 115)
+    #expect(relaunched.density == .compact)
+    // the percent is the one the type scale reads
+    #expect(TypeScale.stored(in: UserDefaults(suiteName: name)!).percent == 115)
+}
+
+@Test func aBadSavedAppearanceReadsAsTheDefaultAndTheTextSizeStaysInRange() {
+    let defaults = UserDefaults(suiteName: "appearance-\(UUID().uuidString)")!
+    defaults.set("sepia", forKey: AppPreferences.colorSchemeKey)
+    defaults.set("roomy", forKey: AppPreferences.densityKey)
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.colorScheme == .system)
+    #expect(store.density == .comfortable)
+    store.textSize = 300
+    #expect(store.textSize == 130)
+    store.textSize = 10
+    #expect(store.textSize == 90)
+}
+
+@Test func resettingAppearanceLeavesTheOtherPagesAlone() {
+    let store = AppPreferences(defaults: UserDefaults(suiteName: "appearance-\(UUID().uuidString)")!)
+    store.colorScheme = .light
+    store.textSize = 125
+    store.density = .compact
+    store.confirmStop = false
+    store.reset(.appearance)
+    #expect(store.colorScheme == .system)
+    #expect(store.textSize == 100)
+    #expect(store.density == .comfortable)
+    #expect(store.confirmStop == false)
+}
+
+@Test func eachDensityHasItsFixedSidebarPaddingAndMessageGap() {
+    #expect(Density.compact.rowPadding == 4)
+    #expect(Density.compact.messageGap == 8)
+    #expect(Density.comfortable.rowPadding == 7)
+    #expect(Density.comfortable.messageGap == 12)
+}

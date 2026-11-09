@@ -7,7 +7,7 @@ import Testing
 @Test @MainActor func theRailDrawsTheAppGroupWithNoHeadingThenLegacyWithItsHeadingAndItsFive() {
     let sections = SettingsRail.sections
     #expect(sections.map(\.group.heading) == [nil, "Legacy"])
-    #expect(sections[0].pages == [.general, .notifications, .sidebar, .chat])
+    #expect(sections[0].pages == [.general, .notifications, .appearance, .sidebar, .chat])
     #expect(sections[1].pages == [.engine, .behavior, .repos, .sessions, .health])
     // and the view is built from them
     let renderer = ImageRenderer(content: SettingsRail(page: .constant(.general)).frame(height: 700))

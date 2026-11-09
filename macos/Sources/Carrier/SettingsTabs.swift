@@ -223,6 +223,37 @@ struct SidebarTabView: View {
     }
 }
 
+/// How the message box behaves: the key that sends and what the system does to the text. The conversation's own block comes with its slice.
+struct ChatTabView: View {
+    @AppStorage(AppPreferences.sendKeyKey) private var sendKey = AppPreferences.defaultSendKey
+    @AppStorage(AppPreferences.writingToolsKey) private var writingTools = AppPreferences.defaultWritingTools
+    @AppStorage(AppPreferences.checksSpellingKey) private var checksSpelling = AppPreferences.defaultChecksSpelling
+    @AppStorage(AppPreferences.correctsSpellingKey) private var correctsSpelling = AppPreferences.defaultCorrectsSpelling
+
+    var body: some View {
+        SettingsPageBody(reset: { AppPreferences().reset(.chat) }) {
+            SettingsGroup(title: "Message box") {
+                SettingsTabRow(title: "Send with", detail: "The other key makes a new line", first: true) {
+                    Picker("Send with", selection: $sendKey) {
+                        Text("Return").tag(SendKey.return)
+                        Text("\u{2318}Return").tag(SendKey.commandReturn)
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Writing Tools", detail: "The system's offer to rewrite or proofread what you select") {
+                    Toggle("Writing Tools", isOn: $writingTools).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Check spelling", detail: "Underline words that look misspelled") {
+                    Toggle("Check spelling", isOn: $checksSpelling).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Correct spelling automatically", detail: "Fix a misspelled word as you type it") {
+                    Toggle("Correct spelling automatically", isOn: $correctsSpelling).labelsHidden().toggleStyle(.switch)
+                }
+            }
+        }
+    }
+}
+
 struct NotificationsTabView: View {
     @AppStorage(notifyNeedsYouKey) private var needsYou = true
     @AppStorage(notifyReadyForTestKey) private var readyForTest = true

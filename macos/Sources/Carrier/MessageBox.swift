@@ -2,7 +2,8 @@ import CarrierCore
 import SwiftUI
 
 /// The message box of the draft and of an open session: a roomy text area with a hint and the send button, which is Stop while the
-/// agent answers, and under it the selects of what the session runs with. Enter sends and Shift+Enter adds a line.
+/// agent answers, and under it the selects of what the session runs with. The key chosen in Settings sends (Return or ⌘Return), the other
+/// and Shift+Return add a line.
 struct MessageBox<Selects: View>: View {
     @Binding var text: String
     var placeholder: String
@@ -28,6 +29,10 @@ struct MessageBox<Selects: View>: View {
     @State private var closedFor: CommandToken?
     /// Where the caret is in the text.
     @State private var cursor = 0
+    @AppStorage(AppPreferences.sendKeyKey) private var sendKey = AppPreferences.defaultSendKey
+    @AppStorage(AppPreferences.writingToolsKey) private var writingTools = AppPreferences.defaultWritingTools
+    @AppStorage(AppPreferences.checksSpellingKey) private var checksSpelling = AppPreferences.defaultChecksSpelling
+    @AppStorage(AppPreferences.correctsSpellingKey) private var correctsSpelling = AppPreferences.defaultCorrectsSpelling
 
     /// The word under the caret, while it is a slash and what is typed of a name.
     private var token: CommandToken? { commands.isEmpty ? nil : commandToken(in: text, cursor: cursor) }
@@ -46,7 +51,8 @@ struct MessageBox<Selects: View>: View {
                     Divider()
                 }
                 CommandTextView(
-                    text: $text, cursor: $cursor, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle
+                    text: $text, cursor: $cursor, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle,
+                    sendKey: sendKey, writingTools: writingTools, checksSpelling: checksSpelling, correctsSpelling: correctsSpelling
                 )
                 .onChange(of: text) { highlighted = 0 }
                 HStack {
@@ -203,6 +209,6 @@ struct MessageBox<Selects: View>: View {
         // a circle by construction: the system's border shape, over a label that is square
         .buttonBorderShape(.circle).controlSize(.large).tint(.accentColor)
         .animation(.smooth(duration: 0.25), value: active)
-        .help(busy ? "Stop" : "\(sendHelp) (↩) · New line (⇧↩)").accessibilityLabel(busy ? "Stop" : "Send")
+        .help(busy ? "Stop" : "\(sendHelp) (\(sendKey == .return ? "↩" : "⌘↩")) · New line (\(sendKey == .return ? "⇧↩" : "↩"))").accessibilityLabel(busy ? "Stop" : "Send")
     }
 }

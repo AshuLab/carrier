@@ -34,6 +34,7 @@ public struct AppPreferences {
     public static let diffStyleKey = "chat.diffStyle"
     public static let outputLengthKey = "chat.outputLength"
     public static let confirmDeleteKey = "chat.confirmDelete"
+    public static let showsReasoningKey = "chat.showReasoning"
 
     public static let defaultStyle = IconStyle.countAndBar
     public static let defaultAnimates = true
@@ -56,6 +57,7 @@ public struct AppPreferences {
     public static let defaultDiffStyle = DiffStyle.unified
     public static let defaultOutputLength = OutputLength.medium
     public static let defaultConfirmDelete = true
+    public static let defaultShowsReasoning = true
 
     private let defaults: UserDefaults
 
@@ -234,6 +236,12 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.outputLengthKey) }
     }
 
+    /// Whether the agent's reasoning shows folded under its message, when the host sends it.
+    public var showsReasoning: Bool {
+        get { defaults.object(forKey: Self.showsReasoningKey) as? Bool ?? Self.defaultShowsReasoning }
+        nonmutating set { defaults.set(newValue, forKey: Self.showsReasoningKey) }
+    }
+
     /// Whether deleting a session asks first.
     public var confirmDelete: Bool {
         get { defaults.object(forKey: Self.confirmDeleteKey) as? Bool ?? Self.defaultConfirmDelete }
@@ -262,7 +270,7 @@ public struct AppPreferences {
         case .chat:
             [
                 sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,
-                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, confirmDeleteKey,
+                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey, confirmDeleteKey,
             ]
         default: []
         }

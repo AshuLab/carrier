@@ -134,6 +134,8 @@ public enum FeedRow: Equatable, Identifiable {
     case user(id: String, text: String)
     /// What the agent wrote, as markdown; `inProgress` is the text still being written, which is not stored yet.
     case agent(id: String, text: String, inProgress: Bool)
+    /// The agent's reasoning, folded under its message: one finished thinking block.
+    case reasoning(id: String, text: String)
     /// The line that closes a turn: the model, how long it took and the usage the provider reported.
     case turnEnd(id: String, text: String)
     /// A run of tool calls: one row that opens to its calls.
@@ -151,7 +153,7 @@ public enum FeedRow: Equatable, Identifiable {
 
     public var id: String {
         switch self {
-        case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .tools(let id, _), .approval(let id, _), .decided(let id, _, _),
+        case .user(let id, _), .agent(let id, _, _), .reasoning(let id, _), .turnEnd(let id, _), .tools(let id, _), .approval(let id, _), .decided(let id, _, _),
             .line(let id, _), .error(let id, _), .stopped(let id): id
         }
     }
@@ -216,21 +218,31 @@ public struct ApprovalCard: Equatable {
 /// at the place where the first started, each completed by its end (a turn that ends first stops the calls still going); an
 /// approval is one row at the place where it was asked: a card while its id is in `pending` (what the host still waits for),
 /// a line once answered, and a plain line when it is neither (the turn ended without it).
-/// Anything else the host may add is not drawn.
+/// A `reasoning` event is held and drawn right under the message that follows it in its turn (the host stores it before the message),
+/// or where the turn ends without one. Anything else the host may add is not drawn.
 public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set<String> = []) -> [FeedRow] {
     var rows: [FeedRow] = []
     // where each call still going is: its row and its place in it
     var going: [String: (row: Int, call: Int)] = [:]
     var asked: [String: (row: Int, event: ChatEvent)] = [:]
     var turnStart: Int?
+    var held: [FeedRow] = []
+    func release() {
+        rows += held
+        held = []
+    }
     for event in events {
         let id = "e\(event.id)"
         switch event.kind {
+        case "reasoning":
+            if let text = event.text, text.isEmpty == false { held.append(.reasoning(id: id, text: text)) }
         case "user":
+            release()
             turnStart = event.at
             rows.append(.user(id: id, text: event.text ?? ""))
         case "assistant":
             rows.append(.agent(id: id, text: event.text ?? "", inProgress: false))
+            release()
         case "tool_start":
             let call = ToolCall(start: event)
             going[call.id] = place(call, in: &rows, id: id)
@@ -253,6 +265,7 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
             guard let approval = event.approvalId, let question = asked[approval] else { continue }
             rows[question.row] = decided(question.event, choice: event.choiceId, id: rows[question.row].id)
         case "turn_end":
+            release()
             for spot in going.values {
                 guard case .tools(let group, var calls) = rows[spot.row] else { continue }
                 calls.calls[spot.call].stop()
@@ -263,12 +276,14 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
             if event.outcome == "interrupted" { rows.append(.stopped(id: "\(id)-stopped")) }
             turnStart = nil
         case "error":
+            release()
             rows.append(.error(id: id, text: event.text ?? "Something went wrong"))
         default:
             continue
         }
     }
     if streaming.isEmpty == false { rows.append(.agent(id: "streaming", text: streaming, inProgress: true)) }
+    release()
     return rows
 }
 

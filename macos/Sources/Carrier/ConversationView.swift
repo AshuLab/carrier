@@ -15,6 +15,7 @@ struct ConversationView: View {
     @State private var animatesRows = false
     @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+    @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
     @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
     @State private var position = ScrollPosition()
     /// The feed's column; medium is the one of the mockups (chat-ui-conv2.html).
@@ -50,7 +51,8 @@ struct ConversationView: View {
                         Label(note.text, systemImage: note.failed ? "exclamationmark.triangle.fill" : "eye.fill").font(.scaled(11)).foregroundStyle(note.failed ? .orange : .secondary).textSelection(.enabled)
                     }
                     let open = openOutcome(model.rows)
-                    ForEach(visibleFeed(model.rows, mode: toolOutput)) { row in
+                    let feed = visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning)
+                    ForEach(feed) { row in
                         FeedRowView(
                             row: row, time: model.times[row.id], flipped: $flipped, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
                             continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
@@ -59,7 +61,7 @@ struct ConversationView: View {
                         .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
                     }
                     // between Enter and the first words of the answer
-                    if model.busy, model.steps.isEmpty, case .user = model.rows.last {
+                    if model.busy, model.steps.isEmpty, case .user = feed.last {
                         ThinkingRow().transition(.opacity)
                     }
                 } else if model.failure == nil {
@@ -230,6 +232,8 @@ private struct FeedRowView: View {
                 stamp
             }
             .onHover { hovering = $0 }
+        case .reasoning(let id, let text):
+            ReasoningRow(id: id, text: text, flipped: $flipped)
         case .turnEnd(_, let text):
             Text(text).font(.scaled(11)).foregroundStyle(.tertiary).textSelection(.enabled)
         case .tools(let id, let group):
@@ -342,6 +346,34 @@ private struct ThinkingRow: View {
         }
         .font(.scaled(12)).foregroundStyle(.secondary)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// The agent's reasoning under its message: one line that opens to the text; folded until the person opens it (kept in `flipped`).
+private struct ReasoningRow: View {
+    let id: String
+    let text: String
+    @Binding var flipped: Set<String>
+
+    var body: some View {
+        let open = flipped.contains(id)
+        VStack(alignment: .leading, spacing: 6) {
+            Button {
+                if open { flipped.remove(id) } else { flipped.insert(id) }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "chevron.right").font(.scaled(9, weight: .semibold)).rotationEffect(.degrees(open ? 90 : 0))
+                    Text("Reasoning")
+                }
+                .font(.scaled(12)).foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(open ? "expanded" : "collapsed")
+            if open {
+                Text(text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
+                    .padding(.leading, 14).frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
     }
 }
 

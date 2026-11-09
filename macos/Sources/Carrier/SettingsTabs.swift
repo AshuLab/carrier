@@ -461,6 +461,7 @@ struct ChatTabView: View {
     @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailedCalls = AppPreferences.defaultOpensFailedCalls
     @AppStorage(AppPreferences.diffStyleKey) private var diffStyle = AppPreferences.defaultDiffStyle
     @AppStorage(AppPreferences.outputLengthKey) private var outputLength = AppPreferences.defaultOutputLength
+    @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
     @AppStorage(AppPreferences.confirmDeleteKey) private var confirmDelete = AppPreferences.defaultConfirmDelete
 
     var body: some View {
@@ -520,6 +521,9 @@ struct ChatTabView: View {
                         ForEach(OutputLength.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Show reasoning", detail: "The agent's reasoning, folded under its message, when its host sends it") {
+                    Toggle("Show reasoning", isOn: $showsReasoning).labelsHidden().toggleStyle(.switch)
                 }
             }
             SettingsGroup(title: "Sessions") {

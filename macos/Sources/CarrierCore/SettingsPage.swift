@@ -41,7 +41,7 @@ public enum SettingsPage: String, CaseIterable {
         case .notifications: "What to tell you"
         case .appearance: "Theme, color, text size, density and the font of code"
         case .sidebar: "What the sessions list shows"
-        case .chat: "The message box"
+        case .chat: "The message box and the conversation"
         case .engine: "How the app starts Carrier"
         case .behavior: "How epics run"
         case .repos: "What Carrier watches"

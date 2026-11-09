@@ -309,3 +309,32 @@ private let idle = PanelSnapshot(
     #expect(MessageTimes.hover.shows(hovering: false) == false && MessageTimes.hover.shows(hovering: true))
     #expect(MessageTimes.always.shows(hovering: false))
 }
+
+@Test func theConversationDefaultsAreToolsCollapsedFailedCallsOpenAndFiftyLines() {
+    let store = AppPreferences(defaults: UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!)
+    #expect(store.toolOutput == .collapsed && store.opensFailedCalls && store.outputLength == .medium)
+}
+
+@Test func theConversationChoicesSurviveARelaunchAndABadSavedValueReadsAsTheDefault() {
+    let name = "prefs-\(UUID().uuidString)"
+    let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    first.toolOutput = .expanded
+    first.opensFailedCalls = false
+    first.outputLength = .long
+    let second = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(second.toolOutput == .expanded && second.opensFailedCalls == false && second.outputLength == .long)
+    let defaults = UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!
+    defaults.set("open", forKey: AppPreferences.toolOutputKey)
+    defaults.set(7, forKey: AppPreferences.outputLengthKey)
+    let bad = AppPreferences(defaults: defaults)
+    #expect(bad.toolOutput == .collapsed && bad.outputLength == .medium)
+}
+
+@Test func resetOfChatPutsTheConversationBackToo() {
+    let store = AppPreferences(defaults: UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!)
+    store.toolOutput = .hidden
+    store.opensFailedCalls = false
+    store.outputLength = .short
+    store.reset(.chat)
+    #expect(store.toolOutput == .collapsed && store.opensFailedCalls && store.outputLength == .medium)
+}

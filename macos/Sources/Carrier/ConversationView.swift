@@ -8,11 +8,12 @@ struct ConversationView: View {
     static let layout = "lazy stack, pages of \(ConversationModel.page) events, polled every \(ConversationModel.intervalMilliseconds) ms"
     @State private var model: ConversationModel
     @Environment(SessionActions.self) private var actions
-    /// The tool groups and calls the person opened, by id; here and not in each row, which the lazy stack may recreate.
-    @State private var opened: Set<String> = []
+    /// The tool groups and calls the person flipped from how the tools show, by id; here and not in each row, which the lazy stack may recreate.
+    @State private var flipped: Set<String> = []
     @State private var boxFocused = false
     /// Whether rows are animated in: not the ones the first answer brings, which are the history.
     @State private var animatesRows = false
+    @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
     @State private var position = ScrollPosition()
@@ -48,9 +49,9 @@ struct ConversationView: View {
                         Label(note.text, systemImage: note.failed ? "exclamationmark.triangle.fill" : "eye.fill").font(.scaled(11)).foregroundStyle(note.failed ? .orange : .secondary).textSelection(.enabled)
                     }
                     let open = openOutcome(model.rows)
-                    ForEach(model.rows) { row in
+                    ForEach(visibleFeed(model.rows, mode: toolOutput)) { row in
                         FeedRowView(
-                            row: row, time: model.times[row.id], opened: $opened, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
+                            row: row, time: model.times[row.id], flipped: $flipped, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
                             continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
                             answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
                         )
@@ -197,7 +198,7 @@ private struct FeedRowView: View {
     let row: FeedRow
     /// When the message was written, in ms; nil for a row that is not a stored message.
     let time: Int?
-    @Binding var opened: Set<String>
+    @Binding var flipped: Set<String>
     let agent: String
     /// What the session lists, to show the commands a message names as pills.
     let commands: [ChatCommand]
@@ -231,7 +232,7 @@ private struct FeedRowView: View {
         case .turnEnd(_, let text):
             Text(text).font(.scaled(11)).foregroundStyle(.tertiary).textSelection(.enabled)
         case .tools(let id, let group):
-            ChatToolGroupView(id: id, group: group, opened: $opened)
+            ChatToolGroupView(id: id, group: group, flipped: $flipped)
         case .approval(_, let card):
             ApprovalCardView(card: card, answer: answer)
         case .decided(_, let text, let allow):

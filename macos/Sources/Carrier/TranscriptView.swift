@@ -9,6 +9,7 @@ struct TranscriptRows: View {
     @Binding var outputs: OutputFolds
     @Binding var groups: GroupFolds
     @Binding var slices: SliceFolds
+    @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
 
     var body: some View {
         switch content {
@@ -17,7 +18,7 @@ struct TranscriptRows: View {
         case .items(let items) where items.isEmpty:
             EmptyStateView(state: .noActivity).frame(minHeight: 170).sessionRow()
         case .items(let items):
-            ForEach(items) { FlowItemView(flow: $0, outputs: $outputs, groups: $groups, slices: $slices).sessionRow() }
+            ForEach(visibleFlow(items, mode: mode)) { FlowItemView(flow: $0, outputs: $outputs, groups: $groups, slices: $slices).sessionRow() }
         case .tail(let lines):
             MonoLines(lines: lines.isEmpty ? ["No output yet"] : lines)
                 .codeFont(12).foregroundStyle(.secondary)
@@ -91,6 +92,8 @@ struct MarkdownView: View {
 struct TranscriptItemView: View {
     let item: TranscriptItem
     @Binding var outputs: OutputFolds
+    @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
+    @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
 
     var body: some View {
         switch item {
@@ -111,7 +114,9 @@ struct TranscriptItemView: View {
             } else if card.isSkill {
                 SkillRowView(card: card)
             } else {
-                ToolLineView(card: card, outputOpen: outputs.isOpen(id, card)) { outputs.toggle(id, card) }
+                ToolLineView(card: card, outputOpen: outputs.isOpen(id, card, mode: mode, opensFailed: opensFailed)) {
+                    outputs.toggle(id, card, mode: mode, opensFailed: opensFailed)
+                }
             }
         }
     }
@@ -252,14 +257,16 @@ struct ToolGroupView: View {
     let calls: [TranscriptItem]
     @Binding var groups: GroupFolds
     @Binding var outputs: OutputFolds
+    @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
 
     var body: some View {
+        let open = groups.isOpen(id, mode: mode)
         VStack(alignment: .leading, spacing: 0) {
             Button { groups.toggle(id) } label: {
-                ToolGroupHeader(calls: calls, open: groups.isOpen(id))
+                ToolGroupHeader(calls: calls, open: open)
             }
             .buttonStyle(.plain)
-            if groups.isOpen(id) {
+            if open {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(calls) { TranscriptItemView(item: $0, outputs: $outputs) }
                 }
@@ -326,9 +333,10 @@ struct SkillRowView: View {
 struct TerminalBlockView: View {
     let card: TranscriptCard
     @State private var showAll = false
+    @AppStorage(AppPreferences.outputLengthKey) private var length = AppPreferences.defaultOutputLength
 
     var body: some View {
-        let shown = card.visibleOutput(expanded: showAll)
+        let shown = length.visible(card.output, expanded: showAll)
         VStack(alignment: .leading, spacing: 0) {
             strip
             divider

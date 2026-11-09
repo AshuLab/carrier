@@ -448,7 +448,7 @@ struct SidebarTabView: View {
     }
 }
 
-/// How the message box and the conversation behave. The rest of the conversation's block comes with its slices.
+/// How the message box behaves (the key that sends and what the system does to the text) and what the conversation does and shows.
 struct ChatTabView: View {
     @AppStorage(AppPreferences.sendKeyKey) private var sendKey = AppPreferences.defaultSendKey
     @AppStorage(AppPreferences.writingToolsKey) private var writingTools = AppPreferences.defaultWritingTools
@@ -456,6 +456,9 @@ struct ChatTabView: View {
     @AppStorage(AppPreferences.correctsSpellingKey) private var correctsSpelling = AppPreferences.defaultCorrectsSpelling
     @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
     @AppStorage(AppPreferences.messageTimesKey) private var messageTimes = AppPreferences.defaultMessageTimes
+    @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
+    @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailedCalls = AppPreferences.defaultOpensFailedCalls
+    @AppStorage(AppPreferences.outputLengthKey) private var outputLength = AppPreferences.defaultOutputLength
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.chat) }) {
@@ -484,6 +487,21 @@ struct ChatTabView: View {
                 SettingsTabRow(title: "Message times", detail: "When a message shows the time it was written, as in General") {
                     Picker("Message times", selection: $messageTimes) {
                         ForEach(MessageTimes.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Tool output", detail: "What the agent's tools show: nothing, each run folded, or every call open", first: true) {
+                    Picker("Tool output", selection: $toolOutput) {
+                        ForEach(ToolOutputMode.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Open the calls that failed", detail: "A call that failed opens by itself, even when the rest are folded") {
+                    Toggle("Open the calls that failed", isOn: $opensFailedCalls).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Output length", detail: "How many lines of an output show before Show more") {
+                    Picker("Output length", selection: $outputLength) {
+                        ForEach(OutputLength.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .labelsHidden().fixedSize()
                 }

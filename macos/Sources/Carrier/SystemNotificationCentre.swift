@@ -88,6 +88,7 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
             if notification.quiet { content.interruptionLevel = .passive }
             var info: [String: Any] = ["test": notification.isTest, "quiet": notification.quiet]
             if let epic = notification.epic { info["repo"] = epic.repo; info["issue"] = epic.issue }
+            if let session = notification.session { info["session"] = session }
             content.userInfo = info
             center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)) { error in
                 if let error { self.log("notification not shown: \(error)") }
@@ -115,13 +116,14 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
         done(show ? [.banner, .sound] : [])
     }
 
-    /// A click opens the window, on the epic when the notification is about one.
+    /// A click opens the window, on the epic or the session when the notification is about one.
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                 withCompletionHandler done: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
         let epic = (info["repo"] as? String).flatMap { repo in (info["issue"] as? Int).map { EpicRef(repo: repo, issue: $0) } }
+        let session = info["session"] as? String
         DispatchQueue.main.async {
-            WindowController.shared.open(epic: epic)
+            if let session { WindowController.shared.open(session: session) } else { WindowController.shared.open(epic: epic) }
             done()
         }
     }

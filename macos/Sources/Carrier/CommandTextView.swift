@@ -23,9 +23,11 @@ struct CommandTextView: NSViewRepresentable {
     var writingTools = AppPreferences.defaultWritingTools
     var checksSpelling = AppPreferences.defaultChecksSpelling
     var correctsSpelling = AppPreferences.defaultCorrectsSpelling
+    /// The text size the box is drawn at: read when the box is built, so a change of it reaches `updateNSView`.
+    var textSize = TextSize.shared.percent
 
     static var font: NSFont { NSFont.scaled(14) }
-    static var lineHeight: CGFloat { TypeScale.stored().size(22) }
+    static var lineHeight: CGFloat { TextSize.shared.scale.size(22) }
     static var attributes: [NSAttributedString.Key: Any] {
         let style = NSMutableParagraphStyle()
         style.minimumLineHeight = lineHeight
@@ -80,9 +82,11 @@ struct CommandTextView: NSViewRepresentable {
         view.writingToolsBehavior = writingTools ? .default : .none
         view.isContinuousSpellCheckingEnabled = checksSpelling
         view.isAutomaticSpellingCorrectionEnabled = correctsSpelling
+        let rescaled = coordinator.textSize != textSize
+        coordinator.textSize = textSize
         if view.hasMarkedText() == false {
             let rendered = render(text, commands: commands)
-            if view.plain != text || view.string != rendered.string {
+            if rescaled || view.plain != text || view.string != rendered.string {
                 view.replace(with: rendered, plainCursor: min(cursor, (text as NSString).length))
             } else if view.plainOffset(of: view.selectedRange().location) != cursor {
                 view.setSelectedRange(NSRange(location: view.location(ofPlainOffset: cursor), length: 0))
@@ -136,8 +140,13 @@ struct CommandTextView: NSViewRepresentable {
         var parent: CommandTextView
         /// Set while the box is the one changing the text view, so what it reports back is not taken for the person's edit.
         var updating = false
+        /// The text size the text view was last drawn at.
+        var textSize: Int
 
-        init(_ parent: CommandTextView) { self.parent = parent }
+        init(_ parent: CommandTextView) {
+            self.parent = parent
+            textSize = parent.textSize
+        }
 
         func textDidChange(_ notification: Notification) {
             guard updating == false, let view = notification.object as? PillTextView, view.hasMarkedText() == false else { return }

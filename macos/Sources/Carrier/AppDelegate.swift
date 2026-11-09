@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMainMenu()
+        followColorScheme()
         // before anything reads the socket path: the fake engine's home becomes CARRIER_HOME
         if let fixtures = Self.fixturesPath() { startFixtureMode(fixtures) }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -98,6 +99,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         Thread.detachNewThread { monitor.run() }
+        watchChatSessions()
+    }
+
+    /// The chat sessions notify with the window closed, so they are read for the life of the app, beside the engine's monitor. A host
+    /// that does not answer (not started yet, or stopped) is not an event: the last list is kept and the next answer is compared to it.
+    private func watchChatSessions() {
+        let host = SocketChatHost()
+        Task.detached {
+            while true {
+                if let listed = try? await host.list(archived: false) {
+                    let rows = sessionRows(listed)
+                    await MainActor.run { NotificationWatcher.app.react(toSessions: rows) }
+                }
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
     }
 
     /// The person's standing choice: start Carrier once when the app opens and finds it stopped.

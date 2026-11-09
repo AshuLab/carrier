@@ -1,20 +1,22 @@
 import Foundation
 
-/// A notification to show: what happened and, when it is about one epic, which. `isTest` is the one Settings sends: it shows
+/// A notification to show: what happened and, when it is about one epic or one chat session, which. `isTest` is the one Settings sends: it shows
 /// even while the window is in front. `sound` is whether its banner plays one. `quiet` is posted inside the quiet hours: no
 /// banner and no sound, it waits in the Notification Center.
 public struct EpicNotification: Equatable {
     public var title: String
     public var body: String
     public var epic: EpicRef?
+    public var session: String?
     public var isTest: Bool
     public var sound: Bool
     public var quiet: Bool
 
-    public init(title: String, body: String, epic: EpicRef? = nil, isTest: Bool = false, sound: Bool = true, quiet: Bool = false) {
+    public init(title: String, body: String, epic: EpicRef? = nil, session: String? = nil, isTest: Bool = false, sound: Bool = true, quiet: Bool = false) {
         self.title = title
         self.body = body
         self.epic = epic
+        self.session = session
         self.isTest = isTest
         self.sound = sound
         self.quiet = quiet
@@ -26,11 +28,33 @@ public struct NotificationKinds: Equatable {
     public var needsYou: Bool
     public var readyForTest: Bool
     public var problem: Bool
+    /// A chat session waits for an approval; on until turned off.
+    public var chatNeedsAttention: Bool
+    /// A chat session finished its turn; off until turned on.
+    public var chatDone: Bool
 
-    public init(needsYou: Bool = true, readyForTest: Bool = true, problem: Bool = false) {
+    public init(needsYou: Bool = true, readyForTest: Bool = true, problem: Bool = false, chatNeedsAttention: Bool = true, chatDone: Bool = false) {
         self.needsYou = needsYou
         self.readyForTest = readyForTest
         self.problem = problem
+        self.chatNeedsAttention = chatNeedsAttention
+        self.chatDone = chatDone
+    }
+}
+
+/// The notifications that `new` earns against `previous`, the chat sessions listed before and now: a live session that was working
+/// and now waits for an approval (Needs attention) or is idle (Done). A session `previous` did not list, an archived one and any
+/// other change say nothing; with no `previous` it only seeds. A kind whose switch is off in `kinds` is not notified.
+public func chatNotifications(from previous: [SessionRow]?, to new: [SessionRow], kinds: NotificationKinds = NotificationKinds()) -> [EpicNotification] {
+    guard let previous else { return [] }
+    let before = Dictionary(previous.map { ($0.id, $0.state) }, uniquingKeysWith: { first, _ in first })
+    return new.compactMap { row in
+        guard row.archived == false, before[row.id] == .working else { return nil }
+        switch row.state {
+        case .waiting where kinds.chatNeedsAttention: return EpicNotification(title: "\(row.title) needs attention", body: "It waits for an approval", session: row.id)
+        case .idle where kinds.chatDone: return EpicNotification(title: "\(row.title) is done", body: "The agent finished its turn", session: row.id)
+        default: return nil
+        }
     }
 }
 
@@ -85,6 +109,7 @@ public final class NotificationWatcher {
     private let sound: () -> Bool
     private let quietHours: () -> QuietHours
     private var previous: PanelSnapshot?
+    private var previousSessions: [SessionRow]?
 
     public init(
         centre: NotificationCentre, kinds: @escaping () -> NotificationKinds = { NotificationKinds() },
@@ -110,6 +135,13 @@ public final class NotificationWatcher {
     /// that never happens does not hide a crash later.
     public func expectStop(for seconds: TimeInterval = 30) {
         expectedStopUntil = now().addingTimeInterval(seconds)
+    }
+
+    /// The chat sessions the host lists now, whether or not the window is open. The first list only seeds.
+    public func react(toSessions sessions: [SessionRow]) {
+        let due = chatNotifications(from: previousSessions, to: sessions, kinds: kinds())
+        previousSessions = sessions
+        if due.isEmpty == false { post(due) }
     }
 
     public func react(to state: ConnectionState) {

@@ -350,3 +350,70 @@ private let banners = NotificationDelivery(style: .banners, soundOn: true)
     #expect(NotificationPermission.allowed(banners).testAdvice == nil)
     #expect(NotificationPermission.notAsked.testAdvice == nil)
 }
+
+// the chat sessions
+
+private func session(_ id: String, _ state: SessionState, archived: Bool = false) -> SessionRow {
+    SessionRow(id: id, title: "Session \(id)", workspace: "w", agent: "a", state: state, updatedAt: Date(timeIntervalSince1970: 0), archived: archived)
+}
+
+private let chatDoneOn = NotificationKinds(chatDone: true)
+
+@Test func aSessionThatGoesFromWorkingToWaitingNeedsAttentionAndOpensOnItself() {
+    let due = chatNotifications(from: [session("1", .working)], to: [session("1", .waiting)])
+    #expect(due == [EpicNotification(title: "Session 1 needs attention", body: "It waits for an approval", session: "1")])
+}
+
+@Test func aSessionThatGoesFromWorkingToIdleIsDoneOnlyWithTheSwitchOn() {
+    #expect(chatNotifications(from: [session("1", .working)], to: [session("1", .idle)]).isEmpty)
+    #expect(chatNotifications(from: [session("1", .working)], to: [session("1", .idle)], kinds: chatDoneOn).map(\.title) == ["Session 1 is done"])
+}
+
+@Test func anyOtherChangeOfASessionSaysNothing() {
+    for (was, now) in [(SessionState.idle, SessionState.waiting), (.waiting, .idle), (.waiting, .working), (.idle, .working), (.working, .working), (.waiting, .waiting), (.working, .done)] {
+        #expect(chatNotifications(from: [session("1", was)], to: [session("1", now)], kinds: chatDoneOn).isEmpty)
+    }
+}
+
+@Test func aSessionSeenForTheFirstTimeNeverNotifies() {
+    #expect(chatNotifications(from: nil, to: [session("1", .waiting), session("2", .idle)], kinds: chatDoneOn).isEmpty)
+    #expect(chatNotifications(from: [session("1", .working)], to: [session("1", .working), session("2", .waiting)], kinds: chatDoneOn).isEmpty)
+}
+
+@Test func aSessionThatDisappearsOrIsArchivedSaysNothing() {
+    #expect(chatNotifications(from: [session("1", .working)], to: [], kinds: chatDoneOn).isEmpty)
+    #expect(chatNotifications(from: [session("1", .working)], to: [session("1", .idle, archived: true)], kinds: chatDoneOn).isEmpty)
+}
+
+@Test func theChatSwitchesSilenceEachKindAlone() {
+    let before = [session("1", .working), session("2", .working)]
+    let after = [session("1", .waiting), session("2", .idle)]
+    #expect(chatNotifications(from: before, to: after, kinds: NotificationKinds(chatNeedsAttention: false, chatDone: true)).map(\.title) == ["Session 2 is done"])
+    #expect(chatNotifications(from: before, to: after, kinds: NotificationKinds(chatNeedsAttention: true, chatDone: false)).map(\.title) == ["Session 1 needs attention"])
+    #expect(chatNotifications(from: before, to: after, kinds: NotificationKinds(chatNeedsAttention: false, chatDone: false)).isEmpty)
+}
+
+@Test func theChatSwitchesStartWithNeedsAttentionOnAndDoneOff() {
+    let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
+    #expect(defaults.notificationKinds.chatNeedsAttention)
+    #expect(defaults.notificationKinds.chatDone == false)
+    defaults.set(true, forKey: notifyChatDoneKey)
+    defaults.set(false, forKey: notifyChatNeedsAttentionKey)
+    #expect(defaults.notificationKinds == NotificationKinds(chatNeedsAttention: false, chatDone: true))
+}
+
+@Test func theWatcherSeedsOnTheFirstListAndPostsTheChangesAfterWithTheSound() {
+    let centre = FakeCentre()
+    var sound = true
+    let watcher = NotificationWatcher(centre: centre, sound: { sound })
+    watcher.react(toSessions: [session("1", .working)])
+    #expect(centre.posted.isEmpty)
+    watcher.react(toSessions: [session("1", .waiting)])
+    watcher.react(toSessions: [session("1", .waiting)])
+    #expect(centre.posted == [["Session 1 needs attention"]])
+    sound = false
+    watcher.react(toSessions: [session("1", .working)])
+    watcher.react(toSessions: [session("1", .waiting)])
+    #expect(centre.posted.count == 2)
+    #expect(centre.sounds == [true, false])
+}

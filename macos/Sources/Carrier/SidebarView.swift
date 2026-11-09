@@ -13,9 +13,8 @@ enum SidebarMetrics {
     static var detail: Font { Font.scaled(12) }
     /// Between rows: each one carries its own vertical padding.
     static let rowGap: CGFloat = 2
-    /// The vertical padding of a section's row and of an item's row, and between an item's lines.
+    /// The vertical padding of a section's row, and between an item's lines; an item's row takes its padding from the density.
     static let sectionPadding: CGFloat = 8
-    static let itemPadding: CGFloat = 7
     static let lineGap: CGFloat = 3
     /// Above a group's title, so it reads where a group begins; under it the first row is closer.
     static let groupTop: CGFloat = 10
@@ -336,6 +335,7 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
 
 struct SidebarRowView: View {
     let row: SidebarRow
+    @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
 
     /// What the project's icon wears for the epic's state: a halo while it runs, a mark on its corner when there is something to say.
@@ -367,7 +367,7 @@ struct SidebarRowView: View {
             Text(row.age).font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary).lineLimit(1)
                 .frame(height: Self.titleLine).frame(maxHeight: .infinity, alignment: .top)
         }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.itemPadding)
+        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, density.rowPadding)
         .hoverCard { EpicCardView(card: row.card) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(([row.title ?? row.name, row.state.label, row.detail] + (row.age.isEmpty ? [] : [row.age])).joined(separator: ", "))

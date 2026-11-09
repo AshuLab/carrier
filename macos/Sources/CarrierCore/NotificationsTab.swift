@@ -8,6 +8,8 @@ import Foundation
 public let notifyNeedsYouKey = "notify.needsYou"
 public let notifyReadyForTestKey = "notify.readyForTest"
 public let notifyProblemKey = "notify.problem"
+public let notifyChatNeedsAttentionKey = "notify.chatNeedsAttention"
+public let notifyChatDoneKey = "notify.chatDone"
 public let notifyOnlyWhenAwayKey = "notify.onlyWhenAway"
 public let notifySoundKey = "notify.sound"
 public let notifyQuietKey = "notify.quiet"
@@ -15,13 +17,15 @@ public let notifyQuietStartKey = "notify.quietStart"
 public let notifyQuietEndKey = "notify.quietEnd"
 
 extension UserDefaults {
-    /// The switches: needs attention and ready for test are on until the person turns them off, a problem is off until turned on. The
+    /// The switches: needs attention and ready for test are on until the person turns them off, a problem is off until turned on; in Chat, needs attention is on and done is off. The
     /// defaults are not registered here: an unset key reads as its default.
     public var notificationKinds: NotificationKinds {
         NotificationKinds(
             needsYou: object(forKey: notifyNeedsYouKey) as? Bool ?? true,
             readyForTest: object(forKey: notifyReadyForTestKey) as? Bool ?? true,
-            problem: object(forKey: notifyProblemKey) as? Bool ?? false
+            problem: object(forKey: notifyProblemKey) as? Bool ?? false,
+            chatNeedsAttention: object(forKey: notifyChatNeedsAttentionKey) as? Bool ?? true,
+            chatDone: object(forKey: notifyChatDoneKey) as? Bool ?? false
         )
     }
 

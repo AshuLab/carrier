@@ -4,7 +4,7 @@ import Testing
 @testable import Carrier
 
 extension TextSizeInTheDefaults {
-    @Test func theSidebarTypeIsTodaysAtAHundredPercent() {
+    @MainActor @Test func theSidebarTypeIsTodaysAtAHundredPercent() {
         UserDefaults.standard.removeObject(forKey: "appearance.textSize")
         #expect(SidebarMetrics.section == Font.system(size: 16, weight: .medium))
         #expect(SidebarMetrics.group == Font.system(size: 12, weight: .semibold))

@@ -26,6 +26,8 @@ public struct AppPreferences {
     public static let writingToolsKey = "chat.writingTools"
     public static let checksSpellingKey = "chat.checkSpelling"
     public static let correctsSpellingKey = "chat.correctSpelling"
+    public static let followsOutputKey = "chat.followOutput"
+    public static let messageTimesKey = "chat.messageTimes"
     public static let toolOutputKey = "chat.toolOutput"
     public static let opensFailedCallsKey = "chat.opensFailedCalls"
     public static let outputLengthKey = "chat.outputLength"
@@ -43,6 +45,8 @@ public struct AppPreferences {
     public static let defaultWritingTools = false
     public static let defaultChecksSpelling = true
     public static let defaultCorrectsSpelling = false
+    public static let defaultFollowsOutput = true
+    public static let defaultMessageTimes = MessageTimes.hover
     public static let defaultToolOutput = ToolOutputMode.collapsed
     public static let defaultOpensFailedCalls = true
     public static let defaultOutputLength = OutputLength.medium
@@ -182,6 +186,18 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.correctsSpellingKey) }
     }
 
+    /// Whether a conversation scrolls to new output while the person is at its end.
+    public var followsOutput: Bool {
+        get { defaults.object(forKey: Self.followsOutputKey) as? Bool ?? Self.defaultFollowsOutput }
+        nonmutating set { defaults.set(newValue, forKey: Self.followsOutputKey) }
+    }
+
+    /// Whether messages show the time they were written, written in the General format.
+    public var messageTimes: MessageTimes {
+        get { defaults.string(forKey: Self.messageTimesKey).flatMap(MessageTimes.init(rawValue:)) ?? Self.defaultMessageTimes }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.messageTimesKey) }
+    }
+
     /// What the agent's tools show in a conversation.
     public var toolOutput: ToolOutputMode {
         get { defaults.string(forKey: Self.toolOutputKey).flatMap(ToolOutputMode.init(rawValue:)) ?? Self.defaultToolOutput }
@@ -219,7 +235,11 @@ public struct AppPreferences {
                 colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey, messageWidthKey,
                 monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
             ]
-        case .chat: [sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, toolOutputKey, opensFailedCallsKey, outputLengthKey]
+        case .chat:
+            [
+                sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey, toolOutputKey,
+                opensFailedCallsKey, outputLengthKey,
+            ]
         default: []
         }
     }
@@ -253,6 +273,16 @@ public enum MessageWidth: String, CaseIterable {
         case .wide: 880
         }
     }
+}
+
+/// When a message shows the time it was written.
+public enum MessageTimes: String, CaseIterable {
+    case never, hover, always
+
+    public var title: String { rawValue == "hover" ? "On hover" : rawValue.capitalized }
+
+    /// Whether the time shows, given whether the pointer is over the message.
+    public func shows(hovering: Bool) -> Bool { self == .always || (self == .hover && hovering) }
 }
 
 /// The key that sends a message: Return, or ⌘Return. Shift+Return makes a new line whichever is chosen.

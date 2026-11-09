@@ -322,6 +322,14 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     public private(set) var failure: String?
     /// The `after` of the next request.
     public private(set) var cursor = 0
+    /// Whether new output scrolls the view to the end: the Follow new output setting, set by the view.
+    public var followsOutput = true
+    /// Whether the view is at the end of the conversation: the view reports it as the person scrolls.
+    public var atEnd = true
+    /// Counts the times the view is to scroll to the end: new output arrived while it follows and the person was at the end.
+    public private(set) var scrolls = 0
+    /// When each message was written (ms since the epoch), by the id of its row; the message in progress has none yet.
+    public private(set) var times: [String: Int] = [:]
     /// What is typed in the box.
     public var draft = ""
     /// Whether the agent is answering (or waiting for an approval): the host refuses a message then, so the box queues it and the send button is Stop.
@@ -460,7 +468,11 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
         }
         let preparing = preparationSteps(events, preparation: preparation, progress: progress)
         if preparing != steps { steps = preparing }
-        if changed { rows = feed() }
+        if changed {
+            rows = feed()
+            times = Dictionary(events.filter { $0.kind == "user" || $0.kind == "assistant" }.map { ("e\($0.id)", $0.at) }) { $1 }
+            if followsOutput && atEnd { scrolls += 1 }
+        }
         if busy == false, let next = queued {
             queued = nil
             await deliver(next)

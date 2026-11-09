@@ -612,6 +612,65 @@ private func step(_ id: Int, _ step: String, _ status: String, _ detail: String?
     #expect(host.cancelled == 1 && plan == host.cancelPlan && model.preparationRefusal == nil)
 }
 
+// MARK: following new output
+
+/// A model that has read what the host has and is told whether it follows and whether the view is at the end, then reads one more message.
+@MainActor private func scrolls(follows: Bool, atEnd: Bool) async -> Int {
+    let host = ScriptedHost()
+    host.events = [say(1)]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    (model.followsOutput, model.atEnd) = (follows, atEnd)
+    let before = model.scrolls
+    host.events.append(say(2))
+    await model.poll()
+    return model.scrolls - before
+}
+
+@MainActor @Test func withFollowOnNewOutputScrollsToTheEndWhileThePersonIsAtTheEnd() async {
+    #expect(await scrolls(follows: true, atEnd: true) == 1)
+}
+
+@MainActor @Test func withFollowOnNewOutputLeavesAPersonWhoScrolledUpWhereTheyAre() async {
+    #expect(await scrolls(follows: true, atEnd: false) == 0)
+}
+
+@MainActor @Test func withFollowOffTheViewNeverScrollsByItself() async {
+    #expect(await scrolls(follows: false, atEnd: true) == 0)
+    #expect(await scrolls(follows: false, atEnd: false) == 0)
+}
+
+@MainActor @Test func aPollThatBringsNothingNewDoesNotScroll() async {
+    let host = ScriptedHost()
+    host.events = [say(1)]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    let before = model.scrolls
+    await model.poll()
+    #expect(model.scrolls == before)
+}
+
+@MainActor @Test func theTextBeingWrittenCountsAsNewOutput() async {
+    let host = ScriptedHost()
+    host.events = [say(1)]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    let before = model.scrolls
+    host.streaming = "Hel"
+    await model.poll()
+    #expect(model.scrolls == before + 1)
+}
+
+@MainActor @Test func aMessageKnowsWhenItWasWrittenAndTheOneInProgressDoesNot() async {
+    let host = ScriptedHost()
+    host.events = [ChatEvent(id: 1, at: 1_000, kind: "user", text: "hi"), ChatEvent(id: 2, at: 2_000, kind: "assistant", text: "hello"), ChatEvent(id: 3, at: 3_000, kind: "turn_end")]
+    host.streaming = "more"
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.times == ["e1": 1_000, "e2": 2_000])
+    #expect(model.times["streaming"] == nil)
+}
+
 // MARK: what the tools show
 
 private func toolsFeed() -> [FeedRow] {

@@ -289,6 +289,27 @@ private let idle = PanelSnapshot(
     #expect(store.messageWidth == .medium)
 }
 
+@Test func theConversationChoicesSurviveARelaunchResetWithTheChatPageAndABadValueReadsAsTheDefault() {
+    let name = "prefs-\(UUID().uuidString)"
+    let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(first.followsOutput && first.messageTimes == .hover)
+    first.followsOutput = false
+    first.messageTimes = .always
+    let second = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(second.followsOutput == false && second.messageTimes == .always)
+    second.reset(.chat)
+    #expect(second.followsOutput && second.messageTimes == .hover)
+    let defaults = UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!
+    defaults.set("sometimes", forKey: AppPreferences.messageTimesKey)
+    #expect(AppPreferences(defaults: defaults).messageTimes == .hover)
+}
+
+@Test func aTimeShowsAsTheSettingSays() {
+    #expect(MessageTimes.never.shows(hovering: true) == false)
+    #expect(MessageTimes.hover.shows(hovering: false) == false && MessageTimes.hover.shows(hovering: true))
+    #expect(MessageTimes.always.shows(hovering: false))
+}
+
 @Test func theConversationDefaultsAreToolsCollapsedFailedCallsOpenAndFiftyLines() {
     let store = AppPreferences(defaults: UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!)
     #expect(store.toolOutput == .collapsed && store.opensFailedCalls && store.outputLength == .medium)

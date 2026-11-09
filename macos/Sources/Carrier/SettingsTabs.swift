@@ -459,6 +459,7 @@ struct ChatTabView: View {
     @AppStorage(AppPreferences.messageTimesKey) private var messageTimes = AppPreferences.defaultMessageTimes
     @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
     @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailedCalls = AppPreferences.defaultOpensFailedCalls
+    @AppStorage(AppPreferences.diffStyleKey) private var diffStyle = AppPreferences.defaultDiffStyle
     @AppStorage(AppPreferences.outputLengthKey) private var outputLength = AppPreferences.defaultOutputLength
     @AppStorage(AppPreferences.confirmDeleteKey) private var confirmDelete = AppPreferences.defaultConfirmDelete
 
@@ -507,6 +508,12 @@ struct ChatTabView: View {
                 }
                 SettingsTabRow(title: "Open the calls that failed", detail: "A call that failed opens by itself, even when the rest are folded") {
                     Toggle("Open the calls that failed", isOn: $opensFailedCalls).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Diff style", detail: "How an edit reads: its lines one under the other, or removed and added side by side") {
+                    Picker("Diff style", selection: $diffStyle) {
+                        ForEach(DiffStyle.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
                 }
                 SettingsTabRow(title: "Output length", detail: "How many lines of an output show before Show more") {
                     Picker("Output length", selection: $outputLength) {

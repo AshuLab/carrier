@@ -31,6 +31,7 @@ public struct AppPreferences {
     public static let messageTimesKey = "chat.messageTimes"
     public static let toolOutputKey = "chat.toolOutput"
     public static let opensFailedCallsKey = "chat.opensFailedCalls"
+    public static let diffStyleKey = "chat.diffStyle"
     public static let outputLengthKey = "chat.outputLength"
     public static let confirmDeleteKey = "chat.confirmDelete"
 
@@ -52,6 +53,7 @@ public struct AppPreferences {
     public static let defaultMessageTimes = MessageTimes.hover
     public static let defaultToolOutput = ToolOutputMode.collapsed
     public static let defaultOpensFailedCalls = true
+    public static let defaultDiffStyle = DiffStyle.unified
     public static let defaultOutputLength = OutputLength.medium
     public static let defaultConfirmDelete = true
 
@@ -220,6 +222,12 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.opensFailedCallsKey) }
     }
 
+    /// How an edit's diff reads: its lines one under the other, or removed and added side by side.
+    public var diffStyle: DiffStyle {
+        get { defaults.string(forKey: Self.diffStyleKey).flatMap(DiffStyle.init(rawValue:)) ?? Self.defaultDiffStyle }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.diffStyleKey) }
+    }
+
     /// How many lines of an output show before Show more.
     public var outputLength: OutputLength {
         get { OutputLength(rawValue: defaults.integer(forKey: Self.outputLengthKey)) ?? Self.defaultOutputLength }
@@ -254,7 +262,7 @@ public struct AppPreferences {
         case .chat:
             [
                 sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,
-                toolOutputKey, opensFailedCallsKey, outputLengthKey, confirmDeleteKey,
+                toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, confirmDeleteKey,
             ]
         default: []
         }
@@ -331,6 +339,13 @@ public enum ToolOutputMode: String, CaseIterable {
         case .expanded: true
         }
     }
+}
+
+/// How an edit's diff reads in a conversation.
+public enum DiffStyle: String, CaseIterable {
+    case unified, split
+
+    public var title: String { rawValue.capitalized }
 }
 
 /// How many lines of an output show before Show more.

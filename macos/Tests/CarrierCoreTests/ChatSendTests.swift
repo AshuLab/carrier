@@ -20,6 +20,12 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     var refuse: [String: Error] = [:]
     var events: [ChatEvent] = []
     var pending: Set<String> = []
+    /// Whether send and interrupt leave their events in the record, as the host does.
+    var records = false
+    /// Runs when the host has answered an interrupt.
+    var afterInterrupt: (() -> Void)?
+    /// Runs in `events` after its reply is built and before it is returned: a poll that is already on its way when something else happens.
+    var afterReply: (() async -> Void)?
 
     func agents() async throws -> [ChatAgent] { [] }
     func open(plan: SessionPlan) async throws -> String { "" }
@@ -30,7 +36,12 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     func list(archived: Bool) async throws -> [ChatSession] { [listed(live: live)] }
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {
         let page = events.filter { $0.id > after }
-        return ChatEvents(events: page, cursor: page.last?.id ?? after, state: state, pending: pending)
+        let reply = ChatEvents(events: page, cursor: page.last?.id ?? after, state: state, pending: pending)
+        await afterReply?()
+        return reply
+    }
+    private func record(_ kind: String, text: String? = nil, outcome: String? = nil) {
+        if records { events.append(ChatEvent(id: events.count + 1, at: events.count, kind: kind, text: text, outcome: outcome)) }
     }
     func resume(_ id: String) async throws {
         calls.append("resume")
@@ -40,12 +51,15 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     func send(_ id: String, _ text: String) async throws {
         calls.append("send \(text)")
         if let error = refuse["send"] { throw error }
+        record("user", text: text)
         state = .working
     }
     func interrupt(_ id: String) async throws {
         calls.append("interrupt")
         if let error = refuse["interrupt"] { throw error }
+        record("turn_end", outcome: "interrupted")
         state = .idle
+        afterInterrupt?()
     }
     func answer(_ id: String, approval: String, choice: String) async throws {
         calls.append("answer \(approval) \(choice)")
@@ -203,6 +217,101 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     #expect(host.calls == ["send first", "interrupt"] && chat.refusal == nil)
     await chat.poll()
     #expect(host.calls == ["send first", "interrupt", "send instead"])
+}
+
+// MARK: interrupt
+
+@MainActor @Test func withInterruptSendingWhileTheAgentAnswersStopsTheTurnAndThenDeliversTheMessage() async {
+    let host = FakeChat()
+    let chat = model(host)
+    chat.draft = "first"
+    await chat.submit()
+    chat.draft = "instead"
+    await chat.submit(whileWorking: .interrupt)
+    #expect(host.calls == ["send first", "interrupt", "send instead"])
+    #expect(chat.queued == nil && chat.draft == "" && chat.busy && chat.refusal == nil)
+}
+
+@MainActor @Test func withInterruptAndNothingRunningTheMessageJustGoes() async {
+    let host = FakeChat()
+    let chat = model(host)
+    chat.draft = "first"
+    await chat.submit(whileWorking: .interrupt)
+    #expect(host.calls == ["send first"])
+}
+
+@MainActor @Test func withQueueTheMessageIsHeldAndTheTurnIsNotStopped() async {
+    let host = FakeChat()
+    let chat = model(host)
+    chat.draft = "first"
+    await chat.submit(whileWorking: .queue)
+    chat.draft = "later"
+    await chat.submit(whileWorking: .queue)
+    #expect(host.calls == ["send first"] && chat.queued == "later")
+}
+
+@MainActor @Test func theMessageWaitsForTheHostToReportIdleAfterTheStop() async {
+    let host = FakeChat()
+    let chat = model(host)
+    chat.draft = "first"
+    await chat.submit()
+    // the host answered the stop but its list still says working
+    host.afterInterrupt = { host.state = .working }
+    chat.draft = "instead"
+    await chat.submit(whileWorking: .interrupt)
+    #expect(host.calls == ["send first", "interrupt"] && chat.queued == "instead")
+    host.state = .idle
+    await chat.poll()
+    #expect(host.calls == ["send first", "interrupt", "send instead"] && chat.queued == nil)
+}
+
+@MainActor @Test func aRefusedStopWithInterruptKeepsTheMessageHeldAndSaysWhy() async {
+    let host = FakeChat()
+    let chat = model(host)
+    chat.draft = "first"
+    await chat.submit()
+    host.refuse["interrupt"] = ControlError.remote("This session is closed")
+    chat.draft = "instead"
+    await chat.submit(whileWorking: .interrupt)
+    #expect(chat.queued == "instead" && chat.refusal == "This session is closed" && host.calls == ["send first", "interrupt"])
+}
+
+@MainActor @Test func aLateEndOfTheStoppedTurnDoesNotEndTheNewTurn() async {
+    let host = FakeChat()
+    host.records = true
+    let chat = model(host)
+    chat.draft = "first"
+    await chat.submit()
+    chat.draft = "instead"
+    await chat.submit(whileWorking: .interrupt)
+    #expect(chat.busy)
+    // a poll that left before the new turn started: it read the stopped turn's idle and its turn_end, and answers now
+    host.state = .idle
+    host.afterReply = { [unowned host] in
+        host.afterReply = nil
+        host.state = .working
+        chat.draft = "and then"
+        await chat.submit(whileWorking: .interrupt)
+    }
+    await chat.poll()
+    #expect(chat.busy && chat.queued == nil)
+    host.state = .working
+    await chat.poll()
+    #expect(chat.busy)
+    #expect(host.calls.filter { $0.hasPrefix("send") } == ["send first", "send instead", "send and then"])
+}
+
+@MainActor @Test func theConversationShowsTheStoppedTurnAndThenTheNewMessage() async {
+    let host = FakeChat()
+    host.records = true
+    let chat = model(host)
+    chat.draft = "first"
+    await chat.submit()
+    chat.draft = "instead"
+    await chat.submit(whileWorking: .interrupt)
+    await chat.poll()
+    #expect(chat.rows.map(\.id) == ["e1", "e2", "e2-stopped", "e3"])
+    if case .stopped = chat.rows[2], case .user(_, let text) = chat.rows[3] { #expect(text == "instead") } else { Issue.record("rows: \(chat.rows)") }
 }
 
 @MainActor @Test func aRefusedStopIsShown() async {

@@ -451,6 +451,7 @@ struct SidebarTabView: View {
 /// How the message box behaves: the key that sends and what the system does to the text. The conversation's own block comes with its slice.
 struct ChatTabView: View {
     @AppStorage(AppPreferences.sendKeyKey) private var sendKey = AppPreferences.defaultSendKey
+    @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
     @AppStorage(AppPreferences.writingToolsKey) private var writingTools = AppPreferences.defaultWritingTools
     @AppStorage(AppPreferences.checksSpellingKey) private var checksSpelling = AppPreferences.defaultChecksSpelling
     @AppStorage(AppPreferences.correctsSpellingKey) private var correctsSpelling = AppPreferences.defaultCorrectsSpelling
@@ -462,6 +463,13 @@ struct ChatTabView: View {
                     Picker("Send with", selection: $sendKey) {
                         Text("Return").tag(SendKey.return)
                         Text("\u{2318}Return").tag(SendKey.commandReturn)
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "While the agent works", detail: "What sending does while it answers: hold the message until the turn ends, or stop the turn and send it") {
+                    Picker("While the agent works", selection: $whileWorking) {
+                        Text("Queue it").tag(WhileWorking.queue)
+                        Text("Interrupt").tag(WhileWorking.interrupt)
                     }
                     .labelsHidden().fixedSize()
                 }

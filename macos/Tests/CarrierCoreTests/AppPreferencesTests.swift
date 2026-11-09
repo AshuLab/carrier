@@ -288,3 +288,16 @@ private let idle = PanelSnapshot(
     UserDefaults(suiteName: name)!.set("huge", forKey: AppPreferences.messageWidthKey)
     #expect(store.messageWidth == .medium)
 }
+
+@Test func whileTheAgentWorksQueuesByDefaultSurvivesARelaunchFallsBackAndResetsWithChat() {
+    let name = "prefs-\(UUID().uuidString)"
+    let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(first.whileWorking == .queue)
+    first.whileWorking = .interrupt
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).whileWorking == .interrupt)
+    first.reset(.chat)
+    #expect(first.whileWorking == .queue)
+    let defaults = UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!
+    defaults.set("stop", forKey: AppPreferences.whileWorkingKey)
+    #expect(AppPreferences(defaults: defaults).whileWorking == .queue)
+}

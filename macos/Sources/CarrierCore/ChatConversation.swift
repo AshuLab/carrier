@@ -468,14 +468,19 @@ private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
     }
 
     /// Enter or the send button: sends what is typed, or holds it as the queued message when the agent is answering (replacing
-    /// the one that was held).
-    public func submit() async {
+    /// the one that was held). With `.interrupt` the turn is stopped as well: the host answers the stop once the turn has ended, and the
+    /// poll that sees the session idle delivers the held message.
+    public func submit(whileWorking: WhileWorking = .queue) async {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.isEmpty == false else { return }
         if busy {
             queued = text
             draft = ""
             clearRefusal()
+            if whileWorking == .interrupt {
+                await stop()
+                await poll()
+            }
         } else {
             await deliver(text)
         }

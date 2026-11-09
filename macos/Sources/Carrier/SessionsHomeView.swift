@@ -215,15 +215,11 @@ extension SessionSort {
 /// a worktree session; on the right the Archived tag, for an archived match that is dimmed, and the age. A session that waits for
 /// the person is orange.
 private struct SessionHomeRow: View {
+    private let timeChanges = TimeFormatChanges()
     let row: SessionRow
     let showsWorkspace: Bool
     let open: () -> Void
     @State private var hovered = false
-    private static let spokenAge: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter
-    }()
 
     var body: some View {
         Button(action: open) {
@@ -243,8 +239,8 @@ private struct SessionHomeRow: View {
                 }
                 Spacer(minLength: 8)
                 if row.archived { tag("Archived") }
-                Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                    .accessibilityLabel(Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date()))
+                Text(timeText(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                    .accessibilityLabel(spokenAge(row.updatedAt, now: Date()))
             }
             .opacity(row.archived ? 0.55 : 1)
             .padding(.horizontal, 8).padding(.vertical, 6)

@@ -3,6 +3,7 @@ import CarrierCore
 import SwiftUI
 
 struct PanelView: View {
+    private let timeChanges = TimeFormatChanges()
     let model: PanelModel
     // the sidebar's preferences are read from the defaults, so the sidebar's menus and the Sidebar page of Settings change one value
     @AppStorage(SidebarStore.groupByKey) private var groupBy = GroupBy.status

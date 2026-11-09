@@ -140,14 +140,3 @@ private func ageGroups(_ rows: [SessionRow], now: Date, calendar: Calendar) -> [
 
 /// How many of the sessions are archived, for the Archive row of the sidebar.
 public func archivedCount(_ rows: [SessionRow]) -> Int { rows.filter(\.archived).count }
-
-/// The age on the right of a row: "now", "5m", "3h", "2d".
-public func sessionAge(_ updatedAt: Date, now: Date) -> String {
-    let seconds = max(0, Int(now.timeIntervalSince(updatedAt)))
-    switch seconds {
-    case ..<60: return "now"
-    case ..<3600: return "\(seconds / 60)m"
-    case ..<86400: return "\(seconds / 3600)h"
-    default: return "\(seconds / 86400)d"
-    }
-}

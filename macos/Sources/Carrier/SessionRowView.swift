@@ -7,6 +7,7 @@ import SwiftUI
 /// the title and under it where it works, and on the right the age of its last activity over the providers it has used. The two
 /// lines on each side have the same height, so the age sits on the title's line and the providers on the second one.
 struct SessionRowView: View {
+    private let timeChanges = TimeFormatChanges()
     let row: SessionRow
     /// Outside the workspace order the group is not the workspace, so the second line says it.
     let showsWorkspace: Bool
@@ -14,11 +15,6 @@ struct SessionRowView: View {
     @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
     @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
     @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
-    private static let spokenAge: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter
-    }()
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
     /// The orange of "Waiting for you" as text: the system's on dark, a deeper one on light, where the system's is too pale to read.
     static let attention = Color(nsColor: NSColor(name: nil) { appearance in
@@ -95,7 +91,7 @@ struct SessionRowView: View {
         case .baseFolder?: "Base folder"
         case nil: nil
         }
-        let age = content.age == nil ? nil : Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date())
+        let age = content.age == nil ? nil : spokenAge(row.updatedAt, now: Date())
         return ([row.title, state, row.workspace, place] + content.providers + [age]).compactMap { $0 }.joined(separator: ", ")
     }
 }

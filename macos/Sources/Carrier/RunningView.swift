@@ -3,6 +3,7 @@ import SwiftUI
 
 /// The Carrier home's Running section; a thin mapping of `runningSection(_:)`. Clicking a card selects the epic.
 struct RunningView: View {
+    private let timeChanges = TimeFormatChanges()
     let snapshot: PanelSnapshot
     @Binding var selection: Selection
 

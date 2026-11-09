@@ -99,13 +99,26 @@ extension SettingsPageBody where Preview == EmptyView {
 }
 
 struct GeneralTabView: View {
+    /// An age and a time of day as the two settings write them now: 11 minutes ago, and the clock of that moment.
+    private func displayPreview() -> some View {
+        let now = Date()
+        let format = TimeFormat.stored()
+        return SettingsGroup(title: "Preview") {
+            SettingsTabRow(title: "Updated 11 minutes ago", detail: "As an age or a clock time shows on a session row", first: true) {
+                Text(timeText(now.addingTimeInterval(-660), now: now, format: format)).monospacedDigit().foregroundStyle(.secondary)
+            }
+        }
+    }
+
     @AppStorage(AppPreferences.styleKey) private var style = AppPreferences.defaultStyle.rawValue
     @AppStorage(AppPreferences.animatesKey) private var animates = AppPreferences.defaultAnimates
     @AppStorage(showEpicsKey) private var showsEpics = AppPreferences.defaultShowsEpics
     @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
+    @AppStorage(AppPreferences.timeStyleKey) private var timeStyle = TimeStyle.relative.rawValue
+    @AppStorage(AppPreferences.clockHoursKey) private var clockHours = ClockHours.system.rawValue
 
     var body: some View {
-        SettingsPageBody(reset: { AppPreferences().reset(.general) }) {
+        SettingsPageBody(reset: { AppPreferences().reset(.general) }, preview: displayPreview) {
             SettingsGroup(title: "Menu bar") {
                 SettingsTabRow(title: "Icon style", detail: "What the icon in the menu bar shows", first: true) {
                     // a saved value that is not a style reads as the default, as the icon does
@@ -122,6 +135,28 @@ struct GeneralTabView: View {
                 }
                 SettingsTabRow(title: "List epics in the menu", detail: "The epics that run or wait show under the status") {
                     Toggle("List epics in the menu", isOn: $showsEpics).labelsHidden().toggleStyle(.switch)
+                }
+            }
+            SettingsGroup(title: "Display") {
+                SettingsTabRow(title: "Time format", detail: "Ages read \"11m\", or as the time of the event, \"14:32\"", first: true) {
+                    // a saved value that is not a choice reads as the default, as the formatter does
+                    Picker("Time format", selection: Binding(
+                        get: { TimeStyle(rawValue: timeStyle) ?? .relative }, set: { timeStyle = $0.rawValue }
+                    )) {
+                        Text("Relative").tag(TimeStyle.relative)
+                        Text("Clock").tag(TimeStyle.clock)
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Clock", detail: "How clock times count the hours") {
+                    Picker("Clock", selection: Binding(
+                        get: { ClockHours(rawValue: clockHours) ?? .system }, set: { clockHours = $0.rawValue }
+                    )) {
+                        Text("System").tag(ClockHours.system)
+                        Text("12 hours").tag(ClockHours.h12)
+                        Text("24 hours").tag(ClockHours.h24)
+                    }
+                    .labelsHidden().fixedSize()
                 }
             }
             SettingsGroup(title: "Confirmations") {

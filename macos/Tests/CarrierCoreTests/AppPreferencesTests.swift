@@ -74,3 +74,20 @@ private let idle = PanelSnapshot(
     #expect(defaults.object(forKey: AppPreferences.styleKey) == nil)
     #expect(defaults.object(forKey: notifyProblemKey) as? Bool == false)
 }
+
+@Test func aBadSavedDisplayValueReadsAsTheDefault() {
+    let defaults = UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!
+    defaults.set("sundial", forKey: AppPreferences.timeStyleKey)
+    defaults.set(24, forKey: AppPreferences.clockHoursKey)
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.timeStyle == .relative && store.clockHours == .system)
+}
+
+@Test func resetOfGeneralPutsTheDisplayBlockBackToo() {
+    let defaults = UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!
+    let store = AppPreferences(defaults: defaults)
+    store.timeStyle = .clock
+    store.clockHours = .h24
+    store.reset(.general)
+    #expect(store.timeStyle == .relative && store.clockHours == .system)
+}

@@ -6,6 +6,8 @@ public struct AppPreferences {
     public static let styleKey = "menu.iconStyle"
     public static let animatesKey = "menu.animate"
     public static let confirmStopKey = "stop.confirm"
+    public static let timeStyleKey = "display.timeStyle"
+    public static let clockHoursKey = "display.clock"
 
     public static let defaultStyle = IconStyle.countAndBar
     public static let defaultAnimates = true
@@ -37,6 +39,18 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.confirmStopKey) }
     }
 
+    /// How ages and times read everywhere in the app: relative or as a clock time.
+    public var timeStyle: TimeStyle {
+        get { defaults.string(forKey: Self.timeStyleKey).flatMap(TimeStyle.init(rawValue:)) ?? .relative }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.timeStyleKey) }
+    }
+
+    /// The clock of clock times: the Mac's, 12 or 24 hours.
+    public var clockHours: ClockHours {
+        get { defaults.string(forKey: Self.clockHoursKey).flatMap(ClockHours.init(rawValue:)) ?? .system }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.clockHoursKey) }
+    }
+
     /// Takes the keys of one page out, so it reads as its defaults again; the other pages are not touched.
     public func reset(_ page: SettingsPage) {
         for key in Self.keys(of: page) { defaults.removeObject(forKey: key) }
@@ -45,7 +59,7 @@ public struct AppPreferences {
     // the pages that gain preferences add their keys here
     private static func keys(of page: SettingsPage) -> [String] {
         switch page {
-        case .general: [styleKey, animatesKey, showEpicsKey, confirmStopKey]
+        case .general: [styleKey, animatesKey, showEpicsKey, confirmStopKey, timeStyleKey, clockHoursKey]
         case .sidebar:
             [
                 SidebarStore.groupByKey, SidebarStore.sessionSortKey, SidebarStore.archiveSortKey, SidebarStore.showsIconKey,

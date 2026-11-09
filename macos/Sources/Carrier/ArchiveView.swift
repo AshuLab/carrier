@@ -159,6 +159,7 @@ extension ArchiveSort {
 
 /// An archived session: title with its workspace, the agent, when it will be deleted and the age; on hover, Open, Resume and Delete.
 private struct ArchiveRow: View {
+    private let timeChanges = TimeFormatChanges()
     let row: SessionRow
     /// When the clock deletes the session, or why it is still there (`archiveNote`).
     let note: String?
@@ -168,11 +169,6 @@ private struct ArchiveRow: View {
     @State private var hovered = false
     /// Whether the keyboard is on one of the actions, which shows them as the pointer does.
     @FocusState private var actionsFocused: Bool
-    private static let spokenAge: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter
-    }()
 
     var body: some View {
         HStack(spacing: 10) {
@@ -205,8 +201,8 @@ private struct ArchiveRow: View {
             }
             .focused($actionsFocused)
             .opacity(hovered || actionsFocused ? 1 : 0)
-            Text(sessionAge(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
-                .accessibilityLabel(Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date()))
+            Text(timeText(row.updatedAt, now: Date())).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                .accessibilityLabel(spokenAge(row.updatedAt, now: Date()))
         }
         .padding(.horizontal, 8).padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 10).fill(hovered ? Color.primary.opacity(0.07) : .clear))

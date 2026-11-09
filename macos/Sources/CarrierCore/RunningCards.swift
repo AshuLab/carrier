@@ -56,31 +56,29 @@ public struct RunningSection: Equatable {
     public var room: FreeRoom
 }
 
-public func runningSection(_ snapshot: PanelSnapshot, timeZone: TimeZone = .current) -> RunningSection {
+public func runningSection(_ snapshot: PanelSnapshot, time: TimeFormat = .stored()) -> RunningSection {
     let cards = snapshot.epics.filter { $0.status == .running }.map { epic in
         let sessions = (snapshot.sessions ?? []).filter { $0.repo == epic.repo && $0.issue == epic.issue }
         let header = epicHeader(.active(epic))
         let (line, progress, steps) = progress(epic)
         return RunningCard(
             selection: .epic(repo: epic.repo, issue: epic.issue), title: header.title, subtitle: header.subtitle,
-            progressLine: line, progress: progress, steps: steps, agents: sessions.map { agentRow($0, epic: epic, timeZone: timeZone) }
+            progressLine: line, progress: progress, steps: steps, agents: sessions.map { agentRow($0, epic: epic, time: time) }
         )
     }
     return RunningSection(cards: cards, room: freeRoom(snapshot))
 }
 
 /// ponytail: the role comes from the stage; the snapshot has one session per epic and no lane, so a ship row has no lane label.
-func agentRow(_ session: PanelSnapshot.Session, epic: PanelEpic, timeZone: TimeZone = .current) -> AgentRow {
+func agentRow(_ session: PanelSnapshot.Session, epic: PanelEpic, time: TimeFormat = .stored()) -> AgentRow {
     let agent = agentName(session.harness)
-    let clock = DateFormatter()
-    (clock.dateFormat, clock.locale, clock.timeZone) = ("HH:mm", Locale(identifier: "en_US_POSIX"), timeZone)
     let action = session.last?.text.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     return AgentRow(
         agent: agent, initial: session.harness == "codex" ? "X" : String(agent.prefix(1)),
         role: ["ship": "Builder", "review": "Reviewer", "fix": "Fixer"][session.stage.rawValue] ?? session.stage.rawValue,
         round: session.round.map { "round \($0)/\(epic.maxReviews)" },
         action: action.isEmpty ? "working" : action,
-        since: "since " + clock.string(from: Date(timeIntervalSince1970: Double(session.startedAt) / 1000)),
+        since: "since " + clockTime(session.startedAt, time: time),
         running: epic.status == .running
     )
 }

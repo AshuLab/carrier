@@ -259,19 +259,19 @@ func sessionState(_ status: String) -> SessionSection.State {
 /// (once a second, with the clock) is what made an epic with many sessions slow.
 public func sessionList(
     _ reply: SessionsReply?, transcripts: [String: Transcript] = [:], slices: [EpicReply.Slice] = [],
-    now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current, resumable: Bool = true,
+    now: Int = Int(Date().timeIntervalSince1970 * 1000), time: TimeFormat = .stored(), resumable: Bool = true,
     folds: SessionFolds? = nil
 ) -> SessionList {
     let all = reply?.sessions ?? []
     let built = all.enumerated().map { index, session -> SessionSection in
         let state = sessionState(session.status)
         let transcript = transcripts[session.executionId]
-        let time: String?
+        let label: String?
         switch state {
         case .running:
-            time = "since " + clock(session.startedAt, timeZone: timeZone)
-        case .done: time = session.finishedAt.map { formatDuration($0 - session.startedAt) }
-        case .stopped: time = nil
+            label = "since " + clockTime(session.startedAt, time: time)
+        case .done: label = session.finishedAt.map { formatDuration($0 - session.startedAt) }
+        case .stopped: label = nil
         }
         let agent = agentName(session.agent.harness)
         var section = SessionSection(
@@ -282,7 +282,7 @@ public func sessionList(
             role: ["ship": "Builder", "review": "Reviewer", "fix": "Fixer"][session.stage] ?? session.stage.capitalized,
             place: session.round.map { "Round \($0)" } ?? session.stage.capitalized,
             counts: transcript.flatMap { $0.structured ? sessionCounts($0.events) : nil },
-            timeLabel: time,
+            timeLabel: label,
             openByDefault: index == 0,
             resume: state == .running || resumable == false ? nil : session.resume,
             result: resultCard(session.result),
@@ -290,7 +290,7 @@ public func sessionList(
             body: .items([])
         )
         if folds?.isOpen(section) ?? true {
-            section.body = transcriptBody(transcript, slices: slices, running: state == .running, now: now, timeZone: timeZone)
+            section.body = transcriptBody(transcript, slices: slices, running: state == .running, now: now, time: time)
         }
         return section
     }

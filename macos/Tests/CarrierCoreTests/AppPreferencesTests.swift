@@ -268,3 +268,23 @@ private let idle = PanelSnapshot(
     #expect(abs(LineHeight.normal.extraSpacing(forSize: 12) - 3) < 0.0001)
     #expect(abs(LineHeight.loose.extraSpacing(forSize: 12) - 6) < 0.0001)
 }
+
+@Test func eachMessageWidthHasItsFixedMaximumInPoints() {
+    #expect(MessageWidth.narrow.points == 640)
+    #expect(MessageWidth.medium.points == 760)
+    #expect(MessageWidth.wide.points == 880)
+    #expect(AppPreferences.defaultMessageWidth == .medium)
+}
+
+@Test func theMessageWidthSurvivesARelaunchFallsBackWhenBadAndResetsWithAppearance() {
+    let name = "width-\(UUID().uuidString)"
+    let store = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(store.messageWidth == .medium)
+    store.messageWidth = .wide
+    store.confirmStop = false
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).messageWidth == .wide)
+    store.reset(.appearance)
+    #expect(store.messageWidth == .medium && store.confirmStop == false)
+    UserDefaults(suiteName: name)!.set("huge", forKey: AppPreferences.messageWidthKey)
+    #expect(store.messageWidth == .medium)
+}

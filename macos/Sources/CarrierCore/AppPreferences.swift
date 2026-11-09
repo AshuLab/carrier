@@ -21,6 +21,7 @@ public struct AppPreferences {
     public static let monospaceWrapKey = "appearance.mono.wrap"
     public static let monospaceLineNumbersKey = "appearance.mono.lineNumbers"
     public static let statesByShapeKey = "appearance.statesByShape"
+    public static let messageWidthKey = "appearance.messageWidth"
     public static let sendKeyKey = "chat.sendKey"
     public static let writingToolsKey = "chat.writingTools"
     public static let checksSpellingKey = "chat.checkSpelling"
@@ -32,6 +33,7 @@ public struct AppPreferences {
     public static let defaultConfirmStop = true
     public static let defaultColorScheme = ColorSchemeChoice.system
     public static let defaultDensity = Density.comfortable
+    public static let defaultMessageWidth = MessageWidth.medium
     public static let defaultTheme = Theme.carrier
     public static let defaultTint = Tint.off
     public static let defaultSendKey = SendKey.return
@@ -146,6 +148,12 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.statesByShapeKey) }
     }
 
+    /// How wide a conversation gets before its messages wrap.
+    public var messageWidth: MessageWidth {
+        get { defaults.string(forKey: Self.messageWidthKey).flatMap(MessageWidth.init(rawValue:)) ?? Self.defaultMessageWidth }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.messageWidthKey) }
+    }
+
     /// The key that sends in the message box; the other one makes a new line.
     public var sendKey: SendKey {
         get { defaults.string(forKey: Self.sendKeyKey).flatMap(SendKey.init(rawValue:)) ?? Self.defaultSendKey }
@@ -184,7 +192,7 @@ public struct AppPreferences {
             ]
         case .appearance:
             [
-                colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey,
+                colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey, messageWidthKey,
                 monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
             ]
         case .chat: [sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey]
@@ -206,6 +214,21 @@ public enum Density: String, CaseIterable {
     public var title: String { rawValue.capitalized }
     public var rowPadding: CGFloat { self == .compact ? 4 : 7 }
     public var messageGap: CGFloat { self == .compact ? 8 : 12 }
+}
+
+/// How wide the column of a conversation is, in points: the most its messages take before they wrap.
+public enum MessageWidth: String, CaseIterable {
+    case narrow, medium, wide
+
+    public var title: String { rawValue.capitalized }
+
+    public var points: CGFloat {
+        switch self {
+        case .narrow: 640
+        case .medium: 760
+        case .wide: 880
+        }
+    }
 }
 
 /// The key that sends a message: Return, or ⌘Return. Shift+Return makes a new line whichever is chosen.

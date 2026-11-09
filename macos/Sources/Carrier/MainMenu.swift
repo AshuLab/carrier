@@ -21,7 +21,7 @@ extension AppDelegate {
         if ShortcutTable().combos != shortcutsInMenu { installMainMenu() }
     }
 
-    func makeMainMenu(shortcuts: ShortcutTable) -> NSMenu {
+    func makeMainMenu(shortcuts: ShortcutTable, controls: MenuControls = .shared) -> NSMenu {
         let main = NSMenu()
 
         // Carrier
@@ -79,6 +79,12 @@ extension AppDelegate {
         item(conversation, "Jump to the Latest Message", #selector(jumpToLatestMessage), shortcut: .latestMessage, in: shortcuts, target: self)
         item(conversation, "Fold or Unfold the Tool Calls", #selector(toggleToolFolds), shortcut: .foldTools, in: shortcuts, target: self)
         item(conversation, "Copy the Last Answer", #selector(copyLastAnswer), shortcut: .copyAnswer, in: shortcuts, target: self)
+
+        // Engine: the controls of the menu bar item, with a shortcut when the person gives one
+        let engine = submenu(of: main, title: "Engine")
+        item(engine, ShortcutCommand.startOrStop.title, #selector(MenuControls.startOrStop), shortcut: .startOrStop, in: shortcuts, target: controls)
+        item(engine, ShortcutCommand.pauseOrResume.title, #selector(MenuControls.pauseOrResume), shortcut: .pauseOrResume, in: shortcuts, target: controls)
+        item(engine, ShortcutCommand.checkNow.title, #selector(MenuControls.checkNow), shortcut: .checkNow, in: shortcuts, target: controls)
 
         // Window
         let window = submenu(of: main, title: "Window")

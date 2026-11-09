@@ -15,6 +15,17 @@ func showIcon(_ symbol: String, on item: NSMenuItem, color: NSColor? = nil) {
 final class MenuControls: NSObject, NSMenuItemValidation {
     static let shared = MenuControls()
 
+    /// What sends a command to the engine, the confirmation before stopping and the preference that asks for it: the tests put their own.
+    var deliver: (Command) -> Void = { command in
+        let path = controlSocketPath()
+        DispatchQueue.global().async {
+            do { try send(command, socketPath: path) } catch {
+                FileHandle.standardError.write(Data("carrier: \(command.rawValue) failed: \(error)\n".utf8))
+            }
+        }
+    }
+    var confirm: (Int) -> Bool = MenuControls.confirmStop
+    var preferences = AppPreferences()
     private var socketPath: String { controlSocketPath() }
     private let pauseItem = NSMenuItem(title: "Pause intake", action: #selector(pauseOrResume), keyEquivalent: "")
     private let checkItem = NSMenuItem(title: "Check GitHub now", action: #selector(checkNow), keyEquivalent: "")
@@ -49,13 +60,19 @@ final class MenuControls: NSObject, NSMenuItemValidation {
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item === startMenuItem {
             // the settings can change while the menu is closed, so the title is worked out each time it opens
-            let start = startMenuState(state: state, starting: StartController.shared.starting, missing: StartController.shared.missing,
-                configExists: StartController.shared.refreshConfig())
+            let start = startState
             item.title = start.title
             return start.enabled
         }
+        // the main menu's start or stop item: Stop while Carrier runs, Start when it can be started
+        if item.action == #selector(startOrStop), isRunning == false { return startState.enabled }
         if case .running = state { return true }
         return false
+    }
+
+    private var startState: (title: String, enabled: Bool) {
+        startMenuState(state: state, starting: StartController.shared.starting, missing: StartController.shared.missing,
+            configExists: StartController.shared.refreshConfig())
     }
 
     private var isRunning: Bool {
@@ -70,9 +87,11 @@ final class MenuControls: NSObject, NSMenuItemValidation {
 
     @objc private func startCarrier() { StartController.shared.start() }
 
-    @objc func pauseOrResume() { sendInBackground(paused ? .resume : .pause) }
+    @objc func startOrStop() { isRunning ? stopCarrier() : startCarrier() }
 
-    @objc func checkNow() { sendInBackground(.checkNow) }
+    @objc func pauseOrResume() { deliver(paused ? .resume : .pause) }
+
+    @objc func checkNow() { deliver(.checkNow) }
 
     /// The Review tab opened: its threads are as old as the last poll, so GitHub is checked now (at most every thirty seconds).
     func reviewTabOpened() {
@@ -82,14 +101,14 @@ final class MenuControls: NSObject, NSMenuItemValidation {
 
     @objc func stopCarrier() {
         guard case .running(let snapshot) = state else { return }
-        if asksBeforeStopping(snapshot, switchOn: AppPreferences().confirmStop) {
-            guard confirmStop(interrupting: snapshot.runningEpics) else { return }
+        if asksBeforeStopping(snapshot, switchOn: preferences.confirmStop) {
+            guard confirm(snapshot.runningEpics) else { return }
         }
         NotificationWatcher.app.expectStop()
-        sendInBackground(.stop)
+        deliver(.stop)
     }
 
-    private func confirmStop(interrupting running: Int) -> Bool {
+    private static func confirmStop(interrupting running: Int) -> Bool {
         let alert = NSAlert()
         alert.messageText = "Stop Carrier?"
         alert.informativeText = "\(running) \(running == 1 ? "epic" : "epics") will be interrupted. "
@@ -99,15 +118,6 @@ final class MenuControls: NSObject, NSMenuItemValidation {
         // an accessory app is not frontmost, and its alert would open behind the other windows
         NSApp.activate(ignoringOtherApps: true)
         return alert.runModal() == .alertFirstButtonReturn
-    }
-
-    private func sendInBackground(_ command: Command) {
-        let path = socketPath
-        DispatchQueue.global().async {
-            do { try send(command, socketPath: path) } catch {
-                FileHandle.standardError.write(Data("carrier: \(command.rawValue) failed: \(error)\n".utf8))
-            }
-        }
     }
 
     /// What the self-test logs for one action. Pause and resume are sent, resume putting back what was there before the

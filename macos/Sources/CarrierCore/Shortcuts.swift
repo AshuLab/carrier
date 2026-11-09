@@ -40,13 +40,14 @@ public struct KeyCombo: Equatable {
 
 /// A group of the Keybindings page.
 public enum ShortcutGroup: String, CaseIterable {
-    case goTo = "Go to", sessions = "Sessions", conversation = "Conversation"
+    case goTo = "Go to", sessions = "Sessions", conversation = "Conversation", carrier = "Carrier"
 }
 
 /// An action that has a shortcut; the raw value is its id.
 public enum ShortcutCommand: String, CaseIterable {
     case home, sessions, carrier, archive, newSession, search, nextSession, previousSession, archiveSession
     case focusBox, latestMessage, foldTools, copyAnswer
+    case startOrStop, pauseOrResume, checkNow
 
     public var title: String {
         switch self {
@@ -63,6 +64,9 @@ public enum ShortcutCommand: String, CaseIterable {
         case .latestMessage: "Jump to the latest message"
         case .foldTools: "Fold or unfold the tool calls"
         case .copyAnswer: "Copy the last answer"
+        case .startOrStop: "Start or stop Carrier"
+        case .pauseOrResume: "Pause or resume intake"
+        case .checkNow: "Look for ready epics now"
         }
     }
 
@@ -71,11 +75,12 @@ public enum ShortcutCommand: String, CaseIterable {
         case .home, .sessions, .carrier, .archive: .goTo
         case .newSession, .search, .nextSession, .previousSession, .archiveSession: .sessions
         case .focusBox, .latestMessage, .foldTools, .copyAnswer: .conversation
+        case .startOrStop, .pauseOrResume, .checkNow: .carrier
         }
     }
 
-    /// What the window does when it runs.
-    public var action: ShortcutAction {
+    /// What the window does when it runs; nil for the Carrier controls, which the menu runs.
+    public var action: ShortcutAction? {
         switch self {
         case .home: .select(.home)
         case .sessions: .select(.sessions)
@@ -90,6 +95,7 @@ public enum ShortcutCommand: String, CaseIterable {
         case .latestMessage: .conversation(.jumpToLatest)
         case .foldTools: .conversation(.toggleToolFolds)
         case .copyAnswer: .conversation(.copyLastAnswer)
+        case .startOrStop, .pauseOrResume, .checkNow: nil
         }
     }
 
@@ -109,6 +115,7 @@ public enum ShortcutCommand: String, CaseIterable {
         case .latestMessage: KeyCombo(key: KeyCombo.downArrow, modifiers: .command)
         case .foldTools: KeyCombo(key: "e", modifiers: [.command, .option])
         case .copyAnswer: KeyCombo(key: "c", modifiers: [.command, .shift])
+        case .startOrStop, .pauseOrResume, .checkNow: nil
         }
     }
 }

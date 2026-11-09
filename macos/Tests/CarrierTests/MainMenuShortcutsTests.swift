@@ -4,6 +4,9 @@ import Testing
 @testable import CarrierCore
 @testable import Carrier
 
+private let fixtures = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures")
+
 /// The main menu is built from the shortcut table: its items carry the table's keys, and another table gives other keys.
 @MainActor @Suite struct MainMenuShortcutsTests {
     private static let items: [(menu: String, title: String, command: ShortcutCommand)] = [
@@ -45,5 +48,78 @@ import Testing
         #expect(find.keyEquivalent == "j" && find.keyEquivalentModifierMask == [.command, .option])
         #expect(try item(menu, "View", "Home").keyEquivalent == "")
         #expect(try item(menu, "File", "New Session").keyEquivalent == "n")
+    }
+
+    // The Carrier controls: in the menu with no key until the table gives one, and run from the menu on the engine's controls.
+
+    private func controls(running: Bool, epicsRunning: Bool = false, confirmStop: Bool = true) throws -> (MenuControls, Box) {
+        let box = Box()
+        let suite = "menu-controls-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let controls = MenuControls()
+        controls.preferences = AppPreferences(defaults: defaults)
+        controls.preferences.confirmStop = confirmStop
+        controls.deliver = { box.sent.append($0) }
+        controls.confirm = { _ in box.asked += 1; return box.answer }
+        var snapshot = try decodeSnapshot(Data(contentsOf: fixtures.appendingPathComponent("snapshot.json")))
+        snapshot.paused = false
+        if epicsRunning == false { snapshot.epics = [] }
+        controls.react(to: running ? .running(snapshot) : .stopped)
+        return (controls, box)
+    }
+
+    @MainActor final class Box {
+        var sent: [Command] = []
+        var asked = 0
+        var answer = true
+    }
+
+    private func run(_ made: NSMenuItem) { _ = NSApp.sendAction(made.action!, to: made.target, from: made) }
+
+    @Test func theCarrierControlsAreInTheMenuWithoutAKeyAndRunFromIt() throws {
+        let (controls, box) = try controls(running: true)
+        let menu = AppDelegate().makeMainMenu(shortcuts: table(), controls: controls)
+        let pause = try item(menu, "Engine", "Pause or resume intake")
+        let check = try item(menu, "Engine", "Look for ready epics now")
+        let startStop = try item(menu, "Engine", "Start or stop Carrier")
+        #expect([pause, check, startStop].allSatisfy { $0.keyEquivalent == "" && controls.validateMenuItem($0) })
+        run(pause)
+        run(check)
+        run(startStop)
+        #expect(box.sent == [.pause, .checkNow, .stop])
+    }
+
+    @Test func aCombinationOfThePersonIsOnTheItemAndPauseBecomesResume() throws {
+        let (controls, box) = try controls(running: true)
+        let table = table()
+        table.set(KeyCombo(key: "p", modifiers: [.command, .option]), for: .pauseOrResume)
+        let pause = try item(AppDelegate().makeMainMenu(shortcuts: table, controls: controls), "Engine", "Pause or resume intake")
+        #expect(pause.keyEquivalent == "p" && pause.keyEquivalentModifierMask == [.command, .option])
+        var snapshot = try decodeSnapshot(Data(contentsOf: fixtures.appendingPathComponent("snapshot.json")))
+        snapshot.paused = true
+        controls.react(to: .running(snapshot))
+        run(pause)
+        #expect(box.sent == [.resume])
+    }
+
+    @Test func theControlsAreOffWhileCarrierIsStoppedExceptStartOrStop() throws {
+        let (controls, box) = try controls(running: false)
+        let menu = AppDelegate().makeMainMenu(shortcuts: table(), controls: controls)
+        #expect(controls.validateMenuItem(try item(menu, "Engine", "Pause or resume intake")) == false)
+        #expect(controls.validateMenuItem(try item(menu, "Engine", "Look for ready epics now")) == false)
+        #expect(box.sent.isEmpty)
+    }
+
+    @Test func stoppingAsksOnlyWhenThePreferenceIsOnAndEpicsWouldBeInterrupted() throws {
+        for (epics, preference, asks) in [(true, true, 1), (true, false, 0), (false, true, 0)] {
+            let (controls, box) = try controls(running: true, epicsRunning: epics, confirmStop: preference)
+            controls.startOrStop()
+            #expect(box.asked == asks && box.sent == [.stop])
+        }
+        let (controls, box) = try controls(running: true, epicsRunning: true)
+        box.answer = false
+        controls.startOrStop()
+        #expect(box.asked == 1 && box.sent.isEmpty)
     }
 }

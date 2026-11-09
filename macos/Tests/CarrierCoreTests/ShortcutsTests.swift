@@ -11,7 +11,7 @@ private func freshTable() -> (ShortcutTable, UserDefaults) {
 
 @Test func theDefaultsAreTheGoToAndSessionsGroups() {
     let (table, _) = freshTable()
-    let shown = ShortcutCommand.allCases.map { "\($0.group.rawValue) \($0.title) \(table.combo(for: $0)?.text ?? "")" }
+    let shown = ShortcutCommand.allCases.filter { $0.group != .carrier }.map { "\($0.group.rawValue) \($0.title) \(table.combo(for: $0)?.text ?? "")" }
     #expect(shown == [
         "Go to Home ⌘1", "Go to Sessions ⌘2", "Go to Carrier ⌘3", "Go to Archive ⌘4", "Sessions New session ⌘N", "Sessions Search ⌘F",
         "Sessions Next session ⌘]", "Sessions Previous session ⌘[", "Sessions Archive the session ⇧⌘A",
@@ -87,4 +87,19 @@ private func freshTable() -> (ShortcutTable, UserDefaults) {
     table.set(nil, for: .search)
     AppPreferences(defaults: defaults).reset(.keybindings)
     #expect(ShortcutCommand.allCases.allSatisfy { table.isDefault($0) })
+}
+
+@Test func theCarrierControlsHaveNoCombinationUntilThePersonGivesOne() {
+    let (table, defaults) = freshTable()
+    let controls: [ShortcutCommand] = [.startOrStop, .pauseOrResume, .checkNow]
+    #expect(ShortcutCommand.allCases.filter { $0.group == .carrier } == controls)
+    #expect(controls.allSatisfy { table.combo(for: $0) == nil && $0.defaultCombo == nil && $0.action == nil && table.isDefault($0) })
+    let own = KeyCombo(key: "p", modifiers: [.command, .option])!
+    table.set(own, for: .pauseOrResume)
+    #expect(ShortcutTable(defaults: defaults).combo(for: .pauseOrResume) == own)
+    #expect(table.command(for: own) == .pauseOrResume && table.isDefault(.pauseOrResume) == false)
+    // the window's key monitor leaves it to the menu
+    #expect(shortcutAction(key: "p", modifiers: [.command, .option], in: table) == nil)
+    table.set(nil, for: .pauseOrResume)
+    #expect(table.isDefault(.pauseOrResume))
 }

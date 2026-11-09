@@ -85,7 +85,7 @@ func clockTime(_ ms: Int, time: TimeFormat) -> String {
 
 extension Date {
     /// The date of the engine's time, ms since the epoch.
-    init(ms: Int) { self.init(timeIntervalSince1970: Double(ms) / 1000) }
+    public init(ms: Int) { self.init(timeIntervalSince1970: Double(ms) / 1000) }
 }
 
 /// How long ago an event was, "2m 05s ago", or the time of the event when Time format is clock. `ms` is the engine's time.

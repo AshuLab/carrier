@@ -14,6 +14,8 @@ struct ConversationView: View {
     /// Whether rows are animated in: not the ones the first answer brings, which are the history.
     @State private var animatesRows = false
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+    @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
+    @State private var position = ScrollPosition()
     /// The feed's column; medium is the one of the mockups (chat-ui-conv2.html).
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
 
@@ -48,7 +50,7 @@ struct ConversationView: View {
                     let open = openOutcome(model.rows)
                     ForEach(model.rows) { row in
                         FeedRowView(
-                            row: row, opened: $opened, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
+                            row: row, time: model.times[row.id], opened: $opened, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
                             continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
                             answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
                         )
@@ -68,9 +70,13 @@ struct ConversationView: View {
             .frame(maxWidth: .infinity)
             .animation(animatesRows ? .smooth(duration: 0.28) : nil, value: model.rows.count)
         }
-        // the end of the conversation is what shows, and stays in view as it grows; a short one starts at the top
-        .defaultScrollAnchor(.bottom)
+        // the end of the conversation is what shows; it stays in view as it grows only when Follow new output is on (the model says when to scroll)
+        .defaultScrollAnchor(followsOutput ? .bottom : nil)
         .defaultScrollAnchor(.top, for: .alignment)
+        .scrollPosition($position)
+        .onScrollGeometryChange(for: Bool.self) { $0.visibleRect.maxY >= $0.contentSize.height - 24 } action: { _, atEnd in model.atEnd = atEnd }
+        .onChange(of: followsOutput, initial: true) { _, follows in model.followsOutput = follows }
+        .onChange(of: model.scrolls) { position.scrollTo(edge: .bottom) }
         .onChange(of: model.loaded) { _, loaded in
             guard loaded else { return }
             Task { try? await Task.sleep(for: .milliseconds(400)); animatesRows = true }
@@ -189,6 +195,8 @@ struct OpenMenu: View {
 
 private struct FeedRowView: View {
     let row: FeedRow
+    /// When the message was written, in ms; nil for a row that is not a stored message.
+    let time: Int?
     @Binding var opened: Set<String>
     let agent: String
     /// What the session lists, to show the commands a message names as pills.
@@ -198,20 +206,28 @@ private struct FeedRowView: View {
     let continueTurn: () -> Void
     let retry: () -> Void
     let answer: (String, String) -> Void
+    @AppStorage(AppPreferences.messageTimesKey) private var messageTimes = AppPreferences.defaultMessageTimes
+    @State private var hovering = false
 
     var body: some View {
         switch row {
         case .user(_, let text):
-            messageText(text, commands: commands).textSelection(.enabled)
-                .padding(.horizontal, 13).padding(.vertical, 8)
-                .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.14)))
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.leading, 120)
+            VStack(alignment: .trailing, spacing: 3) {
+                messageText(text, commands: commands).textSelection(.enabled)
+                    .padding(.horizontal, 13).padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.14)))
+                stamp
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.leading, 120)
+            .onHover { hovering = $0 }
         case .agent(_, let text, let inProgress):
             VStack(alignment: .leading, spacing: 5) {
                 MarkdownView(text: text)
                 if inProgress { Text("▍").foregroundStyle(.secondary) }
+                stamp
             }
+            .onHover { hovering = $0 }
         case .turnEnd(_, let text):
             Text(text).font(.scaled(11)).foregroundStyle(.tertiary).textSelection(.enabled)
         case .tools(let id, let group):
@@ -230,6 +246,30 @@ private struct FeedRowView: View {
                 if offersWayOut { Button("Continue", action: continueTurn).buttonStyle(.link) }
             }
             .font(.scaled(12))
+        }
+    }
+}
+
+extension FeedRowView {
+    @ViewBuilder fileprivate var stamp: some View {
+        if let time { MessageTimeLabel(ms: time, mode: messageTimes, hovering: hovering) }
+    }
+}
+
+/// The time a message was written, in the General format. On hover it keeps its place and only fades in, so the rows do not jump.
+struct MessageTimeLabel: View {
+    let ms: Int
+    let mode: MessageTimes
+    let hovering: Bool
+    private let timeChanges = TimeFormatChanges()
+
+    var body: some View {
+        if mode != .never {
+            // a relative time ages while the row stays on screen
+            TimelineView(.everyMinute) { context in
+                Text(timeText(Date(ms: ms), now: context.date)).font(.scaled(11)).monospacedDigit().foregroundStyle(.tertiary)
+                    .opacity(mode.shows(hovering: hovering) ? 1 : 0)
+            }
         }
     }
 }

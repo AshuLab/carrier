@@ -448,12 +448,14 @@ struct SidebarTabView: View {
     }
 }
 
-/// How the message box behaves: the key that sends and what the system does to the text. The conversation's own block comes with its slice.
+/// How the message box and the conversation behave. The rest of the conversation's block comes with its slices.
 struct ChatTabView: View {
     @AppStorage(AppPreferences.sendKeyKey) private var sendKey = AppPreferences.defaultSendKey
     @AppStorage(AppPreferences.writingToolsKey) private var writingTools = AppPreferences.defaultWritingTools
     @AppStorage(AppPreferences.checksSpellingKey) private var checksSpelling = AppPreferences.defaultChecksSpelling
     @AppStorage(AppPreferences.correctsSpellingKey) private var correctsSpelling = AppPreferences.defaultCorrectsSpelling
+    @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
+    @AppStorage(AppPreferences.messageTimesKey) private var messageTimes = AppPreferences.defaultMessageTimes
 
     var body: some View {
         SettingsPageBody(reset: { AppPreferences().reset(.chat) }) {
@@ -473,6 +475,17 @@ struct ChatTabView: View {
                 }
                 SettingsTabRow(title: "Correct spelling automatically", detail: "Fix a misspelled word as you type it") {
                     Toggle("Correct spelling automatically", isOn: $correctsSpelling).labelsHidden().toggleStyle(.switch)
+                }
+            }
+            SettingsGroup(title: "Conversation") {
+                SettingsTabRow(title: "Follow new output", detail: "Scroll to what arrives while you are at the end", first: true) {
+                    Toggle("Follow new output", isOn: $followsOutput).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Message times", detail: "When a message shows the time it was written, as in General") {
+                    Picker("Message times", selection: $messageTimes) {
+                        ForEach(MessageTimes.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
                 }
             }
         }

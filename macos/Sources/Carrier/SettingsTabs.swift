@@ -168,14 +168,35 @@ struct GeneralTabView: View {
     }
 }
 
-/// How the app looks: the color scheme of every window, the text size of the whole interface and how tight the rows are.
+/// How the app looks: the color scheme of every window, the text size of the whole interface, how tight the rows are, and the font of
+/// code and output with a sample that follows each choice.
 struct AppearanceTabView: View {
     @AppStorage(AppPreferences.colorSchemeKey) private var colorScheme = AppPreferences.defaultColorScheme
     @AppStorage(TypeScale.percentKey) private var textSize = 100
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
+    @AppStorage(AppPreferences.monospaceFamilyKey) private var family = MonospaceSettings.systemFamily
+    @AppStorage(AppPreferences.monospaceSizeKey) private var codeSize = Double(MonospaceSettings.defaultSize)
+    @AppStorage(AppPreferences.monospaceLineHeightKey) private var lineHeight = LineHeight.normal
+    @AppStorage(AppPreferences.monospaceLigaturesKey) private var ligatures = true
+    @AppStorage(AppPreferences.monospaceWrapKey) private var wrapLongLines = true
+    @AppStorage(AppPreferences.monospaceLineNumbersKey) private var lineNumbers = false
+
+    /// A few lines of code under the settings: a long line to wrap, and the pairs of characters a ligature joins.
+    private static let sample = """
+        func total(_ lines: [Int]) -> Int {
+            // a line that is longer than the room it has, so wrapping and scrolling sideways show: 0123456789 abcdefghij 0123456789
+            lines.filter { $0 != 0 && $0 >= 1 }.reduce(0, +)
+        }
+        """
+
+    private func codePreview() -> some View {
+        SettingsGroup(title: "Preview") {
+            CodeBlockView(language: "swift", code: Self.sample).padding(.vertical, 10)
+        }
+    }
 
     var body: some View {
-        SettingsPageBody(reset: { AppPreferences().reset(.appearance) }) {
+        SettingsPageBody(reset: { AppPreferences().reset(.appearance) }, preview: codePreview) {
             SettingsGroup(title: "Look") {
                 SettingsTabRow(title: "Color scheme", detail: "System follows the Mac; light and dark stay as chosen", first: true) {
                     Picker("Color scheme", selection: $colorScheme) {
@@ -195,6 +216,37 @@ struct AppearanceTabView: View {
                         ForEach(Density.allCases, id: \.self) { Text($0.title).tag($0) }
                     }
                     .labelsHidden().fixedSize()
+                }
+            }
+            SettingsGroup(title: "Code and output") {
+                SettingsTabRow(title: "Font", detail: "The monospaced fonts installed on this Mac", first: true) {
+                    // a family that is no longer installed shows as the system's, as the views draw it
+                    Picker("Font", selection: Binding(
+                        get: { MonospaceStyle.installedFamilies.contains(family) ? family : MonospaceSettings.systemFamily },
+                        set: { family = $0 }
+                    )) {
+                        ForEach([MonospaceSettings.systemFamily] + MonospaceStyle.installedFamilies, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Size", detail: "\(Int(codeSize)) pt, before the text size of the whole app") {
+                    Slider(value: $codeSize, in: Double(MonospaceSettings.sizeRange.lowerBound)...Double(MonospaceSettings.sizeRange.upperBound), step: 1)
+                        .frame(width: 160).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
+                }
+                SettingsTabRow(title: "Line height", detail: "The room between the lines of code and output") {
+                    Picker("Line height", selection: $lineHeight) {
+                        ForEach(LineHeight.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
+                    Toggle("Ligatures", isOn: $ligatures).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Wrap long lines", detail: "Off keeps each line whole and scrolls sideways") {
+                    Toggle("Wrap long lines", isOn: $wrapLongLines).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Line numbers", detail: "In code blocks and the output of a command") {
+                    Toggle("Line numbers", isOn: $lineNumbers).labelsHidden().toggleStyle(.switch)
                 }
             }
         }

@@ -19,8 +19,8 @@ struct TranscriptRows: View {
         case .items(let items):
             ForEach(items) { FlowItemView(flow: $0, outputs: $outputs, groups: $groups, slices: $slices).sessionRow() }
         case .tail(let lines):
-            Text(lines.isEmpty ? "No output yet" : lines.joined(separator: "\n"))
-                .font(.scaled(12, design: .monospaced)).foregroundStyle(.secondary)
+            MonoLines(lines: lines.isEmpty ? ["No output yet"] : lines)
+                .codeFont(12).foregroundStyle(.secondary)
                 .textSelection(.enabled).padding(12).sessionRow()
         }
     }
@@ -192,7 +192,7 @@ struct CallLineView: View {
             Image(systemName: card.kind.icon).font(.scaled(11)).foregroundStyle(card.status == .error ? .red : .secondary)
                 .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
             HStack(spacing: 4) {
-                Text(card.title).font(.scaled(12, design: .monospaced)).lineLimit(1)
+                Text(card.title).codeFont(12).lineLimit(1)
                     .truncationMode(card.kind == .shell ? .tail : .middle)
                 if card.moreCommands > 0 {
                     Text("+\(card.moreCommands)").font(.scaled(11)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
@@ -307,7 +307,7 @@ struct SkillRowView: View {
         HStack(spacing: LogMetrics.gap) {
             Image(systemName: card.kind.icon).font(.scaled(9, weight: .bold)).foregroundStyle(.white)
                 .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth).background(RoundedRectangle(cornerRadius: 5).fill(card.kind.color))
-            Text(card.title).font(.scaled(12, weight: .medium, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+            Text(card.title).codeFont(12, weight: .medium).lineLimit(1).truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
             CallColumns(duration: card.showsDuration(active: hovered) ? card.duration : nil, failed: card.status == .error, status: card.status)
         }
@@ -336,7 +336,7 @@ struct TerminalBlockView: View {
                 Text("no output").font(.scaled(11.5)).foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 9)
             } else {
-                output(shown.lines).textSelection(.enabled)
+                MonoLines(lines: shown.lines, redFirst: card.failureLine != nil).textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 8)
                     // a cut output fades out where it is cut
                     .mask {
@@ -350,19 +350,12 @@ struct TerminalBlockView: View {
             divider
             footer(hidden: shown.hidden)
         }
-        .font(.scaled(11.5, design: .monospaced))
+        .codeFont(11.5)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var divider: some View { Rectangle().fill(Color.secondary.opacity(0.2)).frame(height: 0.5) }
-
-    /// Only the `Exit code N` line of a failed call is red; the rest is normal text.
-    private func output(_ lines: [String]) -> Text {
-        guard let failure = card.failureLine else { return Text(lines.joined(separator: "\n")) }
-        let rest = lines.count > 1 ? "\n" + lines.dropFirst().joined(separator: "\n") : ""
-        return Text("\(Text(failure).foregroundStyle(.red))\(rest)")
-    }
 
     private var strip: some View {
         HStack(alignment: .firstTextBaseline, spacing: 9) {
@@ -464,7 +457,7 @@ struct ToolCardView: View {
                         .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.green.opacity(0.16)))
                 }
                 if card.editFolder.isEmpty == false {
-                    Text(card.editFolder).font(.scaled(11, design: .monospaced)).foregroundStyle(.tertiary)
+                    Text(card.editFolder).codeFont(11).foregroundStyle(.tertiary)
                         .lineLimit(1).truncationMode(.head)
                 }
             }
@@ -505,7 +498,7 @@ struct Console<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) { content }
-            .font(.scaled(11.5, design: .monospaced))
+            .codeFont(11.5)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(red: 0.05, green: 0.05, blue: 0.063))

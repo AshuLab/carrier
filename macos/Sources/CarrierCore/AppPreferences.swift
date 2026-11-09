@@ -10,6 +10,10 @@ public struct AppPreferences {
     public static let clockHoursKey = "display.clock"
     public static let colorSchemeKey = "appearance.colorScheme"
     public static let densityKey = "appearance.density"
+    public static let themeKey = "appearance.theme"
+    public static let accentKey = "appearance.accent"
+    public static let tintKey = "appearance.tint"
+    public static let translucentKey = "appearance.translucent"
     public static let sendKeyKey = "chat.sendKey"
     public static let writingToolsKey = "chat.writingTools"
     public static let checksSpellingKey = "chat.checkSpelling"
@@ -21,6 +25,8 @@ public struct AppPreferences {
     public static let defaultConfirmStop = true
     public static let defaultColorScheme = ColorSchemeChoice.system
     public static let defaultDensity = Density.comfortable
+    public static let defaultTheme = Theme.carrier
+    public static let defaultTint = Tint.off
     public static let defaultSendKey = SendKey.return
     public static let defaultWritingTools = false
     public static let defaultChecksSpelling = true
@@ -80,6 +86,29 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.densityKey) }
     }
 
+    public var theme: Theme {
+        get { defaults.string(forKey: Self.themeKey).flatMap(Theme.init(rawValue:)) ?? Self.defaultTheme }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.themeKey) }
+    }
+
+    /// The accent the person picked; nil is the theme's own.
+    public var accent: AccentColor? {
+        get { defaults.string(forKey: Self.accentKey).flatMap(AccentColor.init(rawValue:)) }
+        nonmutating set { defaults.set(newValue?.rawValue, forKey: Self.accentKey) }
+    }
+
+    public var tint: Tint {
+        get { defaults.string(forKey: Self.tintKey).flatMap(Tint.init(rawValue:)) ?? Self.defaultTint }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.tintKey) }
+    }
+
+    /// Whether windows are translucent: what the person chose, and while they did not, the opposite of the system's Reduce transparency.
+    public func translucent(systemReducesTransparency: Bool) -> Bool {
+        defaults.object(forKey: Self.translucentKey) as? Bool ?? (systemReducesTransparency == false)
+    }
+
+    public func setTranslucent(_ value: Bool) { defaults.set(value, forKey: Self.translucentKey) }
+
     /// The key that sends in the message box; the other one makes a new line.
     public var sendKey: SendKey {
         get { defaults.string(forKey: Self.sendKeyKey).flatMap(SendKey.init(rawValue:)) ?? Self.defaultSendKey }
@@ -116,7 +145,7 @@ public struct AppPreferences {
                 SidebarStore.groupByKey, SidebarStore.sessionSortKey, SidebarStore.archiveSortKey, SidebarStore.showsIconKey,
                 SidebarStore.showsBranchKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey,
             ]
-        case .appearance: [colorSchemeKey, TypeScale.percentKey, densityKey]
+        case .appearance: [colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey]
         case .chat: [sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey]
         default: []
         }

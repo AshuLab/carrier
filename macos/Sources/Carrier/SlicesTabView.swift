@@ -101,7 +101,7 @@ struct SlicesTabView: View {
                 Text("\(count)").foregroundStyle(.secondary)
             }
             .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(RoundedRectangle(cornerRadius: 10).fill(target == selected ? Color.accentColor.opacity(0.18) : .clear))
+            .background(RoundedRectangle(cornerRadius: 10).fill(target == selected ? Color.themeAccent.opacity(0.18) : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -149,7 +149,7 @@ struct SliceRowView: View {
     }
 
     @ViewBuilder private func chip(_ text: String, url: String?, accent: Bool) -> some View {
-        let color: Color = accent ? .accentColor : .secondary
+        let color: Color = accent ? .themeAccent : .secondary
         let label = HStack(spacing: 3) {
             Text(text)
             if url != nil { Image(systemName: "arrow.up.right").font(.scaled(8, weight: .bold)) }

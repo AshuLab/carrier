@@ -378,7 +378,7 @@ struct TerminalBlockView: View {
             if let count = card.lineCount { Text(count).foregroundStyle(.tertiary) }
             if hidden > 0 || showAll {
                 Button(showAll ? "Show less" : "Show \(hidden) more \(hidden == 1 ? "line" : "lines")") { showAll.toggle() }
-                    .buttonStyle(.plain).foregroundStyle(Color.accentColor)
+                    .buttonStyle(.plain).foregroundStyle(Color.themeAccent)
             }
             Spacer(minLength: 0)
             CopyButton(text: card.copyText)
@@ -535,7 +535,7 @@ struct DiffView: View {
             }
             if rows.count > collapsedDiffRows {
                 Button(showAll ? "Show less" : "Show \(shown.hidden) more \(shown.hidden == 1 ? "line" : "lines")") { showAll.toggle() }
-                    .buttonStyle(.plain).font(.scaled(11)).foregroundStyle(Color.accentColor)
+                    .buttonStyle(.plain).font(.scaled(11)).foregroundStyle(Color.themeAccent)
                     .padding(.horizontal, 14).padding(.top, 7).padding(.bottom, 1)
             }
             if let cut {

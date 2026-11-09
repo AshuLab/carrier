@@ -114,7 +114,7 @@ struct SessionsHomeView: View {
                 Label("Filter", systemImage: "line.3.horizontal.decrease").labelStyle(.titleAndIcon)
                 if filter.count > 0 {
                     Text("\(filter.count)").font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.white)
-                        .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.accentColor))
+                        .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.themeAccent))
                         .accessibilityLabel("\(filter.count) filters applied")
                 }
             }
@@ -133,7 +133,7 @@ struct SessionsHomeView: View {
                         Image(systemName: "xmark").font(.scaled(8, weight: .bold))
                     }
                     .font(.caption.weight(.medium)).foregroundStyle(.white)
-                    .padding(.horizontal, 9).padding(.vertical, 3).background(Capsule().fill(Color.accentColor))
+                    .padding(.horizontal, 9).padding(.vertical, 3).background(Capsule().fill(Color.themeAccent))
                 }
                 .buttonStyle(.plain).accessibilityLabel("Remove filter \(chip.title)")
             }

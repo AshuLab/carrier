@@ -38,7 +38,7 @@ final class AgentOutputWindow: NSObject, NSWindowDelegate {
     private init(title: String, executionId: String) {
         key = executionId
         let model = OutputModel()
-        window = NSWindow(contentViewController: NSHostingController(rootView: AgentOutputView(model: model)))
+        window = NSWindow(contentViewController: NSHostingController(rootView: AgentOutputView(model: model).themed()))
         super.init()
         window.title = "\(title) · output"
         window.styleMask = [.titled, .closable, .resizable]

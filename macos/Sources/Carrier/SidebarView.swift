@@ -109,6 +109,7 @@ struct SidebarView: View {
                 searchFocused = true
             }
         }
+        .themedSidebarBackground()
         .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 320)
         .safeAreaBar(edge: .bottom, spacing: 0) {
             // Archive above the divider and Settings alone under it; both stay while the list above scrolls, over the system's scroll pocket
@@ -325,7 +326,7 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
         }
         .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.sectionPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
+        .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.themeAccent.opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
         .contentShape(RoundedRectangle(cornerRadius: 8))
         .onTapGesture(perform: action)
         .onHover { hovered = $0 }
@@ -384,7 +385,7 @@ private struct SelectableSidebarRow: ViewModifier {
         let dark = scheme == .dark
         content
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color(nsColor: .selectedContentBackgroundColor).opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
+            .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.themeAccent.opacity(0.45) : Color.primary.opacity(hovered ? (dark ? 0.07 : 0.05) : 0)))
             .contentShape(RoundedRectangle(cornerRadius: 8))
             .onTapGesture(perform: action)
             .onHover { hovered = $0 }

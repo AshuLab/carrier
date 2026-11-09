@@ -157,6 +157,7 @@ struct PanelView: View {
                     .allowsHitTesting(shell.inspectorShown)
                 }
             }
+            .themedWindowBackground()
             .navigationTitle(title)
             .navigationSubtitle(subtitle)
             // an open session has a header of its own (SessionHeader), which says more than a title and a line
@@ -223,8 +224,9 @@ struct PanelView: View {
             }
         }
         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
-        .sheet(isPresented: $shell.settingsShown) { SettingsSheet(state: model.state, tab: $shell.settingsTab) }
+        .sheet(isPresented: $shell.settingsShown) { SettingsSheet(state: model.state, tab: $shell.settingsTab).themed() }
         .frame(minWidth: 1100, minHeight: 600)
+        .themed()
         .environment(model.actions)
         .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
         .onChange(of: snapshot) { if let snapshot { model.epics.settleResuming(snapshot) } }

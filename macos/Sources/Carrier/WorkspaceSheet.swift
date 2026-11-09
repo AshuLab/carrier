@@ -111,9 +111,9 @@ struct WorkspaceSheet: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: icon)
-                    .font(.scaled(16, weight: .medium)).foregroundStyle(Color.accentColor)
+                    .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
                     .frame(width: 36, height: 36)
-                    .background(RoundedRectangle(cornerRadius: radius).fill(Color.accentColor.opacity(0.16)))
+                    .background(RoundedRectangle(cornerRadius: radius).fill(Color.themeAccent.opacity(0.16)))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.title3.weight(.semibold))
@@ -152,7 +152,7 @@ struct WorkspaceSheet: View {
     private func folderRow(_ name: String, _ path: String) -> some View {
         HoverRow(action: { dismiss(); Task { await model.choose(folder: path) } }) { hovering in
             HStack(spacing: 10) {
-                Image(systemName: "folder.fill").foregroundStyle(Color.accentColor.opacity(0.8)).accessibilityHidden(true)
+                Image(systemName: "folder.fill").foregroundStyle(Color.themeAccent.opacity(0.8)).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(name).fontWeight(.medium)
                     Text((path as NSString).abbreviatingWithTildeInPath).font(.subheadline).foregroundStyle(.secondary).lineLimit(1).truncationMode(.head)
@@ -252,7 +252,7 @@ struct WorkspaceSheet: View {
                     if visibility != .all { Text(visibility.rawValue).font(.subheadline.weight(.semibold)) }
                     Image(systemName: visibility == .all ? "line.3.horizontal.decrease.circle" : "line.3.horizontal.decrease.circle.fill")
                 }
-                .foregroundStyle(visibility == .all ? Color.secondary : Color.accentColor)
+                .foregroundStyle(visibility == .all ? Color.secondary : Color.themeAccent)
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().help("Show all, public or private repositories")
         }
@@ -365,9 +365,9 @@ struct WorkspaceSheet: View {
             ForEach(points, id: \.1) { icon, text in
                 HStack(spacing: 12) {
                     Image(systemName: icon)
-                        .font(.scaled(13, weight: .medium)).foregroundStyle(Color.accentColor)
+                        .font(.scaled(13, weight: .medium)).foregroundStyle(Color.themeAccent)
                         .frame(width: 30, height: 30)
-                        .background(RoundedRectangle(cornerRadius: radius).fill(Color.accentColor.opacity(0.16)))
+                        .background(RoundedRectangle(cornerRadius: radius).fill(Color.themeAccent.opacity(0.16)))
                         .accessibilityHidden(true)
                     Text(text).font(.callout).fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)

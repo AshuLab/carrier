@@ -73,7 +73,7 @@ struct DetailsRowView: View {
         switch row.style {
         case .badge:
             if let link {
-                Link(destination: link) { DetailsBadge(text: row.value, color: row.tone == .normal ? .accentColor : color, linked: true) }
+                Link(destination: link) { DetailsBadge(text: row.value, color: row.tone == .normal ? .themeAccent : color, linked: true) }
                     .buttonStyle(.plain).help(link.absoluteString)
             } else {
                 DetailsBadge(text: row.value, color: color, linked: false)

@@ -254,7 +254,7 @@ struct PipelineStepView: View {
     private var fill: Color? {
         switch step.state {
         case .done: .green
-        case .current: .accentColor
+        case .current: .themeAccent
         case .input: .orange
         case .error: .red
         case .waiting, .cancelled: nil

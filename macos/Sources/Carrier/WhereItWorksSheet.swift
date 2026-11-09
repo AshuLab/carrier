@@ -35,9 +35,9 @@ struct WhereItWorksSheet: View {
     private var header: some View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.triangle.branch")
-                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.accentColor)
+                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
                 .frame(width: 36, height: 36)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.16)))
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Where it works").font(.title3.weight(.semibold))
@@ -47,12 +47,12 @@ struct WhereItWorksSheet: View {
     }
 
     private func option(_ title: String, _ icon: String, chosen: Bool, worktree: Bool, _ detail: String) -> some View {
-        HoverRow(action: { Task { await model.useWorktree(worktree) }; dismiss() }, fill: chosen ? Color.accentColor.opacity(0.14) : nil) { _ in
+        HoverRow(action: { Task { await model.useWorktree(worktree) }; dismiss() }, fill: chosen ? Color.themeAccent.opacity(0.14) : nil) { _ in
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: icon)
-                    .font(.scaled(14, weight: .medium)).foregroundStyle(chosen ? Color.accentColor : .secondary)
+                    .font(.scaled(14, weight: .medium)).foregroundStyle(chosen ? Color.themeAccent : .secondary)
                     .frame(width: 30, height: 30)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(chosen ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12)))
+                    .background(RoundedRectangle(cornerRadius: 8).fill(chosen ? Color.themeAccent.opacity(0.18) : Color.secondary.opacity(0.12)))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).fontWeight(.semibold)
@@ -67,6 +67,6 @@ struct WhereItWorksSheet: View {
             }
             .padding(12)
         }
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(chosen ? Color.accentColor.opacity(0.6) : Color.secondary.opacity(0.2), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(chosen ? Color.themeAccent.opacity(0.6) : Color.secondary.opacity(0.2), lineWidth: 1))
     }
 }

@@ -99,7 +99,7 @@ final class EmptyStatesWindowController: NSObject {
 
     @objc private func open() {
         let window = window ?? {
-            let made = NSWindow(contentViewController: NSHostingController(rootView: EmptyStatesGallery()))
+            let made = NSWindow(contentViewController: NSHostingController(rootView: EmptyStatesGallery().themed()))
             made.title = "Empty states"
             made.styleMask = [.titled, .closable, .resizable]
             made.isReleasedWhenClosed = false

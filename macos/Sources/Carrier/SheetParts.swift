@@ -45,7 +45,7 @@ struct ChosenMark: View {
     var body: some View {
         Image(systemName: "checkmark")
             .font(.scaled(9, weight: .bold)).foregroundStyle(.white)
-            .frame(width: 18, height: 18).background(Circle().fill(Color.accentColor))
+            .frame(width: 18, height: 18).background(Circle().fill(Color.themeAccent))
             .accessibilityLabel("Chosen")
     }
 }
@@ -70,7 +70,7 @@ struct RowHint: View {
 
     var body: some View {
         Text(text).font(.caption.weight(.semibold)).foregroundStyle(.white)
-            .padding(.horizontal, 10).padding(.vertical, 3).background(Capsule().fill(Color.accentColor))
+            .padding(.horizontal, 10).padding(.vertical, 3).background(Capsule().fill(Color.themeAccent))
             .opacity(shown ? 1 : 0).accessibilityHidden(true)
     }
 }
@@ -86,7 +86,7 @@ struct RailHeader: View {
             Image(systemName: icon)
                 .font(.scaled(15, weight: .medium)).foregroundStyle(.white)
                 .frame(width: 36, height: 36)
-                .background(Circle().fill(LinearGradient(colors: [.accentColor, .accentColor.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                .background(Circle().fill(LinearGradient(colors: [.themeAccent, .themeAccent.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).font(.headline)
@@ -107,12 +107,12 @@ struct RailRow: View {
     let action: () -> Void
 
     var body: some View {
-        HoverRow(action: action, fill: selected ? Color.accentColor.opacity(0.22) : nil) { _ in
+        HoverRow(action: action, fill: selected ? Color.themeAccent.opacity(0.22) : nil) { _ in
             HStack(spacing: 10) {
                 Image(systemName: icon)
-                    .font(.scaled(13, weight: .medium)).foregroundStyle(selected ? Color.accentColor : .secondary)
+                    .font(.scaled(13, weight: .medium)).foregroundStyle(selected ? Color.themeAccent : .secondary)
                     .frame(width: 28, height: 28)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12)))
+                    .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.themeAccent.opacity(0.18) : Color.secondary.opacity(0.12)))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).fontWeight(.medium)
                     Text(detail).font(.subheadline).foregroundStyle(.secondary).lineLimit(off ? 2 : 1)
@@ -131,7 +131,7 @@ struct RowChevron: View {
 
     var body: some View {
         Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(.white)
-            .frame(width: 26, height: 26).glassEffect(.regular.tint(Color.accentColor), in: .circle)
+            .frame(width: 26, height: 26).glassEffect(.regular.tint(Color.themeAccent), in: .circle)
             .opacity(shown ? 1 : 0).accessibilityHidden(true)
     }
 }

@@ -207,7 +207,7 @@ struct MessageBox<Selects: View>: View {
             }
         }
         // a circle by construction: the system's border shape, over a label that is square
-        .buttonBorderShape(.circle).controlSize(.large).tint(.accentColor)
+        .buttonBorderShape(.circle).controlSize(.large).tint(.themeAccent)
         .animation(.smooth(duration: 0.25), value: active)
         .help(busy ? "Stop" : "\(sendHelp) (\(sendKey == .return ? "↩" : "⌘↩")) · New line (\(sendKey == .return ? "⇧↩" : "↩"))").accessibilityLabel(busy ? "Stop" : "Send")
     }

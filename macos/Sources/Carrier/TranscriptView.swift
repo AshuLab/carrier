@@ -60,26 +60,53 @@ struct FlowItemView: View {
     }
 }
 
-/// An agent's text laid out by block: lines with room between them, bullets that hang, a gap for a blank line.
+/// An agent's text: its lines and bullets run together as one text, so a drag selects across them (separate texts select only within
+/// themselves), and a fenced code block is a view of its own between two of those, which a selection does not cross. ponytail: a bullet
+/// that wraps goes back to the margin and does not hang under its text; an NSTextView with paragraph styles would hang it and select
+/// across the code blocks too, if that is missed.
 struct MarkdownView: View {
     let text: String
 
+    private enum Segment {
+        case text(AttributedString)
+        case code(String?, String)
+    }
+
+    private var segments: [Segment] {
+        var segments: [Segment] = []
+        var run: AttributedString?
+        func add(_ piece: AttributedString) {
+            if var open = run { open.append(AttributedString("\n")); open.append(piece); run = open } else { run = piece }
+        }
+        for block in markdownBlocks(text) {
+            switch block {
+            case .line(let line): add(line)
+            case .bullet(let level, let line):
+                var bullet = AttributedString(String(repeating: "\u{2003}\u{2003}", count: level) + "•\u{2002}")
+                bullet.foregroundColor = .secondary
+                bullet.append(line)
+                add(bullet)
+            case .gap:
+                // an empty line a little shorter than a text one
+                var gap = AttributedString(" ")
+                gap.font = .scaled(6)
+                add(gap)
+            case .code(let language, let code):
+                if let run { segments.append(.text(run)) }
+                run = nil
+                segments.append(.code(language, code))
+            }
+        }
+        if let run { segments.append(.text(run)) }
+        return segments
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            ForEach(Array(markdownBlocks(text).enumerated()), id: \.offset) { _, block in
-                switch block {
-                case .line(let line):
-                    Text(line).lineSpacing(3)
-                case .bullet(let level, let line):
-                    HStack(alignment: .firstTextBaseline, spacing: 7) {
-                        Text("•").foregroundStyle(.secondary)
-                        Text(line).lineSpacing(3)
-                    }
-                    .padding(.leading, CGFloat(level) * 16)
-                case .code(let language, let code):
-                    CodeBlockView(language: language, code: code)
-                case .gap:
-                    Color.clear.frame(height: 5)
+            ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+                switch segment {
+                case .text(let text): Text(text).lineSpacing(4)
+                case .code(let language, let code): CodeBlockView(language: language, code: code)
                 }
             }
         }

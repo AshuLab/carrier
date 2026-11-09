@@ -28,6 +28,7 @@ export type ChatUsage = Record<string, number>;
 export type ChatEvent =
   | { kind: 'user'; text: string; /** The name of the command invoked, when the message invoked one. */ command?: string }
   | { kind: 'assistant'; text: string } // a finished message
+  | { kind: 'reasoning'; text: string } // one finished thinking block, before the answer of its turn; never streamed
   | { kind: 'delta'; text: string } // streaming, never stored
   | { kind: 'tool_start' | 'tool_end'; callId: string; tool: string; arg?: string; output?: string[]; status?: 'ok' | 'err' }
   | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[] }

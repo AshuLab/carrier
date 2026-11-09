@@ -15,8 +15,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'plan' | 'stop';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'plan', 'stop'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'plan' | 'stop' | 'reasoning';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'plan', 'stop', 'reasoning'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -35,7 +35,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('interrupt'), sessionId }),
   z.strictObject({ id, cmd: z.literal('agentOptions'), agent: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('setOption'), sessionId, option: z.string().min(1), value: z.string().min(1) }),
-  z.strictObject({ id, cmd: z.literal('events'), sessionId, after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200) }),
+  z.strictObject({ id, cmd: z.literal('events'), sessionId, after: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200), reasoning: z.boolean().optional() }),
   z.strictObject({ id, cmd: z.literal('close'), sessionId }),
   z.strictObject({ id, cmd: z.literal('archive'), sessionId, archived: z.boolean() }),
   z.strictObject({ id, cmd: z.literal('delete'), sessionId }),
@@ -115,7 +115,7 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
     case 'setOption':
       return controls.setOption({ sessionId: request.sessionId, option: request.option, value: request.value });
     case 'events':
-      return controls.events({ sessionId: request.sessionId, after: request.after, limit: request.limit });
+      return controls.events({ sessionId: request.sessionId, after: request.after, limit: request.limit, reasoning: request.reasoning });
     case 'close':
       return controls.close({ sessionId: request.sessionId });
     case 'archive':

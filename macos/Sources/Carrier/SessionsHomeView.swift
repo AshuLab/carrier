@@ -251,7 +251,7 @@ private struct SessionHomeRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
-        .contextMenu { SessionMenuItems(row: row, filterWorkspace: filterWorkspace) }
+        .sessionContextMenu(row, filterWorkspace: filterWorkspace)
         .help(row.title)
     }
 

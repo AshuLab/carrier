@@ -200,7 +200,7 @@ private struct ArchiveRow: View {
         .padding(.horizontal, 8).padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 10).fill(hovered ? Color.primary.opacity(0.07) : .clear))
         .onHover { hovered = $0 }
-        .contextMenu { SessionMenuItems(row: row) }
+        .sessionContextMenu(row)
         .help(row.title)
     }
 

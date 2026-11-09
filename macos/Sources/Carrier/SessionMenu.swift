@@ -2,36 +2,52 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The items of a session row's context menu (`sessionMenu`), sections apart, with Copy as a submenu. What the host refuses (an archive
-/// of a session that is working, a title it cannot write) is told in an alert. `filterWorkspace` is only given by the Sessions home.
-struct SessionMenuItems: View {
+extension View {
+    /// The session's context menu (`sessionMenu`). It is an AppKit menu, built once when the right button goes down: SwiftUI's rebuilds an open
+    /// menu whenever the list behind it changes (the submenu flickered), drops the icons and gets "Ask Siri" added on top.
+    /// `filterWorkspace` is only given by the Sessions home.
+    func sessionContextMenu(_ row: SessionRow, filterWorkspace: ((String) -> Void)? = nil) -> some View {
+        modifier(SessionContextMenu(row: row, filterWorkspace: filterWorkspace))
+    }
+}
+
+/// What the host refuses (an archive of a session that is working, a title it cannot write) is told in an alert.
+private struct SessionContextMenu: ViewModifier {
     let row: SessionRow
-    var filterWorkspace: ((String) -> Void)?
+    let filterWorkspace: ((String) -> Void)?
     @Environment(SessionActions.self) private var actions
     @AppStorage(SidebarStore.pinnedKey) private var pinnedStored = ""
 
-    var body: some View {
+    func body(content: Content) -> some View {
+        content.overlay(RightClickMenu(menu: menu))
+    }
+
+    private func menu() -> NSMenu {
+        let menu = NSMenu()
+        menu.allowsContextMenuPlugIns = false
         let sections = sessionMenu(row, pinned: pinnedIds(pinnedStored).contains(row.id), canFilter: filterWorkspace != nil)
-        ForEach(sections.indices, id: \.self) { index in
-            if index > 0 { Divider() }
-            ForEach(sections[index], id: \.title) { entry($0) }
+        for (index, section) in sections.enumerated() {
+            if index > 0 { menu.addItem(.separator()) }
+            for item in section { menu.addItem(menuItem(item)) }
         }
+        return menu
     }
 
-    @ViewBuilder private func entry(_ item: SessionMenuItem) -> some View {
-        if item.children.isEmpty {
-            leaf(item)
+    private func menuItem(_ item: SessionMenuItem) -> NSMenuItem {
+        let entry = NSMenuItem(title: item.title, action: nil, keyEquivalent: "")
+        entry.image = NSImage(systemSymbolName: item.icon, accessibilityDescription: nil)
+        if item.destructive { entry.attributedTitle = NSAttributedString(string: item.title, attributes: [.foregroundColor: NSColor.systemRed]) }
+        if let action = item.action {
+            let handler = MenuHandler { run(action) }
+            entry.target = handler
+            entry.action = #selector(MenuHandler.fire)
+            entry.representedObject = handler  // the item does not keep its target alive
         } else {
-            Menu {
-                ForEach(item.children, id: \.title) { leaf($0) }
-            } label: { Label(item.title, systemImage: item.icon) }
+            entry.submenu = NSMenu()
+            entry.submenu?.allowsContextMenuPlugIns = false
+            item.children.forEach { entry.submenu?.addItem(menuItem($0)) }
         }
-    }
-
-    private func leaf(_ item: SessionMenuItem) -> some View {
-        Button(role: item.destructive ? .destructive : nil) {
-            if let action = item.action { run(action) }
-        } label: { Label(item.title, systemImage: item.icon) }
+        return entry
     }
 
     private func run(_ action: SessionMenuAction) {
@@ -55,6 +71,32 @@ struct SessionMenuItems: View {
 
     private func refuse(_ call: @escaping () async -> String?) {
         Task { if let refusal = await call() { tell(refusal) } }
+    }
+}
+
+private final class MenuHandler: NSObject {
+    let run: () -> Void
+    init(_ run: @escaping () -> Void) { self.run = run }
+    @objc func fire() { run() }
+}
+
+/// Covers the row for the right button only (and control-click): any other click goes through to what is under it.
+private struct RightClickMenu: NSViewRepresentable {
+    let menu: () -> NSMenu
+
+    func makeNSView(context: Context) -> Catcher { Catcher() }
+    func updateNSView(_ view: Catcher, context: Context) { view.makeMenu = menu }
+
+    final class Catcher: NSView {
+        var makeMenu: () -> NSMenu = { NSMenu() }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            guard let event = NSApp.currentEvent else { return nil }
+            let secondary = event.type == .rightMouseDown || (event.type == .leftMouseDown && event.modifierFlags.contains(.control))
+            return secondary ? super.hitTest(point) : nil
+        }
+
+        override func menu(for event: NSEvent) -> NSMenu? { makeMenu() }
     }
 }
 

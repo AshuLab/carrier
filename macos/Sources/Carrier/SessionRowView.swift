@@ -82,7 +82,7 @@ struct SessionRowView: View {
             }
         }
         .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, density.rowPadding)
-        .contextMenu { SessionMenuItems(row: row) }
+        .sessionContextMenu(row)
         .help(row.title)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label(content))

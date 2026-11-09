@@ -13,7 +13,8 @@ enum SidebarMetrics {
     static var detail: Font { Font.scaled(12) }
     /// Between rows: each one carries its own vertical padding.
     static let rowGap: CGFloat = 2
-    /// The vertical padding of a section's row, and between an item's lines; an item's row takes its padding from the density.
+    /// The vertical padding of a section's row, and between an item's lines; an item's row takes its padding from the density, on all four
+    /// sides when it has a project icon (the tile is as far from the left edge of its fill as from the top and bottom).
     static let sectionPadding: CGFloat = 8
     static let lineGap: CGFloat = 3
     /// Above a group's title, so it reads where a group begins; under it the first row is closer.
@@ -369,7 +370,7 @@ struct SidebarRowView: View {
             Text(row.age).font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary).lineLimit(1)
                 .frame(height: Self.titleLine).frame(maxHeight: .infinity, alignment: .top)
         }
-        .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, density.rowPadding)
+        .padding(.horizontal, density.rowPadding).padding(.vertical, density.rowPadding)
         .hoverCard { EpicCardView(card: row.card) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(([row.title ?? row.name, row.state.label, row.detail] + (row.age.isEmpty ? [] : [row.age])).joined(separator: ", "))

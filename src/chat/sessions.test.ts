@@ -570,6 +570,19 @@ test('archive marks a session and the archived listing shows it instead of the o
   expect(s.sessions.list({}).sessions).toHaveLength(2);
 });
 
+test('rename sets the title, also while working, refuses an empty one or an unknown session, and the first message does not replace it', async () => {
+  const s = setup();
+  const a = await openOne(s);
+  s.sessions.rename({ sessionId: a.id, title: '  Fix the sidebar\nsecond line ' });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ title: 'Fix the sidebar' });
+  expect(() => s.sessions.rename({ sessionId: a.id, title: '   ' })).toThrow('A title cannot be empty');
+  expect(() => s.sessions.rename({ sessionId: '00000000-0000-4000-8000-000000000000', title: 'x' })).toThrow(ChatRefused);
+  s.sessions.send({ sessionId: a.id, text: 'hello' }); // the first message: the session now works
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ title: 'Fix the sidebar', state: 'working' });
+  s.sessions.rename({ sessionId: a.id, title: 'Still fine' });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ title: 'Still fine' });
+});
+
 const DAY = 86_400_000;
 const ages = (archiveAfterDays: number | 'never' = 15) => ({ archiveAfterDays, deleteAfterDays: 'never' as const });
 const archivedIds = (s: { sessions: ReturnType<typeof createSessions> }) => s.sessions.list({ archived: true }).sessions.map((x) => x.id);

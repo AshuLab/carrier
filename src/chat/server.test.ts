@@ -45,6 +45,7 @@ const controls = (): ChatControls => ({
   close: async () => ({}),
   archive: async ({ archived }) => ({ archived }),
   delete: async () => ({}),
+  rename: ({ title }) => ({ title }),
   deletePreview: async ({ sessionIds }) => ({ sessionIds }),
   workspace: async ({ folder }) => ({ folder }),
   fetch: async ({ folder }) => ({ folder, fetched: true }),
@@ -94,7 +95,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'plan', 'stop', 'reasoning'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'plan', 'stop', 'reasoning', 'rename'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -173,6 +174,14 @@ test('archive takes a session and a boolean, delete a session, both strict', asy
   expect(await c.ask(`{"id":2,"cmd":"archive","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
   expect(await c.ask(`{"id":3,"cmd":"delete","sessionId":"${uuid}"}`)).toEqual({ id: 3, ok: true, data: {} });
   expect(await c.ask(`{"id":4,"cmd":"delete","sessionId":"${uuid}","archived":true}`)).toEqual({ id: 4, ok: false, error: 'invalid request' });
+});
+
+test('rename takes a session and a title, strict', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask(`{"id":1,"cmd":"rename","sessionId":"${uuid}","title":"New name"}`)).toEqual({ id: 1, ok: true, data: { title: 'New name' } });
+  expect(await c.ask(`{"id":2,"cmd":"rename","sessionId":"${uuid}"}`)).toEqual({ id: 2, ok: false, error: 'invalid request' });
+  expect(await c.ask(`{"id":3,"cmd":"rename","sessionId":"${uuid}","title":"x","archived":true}`)).toEqual({ id: 3, ok: false, error: 'invalid request' });
 });
 
 test('deletePreview takes one to 500 session ids and nothing else', async () => {

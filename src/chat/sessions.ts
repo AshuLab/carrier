@@ -687,6 +687,15 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       return {};
     },
 
+    /** Sets the title (first line, cut like an automatic one); fine while the session works. The first message only names an untitled session, so it never replaces this. */
+    rename({ sessionId, title }: { sessionId: string; title: string }) {
+      row(sessionId);
+      const named = titleOf(title);
+      if (named === '') throw new ChatRefused('A title cannot be empty');
+      db.update(sessions).set({ title: named }).where(eq(sessions.id, sessionId)).run();
+      return {};
+    },
+
     /**
      * The clock's pass: archives each session left alone for `archiveAfterDays`, then deletes each archived one left alone for `deleteAfterDays`, sparing
      * (marking `keptAt`) one whose worktree holds unsaved work. A working, waiting or live one is looked at again on the next pass.

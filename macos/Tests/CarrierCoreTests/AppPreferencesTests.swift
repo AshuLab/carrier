@@ -91,3 +91,44 @@ private let idle = PanelSnapshot(
     store.reset(.general)
     #expect(store.timeStyle == .relative && store.clockHours == .system)
 }
+
+@Test func theMessageBoxDefaultsAreReturnToSendNoWritingToolsSpellCheckOnCorrectionOff() {
+    let store = AppPreferences(defaults: UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!)
+    #expect(store.sendKey == .return && store.writingTools == false && store.checksSpelling && store.correctsSpelling == false)
+}
+
+@Test func theMessageBoxChoicesSurviveARelaunchAndABadSavedKeyReadsAsTheDefault() {
+    let name = "prefs-\(UUID().uuidString)"
+    let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    first.sendKey = .commandReturn
+    first.writingTools = true
+    first.checksSpelling = false
+    first.correctsSpelling = true
+    let second = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(second.sendKey == .commandReturn && second.writingTools && second.checksSpelling == false && second.correctsSpelling)
+    let defaults = UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!
+    defaults.set("enter", forKey: AppPreferences.sendKeyKey)
+    #expect(AppPreferences(defaults: defaults).sendKey == .return)
+}
+
+@Test func resetOfChatPutsTheMessageBoxBackAndLeavesOtherPages() {
+    let defaults = UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!
+    let store = AppPreferences(defaults: defaults)
+    store.sendKey = .commandReturn
+    store.writingTools = true
+    store.checksSpelling = false
+    store.correctsSpelling = true
+    store.confirmStop = false
+    store.reset(.chat)
+    #expect(store.sendKey == .return && store.writingTools == false && store.checksSpelling && store.correctsSpelling == false)
+    #expect(store.confirmStop == false)
+}
+
+@Test func theSendKeySendsOnItsOwnAndNeverWithShift() {
+    #expect(SendKey.return.sends(command: false, shift: false))
+    #expect(SendKey.return.sends(command: true, shift: false) == false)
+    #expect(SendKey.commandReturn.sends(command: true, shift: false))
+    #expect(SendKey.commandReturn.sends(command: false, shift: false) == false)
+    #expect(SendKey.return.sends(command: false, shift: true) == false)
+    #expect(SendKey.commandReturn.sends(command: true, shift: true) == false)
+}

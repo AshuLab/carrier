@@ -44,4 +44,78 @@ final class CommandTextViewTests: XCTestCase {
         XCTAssertGreaterThan(narrow, wide)
         XCTAssertEqual(CommandTextView.height(of: text, width: 600), wide)
     }
+
+    /// A box with its own preferences on screen: the text view, and a count of the sends it reported.
+    private func hosted(
+        sendKey: SendKey = .return, writingTools: Bool = false, checksSpelling: Bool = true, correctsSpelling: Bool = false, sent: @escaping () -> Void = {}
+    ) throws -> PillTextView {
+        let box = CommandTextView(
+            text: .constant(""), cursor: .constant(0), focus: .constant(false), placeholder: "", minLines: 3, commands: [],
+            onKey: { key in
+                if key == .send { sent() }
+                return key == .send
+            },
+            sendKey: sendKey, writingTools: writingTools, checksSpelling: checksSpelling, correctsSpelling: correctsSpelling
+        )
+        let host = NSHostingView(rootView: box.frame(width: 600).fixedSize(horizontal: false, vertical: true))
+        host.frame = NSRect(x: 0, y: 0, width: 600, height: 200)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        return try XCTUnwrap(textView(in: host))
+    }
+
+    private func keyDown(_ view: PillTextView, command: Bool, shift: Bool = false) {
+        var flags: NSEvent.ModifierFlags = []
+        if command { flags.insert(.command) }
+        if shift { flags.insert(.shift) }
+        let event = NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0, windowNumber: 0, context: nil,
+            characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36
+        )
+        let coordinator = view.delegate as? CommandTextView.Coordinator
+        _ = coordinator?.pressedReturn(in: view, modifiers: event?.modifierFlags ?? [])
+    }
+
+    /// The chosen key sends and the other makes a new line, in each of the two settings; Shift+Return is a new line in both.
+    func testTheChosenKeySendsAndTheOtherMakesANewLine() throws {
+        for (sendKey, sendsWithCommand) in [(SendKey.return, false), (.commandReturn, true)] {
+            for command in [false, true] {
+                var sent = 0
+                let view = try hosted(sendKey: sendKey) { sent += 1 }
+                keyDown(view, command: command)
+                let sendsNow = command == sendsWithCommand
+                XCTAssertEqual(sent, sendsNow ? 1 : 0, "\(sendKey) command \(command)")
+                XCTAssertEqual(view.string, sendsNow ? "" : "\n", "\(sendKey) command \(command)")
+            }
+            var sent = 0
+            let view = try hosted(sendKey: sendKey) { sent += 1 }
+            keyDown(view, command: sendsWithCommand, shift: true)
+            XCTAssertEqual(sent, 0)
+            XCTAssertEqual(view.string, "\n")
+        }
+    }
+
+    /// ⌘Return reaches the box through `keyDown`, which the system does not turn into a new line command by itself.
+    func testCommandReturnIsReadByTheBoxItself() throws {
+        var sent = 0
+        let view = try hosted(sendKey: .commandReturn) { sent += 1 }
+        let event = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [.command], timestamp: 0, windowNumber: 0, context: nil,
+            characters: "\r", charactersIgnoringModifiers: "\r", isARepeat: false, keyCode: 36
+        ))
+        view.keyDown(with: event)
+        XCTAssertEqual(sent, 1)
+    }
+
+    func testTheSystemsHelpFollowTheSettings() throws {
+        let off = try hosted()
+        XCTAssertEqual(off.writingToolsBehavior, .none)
+        XCTAssertTrue(off.isContinuousSpellCheckingEnabled)
+        XCTAssertFalse(off.isAutomaticSpellingCorrectionEnabled)
+        let on = try hosted(writingTools: true, checksSpelling: false, correctsSpelling: true)
+        XCTAssertNotEqual(on.writingToolsBehavior, .none)
+        XCTAssertFalse(on.isContinuousSpellCheckingEnabled)
+        XCTAssertTrue(on.isAutomaticSpellingCorrectionEnabled)
+    }
 }

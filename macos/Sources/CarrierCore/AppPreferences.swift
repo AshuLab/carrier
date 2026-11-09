@@ -8,11 +8,19 @@ public struct AppPreferences {
     public static let confirmStopKey = "stop.confirm"
     public static let timeStyleKey = "display.timeStyle"
     public static let clockHoursKey = "display.clock"
+    public static let sendKeyKey = "chat.sendKey"
+    public static let writingToolsKey = "chat.writingTools"
+    public static let checksSpellingKey = "chat.checkSpelling"
+    public static let correctsSpellingKey = "chat.correctSpelling"
 
     public static let defaultStyle = IconStyle.countAndBar
     public static let defaultAnimates = true
     public static let defaultShowsEpics = true
     public static let defaultConfirmStop = true
+    public static let defaultSendKey = SendKey.return
+    public static let defaultWritingTools = false
+    public static let defaultChecksSpelling = true
+    public static let defaultCorrectsSpelling = false
 
     private let defaults: UserDefaults
 
@@ -51,6 +59,28 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.clockHoursKey) }
     }
 
+    /// The key that sends in the message box; the other one makes a new line.
+    public var sendKey: SendKey {
+        get { defaults.string(forKey: Self.sendKeyKey).flatMap(SendKey.init(rawValue:)) ?? Self.defaultSendKey }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.sendKeyKey) }
+    }
+
+    /// Whether the system's Writing Tools offer to rewrite the text of the message box.
+    public var writingTools: Bool {
+        get { defaults.object(forKey: Self.writingToolsKey) as? Bool ?? Self.defaultWritingTools }
+        nonmutating set { defaults.set(newValue, forKey: Self.writingToolsKey) }
+    }
+
+    public var checksSpelling: Bool {
+        get { defaults.object(forKey: Self.checksSpellingKey) as? Bool ?? Self.defaultChecksSpelling }
+        nonmutating set { defaults.set(newValue, forKey: Self.checksSpellingKey) }
+    }
+
+    public var correctsSpelling: Bool {
+        get { defaults.object(forKey: Self.correctsSpellingKey) as? Bool ?? Self.defaultCorrectsSpelling }
+        nonmutating set { defaults.set(newValue, forKey: Self.correctsSpellingKey) }
+    }
+
     /// Takes the keys of one page out, so it reads as its defaults again; the other pages are not touched.
     public func reset(_ page: SettingsPage) {
         for key in Self.keys(of: page) { defaults.removeObject(forKey: key) }
@@ -65,8 +95,20 @@ public struct AppPreferences {
                 SidebarStore.groupByKey, SidebarStore.sessionSortKey, SidebarStore.archiveSortKey, SidebarStore.showsIconKey,
                 SidebarStore.showsBranchKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey,
             ]
+        case .chat: [sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey]
         default: []
         }
+    }
+}
+
+/// The key that sends a message: Return, or ⌘Return. Shift+Return makes a new line whichever is chosen.
+public enum SendKey: String, CaseIterable {
+    case `return`, commandReturn
+
+    /// Whether Return pressed with these modifiers sends; if not, it makes a new line.
+    public func sends(command: Bool, shift: Bool) -> Bool {
+        guard shift == false else { return false }
+        return self == .commandReturn ? command : command == false
     }
 }
 

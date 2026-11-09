@@ -167,26 +167,24 @@ import Testing
     #expect(shell.searchRequest == nil)
 }
 
-@Test func settingsIsASheetOverTheSelectionThatOpensOnTheEngineSectionUnlessAskedOtherwise() {
+@Test func settingsIsASheetOverTheSelectionThatOpensOnTheFirstPageUnlessAskedOtherwise() {
     let shell = WindowShell()
     shell.selection = .sessions
     shell.showSettings()
-    #expect(shell.settingsShown && shell.settingsTab == .engine && shell.selection == .sessions)
+    #expect(shell.settingsShown && shell.settingsTab == .general && shell.selection == .sessions)
     shell.settingsShown = false
     shell.openHealth()
     #expect(shell.settingsShown && shell.settingsTab == .health && shell.selection == .sessions)
     shell.showSettings()
-    #expect(shell.settingsTab == .engine)
+    #expect(shell.settingsTab == .general)
     shell.reset()
     #expect(shell.settingsShown == false)
 }
 
-@Test func settingsHasASessionsTabBetweenReposAndNotificationsAndOpensOnItWhenAsked() {
-    let tabs = SettingsTab.allCases
-    #expect(SettingsTab.sessions.rawValue == "Sessions" && tabs.firstIndex(of: .sessions) == tabs.firstIndex(of: .repos)! + 1 && tabs.firstIndex(of: .sessions)! + 1 == tabs.firstIndex(of: .notifications))
+@Test func settingsOpensOnAskedPage() {
     let shell = WindowShell()
     shell.showSettings(.sessions)
     #expect(shell.settingsShown && shell.settingsTab == .sessions)
-    shell.showSettings()
+    shell.showSettings(.engine)
     #expect(shell.settingsTab == .engine)
 }

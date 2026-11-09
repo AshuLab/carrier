@@ -82,7 +82,7 @@ final class MenuControls: NSObject, NSMenuItemValidation {
 
     @objc func stopCarrier() {
         guard case .running(let snapshot) = state else { return }
-        if asksBeforeStopping(snapshot, switchOn: UserDefaults.standard.object(forKey: confirmStopKey) as? Bool ?? true) {
+        if asksBeforeStopping(snapshot, switchOn: AppPreferences().confirmStop) {
             guard confirmStop(interrupting: snapshot.runningEpics) else { return }
         }
         NotificationWatcher.app.expectStop()

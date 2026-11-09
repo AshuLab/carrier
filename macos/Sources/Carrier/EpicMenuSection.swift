@@ -19,7 +19,7 @@ final class EpicMenuSection: NSObject, NSMenuDelegate {
     private func rebuild(_ menu: NSMenu) {
         for item in menu.items where item.tag == Self.tag { menu.removeItem(item) }
         guard case .running(let snapshot) = state,
-              let section = epicMenu(snapshot, showEpics: UserDefaults.standard.object(forKey: showEpicsKey) as? Bool ?? true),
+              let section = epicMenu(snapshot, showEpics: AppPreferences().showsEpics),
               let separator = menu.items.firstIndex(where: \.isSeparatorItem)
         else { return }
 

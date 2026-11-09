@@ -15,9 +15,6 @@ public enum Selection: Hashable {
     case epic(repo: String, issue: Int)
 }
 
-/// The sections of the Settings sheet; the raw value is the title.
-public enum SettingsTab: String, CaseIterable { case engine = "Engine", behavior = "Behavior", repos = "Repos", sessions = "Sessions", notifications = "Notifications", health = "Health" }
-
 /// Which of the Sessions, Carrier and Archive sections is unfolded; the others are folded.
 public enum OpenSection: String { case sessions, carrier, archive }
 
@@ -76,7 +73,7 @@ public struct SearchRequest: Equatable {
     public private(set) var newSessionOpened = 0
     /// The Settings sheet is over the window, on this section; the selection underneath stays.
     public var settingsShown = false
-    public var settingsTab = SettingsTab.engine
+    public var settingsTab = SettingsPage.general
     /// The unfolded section; nil when all are folded.
     public var open: OpenSection?
     public var sidebarShown = true
@@ -94,8 +91,8 @@ public struct SearchRequest: Equatable {
         open = .archive
     }
 
-    /// Opens the Settings sheet on a section; it starts on the first one unless something asks for another.
-    public func showSettings(_ tab: SettingsTab = .engine) {
+    /// Opens the Settings sheet on a page; it starts on the first one unless something asks for another.
+    public func showSettings(_ tab: SettingsPage = .general) {
         settingsTab = tab
         settingsShown = true
     }

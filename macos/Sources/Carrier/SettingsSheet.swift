@@ -108,16 +108,20 @@ struct SettingsRail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             RailHeader(title: "Settings", detail: "How Carrier runs here", icon: "gearshape.fill")
-            ForEach(Self.sections, id: \.group) { section in
-                if let heading = section.group.heading {
-                    Text(heading.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary)
-                        .padding(.leading, 8).padding(.top, 10).accessibilityAddTraits(.isHeader)
-                }
-                ForEach(section.pages, id: \.self) { row in
-                    RailRow(title: row.rawValue, detail: row.detail, icon: row.icon, selected: page == row) { page = row }
+            // the pages scroll under the header, so the last ones stay in reach in a short window
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Self.sections, id: \.group) { section in
+                        if let heading = section.group.heading {
+                            Text(heading.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary)
+                                .padding(.leading, 8).padding(.top, 10).accessibilityAddTraits(.isHeader)
+                        }
+                        ForEach(section.pages, id: \.self) { row in
+                            RailRow(title: row.rawValue, detail: row.detail, icon: row.icon, selected: page == row) { page = row }
+                        }
+                    }
                 }
             }
-            Spacer(minLength: 0)
         }
         // the header sits 24 from the top and 24 from the left (16 + the row's 8), as a page's header does on the right
         .padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 14).frame(width: 250)

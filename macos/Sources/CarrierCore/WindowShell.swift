@@ -43,7 +43,7 @@ public enum ShortcutAction: Equatable {
 
 /// What a shortcut asks of the open conversation.
 public enum ConversationAction: Equatable {
-    case focusBox, jumpToLatest, toggleToolFolds, copyLastAnswer
+    case focusBox, stopAgent, jumpToLatest, toggleToolFolds, copyLastAnswer
 }
 
 /// A request to the open conversation; `count` makes asking twice a change the view can see.

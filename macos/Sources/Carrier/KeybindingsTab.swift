@@ -3,12 +3,14 @@ import CarrierCore
 import SwiftUI
 
 /// The shortcuts by group: click one and press the new keys (Esc cancels, Delete clears it); a combination another action has is flagged
-/// with that action's title.
+/// with that action's title, and one the system keeps for editing and the app is refused.
 struct KeybindingsTabView: View {
     /// Counts the changes made here: the table is read from the preferences, and this makes the page draw again.
     @State private var revision = 0
     @State private var recording: ShortcutCommand?
     @State private var monitor: Any?
+    /// The combination the last try was refused for, and the action it was for.
+    @State private var refused: (command: ShortcutCommand, combo: KeyCombo)?
 
     var body: some View {
         let _ = revision
@@ -31,7 +33,9 @@ struct KeybindingsTabView: View {
         let text = recording == command ? "Press the keys…" : combo?.text ?? "None"
         return SettingsTabRow(title: command.title, detail: "Default: \(command.defaultCombo?.text ?? "none")", first: first) {
             HStack(spacing: 8) {
-                if let clash {
+                if let refused, refused.command == command {
+                    Label("\(refused.combo.text) is the system's", systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
+                } else if let clash {
                     Label("Also \(clash.title)", systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
                 }
                 if table.isDefault(command) == false {
@@ -48,6 +52,7 @@ struct KeybindingsTabView: View {
     private func startRecording(_ command: ShortcutCommand) {
         stopRecording()
         recording = command
+        refused = nil
         // the next key goes here, not to the window's shortcuts: this monitor was added after theirs, and the key is not passed on
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let table = ShortcutTable()
@@ -59,6 +64,11 @@ struct KeybindingsTabView: View {
                 stopRecording()
             default:
                 if let combo = KeyCombo(key: event.charactersIgnoringModifiers ?? "", modifiers: .init(event.modifierFlags)) {
+                    if combo.isReserved {
+                        refused = (command, combo)
+                        stopRecording()
+                        return nil
+                    }
                     table.set(combo, for: command)
                     revision += 1
                     stopRecording()

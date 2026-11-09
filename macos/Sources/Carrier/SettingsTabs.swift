@@ -552,7 +552,7 @@ struct NotificationsTabView: View {
     @State private var testAdvice: String?
 
     var body: some View {
-        SettingsPageBody {
+        SettingsPageBody(reset: { AppPreferences().reset(.notifications) }) {
             SettingsGroup(title: "Carrier") {
                 SettingsTabRow(title: "Needs attention", detail: "An epic stopped and waits for a person", first: true) {
                     Toggle("Needs attention", isOn: $needsYou).labelsHidden().toggleStyle(.switch)

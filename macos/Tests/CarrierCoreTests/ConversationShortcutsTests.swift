@@ -34,6 +34,7 @@ private func openGroups(_ rows: [FeedRow], flipped: Set<String>) -> [Bool] {
 @Test func theDefaultsAreTheSpecsCombinations() {
     let table = table()
     #expect(shortcutAction(key: "l", modifiers: .command, in: table) == .conversation(.focusBox))
+    #expect(shortcutAction(key: ".", modifiers: .command, in: table) == .conversation(.stopAgent))
     #expect(shortcutAction(key: "\u{F701}", modifiers: .command, in: table) == .conversation(.jumpToLatest))
     #expect(shortcutAction(key: "e", modifiers: [.command, .option], in: table) == .conversation(.toggleToolFolds))
     #expect(shortcutAction(key: "c", modifiers: [.command, .shift], in: table) == .conversation(.copyLastAnswer))
@@ -96,7 +97,7 @@ private func openGroups(_ rows: [FeedRow], flipped: Set<String>) -> [Bool] {
     let shell = WindowShell()
     for selection in [Selection.home, .sessions, .newSession, .archive, .carrier, .epic(repo: "acme/web", issue: 7)] {
         shell.selection = selection
-        for action in [ConversationAction.focusBox, .jumpToLatest, .toggleToolFolds, .copyLastAnswer] { shell.perform(.conversation(action)) }
+        for action in [ConversationAction.focusBox, .stopAgent, .jumpToLatest, .toggleToolFolds, .copyLastAnswer] { shell.perform(.conversation(action)) }
         #expect(shell.conversationRequest == nil)
     }
 }

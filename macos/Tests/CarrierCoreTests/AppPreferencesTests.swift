@@ -391,3 +391,17 @@ private let idle = PanelSnapshot(
     defaults.set("sideways", forKey: AppPreferences.diffStyleKey)
     #expect(AppPreferences(defaults: defaults).diffStyle == .unified)
 }
+
+@Test func resetOfNotificationsTakesEveryNotifyKeyOutAndLeavesOtherPages() {
+    let defaults = UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!
+    let store = AppPreferences(defaults: defaults)
+    let keys = [
+        notifyNeedsYouKey, notifyReadyForTestKey, notifyProblemKey, notifyChatNeedsAttentionKey, notifyChatDoneKey, notifyOnlyWhenAwayKey,
+        notifyDockBadgeKey, notifySoundKey, notifyReminderKey, notifyQuietKey, notifyQuietStartKey, notifyQuietEndKey,
+    ]
+    for key in keys { defaults.set(1, forKey: key) }
+    store.confirmStop = false
+    store.reset(.notifications)
+    #expect(keys.allSatisfy { defaults.object(forKey: $0) == nil })
+    #expect(store.confirmStop == false)
+}

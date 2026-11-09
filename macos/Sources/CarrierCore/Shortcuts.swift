@@ -11,11 +11,18 @@ public struct KeyCombo: Equatable {
 
     public init?(key: String, modifiers: ShortcutModifiers) {
         let key = key.lowercased()
-        guard key.count == 1, key.unicodeScalars.allSatisfy({ $0.properties.generalCategory != .control }),
+        // the other arrows and the function keys come as private characters with no glyph: only ⌘↓ is kept
+        guard key.count == 1, key == Self.downArrow || key.unicodeScalars.allSatisfy({ ![.control, .privateUse].contains($0.properties.generalCategory) }),
             modifiers.isDisjoint(with: [.command, .control, .option]) == false
         else { return nil }
         self.key = key
         self.modifiers = modifiers
+    }
+
+    /// The keys the Edit and application menus keep for the system (cut, copy, paste, select all, undo, redo, quit, close, minimize, hide
+    /// and Settings): giving one to an action would break it in the window.
+    public var isReserved: Bool {
+        (modifiers == .command && "xcvazqwmh,".contains(key)) || (modifiers == [.command, .shift] && key == "z")
     }
 
     /// As the menus write it: ⌃⌥⇧⌘ and the key.
@@ -46,7 +53,7 @@ public enum ShortcutGroup: String, CaseIterable {
 /// An action that has a shortcut; the raw value is its id.
 public enum ShortcutCommand: String, CaseIterable {
     case home, sessions, carrier, archive, newSession, search, nextSession, previousSession, archiveSession
-    case focusBox, latestMessage, foldTools, copyAnswer
+    case focusBox, stopAgent, latestMessage, foldTools, copyAnswer
     case startOrStop, pauseOrResume, checkNow
 
     public var title: String {
@@ -61,6 +68,7 @@ public enum ShortcutCommand: String, CaseIterable {
         case .previousSession: "Previous session"
         case .archiveSession: "Archive the session"
         case .focusBox: "Focus the message box"
+        case .stopAgent: "Stop the agent"
         case .latestMessage: "Jump to the latest message"
         case .foldTools: "Fold or unfold the tool calls"
         case .copyAnswer: "Copy the last answer"
@@ -74,7 +82,7 @@ public enum ShortcutCommand: String, CaseIterable {
         switch self {
         case .home, .sessions, .carrier, .archive: .goTo
         case .newSession, .search, .nextSession, .previousSession, .archiveSession: .sessions
-        case .focusBox, .latestMessage, .foldTools, .copyAnswer: .conversation
+        case .focusBox, .stopAgent, .latestMessage, .foldTools, .copyAnswer: .conversation
         case .startOrStop, .pauseOrResume, .checkNow: .carrier
         }
     }
@@ -92,6 +100,7 @@ public enum ShortcutCommand: String, CaseIterable {
         case .previousSession: .previousSession
         case .archiveSession: .archiveSession
         case .focusBox: .conversation(.focusBox)
+        case .stopAgent: .conversation(.stopAgent)
         case .latestMessage: .conversation(.jumpToLatest)
         case .foldTools: .conversation(.toggleToolFolds)
         case .copyAnswer: .conversation(.copyLastAnswer)
@@ -112,6 +121,7 @@ public enum ShortcutCommand: String, CaseIterable {
         case .previousSession: KeyCombo(key: "[", modifiers: .command)
         case .archiveSession: KeyCombo(key: "a", modifiers: [.command, .shift])
         case .focusBox: KeyCombo(key: "l", modifiers: .command)
+        case .stopAgent: KeyCombo(key: ".", modifiers: .command)
         case .latestMessage: KeyCombo(key: KeyCombo.downArrow, modifiers: .command)
         case .foldTools: KeyCombo(key: "e", modifiers: [.command, .option])
         case .copyAnswer: KeyCombo(key: "c", modifiers: [.command, .shift])

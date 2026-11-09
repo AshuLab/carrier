@@ -117,12 +117,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func watchChatSessions() {
         let host = SocketChatHost()
         Task.detached {
+            // a host that does not answer is asked less and less often (up to every 30 s), and the first miss after an answer is logged
+            var wait = 1.0
+            var answering = true
             while true {
-                if let listed = try? await host.list(archived: false) {
-                    let rows = sessionRows(listed)
+                do {
+                    let rows = sessionRows(try await host.list(archived: false))
                     await MainActor.run { NotificationWatcher.app.react(toSessions: rows) }
+                    wait = 1
+                    answering = true
+                } catch {
+                    if answering { NSLog("Carrier: the chat host does not answer, asking again in a while: %@", String(describing: error)) }
+                    answering = false
+                    wait = min(wait * 2, 30)
                 }
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(wait))
             }
         }
     }

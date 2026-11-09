@@ -272,8 +272,14 @@ public struct AppPreferences {
                 sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,
                 toolOutputKey, opensFailedCallsKey, diffStyleKey, outputLengthKey, showsReasoningKey, confirmDeleteKey,
             ]
+        case .notifications:
+            [
+                notifyNeedsYouKey, notifyReadyForTestKey, notifyProblemKey, notifyChatNeedsAttentionKey, notifyChatDoneKey, notifyOnlyWhenAwayKey,
+                notifyDockBadgeKey, notifySoundKey, notifyReminderKey, notifyQuietKey, notifyQuietStartKey, notifyQuietEndKey,
+            ]
         case .keybindings: [ShortcutTable.key]
-        default: []
+        // the Legacy pages keep their own settings and have no Reset
+        case .engine, .behavior, .repos, .sessions, .health: []
         }
     }
 }

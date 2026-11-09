@@ -76,6 +76,7 @@ extension AppDelegate {
         // Conversation
         let conversation = submenu(of: main, title: "Conversation")
         item(conversation, "Focus the Message Box", #selector(focusMessageBox), shortcut: .focusBox, in: shortcuts, target: self)
+        item(conversation, "Stop the Agent", #selector(stopAgent), shortcut: .stopAgent, in: shortcuts, target: self)
         item(conversation, "Jump to the Latest Message", #selector(jumpToLatestMessage), shortcut: .latestMessage, in: shortcuts, target: self)
         item(conversation, "Fold or Unfold the Tool Calls", #selector(toggleToolFolds), shortcut: .foldTools, in: shortcuts, target: self)
         item(conversation, "Copy the Last Answer", #selector(copyLastAnswer), shortcut: .copyAnswer, in: shortcuts, target: self)
@@ -145,6 +146,7 @@ extension AppDelegate {
     @objc func archiveSession() { WindowController.shared.perform(.archiveSession) }
     @objc func findInSection() { WindowController.shared.search() }
     @objc func focusMessageBox() { WindowController.shared.conversation(.focusBox) }
+    @objc func stopAgent() { WindowController.shared.conversation(.stopAgent) }
     @objc func jumpToLatestMessage() { WindowController.shared.conversation(.jumpToLatest) }
     @objc func toggleToolFolds() { WindowController.shared.conversation(.toggleToolFolds) }
     @objc func copyLastAnswer() { WindowController.shared.conversation(.copyLastAnswer) }

@@ -101,6 +101,7 @@ struct ConversationView: View {
     private func perform(_ action: ConversationAction) {
         switch action {
         case .focusBox: boxFocused = true
+        case .stopAgent: if model.busy { Task { await model.stop() } }
         case .jumpToLatest: position.scrollTo(edge: .bottom)
         case .toggleToolFolds:
             flipped = togglingToolGroups(in: visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning), mode: toolOutput, opensFailed: opensFailed, flipped: flipped)

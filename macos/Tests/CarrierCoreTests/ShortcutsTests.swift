@@ -15,7 +15,7 @@ private func freshTable() -> (ShortcutTable, UserDefaults) {
     #expect(shown == [
         "Go to Home ⌘1", "Go to Sessions ⌘2", "Go to Carrier ⌘3", "Go to Archive ⌘4", "Sessions New session ⌘N", "Sessions Search ⌘F",
         "Sessions Next session ⌘]", "Sessions Previous session ⌘[", "Sessions Archive the session ⇧⌘A",
-        "Conversation Focus the message box ⌘L", "Conversation Jump to the latest message ⌘↓", "Conversation Fold or unfold the tool calls ⌥⌘E",
+        "Conversation Focus the message box ⌘L", "Conversation Stop the agent ⌘.", "Conversation Jump to the latest message ⌘↓", "Conversation Fold or unfold the tool calls ⌥⌘E",
         "Conversation Copy the last answer ⇧⌘C",
     ])
     #expect(ShortcutCommand.allCases.allSatisfy { table.isDefault($0) })
@@ -102,4 +102,14 @@ private func freshTable() -> (ShortcutTable, UserDefaults) {
     #expect(shortcutAction(key: "p", modifiers: [.command, .option], in: table) == nil)
     table.set(nil, for: .pauseOrResume)
     #expect(table.isDefault(.pauseOrResume))
+}
+
+@Test func theKeysOfTheSystemMenusAreReservedAndSpecialKeysAreNotCombinations() {
+    for key in ["c", "v", "x", "a", "z", "q", "w", ","] { #expect(KeyCombo(key: key, modifiers: .command)?.isReserved == true) }
+    #expect(KeyCombo(key: "z", modifiers: [.command, .shift])?.isReserved == true)
+    #expect(KeyCombo(key: "c", modifiers: [.command, .shift])?.isReserved == false)
+    #expect(KeyCombo(key: "l", modifiers: .command)?.isReserved == false)
+    // an arrow other than ⌘↓ and a function key come as private characters
+    #expect(KeyCombo(key: "\u{F702}", modifiers: .command) == nil && KeyCombo(key: "\u{F704}", modifiers: .command) == nil)
+    #expect(KeyCombo(key: KeyCombo.downArrow, modifiers: .command)?.text == "⌘↓")
 }

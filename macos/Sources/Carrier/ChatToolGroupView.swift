@@ -30,10 +30,16 @@ struct ChatToolGroupView: View {
             LogChevron(open: open)
             Text(group.title).font(.scaled(12.5, weight: .semibold))
             Text(group.summary).font(.scaled(12.5)).foregroundStyle(.secondary).lineLimit(1)
-            if group.failed > 0 { Text("\(group.failed) failed").font(.scaled(12.5)).foregroundStyle(.red) }
+            if group.failed > 0 {
+                HStack(spacing: 4) {
+                    StateMark(shape: .problem, size: 12)
+                    Text("\(group.failed) failed").font(.scaled(12.5))
+                }
+                .foregroundStyle(.red)
+            }
             Spacer(minLength: 8)
             if group.isWorking {
-                SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor)
+                SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor).overlay { StateMark(shape: .working, size: 6).foregroundStyle(.secondary) }
                 Text(group.doing.map { "\($0)…" } ?? "").font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     Text(formatCallDuration(max(0, Int(context.date.timeIntervalSince1970 * 1000) - group.startedAt)))
@@ -75,8 +81,9 @@ private struct CallRowView: View {
                     Text(call.arg).codeFont(12).lineLimit(1).truncationMode(.middle)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if call.status == .running {
-                        SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor)
+                        SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor).overlay { StateMark(shape: .working, size: 6).foregroundStyle(.secondary) }
                     } else {
+                        StateMark(shape: call.status.shape, size: 11, weight: .semibold).foregroundStyle(.red)
                         Text(call.result).foregroundStyle(call.status == .failed ? .red : .secondary)
                     }
                 }

@@ -16,6 +16,7 @@ public struct AppPreferences {
     public static let monospaceLigaturesKey = "appearance.mono.ligatures"
     public static let monospaceWrapKey = "appearance.mono.wrap"
     public static let monospaceLineNumbersKey = "appearance.mono.lineNumbers"
+    public static let statesByShapeKey = "appearance.statesByShape"
     public static let sendKeyKey = "chat.sendKey"
     public static let writingToolsKey = "chat.writingTools"
     public static let checksSpellingKey = "chat.checkSpelling"
@@ -110,6 +111,12 @@ public struct AppPreferences {
         }
     }
 
+    /// Whether each state wears a symbol beside its color, so that color is not the only clue.
+    public var statesByShape: Bool {
+        get { defaults.object(forKey: Self.statesByShapeKey) as? Bool ?? false }
+        nonmutating set { defaults.set(newValue, forKey: Self.statesByShapeKey) }
+    }
+
     /// The key that sends in the message box; the other one makes a new line.
     public var sendKey: SendKey {
         get { defaults.string(forKey: Self.sendKeyKey).flatMap(SendKey.init(rawValue:)) ?? Self.defaultSendKey }
@@ -148,8 +155,8 @@ public struct AppPreferences {
             ]
         case .appearance:
             [
-                colorSchemeKey, TypeScale.percentKey, densityKey, monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey,
-                monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
+                colorSchemeKey, TypeScale.percentKey, densityKey, statesByShapeKey, monospaceFamilyKey, monospaceSizeKey,
+                monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
             ]
         case .chat: [sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey]
         default: []

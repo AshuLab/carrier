@@ -134,8 +134,8 @@ struct SessionGlyph: View {
 
     @ViewBuilder private var glyph: some View {
         switch state {
-        case .working: SpinningRing(diameter: 14, lineWidth: 2, color: .systemBlue)
-        case .waiting: Disc(color: .orange, mark: "!")
+        case .working: SpinningRing(diameter: 14, lineWidth: 2, color: .systemBlue).overlay { StateMark(shape: .working, size: 7).foregroundStyle(.secondary) }
+        case .waiting: Disc(color: .orange, mark: "!", shape: .needsAttention)
         case .idle: Circle().strokeBorder(Color.gray, lineWidth: 2).frame(width: 14, height: 14)
         case .done: Disc(color: .green, mark: "✓")
         }

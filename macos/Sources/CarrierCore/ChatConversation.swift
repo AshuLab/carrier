@@ -195,9 +195,9 @@ public func refusalBanner(agent: String, reason: String) -> FailureBanner {
 
 /// Above the box of a session that is not live: sending to it resumes it.
 public let closedSessionNotice = (
-    title: "This session is closed",
-    detail: "Its agent is not running. Send a message and it wakes up where it left off.",
-    chosen: "Its agent is not running. What you chose applies when a message wakes it up."
+    title: "This session is asleep",
+    detail: "Its agent is napping. Send a message and it wakes up right where it left off.",
+    chosen: "Its agent is napping. What you chose applies as soon as a message wakes it up."
 )
 
 /// The line under a refusal when the provider is not signed in, nil for any other. The adapters say "<Agent> is not logged in; run … once to log in".

@@ -456,9 +456,9 @@ private struct ClosedSessionNotice: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "moon.zzz.fill")
-                .font(.scaled(14, weight: .medium)).foregroundStyle(Color.indigo)
+                .font(.scaled(14, weight: .medium)).foregroundStyle(.white)
                 .frame(width: 30, height: 30)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.indigo.opacity(0.2)))
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.indigo.opacity(0.85)))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(closedSessionNotice.title).fontWeight(.semibold)

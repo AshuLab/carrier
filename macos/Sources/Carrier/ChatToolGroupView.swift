@@ -109,10 +109,11 @@ private struct CallDetailView: View {
     let call: ToolCall
     @State private var showAll = false
     @AppStorage(AppPreferences.outputLengthKey) private var length = AppPreferences.defaultOutputLength
+    @AppStorage(AppPreferences.diffStyleKey) private var diffStyle = AppPreferences.defaultDiffStyle
 
     var body: some View {
         if call.diff.isEmpty == false {
-            DiffView(rows: call.diff, showAll: $showAll).clipShape(RoundedRectangle(cornerRadius: 8))
+            DiffView(rows: call.diff, showAll: $showAll, style: diffStyle).clipShape(RoundedRectangle(cornerRadius: 8))
         } else {
             let shown = length.visible(call.output, expanded: showAll)
             Console {

@@ -520,19 +520,26 @@ struct DiffView: View {
     let rows: [DiffRow]
     @Binding var showAll: Bool
     var cut: String? = nil
+    var style: DiffStyle = .unified
 
     var body: some View {
         let shown = visibleDiffRows(rows, expanded: showAll)
         Console {
-            ForEach(Array(shown.rows.enumerated()), id: \.offset) { _, row in
-                HStack(alignment: .top, spacing: 6) {
-                    Text(sign(row.sign))
-                    Text(row.text).textSelection(.enabled).lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
+            switch style {
+            case .unified:
+                ForEach(Array(shown.rows.enumerated()), id: \.offset) { _, row in line(row).background(background(row)) }
+            case .split:
+                ForEach(Array(splitDiffPairs(shown.rows).enumerated()), id: \.offset) { _, pair in
+                    if let left = pair.left, left.sign == .hunk {
+                        line(left).background(background(left))
+                    } else {
+                        HStack(spacing: 0) {
+                            half(pair.left)
+                            Rectangle().fill(Color.white.opacity(0.1)).frame(width: 1)
+                            half(pair.right)
+                        }
+                    }
                 }
-                .foregroundStyle(color(row.sign))
-                .padding(.horizontal, 14)
-                .padding(.vertical, row.sign == .hunk ? 2 : 0)
-                .background(row.sign == .hunk ? Color.white.opacity(0.05) : color(row.sign).opacity(row.sign == .context ? 0 : 0.14))
             }
             if rows.count > collapsedDiffRows {
                 Button(showAll ? "Show less" : "Show \(shown.hidden) more \(shown.hidden == 1 ? "line" : "lines")") { showAll.toggle() }
@@ -544,6 +551,28 @@ struct DiffView: View {
                     .padding(.horizontal, 14).padding(.top, 7).padding(.bottom, 1)
             }
         }
+    }
+
+    private func line(_ row: DiffRow) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(sign(row.sign))
+            Text(row.text).textSelection(.enabled).lineLimit(1).truncationMode(.tail).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .foregroundStyle(color(row.sign))
+        .padding(.horizontal, 14)
+        .padding(.vertical, row.sign == .hunk ? 2 : 0)
+    }
+
+    /// One side of a split line; a side with no match stays empty.
+    private func half(_ row: DiffRow?) -> some View {
+        Group {
+            if let row { line(row).background(background(row)) } else { Color.clear }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func background(_ row: DiffRow) -> Color {
+        row.sign == .hunk ? Color.white.opacity(0.05) : color(row.sign).opacity(row.sign == .context ? 0 : 0.14)
     }
 
     private func sign(_ sign: DiffSign) -> String {

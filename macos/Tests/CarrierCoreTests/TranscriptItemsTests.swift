@@ -380,3 +380,42 @@ private func call(_ tool: String = "Bash", status: ToolStatus = .ok, ms: Int? = 
     #expect(call(status: .pending, ms: nil).showsChevron(active: true, open: false) == false)
     #expect(call("Read").showsChevron(active: true, open: false) == false)
 }
+
+private func rows(_ spec: String) -> [DiffRow] {
+    spec.map { c in
+        switch c {
+        case "+": DiffRow(sign: .added, text: "a")
+        case "-": DiffRow(sign: .removed, text: "r")
+        case "@": DiffRow(sign: .hunk, text: "@@")
+        default: DiffRow(sign: .context, text: "c")
+        }
+    }
+}
+
+private func shape(_ pairs: [DiffPair]) -> [String] {
+    pairs.map { p in
+        func mark(_ row: DiffRow?) -> String { row.map { $0.sign == .removed ? "-" : $0.sign == .added ? "+" : $0.sign == .hunk ? "@" : "=" } ?? "_" }
+        return mark(p.left) + mark(p.right)
+    }
+}
+
+@Test func aPureAdditionIsAddedLinesWithNothingOnTheLeft() {
+    #expect(shape(splitDiffPairs(rows("++"))) == ["_+", "_+"])
+}
+
+@Test func aPureRemovalIsRemovedLinesWithNothingOnTheRight() {
+    #expect(shape(splitDiffPairs(rows("--"))) == ["-_", "-_"])
+}
+
+@Test func aChangedBlockWithMoreRemovedThanAddedLeavesTheRightEmptyAtTheEnd() {
+    #expect(shape(splitDiffPairs(rows("---+"))) == ["-+", "-_", "-_"])
+}
+
+@Test func aChangedBlockWithMoreAddedThanRemovedLeavesTheLeftEmptyAtTheEnd() {
+    #expect(shape(splitDiffPairs(rows("-+++"))) == ["-+", "_+", "_+"])
+}
+
+@Test func contextAndHunkLinesFillBothSidesAndEndABlock() {
+    #expect(shape(splitDiffPairs(rows("@=-+=+"))) == ["@@", "==", "-+", "==", "_+"])
+    #expect(splitDiffPairs([]).isEmpty)
+}

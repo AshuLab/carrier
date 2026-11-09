@@ -18,12 +18,13 @@ struct NewSessionView: View {
     var body: some View {
         VStack(spacing: 14) {
             Spacer(minLength: 0)
-            NewSessionMark()
-            VStack(spacing: 4) {
-                Text("What do you want to work on?").font(.title2.weight(.semibold))
-                Text("Pick where it works, then write.").font(.callout).foregroundStyle(.secondary)
+            // the title carries the page alone: large, and centred however many lines it takes
+            VStack(spacing: 6) {
+                Text("What do you want to work on?").font(.scaled(28, weight: .semibold))
+                Text("Pick where it works, then write.").font(.title3).foregroundStyle(.secondary)
             }
-            .padding(.bottom, 10)
+            .multilineTextAlignment(.center).frame(maxWidth: .infinity)
+            .padding(.bottom, 14)
             VStack(alignment: .leading, spacing: 16) {
                 sentence
                 box
@@ -224,16 +225,5 @@ struct NewSessionView: View {
 
     private func send() {
         Task { if let id = await model.send() { opened(id) } }
-    }
-}
-
-/// The round mark over the question: a placeholder until the app has a logo to put in its place.
-private struct NewSessionMark: View {
-    var body: some View {
-        Image(systemName: "sparkles")
-            .font(.scaled(22, weight: .medium)).foregroundStyle(.white)
-            .frame(width: 52, height: 52)
-            .background(Circle().fill(LinearGradient(colors: [.themeAccent, .themeAccent.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
-            .accessibilityHidden(true)
     }
 }

@@ -36,12 +36,12 @@ public struct KeyCombo: Equatable {
 
 /// A group of the Keybindings page.
 public enum ShortcutGroup: String, CaseIterable {
-    case goTo = "Go to", sessions = "Sessions"
+    case goTo = "Go to", sessions = "Sessions", carrier = "Carrier"
 }
 
 /// An action that has a shortcut; the raw value is its id.
 public enum ShortcutCommand: String, CaseIterable {
-    case home, sessions, carrier, newSession, search
+    case home, sessions, carrier, newSession, search, startOrStop, pauseOrResume, checkNow
 
     public var title: String {
         switch self {
@@ -50,6 +50,9 @@ public enum ShortcutCommand: String, CaseIterable {
         case .carrier: "Carrier"
         case .newSession: "New session"
         case .search: "Search"
+        case .startOrStop: "Start or stop Carrier"
+        case .pauseOrResume: "Pause or resume intake"
+        case .checkNow: "Look for ready epics now"
         }
     }
 
@@ -57,17 +60,19 @@ public enum ShortcutCommand: String, CaseIterable {
         switch self {
         case .home, .sessions, .carrier: .goTo
         case .newSession, .search: .sessions
+        case .startOrStop, .pauseOrResume, .checkNow: .carrier
         }
     }
 
-    /// What the window does when it runs.
-    public var action: ShortcutAction {
+    /// What the window does when it runs; nil for the Carrier controls, which the menu runs.
+    public var action: ShortcutAction? {
         switch self {
         case .home: .select(.home)
         case .sessions: .select(.sessions)
         case .carrier: .select(.carrier)
         case .newSession: .select(.newSession)
         case .search: .search
+        case .startOrStop, .pauseOrResume, .checkNow: nil
         }
     }
 
@@ -79,6 +84,7 @@ public enum ShortcutCommand: String, CaseIterable {
         case .carrier: KeyCombo(key: "3", modifiers: .command)
         case .newSession: KeyCombo(key: "n", modifiers: .command)
         case .search: KeyCombo(key: "f", modifiers: .command)
+        case .startOrStop, .pauseOrResume, .checkNow: nil
         }
     }
 }

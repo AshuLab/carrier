@@ -91,7 +91,7 @@ private struct AgentOutputView: View {
                 OutputText(lines: lines)
             } else {
                 Text(model.lines == nil ? "Reading output…" : "No output yet")
-                    .foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .font(.scaled(13)).foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(minWidth: 480, minHeight: 240)
@@ -106,7 +106,7 @@ private struct OutputText: NSViewRepresentable {
         let scroll = NSTextView.scrollableTextView()
         let text = scroll.documentView as! NSTextView
         text.isEditable = false
-        text.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        text.font = .monospacedSystemFont(ofSize: TypeScale.stored().size(12), weight: .regular)
         text.textContainerInset = NSSize(width: 8, height: 8)
         return scroll
     }

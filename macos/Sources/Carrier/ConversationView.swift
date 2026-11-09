@@ -43,7 +43,7 @@ struct ConversationView: View {
                         .transition(.opacity)
                     }
                     if let note = draft?.watchNotes[model.sessionId] {
-                        Label(note.text, systemImage: note.failed ? "exclamationmark.triangle.fill" : "eye.fill").font(.subheadline).foregroundStyle(note.failed ? .orange : .secondary).textSelection(.enabled)
+                        Label(note.text, systemImage: note.failed ? "exclamationmark.triangle.fill" : "eye.fill").font(.scaled(11)).foregroundStyle(note.failed ? .orange : .secondary).textSelection(.enabled)
                     }
                     let open = openOutcome(model.rows)
                     ForEach(model.rows) { row in
@@ -61,7 +61,7 @@ struct ConversationView: View {
                 } else if model.failure == nil {
                     LoadingRow()
                 }
-                if let failure = model.failure { Text(failure).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
+                if let failure = model.failure { Text(failure).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled) }
             }
             .padding(.horizontal, 40).padding(.vertical, 16)
             .frame(maxWidth: Self.column, alignment: .leading)
@@ -76,6 +76,7 @@ struct ConversationView: View {
             Task { try? await Task.sleep(for: .milliseconds(400)); animatesRows = true }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { if model.archived { archivedBox } else { box } }
+        .font(.scaled(13))
         .task {
             if let first = draft?.takeFirstMessage(of: model.sessionId) { model.show(firstMessage: first) }
             await model.run()
@@ -86,7 +87,7 @@ struct ConversationView: View {
     private var archivedBox: some View {
         HStack(spacing: 12) {
             Image(systemName: "archivebox").foregroundStyle(.secondary)
-            Text(archivedSessionNotice).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(archivedSessionNotice).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
             Button("Resume") { Task { if let refusal = await actions.restore(model.sessionId) { tell(refusal) } } }
                 .buttonStyle(.glassProminent).buttonBorderShape(.capsule)
@@ -107,11 +108,11 @@ struct ConversationView: View {
                     Image(systemName: "clock").foregroundStyle(.secondary)
                     Text(queued).lineLimit(2).textSelection(.enabled)
                     Spacer(minLength: 0)
-                    Text("Sends when the agent finishes").font(.subheadline).foregroundStyle(.secondary)
+                    Text("Sends when the agent finishes").font(.scaled(11)).foregroundStyle(.secondary)
                     Button { model.cancelQueued() } label: { Image(systemName: "xmark.circle.fill") }
                         .buttonStyle(.plain).foregroundStyle(.secondary).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
                 }
-                .font(.callout)
+                .font(.scaled(12))
                 .padding(.horizontal, 12).padding(.vertical, 8)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -133,10 +134,10 @@ struct ConversationView: View {
                 }
                 optionSelects(model.shownOptions) { option, value in Task { await model.setOption(option, value) } }
             }
-            if let refusal = model.optionRefusal { Text(refusal).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
+            if let refusal = model.optionRefusal { Text(refusal).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled) }
             if let refusal = model.refusal {
                 if model.refusedText == nil {
-                    Text(refusal).font(.callout).foregroundStyle(.red).textSelection(.enabled)
+                    Text(refusal).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled)
                 } else {
                     BannerView(banner: refusalBanner(agent: model.agent, reason: refusal), copyDetails: false, retry: { Task { await model.retry() } })
                 }
@@ -212,7 +213,7 @@ private struct FeedRowView: View {
                 if inProgress { Text("▍").foregroundStyle(.secondary) }
             }
         case .turnEnd(_, let text):
-            Text(text).font(.system(size: 11)).foregroundStyle(.tertiary).textSelection(.enabled)
+            Text(text).font(.scaled(11)).foregroundStyle(.tertiary).textSelection(.enabled)
         case .tools(let id, let group):
             ChatToolGroupView(id: id, group: group, opened: $opened)
         case .approval(_, let card):
@@ -220,7 +221,7 @@ private struct FeedRowView: View {
         case .decided(_, let text, let allow):
             ApprovalDecidedView(text: text, allow: allow)
         case .line(_, let text):
-            Text(text).font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
+            Text(text).font(.scaled(12, design: .monospaced)).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
         case .error(_, let text):
             BannerView(banner: failedTurnBanner(agent: agent, error: text), copyDetails: true, retry: offersWayOut ? retry : nil)
         case .stopped:
@@ -228,7 +229,7 @@ private struct FeedRowView: View {
                 Text("\u{25A0} You stopped this turn").foregroundStyle(.secondary)
                 if offersWayOut { Button("Continue", action: continueTurn).buttonStyle(.link) }
             }
-            .font(.system(size: 12))
+            .font(.scaled(12))
         }
     }
 }
@@ -248,8 +249,8 @@ private struct BannerView: View {
             Image(systemName: "exclamationmark.circle.fill").foregroundStyle(tint)
             VStack(alignment: .leading, spacing: 2) {
                 Text(banner.title).fontWeight(.semibold)
-                Text(banner.detail).font(.system(size: 12)).foregroundStyle(.secondary).textSelection(.enabled)
-                if let hint = banner.hint { Text(hint).font(.system(size: 12)).foregroundStyle(.secondary) }
+                Text(banner.detail).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
+                if let hint = banner.hint { Text(hint).font(.scaled(12)).foregroundStyle(.secondary) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let retry { Button("Try again", action: retry) }
@@ -260,7 +261,7 @@ private struct BannerView: View {
                 }
             }
         }
-        .font(.callout)
+        .font(.scaled(12))
         .padding(.horizontal, 13).padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: 16).fill(tint.opacity(0.11)))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(tint.opacity(0.5), lineWidth: 1))
@@ -276,14 +277,14 @@ struct CodeBlockView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(language ?? "code").font(.system(size: 11)).foregroundStyle(.secondary)
+                Text(language ?? "code").font(.scaled(11)).foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 CopyButton(text: code, help: "Copy the code")
             }
             .padding(.horizontal, 12).padding(.vertical, 6)
             Rectangle().fill(Color.secondary.opacity(0.2)).frame(height: 0.5)
             ScrollView(.horizontal) {
-                Text(code).font(.system(size: 11.5, design: .monospaced)).textSelection(.enabled).padding(12)
+                Text(code).font(.scaled(11.5, design: .monospaced)).textSelection(.enabled).padding(12)
             }
         }
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.12)))
@@ -298,7 +299,7 @@ private struct ThinkingRow: View {
             Image(systemName: "ellipsis").symbolEffect(.variableColor.iterative, options: .repeating)
             Text("Thinking…")
         }
-        .font(.callout).foregroundStyle(.secondary)
+        .font(.scaled(12)).foregroundStyle(.secondary)
         .accessibilityElement(children: .combine)
     }
 }
@@ -311,17 +312,17 @@ private struct ClosedSessionNotice: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "moon.zzz.fill")
-                .font(.system(size: 14, weight: .medium)).foregroundStyle(Color.indigo)
+                .font(.scaled(14, weight: .medium)).foregroundStyle(Color.indigo)
                 .frame(width: 30, height: 30)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.indigo.opacity(0.2)))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(closedSessionNotice.title).fontWeight(.semibold)
-                Text(chosen ? closedSessionNotice.chosen : closedSessionNotice.detail).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(chosen ? closedSessionNotice.chosen : closedSessionNotice.detail).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
-        .font(.callout).padding(12)
+        .font(.scaled(12)).padding(12)
         // glass, so the conversation that scrolls under it is blurred and not seen through it
         .glassEffect(.regular.tint(Color.indigo.opacity(0.3)), in: .rect(cornerRadius: 12))
         .accessibilityElement(children: .combine)

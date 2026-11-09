@@ -20,7 +20,7 @@ struct TranscriptRows: View {
             ForEach(items) { FlowItemView(flow: $0, outputs: $outputs, groups: $groups, slices: $slices).sessionRow() }
         case .tail(let lines):
             Text(lines.isEmpty ? "No output yet" : lines.joined(separator: "\n"))
-                .font(.system(size: 12, design: .monospaced)).foregroundStyle(.secondary)
+                .font(.scaled(12, design: .monospaced)).foregroundStyle(.secondary)
                 .textSelection(.enabled).padding(12).sessionRow()
         }
     }
@@ -33,7 +33,7 @@ struct LoadingRow: View {
             ProgressView().controlSize(.small)
             Text("Loading…").foregroundStyle(.secondary)
         }
-        .font(.callout)
+        .font(.scaled(12))
         .frame(maxWidth: .infinity, minHeight: 64)
         .accessibilityElement(children: .combine)
     }
@@ -82,6 +82,7 @@ struct MarkdownView: View {
                 }
             }
         }
+        .font(.scaled(13))
         .frame(maxWidth: .infinity, alignment: .leading)
         .textSelection(.enabled)
     }
@@ -100,9 +101,9 @@ struct TranscriptItemView: View {
             .padding(.horizontal, 12).padding(.vertical, 10)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
         case .note(_, let text):
-            Text(text).font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+            Text(text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
         case .error(_, let text):
-            Text(text).font(.callout).foregroundStyle(.red).textSelection(.enabled)
+            Text(text).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled)
         case .tool(let id, let card):
             // only what changes files is a card; the rest is a line of the log
             if card.kind == .edit {
@@ -150,7 +151,7 @@ struct LogChevron: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold)).foregroundStyle(.tertiary)
+        Image(systemName: "chevron.right").font(.scaled(9, weight: .bold)).foregroundStyle(.tertiary)
             .rotationEffect(.degrees(open ? 90 : 0))
             .animation(LogMetrics.chevronTurn(reduceMotion: reduceMotion).map { .easeOut(duration: $0) }, value: open)
             .frame(width: LogMetrics.chevronColumn)
@@ -167,10 +168,10 @@ struct CallColumns: View {
 
     var body: some View {
         HStack(spacing: LogMetrics.gap) {
-            Text(duration ?? "").font(.system(size: 11)).monospacedDigit().foregroundStyle(failed ? AnyShapeStyle(.red) : AnyShapeStyle(.tertiary)).lineLimit(1)
+            Text(duration ?? "").font(.scaled(11)).monospacedDigit().foregroundStyle(failed ? AnyShapeStyle(.red) : AnyShapeStyle(.tertiary)).lineLimit(1)
                 .frame(width: LogMetrics.durationColumn, alignment: .trailing)
             Group {
-                if status != .ok { ToolStatusView(status: status).font(.system(size: 14)) }
+                if status != .ok { ToolStatusView(status: status).font(.scaled(14)) }
             }
             .frame(width: LogMetrics.statusColumn, height: LogMetrics.statusColumn)
             LogChevron(open: chevron?.open == true).opacity(chevron?.visible == true ? 1 : 0)
@@ -188,13 +189,13 @@ struct CallLineView: View {
 
     var body: some View {
         HStack(spacing: LogMetrics.gap) {
-            Image(systemName: card.kind.icon).font(.system(size: 11)).foregroundStyle(card.status == .error ? .red : .secondary)
+            Image(systemName: card.kind.icon).font(.scaled(11)).foregroundStyle(card.status == .error ? .red : .secondary)
                 .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
             HStack(spacing: 4) {
-                Text(card.title).font(.system(size: 12, design: .monospaced)).lineLimit(1)
+                Text(card.title).font(.scaled(12, design: .monospaced)).lineLimit(1)
                     .truncationMode(card.kind == .shell ? .tail : .middle)
                 if card.moreCommands > 0 {
-                    Text("+\(card.moreCommands)").font(.system(size: 11)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+                    Text("+\(card.moreCommands)").font(.scaled(11)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
                         .help("\(card.moreCommands) more commands in this call")
                 }
             }
@@ -279,7 +280,7 @@ struct ToolGroupHeader: View {
     var body: some View {
         HStack(spacing: LogMetrics.gap) {
             LogChevron(open: open)
-            Text(label).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1)
+            Text(label).font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             // the columns of a call, the status and chevron slots empty
             CallColumns(duration: duration, status: .ok)
@@ -304,9 +305,9 @@ struct SkillRowView: View {
 
     var body: some View {
         HStack(spacing: LogMetrics.gap) {
-            Image(systemName: card.kind.icon).font(.system(size: 9, weight: .bold)).foregroundStyle(.white)
+            Image(systemName: card.kind.icon).font(.scaled(9, weight: .bold)).foregroundStyle(.white)
                 .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth).background(RoundedRectangle(cornerRadius: 5).fill(card.kind.color))
-            Text(card.title).font(.system(size: 12, weight: .medium, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+            Text(card.title).font(.scaled(12, weight: .medium, design: .monospaced)).lineLimit(1).truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
             CallColumns(duration: card.showsDuration(active: hovered) ? card.duration : nil, failed: card.status == .error, status: card.status)
         }
@@ -332,7 +333,7 @@ struct TerminalBlockView: View {
             strip
             divider
             if shown.lines.isEmpty {
-                Text("no output").font(.system(size: 11.5)).foregroundStyle(.tertiary)
+                Text("no output").font(.scaled(11.5)).foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 9)
             } else {
                 output(shown.lines).textSelection(.enabled)
@@ -349,7 +350,7 @@ struct TerminalBlockView: View {
             divider
             footer(hidden: shown.hidden)
         }
-        .font(.system(size: 11.5, design: .monospaced))
+        .font(.scaled(11.5, design: .monospaced))
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
@@ -382,7 +383,7 @@ struct TerminalBlockView: View {
             Spacer(minLength: 0)
             CopyButton(text: card.copyText)
         }
-        .font(.system(size: 11))
+        .font(.scaled(11))
         .padding(.horizontal, 14).padding(.vertical, 7)
     }
 }
@@ -425,7 +426,7 @@ struct CopyButton: View {
                 Image(systemName: copied ? "checkmark" : "doc.on.doc").frame(width: 12, height: 14)
                 Text(copied ? "Copied" : "Copy").frame(width: 40, alignment: .leading)
             }
-            .font(.system(size: 11)).foregroundStyle(.secondary).contentShape(Rectangle())
+            .font(.scaled(11)).foregroundStyle(.secondary).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help(help)
@@ -442,7 +443,7 @@ struct ToolCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             header.padding(.horizontal, 10).padding(.vertical, 7).frame(minHeight: 34)
             if let reason = card.editReason {
-                Text(reason).font(.system(size: 12)).foregroundStyle(.red).lineLimit(2)
+                Text(reason).font(.scaled(12)).foregroundStyle(.red).lineLimit(2)
                     .padding(.horizontal, 10).padding(.bottom, 8)
             }
             if let diff = card.shownDiff { DiffView(rows: diff.rows, showAll: $showAll) }
@@ -454,16 +455,16 @@ struct ToolCardView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Image(systemName: card.kind.icon).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+            Image(systemName: card.kind.icon).font(.scaled(11, weight: .semibold)).foregroundStyle(.white)
                 .frame(width: 20, height: 20).background(RoundedRectangle(cornerRadius: 6).fill(card.kind.color))
             HStack(spacing: 6) {
-                Text(card.editName).font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                Text(card.editName).font(.scaled(12, weight: .semibold)).lineLimit(1)
                 if card.isNewFile {
-                    Text("new").font(.system(size: 9.5, weight: .semibold)).foregroundStyle(.green)
+                    Text("new").font(.scaled(9.5, weight: .semibold)).foregroundStyle(.green)
                         .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.green.opacity(0.16)))
                 }
                 if card.editFolder.isEmpty == false {
-                    Text(card.editFolder).font(.system(size: 11, design: .monospaced)).foregroundStyle(.tertiary)
+                    Text(card.editFolder).font(.scaled(11, design: .monospaced)).foregroundStyle(.tertiary)
                         .lineLimit(1).truncationMode(.head)
                 }
             }
@@ -473,7 +474,7 @@ struct ToolCardView: View {
                     Text("+\(diff.added)").foregroundStyle(.green)
                     Text("−\(diff.removed)").foregroundStyle(.red)
                 }
-                .font(.system(size: 12, weight: .medium)).monospacedDigit()
+                .font(.scaled(12, weight: .medium)).monospacedDigit()
             }
             // a tick says nothing; only a failure or a running edit is marked
             if card.status != .ok { ToolStatusView(status: card.status) }
@@ -504,7 +505,7 @@ struct Console<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) { content }
-            .font(.system(size: 11.5, design: .monospaced))
+            .font(.scaled(11.5, design: .monospaced))
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(red: 0.05, green: 0.05, blue: 0.063))
@@ -534,11 +535,11 @@ struct DiffView: View {
             }
             if rows.count > collapsedDiffRows {
                 Button(showAll ? "Show less" : "Show \(shown.hidden) more \(shown.hidden == 1 ? "line" : "lines")") { showAll.toggle() }
-                    .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(Color.accentColor)
+                    .buttonStyle(.plain).font(.scaled(11)).foregroundStyle(Color.accentColor)
                     .padding(.horizontal, 14).padding(.top, 7).padding(.bottom, 1)
             }
             if let cut {
-                Text(cut).font(.system(size: 11)).foregroundStyle(ConsoleColor.text.opacity(0.6))
+                Text(cut).font(.scaled(11)).foregroundStyle(ConsoleColor.text.opacity(0.6))
                     .padding(.horizontal, 14).padding(.top, 7).padding(.bottom, 1)
             }
         }

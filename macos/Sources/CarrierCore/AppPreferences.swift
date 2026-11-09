@@ -10,6 +10,7 @@ public struct AppPreferences {
     public static let clockHoursKey = "display.clock"
     public static let colorSchemeKey = "appearance.colorScheme"
     public static let densityKey = "appearance.density"
+    public static let statesByShapeKey = "appearance.statesByShape"
     public static let sendKeyKey = "chat.sendKey"
     public static let writingToolsKey = "chat.writingTools"
     public static let checksSpellingKey = "chat.checkSpelling"
@@ -80,6 +81,12 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.densityKey) }
     }
 
+    /// Whether each state wears a symbol beside its color, so that color is not the only clue.
+    public var statesByShape: Bool {
+        get { defaults.object(forKey: Self.statesByShapeKey) as? Bool ?? false }
+        nonmutating set { defaults.set(newValue, forKey: Self.statesByShapeKey) }
+    }
+
     /// The key that sends in the message box; the other one makes a new line.
     public var sendKey: SendKey {
         get { defaults.string(forKey: Self.sendKeyKey).flatMap(SendKey.init(rawValue:)) ?? Self.defaultSendKey }
@@ -116,7 +123,7 @@ public struct AppPreferences {
                 SidebarStore.groupByKey, SidebarStore.sessionSortKey, SidebarStore.archiveSortKey, SidebarStore.showsIconKey,
                 SidebarStore.showsBranchKey, SidebarStore.showsProvidersKey, SidebarStore.showsAgeKey,
             ]
-        case .appearance: [colorSchemeKey, TypeScale.percentKey, densityKey]
+        case .appearance: [colorSchemeKey, TypeScale.percentKey, densityKey, statesByShapeKey]
         case .chat: [sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey]
         default: []
         }

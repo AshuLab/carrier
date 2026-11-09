@@ -279,8 +279,9 @@ private struct SessionHomeRow: View {
                 ProviderMarks(names: row.providers)
             }
             .opacity(active ? 0 : 1)
-            .overlay(alignment: .topTrailing) { actionButtons.opacity(active ? 1 : 0).allowsHitTesting(active) }
         }
+        // Pin and Archive take the place of the age and the providers, centred on the row's right edge
+        .overlay(alignment: .trailing) { actionButtons.opacity(active ? 1 : 0).allowsHitTesting(active) }
         .animation(.easeInOut(duration: 0.15), value: active)
         .opacity(row.archived ? 0.55 : 1)
         .padding(.horizontal, 10).padding(.vertical, 8)
@@ -322,7 +323,7 @@ private struct SessionHomeRow: View {
 
     private var actionButtons: some View {
         HStack(spacing: 4) {
-            iconButton(pinned ? "pin.slash" : "pin", pinned ? "Unpin" : "Pin") {
+            iconButton(pinned ? "pin.slash" : "pin", pinned ? "Unpin" : "Pin", selected: pinned) {
                 let ids = pinnedIds(pinnedStored)
                 pinnedStored = storedPins(pinned ? ids.subtracting([row.id]) : ids.union([row.id]))
             }
@@ -334,12 +335,13 @@ private struct SessionHomeRow: View {
         }
     }
 
-    private func iconButton(_ symbol: String, _ title: String, action: @escaping () -> Void) -> some View {
+    /// A round button; one that is on (a pinned session's Pin) wears the accent.
+    private func iconButton(_ symbol: String, _ title: String, selected: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: symbol).font(.scaled(12)).foregroundStyle(.secondary).frame(width: 26, height: 26)
-                .background(Circle().fill(Color.secondary.opacity(0.14)))
+            Image(systemName: symbol).font(.scaled(12)).foregroundStyle(selected ? Color.themeAccent : .secondary).frame(width: 28, height: 28)
+                .background(Circle().fill(selected ? Color.themeAccent.opacity(0.2) : Color.secondary.opacity(0.14)))
         }
-        .buttonStyle(.plain).help(title).accessibilityLabel(title)
+        .buttonStyle(.plain).help(title).accessibilityLabel(title).accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func tag(_ text: String) -> some View {

@@ -28,16 +28,16 @@ struct ChatToolGroupView: View {
     private func header(open: Bool) -> some View {
         HStack(spacing: 8) {
             LogChevron(open: open)
-            Text(group.title).font(.system(size: 12.5, weight: .semibold))
-            Text(group.summary).font(.system(size: 12.5)).foregroundStyle(.secondary).lineLimit(1)
-            if group.failed > 0 { Text("\(group.failed) failed").font(.system(size: 12.5)).foregroundStyle(.red) }
+            Text(group.title).font(.scaled(12.5, weight: .semibold))
+            Text(group.summary).font(.scaled(12.5)).foregroundStyle(.secondary).lineLimit(1)
+            if group.failed > 0 { Text("\(group.failed) failed").font(.scaled(12.5)).foregroundStyle(.red) }
             Spacer(minLength: 8)
             if group.isWorking {
                 SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor)
-                Text(group.doing.map { "\($0)…" } ?? "").font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                Text(group.doing.map { "\($0)…" } ?? "").font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     Text(formatCallDuration(max(0, Int(context.date.timeIntervalSince1970 * 1000) - group.startedAt)))
-                        .font(.system(size: 12)).monospacedDigit().foregroundStyle(.tertiary)
+                        .font(.scaled(12)).monospacedDigit().foregroundStyle(.tertiary)
                 }
             } else {
                 if group.added > 0 { Text("+\(group.added)").foregroundStyle(.green) }
@@ -45,7 +45,7 @@ struct ChatToolGroupView: View {
                 if let ms = group.durationMs { Text(formatCallDuration(ms)).foregroundStyle(.tertiary) }
             }
         }
-        .font(.system(size: 12, weight: .medium)).monospacedDigit()
+        .font(.scaled(12, weight: .medium)).monospacedDigit()
         .padding(.horizontal, 10).frame(height: 30)
         .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
         .contentShape(Rectangle())
@@ -70,9 +70,9 @@ private struct CallRowView: View {
             } label: {
                 HStack(spacing: 8) {
                     LogChevron(open: open)
-                    Image(systemName: call.kind.icon).font(.system(size: 11)).frame(width: 16)
+                    Image(systemName: call.kind.icon).font(.scaled(11)).frame(width: 16)
                     Text(call.tool).fontWeight(.medium)
-                    Text(call.arg).font(.system(size: 12, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                    Text(call.arg).font(.scaled(12, design: .monospaced)).lineLimit(1).truncationMode(.middle)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if call.status == .running {
                         SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor)
@@ -80,7 +80,7 @@ private struct CallRowView: View {
                         Text(call.result).foregroundStyle(call.status == .failed ? .red : .secondary)
                     }
                 }
-                .font(.system(size: 12))
+                .font(.scaled(12))
                 .foregroundStyle(call.status == .failed ? .red : .primary)
                 .padding(.horizontal, 6).frame(height: 26)
                 .contentShape(Rectangle())

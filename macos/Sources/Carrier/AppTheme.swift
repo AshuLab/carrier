@@ -20,7 +20,7 @@ import SwiftUI
         NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { _ in refresh() }
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main) { _ in refresh() }
         // the Mac switching between light and dark while the color scheme is System
-        appearance = NSApp.observe(\.effectiveAppearance) { _, _ in DispatchQueue.main.async { refresh() } }
+        appearance = NSApplication.shared.observe(\.effectiveAppearance) { _, _ in DispatchQueue.main.async { refresh() } }
     }
 
     private static func current() -> ThemeSurfaces {
@@ -28,7 +28,7 @@ import SwiftUI
         let dark = switch preferences.colorScheme {
         case .light: false
         case .dark: true
-        case .system: NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        case .system: NSApplication.shared.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         }
         return themeSurfaces(
             preferences.theme, scheme: dark ? .dark : .light, accent: preferences.accent, tint: preferences.tint,

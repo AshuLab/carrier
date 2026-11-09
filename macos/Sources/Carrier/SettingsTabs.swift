@@ -3,7 +3,7 @@ import CarrierCore
 import ServiceManagement
 import SwiftUI
 
-// The Notifications and General tabs of the Settings screen.
+// The page pattern of Settings (a header, cards of rows, a preview, a Reset) and the General and Notifications pages.
 
 /// A row of these tabs: a title and a line under it on the left, the control on the right.
 struct SettingsTabRow<Control: View>: View {
@@ -47,6 +47,88 @@ struct SettingsGroup<Content: View>: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary).padding(.leading, 14).padding(.top, 8)
             SettingsTabCard { content }
+        }
+    }
+}
+
+/// The top of a page: an icon, the title and a line.
+struct SettingsPageHeader: View {
+    let page: SettingsPage
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: page.icon)
+                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.accentColor)
+                .frame(width: 36, height: 36)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.16)))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(page.rawValue).font(.title3.weight(.semibold))
+                Text(page.detail).font(.callout).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// What goes under a page's header: the cards, a preview of what a control changes where there is one, and a Reset row where the
+/// page has many controls.
+struct SettingsPageBody<Content: View, Preview: View>: View {
+    var reset: (() -> Void)?
+    @ViewBuilder var preview: Preview
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            content
+            preview
+            if let reset {
+                SettingsTabCard {
+                    SettingsTabRow(title: "Reset", detail: "Puts this page back to how it came", first: true) {
+                        Button("Reset", action: reset).buttonStyle(.glass).buttonBorderShape(.capsule)
+                    }
+                }
+            }
+        }
+    }
+}
+
+extension SettingsPageBody where Preview == EmptyView {
+    init(reset: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
+        self.init(reset: reset, preview: { EmptyView() }, content: content)
+    }
+}
+
+struct GeneralTabView: View {
+    @AppStorage(AppPreferences.styleKey) private var style = AppPreferences.defaultStyle.rawValue
+    @AppStorage(AppPreferences.animatesKey) private var animates = AppPreferences.defaultAnimates
+    @AppStorage(showEpicsKey) private var showsEpics = AppPreferences.defaultShowsEpics
+    @AppStorage(AppPreferences.confirmStopKey) private var confirmStop = AppPreferences.defaultConfirmStop
+
+    var body: some View {
+        SettingsPageBody(reset: { AppPreferences().reset(.general) }) {
+            SettingsGroup(title: "Menu bar") {
+                SettingsTabRow(title: "Icon style", detail: "What the icon in the menu bar shows", first: true) {
+                    // a saved value that is not a style reads as the default, as the icon does
+                    Picker("Icon style", selection: Binding(
+                        get: { IconStyle(rawValue: style) ?? AppPreferences.defaultStyle },
+                        set: { style = $0.rawValue }
+                    )) {
+                        ForEach(IconStyle.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Animate the icon", detail: "A segment moves over the bar while epics run") {
+                    Toggle("Animate the icon", isOn: $animates).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "List epics in the menu", detail: "The epics that run or wait show under the status") {
+                    Toggle("List epics in the menu", isOn: $showsEpics).labelsHidden().toggleStyle(.switch)
+                }
+            }
+            SettingsGroup(title: "Confirmations") {
+                SettingsTabRow(title: "Ask before stopping Carrier", detail: "Only when stopping would interrupt epics that are running", first: true) {
+                    Toggle("Ask before stopping Carrier", isOn: $confirmStop).labelsHidden().toggleStyle(.switch)
+                }
+            }
         }
     }
 }

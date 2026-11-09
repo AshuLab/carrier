@@ -136,7 +136,7 @@ struct PanelView: View {
                         }
                     } else {
                         // Carrier is not answering (or has not yet): what to do about it
-                        StoppedView(state: model.state, openSettings: { shell.showSettings() })
+                        StoppedView(state: model.state, openSettings: { shell.showSettings(.engine) })
                     }
                 }
                 // only an epic has something to inspect; the other pages are a single column. The panel runs up behind the

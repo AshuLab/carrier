@@ -189,7 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("icon styles", {
                 guard let icon = IconController.shared else { return "no icon" }
                 // what the Menu bar tab does: write the preference, the icon follows with no relaunch
-                let store = MenuBarStore(), saved = store.style
+                let store = AppPreferences(), saved = store.style
                 defer { store.style = saved; icon.reloadSettings() }
                 return IconStyle.allCases.map { style in
                     store.style = style

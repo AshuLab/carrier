@@ -418,7 +418,7 @@ public struct WatchNote: Equatable {
     }
 
     /// Chooses `owner/name` as the workspace. One in the projects folder is read locally, as a folder; one that is not on this Mac has its branches
-    /// read from GitHub with the person's login, no uncommitted changes and a worktree whose name the host generates when the message is sent.
+    /// read from GitHub with the person's login, no uncommitted changes and a worktree whose name is generated at once, the host checking it when the message is sent.
     public func choose(repo name: String) async {
         guard isRepoName(name) else { return }
         refreshFolders()
@@ -652,14 +652,17 @@ public struct WatchNote: Equatable {
     public func useWorktree(_ on: Bool) async {
         guard on == false || offersWorktree else { return }
         worktree = on
-        // a repository to clone has no folder to ask yet: the host picks the name when the message is sent
-        if on, toClone { nameState = .free }
-        else if on, worktreeName.isEmpty { await rollName() }
+        if on, worktreeName.isEmpty { await rollName() }
     }
 
-    /// ↻: asks the host for another free name.
+    /// ↻: asks the host for another free name; a repository to clone has no folder to ask yet, so its name is made here.
     public func rollName() async {
-        guard let path = folder, toClone == false else { return }
+        guard let path = folder else { return }
+        if toClone {
+            worktreeName = generatedWorktreeName()
+            nameState = .free
+            return
+        }
         nameState = .suggesting
         do {
             let name = try await host.suggestName(path)

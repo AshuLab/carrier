@@ -725,26 +725,30 @@ private func projectsRoot(_ names: [String]) throws -> String {
     #expect(model.branchNote == nil && model.warning == nil)
 }
 
-@MainActor @Test func aWorktreeForARepositoryToCloneHasNoNameYetAndTheHostIsNotAskedForOne() async {
+@MainActor @Test func aWorktreeForARepositoryToCloneGetsAGeneratedNameAtOnceAndTheHostIsNotAskedForOne() async {
     let host = FakeChat()
     host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
     let model = await popover(host)
     await model.choose(repo: "AshuLab/carrier")
     await model.useWorktree(true)
-    #expect(model.worktree && model.worktreeName.isEmpty && model.nameState == .free && host.names.count == 2)
+    #expect(model.worktree && model.nameState == .free && host.names.count == 2)
+    #expect(model.worktreeName.split(separator: "-").count == 3)
     model.choose(startBranch: "feat/x")
     model.text = "hello"
     #expect(model.canSend)
     await model.verifyName()
     await model.fetchNow()
     #expect(host.calls.isEmpty && model.fetchProblem == nil)
-    #expect(model.worktreeRequest == WorktreeRequest(from: "feat/x", name: nil))
+    #expect(model.worktreeRequest == WorktreeRequest(from: "feat/x", name: model.worktreeName))
+    // ↻ makes another one here, with no folder to ask the host about
+    await model.rollName()
+    #expect(model.worktreeName.split(separator: "-").count == 3 && host.calls.isEmpty)
     // a typed name is the host's to check when it makes the worktree
     model.worktreeName = "my-fix"
     #expect(model.worktreeRequest == WorktreeRequest(from: "feat/x", name: "my-fix"))
 }
 
-@MainActor @Test func sendingARepositoryPlanCarriesTheRepoTheBranchAndAWorktreeWithNoName() async {
+@MainActor @Test func sendingARepositoryPlanCarriesTheRepoTheBranchAndAWorktreeWithItsGeneratedName() async {
     let host = FakeChat()
     host.branchesOf["AshuLab/carrier"] = RepoBranches(defaultBranch: "main", branches: ["main", "feat/x"])
     let model = await popover(host)
@@ -758,9 +762,10 @@ private func projectsRoot(_ names: [String]) throws -> String {
     await model.useWorktree(true)
     model.choose(startBranch: "feat/x")
     model.text = "again"
+    let name = model.worktreeName
     _ = await model.send()
-    #expect(host.plans.last == SessionPlan(agent: "claude", workspace: .repo("AshuLab/carrier"), worktree: WorktreeRequest(from: "feat/x"), text: "again"))
-    #expect(host.plans.last?.wire.contains("\"worktree\":{}") == true && host.plans.last?.wire.contains("\"kind\":\"repo\",\"repo\":\"AshuLab\\/carrier\"") == true)
+    #expect(host.plans.last == SessionPlan(agent: "claude", workspace: .repo("AshuLab/carrier"), worktree: WorktreeRequest(from: "feat/x", name: name), text: "again"))
+    #expect(host.plans.last?.wire.contains("\"name\":\"\(name)\"") == true && host.plans.last?.wire.contains("\"kind\":\"repo\",\"repo\":\"AshuLab\\/carrier\"") == true)
 }
 
 @MainActor @Test func aRepositoryAlreadyInTheProjectsFolderIsReadLocallyAndFetchedWhenTheMessageIsSent() async throws {
@@ -809,7 +814,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
     let model = await popover(host)
     model.restore(SessionPlan(agent: "claude", workspace: .repo("AshuLab/carrier"), worktree: WorktreeRequest(from: "feat/x"), text: "again"))
     await model.load()
-    #expect(model.repo == "AshuLab/carrier" && model.toClone && model.worktree && model.startBranch == "feat/x" && model.text == "again" && model.worktreeName.isEmpty)
+    #expect(model.repo == "AshuLab/carrier" && model.toClone && model.worktree && model.startBranch == "feat/x" && model.text == "again" && model.worktreeName.isEmpty == false)
     #expect(host.clones.isEmpty)
 }
 

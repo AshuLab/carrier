@@ -43,6 +43,10 @@ struct NewSessionView: View {
                     Label(model.worktreeName.isEmpty ? "Creates a worktree on a new branch \(worktreeBranchPrefix)<name, generated when the message is sent> from \(branch)." : "Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.", systemImage: "arrow.triangle.branch")
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
                 }
+                if let note = model.repoNote {
+                    Label(note, systemImage: "arrow.down.circle").font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity).textSelection(.enabled)
+                }
                 if let refusal = model.refusal {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(refusal).foregroundStyle(.red).textSelection(.enabled)
@@ -112,7 +116,6 @@ struct NewSessionView: View {
             }
             .font(.body).foregroundStyle(.secondary)
             .accessibilityElement(children: .contain)
-            if let note = model.repoNote { Label(note, systemImage: "arrow.down.circle").font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
             if model.branchesPartial { Text("Only the first branches GitHub lists are offered; the others can be checked out once the repository is on this Mac.").font(.subheadline).foregroundStyle(.secondary) }
             if let note = model.projectNote { Label(note, systemImage: "folder.badge.plus").font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
             if let note = model.branchNote { Text(note).font(.callout).foregroundStyle(.secondary) }
@@ -158,14 +161,12 @@ struct NewSessionView: View {
             // the prefix and the name are one word to the eye: no space between them
             HStack(spacing: 0) {
                 Text(worktreeBranchPrefix).foregroundStyle(.secondary)
-                TextField(model.toClone ? "generated when sent" : "name", text: $model.worktreeName)
+                TextField("name", text: $model.worktreeName)
                     .textFieldStyle(.plain).autocorrectionDisabled().fixedSize()
                     .foregroundStyle(nameColor).accessibilityLabel("Worktree name")
             }
-            if model.toClone == false {
-                Button { Task { await model.rollName() } } label: { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).help("Pick another name").accessibilityLabel("Suggest another name")
-            }
+            Button { Task { await model.rollName() } } label: { Image(systemName: "arrow.clockwise") }
+                .buttonStyle(.plain).foregroundStyle(.secondary).help("Pick another name").accessibilityLabel("Suggest another name")
         }
         .font(.callout.monospaced())
         .padding(.horizontal, 10).frame(height: controlHeight)

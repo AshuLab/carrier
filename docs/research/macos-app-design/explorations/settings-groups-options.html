@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Settings — App, Carrier, Chat</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* sg- = settings groups */
+.sg-opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(720px,1fr));gap:30px;align-items:start;margin-top:8px}
+.sg-opt>h3{margin:0 0 2px;font-size:14px}.sg-opt>p{margin:0 0 10px;color:var(--dim);font-size:12.5px;max-width:720px;min-height:54px}
+.sg-sheet{height:760px;border-radius:22px;background:var(--win);backdrop-filter:blur(40px);box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+.sg-body{flex:1;display:flex;min-height:0}
+.sg-rail{width:210px;flex:none;padding:18px 12px 12px;background:rgba(128,128,128,.07);display:flex;flex-direction:column;gap:2px;overflow:auto}
+.sg-rail h4{margin:0 8px 8px;font-size:15px}
+.sg-gh{margin:12px 8px 3px;font-size:10.5px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.sg-gh:first-of-type{margin-top:2px}
+.sg-r{display:flex;gap:9px;align-items:center;padding:6px 9px;border-radius:9px;cursor:default}
+.sg-r.on{background:var(--sel)}.sg-r:hover:not(.on){background:var(--card)}
+.sg-r .ic{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:12px;background:var(--card2);flex:none}
+.sg-r b{font-weight:550;font-size:13px}.sg-r small{display:block;color:var(--dim);font-size:11px;line-height:1.2}
+.sg-r .nw{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--blue)}
+.sg-seg{display:flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;margin:0 0 10px;box-shadow:0 0 0 .5px var(--line) inset}
+.sg-seg button{flex:1;border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:4px 0;border-radius:99px;cursor:default}
+.sg-seg button.on{background:rgba(255,255,255,.16);color:var(--text)}
+body.light .sg-seg button.on{background:var(--win);box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.sg-page{flex:1;min-width:0;overflow:auto;padding:22px 24px}
+.sg-ph{display:flex;gap:12px;align-items:center;margin-bottom:16px}
+.sg-ph .ic{width:36px;height:36px;border-radius:8px;display:grid;place-items:center;font-size:16px;background:color-mix(in srgb,var(--blue) 18%,transparent)}
+.sg-ph b{font-size:16px;font-weight:650;display:block}.sg-ph span{color:var(--dim);font-size:12.5px}
+.sg-saved{margin-left:auto;font:11px var(--mono);color:var(--faint);background:var(--card);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.sg-gt{margin:16px 2px 6px;color:var(--faint);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.sg-sect{margin:22px 0 4px;font-size:13px;font-weight:650;display:flex;gap:8px;align-items:center}
+.sg-sect:first-child{margin-top:0}
+.sg-card{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:0 14px}
+.sg-row{display:flex;align-items:center;gap:12px;padding:var(--rp,10px) 0;border-top:.5px solid var(--line);min-height:46px}.sg-row:first-child{border:0}
+.sg-row .t{flex:1;min-width:0}.sg-row .t b{display:block;font-weight:550}.sg-row .t span{display:block;color:var(--dim);font-size:12px;margin-top:1px}
+.sg-row .nw{font-size:10px;font-weight:700;color:var(--blue);background:color-mix(in srgb,var(--blue) 18%,transparent);padding:0 6px;border-radius:99px;margin-left:6px;vertical-align:1px}
+.sg-sw{width:38px;height:22px;border-radius:99px;background:var(--card2);position:relative;flex:none;box-shadow:0 0 0 .5px var(--line) inset}
+.sg-sw::after{content:"";position:absolute;left:2px;top:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.sg-sw.on{background:var(--blue)}.sg-sw.on::after{left:18px}
+.sg-val{display:inline-flex;gap:6px;align-items:center;background:var(--card2);padding:3px 10px;border-radius:8px;font-size:12.5px;white-space:nowrap}
+.sg-val.m{font-family:var(--mono);font-size:11.5px}
+.sg-dot{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:9px;font-weight:800;color:#fff;background:var(--green);flex:none}
+.sg-dot.no{background:var(--orange)}
+.sg-foot{border-top:.5px solid var(--line);padding:10px 20px;display:flex;justify-content:flex-end}
+
+.sg-s2{display:inline-flex;gap:1px;background:var(--card2);border-radius:99px;padding:2px;box-shadow:0 0 0 .5px var(--line) inset;flex:none}
+.sg-s2 button{border:0;background:none;color:var(--dim);font:inherit;font-size:12px;font-weight:550;padding:3px 12px;border-radius:99px;cursor:pointer;white-space:nowrap}
+.sg-s2 button.on{background:rgba(255,255,255,.18);color:var(--text)}
+body.light .sg-s2 button.on{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.sg-sel{font:inherit;font-size:12.5px;color:var(--text);background:var(--card2);border:0;border-radius:8px;padding:4px 8px}
+.sg-rng{display:flex;gap:10px;align-items:center;flex:none}.sg-rng input{width:160px;accent-color:var(--blue)}.sg-rng span{min-width:46px;text-align:right;font:12px var(--mono);color:var(--dim)}
+.sg-sw2{display:flex;gap:8px;flex:none}.sg-sw2 i{width:22px;height:22px;border-radius:50%;cursor:pointer;box-shadow:0 0 0 .5px rgba(0,0,0,.3) inset}.sg-sw2 i.on{outline:2px solid var(--text);outline-offset:2px}
+.sg-sw2 i.sys{background:conic-gradient(#ff453a,#ff9f0a,#30d158,#0a84ff,#bf5af2,#ff453a)}
+.sg-th{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.sg-th>div{border-radius:12px;padding:6px;cursor:pointer;background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset}
+.sg-th>div.on{box-shadow:0 0 0 2px var(--blue)}
+.sg-th .mini{height:62px;border-radius:8px;display:flex;overflow:hidden;position:relative}
+.sg-th .mini i{width:30%;display:block}.sg-th .mini b{flex:1;position:relative}
+.sg-th .mini b::before{content:"";position:absolute;left:10px;top:12px;width:55%;height:6px;border-radius:3px;background:currentColor;opacity:.5}
+.sg-th .mini b::after{content:"";position:absolute;left:10px;top:26px;width:30px;height:12px;border-radius:99px;background:var(--ac)}
+.sg-th small{display:block;text-align:center;margin-top:5px;font-size:11.5px;font-weight:550}
+.apv{margin:0;border-radius:10px;padding:12px 14px;background:rgba(0,0,0,.35);color:var(--text);overflow:auto;white-space:pre}
+body.light .apv{background:rgba(0,0,0,.05)}
+.apv .k{color:var(--k)}.apv .s{color:var(--s)}.apv .f{color:var(--f)}.apv .c{color:var(--c);font-style:italic}
+.amsg{display:flex;flex-direction:column;gap:10px}
+.amsg .u{align-self:flex-end;background:var(--blue);color:#fff;border-radius:14px;padding:7px 12px;max-width:70%}
+.amsg .a{line-height:1.5}
+
+.sg-th .pair{display:flex;gap:4px}.sg-th .pair .mini{flex:1;height:58px}
+.apv.nums{counter-reset:n}.apv .l{display:block;white-space:inherit}
+.apv.nums .l::before{counter-increment:n;content:counter(n);display:inline-block;width:2ch;margin-right:14px;text-align:right;color:var(--faint);user-select:none}
+.sg-states{display:flex;gap:18px;flex-wrap:wrap}
+.sg-states span{display:inline-flex;gap:7px;align-items:center;font-size:12.5px}
+.sg-states i{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:10px;font-weight:800;color:#fff}
+.sg-reset{display:flex;justify-content:flex-end;margin-top:6px}
+
+.spv{width:268px;border-radius:16px;background:var(--side);box-shadow:0 0 0 .5px var(--line) inset;padding:8px}
+.spv .g{margin:8px 12px 2px;font-size:12px;font-weight:600;color:var(--dim)}.spv .g:first-child{margin-top:2px}
+.spv .r{display:flex;gap:10px;align-items:center;padding:6px 12px;border-radius:8px}
+.spv .r.on{background:var(--sel)}
+.spv .av{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:700;flex:none}
+.spv .tt{flex:1;min-width:0}.spv .tt b{display:block;font-size:14px;font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spv .tt small{display:block;font-size:12px;color:var(--dim)}
+.spv .ag{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums;align-self:flex-start;margin-top:2px}
+.spv .pv{display:inline-flex;gap:3px;margin-left:6px}.spv .pv i{font-style:normal;width:14px;height:14px;border-radius:4px;background:var(--card2);font-size:8px;font-weight:700;display:inline-grid;place-items:center}
+
+.cpv{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.cpv .a{line-height:1.5}.cpv .m{display:flex;gap:8px;align-items:baseline}.cpv .tm{color:var(--faint);font-size:11px;font-variant-numeric:tabular-nums}
+.cpv .tool{background:rgba(0,0,0,.25);border-radius:10px;padding:7px 10px;font:12px var(--mono)}body.light .cpv .tool{background:rgba(0,0,0,.05)}
+.cpv .tool .ad{color:var(--green)}.cpv .tool .rm{color:var(--red)}
+.cpv .th{color:var(--dim);font-size:12px}
+
+.kbc{font:12px var(--mono);color:var(--text);background:var(--card2);border:0;border-radius:7px;padding:3px 10px;min-width:64px;cursor:pointer;box-shadow:0 0 0 .5px var(--line) inset}
+.kbc.rec{background:var(--blue);color:#fff}.kbc.none{color:var(--faint);font-family:var(--font)}.kbc.dup{box-shadow:0 0 0 1.5px var(--orange)}
+.kbc.lock{cursor:default;opacity:.6}
+.kbx{border:0;background:none;color:var(--faint);cursor:pointer;font-size:12px;padding:2px 5px}.kbx:hover{color:var(--text)}
+.kbw{font-size:11.5px;color:var(--orange)}
+.kbr{display:flex;gap:6px;align-items:center}
+/* inventory */
+.sg-inv{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:1180px;margin:8px 0 6px}
+.sg-inv>div{background:var(--card);border-radius:14px;padding:12px 14px;box-shadow:0 0 0 .5px var(--line) inset}
+.sg-inv h3{margin:0 0 6px;font-size:14px}.sg-inv small{color:var(--faint);font:11px var(--mono)}
+.sg-inv ul{margin:6px 0 0;padding:0;list-style:none}.sg-inv li{padding:3px 0;color:var(--dim);font-size:12.5px;border-top:.5px solid var(--line)}.sg-inv li:first-child{border:0}
+.sg-inv li b{color:var(--text);font-weight:550}.sg-inv li.new b::after{content:"new";margin-left:6px;font-size:10px;font-weight:700;color:var(--blue);background:color-mix(in srgb,var(--blue) 18%,transparent);padding:0 6px;border-radius:99px}
+.sg-inv li.q{color:var(--orange)}
+.sg-q{max-width:1180px;margin:18px 0 0;background:color-mix(in srgb,var(--orange) 11%,transparent);border-radius:14px;padding:12px 16px;color:var(--dim)}
+.sg-q b{color:var(--text)}.sg-q ol{margin:6px 0 0;padding-left:20px}.sg-q li{margin:3px 0}
+</style></head>
+<body>
+<h1>Settings — App, Carrier, Chat</h1>
+<div class="sub">Diego's three groups. This is the base of Settings v1. Nothing here says how it is saved. Click around inside each option.</div>
+
+<h2 style="font-size:15px;margin:6px 0 2px">Where each thing goes</h2>
+<div class="sg-inv">
+  <div><h3>App</h3><ul>
+    <li><b>General</b> (menu bar, display, confirmations)</li>
+    <li><b>Notifications</b> (Carrier, Chat, when, permission)</li>
+    <li><b>Appearance</b></li>
+    <li><b>Sidebar</b> (sessions, rows, archive)</li>
+    <li><b>Chat</b> (message box, conversation, confirmations)</li>
+    <li><b>Keybindings</b> (go to, sessions, conversation, Carrier)</li>
+    <li class="q"><b>Health</b>, <b>carrier/node paths</b> — no place yet</li>
+  </ul></div>
+  <div><h3>Carrier</h3><ul>
+    <li><b>Repos</b> it watches</li>
+    <li><b>Behavior</b> (every n min, log level, limits, finished window)</li>
+    <li><b>Identities</b> (shared or separate bots)</li>
+    <li><b>Agents</b> (author, reviewer, lead: provider, model, persona)</li>
+    <li><b>Failover</b> across providers</li>
+  </ul></div>
+  <div><h3>Chat</h3><ul>
+    <li><b>Sessions</b> (archive after, delete after)</li>
+    <li><b>Chat agents</b> (claude, codex: model, command)</li>
+    <li><b>Projects folder</b></li>
+    <li><b>GitHub call timeout</b>, <b>log level</b></li>
+  </ul></div>
+</div>
+
+<div class="sg-opts" id="opts"></div>
+
+<div class="sg-q"><b>Open on App:</b><ol>
+<li><b>Chat</b> under App vs the Chat group: this one is how you <i>write</i> (message box, send key); the group is what the chat <i>is</i> (agents, folder, aging). Right?</li>
+<li><b>Health</b> and the <b>carrier/node paths</b>: no place yet; we look when Carrier and Chat are done.</li>
+<li><b>Time format</b>: I read it as relative (11m) vs clock time (14:32), plus 12/24-hour. Is that what you meant?</li>
+<li>The items of Appearance, Sidebar, Chat and Keybindings are my proposal, not decided.</li>
+</ol></div>
+
+<script>
+const KB=[
+ {g:'Go to',rows:[{id:'home',t:'Home',k:'⌘1'},{id:'sessions',t:'Sessions',k:'⌘2'},{id:'carrier',t:'Carrier',k:'⌘3'},{id:'archive',t:'Archive',k:'⌘4'}]},
+ {g:'Sessions',rows:[{id:'new',t:'New session',k:'⌘N'},{id:'search',t:'Search the open section',k:'⌘F'},{id:'next',t:'Next session',k:'⌘]'},{id:'prev',t:'Previous session',k:'⌘['},{id:'archiveit',t:'Archive the session',k:'⇧⌘A'}]},
+ {g:'Conversation',rows:[{id:'focus',t:'Focus the message box',k:'⌘L'},{id:'stop',t:'Stop the agent',k:'⌘.'},{id:'latest',t:'Jump to the latest message',k:'⌘↓'},{id:'fold',t:'Fold or unfold the tool calls',k:'⌥⌘E'},{id:'copy',t:'Copy the last answer',k:'⇧⌘C'}]},
+ {g:'Carrier',rows:[{id:'cstart',t:'Start or stop Carrier',k:''},{id:'cpause',t:'Pause or resume Carrier',k:''},{id:'ccheck',t:'Look for ready epics now',k:''}]}
+];
+const KBDEF={};KB.forEach(g=>g.rows.forEach(r=>KBDEF[r.id]=r.k));
+const KBS={...KBDEF}; let REC=null;
+const KBNAME={};KB.forEach(g=>g.rows.forEach(r=>KBNAME[r.id]=r.t));
+const D = {
+App: { icon:'🖥', pages:[
+ {id:'general', t:'General', d:'The app on your Mac', ic:'⚙️', saved:'app', secs:[
+  {t:'Menu bar', rows:[
+   {t:'Icon style', d:'Count and bar, count only…', c:'val|Count and bar'},
+   {t:'Animate the icon', d:'', c:'sw on'},
+   {t:'Show epics in the menu', d:'', c:'sw on'}]},
+  {t:'Display', rows:[
+   {t:'Time format', d:'How ages and times read: 11m, or 14:32', c:'val|Relative'},
+   {t:'Clock', d:'For clock times', c:'val|System'}]},
+  {t:'Confirmations', rows:[
+   {t:'Ask before stopping Carrier', d:'Only when it would interrupt epics', c:'sw on'}]}]},
+ {id:'notif', t:'Notifications', d:'What to tell you', ic:'🔔', saved:'app', secs:[
+  {t:'Carrier', rows:[
+   {t:'Needs attention', d:'An epic stopped and waits for a person', c:'sw on'},
+   {t:'Ready for test', d:'An epic finished and has a PR to try', c:'sw on'},
+   {t:'A problem', d:'GitHub refuses a repo, or Carrier stops by itself', c:'sw'}]},
+  {t:'Chat', rows:[
+   {t:'Needs attention', d:'A session asks for permission or waits for your answer', c:'sw on'},
+   {t:'Done', d:'A session finished what you asked', c:'sw'}]},
+  {t:'Badge and sound', rows:[
+   {t:'Dock badge', d:'The number of epics and sessions that need attention', c:'sw on'},
+   {t:'Sound', d:'Play a sound with each banner', c:'sw on'}]},
+  {t:'Reminders', rows:[
+   {t:'Remind me if it keeps waiting', d:'Notifies again while something still needs attention', c:'val|After 15 min'}]},
+  {t:'Quiet hours', rows:[
+   {t:'Quiet hours', d:'No banners or sounds; the Dock badge stays', c:'sw'},
+   {t:'From', d:'', c:'val m|22:00'},
+   {t:'To', d:'', c:'val m|08:00'}]},
+  {t:'When', rows:[
+   {t:'Only when the app is not in front', d:'No banner while its window is the one you look at', c:'sw on'}]},
+  {t:'Permission', rows:[
+   {t:'System permission', d:'Allowed', c:'btn|Open System Settings'},
+   {t:'Try it', d:'Sends a notification now', c:'btn|Send a test'}]}]},
+ {id:'appear', t:'Appearance', d:'How the app looks', ic:'🎨', secs:[
+  {t:'Color', rows:[
+   {t:'Color scheme', d:'System follows this Mac (now: '+(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')+')', c:'fn:scheme'},
+   {h:'themes', t:'Theme', d:'Each theme has a light and a dark version; the color scheme picks which one shows'},
+   {t:'Accent color', d:'Buttons, selection and switches; System uses the theme\'s own', c:'fn:accent'},
+   {t:'Tint the windows', d:'A touch of the accent on the backgrounds', c:'fn:tint'}]},
+  {t:'Interface', rows:[
+   {t:'Text size', d:'Of the whole interface', c:'fn:ts'},
+   {t:'Density', d:'Rows of the sidebar and space between messages', c:'fn:density'},
+   {t:'Translucent windows', d:'Off draws solid backgrounds; follows Reduce transparency in the system by default', c:'fn:glass'}]},
+  {t:'Chat and terminal', rows:[
+   {t:'Monospace font', d:'Terminal output and code', c:'fn:font'},
+   {t:'Size', d:'', c:'fn:size'},
+   {t:'Line height', d:'', c:'fn:lh'},
+   {t:'Ligatures', d:'=>  !==  ->  drawn as one symbol', c:'fn:lig'},
+   {t:'Wrap long lines', d:'Off keeps one line and scrolls sideways', c:'fn:wrap'},
+   {t:'Line numbers', d:'In code blocks and output', c:'fn:nums'},
+   {t:'Code colors', d:'Syntax highlighting', c:'fn:code'},
+   {h:'codePrev'}]},
+  {t:'States', rows:[
+   {t:'Tell states apart by shape', d:'A symbol in each state, so color is not the only clue', c:'fn:shapes'},
+   {h:'statePrev'}]},
+  {t:'Reading', rows:[
+   {t:'Message width', d:'How wide a message gets before it wraps', c:'fn:width'},
+   {h:'msgPrev'}]},
+  {t:'Reset', rows:[
+   {t:'Restore the defaults', d:'Everything on this page goes back to how it came', c:'btn|Reset'}]}]},
+ {id:'side', t:'Sidebar', d:'What the sidebar shows', ic:'📑', secs:[
+  {t:'Sessions', rows:[
+   {t:'Group by', d:'State puts what needs you on top', c:'fn:sgroup'},
+   {t:'Sort by', d:'Inside each group', c:'fn:ssort'}]},
+  {t:'On each session', rows:[
+   {t:'Project icon', d:'The initials and the color of the project', c:'fn:sicon'},
+   {t:'Branch', d:'Under the title', c:'fn:sbranch'},
+   {t:'Providers', d:'Which agents worked on it', c:'fn:sprov'},
+   {t:'Age', d:'Time since the last activity', c:'fn:sage'},
+   {h:'sidePrev'}]},
+  {t:'Archive', rows:[
+   {t:'Sort the archive by', d:'', c:'fn:sarch'}]},
+  {t:'Reset', rows:[
+   {t:'Restore the defaults', d:'Everything on this page goes back to how it came', c:'btn|ResetSide'}]}]},
+ {id:'achat', t:'Chat', d:'How you write and read a conversation', ic:'⌨️', secs:[
+  {t:'Message box', rows:[
+   {t:'Send with', d:'The other one makes a new line', c:'fn:csend'},
+   {t:'While the agent works', d:'What sending does in the middle of an answer', c:'fn:cbusy'},
+   {t:'Writing Tools', d:'The macOS rewrite menu in the message box', c:'fn:cwt'},
+   {t:'Check spelling', d:'Underline what looks misspelled', c:'fn:cspell'},
+   {t:'Correct spelling automatically', d:'Fixes a word as you type; off is safer for code', c:'fn:cauto'}]},
+  {t:'Conversation', rows:[
+   {t:'Tool output', d:'What an agent ran, under its message', c:'fn:ctool'},
+   {t:'Open the calls that failed', d:'A failed call unfolds by itself, even when the rest are folded', c:'fn:cfail'},
+   {t:'Diff style', d:'How an edited file reads', c:'fn:cdiff'},
+   {t:'Output length', d:'Lines of a command\'s output before Show more', c:'fn:coutn'},
+   {t:'Show reasoning', d:'The agent\'s thinking, folded under its message', c:'fn:cthink'},
+   {t:'Follow new output', d:'Scroll with the conversation while it arrives', c:'fn:cfollow'},
+   {t:'Message times', d:'Format follows General > Time format', c:'fn:cts'},
+   {h:'chatPrev'}]},
+  {t:'Sessions', rows:[
+   {t:'Ask before deleting a session', d:'Its worktree goes with it', c:'fn:cdel'}]},
+  {t:'Reset', rows:[
+   {t:'Restore the defaults', d:'Everything on this page goes back to how it came', c:'btn|ResetChat'}]}]},
+ {id:'keys', t:'Keybindings', d:'Click a shortcut, then press the new keys', ic:'⌘', secs:KB.map(g=>({t:g.g,rows:g.rows.map(r=>({t:r.t,d:'',c:'kb:'+r.id}))})).concat([{t:'Reset',rows:[{t:'Restore the defaults',d:'Every shortcut goes back to how it came',c:'btn|ResetKeys'}]}])}
+]},
+Carrier: { icon:'📦', pages:[
+ {id:'repos', t:'Repos', d:'What Carrier watches', ic:'🗂', saved:'config.json', secs:[
+  {t:'Watched', rows:[
+   {t:'AshuLab/carrier', d:'Epics ready · 3 open', c:'btn|Remove'},
+   {t:'AshuLab/skills', d:'No epics ready', c:'btn|Remove'},
+   {t:'vemec/encaja', d:'1 epic running', c:'btn|Remove'},
+   {t:'Add a repo…', d:'From your GitHub login', c:'btn|Choose…'}]}]},
+ {id:'ident', t:'Identities', d:'Who Carrier signs as', ic:'🪪', saved:'config.json', secs:[
+  {t:'Mode', rows:[
+   {t:'Author and reviewer', d:'Separate bots, or one shared identity (visible signature)', c:'val|Separate bots'}]},
+  {t:'Bots', rows:[
+   {t:'carrier-author', d:'GitHub App · installed on 6 repos', c:'btn|Change'},
+   {t:'carrier-reviewer', d:'GitHub App · installed on 6 repos', c:'btn|Change'},
+   {t:'Create a bot…', d:'Guided: opens GitHub, then comes back', c:'btn|Start'}]}]},
+ {id:'agents', t:'Agents', d:'Who does each role', ic:'🤖', saved:'config.json', secs:[
+  {t:'Author', rows:[
+   {t:'Provider', d:'Runs the epic', c:'val|Claude'}, {t:'Model', d:'', c:'val m|sonnet'}, {t:'Persona', d:'Optional name and instructions', c:'btn|Edit…'}]},
+  {t:'Reviewer', rows:[
+   {t:'Provider', d:'Reviews the PR', c:'val|Codex'}, {t:'Model', d:'', c:'val m|gpt-5.5'}, {t:'Persona', d:'Optional', c:'btn|Edit…'}]},
+  {t:'Failover', rows:[
+   {t:'If a provider is out of quota', d:'Move to the next', c:'val|Off'}]}]},
+ {id:'beh', t:'Behavior', d:'How epics run', ic:'🎚', saved:'config.json', secs:[
+  {t:'Rhythm', rows:[
+   {t:'Look for ready epics every', d:'', c:'val|5 min'}, {t:'Show finished epics for', d:'', c:'val|15 days'}, {t:'Log level', d:'', c:'val|info'}]},
+  {t:'Limits', rows:[
+   {t:'Epics at once', d:'', c:'val|3'}, {t:'Reviews at once', d:'', c:'val|5'}, {t:'Retries', d:'', c:'val|3'}, {t:'Time per agent run', d:'', c:'val|4 h'}]}]}
+]},
+Chat: { icon:'💬', pages:[
+ {id:'sessions', t:'Sessions', d:'When sessions age out', ic:'🕘', saved:'chat.json', secs:[
+  {t:'Aging', rows:[
+   {t:'Archive after', d:'A session with no activity goes to the Archive', c:'val|15 days'},
+   {t:'Delete after', d:'An archived session is deleted', c:'val|30 days'}]}]},
+ {id:'cagents', t:'Agents', d:'What the chat can talk to', ic:'🤖', saved:'chat.json', secs:[
+  {t:'Providers', rows:[
+   {t:'Claude', d:'claude · default model', c:'val m|default'}, {t:'Codex', d:'codex · default model', c:'val m|default'},
+   {t:'Add an agent…', d:'Another command or model', c:'btn|Add'}]}]},
+ {id:'proj', t:'Projects', d:'Where the chat keeps code', ic:'📁', saved:'chat.json', secs:[
+  {t:'Folder', rows:[
+   {t:'Projects folder', d:'~/.carrier/chat/projects', c:'btn|Choose…'}]},
+  {t:'GitHub', rows:[
+   {t:'Call timeout', d:'Clone, list repos, branches', c:'val|30 s'}, {t:'Log level', d:'', c:'val|info'}]}]}
+]}
+};
+
+
+const AP={scheme:'System',theme:'Carrier',accent:null,tint:'Off',ts:100,density:'Comfortable',glass:true,font:'SF Mono',size:13,lh:'Normal',lig:true,wrap:true,nums:false,code:'Carrier',shapes:false,width:'Medium'};
+const DEF={...AP};
+const THEMES=[
+ {n:'Carrier',d:{bg:'#1c1c1e',sd:'#2f2f33',a:'#0a84ff'},l:{bg:'#f2f2f7',sd:'#dcdce2',a:'#007aff'},plain:1},
+ {n:'Graphite',d:{bg:'#17181a',sd:'#26272a',a:'#98989d'},l:{bg:'#ececee',sd:'#d9d9dc',a:'#636366'}},
+ {n:'Ocean',d:{bg:'#0f1b24',sd:'#18304a',a:'#32ade6'},l:{bg:'#eaf3fa',sd:'#cfe3f2',a:'#0a7fc0'}},
+ {n:'Forest',d:{bg:'#121a14',sd:'#1d2f22',a:'#30d158'},l:{bg:'#eef5ee',sd:'#d3e6d6',a:'#1f9d45'}},
+ {n:'Sunset',d:{bg:'#1f1712',sd:'#34241a',a:'#ff9f0a'},l:{bg:'#fbf1e6',sd:'#f1dcc3',a:'#d97706'}},
+ {n:'Paper',d:{bg:'#222120',sd:'#32302d',a:'#6ea8ff'},l:{bg:'#f6f4ef',sd:'#e6e1d4',a:'#007aff'}}];
+const ACCENTS=[['System',''],['Blue','#0a84ff'],['Purple','#bf5af2'],['Pink','#ff375f'],['Red','#ff453a'],['Orange','#ff9f0a'],['Green','#30d158'],['Graphite','#8e8e93']];
+const FONTS={'SF Mono':'ui-monospace,"SF Mono",Menlo,monospace','Menlo':'Menlo,monospace','Monaco':'Monaco,monospace','JetBrains Mono':'"JetBrains Mono",ui-monospace,monospace','Fira Code':'"Fira Code",ui-monospace,monospace','Berkeley Mono':'"Berkeley Mono",ui-monospace,monospace'};
+const LH={Tight:1.2,Normal:1.45,Loose:1.7};
+const PAL={Carrier:{k:'#ff7ab2',s:'#fc6a5d',f:'#67b7a4',c:'#7f8c98'},Solarized:{k:'#859900',s:'#2aa198',f:'#268bd2',c:'#586e75'},GitHub:{k:'#ff7b72',s:'#a5d6ff',f:'#d2a8ff',c:'#8b949e'},Mono:{k:'#d0d0d0',s:'#d0d0d0',f:'#d0d0d0',c:'#7a7a7a'}};
+const WIDTH={Narrow:360,Medium:480,Wide:620};
+const isLight=()=>AP.scheme==='Light'||(AP.scheme==='System'&&!matchMedia('(prefers-color-scheme: dark)').matches);
+function set(k,v){AP[k]=v;draw('A');}
+function reset(){Object.assign(AP,DEF);draw('A');}
+function live(k,v,el,txt){AP[k]=v;el.nextElementSibling.textContent=txt;apply(document.getElementById('sheetA'));}
+const seg=(k,opts)=>'<div class="sg-s2">'+opts.map(o=>'<button class="'+(AP[k]===o?'on':'')+'" onclick="set(\''+k+'\',\''+o+'\')">'+o+'</button>').join('')+'</div>';
+const sw=k=>'<div class="sg-sw '+(AP[k]?'on':'')+'" style="cursor:pointer" onclick="set(\''+k+'\','+(!AP[k])+')"></div>';
+const mini=v=>'<div class="mini" style="--ac:'+v.a+';background:'+v.bg+';color:'+(v===undefined?'':'inherit')+'"><i style="background:'+v.sd+'"></i><b style="color:'+(v.bg<'#808080'?'#fff':'#222')+'"></b></div>';
+const STATES=[['Working','#0a84ff','◌'],['Needs attention','#ff9f0a','!'],['Ready for test','#30d158','✓'],['A problem','#ff453a','✕']];
+const CT={
+ scheme:()=>seg('scheme',['System','Light','Dark']),
+ tint:()=>seg('tint',['Off','Subtle','Strong']),
+ density:()=>seg('density',['Compact','Comfortable']),
+ lh:()=>seg('lh',['Tight','Normal','Loose']),
+ width:()=>seg('width',['Narrow','Medium','Wide']),
+ lig:()=>sw('lig'), wrap:()=>sw('wrap'), nums:()=>sw('nums'), glass:()=>sw('glass'), shapes:()=>sw('shapes'),
+ accent:()=>'<div class="sg-sw2">'+ACCENTS.map(([n,c],i)=>'<i title="'+n+'" class="'+(i===0?'sys ':'')+((AP.accent||'')===c?'on':'')+'" style="'+(i?'background:'+c:'')+'" onclick="set(\'accent\','+(c?'\''+c+'\'':'null')+')"></i>').join('')+'</div>',
+ ts:()=>'<div class="sg-rng"><input type="range" min="90" max="130" step="5" value="'+AP.ts+'" oninput="live(\'ts\',+this.value,this,this.value+\' %\')"><span>'+AP.ts+' %</span></div>',
+ size:()=>'<div class="sg-rng"><input type="range" min="10" max="20" step="1" value="'+AP.size+'" oninput="live(\'size\',+this.value,this,this.value+\' pt\')"><span>'+AP.size+' pt</span></div>',
+ font:()=>'<select class="sg-sel" onchange="set(\'font\',this.value)">'+Object.keys(FONTS).map(f=>'<option'+(AP.font===f?' selected':'')+'>'+f+'</option>').join('')+'</select>',
+ code:()=>'<select class="sg-sel" onchange="set(\'code\',this.value)">'+Object.keys(PAL).map(f=>'<option'+(AP.code===f?' selected':'')+'>'+f+'</option>').join('')+'</select>',
+ themes:()=>'<div class="sg-th">'+THEMES.map(t=>'<div class="'+(AP.theme===t.n?'on':'')+'" onclick="set(\'theme\',\''+t.n+'\')"><div class="pair">'+mini(t.d)+mini(t.l)+'</div><small>'+t.n+'</small></div>').join('')+'</div>',
+ codePrev:()=>'<pre class="apv" id="apv"><span class="l"><span class="c">// retry with a growing wait, up to the limit the epic allows, then stop and ask a person to look at it</span></span><span class="l"><span class="k">const</span> <span class="f">wait</span> = (ms) => <span class="k">new</span> Promise(r => setTimeout(r, ms));</span><span class="l"><span class="k">if</span> (attempt !== max) <span class="k">await</span> <span class="f">wait</span>(<span class="s">2</span> ** attempt * <span class="s">100</span>);</span></pre>',
+ statePrev:()=>'<div class="sg-states" id="astates">'+STATES.map(([n,c,g])=>'<span><i style="background:'+c+'" data-g="'+g+'"></i>'+n+'</span>').join('')+'</div>',
+ msgPrev:()=>'<div class="amsg" id="amsg"><div class="u">Why is the retry test flaky?</div><div class="a">The test did not wait for the second attempt, so it passed or failed depending on timing. I added the missing <code>await</code> and the suite is green three times in a row. Want me to run the whole thing once more?</div></div>'
+};
+
+const SB={group:'State',sort:'Workspace',icon:true,branch:true,prov:true,age:true,arch:'Date archived'};
+const SBDEF={...SB};
+function setS(k,v){SB[k]=v;draw('A');}
+function resetS(){Object.assign(SB,SBDEF);draw('A');}
+const segS=(k,opts)=>'<div class="sg-s2">'+opts.map(o=>'<button class="'+(SB[k]===o?'on':'')+'" onclick="setS(\''+k+'\',\''+o+'\')">'+o+'</button>').join('')+'</div>';
+const swS=k=>'<div class="sg-sw '+(SB[k]?'on':'')+'" style="cursor:pointer" onclick="setS(\''+k+'\','+(!SB[k])+')"></div>';
+Object.assign(CT,{
+ sgroup:()=>segS('group',['State','Project']), ssort:()=>segS('sort',['Workspace','Age','Status']), sarch:()=>segS('arch',['Date archived','Project']),
+ sicon:()=>swS('icon'), sbranch:()=>swS('branch'), sprov:()=>swS('prov'), sage:()=>swS('age'),
+ sidePrev:()=>{
+  const rows=[
+   {t:'Fix the retry test',n:'#41',p:'carrier',c:'#bf5af2',i:'CA',st:'Needs attention',b:'fix/retry',pv:['C'],age:'2m'},
+   {t:'Review the plan',n:'#40',p:'encaja',c:'#30d158',i:'EN',st:'Working',b:'main',pv:['C','X'],age:'11m'},
+   {t:'Docs pass',n:'#38',p:'carrier',c:'#bf5af2',i:'CA',st:'Working',b:'docs/pass',pv:['X'],age:'26m'},
+   {t:'Rename the helper',n:'#35',p:'encaja',c:'#30d158',i:'EN',st:'Done',b:'chore/rename',pv:['C'],age:'3h'}];
+  const order=SB.group==='State'?['Needs attention','Working','Done']:['carrier','encaja'];
+  const key=r=>SB.group==='State'?r.st:r.p;
+  const row=r=>'<div class="r"><div class="av" style="background:'+r.c+(SB.icon?'':';display:none')+'">'+r.i+'</div><div class="tt"><b>'+r.t+'</b><small>'+r.n+(SB.branch?' · '+r.b:'')+(SB.prov?'<span class="pv">'+r.pv.map(x=>'<i>'+x+'</i>').join('')+'</span>':'')+'</small></div>'+(SB.age?'<div class="ag">'+r.age+'</div>':'')+'</div>';
+  return '<div class="spv">'+order.map(g=>'<div class="g">'+g+'</div>'+rows.filter(r=>key(r)===g).map(row).join('')).join('')+'</div>';
+ }
+});
+
+const CH={send:'Return',busy:'Queue it',wt:false,spell:true,auto:false,tool:'Collapsed',failopen:true,diff:'Unified',outn:'50 lines',think:true,follow:true,ts:'On hover',del:true};
+const CHDEF={...CH};
+function setC(k,v){CH[k]=v;draw('A');}
+function resetC(){Object.assign(CH,CHDEF);draw('A');}
+const segC=(k,opts)=>'<div class="sg-s2">'+opts.map(o=>'<button class="'+(CH[k]===o?'on':'')+'" onclick="setC(\''+k+'\',\''+o+'\')">'+o+'</button>').join('')+'</div>';
+const swC=k=>'<div class="sg-sw '+(CH[k]?'on':'')+'" style="cursor:pointer" onclick="setC(\''+k+'\','+(!CH[k])+')"></div>';
+Object.assign(CT,{
+ csend:()=>segC('send',['Return','⌘ Return']), cbusy:()=>segC('busy',['Queue it','Interrupt']), ctool:()=>segC('tool',['Hidden','Collapsed','Expanded']), cts:()=>segC('ts',['Never','On hover','Always']),
+ cdiff:()=>segC('diff',['Unified','Split']), coutn:()=>segC('outn',['20 lines','50 lines','100 lines']),
+ cwt:()=>swC('wt'), cspell:()=>swC('spell'), cauto:()=>swC('auto'), cthink:()=>swC('think'), cfollow:()=>swC('follow'), cdel:()=>swC('del'), cfail:()=>swC('failopen'),
+ chatPrev:()=>{
+  const tm=CH.ts==='Never'?'':'<span class="tm" style="'+(CH.ts==='On hover'?'opacity:.55':'')+'">14:32</span>';
+  const ex=CH.tool==='Expanded';
+  const diff=CH.diff==='Unified'
+   ?'<span class="rm">- await wait(100)</span><br><span class="ad">+ await wait(2 ** attempt * 100)</span><br><span class="ad">+ expect(calls).toBe(3)</span>'
+   :'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0 10px"><span class="rm">- await wait(100)</span><span class="ad">+ await wait(2 ** attempt * 100)</span><span></span><span class="ad">+ expect(calls).toBe(3)</span></div>';
+  const edit=CH.tool==='Hidden'?'':'<div class="tool">'+(ex?'▾':'▸')+' Edit retry.test.ts <span class="ad">+3</span> <span class="rm">−1</span>'+(ex?'<br>'+diff:'')+'</div>';
+  const open=ex||CH.failopen;
+  const fail=CH.tool==='Hidden'&&!CH.failopen?'':'<div class="tool">'+(open?'▾':'▸')+' pnpm test <span class="rm">✕ 1 failed</span>'+(open?'<br><span class="rm">FAIL retry.test.ts › waits between tries</span><br><span style="color:var(--dim)">expected 3 calls, got 2 · output shows up to '+CH.outn.replace(' lines','')+' lines, then Show more</span>':'')+'</div>';
+  return '<div class="cpv"><div class="m"><div class="a"><b>Claude</b></div>'+tm+'</div>'+(CH.think?'<div class="th">▸ Thought for 4 s</div>':'')+'<div class="a">The test did not wait for the second attempt. I added the missing <code>await</code>.</div>'+edit+fail+'</div>';
+ }
+});
+
+function kbCtl(id){
+  const lock=KB.flatMap(g=>g.rows).find(r=>r.id===id).lock, k=KBS[id];
+  const dup=k?Object.keys(KBS).filter(o=>o!==id&&KBS[o]===k):[];
+  if(lock) return '<div class="kbr"><span class="faint" style="font-size:11.5px">System</span><button class="kbc lock">'+k+'</button></div>';
+  const changed=k!==KBDEF[id];
+  return '<div class="kbr">'+(dup.length?'<span class="kbw">Also '+dup.map(d=>KBNAME[d]).join(', ')+'</span>':'')
+   +'<button class="kbc'+(REC===id?' rec':'')+(!k&&REC!==id?' none':'')+(dup.length?' dup':'')+'" onclick="recKb(\''+id+'\')">'+(REC===id?'Press the keys…':(k||'None'))+'</button>'
+   +(k?'<button class="kbx" title="Clear" onclick="setKb(\''+id+'\',\'\')">✕</button>':'')
+   +(changed?'<button class="kbx" title="Back to '+(KBDEF[id]||'none')+'" onclick="setKb(\''+id+'\',null)">↺</button>':'')+'</div>';
+}
+function recKb(id){REC=id;draw('A');}
+function setKb(id,v){KBS[id]=v===null?KBDEF[id]:v;REC=null;draw('A');}
+function resetKeys(){Object.assign(KBS,KBDEF);REC=null;draw('A');}
+document.addEventListener('keydown',e=>{
+  if(!REC) return;
+  if(['Meta','Control','Alt','Shift'].includes(e.key)) return;
+  e.preventDefault();
+  if(e.key==='Escape'){REC=null;draw('A');return;}
+  if(e.key==='Backspace'||e.key==='Delete'){setKb(REC,'');return;}
+  if(!(e.metaKey||e.ctrlKey||e.altKey)) return;
+  const nm={ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→',Enter:'↩',' ':'Space'};
+  const key=e.code.startsWith('Key')?e.code.slice(3):e.code.startsWith('Digit')?e.code.slice(5):(nm[e.key]||(e.key.length===1?e.key.toUpperCase():e.key));
+  setKb(REC,(e.ctrlKey?'⌃':'')+(e.altKey?'⌥':'')+(e.shiftKey?'⇧':'')+(e.metaKey?'⌘':'')+key);
+});
+function hrow(r){return '<div class="sg-row" style="display:block;padding:12px 0">'+(r.t?'<div class="t" style="margin-bottom:10px"><b>'+r.t+'</b>'+(r.d?'<span>'+r.d+'</span>':'')+'</div>':'')+CT[r.h]()+'</div>';}
+function apply(el){
+  const light=isLight(), T=THEMES.find(t=>t.n===AP.theme), V=light?T.l:T.d, themed=!T.plain;
+  document.body.classList.toggle('light',light);
+  const st=el.style, put=(k,v)=>v==null?st.removeProperty(k):st.setProperty(k,v);
+  const acc=AP.accent||V.a;
+  put('--blue',acc); put('--sel','color-mix(in srgb,'+acc+' 28%,transparent)');
+  put('--rp',AP.density==='Compact'?'6px':'10px');
+  // surfaces: a themed one draws its own; plain Carrier keeps the system look unless windows are solid
+  const solid=!AP.glass;
+  el.style.background=themed?V.bg:(solid?V.bg:'');
+  el.style.backdropFilter=solid?'none':'';
+  const rail=el.querySelector('.sg-rail'), pg=el.querySelector('.sg-page');
+  rail.style.background=themed||solid?V.sd+(solid?'':'99'):'';
+  const tn={Off:0,Subtle:7,Strong:16}[AP.tint];
+  pg.style.background=tn?'color-mix(in srgb,'+acc+' '+tn+'%,transparent)':'';
+  pg.style.zoom=AP.ts/100;
+  const v=el.querySelector('#apv');
+  if(v){v.style.fontFamily=FONTS[AP.font];v.style.fontSize=AP.size+'px';v.style.lineHeight=LH[AP.lh];v.style.fontVariantLigatures=AP.lig?'normal':'none';
+   v.style.whiteSpace=AP.wrap?'pre-wrap':'pre'; v.classList.toggle('nums',AP.nums);
+   const p=PAL[AP.code];['k','s','f','c'].forEach(x=>v.style.setProperty('--'+x,p[x]));}
+  const m=el.querySelector('#amsg'); if(m) m.style.maxWidth=WIDTH[AP.width]+'px';
+  el.querySelectorAll('#astates i').forEach(i=>{i.textContent=AP.shapes?i.dataset.g:'';});
+}
+function ctl(c){
+  if(c==='btn|ResetSide') return '<button class="glass sm" onclick="resetS()">Reset</button>';
+  if(c==='btn|ResetChat') return '<button class="glass sm" onclick="resetC()">Reset</button>';
+  if(c==='btn|ResetKeys') return '<button class="glass sm" onclick="resetKeys()">Reset</button>';
+  if(c.startsWith('kb:')) return kbCtl(c.slice(3));
+  if(c==='btn|Reset') return '<button class="glass sm" onclick="reset()">Reset</button>';
+  if(c.startsWith('fn:')) return CT[c.slice(3)]();
+  if(c.startsWith('sw')) return '<div class="sg-sw '+(c.includes('on')?'on':'')+'"></div>';
+  if(c.startsWith('dot')){const [a,b]=c.split('|');return (b?'<button class="glass sm">'+b+'</button>':'')+'<div class="sg-dot '+(a.includes('no')?'no':'')+'">'+(a.includes('no')?'!':'✓')+'</div>';}
+  if(c.startsWith('btn')) return '<button class="glass sm">'+c.split('|')[1]+'</button>';
+  if(c.startsWith('val')){const [a,b]=c.split('|');return '<span class="sg-val'+(a.includes(' m')?' m':'')+'">'+b+' <small class="faint">▾</small></span>';}
+  return '';
+}
+function row(r){if(r.h)return hrow(r);return '<div class="sg-row"><div class="t"><b>'+r.t+(r.n?'<i class="nw">new</i>':'')+(r.q?'<i class="nw" style="color:var(--orange);background:rgba(255,159,10,.18)">?'+r.q+'</i>':'')+'</b>'+(r.d?'<span>'+r.d+'</span>':'')+'</div>'+ctl(r.c)+'</div>';}
+function secs(p){return p.secs.map(s=>'<div class="sg-gt">'+s.t+'</div><div class="sg-card">'+s.rows.map(row).join('')+'</div>').join('');}
+function head(p,g){return '<div class="sg-ph"><div class="ic">'+p.ic+'</div><div><b>'+p.t+'</b><span>'+p.d+'</span></div></div>';}
+function railRow(p,on,id){return '<div class="sg-r'+(on?' on':'')+'" data-id="'+id+'"><div class="ic">'+p.ic+'</div><div><b>'+p.t+'</b></div>'+'</div>';}
+
+const MODES = {
+ A:{t:'A · One rail, App first without a title', p:'App has no heading in the rail; Carrier and Chat have theirs. Click any page.'}
+};
+const state={};
+function draw(mode){
+  const s=state[mode], el=document.getElementById('sheet'+mode), G=D[s.g];
+  const pg=G.pages.find(p=>p.id===s.p)||G.pages[0]; s.p=pg.id;
+  let rail='', page='';
+  if(mode==='A'){
+    rail='<h4>Settings</h4>'+Object.keys(D).map(g=>(g==='App'?'':'<div class="sg-gh">'+g+'</div>')+D[g].pages.map(p=>railRow(p,p.id===s.p&&g===s.g,g+'/'+p.id)).join('')).join('');
+    page=head(pg)+secs(pg);
+  } else if(mode==='B'){
+    rail='<h4>Settings</h4><div class="sg-seg">'+Object.keys(D).map(g=>'<button class="'+(g===s.g?'on':'')+'" data-g="'+g+'">'+g+'</button>').join('')+'</div>'+G.pages.map(p=>railRow(p,p.id===s.p,s.g+'/'+p.id)).join('');
+    page=head(pg)+secs(pg);
+  } else {
+    rail='<h4>Settings</h4>'+Object.keys(D).map(g=>'<div class="sg-r'+(g===s.g?' on':'')+'" data-g="'+g+'"><div class="ic">'+D[g].icon+'</div><div><b>'+g+'</b><small>'+D[g].pages.map(p=>p.t).join(' · ')+'</small></div></div>').join('');
+    page='<div class="sg-ph"><div class="ic">'+G.icon+'</div><div><b>'+s.g+'</b><span>'+G.pages.length+' sections</span></div></div>'+G.pages.map(p=>'<div class="sg-sect">'+p.ic+' '+p.t+'</div>'+secs(p)).join('');
+  }
+  const keep=s.lastP===s.p, old=el.querySelector('.sg-page'), st0=keep&&old?old.scrollTop:0; s.lastP=s.p;
+  el.innerHTML='<div class="sg-body"><div class="sg-rail">'+rail+'</div><div class="sg-page">'+page+'</div></div><div class="sg-foot"><button class="glass pri">Done</button></div>';
+  apply(el); el.querySelector('.sg-page').scrollTop=st0;
+  el.querySelectorAll('[data-id]').forEach(n=>n.onclick=()=>{const [g,p]=n.dataset.id.split('/');s.g=g;s.p=p;draw(mode);});
+  el.querySelectorAll('[data-g]').forEach(n=>n.onclick=()=>{s.g=n.dataset.g;s.p=D[s.g].pages[0].id;draw(mode);});
+}
+document.getElementById('opts').innerHTML=Object.entries(MODES).map(([m,o])=>{state[m]={g:'App',p:'keys'};return '<div class="sg-opt"><h3>'+o.t+'</h3><p>'+o.p+'</p><div class="sg-sheet" id="sheet'+m+'"></div></div>';}).join('');
+Object.keys(MODES).forEach(draw);
+</script>
+</body></html>

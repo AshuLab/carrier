@@ -204,7 +204,7 @@ struct NumberField<Value: Equatable>: View {
         }
         .padding(2)
         .background(RoundedRectangle(cornerRadius: 9).fill(Color.secondary.opacity(0.12)))
-        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(invalid ? Color.red : focused ? Color.accentColor : Color.clear, lineWidth: 1.5))
+        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(invalid ? Color.red : focused ? Color.themeAccent : Color.clear, lineWidth: 1.5))
             .onAppear { text = format(value) }
             .onChange(of: text) {
                 if let parsed = parse(text) {
@@ -250,7 +250,7 @@ struct PrimaryCapsuleButtonStyle: ButtonStyle {
             configuration.label.fontWeight(.semibold).font(large ? .title3.weight(.semibold) : .body.weight(.semibold))
                 .foregroundStyle(enabled ? Color.white : Color.secondary)
                 .padding(.horizontal, large ? 24 : 16).padding(.vertical, large ? 9 : 6)
-                .background(Capsule().fill(enabled ? Color.accentColor : Color.secondary.opacity(0.18)))
+                .background(Capsule().fill(enabled ? Color.themeAccent : Color.secondary.opacity(0.18)))
                 .shadow(color: .black.opacity(enabled ? 0.3 : 0), radius: 1, y: 1)
                 .opacity(configuration.isPressed ? 0.8 : 1)
         }

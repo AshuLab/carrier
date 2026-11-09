@@ -10,6 +10,10 @@ public struct AppPreferences {
     public static let clockHoursKey = "display.clock"
     public static let colorSchemeKey = "appearance.colorScheme"
     public static let densityKey = "appearance.density"
+    public static let themeKey = "appearance.theme"
+    public static let accentKey = "appearance.accent"
+    public static let tintKey = "appearance.tint"
+    public static let translucentKey = "appearance.translucent"
     public static let monospaceFamilyKey = "appearance.mono.family"
     public static let monospaceSizeKey = "appearance.mono.size"
     public static let monospaceLineHeightKey = "appearance.mono.lineHeight"
@@ -28,6 +32,8 @@ public struct AppPreferences {
     public static let defaultConfirmStop = true
     public static let defaultColorScheme = ColorSchemeChoice.system
     public static let defaultDensity = Density.comfortable
+    public static let defaultTheme = Theme.carrier
+    public static let defaultTint = Tint.off
     public static let defaultSendKey = SendKey.return
     public static let defaultWritingTools = false
     public static let defaultChecksSpelling = true
@@ -86,6 +92,29 @@ public struct AppPreferences {
         get { defaults.string(forKey: Self.densityKey).flatMap(Density.init(rawValue:)) ?? Self.defaultDensity }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.densityKey) }
     }
+
+    public var theme: Theme {
+        get { defaults.string(forKey: Self.themeKey).flatMap(Theme.init(rawValue:)) ?? Self.defaultTheme }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.themeKey) }
+    }
+
+    /// The accent the person picked; nil is the theme's own.
+    public var accent: AccentColor? {
+        get { defaults.string(forKey: Self.accentKey).flatMap(AccentColor.init(rawValue:)) }
+        nonmutating set { defaults.set(newValue?.rawValue, forKey: Self.accentKey) }
+    }
+
+    public var tint: Tint {
+        get { defaults.string(forKey: Self.tintKey).flatMap(Tint.init(rawValue:)) ?? Self.defaultTint }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.tintKey) }
+    }
+
+    /// Whether windows are translucent: what the person chose, and while they did not, the opposite of the system's Reduce transparency.
+    public func translucent(systemReducesTransparency: Bool) -> Bool {
+        defaults.object(forKey: Self.translucentKey) as? Bool ?? (systemReducesTransparency == false)
+    }
+
+    public func setTranslucent(_ value: Bool) { defaults.set(value, forKey: Self.translucentKey) }
 
     /// The font, size, line height, ligatures, wrapping and line numbers of code and output; a bad saved value reads as its default.
     public var monospace: MonospaceSettings {
@@ -155,8 +184,8 @@ public struct AppPreferences {
             ]
         case .appearance:
             [
-                colorSchemeKey, TypeScale.percentKey, densityKey, statesByShapeKey, monospaceFamilyKey, monospaceSizeKey,
-                monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
+                colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey,
+                monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
             ]
         case .chat: [sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey]
         default: []

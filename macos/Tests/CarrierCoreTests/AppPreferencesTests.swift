@@ -183,6 +183,45 @@ private let idle = PanelSnapshot(
     #expect(Density.comfortable.messageGap == 12)
 }
 
+@Test func theThemeChoicesStartOnTheDefaultsAndSurviveARelaunch() {
+    let name = "theme-\(UUID().uuidString)"
+    let store = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(store.theme == .carrier && store.accent == nil && store.tint == .off)
+    store.theme = .forest
+    store.accent = .orange
+    store.tint = .strong
+    store.setTranslucent(false)
+    let relaunched = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(relaunched.theme == .forest && relaunched.accent == .orange && relaunched.tint == .strong)
+    #expect(relaunched.translucent(systemReducesTransparency: false) == false)
+    relaunched.accent = nil
+    #expect(AppPreferences(defaults: UserDefaults(suiteName: name)!).accent == nil)
+}
+
+@Test func translucentWindowsFollowReduceTransparencyUntilTheyAreChosen() {
+    let store = AppPreferences(defaults: UserDefaults(suiteName: "theme-\(UUID().uuidString)")!)
+    #expect(store.translucent(systemReducesTransparency: false))
+    #expect(store.translucent(systemReducesTransparency: true) == false)
+    store.setTranslucent(true)
+    #expect(store.translucent(systemReducesTransparency: true))
+}
+
+@Test func aBadSavedThemeReadsAsTheDefaultAndResettingAppearanceClearsTheThemeChoices() {
+    let defaults = UserDefaults(suiteName: "theme-\(UUID().uuidString)")!
+    defaults.set("neon", forKey: AppPreferences.themeKey)
+    defaults.set("teal", forKey: AppPreferences.accentKey)
+    defaults.set("loud", forKey: AppPreferences.tintKey)
+    let store = AppPreferences(defaults: defaults)
+    #expect(store.theme == .carrier && store.accent == nil && store.tint == .off)
+    store.theme = .ocean
+    store.accent = .red
+    store.tint = .subtle
+    store.setTranslucent(false)
+    store.reset(.appearance)
+    #expect(store.theme == .carrier && store.accent == nil && store.tint == .off)
+    #expect(store.translucent(systemReducesTransparency: false))
+}
+
 @Test func monospaceSettingsStartOnTheirDefaults() {
     let mono = AppPreferences(defaults: UserDefaults(suiteName: "mono-\(UUID().uuidString)")!).monospace
     #expect(mono == MonospaceSettings())

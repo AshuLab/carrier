@@ -92,7 +92,7 @@ struct NewSessionView: View {
                     )
                 }
                 .buttonStyle(.plain).accessibilityLabel("Workspace")
-                .sheet(isPresented: $foldersOpen) { WorkspaceSheet(model: model, openHealth: openHealth) }
+                .sheet(isPresented: $foldersOpen) { WorkspaceSheet(model: model, openHealth: openHealth).themed() }
                 if model.folder != nil {
                     Button { model.clearWorkspace() } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
                         .buttonStyle(.plain).accessibilityLabel("Clear workspace").help("Clear the workspace")
@@ -103,7 +103,7 @@ struct NewSessionView: View {
                         Text("on")
                         Button { whereOpen.toggle() } label: { chip(model.worktree ? "New worktree" : "Current folder", icon: model.worktree ? "square.on.square" : "folder") }
                             .buttonStyle(.plain).accessibilityLabel("Where it works")
-                            .sheet(isPresented: $whereOpen) { WhereItWorksSheet(model: model) }
+                            .sheet(isPresented: $whereOpen) { WhereItWorksSheet(model: model).themed() }
                         if model.worktree { worktreeControls } else { currentBranch }
                     } else {
                         Text(rest)
@@ -128,7 +128,7 @@ struct NewSessionView: View {
     private var currentBranch: some View {
         Button { currentBranchOpen.toggle() } label: { chip(model.picked ?? model.workspace?.branch ?? "detached HEAD", icon: "arrow.triangle.branch") }
             .buttonStyle(.plain).accessibilityLabel("Branch of the folder")
-            .sheet(isPresented: $currentBranchOpen) { BranchSheet(model: model, browsing: true) }
+            .sheet(isPresented: $currentBranchOpen) { BranchSheet(model: model, browsing: true).themed() }
     }
 
     /// What `model.sentence` says after "Work in <workspace> ".
@@ -176,7 +176,7 @@ struct NewSessionView: View {
         Text("from")
         Button { branchesOpen.toggle() } label: { chip(model.startBranch ?? "Choose a branch…", icon: "arrow.triangle.branch") }
             .buttonStyle(.plain)
-            .sheet(isPresented: $branchesOpen) { BranchSheet(model: model) }
+            .sheet(isPresented: $branchesOpen) { BranchSheet(model: model).themed() }
     }
 
     private var nameColor: Color {
@@ -232,7 +232,7 @@ private struct NewSessionMark: View {
         Image(systemName: "sparkles")
             .font(.scaled(22, weight: .medium)).foregroundStyle(.white)
             .frame(width: 52, height: 52)
-            .background(Circle().fill(LinearGradient(colors: [.accentColor, .accentColor.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .background(Circle().fill(LinearGradient(colors: [.themeAccent, .themeAccent.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
             .accessibilityHidden(true)
     }
 }

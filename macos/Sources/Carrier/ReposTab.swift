@@ -83,6 +83,7 @@ struct ReposTabView: View {
                 draft += names
                 adding = false
             }
+            .themed()
         }
     }
 

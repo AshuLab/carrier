@@ -58,9 +58,9 @@ struct SettingsPageHeader: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: page.icon)
-                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.accentColor)
+                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
                 .frame(width: 36, height: 36)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.16)))
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(page.rawValue).font(.title3.weight(.semibold))
@@ -168,10 +168,16 @@ struct GeneralTabView: View {
     }
 }
 
-/// How the app looks: the color scheme of every window, the text size of the whole interface, how tight the rows are, and the font of
-/// code and output with a sample that follows each choice.
+/// How the app looks: the color scheme of every window, the theme, the text size of the whole interface, how tight the rows are, and the
+/// font of code and output with a sample that follows each choice.
 struct AppearanceTabView: View {
     @AppStorage(AppPreferences.colorSchemeKey) private var colorScheme = AppPreferences.defaultColorScheme
+    @AppStorage(AppPreferences.themeKey) private var theme = AppPreferences.defaultTheme
+    @AppStorage(AppPreferences.accentKey) private var accent: AccentColor?
+    @AppStorage(AppPreferences.tintKey) private var tint = AppPreferences.defaultTint
+    @AppStorage(AppPreferences.translucentKey) private var translucentChoice: Bool?
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorScheme) private var scheme
     @AppStorage(TypeScale.percentKey) private var textSize = 100
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     @AppStorage(AppPreferences.monospaceFamilyKey) private var family = MonospaceSettings.systemFamily
@@ -274,7 +280,98 @@ struct AppearanceTabView: View {
                     Toggle("Line numbers", isOn: $lineNumbers).labelsHidden().toggleStyle(.switch)
                 }
             }
+            SettingsGroup(title: "Theme") {
+                ThemeGallery(theme: $theme)
+            }
+            SettingsGroup(title: "Color") {
+                SettingsTabRow(title: "Accent color", detail: "Buttons, switches and the selection; the first one is the theme's own", first: true) {
+                    AccentSwatches(theme: theme, scheme: scheme == .dark ? .dark : .light, accent: $accent)
+                }
+                SettingsTabRow(title: "Tint the windows", detail: "A touch of the accent on the backgrounds") {
+                    Picker("Tint the windows", selection: $tint) {
+                        ForEach(Tint.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
+                }
+                SettingsTabRow(title: "Translucent windows", detail: "Off draws solid backgrounds; it follows the Mac's Reduce transparency until you choose") {
+                    Toggle("Translucent windows", isOn: Binding(
+                        get: { translucentChoice ?? (reduceTransparency == false) }, set: { translucentChoice = $0 }
+                    ))
+                    .labelsHidden().toggleStyle(.switch)
+                }
+            }
         }
+    }
+}
+
+/// The six themes, each as its light and its dark version side by side; the chosen one has the accent's edge.
+private struct ThemeGallery: View {
+    @Binding var theme: Theme
+
+    var body: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+            ForEach(Theme.allCases, id: \.self) { option in
+                Button { theme = option } label: {
+                    VStack(spacing: 6) {
+                        HStack(spacing: 6) {
+                            ThemePreview(theme: option, scheme: .light)
+                            ThemePreview(theme: option, scheme: .dark)
+                        }
+                        Text(option.title).font(.caption)
+                    }
+                    .padding(8).frame(maxWidth: .infinity)
+                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(option == theme ? Color.themeAccent : Color.secondary.opacity(0.2), lineWidth: option == theme ? 2 : 1))
+                    .contentShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(option.title).accessibilityAddTraits(option == theme ? .isSelected : [])
+            }
+        }
+        .padding(.vertical, 12)
+    }
+}
+
+/// A theme's window and sidebar in one version, with its accent as a bar: what the theme paints, nothing the system draws.
+private struct ThemePreview: View {
+    let theme: Theme
+    let scheme: ThemeScheme
+
+    var body: some View {
+        let surfaces = themeSurfaces(theme, scheme: scheme, translucent: false)
+        HStack(spacing: 0) {
+            Color(surfaces.sidebar).frame(width: 16)
+            ZStack(alignment: .topLeading) {
+                Color(surfaces.window)
+                Capsule().fill(surfaces.accent.map(Color.init) ?? .accentColor).frame(width: 20, height: 5).padding(8)
+            }
+        }
+        .frame(height: 44).clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.secondary.opacity(0.3), lineWidth: 0.5))
+        .accessibilityHidden(true)
+    }
+}
+
+/// The theme's own accent and the seven colors, as discs; the chosen one has a ring.
+private struct AccentSwatches: View {
+    let theme: Theme
+    let scheme: ThemeScheme
+    @Binding var accent: AccentColor?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            swatch("\(theme.title) accent", color: themeSurfaces(theme, scheme: scheme, translucent: false).accent.map(Color.init) ?? .accentColor, chosen: accent == nil) { accent = nil }
+            ForEach(AccentColor.allCases, id: \.self) { option in
+                swatch(option.title, color: Color(option.color), chosen: accent == option) { accent = option }
+            }
+        }
+    }
+
+    private func swatch(_ name: String, color: Color, chosen: Bool, choose: @escaping () -> Void) -> some View {
+        Button(action: choose) {
+            Circle().fill(color).frame(width: 18, height: 18)
+                .padding(3).overlay(Circle().strokeBorder(chosen ? Color.primary.opacity(0.7) : .clear, lineWidth: 2))
+        }
+        .buttonStyle(.plain).help(name).accessibilityLabel(name).accessibilityAddTraits(chosen ? .isSelected : [])
     }
 }
 

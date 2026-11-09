@@ -38,7 +38,7 @@ public func bundledIconName(_ path: String) -> String? {
 /// The icon of a path: the bundled one when there is one, else its category's symbol.
 public func fileIcon(_ path: String) -> FileIcon {
     if let name = bundledIconName(path),
-        let url = Bundle.module.url(forResource: name, withExtension: "svg", subdirectory: "FileIcons")
+        let url = carrierResources.url(forResource: name, withExtension: "svg", subdirectory: "FileIcons")
     {
         return .bundled(name: name, url: url)
     }
@@ -47,5 +47,5 @@ public func fileIcon(_ path: String) -> FileIcon {
 
 /// The upstream licence text that ships with the icons, shown from About's licences.
 public var fileIconsLicenceURL: URL? {
-    Bundle.module.url(forResource: "LICENSE", withExtension: nil, subdirectory: "FileIcons")
+    carrierResources.url(forResource: "LICENSE", withExtension: nil, subdirectory: "FileIcons")
 }

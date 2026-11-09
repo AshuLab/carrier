@@ -5,5 +5,5 @@ import Foundation
 
 /// The bundled SVG for an agent's display name (`agentName`), or nil when there is none.
 public func providerIconURL(_ agent: String) -> URL? {
-    Bundle.module.url(forResource: agent.lowercased(), withExtension: "svg", subdirectory: "ProviderIcons")
+    carrierResources.url(forResource: agent.lowercased(), withExtension: "svg", subdirectory: "ProviderIcons")
 }

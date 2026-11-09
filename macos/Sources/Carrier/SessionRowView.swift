@@ -11,58 +11,88 @@ struct SessionRowView: View {
     let row: SessionRow
     /// Outside the workspace order the group is not the workspace, so the second line says it.
     let showsWorkspace: Bool
+    @AppStorage(SidebarStore.showsIconKey) private var showsIcon = true
+    @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
+    @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
+    @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
     /// The orange of "Waiting for you" as text: the system's on dark, a deeper one on light, where the system's is too pale to read.
     static let attention = Color(nsColor: NSColor(name: nil) { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .systemOrange : NSColor(red: 0.70, green: 0.36, blue: 0, alpha: 1)
     })
 
-    private var place: Text {
-        row.branch.map { Text("\(Image(systemName: "arrow.triangle.branch")) \($0)") } ?? Text("Base folder")
+    private var content: SessionRowContent {
+        SessionRowContent(
+            row, showsWorkspace: showsWorkspace,
+            parts: SessionRowParts(icon: showsIcon, branch: showsBranch, providers: showsProviders, age: showsAge), now: Date()
+        )
     }
 
-    @ViewBuilder private var detail: some View {
+    private func place(_ place: SessionPlace) -> Text {
+        switch place {
+        case .branch(let name): Text("\(Image(systemName: "arrow.triangle.branch")) \(name)")
+        case .baseFolder: Text("Base folder")
+        }
+    }
+
+    @ViewBuilder private func detail(_ content: SessionRowContent) -> some View {
         if row.state == .waiting {
             Text("Waiting for you").fontWeight(.medium).foregroundStyle(Self.attention)
         } else {
-            (showsWorkspace ? Text("\(row.workspace) · \(place)") : place).foregroundStyle(.secondary)
+            switch (content.workspace, content.place) {
+            case (let workspace?, let placed?): Text("\(workspace) · \(place(placed))").foregroundStyle(.secondary)
+            case (let workspace?, nil): Text(workspace).foregroundStyle(.secondary)
+            case (nil, let placed?): place(placed).foregroundStyle(.secondary)
+            case (nil, nil): Text("")
+            }
         }
     }
 
     var body: some View {
+        let content = content
         HStack(spacing: SidebarMetrics.inset) {
-            ProjectIcon(
-                name: row.workspace, colorKey: projectColorKey(row.base), halo: row.state == .working,
-                mark: row.state == .waiting ? .init(text: "!", color: .orange) : nil
-            )
+            if content.showsIcon {
+                ProjectIcon(
+                    name: row.workspace, colorKey: projectColorKey(row.base), halo: row.state == .working,
+                    mark: row.state == .waiting ? .init(text: "!", color: .orange) : nil
+                )
+            }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 Text(row.title).font(SidebarMetrics.item).fontWeight(row.state == .waiting ? .medium : .regular)
                     .lineLimit(1).truncationMode(.tail).frame(height: Self.titleLine, alignment: .leading)
-                detail.font(SidebarMetrics.detail).lineLimit(1).truncationMode(.tail).frame(height: Self.detailLine, alignment: .leading)
+                detail(content).font(SidebarMetrics.detail).lineLimit(1).truncationMode(.tail).frame(height: Self.detailLine, alignment: .leading)
             }
             Spacer(minLength: 4)
-            VStack(alignment: .trailing, spacing: SidebarMetrics.lineGap) {
-                Text(timeText(row.updatedAt, now: Date())).font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary)
-                    .lineLimit(1).frame(height: Self.titleLine)
-                ProviderMarks(names: row.providers).frame(height: Self.detailLine)
+            if content.age != nil || content.providers.isEmpty == false {
+                VStack(alignment: .trailing, spacing: SidebarMetrics.lineGap) {
+                    Text(content.age ?? "").font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary)
+                        .lineLimit(1).frame(height: Self.titleLine)
+                    ProviderMarks(names: content.providers).frame(height: Self.detailLine)
+                }
             }
         }
         .padding(.horizontal, SidebarMetrics.inset).padding(.vertical, SidebarMetrics.itemPadding)
         .contextMenu { SessionMenuItems(row: row) }
         .help(row.title)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(label)
+        .accessibilityLabel(label(content))
     }
 
-    /// What the row says aloud: the title, the state in words (the icon draws it), where it works, the providers and "5 minutes ago".
-    private var label: String {
+    /// What the row says aloud: the title, the state in words (the icon draws it), where it works, the providers and "5 minutes ago",
+    /// the parts the person switched off left out.
+    private func label(_ content: SessionRowContent) -> String {
         let state: String? = switch row.state {
         case .working: "Working"
         case .waiting: "Needs attention"
         case .idle, .done: nil
         }
-        let age = spokenAge(row.updatedAt, now: Date())
-        return ([row.title, state, row.workspace, row.branch ?? "Base folder"] + row.providers + [age]).compactMap { $0 }.joined(separator: ", ")
+        let place: String? = switch content.place {
+        case .branch(let name)?: name
+        case .baseFolder?: "Base folder"
+        case nil: nil
+        }
+        let age = content.age == nil ? nil : spokenAge(row.updatedAt, now: Date())
+        return ([row.title, state, row.workspace, place] + content.providers + [age]).compactMap { $0 }.joined(separator: ", ")
     }
 }
 

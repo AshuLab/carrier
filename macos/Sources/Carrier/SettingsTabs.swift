@@ -168,6 +168,61 @@ struct GeneralTabView: View {
     }
 }
 
+/// The sidebar's grouping and sorts, which its own menus change too (one preference, two controls), and what each session row shows.
+struct SidebarTabView: View {
+    @AppStorage(SidebarStore.groupByKey) private var groupBy = GroupBy.status
+    @AppStorage(SidebarStore.sessionSortKey) private var sessionSort = SessionSort.workspace
+    @AppStorage(SidebarStore.archiveSortKey) private var archiveSort = ArchiveSort.dateArchived
+    @AppStorage(SidebarStore.showsIconKey) private var showsIcon = true
+    @AppStorage(SidebarStore.showsBranchKey) private var showsBranch = true
+    @AppStorage(SidebarStore.showsProvidersKey) private var showsProviders = true
+    @AppStorage(SidebarStore.showsAgeKey) private var showsAge = true
+
+    /// A session of the preview: it has a branch, two providers and an age, so each switch has something to hide.
+    private static let sample = SessionRow(
+        id: "preview", title: "Fix the flaky login test", workspace: "carrier", agent: "claude", state: .idle,
+        updatedAt: Date(timeIntervalSinceNow: -11 * 60), branch: "fix/login-flake", folder: "/preview", providers: ["claude", "codex"]
+    )
+
+    var body: some View {
+        SettingsPageBody(reset: { AppPreferences().reset(.sidebar) }, preview: {
+            SettingsGroup(title: "Preview") {
+                SessionRowView(row: Self.sample, showsWorkspace: true).allowsHitTesting(false).padding(.vertical, 6)
+            }
+        }, content: {
+            SettingsGroup(title: "Order") {
+                SettingsTabRow(title: "Group epics by", detail: "How the epics under Carrier are grouped", first: true) {
+                    picker("Group epics by", selection: $groupBy, options: GroupBy.allCases) { $0.title }
+                }
+                SettingsTabRow(title: "Sort sessions", detail: "How the Sessions list is grouped and ordered") {
+                    picker("Sort sessions", selection: $sessionSort, options: SessionSort.allCases) { $0.title }
+                }
+                SettingsTabRow(title: "Sort the Archive", detail: "How the archived sessions are ordered") {
+                    picker("Sort the Archive", selection: $archiveSort, options: ArchiveSort.allCases) { $0.title }
+                }
+            }
+            SettingsGroup(title: "Session rows") {
+                SettingsTabRow(title: "Project icon", detail: "The colored square with the project's initials", first: true) {
+                    Toggle("Project icon", isOn: $showsIcon).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Branch", detail: "Where the session works, the branch or the base folder") {
+                    Toggle("Branch", isOn: $showsBranch).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Providers", detail: "The marks of the providers the session used") {
+                    Toggle("Providers", isOn: $showsProviders).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Age", detail: "How long ago the session was last active") {
+                    Toggle("Age", isOn: $showsAge).labelsHidden().toggleStyle(.switch)
+                }
+            }
+        })
+    }
+
+    private func picker<Value: Hashable>(_ name: String, selection: Binding<Value>, options: [Value], title: @escaping (Value) -> String) -> some View {
+        Picker(name, selection: selection) { ForEach(options, id: \.self) { Text(title($0)).tag($0) } }.labelsHidden().fixedSize()
+    }
+}
+
 struct NotificationsTabView: View {
     @AppStorage(notifyNeedsYouKey) private var needsYou = true
     @AppStorage(notifyReadyForTestKey) private var readyForTest = true

@@ -201,7 +201,7 @@ private struct SessionFilterPopover: View {
     }
 }
 
-private extension SessionSort {
+extension SessionSort {
     var title: String {
         switch self {
         case .workspace: "Workspace"

@@ -48,7 +48,7 @@ struct SessionsRows: View {
             IconButton(icon: "ellipsis", name: "Sort sessions") { sortOpen.toggle() }
                 .popover(isPresented: $sortOpen, arrowEdge: .bottom) {
                     ChoiceMenu(
-                        title: "Sort sessions", options: SessionSort.allCases.map { ($0.title, $0) },
+                        title: "Sort sessions", options: SessionSort.allCases.map { ($0.menuTitle, $0) },
                         selection: $sort, close: { sortOpen = false }
                     )
                 }
@@ -94,7 +94,7 @@ struct SessionsRows: View {
 }
 
 private extension SessionSort {
-    var title: String {
+    var menuTitle: String {
         switch self {
         case .workspace: "By workspace"
         case .age: "By age"

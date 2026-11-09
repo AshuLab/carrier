@@ -11,6 +11,7 @@ public let notifyProblemKey = "notify.problem"
 public let notifyChatNeedsAttentionKey = "notify.chatNeedsAttention"
 public let notifyChatDoneKey = "notify.chatDone"
 public let notifyOnlyWhenAwayKey = "notify.onlyWhenAway"
+public let notifyDockBadgeKey = "notify.dockBadge"
 public let notifySoundKey = "notify.sound"
 public let notifyQuietKey = "notify.quiet"
 public let notifyQuietStartKey = "notify.quietStart"
@@ -31,6 +32,9 @@ extension UserDefaults {
 
     /// No banner while the app's window is in front; on until turned off.
     public var notifiesOnlyWhenAway: Bool { object(forKey: notifyOnlyWhenAwayKey) as? Bool ?? true }
+
+    /// The Dock icon shows the count of what needs a person; on until turned off.
+    public var showsDockBadge: Bool { object(forKey: notifyDockBadgeKey) as? Bool ?? true }
 
     /// A banner plays a sound; on until turned off.
     public var notifiesWithSound: Bool { object(forKey: notifySoundKey) as? Bool ?? true }

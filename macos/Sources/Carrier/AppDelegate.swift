@@ -37,6 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
         watchCarrier(stateLine)
         SystemNotificationCentre.shared.attachDelegate()
+        // the Notifications page writes user defaults: the badge follows its switch at once
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { _ in NotificationWatcher.app.refreshBadge() }
         // the host starts when the app opens, once the settings are known; the self-test only checks what would run
         let underSelfTest = CommandLine.arguments.contains("--selftest")
         SetupController.shared.detectIfFirstLaunch {

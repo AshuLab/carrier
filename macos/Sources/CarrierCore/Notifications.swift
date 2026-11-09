@@ -58,6 +58,12 @@ public func chatNotifications(from previous: [SessionRow]?, to new: [SessionRow]
     }
 }
 
+/// What the Dock icon counts: the epics that need a person plus the live chat sessions waiting for an approval. No snapshot (Carrier
+/// not running) counts no epics.
+public func dockBadgeCount(snapshot: PanelSnapshot?, sessions: [SessionRow]) -> Int {
+    (snapshot?.epics.filter { $0.status == .needsHuman }.count ?? 0) + sessions.filter { $0.state == .waiting && $0.archived == false }.count
+}
+
 /// The notifications that `new` earns against `previous`: an epic that needs a person now and did not in `previous`, and one
 /// that is in the ready-for-test list now and was not in `previous`'s. With no `previous` it only seeds: nothing is new yet.
 /// A problem is the snapshot's own text when it appears or changes, and a watched repo that GitHub refuses now and did not
@@ -108,18 +114,23 @@ public final class NotificationWatcher {
     private let kinds: () -> NotificationKinds
     private let sound: () -> Bool
     private let quietHours: () -> QuietHours
+    private let showsBadge: () -> Bool
+    private let setBadge: (Int) -> Void
     private var previous: PanelSnapshot?
     private var previousSessions: [SessionRow]?
 
     public init(
         centre: NotificationCentre, kinds: @escaping () -> NotificationKinds = { NotificationKinds() },
         sound: @escaping () -> Bool = { true }, quietHours: @escaping () -> QuietHours = { QuietHours() },
+        showsBadge: @escaping () -> Bool = { true }, setBadge: @escaping (Int) -> Void = { _ in },
         now: @escaping () -> Date = Date.init
     ) {
         self.centre = centre
         self.kinds = kinds
         self.sound = sound
         self.quietHours = quietHours
+        self.showsBadge = showsBadge
+        self.setBadge = setBadge
         self.now = now
     }
 
@@ -129,6 +140,11 @@ public final class NotificationWatcher {
         let quiet = quietHours().contains(now())
         let sound = sound() && quiet == false
         centre.post(notifications.map { var made = $0; made.sound = sound; made.quiet = quiet; return made })
+    }
+
+    /// The Dock badge: the count of what the two last states hold, or none while the switch is off. Also called when the switch changes.
+    public func refreshBadge() {
+        setBadge(showsBadge() ? dockBadgeCount(snapshot: previous, sessions: previousSessions ?? []) : 0)
     }
 
     /// The app is about to stop Carrier itself: the stop that follows is not a problem. It lapses after `seconds`, so a stop
@@ -141,6 +157,7 @@ public final class NotificationWatcher {
     public func react(toSessions sessions: [SessionRow]) {
         let due = chatNotifications(from: previousSessions, to: sessions, kinds: kinds())
         previousSessions = sessions
+        refreshBadge()
         if due.isEmpty == false { post(due) }
     }
 
@@ -154,10 +171,12 @@ public final class NotificationWatcher {
                 }
             }
             previous = nil
+            refreshBadge()
             return
         }
         let due = notifications(from: previous, to: snapshot, kinds: kinds())
         previous = snapshot
+        refreshBadge()
         if due.isEmpty == false { post(due) }
     }
 }

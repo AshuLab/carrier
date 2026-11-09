@@ -468,6 +468,7 @@ struct NotificationsTabView: View {
     @AppStorage(notifyChatNeedsAttentionKey) private var chatNeedsAttention = true
     @AppStorage(notifyChatDoneKey) private var chatDone = false
     @AppStorage(notifyOnlyWhenAwayKey) private var onlyWhenAway = true
+    @AppStorage(notifyDockBadgeKey) private var dockBadge = true
     @AppStorage(notifySoundKey) private var sound = true
     @AppStorage(notifyQuietKey) private var quiet = false
     @AppStorage(notifyQuietStartKey) private var quietStart = QuietHours.defaultStart
@@ -499,6 +500,11 @@ struct NotificationsTabView: View {
             SettingsGroup(title: "When") {
                 SettingsTabRow(title: "Only when Carrier is not in front", detail: "No banner while its window is the one you are looking at", first: true) {
                     Toggle("Only when Carrier is not in front", isOn: $onlyWhenAway).labelsHidden().toggleStyle(.switch)
+                }
+            }
+            SettingsGroup(title: "Dock") {
+                SettingsTabRow(title: "Dock badge", detail: "The Dock icon counts the epics that need a person and the sessions that wait for an approval", first: true) {
+                    Toggle("Dock badge", isOn: $dockBadge).labelsHidden().toggleStyle(.switch)
                 }
             }
             SettingsGroup(title: "Sound") {

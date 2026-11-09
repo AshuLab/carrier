@@ -19,6 +19,7 @@ struct ConversationView: View {
     @State private var position = ScrollPosition()
     /// The feed's column; medium is the one of the mockups (chat-ui-conv2.html).
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
+    @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
 
     /// Where the first message of the session the draft opened is handed over, so it shows while the session is prepared.
     private let draft: NewSessionModel?
@@ -115,7 +116,7 @@ struct ConversationView: View {
                     Image(systemName: "clock").foregroundStyle(.secondary)
                     Text(queued).lineLimit(2).textSelection(.enabled)
                     Spacer(minLength: 0)
-                    Text("Sends when the agent finishes").font(.scaled(11)).foregroundStyle(.secondary)
+                    Text(whileWorking == .interrupt ? "Sends when the agent stops" : "Sends when the agent finishes").font(.scaled(11)).foregroundStyle(.secondary)
                     Button { model.cancelQueued() } label: { Image(systemName: "xmark.circle.fill") }
                         .buttonStyle(.plain).foregroundStyle(.secondary).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
                 }
@@ -127,7 +128,7 @@ struct ConversationView: View {
             MessageBox(
                 text: $model.draft, placeholder: "Message the agent", minLines: 2,
                 canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, busy: model.busy,
-                focus: $boxFocused, commands: model.shownCommands, halo: true, send: { Task { await model.submit() } }, stop: { Task { await model.stop() } }
+                focus: $boxFocused, commands: model.shownCommands, halo: true, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
             ) {
                 if model.agent.isEmpty == false {
                     ComposerSelect(title: "Provider", icon: "sparkle", selected: model.agent, showsValue: true, locked: true, choices: [SelectChoice(id: model.agent, label: model.agent)])

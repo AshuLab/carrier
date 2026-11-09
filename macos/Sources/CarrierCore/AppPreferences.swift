@@ -23,6 +23,7 @@ public struct AppPreferences {
     public static let statesByShapeKey = "appearance.statesByShape"
     public static let messageWidthKey = "appearance.messageWidth"
     public static let sendKeyKey = "chat.sendKey"
+    public static let whileWorkingKey = "chat.whileWorking"
     public static let writingToolsKey = "chat.writingTools"
     public static let checksSpellingKey = "chat.checkSpelling"
     public static let correctsSpellingKey = "chat.correctSpelling"
@@ -42,6 +43,7 @@ public struct AppPreferences {
     public static let defaultTheme = Theme.carrier
     public static let defaultTint = Tint.off
     public static let defaultSendKey = SendKey.return
+    public static let defaultWhileWorking = WhileWorking.queue
     public static let defaultWritingTools = false
     public static let defaultChecksSpelling = true
     public static let defaultCorrectsSpelling = false
@@ -170,6 +172,12 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.sendKeyKey) }
     }
 
+    /// What sending does while the agent answers.
+    public var whileWorking: WhileWorking {
+        get { defaults.string(forKey: Self.whileWorkingKey).flatMap(WhileWorking.init(rawValue:)) ?? Self.defaultWhileWorking }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.whileWorkingKey) }
+    }
+
     /// Whether the system's Writing Tools offer to rewrite the text of the message box.
     public var writingTools: Bool {
         get { defaults.object(forKey: Self.writingToolsKey) as? Bool ?? Self.defaultWritingTools }
@@ -237,8 +245,8 @@ public struct AppPreferences {
             ]
         case .chat:
             [
-                sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey, toolOutputKey,
-                opensFailedCallsKey, outputLengthKey,
+                sendKeyKey, whileWorkingKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, followsOutputKey, messageTimesKey,
+                toolOutputKey, opensFailedCallsKey, outputLengthKey,
             ]
         default: []
         }
@@ -294,6 +302,11 @@ public enum SendKey: String, CaseIterable {
         guard shift == false else { return false }
         return self == .commandReturn ? command : command == false
     }
+}
+
+/// What sending does while the agent answers: hold the message until the turn ends, or stop the turn and send it.
+public enum WhileWorking: String, CaseIterable {
+    case queue, interrupt
 }
 
 /// What the agent's tools show in a conversation: nothing, each run folded, or every call open.

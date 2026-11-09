@@ -253,6 +253,21 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     })
 }
 
+@Test func aTurnStoppedToSendAMessageReadsAsStoppedAndThenTheNewMessageAndItsCallsAreNotEnded() {
+    let events = [
+        ChatEvent(id: 1, at: 0, kind: "user", text: "first"),
+        ChatEvent(id: 2, at: 1, kind: "tool_start", callId: "a", tool: "Bash", arg: "sleep 60"),
+        ChatEvent(id: 3, at: 2, kind: "turn_end", outcome: "interrupted"),
+        ChatEvent(id: 4, at: 3, kind: "user", text: "instead"),
+        ChatEvent(id: 5, at: 4, kind: "tool_start", callId: "b", tool: "Bash", arg: "pnpm test"),
+    ]
+    let rows = chatFeed(events)
+    #expect(texts(rows).filter { $0.hasPrefix("tools") == false } == ["user: first", "end: 0s", "stopped", "user: instead"])
+    let calls = rows.compactMap { if case .tools(_, let group) = $0 { group } else { nil } }
+    #expect(calls.count == 2 && calls[0].isWorking == false && calls[0].calls.map(\.status) == [.stopped])
+    #expect(calls[1].isWorking && openOutcome(rows) == nil)
+}
+
 @Test func textBetweenCallsOpensANewRowAndTheCallsOfOneRunStayTogetherWhateverOrderTheyEnd() {
     let a = call(1, "Read", "a"), b = call(2, "Read", "b")
     // the second call starts before the first ends: still one run, the results land on their own call

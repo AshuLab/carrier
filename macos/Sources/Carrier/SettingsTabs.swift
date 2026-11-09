@@ -469,6 +469,7 @@ struct NotificationsTabView: View {
     @AppStorage(notifyChatDoneKey) private var chatDone = false
     @AppStorage(notifyOnlyWhenAwayKey) private var onlyWhenAway = true
     @AppStorage(notifySoundKey) private var sound = true
+    @AppStorage(notifyReminderKey) private var reminder = ReminderInterval.never.rawValue
     @AppStorage(notifyQuietKey) private var quiet = false
     @AppStorage(notifyQuietStartKey) private var quietStart = QuietHours.defaultStart
     @AppStorage(notifyQuietEndKey) private var quietEnd = QuietHours.defaultEnd
@@ -504,6 +505,17 @@ struct NotificationsTabView: View {
             SettingsGroup(title: "Sound") {
                 SettingsTabRow(title: "Play a sound", detail: "A banner plays the notification sound", first: true) {
                     Toggle("Play a sound", isOn: $sound).labelsHidden().toggleStyle(.switch)
+                }
+            }
+            SettingsGroup(title: "Reminders") {
+                SettingsTabRow(title: "Remind me again", detail: "While an epic or a session still needs attention. Ready for test and Done never remind", first: true) {
+                    // a saved value that is not a choice reads as Never, as the watcher does
+                    Picker("Remind me again", selection: Binding(
+                        get: { ReminderInterval(rawValue: reminder) ?? .never }, set: { reminder = $0.rawValue }
+                    )) {
+                        ForEach(ReminderInterval.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().fixedSize()
                 }
             }
             SettingsGroup(title: "Quiet hours") {

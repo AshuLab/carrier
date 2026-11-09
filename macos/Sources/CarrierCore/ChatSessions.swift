@@ -27,7 +27,7 @@ public func sessionRows(_ sessions: [ChatSession]) -> [SessionRow] {
             updatedAt: Date(timeIntervalSince1970: Double(session.lastActiveAt) / 1000), archived: session.archived,
             branch: session.workspace?.branch, folder: session.folder, base: base(session), providers: [session.harness], titled: session.title != nil,
             kept: session.kept, deleteAt: session.deleteAt.map { Date(timeIntervalSince1970: Double($0) / 1000) },
-            lastMessage: session.lastMessage, turns: session.turns, model: session.model
+            lastMessage: session.lastMessage, turns: session.turns, model: session.model, reportsActivity: session.reportsActivity
         )
     }
 }

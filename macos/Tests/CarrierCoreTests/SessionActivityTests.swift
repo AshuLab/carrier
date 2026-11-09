@@ -17,7 +17,7 @@ private func decode(_ extra: String) throws -> ChatSession {
 
 @Test func aHostOrAReplyThatLeavesThemOutGivesNoMessageNoTurnsNoModel() throws {
     let row = sessionRows([try decode("")])[0]
-    #expect(row.lastMessage == nil && row.turns == 0 && row.model == nil)
+    #expect(row.lastMessage == nil && row.turns == 0 && row.model == nil && row.reportsActivity == false)
     let unanswered = sessionRows([try decode(#","lastMessage":null,"turns":0,"model":null"#)])[0]
-    #expect(unanswered.lastMessage == nil)
+    #expect(unanswered.lastMessage == nil && unanswered.reportsActivity)
 }

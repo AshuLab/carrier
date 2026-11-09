@@ -48,6 +48,8 @@ public struct ChatSession: Decodable, Equatable {
     /// The turns that finished, and the model of the last; zero and nil from a host or a reply that leaves them out.
     public let turns: Int
     public let model: String?
+    /// Whether the host said anything of how the session went: an older one does not, and then no message is not "no reply yet".
+    public let reportsActivity: Bool
 
     public struct Workspace: Decodable, Equatable {
         public let base: String
@@ -79,6 +81,7 @@ public struct ChatSession: Decodable, Equatable {
         deleteAt = try values.decodeIfPresent(Int.self, forKey: .deleteAt)
         lastMessage = try values.decodeIfPresent(String.self, forKey: .lastMessage)
         turns = try values.decodeIfPresent(Int.self, forKey: .turns) ?? 0
+        reportsActivity = values.contains(.turns)
         model = try values.decodeIfPresent(String.self, forKey: .model)
         let placed = try values.decodeIfPresent(Kind.self, forKey: .workspace)
         guard let placed, placed.kind == "worktree" else { workspace = nil; return }

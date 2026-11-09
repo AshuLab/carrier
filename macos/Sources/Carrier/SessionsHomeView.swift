@@ -304,7 +304,7 @@ private struct SessionHomeRow: View {
         case .idle, .done:
             if let message = row.lastMessage {
                 Text(message).foregroundStyle(.secondary).font(.callout).lineLimit(1).truncationMode(.tail)
-            } else {
+            } else if row.reportsActivity {
                 Text("No reply yet").foregroundStyle(.tertiary).font(.callout)
             }
         }

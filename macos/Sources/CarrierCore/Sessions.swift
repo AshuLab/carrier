@@ -45,11 +45,13 @@ public struct SessionRow: Equatable {
     /// The turns that finished, and the model of the last.
     public var turns: Int
     public var model: String?
+    /// Whether the host said anything of how the session went; one that does not leaves all three empty.
+    public var reportsActivity: Bool
 
     public init(
         id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil,
         folder: String = "", base: String? = nil, providers: [String] = [], titled: Bool = true, kept: Bool = false, deleteAt: Date? = nil,
-        lastMessage: String? = nil, turns: Int = 0, model: String? = nil
+        lastMessage: String? = nil, turns: Int = 0, model: String? = nil, reportsActivity: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -65,7 +67,7 @@ public struct SessionRow: Equatable {
         self.titled = titled
         self.kept = kept
         self.deleteAt = deleteAt
-        (self.lastMessage, self.turns, self.model) = (lastMessage, turns, model)
+        (self.lastMessage, self.turns, self.model, self.reportsActivity) = (lastMessage, turns, model, reportsActivity)
     }
 }
 

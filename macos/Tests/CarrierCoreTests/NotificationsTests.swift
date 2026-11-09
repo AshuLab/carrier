@@ -30,13 +30,13 @@ private func watched(_ repo: String, ok: Bool = true, error: String? = nil) -> P
 
 @Test func anEpicThatNowNeedsAPersonNotifiesWithItsReason() {
     let due = notifications(from: snapshot([epic(7)]), to: snapshot([epic(7, .needsHuman, reason: "review limit")]))
-    #expect(due == [EpicNotification(title: "a/b #7 needs you", body: "review limit", epic: EpicRef(repo: "a/b", issue: 7))])
+    #expect(due == [EpicNotification(title: "a/b #7 needs attention", body: "review limit", epic: EpicRef(repo: "a/b", issue: 7))])
 }
 
 @Test func aNeedsHumanWithoutAReasonStillSaysWhatHappened() {
     let due = notifications(from: snapshot(), to: snapshot([epic(7, .needsHuman)]))
     #expect(due.count == 1)
-    #expect(due[0].title == "a/b #7 needs you")
+    #expect(due[0].title == "a/b #7 needs attention")
     #expect(due[0].body.isEmpty == false)
 }
 
@@ -58,7 +58,7 @@ private func watched(_ repo: String, ok: Bool = true, error: String? = nil) -> P
 
 @Test func theSameIssueNumberInAnotherRepoIsAnotherEpic() {
     let due = notifications(from: snapshot([epic(7, .needsHuman)]), to: snapshot([epic(7, .needsHuman), epic(7, .needsHuman, repo: "c/d")]))
-    #expect(due.map(\.title) == ["c/d #7 needs you"])
+    #expect(due.map(\.title) == ["c/d #7 needs attention"])
 }
 
 @Test func theFirstSnapshotOnlySeeds() {
@@ -79,7 +79,11 @@ private func watched(_ repo: String, ok: Bool = true, error: String? = nil) -> P
 
 private final class FakeCentre: NotificationCentre {
     var posted: [[String]] = []
-    func post(_ notifications: [EpicNotification]) { posted.append(notifications.map(\.title)) }
+    var sounds: [Bool] = []
+    func post(_ notifications: [EpicNotification]) {
+        posted.append(notifications.map(\.title))
+        sounds += notifications.map(\.sound)
+    }
 }
 
 private func running(_ snapshot: PanelSnapshot) -> ConnectionState { .running(snapshot) }
@@ -90,7 +94,7 @@ private func running(_ snapshot: PanelSnapshot) -> ConnectionState { .running(sn
     watcher.react(to: running(snapshot([epic(1, .needsHuman)], done: [ready(3)])))
     watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)], done: [ready(3)])))
     watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)], done: [ready(3)])))
-    #expect(centre.posted == [["a/b #2 needs you"]])
+    #expect(centre.posted == [["a/b #2 needs attention"]])
 }
 
 @Test func theFirstSnapshotAfterCarrierWasStoppedAndStartedAgainSeedsToo() {
@@ -106,6 +110,27 @@ private func running(_ snapshot: PanelSnapshot) -> ConnectionState { .running(sn
     #expect(centre.posted.isEmpty)
 }
 
+// the sound
+
+@Test func aBannerPlaysASoundOnlyWhileTheSoundSwitchIsOn() {
+    let centre = FakeCentre()
+    var sound = true
+    let watcher = NotificationWatcher(centre: centre, sound: { sound })
+    watcher.react(to: running(snapshot()))
+    watcher.react(to: running(snapshot([epic(1, .needsHuman)], done: [ready(3)])))
+    #expect(centre.sounds == [true, true])
+    sound = false
+    watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)], done: [ready(3)])))
+    #expect(centre.sounds == [true, true, false])
+}
+
+@Test func theSoundIsOnUntilTurnedOff() {
+    let defaults = UserDefaults(suiteName: "carrier-test-\(UUID().uuidString)")!
+    #expect(defaults.notifiesWithSound)
+    defaults.set(false, forKey: notifySoundKey)
+    #expect(defaults.notifiesWithSound == false)
+}
+
 // the switches
 
 private let both = snapshot([epic(7, .needsHuman, reason: "x")], done: [ready(9, pr: 4)])
@@ -113,9 +138,9 @@ private let both = snapshot([epic(7, .needsHuman, reason: "x")], done: [ready(9,
 @Test func aKindWhoseSwitchIsOffDoesNotNotify() {
     let before = snapshot([epic(7)])
     let titles = { (kinds: NotificationKinds) in notifications(from: before, to: both, kinds: kinds).map(\.title) }
-    #expect(titles(NotificationKinds()) == ["a/b #7 needs you", "a/b #9 is ready for test"])
+    #expect(titles(NotificationKinds()) == ["a/b #7 needs attention", "a/b #9 is ready for test"])
     #expect(titles(NotificationKinds(needsYou: false)) == ["a/b #9 is ready for test"])
-    #expect(titles(NotificationKinds(readyForTest: false)) == ["a/b #7 needs you"])
+    #expect(titles(NotificationKinds(readyForTest: false)) == ["a/b #7 needs attention"])
     #expect(titles(NotificationKinds(needsYou: false, readyForTest: false)).isEmpty)
 }
 
@@ -129,7 +154,7 @@ private let both = snapshot([epic(7, .needsHuman, reason: "x")], done: [ready(9,
     kinds.needsYou = true
     // the epic that needed a person while the switch was off is not news when it goes on
     watcher.react(to: running(snapshot([epic(1, .needsHuman), epic(2, .needsHuman)])))
-    #expect(centre.posted == [["a/b #2 needs you"]])
+    #expect(centre.posted == [["a/b #2 needs attention"]])
 }
 
 @Test func theSwitchesAreOnUntilTurnedOff() {

@@ -4,7 +4,7 @@ import UserNotifications
 
 extension NotificationWatcher {
     /// The app's watcher, fed from the main queue.
-    static let app = NotificationWatcher(centre: SystemNotificationCentre.shared, kinds: { UserDefaults.standard.notificationKinds })
+    static let app = NotificationWatcher(centre: SystemNotificationCentre.shared, kinds: { UserDefaults.standard.notificationKinds }, sound: { UserDefaults.standard.notifiesWithSound })
 }
 
 /// The system's notification centre. `UNUserNotificationCenter.current()` aborts a process that is not inside a bundle with an
@@ -36,7 +36,7 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
     /// Settings' "Send a test": asks again even after a denial, since the person may have just allowed it in System Settings.
     func sendTest() {
         denied = false
-        post([EpicNotification(title: "Carrier test", body: "Notifications work", isTest: true)])
+        post([EpicNotification(title: "Carrier test", body: "Notifications work", isTest: true, sound: UserDefaults.standard.notifiesWithSound)])
     }
 
     /// Takes the clicks on notifications, also those of ones shown before the app was last started. Needs a bundle.
@@ -83,7 +83,7 @@ final class SystemNotificationCentre: NSObject, NotificationCentre, Notification
             let content = UNMutableNotificationContent()
             content.title = notification.title
             content.body = notification.body
-            content.sound = .default
+            content.sound = notification.sound ? .default : nil
             var info: [String: Any] = ["test": notification.isTest]
             if let epic = notification.epic { info["repo"] = epic.repo; info["issue"] = epic.issue }
             content.userInfo = info

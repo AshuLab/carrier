@@ -86,17 +86,34 @@ public func callGroupDuration(_ calls: [TranscriptItem]) -> String? {
     return all.isEmpty ? nil : formatCallDuration(all.reduce(0, +))
 }
 
-/// Which groups the user opened, by the id of their first call; a group nobody touched is folded.
+/// Which groups the user flipped from how the tools show, by the id of their first call: a group nobody touched is folded, or open when
+/// the tools are expanded.
 public struct GroupFolds: Equatable {
-    private var open: Set<Int> = []
+    private var flipped: Set<Int> = []
 
     public init() {}
 
-    public func isOpen(_ id: Int) -> Bool { open.contains(id) }
+    public func isOpen(_ id: Int, mode: ToolOutputMode) -> Bool { (mode == .expanded) != flipped.contains(id) }
 
     public mutating func toggle(_ id: Int) {
-        if open.insert(id).inserted == false { open.remove(id) }
+        if flipped.insert(id).inserted == false { flipped.remove(id) }
     }
+}
+
+extension FlowItem {
+    /// A call or a run of calls: what the tools' mode hides.
+    var isToolRow: Bool {
+        switch self {
+        case .group: true
+        case .item(.tool): true
+        case .item, .slice: false
+        }
+    }
+}
+
+/// The flow without its calls when the tools are hidden.
+public func visibleFlow(_ flow: [FlowItem], mode: ToolOutputMode) -> [FlowItem] {
+    mode == .hidden ? flow.filter { $0.isToolRow == false } : flow
 }
 
 /// Which slice rows the user opened, by the subagent's id; a row nobody touched is closed, whatever its state.

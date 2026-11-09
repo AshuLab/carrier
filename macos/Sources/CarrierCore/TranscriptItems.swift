@@ -48,9 +48,6 @@ public enum ToolKind: Hashable {
 /// How many rows of an edit's diff are drawn before "Show N more lines".
 public let collapsedDiffRows = 30
 
-/// How many lines of a command's output an opened call shows before "Show N more lines".
-public let collapsedOutputLines = 7
-
 public struct TranscriptCard: Equatable {
     public var tool: String
     public var kind: ToolKind
@@ -125,12 +122,6 @@ public struct TranscriptCard: Equatable {
     /// What the Copy button puts on the clipboard: the command, then what it printed.
     public var copyText: String { ((kind == .shell ? [arg] : []) + output).joined(separator: "\n") }
 
-    /// The output as the opened call first shows it: `collapsedOutputLines` lines, and how many are left out. All of it once expanded.
-    public func visibleOutput(expanded: Bool) -> (lines: [String], hidden: Int) {
-        guard expanded == false, output.count > collapsedOutputLines else { return (output, 0) }
-        return (Array(output.prefix(collapsedOutputLines)), output.count - collapsedOutputLines)
-    }
-
     /// The first output line of a failed call when it starts with `Exit code`: the only line drawn red. Any other failure prints plain.
     public var failureLine: String? {
         guard status == .error, let first = output.first, first.hasPrefix("Exit code") else { return nil }
@@ -140,8 +131,8 @@ public struct TranscriptCard: Equatable {
     /// "11 lines" for the footer; nil when the call printed nothing (the body says "no output").
     public var lineCount: String? { output.isEmpty ? nil : "\(output.count) \(output.count == 1 ? "line" : "lines")" }
 
-    /// Output opens by itself only for a call that failed; any other opens on a click.
-    public var outputOpenByDefault: Bool { status == .error }
+    /// Whether the call's output opens by itself, by what the person chose for the tools.
+    func opensByDefault(_ mode: ToolOutputMode, opensFailed: Bool) -> Bool { mode.opens(failed: status == .error, opensFailed: opensFailed) }
 }
 
 /// `hunk` is the quiet separator between fragments that are not adjacent; its text is git's `@@ -a,b +c,d @@`.
@@ -194,9 +185,13 @@ public struct OutputFolds: Equatable {
 
     public init() {}
 
-    public func isOpen(_ id: Int, _ card: TranscriptCard) -> Bool { chosen[id] ?? card.outputOpenByDefault }
+    public func isOpen(_ id: Int, _ card: TranscriptCard, mode: ToolOutputMode, opensFailed: Bool) -> Bool {
+        chosen[id] ?? card.opensByDefault(mode, opensFailed: opensFailed)
+    }
 
-    public mutating func toggle(_ id: Int, _ card: TranscriptCard) { chosen[id] = !isOpen(id, card) }
+    public mutating func toggle(_ id: Int, _ card: TranscriptCard, mode: ToolOutputMode, opensFailed: Bool) {
+        chosen[id] = !isOpen(id, card, mode: mode, opensFailed: opensFailed)
+    }
 }
 
 public enum TranscriptItem: Equatable, Identifiable {

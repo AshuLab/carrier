@@ -10,6 +10,7 @@ struct LaneSectionView: View {
     @Binding var outputs: OutputFolds
     @Binding var groups: GroupFolds
     @Binding var slices: SliceFolds
+    @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
 
     var body: some View {
         let open = slices.isOpen(lane.id)
@@ -18,7 +19,7 @@ struct LaneSectionView: View {
                 .buttonStyle(.plain)
             if open {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(flowItems(lane.items)) { FlowItemView(flow: $0, outputs: $outputs, groups: $groups, slices: $slices) }
+                    ForEach(visibleFlow(flowItems(lane.items), mode: mode)) { FlowItemView(flow: $0, outputs: $outputs, groups: $groups, slices: $slices) }
                 }
                 .thread(indent: LogMetrics.sliceIndent, rule: LogMetrics.sliceRule, tint: lane.threadTint)
             }

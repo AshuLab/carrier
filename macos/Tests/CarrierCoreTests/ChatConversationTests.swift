@@ -626,3 +626,112 @@ private func step(_ id: Int, _ step: String, _ status: String, _ detail: String?
     let plan = await model.cancelPreparation()
     #expect(host.cancelled == 1 && plan == host.cancelPlan && model.preparationRefusal == nil)
 }
+
+// MARK: following new output
+
+/// A model that has read what the host has and is told whether it follows and whether the view is at the end, then reads one more message.
+@MainActor private func scrolls(follows: Bool, atEnd: Bool) async -> Int {
+    let host = ScriptedHost()
+    host.events = [say(1)]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    (model.followsOutput, model.atEnd) = (follows, atEnd)
+    let before = model.scrolls
+    host.events.append(say(2))
+    await model.poll()
+    return model.scrolls - before
+}
+
+@MainActor @Test func withFollowOnNewOutputScrollsToTheEndWhileThePersonIsAtTheEnd() async {
+    #expect(await scrolls(follows: true, atEnd: true) == 1)
+}
+
+@MainActor @Test func withFollowOnNewOutputLeavesAPersonWhoScrolledUpWhereTheyAre() async {
+    #expect(await scrolls(follows: true, atEnd: false) == 0)
+}
+
+@MainActor @Test func withFollowOffTheViewNeverScrollsByItself() async {
+    #expect(await scrolls(follows: false, atEnd: true) == 0)
+    #expect(await scrolls(follows: false, atEnd: false) == 0)
+}
+
+@MainActor @Test func aPollThatBringsNothingNewDoesNotScroll() async {
+    let host = ScriptedHost()
+    host.events = [say(1)]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    let before = model.scrolls
+    await model.poll()
+    #expect(model.scrolls == before)
+}
+
+@MainActor @Test func theTextBeingWrittenCountsAsNewOutput() async {
+    let host = ScriptedHost()
+    host.events = [say(1)]
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    let before = model.scrolls
+    host.streaming = "Hel"
+    await model.poll()
+    #expect(model.scrolls == before + 1)
+}
+
+@MainActor @Test func aMessageKnowsWhenItWasWrittenAndTheOneInProgressDoesNot() async {
+    let host = ScriptedHost()
+    host.events = [ChatEvent(id: 1, at: 1_000, kind: "user", text: "hi"), ChatEvent(id: 2, at: 2_000, kind: "assistant", text: "hello"), ChatEvent(id: 3, at: 3_000, kind: "turn_end")]
+    host.streaming = "more"
+    let model = ConversationModel(host: host, sessionId: "s", log: { _ in })
+    await model.poll()
+    #expect(model.times == ["e1": 1_000, "e2": 2_000])
+    #expect(model.times["streaming"] == nil)
+}
+
+// MARK: what the tools show
+
+private func toolsFeed() -> [FeedRow] {
+    func event(_ id: Int, _ kind: String, _ call: String, _ tool: String, status: String? = nil) -> ChatEvent {
+        ChatEvent(id: id, at: id, kind: kind, callId: call, tool: tool, arg: "x", output: status == nil ? nil : ["out"], status: status)
+    }
+    return chatFeed([
+        ChatEvent(id: 1, at: 1, kind: "user", text: "go"),
+        event(2, "tool_start", "a", "Read"), event(3, "tool_end", "a", "Read", status: "ok"),
+        event(4, "tool_start", "b", "Bash"), event(5, "tool_end", "b", "Bash", status: "err"),
+        ChatEvent(id: 6, at: 6, kind: "assistant", text: "done"),
+        event(7, "tool_start", "c", "Read"), event(8, "tool_end", "c", "Read", status: "ok"),
+    ])
+}
+
+private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case .tools(_, let group) = $0 { group } else { nil } } }
+
+@Test func hiddenShowsNoToolRowsAndTheOthersStay() {
+    let rows = toolsFeed()
+    #expect(texts(visibleFeed(rows, mode: .hidden)) == ["user: go", "agent: done"])
+    #expect(visibleFeed(rows, mode: .collapsed) == rows && visibleFeed(rows, mode: .expanded) == rows)
+}
+
+@Test func collapsedFoldsEachRunAndExpandedOpensEveryRunAndCall() {
+    let groups = runs(toolsFeed())
+    #expect(groups.map { $0.opensByDefault(.collapsed, opensFailed: false) } == [false, false])
+    #expect(groups.map { $0.opensByDefault(.expanded, opensFailed: false) } == [true, true])
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.expanded, opensFailed: false) } == [true, true, true])
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.collapsed, opensFailed: false) } == [false, false, false])
+}
+
+@Test func aFailedCallOpensByItselfWhileTheSwitchIsOnAndOnlyItsRunAndItself() {
+    let groups = runs(toolsFeed())
+    #expect(groups.map { $0.opensByDefault(.collapsed, opensFailed: true) } == [true, false])
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.collapsed, opensFailed: true) } == [false, true, false])
+    // expanded opens everything with the switch either way, and hidden opens nothing
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.expanded, opensFailed: true) } == [true, true, true])
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.hidden, opensFailed: true) } == [false, false, false])
+    #expect(groups.map { $0.opensByDefault(.hidden, opensFailed: true) } == [false, false])
+}
+
+@Test func aCallsOutputIsCutAtTheChosenLengthAndSaysHowManyAreLeft() {
+    var call = ToolCall(start: ChatEvent(id: 1, at: 1, kind: "tool_start", callId: "a", tool: "Bash", arg: "ls"))
+    call.finish(ChatEvent(id: 2, at: 2, kind: "tool_end", callId: "a", tool: "Bash", output: (1...60).map { "line \($0)" }, status: "ok"))
+    #expect(OutputLength.short.visible(call.output, expanded: false).hidden == 40)
+    #expect(OutputLength.medium.visible(call.output, expanded: false).lines.count == 50 && OutputLength.medium.visible(call.output, expanded: false).hidden == 10)
+    #expect(OutputLength.long.visible(call.output, expanded: false).hidden == 0 && OutputLength.long.visible(call.output, expanded: false).lines.count == 60)
+    #expect(OutputLength.medium.visible(call.output, expanded: true).hidden == 0)
+}

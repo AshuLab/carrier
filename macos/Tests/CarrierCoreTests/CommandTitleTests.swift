@@ -57,12 +57,14 @@ func aCommandIsTitledByWhatItStartsWith(command: String, title: String, more: In
     #expect(read.copyText == "x")
 }
 
-@Test func anOutputIsCutAtTheCollapsedLinesAndShownWholeOnRequest() {
-    var card = TranscriptCard(tool: "Bash", kind: .shell, arg: "pnpm test", summary: "", status: .ok, duration: nil)
-    card.output = (1...14).map { "line \($0)" }
-    let cut = card.visibleOutput(expanded: false)
-    #expect(cut.lines.count == collapsedOutputLines && cut.hidden == 14 - collapsedOutputLines)
-    #expect(card.visibleOutput(expanded: true).lines.count == 14 && card.visibleOutput(expanded: true).hidden == 0)
-    card.output = Array(card.output.prefix(collapsedOutputLines))
-    #expect(card.visibleOutput(expanded: false).hidden == 0)
+@Test func anOutputIsCutAtTheChosenLengthAndShownWholeOnRequest() {
+    let output = (1...120).map { "line \($0)" }
+    for length in OutputLength.allCases {
+        let cut = length.visible(output, expanded: false)
+        #expect(cut.lines == Array(output.prefix(length.rawValue)) && cut.hidden == 120 - length.rawValue)
+        #expect(length.visible(output, expanded: true).lines.count == 120 && length.visible(output, expanded: true).hidden == 0)
+    }
+    // a shorter output shows all of it, and so does one as long as the length
+    #expect(OutputLength.short.visible(Array(output.prefix(20)), expanded: false).hidden == 0)
+    #expect(OutputLength.medium.visible(Array(output.prefix(14)), expanded: false) == (Array(output.prefix(14)), 0))
 }

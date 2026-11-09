@@ -155,7 +155,7 @@ private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, wi
         let title = (own ?? titles[key(repo, issue)].flatMap { $0 }).flatMap { $0.isEmpty ? nil : $0 }
         return SidebarRow(
             repo: repo, issue: issue, state: state, title: title, name: shortName(repo), detail: detail,
-            age: since.map { sessionAge(Date(timeIntervalSince1970: Double($0) / 1000), now: Date(timeIntervalSince1970: Double(snapshot.now) / 1000)) } ?? "",
+            age: since.map { timeText(Date(ms: $0), now: Date(ms: snapshot.now)) } ?? "",
             attention: attention, card: epicCard(subject, now: snapshot.now)
         )
     }

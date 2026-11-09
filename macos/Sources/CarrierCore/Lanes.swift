@@ -48,14 +48,6 @@ func number(after marker: String, in text: String) -> Int? {
     return Int(text[range.upperBound...].prefix(while: { $0.isASCII && $0.isNumber }))
 }
 
-/// "14:02" in `timeZone`.
-func clock(_ ms: Int, timeZone: TimeZone) -> String {
-    let formatter = DateFormatter()
-    formatter.dateFormat = "HH:mm"
-    formatter.timeZone = timeZone
-    return formatter.string(from: Date(timeIntervalSince1970: Double(ms) / 1000))
-}
-
 /// What the events of one subagent say so far.
 struct LaneState: Equatable {
     var agentId: String
@@ -81,7 +73,7 @@ struct LaneState: Equatable {
     }
 
     /// `running` is whether the session is: a start with no end in one that is not did not complete.
-    func section(slices: [EpicReply.Slice], running: Bool, now: Int, timeZone: TimeZone) -> LaneSection {
+    func section(slices: [EpicReply.Slice], running: Bool, now: Int, time: TimeFormat) -> LaneSection {
         let slice = description.flatMap { number(after: "slice #", in: $0) }
         let match = slice.flatMap { number in slices.first { $0.number == number } }
         let sliceTitle = match?.title
@@ -96,8 +88,8 @@ struct LaneState: Equatable {
         default: .failed
         }
         let timeLabel = start.flatMap { start in
-            end.map { "\(clock(start.at, timeZone: timeZone))–\(clock($0.at, timeZone: timeZone))" }
-                ?? (state == .running ? "since \(clock(start.at, timeZone: timeZone))" : nil)
+            end.map { "\(clockTime(start.at, time: time))–\(clockTime($0.at, time: time))" }
+                ?? (state == .running ? "since \(clockTime(start.at, time: time))" : nil)
         }
         return LaneSection(
             id: agentId, startId: (start ?? events[0]).id, title: sliceTitle ?? description ?? "Subagent", sliceTitle: sliceTitle,
@@ -114,17 +106,17 @@ extension Transcript {
     /// The session's list in event order: the main rows with the subagents at the place they were taken (`flowItems`). The main
     /// thread's call that launched a subagent shares its `callId` with the subagent's `task` start and is left out: the slice stands for it.
     public func flow(
-        slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current
+        slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), time: TimeFormat = .stored()
     ) -> [FlowItem] {
         let launches = Set(lanes.flatMap { $0.events.filter { $0.kind == "task" && $0.status == nil }.compactMap(\.callId) })
         let launched = Set(events.filter { $0.agentId == nil && $0.callId.map(launches.contains) == true }.map(\.id))
-        return flowItems(items.filter { launched.contains($0.id) == false }, slices: laneSections(slices: slices, running: running, now: now, timeZone: timeZone))
+        return flowItems(items.filter { launched.contains($0.id) == false }, slices: laneSections(slices: slices, running: running, now: now, time: time))
     }
 
     /// The subagents with events, in order of appearance. Events with no agent id are in `items`.
     public func laneSections(
-        slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), timeZone: TimeZone = .current
+        slices: [EpicReply.Slice] = [], running: Bool = false, now: Int = Int(Date().timeIntervalSince1970 * 1000), time: TimeFormat = .stored()
     ) -> [LaneSection] {
-        lanes.map { $0.section(slices: slices, running: running, now: now, timeZone: timeZone) }
+        lanes.map { $0.section(slices: slices, running: running, now: now, time: time) }
     }
 }

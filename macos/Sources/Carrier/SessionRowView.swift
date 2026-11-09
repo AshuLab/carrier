@@ -7,14 +7,10 @@ import SwiftUI
 /// the title and under it where it works, and on the right the age of its last activity over the providers it has used. The two
 /// lines on each side have the same height, so the age sits on the title's line and the providers on the second one.
 struct SessionRowView: View {
+    private let timeChanges = TimeFormatChanges()
     let row: SessionRow
     /// Outside the workspace order the group is not the workspace, so the second line says it.
     let showsWorkspace: Bool
-    private static let spokenAge: RelativeDateTimeFormatter = {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter
-    }()
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
     /// The orange of "Waiting for you" as text: the system's on dark, a deeper one on light, where the system's is too pale to read.
     static let attention = Color(nsColor: NSColor(name: nil) { appearance in
@@ -46,7 +42,7 @@ struct SessionRowView: View {
             }
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: SidebarMetrics.lineGap) {
-                Text(sessionAge(row.updatedAt, now: Date())).font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary)
+                Text(timeText(row.updatedAt, now: Date())).font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary)
                     .lineLimit(1).frame(height: Self.titleLine)
                 ProviderMarks(names: row.providers).frame(height: Self.detailLine)
             }
@@ -65,7 +61,7 @@ struct SessionRowView: View {
         case .waiting: "Needs attention"
         case .idle, .done: nil
         }
-        let age = Self.spokenAge.localizedString(for: min(row.updatedAt, Date()), relativeTo: Date())
+        let age = spokenAge(row.updatedAt, now: Date())
         return ([row.title, state, row.workspace, row.branch ?? "Base folder"] + row.providers + [age]).compactMap { $0 }.joined(separator: ", ")
     }
 }

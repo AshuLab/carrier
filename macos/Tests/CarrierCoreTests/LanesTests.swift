@@ -214,7 +214,7 @@ private func lane(_ events: [ExecEvent], running: Bool = true, now: Int = at1402
     let sessions = SessionsReply(sessions: [SessionsReply.Session(
         executionId: "x", stage: "ship", role: "author", round: nil, agent: .init(harness: "claude", model: "m", provider: nil),
         status: running ? "running" : "finished", startedAt: 0, finishedAt: nil, resume: nil)])
-    return sessionList(sessions, transcripts: ["x": transcript(events)], now: now, timeZone: TimeZone(identifier: timeZone)!).sections[0].slices[0]
+    return sessionList(sessions, transcripts: ["x": transcript(events)], now: now, time: TimeFormat(hours: .h24, timeZone: TimeZone(identifier: timeZone)!)).sections[0].slices[0]
 }
 
 @Test func aFinishedSubagentCarriesItsTimesAndReadsThemInTheGivenTimeZone() {

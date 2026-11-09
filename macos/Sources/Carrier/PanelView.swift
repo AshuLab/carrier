@@ -3,6 +3,7 @@ import CarrierCore
 import SwiftUI
 
 struct PanelView: View {
+    private let timeChanges = TimeFormatChanges()
     let model: PanelModel
     /// The last Check now pressed from the toolbar, for the button to say it is checking.
     @State private var checkAsked: CheckAsked?

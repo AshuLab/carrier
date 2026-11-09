@@ -24,6 +24,7 @@ enum SidebarMetrics {
 /// The sidebar: the Home row, Sessions, then Carrier with the epics in groups under it, in a scroll area; Archive and Settings are fixed
 /// in the foot. The rows draw their own fill, selected or hovered, so what is under a section is plain rows and not a `List`.
 struct SidebarView: View {
+    private let timeChanges = TimeFormatChanges()
     let snapshot: PanelSnapshot?
     let state: ConnectionState?
     let sessions: Sessions

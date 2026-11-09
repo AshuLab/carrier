@@ -61,6 +61,7 @@ struct SlicesRing: View {
 
 /// The Slices tab: ring, the totals that filter one at a time, and the list of every slice by number.
 struct SlicesTabView: View {
+    private let timeChanges = TimeFormatChanges()
     let subject: EpicSubject?
     let reply: EpicReply?
     @State private var filter: SliceFilter = .all

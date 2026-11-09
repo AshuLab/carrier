@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CarrierCore
 
-private let utc = TimeZone(identifier: "UTC")!
+private let utc = TimeFormat(style: .relative, hours: .h24, timeZone: TimeZone(identifier: "UTC")!)
 private let hour = 3_600_000
 /// 2025-01-10 15:00 UTC.
 private let now = 1_736_521_200_000
@@ -48,7 +48,7 @@ private func rows(_ model: DetailsTabModel) -> [String: DetailsRow] {
 }
 
 private func model(_ subject: EpicSubject?, _ reply: EpicReply? = nil, sessions: SessionsReply? = nil) -> [String: DetailsRow] {
-    rows(detailsTab(subject, reply: reply, sessions: sessions, now: now, timeZone: utc))
+    rows(detailsTab(subject, reply: reply, sessions: sessions, now: now, time: utc))
 }
 
 private func ran(_ role: String, _ agent: PanelSnapshot.Agent) -> SessionsReply.Session {
@@ -56,7 +56,7 @@ private func ran(_ role: String, _ agent: PanelSnapshot.Agent) -> SessionsReply.
 }
 
 @Test func theGroupsAreTimingProgressPullRequestAndRun() {
-    let groups = detailsTab(active(), reply: nil, now: now, timeZone: utc).groups
+    let groups = detailsTab(active(), reply: nil, now: now, time: utc).groups
     #expect(groups.map(\.title) == ["Timing", "Progress", "Pull request", "Run"])
     #expect(groups.map { $0.rows.map(\.label) } == [
         ["Stage", "Last activity", "Started", "Total time"], ["Slices", "Review round", "Blockers"],
@@ -69,7 +69,7 @@ private func ran(_ role: String, _ agent: PanelSnapshot.Agent) -> SessionsReply.
     let r = model(active(), reply(pr: pull(.init(passing: 5, failing: 0, pending: 0)), lanes: 2))
     #expect(r["Stage"] == DetailsRow(label: "Stage", note: "In review", value: "5m"))
     #expect(r["Last activity"]?.value == "30s ago")
-    #expect(r["Started"]?.value == "Today 12:57")
+    #expect(r["Started"]?.value == "12:57")
     #expect(r["Total time"]?.value == "2h 03m")
     #expect(r["Slices"] == DetailsRow(label: "Slices", note: "all merged", value: "3 of 3"))
     #expect(r["Review round"] == DetailsRow(label: "Review round", note: "in progress", value: "2 of 5", style: .badge))

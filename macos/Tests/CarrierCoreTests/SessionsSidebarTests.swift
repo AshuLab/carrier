@@ -75,14 +75,6 @@ private func byAge(_ rows: [SessionRow]) -> [SessionGroup] { sessionGroups(rows,
     #expect(sessionGroups([], by: .age, now: noon, calendar: utc).isEmpty)
 }
 
-@Test func theAgeIsShort() {
-    #expect(sessionAge(now.addingTimeInterval(-5), now: now) == "now")
-    #expect(sessionAge(now.addingTimeInterval(-300), now: now) == "5m")
-    #expect(sessionAge(now.addingTimeInterval(-3 * 3600), now: now) == "3h")
-    #expect(sessionAge(now.addingTimeInterval(-2 * 86400), now: now) == "2d")
-    #expect(sessionAge(now.addingTimeInterval(60), now: now) == "now")
-}
-
 private func found(_ rows: [SessionRow], _ query: String) -> [String] {
     sessionGroups(rows, query: query).flatMap(\.rows).map(\.id)
 }

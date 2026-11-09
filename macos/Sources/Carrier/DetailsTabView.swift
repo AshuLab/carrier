@@ -4,6 +4,7 @@ import SwiftUI
 /// The Details tab: the four groups of rows, each a card with its title in capitals above it. A row is an icon, a label with its
 /// note and the value at the far end; a value too long for that (a branch name) goes under the label.
 struct DetailsTabView: View {
+    private let timeChanges = TimeFormatChanges()
     let subject: EpicSubject?
     let reply: EpicReply?
     let sessions: SessionsReply?

@@ -4,6 +4,7 @@ import SwiftUI
 
 /// The Carrier home's Your turn section; a thin mapping of `yourTurn(_:)`. Clicking a row selects the epic.
 struct YourTurnView: View {
+    private let timeChanges = TimeFormatChanges()
     let snapshot: PanelSnapshot
     @Binding var selection: Selection
 

@@ -6,6 +6,7 @@ import SwiftUI
 /// check went. Add from the gh login's list, stop watching with a question first. Saved like the Behavior tab: every change is written
 /// as it is made, and nothing restarts Carrier, which reads the file when it starts.
 struct ReposTabView: View {
+    private let timeChanges = TimeFormatChanges()
     let state: ConnectionState?
     @ObservedObject private var start = StartController.shared
     @State private var saved: [String] = []

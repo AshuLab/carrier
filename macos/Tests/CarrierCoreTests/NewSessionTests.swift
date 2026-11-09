@@ -718,7 +718,8 @@ private func projectsRoot(_ names: [String]) throws -> String {
     #expect(model.workspace?.branches.map(\.name) == ["main", "feat/x"] && model.workspace?.branch == "main" && model.startBranch == "main")
     #expect(model.picker(query: "")?.local.map(\.name) == ["main", "feat/x"])
     #expect(model.sentence == "Work in carrier on the base folder (main)" && model.offersWorktree && model.canSend == false)
-    #expect(model.repoNote == "AshuLab/carrier will be cloned to /nowhere/AshuLab/carrier when the message is sent.")
+    #expect(model.sendSteps == [SendStep(
+        icon: "arrow.down.circle", parts: [.text("Downloads "), .code("AshuLab/carrier"), .text(" to "), .code(model.projectsPath), .text(" (only this first time)")], help: "/nowhere/AshuLab/carrier")])
     // a fresh clone has no uncommitted changes, and nothing is said of the folder's branch
     #expect(model.warning == nil && model.branchNote == nil)
     model.choose(startBranch: "feat/x")
@@ -779,7 +780,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
     #expect(await model.useRepo())
     #expect(host.branchCalls.isEmpty && host.clones.isEmpty && model.toClone == false && model.repo == "AshuLab/carrier")
     #expect(model.folder == root + "/AshuLab/carrier" && model.workspace?.dirty == 3 && model.warning != nil)
-    #expect(model.repoNote == "AshuLab/carrier is in your projects folder and will be fetched when the message is sent.")
+    #expect(model.sendSteps.map(\.parts) == [[.text("Updates "), .code("AshuLab/carrier"), .text(" from GitHub first")]])
     model.text = "hello"
     _ = await model.send()
     #expect(host.plans.count == 1 && host.plans[0].folder == nil)

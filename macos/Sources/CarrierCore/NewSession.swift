@@ -516,10 +516,24 @@ public struct WatchNote: Equatable {
         return "\(folder) will be created, with git ready, when the message is sent."
     }
 
-    /// The same for a repository: where it will be cloned, or that it is in the projects folder and will be fetched, when the message is sent.
-    public var repoNote: String? {
-        guard let repo, let folder else { return nil }
-        return toClone ? "\(repo) will be cloned to \(folder) when the message is sent." : "\(repo) is in your projects folder and will be fetched when the message is sent."
+    /// What sending will do, in order, for the block under the box: download or update the repository, and cut the worktree's branch. Empty
+    /// when sending only starts the agent in the folder.
+    public var sendSteps: [SendStep] {
+        var steps: [SendStep] = []
+        if let repo, let folder {
+            if toClone {
+                let projects = (projectsPath as NSString).abbreviatingWithTildeInPath
+                steps.append(SendStep(icon: "arrow.down.circle", parts: [.text("Downloads "), .code(repo), .text(" to "), .code(projects), .text(" (only this first time)")], help: folder))
+            } else {
+                steps.append(SendStep(icon: "arrow.triangle.2.circlepath", parts: [.text("Updates "), .code(repo), .text(" from GitHub first")], help: folder))
+            }
+        }
+        if worktree, let branch = startBranch {
+            let name = worktreeBranchPrefix + (worktreeName.isEmpty ? "<name>" : worktreeName)
+            let tail = toClone ? " in a separate folder." : " in a separate folder. Your current folder is not touched."
+            steps.append(SendStep(icon: "arrow.triangle.branch", parts: [.text("Creates the branch "), .code(name), .text(" from "), .code(branch), .text(tail)], help: nil))
+        }
+        return steps
     }
 
     /// Adds `repo` to the config's `repos`, the file read again just now; the engine reads it when it starts, so nothing is restarted. What it
@@ -764,4 +778,12 @@ public struct WatchNote: Equatable {
         log("new session: could not \(doing): \(message)")
         return message
     }
+}
+
+/// One thing sending will do, as a line of text with the names set apart; `help` is the detail for a tooltip.
+public struct SendStep: Equatable {
+    public enum Part: Hashable { case text(String), code(String) }
+    public let icon: String
+    public let parts: [Part]
+    public let help: String?
 }

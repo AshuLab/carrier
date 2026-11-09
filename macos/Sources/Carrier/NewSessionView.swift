@@ -40,14 +40,7 @@ struct NewSessionView: View {
                 if model.gitMissing || model.agents.contains(where: { $0.state.blocks }) {
                     Button("Open Health in Settings", action: openHealth).buttonStyle(.link).font(.callout)
                 }
-                if model.worktree, let branch = model.startBranch {
-                    Label(model.worktreeName.isEmpty ? "Creates a worktree on a new branch \(worktreeBranchPrefix)<name, generated when the message is sent> from \(branch)." : "Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.", systemImage: "arrow.triangle.branch")
-                        .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
-                }
-                if let note = model.repoNote {
-                    Label(note, systemImage: "arrow.down.circle").font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity).textSelection(.enabled)
-                }
+                if model.sendSteps.isEmpty == false { sendSteps }
                 if let refusal = model.refusal {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(refusal).foregroundStyle(.red).textSelection(.enabled)
@@ -154,6 +147,31 @@ struct NewSessionView: View {
             .padding(.horizontal, 10).frame(height: controlHeight)
             .controlSurface(tint: tint)
             .contentShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// "When you send": what sending does, a step a line with its icon, the names in monospace and the full path in the tooltip.
+    private var sendSteps: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("When you send").font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase).tracking(0.5)
+            ForEach(model.sendSteps, id: \.parts) { step in
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Image(systemName: step.icon).font(.callout.weight(.medium)).foregroundStyle(Color.themeAccent).frame(width: 18)
+                    step.parts.reduce(Text("")) { text, part in
+                        switch part {
+                        case .text(let words): text + Text(words)
+                        case .code(let name): text + Text(name).font(.callout.monospaced().weight(.medium)).foregroundStyle(.primary)
+                        }
+                    }
+                    .font(.callout).foregroundStyle(.primary.opacity(0.78)).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                    .help(step.help ?? "")
+                }
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.06)))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.primary.opacity(0.08)))
+        .accessibilityElement(children: .contain)
     }
 
     /// The fixed `carrier/` prefix, the name (typed over in place) with ↻, and the branch it starts from.

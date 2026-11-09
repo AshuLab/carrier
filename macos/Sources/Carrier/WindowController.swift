@@ -225,7 +225,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         for text in ["https://github.com/AshuLab/web", "AshuLab/api", "AshuLab/nope"] {
             draft.urlText = text
             let worked = await draft.useRepo()
-            lines.append("new session repo \(text): \(draft.repoButton), \(worked ? "used" : "refused"), \"\(draft.sentence)\", branches \(draft.picker(query: "")?.local.map(\.name) ?? []), problem \(draft.workspaceProblem ?? "none"), worktree \(draft.offersWorktree ? "offered" : "not offered"), \(draft.repoNote ?? "no note")")
+            lines.append("new session repo \(text): \(draft.repoButton), \(worked ? "used" : "refused"), \"\(draft.sentence)\", branches \(draft.picker(query: "")?.local.map(\.name) ?? []), problem \(draft.workspaceProblem ?? "none"), worktree \(draft.offersWorktree ? "offered" : "not offered"), \(draft.sendSteps.count) send steps")
         }
         // My GitHub repositories against the host: page 1 with the login, Load more, and a repository chosen from the list
         await draft.showRepos()

@@ -72,7 +72,7 @@ struct MessageBox<Selects: View>: View {
                 .background {
                     // as wide as the selects and no wider, with soft edges: the text that scrolls under them goes dark, not the whole row
                     if halo {
-                        RoundedRectangle(cornerRadius: 16).fill(Color(nsColor: .windowBackgroundColor).opacity(0.92))
+                        RoundedRectangle(cornerRadius: 16).fill(Color.themeWindow.opacity(0.92))
                             .padding(-8).blur(radius: 7)
                     }
                 }

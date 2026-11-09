@@ -137,7 +137,7 @@ public enum FeedRow: Equatable, Identifiable {
     /// The agent's reasoning, folded under its message: one finished thinking block.
     case reasoning(id: String, text: String)
     /// The line that closes a turn: the model, how long it took and the usage the provider reported.
-    case turnEnd(id: String, text: String)
+    case turnEnd(id: String, TurnSummary)
     /// A run of tool calls: one row that opens to its calls.
     case tools(id: String, ToolGroup)
     /// An approval waiting for the person: a card with the provider's choices.
@@ -272,7 +272,7 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
                 rows[spot.row] = .tools(id: group, calls)
             }
             going = [:]
-            if let text = closingLine(event, turnStart: turnStart) { rows.append(.turnEnd(id: id, text: text)) }
+            if let summary = TurnSummary(event, turnStart: turnStart) { rows.append(.turnEnd(id: id, summary)) }
             if event.outcome == "interrupted" { rows.append(.stopped(id: "\(id)-stopped")) }
             turnStart = nil
         case "error":
@@ -309,17 +309,68 @@ private func decided(_ approval: ChatEvent, choice: String?, id: String) -> Feed
 }
 
 /// "claude-sonnet-5-5 · 12s · 1.8k in · 436 out": each part only when the host or the provider gave it.
-private func closingLine(_ end: ChatEvent, turnStart: Int?) -> String? {
-    func tokens(_ keys: String...) -> String? {
-        guard let count = keys.lazy.compactMap({ end.usage?[$0] }).first else { return nil }
-        return count < 1000 ? "\(Int(count))" : String(format: "%.1fk", count / 1000)
+/// What closes a turn: the model, how long it took and the tokens the provider reported. `text` is all of it as one line.
+public struct TurnSummary: Equatable {
+    public var model: String?
+    public var duration: String?
+    /// What the model read: the new input and what came from the cache (most of it once a session has a history).
+    public var input: Double?
+    public var cacheRead: Double?
+    public var cacheWrite: Double?
+    public var output: Double?
+
+    public init(model: String? = nil, duration: String? = nil, input: Double? = nil, cacheRead: Double? = nil, cacheWrite: Double? = nil, output: Double? = nil) {
+        (self.model, self.duration, self.input, self.cacheRead, self.cacheWrite, self.output) = (model, duration, input, cacheRead, cacheWrite, output)
     }
-    let parts = [
-        end.model, turnStart.map { formatDuration(end.at - $0) },
-        tokens("input_tokens", "inputTokens").map { "\($0) in" }, tokens("output_tokens", "outputTokens").map { "\($0) out" },
-    ]
-    let line = parts.compactMap { $0 }.joined(separator: " · ")
-    return line.isEmpty ? nil : line
+
+    init?(_ end: ChatEvent, turnStart: Int?) {
+        func count(_ keys: String...) -> Double? { keys.lazy.compactMap { end.usage?[$0] }.first }
+        self.init(
+            model: end.model, duration: turnStart.map { formatDuration(end.at - $0) },
+            input: count("input_tokens", "inputTokens"), cacheRead: count("cache_read_input_tokens", "cacheReadInputTokens"),
+            cacheWrite: count("cache_creation_input_tokens", "cacheCreationInputTokens"), output: count("output_tokens", "outputTokens")
+        )
+        if text.isEmpty { return nil }
+    }
+
+    /// Everything the model read, nil when the provider reported none of it.
+    public var context: Double? {
+        let reads = [input, cacheRead, cacheWrite].compactMap { $0 }
+        return reads.isEmpty ? nil : reads.reduce(0, +)
+    }
+
+    /// `12`, `2.5k`: a count as the line writes it.
+    public static func tokens(_ count: Double) -> String { count < 1000 ? "\(Int(count))" : String(format: "%.1fk", count / 1000) }
+
+    public var text: String {
+        [model, duration, context.map { "\(Self.tokens($0)) context" }, output.map { "\(Self.tokens($0)) out" }].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    /// The model as a person says it: `claude-haiku-5-5` is `haiku 5.5`, and a dated one (`claude-opus-4-1-20250805`) loses its date. A name
+    /// that is not Claude's, or not in that shape, stays as it came.
+    public var shortModel: String? {
+        guard let model else { return nil }
+        guard model.hasPrefix("claude-") else { return model }
+        var parts = model.dropFirst("claude-".count).split(separator: "-").map(String.init)
+        if let last = parts.last, last.count == 8, last.allSatisfy(\.isNumber) { parts.removeLast() }
+        guard let family = parts.first, parts.dropFirst().allSatisfy({ $0.allSatisfy(\.isNumber) }), parts.count > 1 else { return model }
+        return "\(family) \(parts.dropFirst().joined(separator: "."))"
+    }
+}
+
+/// The closing line of a turn that ends right after an agent message, taken out of the feed and handed to that message by its id: the
+/// message shows it (on hover) as part of itself. A closing line after anything else stays a row.
+public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [String: TurnSummary]) {
+    var kept: [FeedRow] = []
+    var lines: [String: TurnSummary] = [:]
+    for row in rows {
+        if case .turnEnd(_, let summary) = row, case .agent(let id, _, _)? = kept.last {
+            lines[id] = summary
+        } else {
+            kept.append(row)
+        }
+    }
+    return (kept, lines)
 }
 
 /// The conversation of one open session: polls `events` by cursor while `run()` is running (the view runs it in a task that ends

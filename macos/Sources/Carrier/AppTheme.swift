@@ -43,6 +43,13 @@ import SwiftUI
 extension Color {
     init(_ color: RGBA) { self.init(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha) }
 
+    /// The color of the window under a view that has to blend into it (the halo behind the message box's selects): the theme's, or the
+    /// system's while the theme has none of its own (Carrier's translucent windows).
+    static var themeWindow: Color {
+        let window = AppTheme.shared.surfaces.window
+        return window.alpha > 0 ? Color(window) : Color(nsColor: .windowBackgroundColor)
+    }
+
     /// What the app draws with where it used the system's accent: that one does not follow the theme, this one does.
     static var themeAccent: Color { AppTheme.shared.accent }
 }

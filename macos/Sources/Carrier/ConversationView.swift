@@ -55,10 +55,15 @@ struct ConversationView: View {
                         Label(note.text, systemImage: note.failed ? "exclamationmark.triangle.fill" : "eye.fill").font(.scaled(11)).foregroundStyle(note.failed ? .orange : .secondary).textSelection(.enabled)
                     }
                     let open = openOutcome(model.rows)
-                    let feed = visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning)
+                    let (feed, closing) = foldingClosingLines(visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning))
+                    // the answer the person is looking at keeps its footer in view; the rest show it on hover
+                    let pinnedAnswer: String? = {
+                        guard let index = feed.lastIndex(where: { if case .agent(_, _, false) = $0 { true } else { false } }) else { return nil }
+                        return feed[index...].contains(where: { if case .agent(_, _, true) = $0 { true } else { false } }) ? nil : feed[index].id
+                    }()
                     ForEach(feed) { row in
                         FeedRowView(
-                            row: row, time: model.times[row.id], flipped: $flipped, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
+                            row: row, time: model.times[row.id], summary: closing[row.id], pinned: row.id == pinnedAnswer, flipped: $flipped, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
                             continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
                             answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
                         )
@@ -220,6 +225,10 @@ private struct FeedRowView: View {
     let row: FeedRow
     /// When the message was written, in ms; nil for a row that is not a stored message.
     let time: Int?
+    /// What the turn that ended on this message says of itself (the model, how long, the tokens), shown on hover.
+    let summary: TurnSummary?
+    /// Whether the footer stays in view without the pointer: the last answer of the conversation.
+    let pinned: Bool
     @Binding var flipped: Set<String>
     let agent: String
     /// What the session lists, to show the commands a message names as pills.
@@ -231,6 +240,8 @@ private struct FeedRowView: View {
     let answer: (String, String) -> Void
     @AppStorage(AppPreferences.messageTimesKey) private var messageTimes = AppPreferences.defaultMessageTimes
     @State private var hovering = false
+    @State private var copied = false
+    @State private var overCopy = false
 
     var body: some View {
         switch row {
@@ -239,7 +250,7 @@ private struct FeedRowView: View {
                 messageText(text, commands: commands).textSelection(.enabled)
                     .padding(.horizontal, 13).padding(.vertical, 8)
                     .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.14)))
-                stamp
+                footer(text, summary: nil, asks: false)
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.leading, 120)
@@ -248,13 +259,13 @@ private struct FeedRowView: View {
             VStack(alignment: .leading, spacing: 5) {
                 MarkdownView(text: text)
                 if inProgress { Text("▍").foregroundStyle(.secondary) }
-                stamp
+                if inProgress == false { footer(text, summary: summary, asks: true) } else { stamp(shown: hovering) }
             }
             .onHover { hovering = $0 }
         case .reasoning(let id, let text):
             ReasoningRow(id: id, text: text, flipped: $flipped)
-        case .turnEnd(_, let text):
-            Text(text).font(.scaled(11)).foregroundStyle(.tertiary).textSelection(.enabled)
+        case .turnEnd(_, let summary):
+            Text(summary.text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
         case .tools(let id, let group):
             ChatToolGroupView(id: id, group: group, flipped: $flipped)
         case .approval(_, let card):
@@ -276,8 +287,82 @@ private struct FeedRowView: View {
 }
 
 extension FeedRowView {
-    @ViewBuilder fileprivate var stamp: some View {
-        if let time { MessageTimeLabel(ms: time, mode: messageTimes, hovering: hovering) }
+    /// Under a message: the copy button, its time and, for an agent message, what the turn that ended on it says of itself (the model as a
+    /// chip, how long, the tokens). The row is the same height with or without them, so showing them moves nothing; they fade in and out.
+    fileprivate func footer(_ text: String, summary: TurnSummary?, asks: Bool) -> some View {
+        let shown = hovering || pinned || copied
+        return HStack(spacing: 10) {
+            copyControl(text, asks: asks).opacity(shown ? 1 : 0).allowsHitTesting(shown)
+            stamp(shown: shown)
+            if let summary { summaryView(summary).opacity(shown ? 1 : 0) }
+        }
+        .frame(height: 24)
+        .animation(.easeInOut(duration: 0.18), value: shown)
+    }
+
+    private func summaryView(_ summary: TurnSummary) -> some View {
+        let numbers = [summary.duration, summary.context.map { "\(TurnSummary.tokens($0)) context" }, summary.output.map { "\(TurnSummary.tokens($0)) out" }]
+            .compactMap { $0 }.joined(separator: " · ")
+        return HStack(spacing: 10) {
+            if let model = summary.shortModel {
+                Text(model).font(.scaled(11, weight: .medium)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(Color.secondary.opacity(0.14)))
+                    .help(summary.model ?? model)
+            }
+            if numbers.isEmpty == false {
+                Text(numbers).font(.scaled(12)).foregroundStyle(Color.secondary.opacity(0.8)).help(breakdown(summary))
+            }
+        }
+    }
+
+    /// What the context is made of, for the tooltip of the numbers.
+    private func breakdown(_ summary: TurnSummary) -> String {
+        [("New input", summary.input), ("Read from the cache", summary.cacheRead), ("Written to the cache", summary.cacheWrite), ("Output", summary.output)]
+            .compactMap { name, count in count.map { "\(name): \(Int($0).formatted())" } }.joined(separator: "\n")
+    }
+
+    /// Copies the message as it was written (its Markdown) and says so with a green tick for a moment. An agent message also offers its plain text, with the
+    /// Markdown marks taken out, from the menu next to the button.
+    @ViewBuilder private func copyControl(_ text: String, asks: Bool) -> some View {
+        let label = Image(systemName: copied ? "checkmark" : "doc.on.doc")
+            .font(.scaled(12)).foregroundStyle(copied ? Color.green : Color.secondary)
+            .frame(width: 26, height: 22)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(overCopy ? 0.16 : 0)))
+        .contentShape(RoundedRectangle(cornerRadius: 6))
+        Group {
+            if asks {
+                Menu {
+                    Button("Copy as Markdown") { copy(text) }
+                    Button("Copy as plain text") { copy(plainText(text)) }
+                } label: { label } primaryAction: { copy(text) }
+                    .menuStyle(.button).menuIndicator(.hidden)
+            } else {
+                Button { copy(text) } label: { label }
+            }
+        }
+        .buttonStyle(.plain).fixedSize()
+        .onHover { overCopy = $0 }
+        .help("Copy message").accessibilityLabel("Copy message")
+    }
+
+    private func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        copied = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
+        }
+    }
+
+    /// The text with the inline marks (bold, links, code ticks) read and dropped; the line breaks and the code blocks stay as they are.
+    private func plainText(_ markdown: String) -> String {
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        return (try? AttributedString(markdown: markdown, options: options)).map { String($0.characters) } ?? markdown
+    }
+
+    @ViewBuilder fileprivate func stamp(shown: Bool) -> some View {
+        if let time { MessageTimeLabel(ms: time, mode: messageTimes, hovering: shown) }
     }
 }
 
@@ -292,7 +377,7 @@ struct MessageTimeLabel: View {
         if mode != .never {
             // a relative time ages while the row stays on screen
             TimelineView(.everyMinute) { context in
-                Text(timeText(Date(ms: ms), now: context.date)).font(.scaled(11)).monospacedDigit().foregroundStyle(.tertiary)
+                Text(timeText(Date(ms: ms), now: context.date)).font(.scaled(12)).monospacedDigit().foregroundStyle(.secondary)
                     .opacity(mode.shows(hovering: hovering) ? 1 : 0)
             }
         }

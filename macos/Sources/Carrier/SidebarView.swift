@@ -164,7 +164,7 @@ private struct CarrierRow: View {
                 IconButton(icon: "ellipsis", name: "Group epics by") { groupMenu = true }
                     .popover(isPresented: $groupMenu, arrowEdge: .trailing) {
                         ChoiceMenu(
-                            title: "Group by", options: [("Status", GroupBy.status), ("Repository", .repo)], selection: $groupBy,
+                            title: "Group by", options: GroupBy.allCases.map { ($0.title, $0) }, selection: $groupBy,
                             close: { groupMenu = false }
                         )
                     }
@@ -226,6 +226,10 @@ struct IconButton: View {
         .accessibilityHint(enabled ? "" : why ?? "")
         .accessibilityAddTraits(pressed ? .isSelected : [])
     }
+}
+
+extension GroupBy {
+    var title: String { self == .status ? "Status" : "Repository" }
 }
 
 /// A popover of choices, one ticked; choosing one closes it.

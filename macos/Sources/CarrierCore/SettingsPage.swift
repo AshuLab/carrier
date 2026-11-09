@@ -1,7 +1,7 @@
 /// A page of the Settings rail: its title is the raw value, and it carries its group and its row of the rail. The rail is built from
 /// these, in the order of the cases.
 public enum SettingsPage: String, CaseIterable {
-    case general = "General", notifications = "Notifications"
+    case general = "General", notifications = "Notifications", sidebar = "Sidebar"
     case engine = "Engine", behavior = "Behavior", repos = "Repos", sessions = "Sessions", health = "Health"
 
     /// A group of the rail: the App one has no heading, Legacy has its own.
@@ -13,7 +13,7 @@ public enum SettingsPage: String, CaseIterable {
 
     public var group: Group {
         switch self {
-        case .general, .notifications: .app
+        case .general, .notifications, .sidebar: .app
         case .engine, .behavior, .repos, .sessions, .health: .legacy
         }
     }
@@ -23,6 +23,7 @@ public enum SettingsPage: String, CaseIterable {
         switch self {
         case .general: "gearshape"
         case .notifications: "bell"
+        case .sidebar: "sidebar.left"
         case .engine: "cpu"
         case .behavior: "slider.horizontal.3"
         case .repos: "tray.full"
@@ -36,6 +37,7 @@ public enum SettingsPage: String, CaseIterable {
         switch self {
         case .general: "The menu bar and the questions Carrier asks"
         case .notifications: "What to tell you"
+        case .sidebar: "What the sessions list shows"
         case .engine: "How the app starts Carrier"
         case .behavior: "How epics run"
         case .repos: "What Carrier watches"

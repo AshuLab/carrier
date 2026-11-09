@@ -104,28 +104,21 @@ struct SettingsPreview<Content: View>: View {
 }
 
 struct GeneralTabView: View {
-    /// Three sessions as the two settings write them now, with "now" fixed at 6 PM: one from this morning and one from this afternoon, so
-    /// the clock's AM and PM (or its 24 hours) tell apart, and one from 11 minutes ago for the age.
+    /// Three times as the two settings write them now, taken as if it were 6:00 PM: 11 minutes ago, this afternoon and this morning, so a
+    /// clock shows both its PM and its AM.
     private func displayPreview() -> some View {
         let calendar = Calendar.current
         func today(_ hour: Int, _ minute: Int) -> Date { calendar.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date() }
         let now = today(18, 0)
         let format = TimeFormat.stored()
-        let samples = [("Fix the flaky login test", today(17, 49)), ("Review the release notes", today(15, 40)), ("Update the README", today(9, 5))]
         return SettingsPreview {
-            VStack(spacing: 0) {
-                ForEach(samples, id: \.0) { sample in
-                    HStack {
-                        Text(sample.0)
-                        Spacer()
-                        Text(timeText(sample.1, now: now, format: format)).monospacedDigit().foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    if sample.0 != samples.last?.0 { Divider() }
+            HStack(spacing: 10) {
+                ForEach([today(17, 49), today(15, 40), today(9, 5)], id: \.self) { date in
+                    Text(timeText(date, now: now, format: format)).monospacedDigit()
+                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.1)))
                 }
             }
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.1)))
-            Text("Sessions from this morning, this afternoon and 11 minutes ago, as it is 6:00 PM.").font(.caption).foregroundStyle(.tertiary)
         }
     }
 

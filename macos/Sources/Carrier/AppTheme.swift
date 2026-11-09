@@ -56,8 +56,9 @@ extension View {
             .presentationBackground(surfaces.window.alpha > 0 ? AnyShapeStyle(Color(surfaces.window)) : AnyShapeStyle(.background))
     }
 
-    /// The color the theme gives the windows, under the content.
-    func themedWindowBackground() -> some View { background(Color(AppTheme.shared.surfaces.window)) }
+    /// The color the theme gives the windows, under the content and under the title bar, where a page that has the toolbar's band hidden
+    /// would otherwise show the system's grey.
+    func themedWindowBackground() -> some View { background(Color(AppTheme.shared.surfaces.window), ignoresSafeAreaEdges: .all) }
 
     /// The color the theme gives the sidebar, under the content.
     func themedSidebarBackground() -> some View { background(Color(AppTheme.shared.surfaces.sidebar)) }

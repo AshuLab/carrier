@@ -31,14 +31,15 @@ struct SettingsSheet: View {
         .onDisappear { ChatHostStarter.shared.checkAtOpen() }
     }
 
-    /// The chosen page under its title, in a scroll of its own.
+    /// The chosen page in a scroll of its own, under its title, which stays at the top while the page scrolls beneath it (the scroll edge
+    /// effect the main window's bars have).
     private var page: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                SettingsPageHeader(page: tab)
-                section
-            }
-            .padding(24).frame(maxWidth: .infinity, alignment: .topLeading)
+            section.padding(.horizontal, 24).padding(.bottom, 24).padding(.top, 8).frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .safeAreaBar(edge: .top, spacing: 0) {
+            SettingsPageHeader(page: tab).padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

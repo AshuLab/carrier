@@ -546,13 +546,35 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
 
 // Delete and Clear ask the host what would be lost first, and a refusal of `delete` is told with the session left alone.
 
+private func freshPreferences() -> AppPreferences { AppPreferences(defaults: UserDefaults(suiteName: "delete-\(UUID().uuidString)")!) }
+
 @MainActor @Test func confirmingADeleteAsksThePreviewOfThatSessionAndBuildsItsQuestion() async {
     let host = FakeHost()
     host.worktrees["a"] = worktree(dirty: 2, unpushed: 1)
-    let actions = SessionActions(host: host, log: { _ in })
+    let actions = SessionActions(host: host, preferences: freshPreferences(), log: { _ in })
     #expect(await actions.confirmDelete(row("a", "Fix login")) == .ask(deleteSessionQuestion(row("a", "Fix login"), worktree: worktree(dirty: 2, unpushed: 1))))
     #expect(await actions.confirmDelete(row("b", "Spike")) == .ask(deleteSessionQuestion(row("b", "Spike"))))
     #expect(host.previewed == [["a"], ["b"]] && host.changes.isEmpty)
+}
+
+@MainActor @Test func withTheQuestionSwitchedOffADeleteGoesAheadWithoutAskingTheHostAnything() async {
+    let host = FakeHost()
+    host.worktrees["a"] = worktree(dirty: 2, unpushed: 1)
+    let preferences = freshPreferences()
+    let actions = SessionActions(host: host, preferences: preferences, log: { _ in })
+    preferences.confirmDelete = false
+    #expect(await actions.confirmDelete(row("a", "Fix login")) == .proceed)
+    #expect(host.previewed.isEmpty)
+    preferences.confirmDelete = true
+    #expect(await actions.confirmDelete(row("a", "Fix login")) != .proceed)
+    #expect(host.previewed == [["a"]])
+}
+
+@MainActor @Test func cancellingTheQuestionDeletesNothingBecauseOnlyTheCallerDeletes() async {
+    let host = FakeHost()
+    let actions = SessionActions(host: host, preferences: freshPreferences(), log: { _ in })
+    _ = await actions.confirmDelete(row("a", "t"))
+    #expect(host.changes.isEmpty)
 }
 
 @MainActor @Test func confirmingClearAsksOnePreviewForAllTheSessions() async {
@@ -567,7 +589,7 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
 @MainActor @Test func aPreviewThatFailsIsToldInWordsAndLoggedUnlessTheHostRefusedIt() async {
     let host = FakeHost()
     var logged: [String] = []
-    let actions = SessionActions(host: host, log: { logged.append($0) })
+    let actions = SessionActions(host: host, preferences: freshPreferences(), log: { logged.append($0) })
     host.previewError = ControlError.remote("There is no such session")
     #expect(await actions.confirmDelete(row("a", "t")) == .refused("There is no such session"))
     #expect(logged.isEmpty)

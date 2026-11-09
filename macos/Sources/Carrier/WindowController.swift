@@ -118,6 +118,9 @@ final class WindowController: NSObject, NSWindowDelegate {
         model.shell.perform(.search)
     }
 
+    /// For the Conversation menu: acts only while a conversation is open.
+    func conversation(_ action: ConversationAction) { model.shell.perform(.conversation(action)) }
+
     func toggleSidebar() { model.shell.toggleSidebar() }
 
     func toggleInspector() { model.shell.toggleInspector() }

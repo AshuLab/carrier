@@ -9,6 +9,8 @@ import Testing
     private static let items: [(menu: String, title: String, command: ShortcutCommand)] = [
         ("View", "Home", .home), ("View", "Sessions", .sessions), ("View", "Carrier", .carrier),
         ("File", "New Session", .newSession), ("Edit", "Find…", .search),
+        ("Conversation", "Focus the Message Box", .focusBox), ("Conversation", "Jump to the Latest Message", .latestMessage),
+        ("Conversation", "Fold or Unfold the Tool Calls", .foldTools), ("Conversation", "Copy the Last Answer", .copyAnswer),
     ]
 
     private func table() -> ShortcutTable {

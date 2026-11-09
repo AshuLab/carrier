@@ -161,3 +161,27 @@ public func visibleFeed(_ rows: [FeedRow], mode: ToolOutputMode, showsReasoning:
         }
     }
 }
+
+/// What the person has flipped after Fold or unfold the tool calls: every run of the feed folded, or all unfolded when all are folded
+/// already. `flipped` is the ids flipped from how the tools open by default.
+public func togglingToolGroups(in rows: [FeedRow], mode: ToolOutputMode, opensFailed: Bool, flipped: Set<String>) -> Set<String> {
+    let groups = rows.compactMap { row -> (id: String, byDefault: Bool, open: Bool)? in
+        guard case .tools(let id, let group) = row else { return nil }
+        let byDefault = group.opensByDefault(mode, opensFailed: opensFailed)
+        return (id, byDefault, byDefault != flipped.contains(id))
+    }
+    let unfold = groups.allSatisfy { $0.open == false }
+    var next = flipped
+    for group in groups {
+        if group.byDefault == unfold { next.remove(group.id) } else { next.insert(group.id) }
+    }
+    return next
+}
+
+/// The text of the agent's last answer; nil when it has not written one.
+public func lastAnswer(in rows: [FeedRow]) -> String? {
+    for row in rows.reversed() {
+        if case .agent(_, let text, _) = row, text.isEmpty == false { return text }
+    }
+    return nil
+}

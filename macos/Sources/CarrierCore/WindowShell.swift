@@ -33,6 +33,19 @@ public enum ShortcutAction: Equatable {
     case select(Selection)
     /// Search the section that is open.
     case search
+    /// Something in the open conversation; nothing without one.
+    case conversation(ConversationAction)
+}
+
+/// What a shortcut asks of the open conversation.
+public enum ConversationAction: Equatable {
+    case focusBox, jumpToLatest, toggleToolFolds, copyLastAnswer
+}
+
+/// A request to the open conversation; `count` makes asking twice a change the view can see.
+public struct ConversationRequest: Equatable {
+    public let action: ConversationAction
+    public let count: Int
 }
 
 /// The action a key runs, from the shortcut table; a combination no action has, or one without ⌘, ⌃ or ⌥, is nothing. `key` is the character
@@ -74,6 +87,8 @@ public struct SearchRequest: Equatable {
     public var aboutShown = false
     /// The last ⌘F, for the open section's search to show itself.
     public private(set) var searchRequest: SearchRequest?
+    /// The last request to the open conversation.
+    public private(set) var conversationRequest: ConversationRequest?
 
     public init(open: OpenSection? = .sessions) { self.open = open }
 
@@ -102,6 +117,8 @@ public struct SearchRequest: Equatable {
         case .select(let next): selection = next
         case .search:
             if let open { searchRequest = SearchRequest(section: open, count: (searchRequest?.count ?? 0) + 1) }
+        case .conversation(let action):
+            if case .session = selection { conversationRequest = ConversationRequest(action: action, count: (conversationRequest?.count ?? 0) + 1) }
         }
     }
 
@@ -119,5 +136,6 @@ public struct SearchRequest: Equatable {
         aboutShown = false
         settingsShown = false
         searchRequest = nil
+        conversationRequest = nil
     }
 }

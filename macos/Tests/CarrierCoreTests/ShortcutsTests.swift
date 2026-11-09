@@ -12,7 +12,10 @@ private func freshTable() -> (ShortcutTable, UserDefaults) {
 @Test func theDefaultsAreHomeSessionsCarrierNewSessionAndSearch() {
     let (table, _) = freshTable()
     let shown = ShortcutCommand.allCases.map { "\($0.group.rawValue) \($0.title) \(table.combo(for: $0)?.text ?? "")" }
-    #expect(shown == ["Go to Home ⌘1", "Go to Sessions ⌘2", "Go to Carrier ⌘3", "Sessions New session ⌘N", "Sessions Search ⌘F"])
+    #expect(shown == ["Go to Home ⌘1", "Go to Sessions ⌘2", "Go to Carrier ⌘3", "Sessions New session ⌘N", "Sessions Search ⌘F",
+        "Conversation Focus the message box ⌘L", "Conversation Jump to the latest message ⌘↓", "Conversation Fold or unfold the tool calls ⌥⌘E",
+        "Conversation Copy the last answer ⇧⌘C",
+    ])
     #expect(ShortcutCommand.allCases.allSatisfy { table.isDefault($0) })
 }
 

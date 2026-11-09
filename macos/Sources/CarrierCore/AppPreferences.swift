@@ -26,6 +26,9 @@ public struct AppPreferences {
     public static let writingToolsKey = "chat.writingTools"
     public static let checksSpellingKey = "chat.checkSpelling"
     public static let correctsSpellingKey = "chat.correctSpelling"
+    public static let toolOutputKey = "chat.toolOutput"
+    public static let opensFailedCallsKey = "chat.opensFailedCalls"
+    public static let outputLengthKey = "chat.outputLength"
 
     public static let defaultStyle = IconStyle.countAndBar
     public static let defaultAnimates = true
@@ -40,6 +43,9 @@ public struct AppPreferences {
     public static let defaultWritingTools = false
     public static let defaultChecksSpelling = true
     public static let defaultCorrectsSpelling = false
+    public static let defaultToolOutput = ToolOutputMode.collapsed
+    public static let defaultOpensFailedCalls = true
+    public static let defaultOutputLength = OutputLength.medium
 
     private let defaults: UserDefaults
 
@@ -176,6 +182,24 @@ public struct AppPreferences {
         nonmutating set { defaults.set(newValue, forKey: Self.correctsSpellingKey) }
     }
 
+    /// What the agent's tools show in a conversation.
+    public var toolOutput: ToolOutputMode {
+        get { defaults.string(forKey: Self.toolOutputKey).flatMap(ToolOutputMode.init(rawValue:)) ?? Self.defaultToolOutput }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.toolOutputKey) }
+    }
+
+    /// Whether a call that failed opens by itself, whatever the mode but hidden.
+    public var opensFailedCalls: Bool {
+        get { defaults.object(forKey: Self.opensFailedCallsKey) as? Bool ?? Self.defaultOpensFailedCalls }
+        nonmutating set { defaults.set(newValue, forKey: Self.opensFailedCallsKey) }
+    }
+
+    /// How many lines of an output show before Show more.
+    public var outputLength: OutputLength {
+        get { OutputLength(rawValue: defaults.integer(forKey: Self.outputLengthKey)) ?? Self.defaultOutputLength }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.outputLengthKey) }
+    }
+
     /// Takes the keys of one page out, so it reads as its defaults again; the other pages are not touched.
     public func reset(_ page: SettingsPage) {
         for key in Self.keys(of: page) { defaults.removeObject(forKey: key) }
@@ -195,7 +219,7 @@ public struct AppPreferences {
                 colorSchemeKey, TypeScale.percentKey, densityKey, themeKey, accentKey, tintKey, translucentKey, statesByShapeKey, messageWidthKey,
                 monospaceFamilyKey, monospaceSizeKey, monospaceLineHeightKey, monospaceLigaturesKey, monospaceWrapKey, monospaceLineNumbersKey,
             ]
-        case .chat: [sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey]
+        case .chat: [sendKeyKey, writingToolsKey, checksSpellingKey, correctsSpellingKey, toolOutputKey, opensFailedCallsKey, outputLengthKey]
         default: []
         }
     }
@@ -239,6 +263,35 @@ public enum SendKey: String, CaseIterable {
     public func sends(command: Bool, shift: Bool) -> Bool {
         guard shift == false else { return false }
         return self == .commandReturn ? command : command == false
+    }
+}
+
+/// What the agent's tools show in a conversation: nothing, each run folded, or every call open.
+public enum ToolOutputMode: String, CaseIterable {
+    case hidden, collapsed, expanded
+
+    public var title: String { rawValue.capitalized }
+
+    /// Whether a run or a call opens by itself: every one when expanded, and the ones that failed while the person wants that; never hidden.
+    public func opens(failed: Bool, opensFailed: Bool) -> Bool {
+        switch self {
+        case .hidden: false
+        case .collapsed: failed && opensFailed
+        case .expanded: true
+        }
+    }
+}
+
+/// How many lines of an output show before Show more.
+public enum OutputLength: Int, CaseIterable {
+    case short = 20, medium = 50, long = 100
+
+    public var title: String { "\(rawValue) lines" }
+
+    /// The first lines of an output and how many are left out; all of it once expanded.
+    public func visible(_ lines: [String], expanded: Bool) -> (lines: [String], hidden: Int) {
+        guard expanded == false, lines.count > rawValue else { return (lines, 0) }
+        return (Array(lines.prefix(rawValue)), lines.count - rawValue)
     }
 }
 

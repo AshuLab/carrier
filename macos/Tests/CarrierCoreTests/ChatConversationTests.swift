@@ -611,3 +611,53 @@ private func step(_ id: Int, _ step: String, _ status: String, _ detail: String?
     let plan = await model.cancelPreparation()
     #expect(host.cancelled == 1 && plan == host.cancelPlan && model.preparationRefusal == nil)
 }
+
+// MARK: what the tools show
+
+private func toolsFeed() -> [FeedRow] {
+    func event(_ id: Int, _ kind: String, _ call: String, _ tool: String, status: String? = nil) -> ChatEvent {
+        ChatEvent(id: id, at: id, kind: kind, callId: call, tool: tool, arg: "x", output: status == nil ? nil : ["out"], status: status)
+    }
+    return chatFeed([
+        ChatEvent(id: 1, at: 1, kind: "user", text: "go"),
+        event(2, "tool_start", "a", "Read"), event(3, "tool_end", "a", "Read", status: "ok"),
+        event(4, "tool_start", "b", "Bash"), event(5, "tool_end", "b", "Bash", status: "err"),
+        ChatEvent(id: 6, at: 6, kind: "assistant", text: "done"),
+        event(7, "tool_start", "c", "Read"), event(8, "tool_end", "c", "Read", status: "ok"),
+    ])
+}
+
+private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case .tools(_, let group) = $0 { group } else { nil } } }
+
+@Test func hiddenShowsNoToolRowsAndTheOthersStay() {
+    let rows = toolsFeed()
+    #expect(texts(visibleFeed(rows, mode: .hidden)) == ["user: go", "agent: done"])
+    #expect(visibleFeed(rows, mode: .collapsed) == rows && visibleFeed(rows, mode: .expanded) == rows)
+}
+
+@Test func collapsedFoldsEachRunAndExpandedOpensEveryRunAndCall() {
+    let groups = runs(toolsFeed())
+    #expect(groups.map { $0.opensByDefault(.collapsed, opensFailed: false) } == [false, false])
+    #expect(groups.map { $0.opensByDefault(.expanded, opensFailed: false) } == [true, true])
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.expanded, opensFailed: false) } == [true, true, true])
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.collapsed, opensFailed: false) } == [false, false, false])
+}
+
+@Test func aFailedCallOpensByItselfWhileTheSwitchIsOnAndOnlyItsRunAndItself() {
+    let groups = runs(toolsFeed())
+    #expect(groups.map { $0.opensByDefault(.collapsed, opensFailed: true) } == [true, false])
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.collapsed, opensFailed: true) } == [false, true, false])
+    // expanded opens everything with the switch either way, and hidden opens nothing
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.expanded, opensFailed: true) } == [true, true, true])
+    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.hidden, opensFailed: true) } == [false, false, false])
+    #expect(groups.map { $0.opensByDefault(.hidden, opensFailed: true) } == [false, false])
+}
+
+@Test func aCallsOutputIsCutAtTheChosenLengthAndSaysHowManyAreLeft() {
+    var call = ToolCall(start: ChatEvent(id: 1, at: 1, kind: "tool_start", callId: "a", tool: "Bash", arg: "ls"))
+    call.finish(ChatEvent(id: 2, at: 2, kind: "tool_end", callId: "a", tool: "Bash", output: (1...60).map { "line \($0)" }, status: "ok"))
+    #expect(OutputLength.short.visible(call.output, expanded: false).hidden == 40)
+    #expect(OutputLength.medium.visible(call.output, expanded: false).lines.count == 50 && OutputLength.medium.visible(call.output, expanded: false).hidden == 10)
+    #expect(OutputLength.long.visible(call.output, expanded: false).hidden == 0 && OutputLength.long.visible(call.output, expanded: false).lines.count == 60)
+    #expect(OutputLength.medium.visible(call.output, expanded: true).hidden == 0)
+}

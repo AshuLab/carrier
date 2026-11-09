@@ -160,7 +160,7 @@ final class StartController: ObservableObject {
         scroll.frame = NSRect(x: 0, y: 0, width: 520, height: 220)
         if let text = scroll.documentView as? NSTextView {
             text.isEditable = false
-            text.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+            text.font = NSFont.scaledMono(11)
             text.string = tail
         }
         if tail.isEmpty == false { alert.accessoryView = scroll }

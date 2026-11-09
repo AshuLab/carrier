@@ -48,7 +48,7 @@ struct SlicesRing: View {
                 }
             }
             VStack(spacing: 0) {
-                Text(centre).font(.system(size: 24, weight: .bold)).monospacedDigit()
+                Text(centre).font(.scaled(24, weight: .bold)).monospacedDigit()
                 Text(caption).font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -142,7 +142,7 @@ struct SliceRowView: View {
         switch group {
         case .inProgress: SpinningRing(diameter: 18, lineWidth: 2.5, color: .systemBlue)
         case .merged:
-            Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy)).foregroundStyle(.white)
+            Image(systemName: "checkmark").font(.scaled(9, weight: .heavy)).foregroundStyle(.white)
                 .frame(width: 16, height: 16).background(Circle().fill(Color.green))
         case .pending: Circle().strokeBorder(Color.secondary.opacity(0.6), lineWidth: 2).frame(width: 12, height: 12)
         }
@@ -152,7 +152,7 @@ struct SliceRowView: View {
         let color: Color = accent ? .accentColor : .secondary
         let label = HStack(spacing: 3) {
             Text(text)
-            if url != nil { Image(systemName: "arrow.up.right").font(.system(size: 8, weight: .bold)) }
+            if url != nil { Image(systemName: "arrow.up.right").font(.scaled(8, weight: .bold)) }
         }
         .font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(color)
         .padding(.horizontal, 8).padding(.vertical, 2)

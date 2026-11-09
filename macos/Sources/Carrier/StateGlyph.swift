@@ -35,7 +35,7 @@ struct Disc: View {
 
     var body: some View {
         Circle().fill(color).frame(width: 18, height: 18)
-            .overlay { Text(mark).font(.system(size: 10, weight: .heavy)).foregroundStyle(.white) }
+            .overlay { Text(mark).font(.scaled(10, weight: .heavy)).foregroundStyle(.white) }
     }
 }
 

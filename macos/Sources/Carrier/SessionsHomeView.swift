@@ -130,7 +130,7 @@ struct SessionsHomeView: View {
                 Button { filter.remove(chip) } label: {
                     HStack(spacing: 4) {
                         Text(chip.title)
-                        Image(systemName: "xmark").font(.system(size: 8, weight: .bold))
+                        Image(systemName: "xmark").font(.scaled(8, weight: .bold))
                     }
                     .font(.caption.weight(.medium)).foregroundStyle(.white)
                     .padding(.horizontal, 9).padding(.vertical, 3).background(Capsule().fill(Color.accentColor))
@@ -227,7 +227,7 @@ private struct SessionHomeRow: View {
                 SessionGlyph(state: row.state)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
-                        Text(row.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                        Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
                             .foregroundStyle(row.state == .waiting ? Color.orange : .primary)
                         if showsWorkspace { tag(row.workspace) }
                     }

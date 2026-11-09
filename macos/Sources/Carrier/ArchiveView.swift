@@ -177,7 +177,7 @@ private struct ArchiveRow: View {
                 HStack(spacing: 0) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text(row.title).font(.system(size: 13, weight: .medium)).lineLimit(1).truncationMode(.tail)
+                            Text(row.title).font(.scaled(13, weight: .medium)).lineLimit(1).truncationMode(.tail)
                             Text(row.workspace).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                                 .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().strokeBorder(Color.secondary.opacity(0.5)))
                         }

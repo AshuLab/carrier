@@ -23,10 +23,10 @@ struct AboutSheetView: View {
             ZStack(alignment: .topTrailing) {
                 RoundedRectangle(cornerRadius: 19).fill(LinearGradient(colors: [Color(white: 0.23), Color(white: 0.11)], startPoint: .topLeading, endPoint: .bottomTrailing))
                     .frame(width: 84, height: 84)
-                    .overlay { Image(systemName: "text.alignleft").font(.system(size: 38, weight: .regular)).foregroundStyle(.white) }
+                    .overlay { Image(systemName: "text.alignleft").font(.scaled(38, weight: .regular)).foregroundStyle(.white) }
                 Circle().fill(sheet.connected ? Color.green : Color.gray).frame(width: 9, height: 9).padding(14)
             }
-            Text(sheet.name).font(.system(size: 20, weight: .bold)).padding(.top, 12)
+            Text(sheet.name).font(.scaled(20, weight: .bold)).padding(.top, 12)
             Text(sheet.version).foregroundStyle(.secondary).monospacedDigit().padding(.top, 2)
             Text(sheet.connection).font(.caption.weight(.semibold)).foregroundStyle(sheet.connected ? .green : .secondary).padding(.top, 10)
             Text(sheet.summary).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.top, 10)

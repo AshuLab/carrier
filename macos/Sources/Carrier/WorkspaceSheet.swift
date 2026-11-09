@@ -111,7 +111,7 @@ struct WorkspaceSheet: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .center, spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accentColor)
+                    .font(.scaled(16, weight: .medium)).foregroundStyle(Color.accentColor)
                     .frame(width: 36, height: 36)
                     .background(RoundedRectangle(cornerRadius: radius).fill(Color.accentColor.opacity(0.16)))
                     .accessibilityHidden(true)
@@ -365,7 +365,7 @@ struct WorkspaceSheet: View {
             ForEach(points, id: \.1) { icon, text in
                 HStack(spacing: 12) {
                     Image(systemName: icon)
-                        .font(.system(size: 13, weight: .medium)).foregroundStyle(Color.accentColor)
+                        .font(.scaled(13, weight: .medium)).foregroundStyle(Color.accentColor)
                         .frame(width: 30, height: 30)
                         .background(RoundedRectangle(cornerRadius: radius).fill(Color.accentColor.opacity(0.16)))
                         .accessibilityHidden(true)
@@ -396,7 +396,7 @@ struct WorkspaceSheet: View {
     /// Nothing to show, said once: an icon, what it is, what to do, and the button that does it.
     private func emptyState<Action: View>(_ icon: String, _ title: String, _ detail: String, tint: Color = .secondary, @ViewBuilder action: () -> Action) -> some View {
         VStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 32, weight: .light)).foregroundStyle(tint).accessibilityHidden(true)
+            Image(systemName: icon).font(.scaled(32, weight: .light)).foregroundStyle(tint).accessibilityHidden(true)
             Text(title).font(.headline)
             Text(detail).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).textSelection(.enabled)
                 .frame(maxWidth: 380)

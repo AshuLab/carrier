@@ -15,7 +15,7 @@ struct StoppedView: View {
             ScrollView {
                 VStack(spacing: 22) {
                     VStack(spacing: 6) {
-                        Image(systemName: icon).font(.system(size: 26)).foregroundStyle(.secondary)
+                        Image(systemName: icon).font(.scaled(26)).foregroundStyle(.secondary)
                             .frame(width: 54, height: 54)
                             .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.12)))
                             .padding(.bottom, 9)

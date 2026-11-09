@@ -143,9 +143,9 @@ struct NewSessionView: View {
         Text(title).fontWeight(.medium)
             .padding(.leading, icon == nil ? 0 : 17).padding(.trailing, 15)
             .overlay(alignment: .leading) {
-                if let icon { Image(systemName: icon).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary) }
+                if let icon { Image(systemName: icon).font(.scaled(11, weight: .medium)).foregroundStyle(.secondary) }
             }
-            .overlay(alignment: .trailing) { Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundStyle(.secondary) }
+            .overlay(alignment: .trailing) { Image(systemName: "chevron.down").font(.scaled(9, weight: .bold)).foregroundStyle(.secondary) }
             .foregroundStyle(tint)
             .padding(.horizontal, 10).frame(height: controlHeight)
             .controlSurface(tint: tint)
@@ -230,7 +230,7 @@ struct NewSessionView: View {
 private struct NewSessionMark: View {
     var body: some View {
         Image(systemName: "sparkles")
-            .font(.system(size: 22, weight: .medium)).foregroundStyle(.white)
+            .font(.scaled(22, weight: .medium)).foregroundStyle(.white)
             .frame(width: 52, height: 52)
             .background(Circle().fill(LinearGradient(colors: [.accentColor, .accentColor.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
             .accessibilityHidden(true)

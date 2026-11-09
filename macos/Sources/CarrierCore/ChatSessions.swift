@@ -45,11 +45,8 @@ public struct OpenItem: Equatable {
 /// The title bar's name for a conversation: the session's title, "New session" while it has none.
 public func conversationTitle(_ row: SessionRow) -> String { row.titled ? row.title : "New session" }
 
-/// The line under the title: the workspace and where the session works, "· ⑂ branch" in a worktree and "· base folder" in a folder
-/// (the branch of a plain folder is not known to the app, so it is not shown).
-public func conversationSubtitle(_ row: SessionRow) -> String {
-    "\(row.workspace) · \(row.branch.map { "⑂ \($0)" } ?? "base folder")"
-}
+/// The line under the title: the workspace. Where the session works (a worktree or the folder itself) is the pill in the toolbar.
+public func conversationSubtitle(_ row: SessionRow) -> String { row.workspace }
 
 /// The Open menu: reveal the session's folder, copy its path and, for a worktree, copy its branch name.
 public func openMenuItems(_ row: SessionRow) -> [OpenItem] {

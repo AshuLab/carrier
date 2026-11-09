@@ -294,7 +294,7 @@ private func worktreeSession() throws -> ChatSession {
 @Test func theTitleBarSaysTheTitleAndWhereAFolderSessionWorks() throws {
     let row = sessionRows([try session("plain", folder: "/Users/dev/web", title: "Explore")])[0]
     #expect(conversationTitle(row) == "Explore")
-    #expect(conversationSubtitle(row) == "web · base folder")
+    #expect(conversationSubtitle(row) == "web")
     #expect(openMenuItems(row) == [
         OpenItem(title: "Reveal in Finder", action: .reveal(path: "/Users/dev/web")), OpenItem(title: "Copy path", action: .copy("/Users/dev/web")),
     ])
@@ -302,7 +302,7 @@ private func worktreeSession() throws -> ChatSession {
 
 @Test func theTitleBarSaysTheBranchOfAWorktreeSessionAndItsMenuCopiesIt() throws {
     let row = sessionRows([try worktreeSession()])[0]
-    #expect(conversationSubtitle(row) == "web · ⑂ carrier/fix")
+    #expect(conversationSubtitle(row) == "web")
     #expect(openMenuItems(row) == [
         OpenItem(title: "Reveal in Finder", action: .reveal(path: "/w/fix")), OpenItem(title: "Copy path", action: .copy("/w/fix")),
         OpenItem(title: "Copy branch name", action: .copy("carrier/fix")),

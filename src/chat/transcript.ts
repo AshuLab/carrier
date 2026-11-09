@@ -13,6 +13,7 @@ export function boundEvent(event: ChatEvent | StepEvent): Record<string, unknown
     case 'user':
       return { text: clean(event.text, chatCaps.message), ...(event.command !== undefined && { command: event.command }) };
     case 'assistant':
+    case 'reasoning':
       return { text: clean(event.text, chatCaps.message) };
     case 'error':
       return { text: clean(event.text, chatCaps.error) };

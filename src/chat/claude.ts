@@ -277,6 +277,7 @@ class ClaudeConversation implements ChatConversation {
         if (typeof m.message?.model === 'string') this.lastModel = m.message.model;
         const events: ChatEvent[] = [];
         for (const block of Array.isArray(m.message?.content) ? m.message.content : []) {
+          if (block?.type === 'thinking' && typeof block.thinking === 'string' && block.thinking.trim() !== '') events.push({ kind: 'reasoning', text: block.thinking });
           if (block?.type === 'text' && typeof block.text === 'string' && block.text !== '') events.push({ kind: 'assistant', text: block.text });
           if (block?.type === 'tool_use' && typeof block.id === 'string') {
             this.tools.set(block.id, String(block.name));

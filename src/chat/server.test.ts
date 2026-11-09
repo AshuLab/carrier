@@ -41,7 +41,7 @@ const controls = (): ChatControls => ({
   interrupt: async () => ({}),
   setOption: async ({ option, value }) => ({ option, value }),
   agentOptions: async ({ agent }) => ({ agent }),
-  events: ({ after = 0 }) => ({ after }),
+  events: ({ after = 0, reasoning }) => ({ after, ...(reasoning !== undefined && { reasoning }) }),
   close: async () => ({}),
   archive: async ({ archived }) => ({ archived }),
   delete: async () => ({}),
@@ -94,7 +94,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'plan', 'stop'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'plan', 'stop', 'reasoning'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -108,6 +108,7 @@ test.each([
   ['an answer with no choice', `{"id":7,"cmd":"answer","sessionId":"${uuid}","approvalId":"a"}`, 7],
   ['a health refresh that is not a boolean', '{"id":8,"cmd":"health","refresh":"yes"}', 8],
   ['a health with an extra field', '{"id":10,"cmd":"health","agent":"claude"}', 10],
+  ['events asking for reasoning with a non-boolean', `{"id":11,"cmd":"events","sessionId":"${uuid}","limit":10,"reasoning":"yes"}`, 11],
   ['a missing id', '{"cmd":"list"}', null],
   ['a bad id', '{"id":-1,"cmd":"list"}', null],
 ])('%s is "invalid request", with the id only when it is valid', async (_name, line, id) => {
@@ -115,6 +116,13 @@ test.each([
   const c = await client();
   expect(await c.ask(line)).toEqual({ id, ok: false, error: 'invalid request' });
   expect(await c.ask('{"id":9,"cmd":"list"}')).toMatchObject({ id: 9, ok: true });
+});
+
+test('events takes an optional reasoning and passes it on', async () => {
+  await open();
+  const c = await client();
+  expect(await c.ask(`{"id":1,"cmd":"events","sessionId":"${uuid}","limit":10}`)).toEqual({ id: 1, ok: true, data: { after: 0 } });
+  expect(await c.ask(`{"id":2,"cmd":"events","sessionId":"${uuid}","limit":10,"reasoning":true}`)).toEqual({ id: 2, ok: true, data: { after: 0, reasoning: true } });
 });
 
 test('health takes an optional refresh and passes it on', async () => {

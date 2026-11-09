@@ -107,6 +107,24 @@ test('the recorded conversation: remembers across turns, runs a tool, and every 
   expect(tool.at(-1)).toMatchObject({ kind: 'turn_end', outcome: 'ok' });
 });
 
+test('a thinking block is a reasoning event before the answer, an empty one gives none, and a recording with none yields none', async () => {
+  // the recorded thinking blocks are empty (and so give none): the text is put into one ahead of the first answer, with an empty block beside it
+  const thinking = (line: Line) => ({ ...line, message: { ...line.message, content: [{ type: 'thinking', thinking: '  ' }, { type: 'thinking', thinking: 'Two words, so OK.' }, ...line.message.content] } });
+  const first = main[0]!;
+  const at = first.lines.findIndex((line) => line.type === 'assistant');
+  const { conversation, events } = await openWith([{ ...first, lines: first.lines.map((line, i) => (i === at ? thinking(line) : line)) }]);
+  const shown = await turn(conversation, events, first.text);
+  expect(shown.filter((e) => e.kind !== 'delta')).toEqual([
+    { kind: 'reasoning', text: 'Two words, so OK.' },
+    { kind: 'assistant', text: 'OK' },
+    { kind: 'turn_end', outcome: 'ok', model: 'claude-haiku-5-5', usage: expect.anything() },
+  ]);
+  expect(shown.some((e) => e.kind === 'delta' && e.text.includes('Two words'))).toBe(false); // never streamed in pieces
+
+  const plain = await openWith(main);
+  expect(kinds(await turn(plain.conversation, plain.events, first.text))).toEqual(['assistant', 'turn_end']);
+});
+
 /** Answers every approval as the person would: with the choice in `choice.id`. */
 const answering = (conversation: ChatConversation, choice = { id: 'allow' }) => {
   conversation.onEvent((e) => e.kind === 'approval' && queueMicrotask(() => conversation.answer(e.approvalId, choice.id)));

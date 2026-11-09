@@ -118,6 +118,21 @@ test('open refuses, in words, an unknown agent, a harness with no runner, a bad 
   expect(rows('sessions')).toEqual([]);
 });
 
+test('reasoning is stored redacted and bounded, and served only to a client that asks for it', async () => {
+  const { sessions, conversation, id } = await openOne();
+  const token = 'ghp_' + 'a'.repeat(36);
+  sessions.send({ sessionId: id, text: 'hi' });
+  conversation.emit({ kind: 'reasoning', text: `my token is ${token}` }, { kind: 'assistant', text: 'Hello' }, { kind: 'turn_end', outcome: 'ok' });
+  const asked = sessions.events({ sessionId: id, limit: 50, reasoning: true });
+  expect(asked.events.map((e) => e.kind)).toEqual(['user', 'reasoning', 'assistant', 'turn_end']);
+  expect(JSON.stringify(asked.events[1])).not.toContain(token);
+
+  // a client that does not ask keeps the events it knew, and the cursor still moves over what it was not sent
+  const plain = sessions.events({ sessionId: id, limit: 50 });
+  expect(plain.events.map((e) => e.kind)).toEqual(['user', 'assistant', 'turn_end']);
+  expect(plain.cursor).toBe(4);
+});
+
 test('a conversation over several turns: events come in order after the cursor, with state, title and the streaming text', async () => {
   const { sessions, conversation, id, clock } = await openOne();
   conversation.reply = (text, c) => {

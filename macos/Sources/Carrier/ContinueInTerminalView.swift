@@ -24,13 +24,13 @@ struct ContinueInTerminalView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Button { open(descriptor, engine: engine) } label: {
                         HStack(spacing: LogMetrics.gap) {
-                            Image(systemName: "apple.terminal").font(.system(size: 12)).foregroundStyle(.secondary)
+                            Image(systemName: "apple.terminal").font(.scaled(12)).foregroundStyle(.secondary)
                                 .frame(width: LogMetrics.iconWidth, height: LogMetrics.iconWidth)
                             HStack(spacing: 4) {
                                 Text("Continue in Terminal").fontWeight(.medium)
                                 Text("· resumes this session").foregroundStyle(.secondary)
                             }
-                            .font(.system(size: 12)).lineLimit(1)
+                            .font(.scaled(12)).lineLimit(1)
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, LogMetrics.iconColumn)

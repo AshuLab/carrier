@@ -35,7 +35,7 @@ struct WhereItWorksSheet: View {
     private var header: some View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accentColor)
+                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.accentColor)
                 .frame(width: 36, height: 36)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.16)))
                 .accessibilityHidden(true)
@@ -50,7 +50,7 @@ struct WhereItWorksSheet: View {
         HoverRow(action: { Task { await model.useWorktree(worktree) }; dismiss() }, fill: chosen ? Color.accentColor.opacity(0.14) : nil) { _ in
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 14, weight: .medium)).foregroundStyle(chosen ? Color.accentColor : .secondary)
+                    .font(.scaled(14, weight: .medium)).foregroundStyle(chosen ? Color.accentColor : .secondary)
                     .frame(width: 30, height: 30)
                     .background(RoundedRectangle(cornerRadius: 8).fill(chosen ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12)))
                     .accessibilityHidden(true)
@@ -62,7 +62,7 @@ struct WhereItWorksSheet: View {
                 if chosen {
                     ChosenMark()
                 } else {
-                    Image(systemName: "circle").foregroundStyle(.secondary.opacity(0.5)).font(.system(size: 16)).accessibilityLabel("Not chosen")
+                    Image(systemName: "circle").foregroundStyle(.secondary.opacity(0.5)).font(.scaled(16)).accessibilityLabel("Not chosen")
                 }
             }
             .padding(12)

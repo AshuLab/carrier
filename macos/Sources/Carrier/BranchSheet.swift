@@ -36,7 +36,7 @@ struct BranchSheet: View {
     private var header: some View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accentColor)
+                .font(.scaled(16, weight: .medium)).foregroundStyle(Color.accentColor)
                 .frame(width: 36, height: 36)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.accentColor.opacity(0.16)))
                 .accessibilityHidden(true)
@@ -53,7 +53,7 @@ struct BranchSheet: View {
         if local.isEmpty && remote.isEmpty {
             VStack(spacing: 8) {
                 Image(systemName: query.isEmpty ? "arrow.triangle.branch" : "magnifyingglass")
-                    .font(.system(size: 32, weight: .light)).foregroundStyle(.secondary).accessibilityHidden(true)
+                    .font(.scaled(32, weight: .light)).foregroundStyle(.secondary).accessibilityHidden(true)
                 Text(query.isEmpty ? "No branches" : "No branch matches “\(query)”").font(.headline)
                 Text(query.isEmpty ? "This repository has no branch to start from yet." : "Search looks at the local and the remote branches. Fetch to see new ones.")
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 360)

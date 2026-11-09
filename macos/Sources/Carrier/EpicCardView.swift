@@ -12,7 +12,7 @@ struct EpicCardView: View {
             HStack(alignment: .top, spacing: 10) {
                 ProjectIcon(name: card.name, colorKey: projectColorKey(card.name))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(card.title).font(.system(size: 14, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
+                    Text(card.title).font(.scaled(14, weight: .semibold)).fixedSize(horizontal: false, vertical: true)
                     Text(card.subtitle).font(SidebarMetrics.detail).foregroundStyle(.secondary)
                 }
             }
@@ -33,7 +33,7 @@ struct EpicCardView: View {
                 .font(SidebarMetrics.detail)
             }
             if let timeline = card.timeline {
-                Text(timeline).font(.system(size: 11.5)).foregroundStyle(.tertiary)
+                Text(timeline).font(.scaled(11.5)).foregroundStyle(.tertiary)
             }
         }
         .padding(14)
@@ -71,7 +71,7 @@ private struct StepBar: View {
                         }
                     }
                 }
-            Text(step.name).font(.system(size: 11, weight: held ? .semibold : .regular)).foregroundStyle(held ? .primary : .secondary)
+            Text(step.name).font(.scaled(11, weight: held ? .semibold : .regular)).foregroundStyle(held ? .primary : .secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)

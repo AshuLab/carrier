@@ -42,7 +42,7 @@ struct LaneHeaderView: View {
                     if let slice = lane.slice { Text("#\(slice)").fontWeight(.medium).foregroundStyle(.secondary) }
                     Text(lane.title).fontWeight(.semibold)
                 }
-                .font(.system(size: 12)).lineLimit(1)
+                .font(.scaled(12)).lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 // keeps the title short of the chevron, which is drawn centred on both lines below
                 Color.clear.frame(width: LogMetrics.chevronColumn, height: 1)
@@ -50,7 +50,7 @@ struct LaneHeaderView: View {
             .frame(height: LogMetrics.sliceLine)
             HStack(spacing: 8) {
                 if starting == false { CountPills(counts: lane.counts) }
-                meta.font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                meta.font(.scaled(11)).foregroundStyle(.secondary).lineLimit(1)
             }
             .padding(.leading, LogMetrics.titleColumn - LogMetrics.iconColumn)
             .frame(maxWidth: .infinity, minHeight: 18, alignment: .leading)
@@ -91,8 +91,8 @@ struct LaneHeaderView: View {
     @ViewBuilder private var state: some View {
         switch lane.state {
         case .running: SpinningRing(diameter: 14, lineWidth: 2, color: .secondaryLabelColor).accessibilityHidden(true)
-        case .finished: Image(systemName: "checkmark.circle.fill").font(.system(size: 14)).foregroundStyle(.green)
-        case .failed: Image(systemName: "xmark.circle.fill").font(.system(size: 14)).foregroundStyle(.red)
+        case .finished: Image(systemName: "checkmark.circle.fill").font(.scaled(14)).foregroundStyle(.green)
+        case .failed: Image(systemName: "xmark.circle.fill").font(.scaled(14)).foregroundStyle(.red)
         }
     }
 }

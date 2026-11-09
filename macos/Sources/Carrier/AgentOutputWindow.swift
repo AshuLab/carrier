@@ -106,7 +106,7 @@ private struct OutputText: NSViewRepresentable {
         let scroll = NSTextView.scrollableTextView()
         let text = scroll.documentView as! NSTextView
         text.isEditable = false
-        text.font = .monospacedSystemFont(ofSize: TypeScale.stored().size(12), weight: .regular)
+        text.font = NSFont.scaledMono(12)
         text.textContainerInset = NSSize(width: 8, height: 8)
         return scroll
     }

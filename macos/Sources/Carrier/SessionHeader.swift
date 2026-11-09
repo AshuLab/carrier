@@ -8,7 +8,7 @@ struct SessionHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(conversationTitle(row)).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+            Text(conversationTitle(row)).font(.scaled(14, weight: .semibold)).lineLimit(1)
             HStack(spacing: 8) {
                 Label(row.workspace, systemImage: "folder.fill").lineLimit(1)
                 if let branch = row.branch {

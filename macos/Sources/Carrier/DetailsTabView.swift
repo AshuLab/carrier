@@ -37,7 +37,7 @@ struct DetailsRowView: View {
     var body: some View {
         let stacked = row.value.count > Self.longValue
         HStack(alignment: stacked ? .top : .firstTextBaseline, spacing: 10) {
-            Image(systemName: row.icon).font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary).frame(width: 18)
+            Image(systemName: row.icon).font(.scaled(12, weight: .medium)).foregroundStyle(.secondary).frame(width: 18)
             if stacked {
                 VStack(alignment: .leading, spacing: 3) {
                     label
@@ -93,7 +93,7 @@ private struct DetailsBadge: View {
     var body: some View {
         HStack(spacing: 4) {
             Text(text).lineLimit(1).truncationMode(.middle)
-            if linked { Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .bold)) }
+            if linked { Image(systemName: "arrow.up.right").font(.scaled(9, weight: .bold)) }
         }
         .font(.caption.weight(.semibold).monospacedDigit())
         .foregroundStyle(color)

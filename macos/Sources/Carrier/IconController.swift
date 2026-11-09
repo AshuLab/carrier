@@ -29,7 +29,7 @@ final class IconController {
     private var appearanceWatch: NSKeyValueObservation?
 
     private let trackWidth: CGFloat = 18
-    private let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
+    private let font = NSFont.statusItemDigits
 
     private init(item: NSStatusItem) {
         self.item = item

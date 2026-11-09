@@ -258,6 +258,8 @@ struct NotificationsTabView: View {
     @AppStorage(notifyNeedsYouKey) private var needsYou = true
     @AppStorage(notifyReadyForTestKey) private var readyForTest = true
     @AppStorage(notifyProblemKey) private var problem = false
+    @AppStorage(notifyChatNeedsAttentionKey) private var chatNeedsAttention = true
+    @AppStorage(notifyChatDoneKey) private var chatDone = false
     @AppStorage(notifyOnlyWhenAwayKey) private var onlyWhenAway = true
     @AppStorage(notifySoundKey) private var sound = true
     @State private var permission: NotificationPermission?
@@ -274,6 +276,14 @@ struct NotificationsTabView: View {
                 }
                 SettingsTabRow(title: "A problem", detail: "GitHub refuses a repo, or Carrier stops by itself") {
                     Toggle("A problem", isOn: $problem).labelsHidden().toggleStyle(.switch)
+                }
+            }
+            SettingsGroup(title: "Chat") {
+                SettingsTabRow(title: "Needs attention", detail: "A session waits for an approval", first: true) {
+                    Toggle("Chat needs attention", isOn: $chatNeedsAttention).labelsHidden().toggleStyle(.switch)
+                }
+                SettingsTabRow(title: "Done", detail: "A session finished its turn") {
+                    Toggle("Chat done", isOn: $chatDone).labelsHidden().toggleStyle(.switch)
                 }
             }
             SettingsGroup(title: "When") {

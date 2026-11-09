@@ -126,6 +126,11 @@ final class WindowController: NSObject, NSWindowDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
+    func open(session id: String) {
+        open(epic: nil)
+        model.shell.selection = .session(id: id)
+    }
+
     func close() { window?.close() }
 
     /// For the self-test: whether the window is on screen and whether its monitor runs.

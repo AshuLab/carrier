@@ -45,15 +45,20 @@ public enum ShortcutGroup: String, CaseIterable {
 
 /// An action that has a shortcut; the raw value is its id.
 public enum ShortcutCommand: String, CaseIterable {
-    case home, sessions, carrier, newSession, search, focusBox, latestMessage, foldTools, copyAnswer
+    case home, sessions, carrier, archive, newSession, search, nextSession, previousSession, archiveSession
+    case focusBox, latestMessage, foldTools, copyAnswer
 
     public var title: String {
         switch self {
         case .home: "Home"
         case .sessions: "Sessions"
         case .carrier: "Carrier"
+        case .archive: "Archive"
         case .newSession: "New session"
         case .search: "Search"
+        case .nextSession: "Next session"
+        case .previousSession: "Previous session"
+        case .archiveSession: "Archive the session"
         case .focusBox: "Focus the message box"
         case .latestMessage: "Jump to the latest message"
         case .foldTools: "Fold or unfold the tool calls"
@@ -63,8 +68,8 @@ public enum ShortcutCommand: String, CaseIterable {
 
     public var group: ShortcutGroup {
         switch self {
-        case .home, .sessions, .carrier: .goTo
-        case .newSession, .search: .sessions
+        case .home, .sessions, .carrier, .archive: .goTo
+        case .newSession, .search, .nextSession, .previousSession, .archiveSession: .sessions
         case .focusBox, .latestMessage, .foldTools, .copyAnswer: .conversation
         }
     }
@@ -75,8 +80,12 @@ public enum ShortcutCommand: String, CaseIterable {
         case .home: .select(.home)
         case .sessions: .select(.sessions)
         case .carrier: .select(.carrier)
+        case .archive: .select(.archive)
         case .newSession: .select(.newSession)
         case .search: .search
+        case .nextSession: .nextSession
+        case .previousSession: .previousSession
+        case .archiveSession: .archiveSession
         case .focusBox: .conversation(.focusBox)
         case .latestMessage: .conversation(.jumpToLatest)
         case .foldTools: .conversation(.toggleToolFolds)
@@ -90,8 +99,12 @@ public enum ShortcutCommand: String, CaseIterable {
         case .home: KeyCombo(key: "1", modifiers: .command)
         case .sessions: KeyCombo(key: "2", modifiers: .command)
         case .carrier: KeyCombo(key: "3", modifiers: .command)
+        case .archive: KeyCombo(key: "4", modifiers: .command)
         case .newSession: KeyCombo(key: "n", modifiers: .command)
         case .search: KeyCombo(key: "f", modifiers: .command)
+        case .nextSession: KeyCombo(key: "]", modifiers: .command)
+        case .previousSession: KeyCombo(key: "[", modifiers: .command)
+        case .archiveSession: KeyCombo(key: "a", modifiers: [.command, .shift])
         case .focusBox: KeyCombo(key: "l", modifiers: .command)
         case .latestMessage: KeyCombo(key: KeyCombo.downArrow, modifiers: .command)
         case .foldTools: KeyCombo(key: "e", modifiers: [.command, .option])

@@ -229,6 +229,10 @@ struct PanelView: View {
         .themed()
         .environment(model.actions)
         .onChange(of: focus, initial: true) { model.epics.poller.show(focus) }
+        .onChange(of: shell.archiveRequest) {
+            guard let id = shell.archiveRequest?.sessionId else { return }
+            Task { if let refusal = await model.actions.archive(id) { tell(refusal) } }
+        }
         .onChange(of: snapshot) { if let snapshot { model.epics.settleResuming(snapshot) } }
         .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }
         .environment(\.windowSize, windowSize)

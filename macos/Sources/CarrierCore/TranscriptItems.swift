@@ -149,6 +149,38 @@ public struct DiffRow: Equatable {
     public var text: String
 }
 
+/// One line of the split view: what was removed on the left and what was added on the right, either missing when the other side has
+/// no match. A context line or a hunk separator fills both sides with the same row.
+public struct DiffPair: Equatable {
+    public var left: DiffRow?
+    public var right: DiffRow?
+}
+
+/// The rows of a diff as the split view draws them: each block of changed rows pairs its removed lines with its added ones, in order.
+public func splitDiffPairs(_ rows: [DiffRow]) -> [DiffPair] {
+    var pairs: [DiffPair] = []
+    var removed: [DiffRow] = []
+    var added: [DiffRow] = []
+    func flush() {
+        for i in 0..<max(removed.count, added.count) {
+            pairs.append(DiffPair(left: i < removed.count ? removed[i] : nil, right: i < added.count ? added[i] : nil))
+        }
+        removed = []
+        added = []
+    }
+    for row in rows {
+        switch row.sign {
+        case .removed: removed.append(row)
+        case .added: added.append(row)
+        case .context, .hunk:
+            flush()
+            pairs.append(DiffPair(left: row, right: row))
+        }
+    }
+    flush()
+    return pairs
+}
+
 public struct CardDiff: Equatable {
     public var rows: [DiffRow]
     public var added: Int

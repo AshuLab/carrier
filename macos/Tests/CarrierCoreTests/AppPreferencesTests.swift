@@ -351,3 +351,17 @@ private let idle = PanelSnapshot(
     store.reset(.chat)
     #expect(store.toolOutput == .collapsed && store.opensFailedCalls && store.outputLength == .medium)
 }
+
+@Test func theDiffStyleIsUnifiedByDefaultSurvivesARelaunchAndResetsWithChat() {
+    let name = "prefs-\(UUID().uuidString)"
+    let first = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(first.diffStyle == .unified)
+    first.diffStyle = .split
+    let second = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(second.diffStyle == .split)
+    second.reset(.chat)
+    #expect(second.diffStyle == .unified)
+    let defaults = UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!
+    defaults.set("sideways", forKey: AppPreferences.diffStyleKey)
+    #expect(AppPreferences(defaults: defaults).diffStyle == .unified)
+}

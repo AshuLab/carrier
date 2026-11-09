@@ -36,6 +36,8 @@ private struct SessionContextMenu: ViewModifier {
     private func menuItem(_ item: SessionMenuItem) -> NSMenuItem {
         let entry = NSMenuItem(title: item.title, action: nil, keyEquivalent: "")
         entry.image = NSImage(systemSymbolName: item.icon, accessibilityDescription: nil)
+        // macOS 27 hides the symbol of a menu item unless the item asks for it
+        if #available(macOS 27, *) { entry.preferredImageVisibility = .visible }
         if item.destructive { entry.attributedTitle = NSAttributedString(string: item.title, attributes: [.foregroundColor: NSColor.systemRed]) }
         if let action = item.action {
             let handler = MenuHandler { run(action) }

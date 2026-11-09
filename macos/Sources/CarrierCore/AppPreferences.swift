@@ -55,7 +55,7 @@ public struct AppPreferences {
     public static let defaultToolOutput = ToolOutputMode.collapsed
     public static let defaultOpensFailedCalls = true
     public static let defaultDiffStyle = DiffStyle.unified
-    public static let defaultOutputLength = OutputLength.medium
+    public static let defaultOutputLength = OutputLength.short
     public static let defaultConfirmDelete = true
     public static let defaultShowsReasoning = true
 

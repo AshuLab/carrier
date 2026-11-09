@@ -325,7 +325,7 @@ private let idle = PanelSnapshot(
 
 @Test func theConversationDefaultsAreToolsCollapsedFailedCallsOpenAndFiftyLines() {
     let store = AppPreferences(defaults: UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!)
-    #expect(store.toolOutput == .collapsed && store.opensFailedCalls && store.outputLength == .medium)
+    #expect(store.toolOutput == .collapsed && store.opensFailedCalls && store.outputLength == .short)
 }
 
 @Test func theConversationChoicesSurviveARelaunchAndABadSavedValueReadsAsTheDefault() {
@@ -340,16 +340,16 @@ private let idle = PanelSnapshot(
     defaults.set("open", forKey: AppPreferences.toolOutputKey)
     defaults.set(7, forKey: AppPreferences.outputLengthKey)
     let bad = AppPreferences(defaults: defaults)
-    #expect(bad.toolOutput == .collapsed && bad.outputLength == .medium)
+    #expect(bad.toolOutput == .collapsed && bad.outputLength == .short)
 }
 
 @Test func resetOfChatPutsTheConversationBackToo() {
     let store = AppPreferences(defaults: UserDefaults(suiteName: "prefs-\(UUID().uuidString)")!)
     store.toolOutput = .hidden
     store.opensFailedCalls = false
-    store.outputLength = .short
+    store.outputLength = .long
     store.reset(.chat)
-    #expect(store.toolOutput == .collapsed && store.opensFailedCalls && store.outputLength == .medium)
+    #expect(store.toolOutput == .collapsed && store.opensFailedCalls && store.outputLength == .short)
 }
 
 @Test func askingBeforeDeletingASessionIsOnByDefaultSurvivesARelaunchFallsBackAndResetsWithChat() {

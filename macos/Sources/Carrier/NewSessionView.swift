@@ -149,13 +149,18 @@ struct NewSessionView: View {
             .contentShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    /// "When you send": what sending does, a step a line with its icon, the names in monospace and the full path in the tooltip.
+    /// "What Send will do": what sending does, a step a line with its icon, the names in monospace and the full path in the tooltip.
     private var sendSteps: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("When you send").font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase).tracking(0.5)
+            Text("What Send will do").fontWeight(.semibold)
             ForEach(model.sendSteps, id: \.parts) { step in
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Image(systemName: step.icon).font(.callout.weight(.medium)).foregroundStyle(Color.themeAccent).frame(width: 18)
+                HStack(alignment: .center, spacing: 10) {
+                    // the badge of the closed-session notice: white on the theme's accent
+                    Image(systemName: step.icon)
+                        .font(.scaled(12, weight: .medium)).foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(RoundedRectangle(cornerRadius: 7).fill(Color.themeAccent.opacity(0.85)))
+                        .accessibilityHidden(true)
                     step.parts.reduce(Text("")) { text, part in
                         switch part {
                         case .text(let words): text + Text(words)

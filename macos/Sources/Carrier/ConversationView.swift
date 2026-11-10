@@ -21,6 +21,8 @@ struct ConversationView: View {
     @State private var position = ScrollPosition()
     /// The rows on screen, which tell the timeline which turns they are in.
     @State private var visibleRows: Set<String> = []
+    /// One tick per turn for the timeline at the edge; see `onChange` of the feed's row count.
+    @State private var markers: [TurnMarker] = []
     /// The feed's column; medium is the one of the mockups (chat-ui-conv2.html).
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
     @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
@@ -40,7 +42,9 @@ struct ConversationView: View {
     }
 
     var body: some View {
-        ScrollView {
+        // derived once per evaluation: the feed the tools' mode and the reasoning setting leave, with the closing lines folded into their messages
+        let shown = foldingClosingLines(visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning))
+        return ScrollView {
             LazyVStack(alignment: .leading, spacing: density.messageGap) {
                 if model.loaded {
                     if model.steps.isEmpty == false {
@@ -57,7 +61,7 @@ struct ConversationView: View {
                         Label(note.text, systemImage: note.failed ? "exclamationmark.triangle.fill" : "eye.fill").font(.scaled(11)).foregroundStyle(note.failed ? .orange : .secondary).textSelection(.enabled)
                     }
                     let open = openOutcome(model.rows)
-                    let (feed, closing) = foldingClosingLines(visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning))
+                    let (feed, closing) = shown
                     // the answer the person is looking at keeps its footer in view; the rest show it on hover
                     let pinnedAnswer: String? = {
                         guard let index = feed.lastIndex(where: { if case .agent(_, _, false) = $0 { true } else { false } }) else { return nil }
@@ -69,7 +73,7 @@ struct ConversationView: View {
                             continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
                             answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
                         )
-                        .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
+                        .transition(Self.transition(of: row))
                     }
                     // between Enter and the first words of the answer
                     if model.busy, model.steps.isEmpty, case .user = feed.last {
@@ -84,7 +88,8 @@ struct ConversationView: View {
             .padding(.horizontal, 40).padding(.vertical, 16)
             .frame(maxWidth: messageWidth.points, alignment: .leading)
             .frame(maxWidth: .infinity)
-            .animation(animatesRows ? .smooth(duration: 0.28) : nil, value: model.rows.count)
+            // the count and whether the agent is busy (the dots of Thinking come and go with it)
+            .animation(animatesRows ? .smooth(duration: 0.28) : nil, value: [shown.rows.count, model.busy ? 1 : 0])
         }
         // the end of the conversation is what shows; it stays in view as it grows only when Follow new output is on (the model says when to scroll)
         .defaultScrollAnchor(followsOutput ? .bottom : nil)
@@ -93,7 +98,6 @@ struct ConversationView: View {
         .onScrollGeometryChange(for: Bool.self) { $0.visibleRect.maxY >= $0.contentSize.height - 24 } action: { _, atEnd in model.atEnd = atEnd }
         .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in visibleRows = Set(ids) }
         .overlay(alignment: .leading) {
-            let markers = turnMarkers(in: foldingClosingLines(visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning)).rows)
             if markers.count >= timelineMinimumTurns {
                 ConversationTimeline(markers: markers, current: turns(showing: visibleRows, in: markers)) { id in
                     withAnimation(.smooth(duration: 0.3)) { position.scrollTo(id: id, anchor: .top) }
@@ -104,7 +108,10 @@ struct ConversationView: View {
             }
         }
         .onChange(of: followsOutput, initial: true) { _, follows in model.followsOutput = follows }
-        .onChange(of: model.scrolls) { position.scrollTo(edge: .bottom) }
+        // markers are rebuilt when the feed gains or loses a row, not at each token of the answer in progress nor at each scroll
+        .onChange(of: shown.rows.count, initial: true) { markers = turnMarkers(in: shown.rows) }
+        // eased like the rows that come in, so the two do not move against each other
+        .onChange(of: model.scrolls) { withAnimation(.smooth(duration: 0.25)) { position.scrollTo(edge: .bottom) } }
         .onChange(of: request) { if let request { perform(request.action) } }
         .onChange(of: model.loaded) { _, loaded in
             guard loaded else { return }
@@ -116,6 +123,14 @@ struct ConversationView: View {
             if let first = draft?.takeFirstMessage(of: model.sessionId) { model.show(firstMessage: first) }
             await model.run()
         }
+    }
+
+    /// A row comes in from the bottom and fades out, except an agent's message: it grows in place as it is written, and the message in
+    /// progress is replaced by the finished one (another row id) with nothing to see, so it does not leave and come in again when the
+    /// answer ends.
+    private static func transition(of row: FeedRow) -> AnyTransition {
+        if case .agent = row { return .identity }
+        return .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity)
     }
 
     private func perform(_ action: ConversationAction) {
@@ -243,8 +258,9 @@ private struct FeedRowView: View {
         case .agent(_, let text, let inProgress):
             VStack(alignment: .leading, spacing: 5) {
                 MarkdownView(text: text)
-                if inProgress { Text("▍").foregroundStyle(.secondary) }
-                if inProgress == false { footer(text, summary: summary, asks: true) } else { stamp(shown: hovering) }
+                // the cursor takes the footer's height, so the answer does not grow when it ends and the footer takes its place
+                if inProgress { Text("▍").foregroundStyle(.secondary).frame(height: 24, alignment: .leading) }
+                if inProgress == false { footer(text, summary: summary, asks: true) }
             }
             .onHover { hovering = $0 }
         case .reasoning(let id, let text):

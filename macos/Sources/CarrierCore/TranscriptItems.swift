@@ -54,7 +54,7 @@ public struct TranscriptCard: Equatable {
     public var arg: String
     public var summary: String
     public var status: ToolStatus
-    /// "340 ms", "6.2 s"; nil while pending or when the engine gave none.
+    /// "340 ms", "6 s"; nil while pending or when the engine gave none.
     public var duration: String?
     /// The first and last lines of what a command printed; empty when the call printed nothing or the engine sent none.
     public var output: [String] = []
@@ -240,13 +240,12 @@ public enum TranscriptItem: Equatable, Identifiable {
     }
 }
 
-/// "340 ms", "6.2 s", "2m 05s": milliseconds under a second, one decimal under a minute, then minutes and seconds (a call
-/// is a span that has ended, so its seconds stay) and the panel's own format from an hour.
+/// "340 ms", "6 s", "2m 05s": milliseconds under a second, whole seconds under a minute (the tenths are noise from the first second
+/// on), then minutes and seconds (a call is a span that has ended, so its seconds stay) and the panel's own format from an hour.
 public func formatCallDuration(_ ms: Int) -> String {
     if ms < 1000 { return "\(max(0, ms)) ms" }
-    let tenths = (ms + 50) / 100
-    if tenths < 600 { return "\(tenths / 10).\(tenths % 10) s" }
-    let seconds = max(ms, 60_000) / 1000
+    if ms < 60_000 { return "\(ms / 1000) s" }
+    let seconds = ms / 1000
     return seconds < 3600 ? "\(seconds / 60)m \(String(format: "%02d", seconds % 60))s" : formatDuration(ms)
 }
 

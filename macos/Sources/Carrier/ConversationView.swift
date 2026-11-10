@@ -133,7 +133,7 @@ struct ConversationView: View {
     }
 
     /// The message box, the same as the draft's (chat-ui-conv.html, section 3): the queued message above it, then the box with the
-    /// session's provider and the options the provider lists as selects, and what the host refused under it.
+    /// session's provider and the options the provider lists in one button, and what the host refused under it.
     private var box: some View {
         VStack(alignment: .leading, spacing: 8) {
             if model.loaded, model.live == false { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
@@ -154,19 +154,16 @@ struct ConversationView: View {
             MessageBox(
                 text: $model.draft, placeholder: "Message the agent", minLines: 2,
                 canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, busy: model.busy,
-                focus: $boxFocused, commands: model.shownCommands, halo: true, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
+                focus: $boxFocused, commands: model.shownCommands, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
             ) {
-                if model.agent.isEmpty == false {
-                    ComposerSelect(title: "Provider", icon: "sparkle", selected: model.agent, showsValue: true, locked: true, choices: [SelectChoice(id: model.agent, label: model.agent)])
-                }
-                // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app
-                // never saw running lists nothing, and the selects say so
-                if model.loaded, model.live == false, model.shownOptions.isEmpty {
-                    ForEach([("Model", "cpu"), ("Reasoning", "brain"), ("Access", "lock.shield")], id: \.0) { title, icon in
-                        ComposerSelect(title: title, icon: icon, note: "The provider lists these once the session is awake. Send a message to wake it up.")
-                    }
-                }
-                optionSelects(model.shownOptions) { option, value in Task { await model.setOption(option, value) } }
+                ComposerMenuButton(
+                    providers: model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: model.agent)], agent: model.agent, locked: true,
+                    options: model.shownOptions,
+                    // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app
+                    // never saw running lists nothing, and the panel says so
+                    emptyNote: model.loaded && model.live == false ? "The provider lists these once the session is awake. Send a message to wake it up." : "Reading what the provider offers…",
+                    busy: model.busy, chooseAgent: { _ in }, choose: { option, value in Task { await model.setOption(option, value) } }
+                )
             }
             if let refusal = model.optionRefusal { Text(refusal).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled) }
             if let refusal = model.refusal {

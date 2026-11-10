@@ -212,38 +212,27 @@ struct NewSessionView: View {
         if case .problem = model.nameState { .red } else { .clear }
     }
 
-    /// The first message and what it runs with: the message box shared with the open session, with the provider and the selects the
-    /// host cannot list yet.
+    /// The first message and what it runs with: the message box shared with the open session, with the one button for the provider, the
+    /// model, the reasoning and the access.
     private var box: some View {
         MessageBox(
             text: $model.text, placeholder: model.folder == nil ? "Choose a workspace to start…" : "Write the first message…",
             canSend: model.canSend, sendHelp: model.canSend ? "Send" : model.hostOlder ? NewSessionModel.olderHostNotice : model.noAgentReason ?? "Choose a workspace and write a message",
             focus: $boxFocused, commands: model.agentCommands, send: send
         ) {
-            providerSelect
-            if model.shownOptions.isEmpty {
-                // until the host has listed them (a few seconds the first time), or when it cannot
-                ComposerSelect(title: "Model", icon: "cpu", note: model.loadingOptions ? "Reading what the provider offers…" : "Each provider's models will be listed here.")
-                ComposerSelect(title: "Reasoning", icon: "brain", note: model.loadingOptions ? "Reading what the provider offers…" : "How much the agent thinks before it answers.")
-                ComposerSelect(title: "Access", icon: "lock.shield", note: model.loadingOptions ? "Reading what the provider offers…" : "What the agent may do without asking you.")
-            } else {
-                optionSelects(model.shownOptions) { option, value in model.choose(option: option, value: value) }
-            }
+            ComposerMenuButton(
+                providers: model.agents.map { ProviderTab(name: $0.name, icon: $0.harness, available: $0.available, note: $0.note) }, agent: model.agent ?? "",
+                options: model.shownOptions,
+                emptyNote: model.loadingOptions ? "Reading what the provider offers…" : "Each provider's models will be listed here.",
+                chooseAgent: { name in
+                    model.agent = name
+                    Task { await model.loadOptions() }
+                },
+                choose: { option, value in model.choose(option: option, value: value) }
+            )
         }
         // nothing to write to until a workspace is chosen
         .opacity(model.folder == nil ? 0.55 : 1)
-    }
-
-    /// The agent the session starts with, from the host's list; one that is not installed or signed out is shown and cannot be chosen.
-    private var providerSelect: some View {
-        ComposerSelect(
-            title: "Provider", icon: "sparkle", selected: model.agent, showsValue: true,
-            choices: model.agents.map { SelectChoice(id: $0.name, label: $0.name, detail: $0.note, enabled: $0.available) },
-            choose: { name in
-                model.agent = name
-                Task { await model.loadOptions() }
-            }
-        )
     }
 
     private func send() {

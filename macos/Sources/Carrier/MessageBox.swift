@@ -2,7 +2,7 @@ import CarrierCore
 import SwiftUI
 
 /// The message box of the draft and of an open session: a roomy text area with a hint and the send button, which is Stop while the
-/// agent answers, and under it the selects of what the session runs with. The key chosen in Settings sends (Return or ⌘Return), the other
+/// agent answers, and beside it at the left the button of what the session runs with. The key chosen in Settings sends (Return or ⌘Return), the other
 /// and Shift+Return add a line.
 struct MessageBox<Selects: View>: View {
     @Binding var text: String
@@ -16,8 +16,6 @@ struct MessageBox<Selects: View>: View {
     var focus: Binding<Bool>
     /// What the person can invoke by typing a slash and its name (skills and the provider's own commands); empty when there is none to list.
     var commands: [ChatCommand] = []
-    /// Whether the selects get a darker, feathered patch behind them as wide as they are: over a conversation that scrolls under them.
-    var halo = false
     var send: () -> Void
     var stop: () -> Void = {}
     @ViewBuilder var selects: () -> Selects
@@ -56,6 +54,7 @@ struct MessageBox<Selects: View>: View {
                 )
                 .onChange(of: text) { highlighted = 0 }
                 HStack {
+                    selects()
                     Spacer(minLength: 0)
                     button
                 }
@@ -63,19 +62,6 @@ struct MessageBox<Selects: View>: View {
             .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
             // glass: the conversation that scrolls under the box is blurred, not seen through it
             .glassEffect(.regular, in: .rect(cornerRadius: 16))
-            // what the session runs with, under the box and at its left, side by side at their own width; a row that wraps when a provider
-            // lists more than fit
-            FlowLayout(spacing: 8) {
-                selects()
-            }
-                .padding(.leading, 4)
-                .background {
-                    // as wide as the selects and no wider, with soft edges: the text that scrolls under them goes dark, not the whole row
-                    if halo {
-                        RoundedRectangle(cornerRadius: 16).fill(Color.themeWindow.opacity(0.92))
-                            .padding(-8).blur(radius: 7)
-                    }
-                }
         }
     }
 

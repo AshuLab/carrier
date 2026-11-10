@@ -43,7 +43,7 @@ struct ChatToolGroupView: View {
             }
             Spacer(minLength: 8)
             if group.isWorking {
-                SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor).overlay { StateMark(shape: .working, size: 6).foregroundStyle(.secondary) }
+                SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor)
                 Text(group.doing.map { "\($0)…" } ?? "").font(.scaled(12)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     Text(formatCallDuration(max(0, Int(context.date.timeIntervalSince1970 * 1000) - group.startedAt)))
@@ -89,7 +89,7 @@ private struct CallRowView: View {
                     Text(call.arg).codeFont(12).lineLimit(1).truncationMode(.middle)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if call.status == .running {
-                        SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor).overlay { StateMark(shape: .working, size: 6).foregroundStyle(.secondary) }
+                        SpinningRing(diameter: 11, lineWidth: 1.5, color: .secondaryLabelColor)
                     } else {
                         StateMark(shape: call.status.shape, size: 11, weight: .semibold).foregroundStyle(.red)
                         Text(call.result).foregroundStyle(call.status == .failed ? .red : .secondary)

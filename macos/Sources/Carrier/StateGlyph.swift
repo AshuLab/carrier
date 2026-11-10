@@ -14,7 +14,7 @@ struct StateGlyph: View {
 
     @ViewBuilder private var glyph: some View {
         switch state {
-        case .running: SpinningRing().overlay { StateMark(shape: .working, size: 8).foregroundStyle(.secondary) }
+        case .running: SpinningRing()
         case .needsYou: Disc(color: (attention ?? .input).color, mark: "!", shape: state.shape(attention: attention))
         case .waiting: Circle().strokeBorder(Color.gray, lineWidth: 2).frame(width: 14, height: 14)
         case .ready: Disc(color: .blue, mark: "✓", shape: .ready)
@@ -29,14 +29,23 @@ extension Attention {
     var color: Color { self == .error ? .red : .orange }
 }
 
+/// A state's disc: a filled circle with its mark in white. With "Tell states apart by shape" on, the state's own silhouette in its colour
+/// instead (a triangle, a seal, an octagon, the mark cut out of it): the outline is what tells it apart, and one symbol centred in its box
+/// replaces a disc with a symbol inside it.
 struct Disc: View {
     let color: Color
     let mark: String
     var shape: StateShape?
+    var size: CGFloat = 18
+    @AppStorage(AppPreferences.statesByShapeKey) private var byShape = false
 
     var body: some View {
-        Circle().fill(color).frame(width: 18, height: 18)
-            .overlay { StateMark(text: mark, shape: shape, size: 10).foregroundStyle(.white) }
+        if byShape, let shape {
+            Image(systemName: stateSymbol(shape)).resizable().scaledToFit().foregroundStyle(color).frame(width: size, height: size)
+        } else {
+            Circle().fill(color).frame(width: size, height: size)
+                .overlay { Text(mark).font(.scaled(size * 0.55, weight: .heavy)).foregroundStyle(.white) }
+        }
     }
 }
 

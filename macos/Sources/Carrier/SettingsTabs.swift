@@ -236,21 +236,24 @@ struct AppearanceTabView: View {
     /// The four states as the app draws them now, with or without their symbols, larger than they are in a row so the mark inside reads.
     private var statesPreview: some View {
         SettingsPreview {
+            // together in the middle, not one to a quarter of the width
             HStack(alignment: .top, spacing: 0) {
                 state("Working") { StateGlyph(state: .running) }
                 state("Needs attention") { StateGlyph(state: .needsYou, attention: .input) }
                 state("Ready for test") { StateGlyph(state: .ready) }
                 state("A problem") { StateGlyph(state: .needsYou, attention: .error) }
             }
+            .frame(maxWidth: .infinity)
         }
     }
 
     private func state(_ title: String, @ViewBuilder glyph: () -> some View) -> some View {
-        VStack(spacing: 10) {
-            glyph().scaleEffect(1.8).frame(width: 36, height: 36)
+        VStack(spacing: 8) {
+            // at its own size: scaling the 20-point glyph up scaled its pixels, and the ring (a layer) showed them
+            glyph().frame(width: 28, height: 28)
             Text(title).font(.scaled(12)).foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
+        .frame(width: 120)
     }
 
     var body: some View {

@@ -87,7 +87,7 @@ const kinds = (events: ChatEvent[]) => events.filter((e) => e.kind !== 'delta').
 
 test('the recorded conversation: remembers across turns, runs a tool, and every turn ends with its model and usage', async () => {
   const { conversation, events, seen } = await openWith(main);
-  expect(seen.options).toMatchObject({ cwd: '/work', env: { A: 'b' }, pathToClaudeCodeExecutable: '/bin/claude', includePartialMessages: true });
+  expect(seen.options).toMatchObject({ cwd: '/work', env: { A: 'b' }, pathToClaudeCodeExecutable: '/bin/claude', includePartialMessages: true, extraArgs: { 'thinking-display': 'summarized' } });
 
   const first = await turn(conversation, events, main[0]!.text);
   expect(first.filter((e) => e.kind === 'delta').length).toBeGreaterThan(0);

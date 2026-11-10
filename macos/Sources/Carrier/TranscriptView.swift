@@ -69,7 +69,16 @@ struct MarkdownView: View {
 
     private enum Segment {
         case text(AttributedString)
-        case code(String?, String)
+        case code(String?, String?, String)
+    }
+
+    /// Inline code on a faint tint of the theme's accent, so a name in a sentence reads as one.
+    private func chipped(_ line: AttributedString) -> AttributedString {
+        var line = line
+        for run in line.runs where run.inlinePresentationIntent?.contains(.code) == true {
+            line[run.range].backgroundColor = Color.themeAccent.opacity(0.18)
+        }
+        return line
     }
 
     private var segments: [Segment] {
@@ -80,21 +89,21 @@ struct MarkdownView: View {
         }
         for block in markdownBlocks(text) {
             switch block {
-            case .line(let line): add(line)
+            case .line(let line): add(chipped(line))
             case .bullet(let level, let line):
                 var bullet = AttributedString(String(repeating: "\u{2003}\u{2003}", count: level) + "•\u{2002}")
                 bullet.foregroundColor = .secondary
-                bullet.append(line)
+                bullet.append(chipped(line))
                 add(bullet)
             case .gap:
                 // an empty line a little shorter than a text one
                 var gap = AttributedString(" ")
                 gap.font = .scaled(6)
                 add(gap)
-            case .code(let language, let code):
+            case .code(let language, let file, let code):
                 if let run { segments.append(.text(run)) }
                 run = nil
-                segments.append(.code(language, code))
+                segments.append(.code(language, file, code))
             }
         }
         if let run { segments.append(.text(run)) }
@@ -106,7 +115,7 @@ struct MarkdownView: View {
             ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
                 switch segment {
                 case .text(let text): Text(text).lineSpacing(4)
-                case .code(let language, let code): CodeBlockView(language: language, code: code)
+                case .code(let language, let file, let code): CodeBlockView(language: language, file: file, code: code)
                 }
             }
         }

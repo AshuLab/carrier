@@ -419,29 +419,6 @@ private struct BannerView: View {
     }
 }
 
-/// A fenced block of an agent's message: its language, a Copy button that puts the code on the pasteboard, and the code, wrapped or
-/// scrolling sideways as the monospace settings say.
-struct CodeBlockView: View {
-    let language: String?
-    let code: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(language ?? "code").font(.scaled(11)).foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                CopyButton(text: code, help: "Copy the code")
-            }
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            Rectangle().fill(Color.secondary.opacity(0.2)).frame(height: 0.5)
-            MonoLines(lines: code.components(separatedBy: "\n")).codeFont(11.5).textSelection(.enabled).padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.12)))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-    }
-}
-
 /// The agent has the message and has not said anything yet: three dots that run.
 private struct ThinkingRow: View {
     var body: some View {

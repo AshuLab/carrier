@@ -312,7 +312,7 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
         switch block {
         case .line: "line"
         case .bullet(let level, _): "bullet\(level)"
-        case .code(let language, let code): "code \(language ?? "-") \(code.split(separator: "\n").count)"
+        case .code(let language, _, let code): "code \(language ?? "-") \(code.split(separator: "\n").count)"
         case .gap: "gap"
         }
     }
@@ -322,13 +322,13 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     guard case .line(let first) = blocks[0] else { return }
     #expect(first.runs.contains { $0.inlinePresentationIntent == .code && String(first.characters[$0.range]) == "Page.tsx" })
     // the code is kept as written: its indentation and the lines of a block with a blank one
-    guard case .code(_, let code) = blocks[11] else { return }
+    guard case .code(_, _, let code) = blocks[11] else { return }
     #expect(code.hasPrefix("export function Plans") && code.contains("\n    <section className="))
 }
 
 @Test func aFenceLeftOpenByAMessageStillBeingWrittenIsABlockToTheEnd() throws {
     let blocks = markdownBlocks(try golden("streaming").streaming)
-    guard case .code(let language, let code) = blocks.last else {
+    guard case .code(let language, _, let code) = blocks.last else {
         Issue.record("the open fence is not a code block")
         return
     }

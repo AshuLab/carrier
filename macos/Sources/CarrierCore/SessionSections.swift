@@ -188,8 +188,9 @@ public enum MarkdownBlock: Equatable {
     case line(AttributedString)
     /// A `- ` list item; `level` is how many steps of two spaces it is indented.
     case bullet(level: Int, AttributedString)
-    /// A fenced block: `language` is what follows the opening fence, nil when nothing does. Its text is kept as written.
-    case code(language: String?, String)
+    /// A fenced block: `language` is what follows the opening fence, nil when nothing does, and `file` the path the fence gives
+    /// ("ts src/a.ts"). Its text is kept as written.
+    case code(language: String?, file: String? = nil, String)
     /// A blank line, once however many there were.
     case gap
 }
@@ -204,17 +205,17 @@ public func markdownBlocks(_ text: String) -> [MarkdownBlock] {
         withWebLinks((try? AttributedString(markdown: line, options: options)) ?? AttributedString(line))
     }
     var blocks: [MarkdownBlock] = []
-    var fence: (language: String?, lines: [String])?
+    var fence: (language: String?, file: String?, lines: [String])?
     for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
         let trimmed = line.drop { $0 == " " }
         let indent = line.count - trimmed.count
         if trimmed.hasPrefix("```") {
             if let open = fence {
-                blocks.append(.code(language: open.language, open.lines.joined(separator: "\n")))
+                blocks.append(.code(language: open.language, file: open.file, open.lines.joined(separator: "\n")))
                 fence = nil
             } else {
-                let language = trimmed.drop { $0 == "`" }.split(separator: " ").first.map(String.init)
-                fence = (language, [])
+                let info = fenceInfo(String(trimmed.drop { $0 == "`" }))
+                fence = (info.language, info.file, [])
             }
             continue
         }
@@ -232,7 +233,7 @@ public func markdownBlocks(_ text: String) -> [MarkdownBlock] {
             blocks.append(.line(inline(String(line))))
         }
     }
-    if let open = fence { blocks.append(.code(language: open.language, open.lines.joined(separator: "\n"))) }
+    if let open = fence { blocks.append(.code(language: open.language, file: open.file, open.lines.joined(separator: "\n"))) }
     if blocks.last == .gap { blocks.removeLast() }
     return blocks
 }

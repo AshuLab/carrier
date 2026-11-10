@@ -9,13 +9,16 @@ struct CodeBlockView: View {
     let language: String?
     var file: String?
     let code: String
+    /// From which line the block folds, and how many lines a fold must hide to be worth its button (a message's block spares itself a
+    /// fold of a few lines; a tool's output folds where the person's Output length setting says).
+    var foldAfter = 25
+    var spare = 4
 
     @Environment(\.colorScheme) private var scheme
     @State private var hovering = false
     @State private var expanded = false
     @State private var width: CGFloat = 0
 
-    private static let foldAfter = 25
     private static let numbersFrom = 5
 
     /// Long lines wrap or scroll sideways as the monospace settings say.
@@ -23,15 +26,16 @@ struct CodeBlockView: View {
     private var resolved: String? { resolvedCodeLanguage(language, code: code) }
     private var lines: [String] { code.components(separatedBy: "\n") }
     /// A fold hiding two lines is not worth a button.
-    private var folds: Bool { lines.count >= Self.foldAfter + 5 && expanded == false }
-    private var shownLines: [String] { folds ? Array(lines.prefix(Self.foldAfter)) : lines }
+    private var foldable: Bool { lines.count > foldAfter + spare }
+    private var folds: Bool { foldable && expanded == false }
+    private var shownLines: [String] { folds ? Array(lines.prefix(foldAfter)) : lines }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             ScrollView(.horizontal) { content }
                 .scrollDisabled(wrapped)
-            if lines.count >= Self.foldAfter + 5 { foldButton }
+            if foldable { foldButton }
         }
         // the header and the fold are tints inside the shape; glass draws the edge, so there is no border to meet the corners badly
         .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -146,7 +150,7 @@ struct CodeBlockView: View {
 
     private var foldButton: some View {
         Button { withAnimation(.smooth(duration: 0.2)) { expanded.toggle() } } label: {
-            Text(expanded ? "Show less" : "Show \(lines.count - Self.foldAfter) more lines")
+            Text(expanded ? "Show less" : "Show \(lines.count - foldAfter) more \(lines.count - foldAfter == 1 ? "line" : "lines")")
                 .font(.scaled(11.5)).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 7).contentShape(Rectangle())
         }
         .buttonStyle(.plain)

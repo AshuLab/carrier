@@ -11,6 +11,7 @@ struct ChatToolGroupView: View {
     @Binding var flipped: Set<String>
     @AppStorage(AppPreferences.toolOutputKey) private var mode = AppPreferences.defaultToolOutput
     @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         let open = group.opensByDefault(mode, opensFailed: opensFailed) != flipped.contains(id)
@@ -56,7 +57,9 @@ struct ChatToolGroupView: View {
         }
         .font(.scaled(12, weight: .medium)).monospacedDigit()
         .padding(.horizontal, 10).frame(height: 30)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
+        // the glass, tint and header fill of the code blocks, so the header and what it opens to are one family
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.045)))
+        .glassEffect(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), in: .rect(cornerRadius: 12))
         .contentShape(Rectangle())
     }
 
@@ -105,6 +108,8 @@ private struct CallRowView: View {
     }
 }
 
+/// What a call opens to: a change as its diff, anything else as the command (when it does not fit the row) and the output, each in the
+/// code block of the messages, folded where the Output length setting says.
 private struct CallDetailView: View {
     let call: ToolCall
     @State private var showAll = false
@@ -115,21 +120,15 @@ private struct CallDetailView: View {
         if call.diff.isEmpty == false {
             DiffView(rows: call.diff, showAll: $showAll, style: diffStyle).clipShape(RoundedRectangle(cornerRadius: 8))
         } else {
-            let shown = length.visible(call.output, expanded: showAll)
-            Console {
+            VStack(alignment: .leading, spacing: 6) {
+                // the row cuts a long or multi-line command in the middle: opened, the call shows all of it
+                if call.kind == .shell, call.arg.contains("\n") || call.arg.count > 80 { CodeBlockView(language: "bash", code: call.arg) }
                 if call.output.isEmpty {
-                    Text(call.status == .running ? "running…" : "no output").foregroundStyle(ConsoleColor.text.opacity(0.6)).padding(.horizontal, 14)
+                    Text(call.status == .running ? "running…" : "no output").font(.scaled(11.5)).foregroundStyle(.secondary).padding(.horizontal, 6)
                 } else {
-                    MonoLines(lines: shown.lines).foregroundStyle(ConsoleColor.text).textSelection(.enabled).padding(.horizontal, 14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if shown.hidden > 0 || showAll {
-                        Button(showAll ? "Show less" : "Show \(shown.hidden) more \(shown.hidden == 1 ? "line" : "lines")") { showAll.toggle() }
-                            .buttonStyle(.plain).font(.scaled(11)).foregroundStyle(Color.themeAccent)
-                            .padding(.horizontal, 14).padding(.top, 7).padding(.bottom, 1)
-                    }
+                    CodeBlockView(language: "Output", code: call.output.joined(separator: "\n"), foldAfter: length.rawValue, spare: 0)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
     }
 }

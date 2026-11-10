@@ -70,8 +70,7 @@ struct ComposerMenuButton: View {
             Image(systemName: "chevron.down").font(.scaled(9, weight: .bold)).foregroundStyle(.secondary)
         }
         .font(.callout).padding(.horizontal, 10).frame(height: 28)
-        .background(Capsule().fill(Color.primary.opacity(0.08)))
-        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
+        .glassEffect(.regular.interactive(), in: .capsule)
         .contentShape(Capsule())
     }
 

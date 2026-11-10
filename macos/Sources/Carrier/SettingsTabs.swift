@@ -217,13 +217,13 @@ struct AppearanceTabView: View {
     @State private var previewRoom: CGFloat = 0
 
     /// A message of the agent in a column that is to the room as the chosen width is to the widest one, drawn as a bubble on a track that is
-    /// the widest, so the three differ in where the lines break and in how much of the track the bubble takes.
+    /// the widest, so the four differ in where the lines break and in how much of the track the bubble takes.
     private var messagePreview: some View {
         SettingsPreview {
             VStack(alignment: .leading, spacing: 0) {
                 MarkdownView(text: "I opened a pull request for the settings epic and asked the reviewer for a second look. The width of a message is how far a line runs before it wraps: a narrow column is easy on the eye, and a wide one fits more of a table or a long command, like `pnpm test && pnpm typecheck`.")
                     .padding(12)
-                    .frame(width: previewRoom * messageWidth.points / MessageWidth.wide.points, alignment: .leading)
+                    .frame(width: previewRoom * messageWidth.points / MessageWidth.ultraWide.points, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Color.themeAccent.opacity(0.14)))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -283,7 +283,7 @@ struct AppearanceTabView: View {
                 }
                 SettingsTabRow(title: "Message width", detail: "How wide a message gets before it wraps") {
                     Picker("Message width", selection: $messageWidth) {
-                        ForEach(MessageWidth.allCases, id: \.self) { Text($0.title).tag($0) }
+                        ForEach(MessageWidth.allCases, id: \.self) { Text("\($0.title) · \(Int($0.points)) pt").tag($0) }
                     }
                     .labelsHidden().fixedSize()
                 }

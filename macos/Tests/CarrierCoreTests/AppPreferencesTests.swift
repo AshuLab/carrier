@@ -273,6 +273,7 @@ private let idle = PanelSnapshot(
     #expect(MessageWidth.narrow.points == 640)
     #expect(MessageWidth.medium.points == 760)
     #expect(MessageWidth.wide.points == 880)
+    #expect(MessageWidth.ultraWide.points == 1040 && MessageWidth.ultraWide.title == "Ultra wide")
     #expect(AppPreferences.defaultMessageWidth == .medium)
 }
 

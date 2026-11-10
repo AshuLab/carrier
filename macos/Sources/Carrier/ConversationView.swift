@@ -263,10 +263,15 @@ private struct FeedRowView: View {
     var body: some View {
         switch row {
         case .user(_, let text):
+            // the files that came with it are chips over the bubble, and the bubble is what the person wrote
+            let sent = splitAttachments(text)
             VStack(alignment: .trailing, spacing: 3) {
-                messageText(text, commands: commands).textSelection(.enabled)
-                    .padding(.horizontal, 13).padding(.vertical, 8)
-                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.1)), in: .rect(cornerRadius: 16))
+                if sent.paths.isEmpty == false { SentAttachments(paths: sent.paths).padding(.bottom, 3) }
+                if sent.text.isEmpty == false {
+                    messageText(sent.text, commands: commands).textSelection(.enabled)
+                        .padding(.horizontal, 13).padding(.vertical, 8)
+                        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.1)), in: .rect(cornerRadius: 16))
+                }
                 footer(text, summary: nil, asks: false)
             }
             .frame(maxWidth: .infinity, alignment: .trailing)

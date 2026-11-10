@@ -27,6 +27,10 @@ struct MessageBox<Selects: View>: View {
     @State private var closedFor: CommandToken?
     /// Where the caret is in the text.
     @State private var cursor = 0
+    /// The files dropped on the box, which go with the next message as paths under it.
+    @State private var attachments: [AttachedFile] = []
+    /// Whether files are being dragged over the box.
+    @State private var dropping = false
     @AppStorage(AppPreferences.sendKeyKey) private var sendKey = AppPreferences.defaultSendKey
     @AppStorage(AppPreferences.writingToolsKey) private var writingTools = AppPreferences.defaultWritingTools
     @AppStorage(AppPreferences.checksSpellingKey) private var checksSpelling = AppPreferences.defaultChecksSpelling
@@ -48,8 +52,17 @@ struct MessageBox<Selects: View>: View {
                     commandList
                     Divider()
                 }
+                if attachments.isEmpty == false {
+                    FlowLayout(spacing: 8) {
+                        ForEach(attachments) { file in
+                            AttachmentChip(file: file) { withAnimation(.smooth(duration: 0.2)) { attachments.removeAll { $0.id == file.id } } }
+                                .transition(.scale(scale: 0.9).combined(with: .opacity))
+                        }
+                    }
+                    .animation(.smooth(duration: 0.2), value: attachments)
+                }
                 CommandTextView(
-                    text: $text, cursor: $cursor, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle,
+                    text: $text, cursor: $cursor, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onFiles: attach, onFileDrag: { dropping = $0 },
                     sendKey: sendKey, writingTools: writingTools, checksSpelling: checksSpelling, correctsSpelling: correctsSpelling
                 )
                 .onChange(of: text) { highlighted = 0 }
@@ -62,7 +75,35 @@ struct MessageBox<Selects: View>: View {
             .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
             // glass: the conversation that scrolls under the box is blurred, not seen through it
             .glassEffect(.regular, in: .rect(cornerRadius: 16))
+            .overlay { if dropping { dropVeil } }
+            .offset(y: dropping ? -3 : 0)
+            .animation(.smooth(duration: 0.2), value: dropping)
+            .dropDestination(for: URL.self) { urls, _ in attach(urls) } isTargeted: { dropping = $0 }
         }
+    }
+
+    /// What the box says while files are over it.
+    private var dropVeil: some View {
+        VStack(spacing: 3) {
+            Text("Drop to attach").font(.scaled(14, weight: .semibold))
+            Text("The agent reads them by their path").font(.scaled(12)).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Color.themeAccent.opacity(0.16)))
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.themeAccent, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
+        .allowsHitTesting(false)
+        .transition(.opacity)
+    }
+
+    /// Dropped files become chips, the ones already there kept once. Only what is a file of the Mac counts.
+    private func attach(_ urls: [URL]) -> Bool {
+        let folder = carrierFolder(environment: ProcessInfo.processInfo.environment, home: NSHomeDirectory())
+        let fresh = urls.filter(\.isFileURL).map { attachedFile(at: $0, carrierFolder: folder) }.filter { new in attachments.contains { $0.id == new.id } == false }
+        guard fresh.isEmpty == false else { return false }
+        withAnimation(.smooth(duration: 0.2)) { attachments += fresh }
+        focus.wrappedValue = true
+        return true
     }
 
     /// The keys of the text that mean something to the list while it is open; Enter takes the marked row, or sends.
@@ -171,6 +212,11 @@ struct MessageBox<Selects: View>: View {
     /// Enter and the button: sends, and makes the arrow bounce when there is something to send.
     private func fire() {
         if canSend || busy { sent += 1 }
+        // the files go as paths under the message, and are taken out of the box once it is on its way
+        if canSend, attachments.isEmpty == false {
+            text = messageWithAttachments(text, files: attachments)
+            attachments = []
+        }
         send()
     }
 

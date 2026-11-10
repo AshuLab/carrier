@@ -299,7 +299,9 @@ public final class FixtureServer {
             guard (asked["choices"] as? [[String: Any]] ?? []).contains(where: { $0["id"] as? String == choice }) else {
                 return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"That is not one of the choices\"}")
             }
-            events.append(["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "approval_answered", "approvalId": approval, "choiceId": choice])
+            var answered: [String: Any] = ["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "approval_answered", "approvalId": approval, "choiceId": choice]
+            if let answers = request?["answers"] as? [String: String] { answered["answers"] = answers }
+            events.append(answered)
             chatConversations[session]?.events = events
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
         case "setOption":

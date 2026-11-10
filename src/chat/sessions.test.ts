@@ -355,6 +355,31 @@ test('answer passes a listed choice to the agent once; an interrupted turn drops
   expect(() => sessions.answer({ sessionId: id, approvalId: 'a2', choiceId: 'deny' })).toThrow('closed');
 });
 
+test('a question approval takes answers keyed by its questions and refuses the rest; it is stored redacted, and a skip needs no answers', async () => {
+  const { sessions, conversation, id } = await openOne();
+  const choices = [{ id: 'allow', label: 'Send answers', allow: true }, { id: 'deny', label: 'Skip', allow: false }];
+  const questions = [{ question: 'Which one?', header: `h ${token}`, options: [{ label: 'A', description: 'a' }, { label: 'B', description: 'b', preview: 'p' }], multiSelect: false }];
+  sessions.send({ sessionId: id, text: 'go' });
+  conversation.emit({ kind: 'approval', approvalId: 'q1', tool: 'AskUserQuestion', choices, questions });
+  const [shown] = sessions.events({ sessionId: id, limit: 10 }).approvals as { questions: typeof questions }[];
+  expect(shown!.questions[0]).toMatchObject({ question: 'Which one?', header: expect.not.stringContaining(token), options: [{ label: 'A' }, { label: 'B', preview: 'p' }], multiSelect: false });
+  expect(() => sessions.answer({ sessionId: id, approvalId: 'q1', choiceId: 'allow' })).toThrow('Answer the questions first');
+  expect(() => sessions.answer({ sessionId: id, approvalId: 'q1', choiceId: 'allow', answers: { 'Which two?': 'A' } })).toThrow('not one of the questions');
+  expect(conversation.answers).toEqual([]);
+  sessions.answer({ sessionId: id, approvalId: 'q1', choiceId: 'allow', answers: { 'Which one?': `B ${token}` } });
+  expect(conversation.answers).toEqual([{ approvalId: 'q1', choiceId: 'allow', answers: { 'Which one?': `B ${token}` } }]);
+  const answered = sessions.events({ sessionId: id, limit: 10 }).events.find((e) => e.kind === 'approval_answered');
+  expect(JSON.stringify(answered)).not.toContain(token);
+  expect(answered).toMatchObject({ answers: { 'Which one?': 'B [redacted]' } });
+
+  conversation.emit({ kind: 'approval', approvalId: 'q2', tool: 'AskUserQuestion', choices, questions });
+  sessions.answer({ sessionId: id, approvalId: 'q2', choiceId: 'deny' });
+  expect(conversation.answers.at(-1)).toEqual({ approvalId: 'q2', choiceId: 'deny' });
+
+  conversation.emit({ kind: 'approval', approvalId: 'a1', tool: 'Bash', choices });
+  expect(() => sessions.answer({ sessionId: id, approvalId: 'a1', choiceId: 'allow', answers: { x: 'y' } })).toThrow('asks no questions');
+});
+
 test('a live session that is idle with no client is closed after a minute: the runner closes it and the row stays; a working one is kept', async () => {
   const s = setup();
   const idleOne = await openOne(s);

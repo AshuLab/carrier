@@ -430,7 +430,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     }
     func send(_ id: String, _ text: String) async throws { sent.append(text) }
     func interrupt(_ id: String) async throws {}
-    func answer(_ id: String, approval: String, choice: String) async throws {}
+    func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws {}
     func setOption(_ id: String, option: String, value: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
@@ -863,4 +863,45 @@ private func eventsRequest(capabilities: [String]) async throws -> String {
     #expect(progressFraction("Receiving objects:  63% (1234/1960)") == 0.63)
     #expect(progressFraction("Resolving deltas: 100% (10/10), done.") == 1)
     #expect(progressFraction("Counting objects") == nil && progressFraction(nil) == nil && progressFraction("999%") == nil)
+}
+
+// MARK: AskUserQuestion
+
+private let askedQuestions = """
+{ "id": 1, "at": 0, "kind": "approval", "approvalId": "q1", "tool": "AskUserQuestion",
+  "questions": [
+    { "question": "Which auth approach?", "header": "Auth", "multiSelect": false, "options": [{ "label": "JWT", "description": "Stateless", "preview": "Bearer x" }, { "label": "Cookies", "description": "Sessions" }] },
+    { "question": "Which providers?", "header": "Providers", "multiSelect": true, "options": [{ "label": "GitHub", "description": "" }, { "label": "Google", "description": "" }] }
+  ],
+  "choices": [{ "id": "allow", "label": "Send answers", "allow": true }, { "id": "deny", "label": "Skip", "allow": false }] }
+"""
+
+private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().decode(ChatEvent.self, from: Data(json.utf8)) }
+
+@Test func anApprovalWithQuestionsIsACardThatCarriesThemAndAnyOtherCardHasNone() throws {
+    let ask = try answered(askedQuestions)
+    guard case .approval(_, let card)? = chatFeed([ask], pending: ["q1"]).first else {
+        Issue.record("not a card")
+        return
+    }
+    #expect(card.questions.map(\.header) == ["Auth", "Providers"] && card.questions.map(\.multiSelect) == [false, true])
+    #expect(card.questions[0].options.map(\.label) == ["JWT", "Cookies"] && card.questions[0].options[0].preview == "Bearer x")
+    #expect(card.questions[0].options[1].preview == nil && card.choices.map(\.id) == ["allow", "deny"])
+    let plain = ChatEvent(id: 2, at: 0, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [.init(id: "y", label: "Yes", allow: true)])
+    guard case .approval(_, let generic)? = chatFeed([plain], pending: ["p"]).first else {
+        Issue.record("not a card")
+        return
+    }
+    #expect(generic.questions.isEmpty)
+}
+
+@Test func anAnsweredQuestionIsOneLineWithEachAnswerAndASkippedOneSaysSo() throws {
+    let ask = try answered(askedQuestions)
+    func line(_ choice: String, _ answers: [String: String]?) -> String {
+        texts(chatFeed([ask, ChatEvent(id: 2, at: 0, kind: "approval_answered", approvalId: "q1", choiceId: choice, answers: answers)]))[0]
+    }
+    #expect(line("allow", ["Which auth approach?": "JWT", "Which providers?": "GitHub, Google"]) == "allowed: Answered · by you\nAuth: JWT\nProviders: GitHub, Google")
+    #expect(line("deny", nil) == "declined: Skipped the questions · by you")
+    // answers that did not come with an allowing choice are not shown as given
+    #expect(line("deny", ["Which auth approach?": "JWT"]) == "declined: Skipped the questions · by you")
 }

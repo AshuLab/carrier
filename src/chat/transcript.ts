@@ -23,8 +23,19 @@ export function boundEvent(event: ChatEvent | StepEvent): Record<string, unknown
       return { ...rest, ...(arg !== undefined && { arg: clean(arg, chatCaps.arg) }), ...(output !== undefined && { output: boundOutput(output.join('\n')) }) };
     }
     case 'approval': {
-      const { kind: _kind, arg, ...rest } = event;
-      return { ...rest, ...(arg !== undefined && { arg: clean(arg, chatCaps.arg) }) };
+      const { kind: _kind, arg, questions, ...rest } = event;
+      // ponytail: an answer is matched to its question by the stored text, so a question the redaction changed is answered under the changed text
+      const bound = questions?.map((q) => ({
+        question: clean(q.question, chatCaps.arg),
+        header: clean(q.header, chatCaps.arg),
+        multiSelect: q.multiSelect,
+        options: q.options.map((o) => ({ label: clean(o.label, chatCaps.arg), description: clean(o.description, chatCaps.arg), ...(o.preview !== undefined && { preview: clean(o.preview, chatCaps.message) }) })),
+      }));
+      return { ...rest, ...(arg !== undefined && { arg: clean(arg, chatCaps.arg) }), ...(bound !== undefined && { questions: bound }) };
+    }
+    case 'approval_answered': {
+      const { kind: _kind, answers, ...rest } = event;
+      return { ...rest, ...(answers !== undefined && { answers: Object.fromEntries(Object.entries(answers).map(([q, a]) => [clean(q, chatCaps.arg), clean(a, chatCaps.message)])) }) };
     }
     default: {
       const { kind: _kind, ...rest } = event;

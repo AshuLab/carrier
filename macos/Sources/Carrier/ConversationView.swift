@@ -185,8 +185,15 @@ struct ConversationView: View {
         VStack(alignment: .leading, spacing: 8) {
             let approvals = pendingApprovals(model.rows)
             if let card = approvals.first {
-                ApprovalCardView(card: card, behind: approvals.count - 1) { approval, choice in Task { await model.answer(approval, choice: choice) } }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                Group {
+                    if card.questions.isEmpty {
+                        ApprovalCardView(card: card, behind: approvals.count - 1) { approval, choice in Task { await model.answer(approval, choice: choice) } }
+                    } else {
+                        QuestionCardView(card: card, behind: approvals.count - 1) { approval, choice, answers in Task { await model.answer(approval, choice: choice, answers: answers) } }
+                            .id(card.approvalId)
+                    }
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             if model.loaded, model.live == false { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
             if let queued = model.queued {

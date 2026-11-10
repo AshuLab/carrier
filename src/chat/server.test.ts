@@ -139,6 +139,15 @@ test('answer is a strict request with a session, an approval and a choice', asyn
   expect(await c.ask(`{"id":1,"cmd":"answer","sessionId":"${uuid}","approvalId":"a","choiceId":"deny"}`)).toEqual({ id: 1, ok: true, data: { approvalId: 'a', choiceId: 'deny' } });
 });
 
+test('answer takes the answers to a question approval: at most four, text only', async () => {
+  await open();
+  const c = await client();
+  const base = `{"id":1,"cmd":"answer","sessionId":"${uuid}","approvalId":"a","choiceId":"allow"`;
+  expect(await c.ask(`${base},"answers":{"Which?":"A"}}`)).toMatchObject({ ok: true, data: { approvalId: 'a', choiceId: 'allow' } });
+  expect(await c.ask(`${base},"answers":{"Which?":1}}`)).toMatchObject({ ok: false });
+  expect(await c.ask(`${base},"answers":{"1":"a","2":"a","3":"a","4":"a","5":"a"}}`)).toMatchObject({ ok: false });
+});
+
 test('send takes a message, or a command with or without a message, and nothing empty', async () => {
   await open();
   const c = await client();

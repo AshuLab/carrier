@@ -17,6 +17,35 @@ public struct ChatChoice: Codable, Equatable {
     }
 }
 
+/// One question of an `AskUserQuestion` approval: a short header, the question, the options the provider lists (the person may also
+/// write their own) and whether more than one can be picked.
+public struct ChatQuestion: Codable, Equatable {
+    public struct Option: Codable, Equatable {
+        public let label: String
+        public let description: String
+        /// Optional text (a mockup, a snippet) to show while the option is focused.
+        public let preview: String?
+
+        public init(label: String, description: String, preview: String? = nil) {
+            self.label = label
+            self.description = description
+            self.preview = preview
+        }
+    }
+
+    public let question: String
+    public let header: String
+    public let options: [Option]
+    public let multiSelect: Bool
+
+    public init(question: String, header: String, options: [Option], multiSelect: Bool = false) {
+        self.question = question
+        self.header = header
+        self.options = options
+        self.multiSelect = multiSelect
+    }
+}
+
 /// An event of the conversation as the host stores it (docs/specs/chat-host.md, Decisions): `kind` says which of the fields are there.
 public struct ChatEvent: Codable, Equatable {
     public let id: Int
@@ -32,6 +61,10 @@ public struct ChatEvent: Codable, Equatable {
     public var approvalId: String?
     public var choices: [ChatChoice]?
     public var choiceId: String?
+    /// An approval that asks questions (`AskUserQuestion`) lists them here; `arg` is absent then.
+    public var questions: [ChatQuestion]?
+    /// What the person answered to those, by question text (more than one pick comma-separated); on an `approval_answered`.
+    public var answers: [String: String]?
     public var outcome: String?
     public var model: String?
     /// As the provider reported it: its keys differ (`input_tokens` or `inputTokens`), and any of them can be missing.
@@ -43,7 +76,8 @@ public struct ChatEvent: Codable, Equatable {
     public init(
         id: Int, at: Int, kind: String, text: String? = nil, callId: String? = nil, tool: String? = nil, arg: String? = nil, output: [String]? = nil,
         status: String? = nil, approvalId: String? = nil, choices: [ChatChoice]? = nil, choiceId: String? = nil, outcome: String? = nil,
-        model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil
+        model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, questions: [ChatQuestion]? = nil,
+        answers: [String: String]? = nil
     ) {
         self.id = id
         self.at = at
@@ -57,6 +91,8 @@ public struct ChatEvent: Codable, Equatable {
         self.approvalId = approvalId
         self.choices = choices
         self.choiceId = choiceId
+        self.questions = questions
+        self.answers = answers
         self.outcome = outcome
         self.model = model
         self.usage = usage
@@ -212,6 +248,8 @@ public struct ApprovalCard: Equatable {
     public let tool: String
     public let arg: String?
     public let choices: [ChatChoice]
+    /// The questions of an `AskUserQuestion` approval; empty for any other, which is drawn as the generic card.
+    public let questions: [ChatQuestion]
 }
 
 /// The rows the events make, in order, and then the message in progress when `streaming` has text. Consecutive calls are one row
@@ -257,13 +295,13 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
             if let approval = event.approvalId { asked[approval] = (rows.count, event) }
             if let approval = event.approvalId, pending.contains(approval) {
                 let tool = event.tool ?? "the tool"
-                rows.append(.approval(id: id, ApprovalCard(approvalId: approval, question: "Allow \(tool)?", tool: tool, arg: event.arg, choices: event.choices ?? [])))
+                rows.append(.approval(id: id, ApprovalCard(approvalId: approval, question: "Allow \(tool)?", tool: tool, arg: event.arg, choices: event.choices ?? [], questions: event.questions ?? [])))
             } else {
                 rows.append(.line(id: id, text: "\(what(event)) · no longer waiting for an answer"))
             }
         case "approval_answered":
             guard let approval = event.approvalId, let question = asked[approval] else { continue }
-            rows[question.row] = decided(question.event, choice: event.choiceId, id: rows[question.row].id)
+            rows[question.row] = decided(question.event, choice: event.choiceId, answers: event.answers, id: rows[question.row].id)
         case "turn_end":
             release()
             for spot in going.values {
@@ -301,7 +339,14 @@ private func place(_ call: ToolCall, in rows: inout [FeedRow], id: String) -> (r
 private func what(_ approval: ChatEvent) -> String { [approval.tool, approval.arg].compactMap { $0 }.joined(separator: " ") }
 
 /// "Allowed pnpm test · Allow once · by you": the verb is from whether the chosen choice allows, the label is the provider's own.
-private func decided(_ approval: ChatEvent, choice: String?, id: String) -> FeedRow {
+private func decided(_ approval: ChatEvent, choice: String?, answers: [String: String]?, id: String) -> FeedRow {
+    if let questions = approval.questions, questions.isEmpty == false {
+        guard let answers, let chosen = approval.choices?.first(where: { $0.id == choice })?.allow, chosen else {
+            return .decided(id: id, text: "Skipped the questions · by you", allow: false)
+        }
+        let parts = questions.compactMap { question in answers[question.question].map { "\(question.header): \($0)" } }
+        return .decided(id: id, text: (["Answered · by you"] + parts).joined(separator: "\n"), allow: true)
+    }
     guard let chosen = approval.choices?.first(where: { $0.id == choice }) else {
         return .decided(id: id, text: "Answered \(what(approval)) · by you", allow: false)
     }
@@ -566,9 +611,9 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
 
     /// A button of an approval card: passes the choice to the host and polls, so the card becomes the line once the host recorded the
     /// answer. A refusal (not pending any more, not one of the choices) is shown in words; the next poll draws what the host says.
-    public func answer(_ approvalId: String, choice: String) async {
+    public func answer(_ approvalId: String, choice: String, answers: [String: String]? = nil) async {
         do {
-            try await host.answer(sessionId, approval: approvalId, choice: choice)
+            try await host.answer(sessionId, approval: approvalId, choice: choice, answers: answers)
         } catch {
             refusedText = nil
             refusal = report(error, "answer the approval")

@@ -1,0 +1,20 @@
+{
+  "sessionId": "9b3f5c7e-2d4a-4e68-9fab-1c2d3e4f5a07",
+  "events": [
+    { "id": 1, "at": 1792001000000, "kind": "user", "text": "Add auth to the API. Ask me what you need before you start." },
+    { "id": 2, "at": 1792001003000, "kind": "approval", "approvalId": "q1", "tool": "AskUserQuestion", "questions": [
+      { "question": "Which auth approach should the API use?", "header": "Auth method", "multiSelect": false, "options": [
+        { "label": "Session cookies", "description": "Server-side sessions; simplest for the web app, needs a store." },
+        { "label": "JWT", "description": "Stateless tokens; works for the mobile app too, harder to revoke.", "preview": "Authorization: Bearer <token>\nexp: 15m, refresh: 30d" },
+        { "label": "OAuth only", "description": "Delegate sign-in to GitHub and Google; no passwords to store." }
+      ] },
+      { "question": "Which providers should sign-in support?", "header": "Providers", "multiSelect": true, "options": [
+        { "label": "GitHub", "description": "Developers' default." },
+        { "label": "Google", "description": "Everyone else." },
+        { "label": "Email link", "description": "Magic link, no password." }
+      ] }
+    ], "choices": [{ "id": "allow", "label": "Send answers", "allow": true }, { "id": "deny", "label": "Skip", "allow": false }] }
+  ],
+  "cursor": 2,
+  "streaming": ""
+}

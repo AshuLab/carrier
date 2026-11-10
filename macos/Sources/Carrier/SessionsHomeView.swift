@@ -107,8 +107,10 @@ struct SessionsHomeView: View {
         }
         ToolbarSpacer(.fixed, placement: .primaryAction)
         ToolbarItem(placement: .primaryAction) {
-            Button(action: newSession) { Label("New session", systemImage: "plus").labelStyle(.titleAndIcon) }
+            // the accent is a light pastel on the dark themes: darkened for the fill so the white label reads over any window behind it
+            Button(action: newSession) { Label("New session", systemImage: "plus").labelStyle(.titleAndIcon).foregroundStyle(.white) }
                 .buttonStyle(.glassProminent)
+                .tint(Color.themeAccent.mix(with: .black, by: 0.4))
                 .help("New session")
         }
     }

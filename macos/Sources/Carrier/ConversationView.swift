@@ -55,7 +55,7 @@ struct ConversationView: View {
                                 cancelled(plan)
                             }
                         })
-                        .transition(.opacity)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
                     }
                     if let note = draft?.watchNotes[model.sessionId] {
                         Label(note.text, systemImage: note.failed ? "exclamationmark.triangle.fill" : "eye.fill").font(.scaled(11)).foregroundStyle(note.failed ? .orange : .secondary).textSelection(.enabled)

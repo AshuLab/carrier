@@ -848,3 +848,19 @@ private func eventsRequest(capabilities: [String]) async throws -> String {
     let answered = chatFeed([ask, ChatEvent(id: 3, at: 0, kind: "approval_answered", approvalId: "p", choiceId: "y")])
     #expect(pendingApprovals(answered).isEmpty && visibleFeed(answered, mode: .expanded).count == 1)
 }
+
+@Test func theOutlineAddsTheStepsThatEveryPreparationEndsWithUntilTheyStart() {
+    func row(_ step: String, _ status: StepRow.Status) -> StepRow { StepRow(step: step, status: status, line: step, reason: nil, progress: nil) }
+    let cloning = preparationOutline([row("clone", .running)])
+    #expect(cloning.map(\.step) == ["clone", "agent", "message"] && cloning.map(\.status) == [.running, nil, nil])
+    let waiting = preparationOutline([row("worktree", .done), row("agent", .done), row("message", .running)])
+    #expect(waiting.map(\.step) == ["worktree", "agent", "message"] && waiting.allSatisfy { $0.status != nil })
+    #expect(preparationOutline([row("worktree", .done), row("message", .running)]).map(\.step) == ["worktree", "message"])
+    #expect(preparationOutline([]).map(\.line) == ["Start the agent", "Send your message"])
+}
+
+@Test func theFractionOfAClonesProgressComesFromGitsPercentage() {
+    #expect(progressFraction("Receiving objects:  63% (1234/1960)") == 0.63)
+    #expect(progressFraction("Resolving deltas: 100% (10/10), done.") == 1)
+    #expect(progressFraction("Counting objects") == nil && progressFraction(nil) == nil && progressFraction("999%") == nil)
+}

@@ -19,6 +19,8 @@ struct ConversationView: View {
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
     @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
     @State private var position = ScrollPosition()
+    /// The rows on screen, which tell the timeline which turns they are in.
+    @State private var visibleRows: Set<String> = []
     /// The feed's column; medium is the one of the mockups (chat-ui-conv2.html).
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
     @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
@@ -78,6 +80,7 @@ struct ConversationView: View {
                 }
                 if let failure = model.failure { Text(failure).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled) }
             }
+            .scrollTargetLayout()
             .padding(.horizontal, 40).padding(.vertical, 16)
             .frame(maxWidth: messageWidth.points, alignment: .leading)
             .frame(maxWidth: .infinity)
@@ -88,6 +91,18 @@ struct ConversationView: View {
         .defaultScrollAnchor(.top, for: .alignment)
         .scrollPosition($position)
         .onScrollGeometryChange(for: Bool.self) { $0.visibleRect.maxY >= $0.contentSize.height - 24 } action: { _, atEnd in model.atEnd = atEnd }
+        .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in visibleRows = Set(ids) }
+        .overlay(alignment: .leading) {
+            let markers = turnMarkers(in: foldingClosingLines(visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning)).rows)
+            if markers.count >= timelineMinimumTurns {
+                ConversationTimeline(markers: markers, current: turns(showing: visibleRows, in: markers)) { id in
+                    withAnimation(.smooth(duration: 0.3)) { position.scrollTo(id: id, anchor: .top) }
+                }
+                // the toolbar takes the top and the box the bottom: the middle of the window's body, not of the scroll view's frame
+                .padding(.top, 160)
+                .transition(.opacity)
+            }
+        }
         .onChange(of: followsOutput, initial: true) { _, follows in model.followsOutput = follows }
         .onChange(of: model.scrolls) { position.scrollTo(edge: .bottom) }
         .onChange(of: request) { if let request { perform(request.action) } }

@@ -97,9 +97,16 @@ struct SessionRowView: View {
     }
 }
 
+extension EnvironmentValues {
+    /// Whether the row the view is in is selected or hovered: its project icon wears its colour then and is neutral otherwise. True
+    /// outside the sidebar's rows, where the icon is always coloured.
+    @Entry var rowActive = true
+}
+
 /// The project's icon: its initials in white on a colour that is the same every time (from its name, so a session's folder and an epic's
-/// repository that are one project look alike), in a rounded square. The state is on it: a halo that breathes around it while an agent works
-/// and a mark on its corner when there is something to say.
+/// repository that are one project look alike), in a rounded square of glass tinted with it. The state is on it: a halo that breathes around
+/// it while an agent works and a mark on its corner when there is something to say. In a sidebar row it is neutral until the row is
+/// selected or hovered (`rowActive`).
 struct ProjectIcon: View {
     /// A mark on the corner: a letter or symbol on a disc.
     struct Mark: Equatable {
@@ -114,20 +121,26 @@ struct ProjectIcon: View {
     var halo = false
     var mark: Mark?
     @AppStorage(AppPreferences.statesByShapeKey) private var byShape = false
+    @Environment(\.rowActive) private var active
     static let size: CGFloat = 32
     static let radius: CGFloat = 9
-    /// Mid tones, each at least 4.5:1 against the white of the letters.
+    /// 24 muted colours: 12 hues, each in a fuller and a greyer tone, the brightness of each chosen so the white letters keep at least 4.5:1.
     static let palette: [Color] = [
-        Color(red: 0.48, green: 0.31, blue: 0.77), Color(red: 0.07, green: 0.50, blue: 0.60), Color(red: 0.72, green: 0.38, blue: 0.12),
-        Color(red: 0.14, green: 0.47, blue: 0.29), Color(red: 0.72, green: 0.25, blue: 0.44), Color(red: 0.25, green: 0.44, blue: 0.82),
-        Color(red: 0.48, green: 0.42, blue: 0.07), Color(red: 0.36, green: 0.42, blue: 0.50),
-    ]
+        (0.042, 0.52, 0.64), (0.125, 0.52, 0.52), (0.208, 0.52, 0.49), (0.292, 0.52, 0.51), (0.375, 0.52, 0.51), (0.458, 0.52, 0.51),
+        (0.542, 0.52, 0.56), (0.625, 0.52, 0.64), (0.708, 0.52, 0.64), (0.792, 0.52, 0.64), (0.875, 0.52, 0.64), (0.958, 0.52, 0.64),
+        (0.042, 0.36, 0.50), (0.125, 0.36, 0.50), (0.208, 0.36, 0.48), (0.292, 0.36, 0.50), (0.375, 0.36, 0.50), (0.458, 0.36, 0.49),
+        (0.542, 0.36, 0.50), (0.625, 0.36, 0.50), (0.708, 0.36, 0.50), (0.792, 0.36, 0.50), (0.875, 0.36, 0.50), (0.958, 0.36, 0.50),
+    ].map { Color(hue: $0.0, saturation: $0.1, brightness: $0.2) }
 
     var body: some View {
-        RoundedRectangle(cornerRadius: Self.radius, style: .continuous)
-            .fill(Self.palette[projectColorIndex(colorKey, count: Self.palette.count)])
+        Color.clear
             .frame(width: Self.size, height: Self.size)
-            .overlay { Text(projectInitials(name)).font(.scaled(12, weight: .semibold)).tracking(0.3).foregroundStyle(.white) }
+            .glassEffect(active ? .regular.tint(Self.palette[projectColorIndex(colorKey, count: Self.palette.count)]) : .regular, in: .rect(cornerRadius: Self.radius))
+            .overlay {
+                Text(projectInitials(name)).font(.scaled(12, weight: .semibold)).tracking(0.3)
+                    .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
+            }
+            .animation(.easeOut(duration: 0.15), value: active)
             .overlay { if halo { SessionHalo() } }
             .overlay(alignment: .bottomTrailing) {
                 if let mark, byShape || mark.text.isEmpty == false {

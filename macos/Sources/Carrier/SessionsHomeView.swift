@@ -262,6 +262,7 @@ private struct SessionHomeRow: View {
         let active = hovered || highlighted
         HStack(alignment: .top, spacing: 12) {
             ProjectIcon(name: row.workspace, colorKey: projectColorKey(row.base), halo: row.state == .working, mark: .session(row.state))
+                .environment(\.rowActive, active)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     if pinned { Image(systemName: "pin.fill").font(.scaled(10)).foregroundStyle(.secondary).accessibilityLabel("Pinned") }

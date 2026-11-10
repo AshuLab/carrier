@@ -249,7 +249,7 @@ private struct FeedRowView: View {
             VStack(alignment: .trailing, spacing: 3) {
                 messageText(text, commands: commands).textSelection(.enabled)
                     .padding(.horizontal, 13).padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.14)))
+                    .glassEffect(.regular.tint(Color.themeAccent.opacity(0.1)), in: .rect(cornerRadius: 16))
                 footer(text, summary: nil, asks: false)
             }
             .frame(maxWidth: .infinity, alignment: .trailing)

@@ -66,19 +66,29 @@ struct FlowItemView: View {
 /// across the code blocks too, if that is missed.
 struct MarkdownView: View {
     let text: String
+    @Environment(\.colorScheme) private var scheme
+    private var dark: Bool { scheme == .dark }
 
     private enum Segment {
         case text(AttributedString)
         case code(String?, String?, String)
     }
 
-    /// Inline code on a faint tint of the theme's accent, so a name in a sentence reads as one.
+    /// Inline code as a chip: the theme's accent for the text over a stronger tint of it, with a little air at both ends (a non-breaking
+    /// space inside the tint), so a name in a sentence stands out of it.
     private func chipped(_ line: AttributedString) -> AttributedString {
-        var line = line
-        for run in line.runs where run.inlinePresentationIntent?.contains(.code) == true {
-            line[run.range].backgroundColor = Color.themeAccent.opacity(0.18)
+        let ink = dark ? Color.themeAccent.mix(with: .white, by: 0.3) : Color.themeAccent.mix(with: .black, by: 0.25)
+        var out = AttributedString()
+        for run in line.runs {
+            var piece = AttributedString(line[run.range])
+            if run.inlinePresentationIntent?.contains(.code) == true {
+                piece = AttributedString("\u{00A0}") + piece + AttributedString("\u{00A0}")
+                piece.foregroundColor = ink
+                piece.backgroundColor = Color.themeAccent.opacity(dark ? 0.26 : 0.16)
+            }
+            out.append(piece)
         }
-        return line
+        return out
     }
 
     private var segments: [Segment] {

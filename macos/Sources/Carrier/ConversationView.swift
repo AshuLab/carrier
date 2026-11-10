@@ -13,6 +13,8 @@ struct ConversationView: View {
     @State private var boxFocused = false
     /// Whether rows are animated in: not the ones the first answer brings, which are the history.
     @State private var animatesRows = false
+    /// Whether the feed has been taken to its end after it loaded: until then it is not drawn, so the way down is not seen.
+    @State private var positioned = false
     @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
     @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
@@ -90,6 +92,7 @@ struct ConversationView: View {
             .frame(maxWidth: .infinity)
             // the count and whether the agent is busy (the dots of Thinking come and go with it)
             .animation(animatesRows ? .smooth(duration: 0.28) : nil, value: [shown.rows.count, model.busy ? 1 : 0])
+            .opacity(model.loaded == false || positioned ? 1 : 0)
         }
         // the end of the conversation is what shows; it stays in view as it grows only when Follow new output is on (the model says when to scroll)
         .defaultScrollAnchor(followsOutput ? .bottom : nil)
@@ -111,11 +114,25 @@ struct ConversationView: View {
         // markers are rebuilt when the feed gains or loses a row, not at each token of the answer in progress nor at each scroll
         .onChange(of: shown.rows.count, initial: true) { markers = turnMarkers(in: shown.rows) }
         // eased like the rows that come in, so the two do not move against each other
-        .onChange(of: model.scrolls) { withAnimation(.smooth(duration: 0.25)) { position.scrollTo(edge: .bottom) } }
+        .onChange(of: model.scrolls) {
+            // the first load is not eased: it is the end already, seen from the first moment (see `loaded` below)
+            if positioned { withAnimation(.smooth(duration: 0.25)) { position.scrollTo(edge: .bottom) } } else { position.scrollTo(edge: .bottom) }
+        }
         .onChange(of: request) { if let request { perform(request.action) } }
         .onChange(of: model.loaded) { _, loaded in
             guard loaded else { return }
-            Task { try? await Task.sleep(for: .milliseconds(400)); animatesRows = true }
+            Task {
+                // opening a session shows its end, not the way there: the rows are measured as they come, so the end moves while they do;
+                // it is gone to again, out of sight, until they have settled, and the feed fades in there
+                for delay in [0, 90, 220] {
+                    try? await Task.sleep(for: .milliseconds(delay))
+                    withTransaction(Transaction(animation: nil)) { position.scrollTo(edge: .bottom) }
+                }
+                try? await Task.sleep(for: .milliseconds(60))
+                withAnimation(.easeOut(duration: 0.18)) { positioned = true }
+                try? await Task.sleep(for: .milliseconds(400))
+                animatesRows = true
+            }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { if model.archived { archivedBox } else { box } }
         .font(.scaled(13))

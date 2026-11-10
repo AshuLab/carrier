@@ -63,10 +63,7 @@ struct ComposerMenuButton: View {
             ProviderMark(name: icon)
             Text(menu.pillModel ?? agent).fontWeight(.medium).lineLimit(1)
             if let level = menu.pillReasoning { Text("· \(level)").foregroundStyle(.secondary).lineLimit(1) }
-            if let flag = menu.accessFlag {
-                Text(flag).font(.caption.weight(.semibold)).foregroundStyle(.orange)
-                    .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.orange.opacity(0.2)))
-            }
+            if let flag = menu.accessFlag { Text("· \(flag)").foregroundStyle(.secondary).lineLimit(1) }
             Image(systemName: "chevron.down").font(.scaled(9, weight: .bold)).foregroundStyle(.secondary)
         }
         .font(.callout).padding(.horizontal, 10).frame(height: 28)

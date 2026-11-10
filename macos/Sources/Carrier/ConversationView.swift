@@ -151,6 +151,11 @@ struct ConversationView: View {
     /// session's provider and the options the provider lists in one button, and what the host refused under it.
     private var box: some View {
         VStack(alignment: .leading, spacing: 8) {
+            let approvals = pendingApprovals(model.rows)
+            if let card = approvals.first {
+                ApprovalCardView(card: card, behind: approvals.count - 1) { approval, choice in Task { await model.answer(approval, choice: choice) } }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             if model.loaded, model.live == false { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
             if let queued = model.queued {
                 HStack(spacing: 8) {
@@ -191,6 +196,7 @@ struct ConversationView: View {
         }
         .animation(.smooth(duration: 0.25), value: model.queued)
         .animation(.smooth(duration: 0.25), value: model.live)
+        .animation(.smooth(duration: 0.25), value: pendingApprovals(model.rows).first?.approvalId)
         // the window asks the box for its smallest size with no width at all, and a notice that wraps would answer with a word a line:
         // taller than the window (a closed session's notice made it ask for 450 points more than it had)
         .frame(minWidth: 320)
@@ -247,8 +253,8 @@ private struct FeedRowView: View {
             Text(summary.text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
         case .tools(let id, let group):
             ChatToolGroupView(id: id, group: group, flipped: $flipped)
-        case .approval(_, let card):
-            ApprovalCardView(card: card, answer: answer)
+        case .approval:
+            EmptyView() // drawn over the message box, never in the feed (`visibleFeed`)
         case .decided(_, let text, let allow):
             ApprovalDecidedView(text: text, allow: allow)
         case .line(_, let text):

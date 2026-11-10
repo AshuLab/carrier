@@ -837,3 +837,14 @@ private func eventsRequest(capabilities: [String]) async throws -> String {
     #expect(OutputLength.long.visible(call.output, expanded: false).hidden == 0 && OutputLength.long.visible(call.output, expanded: false).lines.count == 60)
     #expect(OutputLength.medium.visible(call.output, expanded: true).hidden == 0)
 }
+
+@Test func aPendingApprovalIsOverTheBoxAndNotInTheFeed() {
+    let choices: [ChatChoice] = [.init(id: "y", label: "Allow", allow: true), .init(id: "n", label: "Deny", allow: false)]
+    let ask = ChatEvent(id: 2, at: 0, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: choices)
+    let rows = chatFeed([ChatEvent(id: 1, at: 0, kind: "user", text: "go"), ask], pending: ["p"])
+    #expect(pendingApprovals(rows).map(\.approvalId) == ["p"])
+    #expect(texts(visibleFeed(rows, mode: .expanded)) == ["user: go"])
+    // answered, it is a line in the feed and nothing waits
+    let answered = chatFeed([ask, ChatEvent(id: 3, at: 0, kind: "approval_answered", approvalId: "p", choiceId: "y")])
+    #expect(pendingApprovals(answered).isEmpty && visibleFeed(answered, mode: .expanded).count == 1)
+}

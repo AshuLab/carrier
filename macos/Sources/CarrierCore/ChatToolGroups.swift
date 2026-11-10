@@ -157,9 +157,16 @@ public func visibleFeed(_ rows: [FeedRow], mode: ToolOutputMode, showsReasoning:
         switch $0 {
         case .tools: mode != .hidden
         case .reasoning: showsReasoning
+        // a pending approval is not in the feed: it is the card over the message box (`pendingApprovals`); once answered it is a line
+        case .approval: false
         default: true
         }
     }
+}
+
+/// The approvals the person can answer now, in the order they were asked: the first is the card over the message box.
+public func pendingApprovals(_ rows: [FeedRow]) -> [ApprovalCard] {
+    rows.compactMap { if case .approval(_, let card) = $0 { card } else { nil } }
 }
 
 /// What the person has flipped after Fold or unfold the tool calls: every run of the feed folded, or all unfolded when all are folded

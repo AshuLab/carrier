@@ -69,7 +69,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         showIcon("macwindow", on: item)
     }
 
-    /// Adds the "About Carrier" item: it opens the window if it was closed, then shows the About sheet over it.
+    /// Adds the "About Carrier" item: it shows the About panel.
     func addAboutItem(to menu: NSMenu) {
         let item = menu.addItem(withTitle: "About Carrier", action: #selector(aboutFromMenu), keyEquivalent: "")
         item.target = self
@@ -96,14 +96,20 @@ final class WindowController: NSObject, NSWindowDelegate {
     func closeSettings() { model.shell.settingsShown = false }
     var settingsStatus: String { "settings sheet \(model.shell.settingsShown ? "shown" : "hidden")" }
 
-    /// For the self-test: Escape on the About sheet, so the next choice of the item starts from no sheet.
-    func dismissAbout() { model.shell.aboutInput(.escape) }
-
     @objc private func aboutFromMenu() { showAbout() }
 
+    /// The system's About panel: the bundle gives the icon, name, version and copyright; the links go in its credits.
     func showAbout() {
-        open()
-        model.shell.showAbout()
+        let centred = NSMutableParagraphStyle()
+        centred.alignment = .center
+        let credits = NSMutableAttributedString()
+        for (index, link) in aboutLinks.enumerated() {
+            if index > 0 { credits.append(NSAttributedString(string: "   ")) }
+            credits.append(NSAttributedString(string: link.title, attributes: [.link: link.url]))
+        }
+        credits.addAttributes([.paragraphStyle: centred, .font: NSFont.systemFont(ofSize: 11)], range: NSRange(location: 0, length: credits.length))
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
     }
 
     // For the main menu: each opens the window (or brings it forward) first.
@@ -157,9 +163,6 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     /// For the self-test: whether the window is on screen and whether its monitor runs.
     var status: String { "visible \(window?.isVisible == true), monitor \(stop != nil)" }
-
-    /// For the self-test: `status` plus whether the About sheet is shown.
-    var aboutStatus: String { "\(status), about sheet \(model.shell.aboutShown ? "shown" : "hidden")" }
 
     /// For `--smoke-window`: selects the first epic Carrier reports (running, queued, then finished), so its view is on screen.
     func selectFirstEpic() {

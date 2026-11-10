@@ -193,12 +193,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return args[flag + 1]
     }
 
-    /// Chooses "About Carrier" in the menu as a click would, and reports the window and the sheet.
-    private func chooseAbout(closingFirst: Bool) -> String {
+    /// Chooses "About Carrier" in the menu as a click would, and reports whether the About panel came up.
+    private func chooseAbout() -> String {
         guard let menu = statusItem?.menu, let index = menu.items.firstIndex(where: { $0.title == "About Carrier" }) else { return "no About item" }
-        if closingFirst { WindowController.shared.close() } else { WindowController.shared.open(); WindowController.shared.dismissAbout() }
         menu.performActionForItem(at: index)
-        return WindowController.shared.aboutStatus
+        return "about panel \(NSApp.windows.contains { $0.className.contains("About") && $0.isVisible } ? "shown" : "hidden")"
     }
 
     /// Runs the menu's actions from code, one a second, and logs each step. Quit is only checked, never fired: it would end
@@ -252,8 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ("reopen window", { WindowController.shared.open(); return WindowController.shared.status }),
             ("rings, window open", { MainActor.assumeIsolated { RingHostView.summary } }),
             ("rings, window closed", { WindowController.shared.close(); return MainActor.assumeIsolated { RingHostView.summary } }),
-            ("choose About Carrier, window closed", { self.chooseAbout(closingFirst: true) }),
-            ("choose About Carrier, window open", { self.chooseAbout(closingFirst: false) }),
+            ("choose About Carrier", { self.chooseAbout() }),
             ("notifications", { SystemNotificationCentre.selfTestSummary }),
         ]
         write("start")

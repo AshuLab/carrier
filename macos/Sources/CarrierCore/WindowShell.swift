@@ -93,8 +93,6 @@ public struct ArchiveRequest: Equatable {
     public var open: OpenSection?
     public var sidebarShown = true
     public var inspectorShown = true
-    /// The About sheet is over the window; the selection underneath stays.
-    public var aboutShown = false
     /// The last ⌘F, for the open section's search to show itself.
     public private(set) var searchRequest: SearchRequest?
     /// The last request to the open conversation.
@@ -121,7 +119,6 @@ public struct ArchiveRequest: Equatable {
 
     public func toggleSidebar() { sidebarShown.toggle() }
     public func toggleInspector() { inspectorShown.toggle() }
-    public func showAbout() { aboutShown = true }
 
     /// Runs a shortcut: a selection as a click on it would, ⌘F as a request to the open section (nothing with both folded). The
     /// session shortcuts read `sessions` in the order `sort` gives the sidebar; with none open, next picks the first and previous the last.
@@ -146,18 +143,12 @@ public struct ArchiveRequest: Equatable {
         }
     }
 
-    /// Escape and a click outside close the sheet; a click on it does not.
-    public func aboutInput(_ input: AboutInput) {
-        if input != .clickInside { aboutShown = false }
-    }
-
     /// Back to how a freshly opened window starts.
     public func reset(open: OpenSection? = .sessions) {
         selection = .home
         self.open = open
         sidebarShown = true
         inspectorShown = true
-        aboutShown = false
         settingsShown = false
         searchRequest = nil
         conversationRequest = nil

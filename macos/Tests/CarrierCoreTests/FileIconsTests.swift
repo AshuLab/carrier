@@ -36,8 +36,3 @@ func anythingElseGetsTheSymbolOfItsCategory(path: String, symbol: String) {
     let licence = try String(contentsOf: #require(fileIconsLicenceURL), encoding: .utf8)
     #expect(licence.hasPrefix("The MIT License (MIT)\nCopyright (c) 2025 Material Extensions"))
 }
-
-@Test func aboutListsTheMaterialIconThemeLicence() {
-    let sheet = aboutSheet(version: nil, build: nil, state: .stopped)
-    #expect(sheet.licences.contains { $0.contains("Material Icon Theme") && $0.contains("MIT") })
-}

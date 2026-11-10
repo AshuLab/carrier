@@ -35,9 +35,8 @@ private struct SessionContextMenu: ViewModifier {
 
     private func menuItem(_ item: SessionMenuItem) -> NSMenuItem {
         let entry = NSMenuItem(title: item.title, action: nil, keyEquivalent: "")
-        entry.image = NSImage(systemSymbolName: item.icon, accessibilityDescription: nil)
-        // macOS 27 hides the symbol of a menu item unless the item asks for it
-        if #available(macOS 27, *) { entry.preferredImageVisibility = .visible }
+        // the helper that asks macOS 27 to show the symbol, by key: `preferredImageVisibility` is in the macOS 27 SDK only, and CI builds with Xcode 26
+        showIcon(item.icon, on: entry)
         if item.destructive { entry.attributedTitle = NSAttributedString(string: item.title, attributes: [.foregroundColor: NSColor.systemRed]) }
         if let action = item.action {
             let handler = MenuHandler { run(action) }

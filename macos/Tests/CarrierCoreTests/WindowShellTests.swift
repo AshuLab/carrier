@@ -97,23 +97,6 @@ import Testing
     #expect(shell.open == .carrier && shell.selection == .home)
 }
 
-@Test func escapeAndAClickOutsideCloseTheAboutSheetButAClickOnItDoesNot() {
-    let shell = WindowShell()
-    shell.selection = .epic(repo: "acme/web", issue: 7)
-    for closing in [AboutInput.escape, .clickOutside] {
-        shell.showAbout()
-        #expect(shell.aboutShown)
-        shell.aboutInput(.clickInside)
-        #expect(shell.aboutShown)
-        shell.aboutInput(closing)
-        #expect(shell.aboutShown == false)
-    }
-    #expect(shell.selection == .epic(repo: "acme/web", issue: 7))
-    shell.showAbout()
-    shell.reset()
-    #expect(shell.aboutShown == false)
-}
-
 @Test func askingForNewSessionWhileItsDraftIsOpenCountsAsOpeningIt() {
     let shell = WindowShell()
     shell.selection = .newSession

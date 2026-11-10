@@ -213,11 +213,6 @@ struct PanelView: View {
                 }
             }
         }
-        .overlay {
-            if shell.aboutShown {
-                AboutSheetView(state: model.state, onInput: shell.aboutInput)
-            }
-        }
         // reachable whatever Carrier is doing: it is where a stopped Carrier is made ready
         .sheet(isPresented: $shell.settingsShown) { SettingsSheet(state: model.state, tab: $shell.settingsTab).themed() }
         .frame(minWidth: 1100, minHeight: 600)

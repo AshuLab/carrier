@@ -45,7 +45,7 @@ public func fileIcon(_ path: String) -> FileIcon {
     return .symbol(fileCategory(path).symbol)
 }
 
-/// The upstream licence text that ships with the icons, shown from About's licences.
+/// The upstream licence text that ships with the icons, inside the app bundle.
 public var fileIconsLicenceURL: URL? {
     carrierResources.url(forResource: "LICENSE", withExtension: nil, subdirectory: "FileIcons")
 }

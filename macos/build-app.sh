@@ -49,7 +49,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSPrincipalClass</key><string>NSApplication</string>
-<key>NSHumanReadableCopyright</key><string>Copyright © AshuLab</string>
+<key>NSHumanReadableCopyright</key><string>Copyright © 2026 AshuLab</string>
 </dict></plist>
 PLIST
 # the icons and their licence must be in the app: every icon of the source folder, and the upstream MIT text

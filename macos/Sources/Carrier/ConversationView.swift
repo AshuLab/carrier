@@ -13,12 +13,18 @@ struct ConversationView: View {
     @State private var boxFocused = false
     /// Whether rows are animated in: not the ones the first answer brings, which are the history.
     @State private var animatesRows = false
+    /// Whether the feed has been taken to its end after it loaded: until then it is not drawn, so the way down is not seen.
+    @State private var positioned = false
     @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
     @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
     @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
     @State private var position = ScrollPosition()
+    /// The rows on screen, which tell the timeline which turns they are in.
+    @State private var visibleRows: Set<String> = []
+    /// One tick per turn for the timeline at the edge; see `onChange` of the feed's row count.
+    @State private var markers: [TurnMarker] = []
     /// The feed's column; medium is the one of the mockups (chat-ui-conv2.html).
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
     @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
@@ -38,7 +44,9 @@ struct ConversationView: View {
     }
 
     var body: some View {
-        ScrollView {
+        // derived once per evaluation: the feed the tools' mode and the reasoning setting leave, with the closing lines folded into their messages
+        let shown = foldingClosingLines(visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning))
+        return ScrollView {
             LazyVStack(alignment: .leading, spacing: density.messageGap) {
                 if model.loaded {
                     if model.steps.isEmpty == false {
@@ -49,20 +57,25 @@ struct ConversationView: View {
                                 cancelled(plan)
                             }
                         })
-                        .transition(.opacity)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
                     }
                     if let note = draft?.watchNotes[model.sessionId] {
                         Label(note.text, systemImage: note.failed ? "exclamationmark.triangle.fill" : "eye.fill").font(.scaled(11)).foregroundStyle(note.failed ? .orange : .secondary).textSelection(.enabled)
                     }
                     let open = openOutcome(model.rows)
-                    let feed = visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning)
+                    let (feed, closing) = shown
+                    // the answer the person is looking at keeps its footer in view; the rest show it on hover
+                    let pinnedAnswer: String? = {
+                        guard let index = feed.lastIndex(where: { if case .agent(_, _, false) = $0 { true } else { false } }) else { return nil }
+                        return feed[index...].contains(where: { if case .agent(_, _, true) = $0 { true } else { false } }) ? nil : feed[index].id
+                    }()
                     ForEach(feed) { row in
                         FeedRowView(
-                            row: row, time: model.times[row.id], flipped: $flipped, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
+                            row: row, time: model.times[row.id], summary: closing[row.id], pinned: row.id == pinnedAnswer, flipped: $flipped, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
                             continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
                             answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
                         )
-                        .transition(.asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity))
+                        .transition(Self.transition(of: row))
                     }
                     // between Enter and the first words of the answer
                     if model.busy, model.steps.isEmpty, case .user = feed.last {
@@ -73,22 +86,53 @@ struct ConversationView: View {
                 }
                 if let failure = model.failure { Text(failure).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled) }
             }
+            .scrollTargetLayout()
             .padding(.horizontal, 40).padding(.vertical, 16)
             .frame(maxWidth: messageWidth.points, alignment: .leading)
             .frame(maxWidth: .infinity)
-            .animation(animatesRows ? .smooth(duration: 0.28) : nil, value: model.rows.count)
+            // the count and whether the agent is busy (the dots of Thinking come and go with it)
+            .animation(animatesRows ? .smooth(duration: 0.28) : nil, value: [shown.rows.count, model.busy ? 1 : 0])
+            .opacity(model.loaded == false || positioned ? 1 : 0)
         }
         // the end of the conversation is what shows; it stays in view as it grows only when Follow new output is on (the model says when to scroll)
         .defaultScrollAnchor(followsOutput ? .bottom : nil)
         .defaultScrollAnchor(.top, for: .alignment)
         .scrollPosition($position)
         .onScrollGeometryChange(for: Bool.self) { $0.visibleRect.maxY >= $0.contentSize.height - 24 } action: { _, atEnd in model.atEnd = atEnd }
+        .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.5) { ids in visibleRows = Set(ids) }
+        .overlay(alignment: .leading) {
+            if markers.count >= timelineMinimumTurns {
+                ConversationTimeline(markers: markers, current: turns(showing: visibleRows, in: markers)) { id in
+                    withAnimation(.smooth(duration: 0.3)) { position.scrollTo(id: id, anchor: .top) }
+                }
+                // the toolbar takes the top and the box the bottom: the middle of the window's body, not of the scroll view's frame
+                .padding(.top, 160)
+                .transition(.opacity)
+            }
+        }
         .onChange(of: followsOutput, initial: true) { _, follows in model.followsOutput = follows }
-        .onChange(of: model.scrolls) { position.scrollTo(edge: .bottom) }
+        // markers are rebuilt when the feed gains or loses a row, not at each token of the answer in progress nor at each scroll
+        .onChange(of: shown.rows.count, initial: true) { markers = turnMarkers(in: shown.rows) }
+        // eased like the rows that come in, so the two do not move against each other
+        .onChange(of: model.scrolls) {
+            // the first load is not eased: it is the end already, seen from the first moment (see `loaded` below)
+            if positioned { withAnimation(.smooth(duration: 0.25)) { position.scrollTo(edge: .bottom) } } else { position.scrollTo(edge: .bottom) }
+        }
         .onChange(of: request) { if let request { perform(request.action) } }
         .onChange(of: model.loaded) { _, loaded in
             guard loaded else { return }
-            Task { try? await Task.sleep(for: .milliseconds(400)); animatesRows = true }
+            Task {
+                // opening a session shows its end, not the way there: the rows are measured as they come, so the end moves while they do;
+                // it is gone to again, out of sight, until they have settled, and the feed fades in there
+                for delay in [0, 90, 220] {
+                    try? await Task.sleep(for: .milliseconds(delay))
+                    withTransaction(Transaction(animation: nil)) { position.scrollTo(edge: .bottom) }
+                }
+                try? await Task.sleep(for: .milliseconds(60))
+                withAnimation(.easeOut(duration: 0.18)) { positioned = true }
+                try? await Task.sleep(for: .milliseconds(400))
+                animatesRows = true
+            }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { if model.archived { archivedBox } else { box } }
         .font(.scaled(13))
@@ -96,6 +140,14 @@ struct ConversationView: View {
             if let first = draft?.takeFirstMessage(of: model.sessionId) { model.show(firstMessage: first) }
             await model.run()
         }
+    }
+
+    /// A row comes in from the bottom and fades out, except an agent's message: it grows in place as it is written, and the message in
+    /// progress is replaced by the finished one (another row id) with nothing to see, so it does not leave and come in again when the
+    /// answer ends.
+    private static func transition(of row: FeedRow) -> AnyTransition {
+        if case .agent = row { return .identity }
+        return .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity)
     }
 
     private func perform(_ action: ConversationAction) {
@@ -128,9 +180,14 @@ struct ConversationView: View {
     }
 
     /// The message box, the same as the draft's (chat-ui-conv.html, section 3): the queued message above it, then the box with the
-    /// session's provider and the options the provider lists as selects, and what the host refused under it.
+    /// session's provider and the options the provider lists in one button, and what the host refused under it.
     private var box: some View {
         VStack(alignment: .leading, spacing: 8) {
+            let approvals = pendingApprovals(model.rows)
+            if let card = approvals.first {
+                ApprovalCardView(card: card, behind: approvals.count - 1) { approval, choice in Task { await model.answer(approval, choice: choice) } }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             if model.loaded, model.live == false { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
             if let queued = model.queued {
                 HStack(spacing: 8) {
@@ -149,19 +206,16 @@ struct ConversationView: View {
             MessageBox(
                 text: $model.draft, placeholder: "Message the agent", minLines: 2,
                 canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, busy: model.busy,
-                focus: $boxFocused, commands: model.shownCommands, halo: true, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
+                focus: $boxFocused, commands: model.shownCommands, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
             ) {
-                if model.agent.isEmpty == false {
-                    ComposerSelect(title: "Provider", icon: "sparkle", selected: model.agent, showsValue: true, locked: true, choices: [SelectChoice(id: model.agent, label: model.agent)])
-                }
-                // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app
-                // never saw running lists nothing, and the selects say so
-                if model.loaded, model.live == false, model.shownOptions.isEmpty {
-                    ForEach([("Model", "cpu"), ("Reasoning", "brain"), ("Access", "lock.shield")], id: \.0) { title, icon in
-                        ComposerSelect(title: title, icon: icon, note: "The provider lists these once the session is awake. Send a message to wake it up.")
-                    }
-                }
-                optionSelects(model.shownOptions) { option, value in Task { await model.setOption(option, value) } }
+                ComposerMenuButton(
+                    providers: model.agent.isEmpty ? [] : [ProviderTab(name: model.agent, icon: model.agent)], agent: model.agent, locked: true,
+                    options: model.shownOptions,
+                    // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app
+                    // never saw running lists nothing, and the panel says so
+                    emptyNote: model.loaded && model.live == false ? "The provider lists these once the session is awake. Send a message to wake it up." : "Reading what the provider offers…",
+                    busy: model.busy, chooseAgent: { _ in }, choose: { option, value in Task { await model.setOption(option, value) } }
+                )
             }
             if let refusal = model.optionRefusal { Text(refusal).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled) }
             if let refusal = model.refusal {
@@ -174,6 +228,7 @@ struct ConversationView: View {
         }
         .animation(.smooth(duration: 0.25), value: model.queued)
         .animation(.smooth(duration: 0.25), value: model.live)
+        .animation(.smooth(duration: 0.25), value: pendingApprovals(model.rows).first?.approvalId)
         // the window asks the box for its smallest size with no width at all, and a notice that wraps would answer with a word a line:
         // taller than the window (a closed session's notice made it ask for 450 points more than it had)
         .frame(minWidth: 320)
@@ -183,43 +238,14 @@ struct ConversationView: View {
     }
 }
 
-/// The title bar's Open button: reveals the session's folder in Finder and copies its path or its branch name; a copy item says
-/// "Copied" for a moment.
-struct OpenMenu: View {
-    let items: [OpenItem]
-    @State private var copied: String?
-
-    var body: some View {
-        Menu {
-            ForEach(items, id: \.title) { item in
-                Button(copied == item.title ? "Copied" : item.title) { run(item) }
-            }
-        } label: {
-            Label("Open", systemImage: "folder").labelStyle(.titleAndIcon)
-        }
-        .help("Open the session's folder")
-    }
-
-    private func run(_ item: OpenItem) {
-        switch item.action {
-        case .reveal(let path):
-            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
-        case .copy(let text):
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-            copied = item.title
-            Task {
-                try? await Task.sleep(for: .seconds(1.5))
-                copied = nil
-            }
-        }
-    }
-}
-
 private struct FeedRowView: View {
     let row: FeedRow
     /// When the message was written, in ms; nil for a row that is not a stored message.
     let time: Int?
+    /// What the turn that ended on this message says of itself (the model, how long, the tokens), shown on hover.
+    let summary: TurnSummary?
+    /// Whether the footer stays in view without the pointer: the last answer of the conversation.
+    let pinned: Bool
     @Binding var flipped: Set<String>
     let agent: String
     /// What the session lists, to show the commands a message names as pills.
@@ -231,15 +257,22 @@ private struct FeedRowView: View {
     let answer: (String, String) -> Void
     @AppStorage(AppPreferences.messageTimesKey) private var messageTimes = AppPreferences.defaultMessageTimes
     @State private var hovering = false
+    @State private var copied = false
+    @State private var overCopy = false
 
     var body: some View {
         switch row {
         case .user(_, let text):
+            // the files that came with it are chips over the bubble, and the bubble is what the person wrote
+            let sent = splitAttachments(text)
             VStack(alignment: .trailing, spacing: 3) {
-                messageText(text, commands: commands).textSelection(.enabled)
-                    .padding(.horizontal, 13).padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 16).fill(Color.secondary.opacity(0.14)))
-                stamp
+                if sent.paths.isEmpty == false { SentAttachments(paths: sent.paths).padding(.bottom, 3) }
+                if sent.text.isEmpty == false {
+                    messageText(sent.text, commands: commands).textSelection(.enabled)
+                        .padding(.horizontal, 13).padding(.vertical, 8)
+                        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.1)), in: .rect(cornerRadius: 16))
+                }
+                footer(text, summary: nil, asks: false)
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.leading, 120)
@@ -247,18 +280,19 @@ private struct FeedRowView: View {
         case .agent(_, let text, let inProgress):
             VStack(alignment: .leading, spacing: 5) {
                 MarkdownView(text: text)
-                if inProgress { Text("▍").foregroundStyle(.secondary) }
-                stamp
+                // the cursor takes the footer's height, so the answer does not grow when it ends and the footer takes its place
+                if inProgress { Text("▍").foregroundStyle(.secondary).frame(height: 24, alignment: .leading) }
+                if inProgress == false { footer(text, summary: summary, asks: true) }
             }
             .onHover { hovering = $0 }
         case .reasoning(let id, let text):
             ReasoningRow(id: id, text: text, flipped: $flipped)
-        case .turnEnd(_, let text):
-            Text(text).font(.scaled(11)).foregroundStyle(.tertiary).textSelection(.enabled)
+        case .turnEnd(_, let summary):
+            Text(summary.text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
         case .tools(let id, let group):
             ChatToolGroupView(id: id, group: group, flipped: $flipped)
-        case .approval(_, let card):
-            ApprovalCardView(card: card, answer: answer)
+        case .approval:
+            EmptyView() // drawn over the message box, never in the feed (`visibleFeed`)
         case .decided(_, let text, let allow):
             ApprovalDecidedView(text: text, allow: allow)
         case .line(_, let text):
@@ -276,8 +310,82 @@ private struct FeedRowView: View {
 }
 
 extension FeedRowView {
-    @ViewBuilder fileprivate var stamp: some View {
-        if let time { MessageTimeLabel(ms: time, mode: messageTimes, hovering: hovering) }
+    /// Under a message: the copy button, its time and, for an agent message, what the turn that ended on it says of itself (the model as a
+    /// chip, how long, the tokens). The row is the same height with or without them, so showing them moves nothing; they fade in and out.
+    fileprivate func footer(_ text: String, summary: TurnSummary?, asks: Bool) -> some View {
+        let shown = hovering || pinned || copied
+        return HStack(spacing: 10) {
+            copyControl(text, asks: asks).opacity(shown ? 1 : 0).allowsHitTesting(shown)
+            stamp(shown: shown)
+            if let summary { summaryView(summary).opacity(shown ? 1 : 0) }
+        }
+        .frame(height: 24)
+        .animation(.easeInOut(duration: 0.18), value: shown)
+    }
+
+    private func summaryView(_ summary: TurnSummary) -> some View {
+        let numbers = [summary.duration, summary.context.map { "\(TurnSummary.tokens($0)) context" }, summary.output.map { "\(TurnSummary.tokens($0)) out" }]
+            .compactMap { $0 }.joined(separator: " · ")
+        return HStack(spacing: 10) {
+            if let model = summary.shortModel {
+                Text(model).font(.scaled(11, weight: .medium)).foregroundStyle(.secondary)
+                    .padding(.horizontal, 7).padding(.vertical, 2).background(Capsule().fill(Color.secondary.opacity(0.14)))
+                    .help(summary.model ?? model)
+            }
+            if numbers.isEmpty == false {
+                Text(numbers).font(.scaled(12)).foregroundStyle(Color.secondary.opacity(0.8)).help(breakdown(summary))
+            }
+        }
+    }
+
+    /// What the context is made of, for the tooltip of the numbers.
+    private func breakdown(_ summary: TurnSummary) -> String {
+        [("New input", summary.input), ("Read from the cache", summary.cacheRead), ("Written to the cache", summary.cacheWrite), ("Output", summary.output)]
+            .compactMap { name, count in count.map { "\(name): \(Int($0).formatted())" } }.joined(separator: "\n")
+    }
+
+    /// Copies the message as it was written (its Markdown) and says so with a green tick for a moment. An agent message also offers its plain text, with the
+    /// Markdown marks taken out, from the menu next to the button.
+    @ViewBuilder private func copyControl(_ text: String, asks: Bool) -> some View {
+        let label = Image(systemName: copied ? "checkmark" : "doc.on.doc")
+            .font(.scaled(12)).foregroundStyle(copied ? Color.green : Color.secondary)
+            .frame(width: 26, height: 22)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(overCopy ? 0.16 : 0)))
+        .contentShape(RoundedRectangle(cornerRadius: 6))
+        Group {
+            if asks {
+                Menu {
+                    Button("Copy as Markdown") { copy(text) }
+                    Button("Copy as plain text") { copy(plainText(text)) }
+                } label: { label } primaryAction: { copy(text) }
+                    .menuStyle(.button).menuIndicator(.hidden)
+            } else {
+                Button { copy(text) } label: { label }
+            }
+        }
+        .buttonStyle(.plain).fixedSize()
+        .onHover { overCopy = $0 }
+        .help("Copy message").accessibilityLabel("Copy message")
+    }
+
+    private func copy(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        copied = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            copied = false
+        }
+    }
+
+    /// The text with the inline marks (bold, links, code ticks) read and dropped; the line breaks and the code blocks stay as they are.
+    private func plainText(_ markdown: String) -> String {
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        return (try? AttributedString(markdown: markdown, options: options)).map { String($0.characters) } ?? markdown
+    }
+
+    @ViewBuilder fileprivate func stamp(shown: Bool) -> some View {
+        if let time { MessageTimeLabel(ms: time, mode: messageTimes, hovering: shown) }
     }
 }
 
@@ -292,7 +400,7 @@ struct MessageTimeLabel: View {
         if mode != .never {
             // a relative time ages while the row stays on screen
             TimelineView(.everyMinute) { context in
-                Text(timeText(Date(ms: ms), now: context.date)).font(.scaled(11)).monospacedDigit().foregroundStyle(.tertiary)
+                Text(timeText(Date(ms: ms), now: context.date)).font(.scaled(12)).monospacedDigit().foregroundStyle(.secondary)
                     .opacity(mode.shows(hovering: hovering) ? 1 : 0)
             }
         }
@@ -330,29 +438,6 @@ private struct BannerView: View {
         .padding(.horizontal, 13).padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: 16).fill(tint.opacity(0.11)))
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(tint.opacity(0.5), lineWidth: 1))
-    }
-}
-
-/// A fenced block of an agent's message: its language, a Copy button that puts the code on the pasteboard, and the code, wrapped or
-/// scrolling sideways as the monospace settings say.
-struct CodeBlockView: View {
-    let language: String?
-    let code: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(language ?? "code").font(.scaled(11)).foregroundStyle(.secondary)
-                Spacer(minLength: 0)
-                CopyButton(text: code, help: "Copy the code")
-            }
-            .padding(.horizontal, 12).padding(.vertical, 6)
-            Rectangle().fill(Color.secondary.opacity(0.2)).frame(height: 0.5)
-            MonoLines(lines: code.components(separatedBy: "\n")).codeFont(11.5).textSelection(.enabled).padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.12)))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
 
@@ -404,9 +489,9 @@ private struct ClosedSessionNotice: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "moon.zzz.fill")
-                .font(.scaled(14, weight: .medium)).foregroundStyle(Color.indigo)
+                .font(.scaled(14, weight: .medium)).foregroundStyle(.white)
                 .frame(width: 30, height: 30)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.indigo.opacity(0.2)))
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.indigo.opacity(0.85)))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(closedSessionNotice.title).fontWeight(.semibold)

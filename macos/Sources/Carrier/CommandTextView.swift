@@ -19,6 +19,9 @@ struct CommandTextView: NSViewRepresentable {
     var commands: [ChatCommand]
     /// What a key does for the box; true when the box took it.
     var onKey: (Key) -> Bool
+    /// Files dropped on the text: the box attaches them (true when it did).
+    var onFiles: (([URL]) -> Bool)?
+    var onFileDrag: ((Bool) -> Void)?
     var sendKey = AppPreferences.defaultSendKey
     var writingTools = AppPreferences.defaultWritingTools
     var checksSpelling = AppPreferences.defaultChecksSpelling
@@ -59,7 +62,7 @@ struct CommandTextView: NSViewRepresentable {
         view.isHorizontallyResizable = false
         view.autoresizingMask = NSView.AutoresizingMask.width
         view.typingAttributes = Self.attributes
-        view.insertionPointColor = NSColor.controlAccentColor
+        view.insertionPointColor = NSColor(Color.themeAccent)
         view.setAccessibilityLabel(placeholder)
 
         let scroll = PillScrollView()
@@ -78,6 +81,9 @@ struct CommandTextView: NSViewRepresentable {
         coordinator.updating = true
         defer { coordinator.updating = false }
         view.placeholder = placeholder
+        view.onFiles = onFiles
+        view.onFileDrag = onFileDrag
+        view.insertionPointColor = NSColor(Color.themeAccent)
         // Writing Tools (Apple Intelligence) offer to rewrite what is selected, over the text: they are the person's to switch on
         view.writingToolsBehavior = writingTools ? .default : .none
         view.isContinuousSpellCheckingEnabled = checksSpelling
@@ -226,6 +232,54 @@ final class PillTextView: NSTextView {
     }
 
     override func paste(_ sender: Any?) { pasteAsPlainText(sender) }
+
+    /// In an empty box the caret has the height of the font and sits at the top of a line that is taller (the box fixes the line height), so
+    /// it rode above the placeholder and above the first letter typed; it goes down to where the text is drawn.
+    override func drawInsertionPoint(in rect: NSRect, color: NSColor, turnedOn flag: Bool) {
+        var rect = rect
+        if string.isEmpty {
+            let font = CommandTextView.font
+            let height = ceil(font.ascender - font.descender)
+            rect.origin.y += max(0, CommandTextView.lineHeight - height)
+            rect.size.height = height
+        }
+        super.drawInsertionPoint(in: rect, color: color, turnedOn: flag)
+    }
+
+    /// Files dropped on the text are the box's to attach, not the text's to type in as links: it takes them to the box, and shows the box
+    /// as the drop target while they are over it. Anything else dragged in is the text's own.
+    var onFiles: (([URL]) -> Bool)?
+    var onFileDrag: ((Bool) -> Void)?
+
+    private func fileURLs(_ info: NSDraggingInfo) -> [URL] {
+        guard onFiles != nil else { return [] }
+        return info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+    }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard fileURLs(sender).isEmpty else { onFileDrag?(true); return .copy }
+        return super.draggingEntered(sender)
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        fileURLs(sender).isEmpty ? super.draggingUpdated(sender) : .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        onFileDrag?(false)
+        super.draggingExited(sender)
+    }
+
+    override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        fileURLs(sender).isEmpty ? super.prepareForDragOperation(sender) : true
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = fileURLs(sender)
+        guard urls.isEmpty == false else { return super.performDragOperation(sender) }
+        onFileDrag?(false)
+        return onFiles?(urls) ?? false
+    }
 
     /// ⌘Return does not reach `insertNewline` on its own (the system reads it as a shortcut), so the box asks the coordinator itself.
     override func keyDown(with event: NSEvent) {

@@ -94,10 +94,10 @@ private func card(_ item: TranscriptItem) -> TranscriptCard? {
     #expect(formatCallDuration(0) == "0 ms")
     #expect(formatCallDuration(340) == "340 ms")
     #expect(formatCallDuration(999) == "999 ms")
-    #expect(formatCallDuration(1000) == "1.0 s")
-    #expect(formatCallDuration(6240) == "6.2 s")
-    #expect(formatCallDuration(59_949) == "59.9 s")
-    #expect(formatCallDuration(59_960) == "1m 00s")
+    #expect(formatCallDuration(1000) == "1 s")
+    #expect(formatCallDuration(6240) == "6 s")
+    #expect(formatCallDuration(59_999) == "59 s")
+    #expect(formatCallDuration(60_000) == "1m 00s")
     #expect(formatCallDuration(125_000) == "2m 05s")
 }
 

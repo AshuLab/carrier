@@ -270,7 +270,7 @@ func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
     func text(_ block: MarkdownBlock) -> String {
         switch block {
         case .line(let line), .bullet(_, let line): String(line.characters)
-        case .code(_, let code): code
+        case .code(_, _, let code): code
         case .gap: "·"
         }
     }
@@ -353,7 +353,7 @@ private func group(_ events: [ExecEvent]) -> (id: Int, calls: [TranscriptItem])?
     func label(_ events: [ExecEvent]) -> String? { group(events).map { callGroupLabel($0.calls) } }
     let events = timed(1, "Bash", ms: 1000) + timed(3, "Bash", ms: 2000) + timed(5, "Bash", ms: 3000) + timed(7, "Read", ms: 100)
     #expect(label(events) == "Ran 3 commands · read 1 file")
-    #expect(group(events).flatMap { callGroupDuration($0.calls) } == "6.1 s")
+    #expect(group(events).flatMap { callGroupDuration($0.calls) } == "6 s")
     #expect(label(timed(1, "Read") + timed(3, "Grep")) == "Read 1 file · searched 1 time")
     #expect(label(timed(1, "Grep") + timed(3, "Grep")) == "Searched 2 times")
     #expect(label(timed(1, "WebFetch") + timed(3, "WebFetch")) == "Used 2 tools")

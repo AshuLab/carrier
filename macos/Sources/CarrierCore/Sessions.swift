@@ -40,10 +40,18 @@ public struct SessionRow: Equatable {
     public var kept: Bool
     /// When the clock deletes an archived session; nil when it will not.
     public var deleteAt: Date?
+    /// What the agent last wrote, on one line; nil before it answered.
+    public var lastMessage: String?
+    /// The turns that finished, and the model of the last.
+    public var turns: Int
+    public var model: String?
+    /// Whether the host said anything of how the session went; one that does not leaves all three empty.
+    public var reportsActivity: Bool
 
     public init(
         id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil,
-        folder: String = "", base: String? = nil, providers: [String] = [], titled: Bool = true, kept: Bool = false, deleteAt: Date? = nil
+        folder: String = "", base: String? = nil, providers: [String] = [], titled: Bool = true, kept: Bool = false, deleteAt: Date? = nil,
+        lastMessage: String? = nil, turns: Int = 0, model: String? = nil, reportsActivity: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -59,6 +67,7 @@ public struct SessionRow: Equatable {
         self.titled = titled
         self.kept = kept
         self.deleteAt = deleteAt
+        (self.lastMessage, self.turns, self.model, self.reportsActivity) = (lastMessage, turns, model, reportsActivity)
     }
 }
 
@@ -92,10 +101,17 @@ public enum SessionSort: String, CaseIterable { case workspace, age, status }
 /// Yesterday, Last 7 days and Older, counted from the start of today in `calendar`. By state: Needs attention, Working, Active and
 /// Done. Empty groups are left out, the rows of a group are newest first and no archived row is listed, searching included. A
 /// non-empty `query` keeps the groups of that order, filtered to the rows whose title, workspace or agent contain it ignoring case.
+/// The `pinned` rows leave their groups for a "Pinned" one first.
 public func sessionGroups(
-    _ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", now: Date = Date(), calendar: Calendar = .current
+    _ rows: [SessionRow], by sort: SessionSort = .workspace, query: String = "", pinned: Set<String> = [], now: Date = Date(), calendar: Calendar = .current
 ) -> [SessionGroup] {
-    let listed = matching(rows.filter { $0.archived == false }, query)
+    let active = matching(rows.filter { $0.archived == false }, query)
+    let pins = newestFirst("Pinned", active.filter { pinned.contains($0.id) })
+    let listed = active.filter { pinned.contains($0.id) == false }
+    return (pins.map { [$0] } ?? []) + ordered(listed, by: sort, now: now, calendar: calendar)
+}
+
+private func ordered(_ listed: [SessionRow], by sort: SessionSort, now: Date, calendar: Calendar) -> [SessionGroup] {
     switch sort {
     case .workspace:
         return Dictionary(grouping: listed, by: \.workspace)

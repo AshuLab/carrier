@@ -116,6 +116,8 @@ class ClaudeConversation implements ChatConversation {
         env,
         pathToClaudeCodeExecutable: binary,
         includePartialMessages: true,
+        // by default Claude Code sends each thinking block with its text left out, so there is nothing to show; this asks for the summary
+        extraArgs: { 'thinking-display': 'summarized' },
         canUseTool: (tool, input, { toolUseID, suggestions = [], title }) => this.ask(toolUseID, tool, input, suggestions, title),
         ...(spawnOwn && { spawnClaudeCodeProcess: spawnOwn }),
         ...(this.chosen.model && { model: this.chosen.model }),

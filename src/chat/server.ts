@@ -15,8 +15,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'plan' | 'stop' | 'reasoning';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'plan', 'stop', 'reasoning'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'plan' | 'stop' | 'reasoning' | 'rename';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'plan', 'stop', 'reasoning', 'rename'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -39,6 +39,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('close'), sessionId }),
   z.strictObject({ id, cmd: z.literal('archive'), sessionId, archived: z.boolean() }),
   z.strictObject({ id, cmd: z.literal('delete'), sessionId }),
+  z.strictObject({ id, cmd: z.literal('rename'), sessionId, title: z.string().max(1000) }),
   z.strictObject({ id, cmd: z.literal('workspace'), folder: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('fetch'), folder: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('suggestName'), folder: z.string().min(1) }),
@@ -76,6 +77,8 @@ export type ChatControls = {
   close(args: Args<'close'>): Promise<unknown>;
   archive(args: Args<'archive'>): Promise<unknown>;
   delete(args: Args<'delete'>): Promise<unknown>;
+  /** Sets the session's title, whatever its state; refused in words for an empty one. */
+  rename(args: Args<'rename'>): unknown;
   workspace(args: Args<'workspace'>): Promise<unknown>;
   fetch(args: Args<'fetch'>): Promise<unknown>;
   suggestName(args: Args<'suggestName'>): Promise<unknown>;
@@ -122,6 +125,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.archive({ sessionId: request.sessionId, archived: request.archived });
     case 'delete':
       return controls.delete({ sessionId: request.sessionId });
+    case 'rename':
+      return controls.rename({ sessionId: request.sessionId, title: request.title });
     case 'workspace':
       return controls.workspace({ folder: request.folder });
     case 'fetch':

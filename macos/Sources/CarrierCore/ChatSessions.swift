@@ -26,7 +26,8 @@ public func sessionRows(_ sessions: [ChatSession]) -> [SessionRow] {
             id: session.id, title: session.title ?? "Untitled session", workspace: title(base(session)), agent: session.agent, state: state,
             updatedAt: Date(timeIntervalSince1970: Double(session.lastActiveAt) / 1000), archived: session.archived,
             branch: session.workspace?.branch, folder: session.folder, base: base(session), providers: [session.harness], titled: session.title != nil,
-            kept: session.kept, deleteAt: session.deleteAt.map { Date(timeIntervalSince1970: Double($0) / 1000) }
+            kept: session.kept, deleteAt: session.deleteAt.map { Date(timeIntervalSince1970: Double($0) / 1000) },
+            lastMessage: session.lastMessage, turns: session.turns, model: session.model, reportsActivity: session.reportsActivity
         )
     }
 }
@@ -45,11 +46,8 @@ public struct OpenItem: Equatable {
 /// The title bar's name for a conversation: the session's title, "New session" while it has none.
 public func conversationTitle(_ row: SessionRow) -> String { row.titled ? row.title : "New session" }
 
-/// The line under the title: the workspace and where the session works, "· ⑂ branch" in a worktree and "· base folder" in a folder
-/// (the branch of a plain folder is not known to the app, so it is not shown).
-public func conversationSubtitle(_ row: SessionRow) -> String {
-    "\(row.workspace) · \(row.branch.map { "⑂ \($0)" } ?? "base folder")"
-}
+/// The line under the title: the workspace. Where the session works (a worktree or the folder itself) is the pill in the toolbar.
+public func conversationSubtitle(_ row: SessionRow) -> String { row.workspace }
 
 /// The Open menu: reveal the session's folder, copy its path and, for a worktree, copy its branch name.
 public func openMenuItems(_ row: SessionRow) -> [OpenItem] {

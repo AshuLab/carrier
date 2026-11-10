@@ -79,18 +79,21 @@ struct RowHint: View {
 struct RailHeader: View {
     let title: String
     let detail: String
-    let icon: String
+    var icon: String?
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.scaled(15, weight: .medium)).foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(Circle().fill(LinearGradient(colors: [.themeAccent, .themeAccent.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.headline)
-                Text(detail).font(.subheadline).foregroundStyle(.secondary)
+            if let icon {
+                Image(systemName: icon)
+                    .font(.scaled(15, weight: .medium)).foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(LinearGradient(colors: [.themeAccent, .themeAccent.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                    .accessibilityHidden(true)
+            }
+            // without an icon the title carries the header alone, so it is larger
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(icon == nil ? .title2.weight(.semibold) : .headline)
+                Text(detail).font(icon == nil ? .callout : .subheadline).foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 8).padding(.bottom, 14)

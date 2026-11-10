@@ -86,6 +86,8 @@ public func choiceDetail(option: String, value: String) -> String? {
     case ("permissionMode", "plan"): "Reads and plans; it changes nothing."
     case ("permissionMode", "auto"): "Decides by itself what is safe to do."
     case ("permissionMode", "dontAsk"): "Does not ask: what was not allowed beforehand is refused."
+    case ("sandbox", "read-only"): "It can read the folder; it changes nothing."
+    case ("sandbox", "workspace-write"): "It can edit files in the folder."
     case ("effort", "low"): "The quickest answers, with the least thinking."
     case ("effort", "medium"): "A balance of speed and thinking."
     case ("effort", "high"): "Thinks longer on harder work."

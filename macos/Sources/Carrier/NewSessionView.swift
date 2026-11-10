@@ -18,12 +18,13 @@ struct NewSessionView: View {
     var body: some View {
         VStack(spacing: 14) {
             Spacer(minLength: 0)
-            NewSessionMark()
-            VStack(spacing: 4) {
-                Text("What do you want to work on?").font(.title2.weight(.semibold))
-                Text("Pick where it works, then write.").font(.callout).foregroundStyle(.secondary)
+            // the title carries the page alone: large, and centred however many lines it takes
+            VStack(spacing: 6) {
+                Text("What do you want to work on?").font(.scaled(28, weight: .semibold))
+                Text("Pick where it works, then write.").font(.title3).foregroundStyle(.secondary)
             }
-            .padding(.bottom, 10)
+            .multilineTextAlignment(.center).frame(maxWidth: .infinity)
+            .padding(.bottom, 14)
             VStack(alignment: .leading, spacing: 16) {
                 sentence
                 box
@@ -39,10 +40,7 @@ struct NewSessionView: View {
                 if model.gitMissing || model.agents.contains(where: { $0.state.blocks }) {
                     Button("Open Health in Settings", action: openHealth).buttonStyle(.link).font(.callout)
                 }
-                if model.worktree, let branch = model.startBranch {
-                    Label(model.worktreeName.isEmpty ? "Creates a worktree on a new branch \(worktreeBranchPrefix)<name, generated when the message is sent> from \(branch)." : "Creates a worktree on the new branch \(worktreeBranchPrefix)\(model.worktreeName) from \(branch). The base folder stays as it is.", systemImage: "arrow.triangle.branch")
-                        .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity)
-                }
+                if model.sendSteps.isEmpty == false { sendSteps }
                 if let refusal = model.refusal {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(refusal).foregroundStyle(.red).textSelection(.enabled)
@@ -54,12 +52,9 @@ struct NewSessionView: View {
             // never narrower than 320: the window asks for its smallest size with no width, and the notes under the sentence would be a word a line
             .frame(minWidth: 320, maxWidth: 820)
             Spacer(minLength: 0)
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, 40)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        // nothing scrolls under the toolbar here, so it takes the page's own colour and not the system's band
-        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         // a workspace's + while the draft is open asks again, for another folder
         .task(id: model.starts) {
             await model.load()
@@ -112,7 +107,6 @@ struct NewSessionView: View {
             }
             .font(.body).foregroundStyle(.secondary)
             .accessibilityElement(children: .contain)
-            if let note = model.repoNote { Label(note, systemImage: "arrow.down.circle").font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
             if model.branchesPartial { Text("Only the first branches GitHub lists are offered; the others can be checked out once the repository is on this Mac.").font(.subheadline).foregroundStyle(.secondary) }
             if let note = model.projectNote { Label(note, systemImage: "folder.badge.plus").font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
             if let note = model.branchNote { Text(note).font(.callout).foregroundStyle(.secondary) }
@@ -152,20 +146,54 @@ struct NewSessionView: View {
             .contentShape(RoundedRectangle(cornerRadius: 8))
     }
 
+    /// What sending does, a step each: its badge, what it does in a few words and the sentence that tells it, with the names in monospace and
+    /// the full path in the tooltip. The surface and the layout are the closed-session notice's.
+    private var sendSteps: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(model.sendSteps, id: \.parts) { step in
+                HStack(spacing: 12) {
+                    Image(systemName: step.icon)
+                        .font(.scaled(14, weight: .medium)).foregroundStyle(.white)
+                        .frame(width: 30, height: 30)
+                        // the accent a little deepened, with a faint rim of light: the badge of the closed-session notice
+                        .background {
+                            RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.mix(with: .black, by: 0.18))
+                                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.2), lineWidth: 0.5))
+                        }
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(step.title).fontWeight(.semibold)
+                        step.parts.reduce(Text("")) { text, part in
+                            switch part {
+                            case .text(let words): text + Text(words)
+                            case .code(let name): text + Text(name).font(.scaled(11).monospaced().weight(.medium)).foregroundStyle(.primary)
+                            }
+                        }
+                        .font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        .help(step.help ?? "")
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .font(.scaled(12)).padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.15)), in: .rect(cornerRadius: 12))
+        .accessibilityElement(children: .contain)
+    }
+
     /// The fixed `carrier/` prefix, the name (typed over in place) with ↻, and the branch it starts from.
     @ViewBuilder private var worktreeControls: some View {
         HStack(spacing: 8) {
             // the prefix and the name are one word to the eye: no space between them
             HStack(spacing: 0) {
                 Text(worktreeBranchPrefix).foregroundStyle(.secondary)
-                TextField(model.toClone ? "generated when sent" : "name", text: $model.worktreeName)
+                TextField("name", text: $model.worktreeName)
                     .textFieldStyle(.plain).autocorrectionDisabled().fixedSize()
                     .foregroundStyle(nameColor).accessibilityLabel("Worktree name")
             }
-            if model.toClone == false {
-                Button { Task { await model.rollName() } } label: { Image(systemName: "arrow.clockwise") }
-                    .buttonStyle(.plain).foregroundStyle(.secondary).help("Pick another name").accessibilityLabel("Suggest another name")
-            }
+            Button { Task { await model.rollName() } } label: { Image(systemName: "arrow.clockwise") }
+                .buttonStyle(.plain).foregroundStyle(.secondary).help("Pick another name").accessibilityLabel("Suggest another name")
         }
         .font(.callout.monospaced())
         .padding(.horizontal, 10).frame(height: controlHeight)
@@ -187,52 +215,30 @@ struct NewSessionView: View {
         if case .problem = model.nameState { .red } else { .clear }
     }
 
-    /// The first message and what it runs with: the message box shared with the open session, with the provider and the selects the
-    /// host cannot list yet.
+    /// The first message and what it runs with: the message box shared with the open session, with the one button for the provider, the
+    /// model, the reasoning and the access.
     private var box: some View {
         MessageBox(
             text: $model.text, placeholder: model.folder == nil ? "Choose a workspace to start…" : "Write the first message…",
             canSend: model.canSend, sendHelp: model.canSend ? "Send" : model.hostOlder ? NewSessionModel.olderHostNotice : model.noAgentReason ?? "Choose a workspace and write a message",
             focus: $boxFocused, commands: model.agentCommands, send: send
         ) {
-            providerSelect
-            if model.shownOptions.isEmpty {
-                // until the host has listed them (a few seconds the first time), or when it cannot
-                ComposerSelect(title: "Model", icon: "cpu", note: model.loadingOptions ? "Reading what the provider offers…" : "Each provider's models will be listed here.")
-                ComposerSelect(title: "Reasoning", icon: "brain", note: model.loadingOptions ? "Reading what the provider offers…" : "How much the agent thinks before it answers.")
-                ComposerSelect(title: "Access", icon: "lock.shield", note: model.loadingOptions ? "Reading what the provider offers…" : "What the agent may do without asking you.")
-            } else {
-                optionSelects(model.shownOptions) { option, value in model.choose(option: option, value: value) }
-            }
+            ComposerMenuButton(
+                providers: model.agents.map { ProviderTab(name: $0.name, icon: $0.harness, available: $0.available, note: $0.note) }, agent: model.agent ?? "",
+                options: model.shownOptions,
+                emptyNote: model.loadingOptions ? "Reading what the provider offers…" : "Each provider's models will be listed here.",
+                chooseAgent: { name in
+                    model.agent = name
+                    Task { await model.loadOptions() }
+                },
+                choose: { option, value in model.choose(option: option, value: value) }
+            )
         }
         // nothing to write to until a workspace is chosen
         .opacity(model.folder == nil ? 0.55 : 1)
     }
 
-    /// The agent the session starts with, from the host's list; one that is not installed or signed out is shown and cannot be chosen.
-    private var providerSelect: some View {
-        ComposerSelect(
-            title: "Provider", icon: "sparkle", selected: model.agent, showsValue: true,
-            choices: model.agents.map { SelectChoice(id: $0.name, label: $0.name, detail: $0.note, enabled: $0.available) },
-            choose: { name in
-                model.agent = name
-                Task { await model.loadOptions() }
-            }
-        )
-    }
-
     private func send() {
         Task { if let id = await model.send() { opened(id) } }
-    }
-}
-
-/// The round mark over the question: a placeholder until the app has a logo to put in its place.
-private struct NewSessionMark: View {
-    var body: some View {
-        Image(systemName: "sparkles")
-            .font(.scaled(22, weight: .medium)).foregroundStyle(.white)
-            .frame(width: 52, height: 52)
-            .background(Circle().fill(LinearGradient(colors: [.themeAccent, .themeAccent.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)))
-            .accessibilityHidden(true)
     }
 }

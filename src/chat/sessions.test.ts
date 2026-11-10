@@ -166,6 +166,18 @@ test('a conversation over several turns: events come in order after the cursor, 
   sessions.send({ sessionId: id, text: 'again' });
   expect(conversation.sent).toEqual(['first line\nsecond line', 'again']);
   expect(sessions.list({}).sessions[0]!.title).toBe('first line'); // the title is the first message's
+  // the list says how it went: the last words of the agent on one line, the finished turns and the model of the last
+  expect(sessions.list({}).sessions[0]).toMatchObject({ lastMessage: 'Hello there', turns: 1, model: 'haiku' });
+});
+
+test('the list has the words of the agent on one line, cut, and nothing for a session it has not answered', async () => {
+  const { sessions, conversation, id } = await openOne();
+  expect(sessions.list({}).sessions[0]).toMatchObject({ lastMessage: null, turns: 0, model: null });
+  sessions.send({ sessionId: id, text: 'hi' });
+  conversation.emit({ kind: 'assistant', text: `first\n\n  second ${'x'.repeat(400)}` }, { kind: 'turn_end', outcome: 'ok' });
+  const { lastMessage } = sessions.list({}).sessions[0]!;
+  expect(lastMessage).toMatch(/^first second x+/);
+  expect(lastMessage!.length).toBeLessThanOrEqual(201);
 });
 
 test('options are those of the live conversation', async () => {
@@ -568,6 +580,19 @@ test('archive marks a session and the archived listing shows it instead of the o
   await s.sessions.archive({ sessionId: a.id, archived: false });
   expect(s.sessions.list({ archived: true }).sessions).toEqual([]);
   expect(s.sessions.list({}).sessions).toHaveLength(2);
+});
+
+test('rename sets the title, also while working, refuses an empty one or an unknown session, and the first message does not replace it', async () => {
+  const s = setup();
+  const a = await openOne(s);
+  s.sessions.rename({ sessionId: a.id, title: '  Fix the sidebar\nsecond line ' });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ title: 'Fix the sidebar' });
+  expect(() => s.sessions.rename({ sessionId: a.id, title: '   ' })).toThrow('A title cannot be empty');
+  expect(() => s.sessions.rename({ sessionId: '00000000-0000-4000-8000-000000000000', title: 'x' })).toThrow(ChatRefused);
+  s.sessions.send({ sessionId: a.id, text: 'hello' }); // the first message: the session now works
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ title: 'Fix the sidebar', state: 'working' });
+  s.sessions.rename({ sessionId: a.id, title: 'Still fine' });
+  expect(s.sessions.list({}).sessions[0]).toMatchObject({ title: 'Still fine' });
 });
 
 const DAY = 86_400_000;

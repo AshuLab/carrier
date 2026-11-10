@@ -294,7 +294,7 @@ private func worktreeSession() throws -> ChatSession {
 @Test func theTitleBarSaysTheTitleAndWhereAFolderSessionWorks() throws {
     let row = sessionRows([try session("plain", folder: "/Users/dev/web", title: "Explore")])[0]
     #expect(conversationTitle(row) == "Explore")
-    #expect(conversationSubtitle(row) == "web · base folder")
+    #expect(conversationSubtitle(row) == "web")
     #expect(openMenuItems(row) == [
         OpenItem(title: "Reveal in Finder", action: .reveal(path: "/Users/dev/web")), OpenItem(title: "Copy path", action: .copy("/Users/dev/web")),
     ])
@@ -302,7 +302,7 @@ private func worktreeSession() throws -> ChatSession {
 
 @Test func theTitleBarSaysTheBranchOfAWorktreeSessionAndItsMenuCopiesIt() throws {
     let row = sessionRows([try worktreeSession()])[0]
-    #expect(conversationSubtitle(row) == "web · ⑂ carrier/fix")
+    #expect(conversationSubtitle(row) == "web")
     #expect(openMenuItems(row) == [
         OpenItem(title: "Reveal in Finder", action: .reveal(path: "/w/fix")), OpenItem(title: "Copy path", action: .copy("/w/fix")),
         OpenItem(title: "Copy branch name", action: .copy("carrier/fix")),
@@ -424,17 +424,6 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     #expect(clearSessionsQuestion(count: 5, previews: [
         preview("a", worktree(dirty: 2, unpushed: 1)), preview("b", worktree(dirty: 1, unpushed: 3)), preview("c", worktree(dirty: 0, unpushed: 0)), preview("d", nil), preview("e", nil),
     ]).message == t + " 2 of them work in worktrees that would lose work: 3 uncommitted files and 4 commits that exist nowhere else will be removed with them.")
-}
-
-@Test func aSessionRowMenuHasArchiveRevealAndCopyIdAndRestoreForAnArchivedOne() {
-    let live = SessionRow(id: "id-1", title: "t", workspace: "web", agent: "claude", state: .idle, updatedAt: now, folder: "/Users/dev/web")
-    #expect(sessionMenu(live) == [
-        SessionMenuItem(title: "Archive", action: .archive), SessionMenuItem(title: "Reveal in Finder", action: .reveal(path: "/Users/dev/web")),
-        SessionMenuItem(title: "Copy session id", action: .copy("id-1")),
-    ])
-    var gone = live
-    gone.archived = true
-    #expect(sessionMenu(gone).map(\.title) == ["Restore", "Reveal in Finder", "Copy session id"])
 }
 
 // Archive, restore, delete and clear through a fake host.

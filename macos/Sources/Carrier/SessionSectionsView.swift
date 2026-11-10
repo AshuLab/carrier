@@ -60,7 +60,7 @@ enum SessionCard {
             topLeadingRadius: radius, bottomLeadingRadius: open ? 0 : radius, bottomTrailingRadius: open ? 0 : radius, topTrailingRadius: radius
         )
         return ZStack {
-            shape.fill(Color(nsColor: .windowBackgroundColor))
+            shape.fill(Color.themeWindow)
             shape.fill(tint)
         }
     }

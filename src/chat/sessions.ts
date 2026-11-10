@@ -1,7 +1,7 @@
 import { accessSync, constants } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, gt, isNotNull, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, isNotNull, ne } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/default-path.ts';
 import type { ChatAgent, ChatSettings } from './config.ts';
@@ -14,7 +14,7 @@ import type { Git } from './git.ts';
 import type { Plan, Step, StepEvent } from './plan.ts';
 import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
-import { boundEvent, chatCaps, titleOf } from './transcript.ts';
+import { boundEvent, chatCaps, previewOf, titleOf } from './transcript.ts';
 import { checkName, suggestName } from './names.ts';
 import { createProject, projectFolder, type createProjects } from './projects.ts';
 import { createWorktree, deleteWorktree, previewWorktree, removeWorktree } from './worktree.ts';
@@ -116,6 +116,15 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     preparation: rest.state === 'preparing' ? 'running' : plan === null ? null : 'failed',
     workspace: workspaceKind === 'worktree' ? { kind: 'worktree', branch: worktreeBranch!, from: worktreeFrom!, base: worktreeBase!, path: worktreePath! } : { kind: 'folder' },
   });
+
+  /** What a list says of how a session went: the words its agent last wrote (one line, already redacted as stored), the turns that finished and the model of the last. */
+  const activity = (sessionId: string) => {
+    const message = db.select({ data: chatEvents.data }).from(chatEvents).where(and(eq(chatEvents.sessionId, sessionId), eq(chatEvents.kind, 'assistant'))).orderBy(desc(chatEvents.id)).limit(1).get();
+    const turns = db.select({ n: count() }).from(chatTurns).where(eq(chatTurns.sessionId, sessionId)).get()?.n ?? 0;
+    const last = db.select({ model: chatTurns.model }).from(chatTurns).where(eq(chatTurns.sessionId, sessionId)).orderBy(desc(chatTurns.id)).limit(1).get();
+    const text = message?.data.text;
+    return { lastMessage: typeof text === 'string' && text.trim() !== '' ? previewOf(text) : null, turns, model: last?.model ?? null };
+  };
 
   // Worktrees are made one at a time: what a request checked (a free name) is still true when git adds.
   let making: Promise<unknown> = Promise.resolve();
@@ -430,14 +439,14 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
     health,
 
-    /** The rows, each with `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
+    /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
     list: ({ archived = false }: { archived?: boolean }) => {
       const { archiveAfterDays, deleteAfterDays } = ages();
       return {
         sessions: db.select().from(sessions).where(eq(sessions.archived, archived)).orderBy(desc(sessions.lastActiveAt)).all().map((found) => {
           const dueAt = found.archived && archiveAfterDays !== 'never' && deleteAfterDays !== 'never' ? found.lastActiveAt + deleteAfterDays * DAY : null;
           const kept = found.keptAt !== null && dueAt !== null && clock.now() >= dueAt; // a session the clock no longer considers (ages raised or never) is not kept
-          return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt };
+          return { ...summary(found), live: lives.has(found.id), kept, deleteAt: kept ? null : dueAt, ...activity(found.id) };
         }),
       };
     },
@@ -684,6 +693,15 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       if (archived) await settle(sessionId, 'archive');
       else row(sessionId);
       db.update(sessions).set({ archived, ...(archived === false && { lastActiveAt: clock.now(), keptAt: null }) }).where(eq(sessions.id, sessionId)).run();
+      return {};
+    },
+
+    /** Sets the title (first line, cut like an automatic one); fine while the session works. The first message only names an untitled session, so it never replaces this. */
+    rename({ sessionId, title }: { sessionId: string; title: string }) {
+      row(sessionId);
+      const named = titleOf(title);
+      if (named === '') throw new ChatRefused('A title cannot be empty');
+      db.update(sessions).set({ title: named }).where(eq(sessions.id, sessionId)).run();
       return {};
     },
 

@@ -16,7 +16,7 @@ private func texts(_ rows: [FeedRow]) -> [String] {
         case .user(_, let text): "user: \(text)"
         case .agent(_, let text, let inProgress): "agent\(inProgress ? "…" : ""): \(text.prefix(24))"
         case .reasoning(_, let text): "reasoning: \(text)"
-        case .turnEnd(_, let text): "end: \(text)"
+        case .turnEnd(_, let summary): "end: \(summary.text)"
         case .tools(_, let group): "tools: \(group.title) | \(group.summary)"
         case .approval(_, let card): "card: \(card.question) | \(card.arg ?? "") | \(card.choices.map(\.label).joined(separator: " / "))"
         case .decided(_, let text, let allow): "\(allow ? "allowed" : "declined"): \(text)"
@@ -42,7 +42,7 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
         "allowed: Allowed Bash pnpm lint · Allow · by you",
         "tools: Worked | 1 command",
         "agent: The page is two componen",
-        "end: claude-sonnet-5-5 · 12s · 1.8k in · 436 out",
+        "end: claude-sonnet-5-5 · 12s · 10.8k context · 436 out",
         "user: Now run the tests.",
         "error: The turn failed",
         "end: claude-sonnet-5-5 · 1s",
@@ -154,16 +154,36 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
 @Test func theClosingLineHasWhatTheHostAndTheProviderGave() {
     func line(_ end: ChatEvent, from start: Int? = 0) -> String? {
         let user = start.map { [ChatEvent(id: 1, at: $0, kind: "user", text: "hi")] } ?? []
-        return chatFeed(user + [end]).compactMap { if case .turnEnd(_, let text) = $0 { text } else { nil } }.first
+        return chatFeed(user + [end]).compactMap { if case .turnEnd(_, let summary) = $0 { summary.text } else { nil } }.first
     }
     func end(model: String? = nil, usage: [String: Double]? = nil, at: Int = 65_000) -> ChatEvent { ChatEvent(id: 2, at: at, kind: "turn_end", outcome: "ok", model: model, usage: usage) }
-    #expect(line(end(model: "m", usage: ["input_tokens": 12, "output_tokens": 2500, "total_cost_usd": 0.5])) == "m · 1m · 12 in · 2.5k out")
+    #expect(line(end(model: "m", usage: ["input_tokens": 12, "output_tokens": 2500, "total_cost_usd": 0.5])) == "m · 1m · 12 context · 2.5k out")
+    // the cache counts toward what the model read
+    #expect(line(end(model: "m", usage: ["input_tokens": 2, "cache_read_input_tokens": 22_000, "cache_creation_input_tokens": 100, "output_tokens": 130])) == "m · 1m · 22.1k context · 130 out")
     // Codex reports in camel case; a usage with only some of the counts shows only those
-    #expect(line(end(model: "gpt", usage: ["inputTokens": 900], at: 4000)) == "gpt · 4s · 900 in")
+    #expect(line(end(model: "gpt", usage: ["inputTokens": 900], at: 4000)) == "gpt · 4s · 900 context")
     #expect(line(end(model: "m", usage: [:], at: 4000)) == "m · 4s")
     // a page that starts after the turn began has no start to measure from
-    #expect(line(end(model: "m", usage: ["input_tokens": 5]), from: nil) == "m · 5 in")
+    #expect(line(end(model: "m", usage: ["input_tokens": 5]), from: nil) == "m · 5 context")
     #expect(line(end(), from: nil) == nil)
+}
+
+@Test func aModelIsNamedAsAPersonSaysIt() {
+    func short(_ model: String?) -> String? { TurnSummary(model: model).shortModel }
+    #expect(short("claude-haiku-5-5") == "haiku 5.5")
+    #expect(short("claude-opus-4-1-20250805") == "opus 4.1")
+    #expect(short("claude-sonnet-5") == "sonnet 5")
+    #expect(short("gpt-5-codex") == "gpt-5-codex")
+    #expect(short("claude-future") == "claude-future")
+    #expect(short(nil) == nil)
+}
+
+@Test func aClosingLineAfterAnAgentMessageMovesIntoIt() {
+    let rows: [FeedRow] = [.user(id: "u", text: "hi"), .agent(id: "a", text: "yes", inProgress: false), .turnEnd(id: "t1", TurnSummary(model: "m", duration: "2s")),
+                           .tools(id: "g", ToolGroup(calls: [])), .turnEnd(id: "t2", TurnSummary(model: "m", duration: "9s"))]
+    let folded = foldingClosingLines(rows)
+    #expect(folded.lines == ["a": TurnSummary(model: "m", duration: "2s")])
+    #expect(folded.rows.map(\.id) == ["u", "a", "g", "t2"])
 }
 
 // MARK: tools, grouped
@@ -188,7 +208,7 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
         "agent: One test still fails. Le",
         "tools: Worked | 1 other tool",
         "agent: The server is fine, so t",
-        "end: claude-sonnet-5-5 · 16s · 2.1k in · 310 out",
+        "end: claude-sonnet-5-5 · 16s · 2.1k context · 310 out",
     ])
     let explored = group(rows)
     #expect(explored.calls.map(\.result) == ["3 lines", "3 lines", "2 matches"] && explored.durationMs == 1600 && explored.failed == 0)
@@ -292,7 +312,7 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
         switch block {
         case .line: "line"
         case .bullet(let level, _): "bullet\(level)"
-        case .code(let language, let code): "code \(language ?? "-") \(code.split(separator: "\n").count)"
+        case .code(let language, _, let code): "code \(language ?? "-") \(code.split(separator: "\n").count)"
         case .gap: "gap"
         }
     }
@@ -302,13 +322,13 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     guard case .line(let first) = blocks[0] else { return }
     #expect(first.runs.contains { $0.inlinePresentationIntent == .code && String(first.characters[$0.range]) == "Page.tsx" })
     // the code is kept as written: its indentation and the lines of a block with a blank one
-    guard case .code(_, let code) = blocks[11] else { return }
+    guard case .code(_, _, let code) = blocks[11] else { return }
     #expect(code.hasPrefix("export function Plans") && code.contains("\n    <section className="))
 }
 
 @Test func aFenceLeftOpenByAMessageStillBeingWrittenIsABlockToTheEnd() throws {
     let blocks = markdownBlocks(try golden("streaming").streaming)
-    guard case .code(let language, let code) = blocks.last else {
+    guard case .code(let language, _, let code) = blocks.last else {
         Issue.record("the open fence is not a code block")
         return
     }
@@ -816,4 +836,31 @@ private func eventsRequest(capabilities: [String]) async throws -> String {
     #expect(OutputLength.medium.visible(call.output, expanded: false).lines.count == 50 && OutputLength.medium.visible(call.output, expanded: false).hidden == 10)
     #expect(OutputLength.long.visible(call.output, expanded: false).hidden == 0 && OutputLength.long.visible(call.output, expanded: false).lines.count == 60)
     #expect(OutputLength.medium.visible(call.output, expanded: true).hidden == 0)
+}
+
+@Test func aPendingApprovalIsOverTheBoxAndNotInTheFeed() {
+    let choices: [ChatChoice] = [.init(id: "y", label: "Allow", allow: true), .init(id: "n", label: "Deny", allow: false)]
+    let ask = ChatEvent(id: 2, at: 0, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: choices)
+    let rows = chatFeed([ChatEvent(id: 1, at: 0, kind: "user", text: "go"), ask], pending: ["p"])
+    #expect(pendingApprovals(rows).map(\.approvalId) == ["p"])
+    #expect(texts(visibleFeed(rows, mode: .expanded)) == ["user: go"])
+    // answered, it is a line in the feed and nothing waits
+    let answered = chatFeed([ask, ChatEvent(id: 3, at: 0, kind: "approval_answered", approvalId: "p", choiceId: "y")])
+    #expect(pendingApprovals(answered).isEmpty && visibleFeed(answered, mode: .expanded).count == 1)
+}
+
+@Test func theOutlineAddsTheStepsThatEveryPreparationEndsWithUntilTheyStart() {
+    func row(_ step: String, _ status: StepRow.Status) -> StepRow { StepRow(step: step, status: status, line: step, reason: nil, progress: nil) }
+    let cloning = preparationOutline([row("clone", .running)])
+    #expect(cloning.map(\.step) == ["clone", "agent", "message"] && cloning.map(\.status) == [.running, nil, nil])
+    let waiting = preparationOutline([row("worktree", .done), row("agent", .done), row("message", .running)])
+    #expect(waiting.map(\.step) == ["worktree", "agent", "message"] && waiting.allSatisfy { $0.status != nil })
+    #expect(preparationOutline([row("worktree", .done), row("message", .running)]).map(\.step) == ["worktree", "message"])
+    #expect(preparationOutline([]).map(\.line) == ["Start the agent", "Send your message"])
+}
+
+@Test func theFractionOfAClonesProgressComesFromGitsPercentage() {
+    #expect(progressFraction("Receiving objects:  63% (1234/1960)") == 0.63)
+    #expect(progressFraction("Resolving deltas: 100% (10/10), done.") == 1)
+    #expect(progressFraction("Counting objects") == nil && progressFraction(nil) == nil && progressFraction("999%") == nil)
 }

@@ -57,3 +57,33 @@ private func stepLine(_ step: String, _ status: StepRow.Status) -> String {
     case .failed: words.failed
     }
 }
+
+/// A line of the card's list: a step the host recorded, or one that comes after them and has not started (`status` nil).
+public struct OutlineItem: Equatable, Identifiable {
+    public let step: String
+    public let status: StepRow.Status?
+    public let line: String
+    public let reason: String?
+    public let progress: String?
+
+    public var id: String { step }
+}
+
+/// The steps the host recorded and, after them, the two every preparation ends with (the agent starts, the message is sent) while they
+/// have not started, so the list shows where it is going and not only where it is. ponytail: a worktree that has not started is not
+/// known to be coming, so it joins the list when it does.
+public func preparationOutline(_ rows: [StepRow]) -> [OutlineItem] {
+    var items = rows.map { OutlineItem(step: $0.step, status: $0.status, line: $0.line, reason: $0.reason, progress: $0.progress) }
+    let sent = rows.contains { $0.step == "message" }
+    for (step, line) in [("agent", "Start the agent"), ("message", "Send your message")] where rows.contains(where: { $0.step == step }) == false {
+        if step == "agent" && sent { continue }
+        items.append(OutlineItem(step: step, status: nil, line: line, reason: nil, progress: nil))
+    }
+    return items
+}
+
+/// How far a clone is, from git's progress line ("Receiving objects:  63% (1234/1960)"); nil when the line has no percentage.
+public func progressFraction(_ line: String?) -> Double? {
+    guard let line, let range = line.range(of: #"\d{1,3}(?=%)"#, options: .regularExpression), let percent = Double(line[range]), percent <= 100 else { return nil }
+    return percent / 100
+}

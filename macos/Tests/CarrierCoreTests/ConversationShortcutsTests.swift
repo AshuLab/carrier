@@ -75,7 +75,7 @@ private func openGroups(_ rows: [FeedRow], flipped: Set<String>) -> [Bool] {
 
 @Test func theLastAnswerIsTheTextOfTheLastAgentMessage() {
     #expect(lastAnswer(in: feed()) == "first")
-    let rows = feed() + [.user(id: "u", text: "more"), .agent(id: "a2", text: "second", inProgress: false), .turnEnd(id: "t", text: "12s")]
+    let rows = feed() + [.user(id: "u", text: "more"), .agent(id: "a2", text: "second", inProgress: false), .turnEnd(id: "t", TurnSummary(duration: "12s"))]
     #expect(lastAnswer(in: rows) == "second")
 }
 

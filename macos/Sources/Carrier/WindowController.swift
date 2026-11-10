@@ -128,7 +128,7 @@ final class WindowController: NSObject, NSWindowDelegate {
     }
 
     private func run(_ action: ShortcutAction) {
-        model.shell.perform(action, sessions: model.sessions.rows, sort: SidebarStore().sessionSort)
+        model.shell.perform(action, sessions: model.sessions.rows, sort: SidebarStore().sessionSort, pinned: SidebarStore().pinned)
     }
 
     func toggleSidebar() { model.shell.toggleSidebar() }
@@ -225,7 +225,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         for text in ["https://github.com/AshuLab/web", "AshuLab/api", "AshuLab/nope"] {
             draft.urlText = text
             let worked = await draft.useRepo()
-            lines.append("new session repo \(text): \(draft.repoButton), \(worked ? "used" : "refused"), \"\(draft.sentence)\", branches \(draft.picker(query: "")?.local.map(\.name) ?? []), problem \(draft.workspaceProblem ?? "none"), worktree \(draft.offersWorktree ? "offered" : "not offered"), \(draft.repoNote ?? "no note")")
+            lines.append("new session repo \(text): \(draft.repoButton), \(worked ? "used" : "refused"), \"\(draft.sentence)\", branches \(draft.picker(query: "")?.local.map(\.name) ?? []), problem \(draft.workspaceProblem ?? "none"), worktree \(draft.offersWorktree ? "offered" : "not offered"), \(draft.sendSteps.count) send steps")
         }
         // My GitHub repositories against the host: page 1 with the login, Load more, and a repository chosen from the list
         await draft.showRepos()
@@ -391,7 +391,8 @@ final class WindowController: NSObject, NSWindowDelegate {
         )
         Thread.detachNewThread { monitor.run() }
         let sessions = ChatSessionsPoller(host: SocketChatHost()) { rows in
-            DispatchQueue.main.async { if stop.isSet == false { model.sessions.rows = rows } }
+            // only a change is published: an equal list every second would rebuild an open context menu under the pointer
+            DispatchQueue.main.async { if stop.isSet == false, model.sessions.rows != rows { model.sessions.rows = rows } }
         }
         DispatchQueue.main.async { model.actions.changed = { sessions.invalidateArchived() } }
         Task.detached {

@@ -70,17 +70,14 @@ struct SettingsPageHeader: View {
     }
 }
 
-/// What goes under a page's header: the cards, a preview of what a control changes where there is one, and a Reset row where the
-/// page has many controls.
-struct SettingsPageBody<Content: View, Preview: View>: View {
+/// What goes under a page's header: the groups and a Reset row where the page has many controls.
+struct SettingsPageBody<Content: View>: View {
     var reset: (() -> Void)?
-    @ViewBuilder var preview: Preview
     @ViewBuilder var content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             content
-            preview
             if let reset {
                 SettingsTabCard {
                     SettingsTabRow(title: "Reset", detail: "Puts this page back to how it came", first: true) {
@@ -92,20 +89,35 @@ struct SettingsPageBody<Content: View, Preview: View>: View {
     }
 }
 
-extension SettingsPageBody where Preview == EmptyView {
-    init(reset: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
-        self.init(reset: reset, preview: { EmptyView() }, content: content)
+/// A sample of what the rows around it change, inside the group of those rows so that it sits next to the controls.
+struct SettingsPreview<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("PREVIEW").font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary)
+            content.frame(maxWidth: .infinity)
+        }
+        .padding(.vertical, 12)
+        .overlay(alignment: .top) { Divider() }
     }
 }
 
 struct GeneralTabView: View {
-    /// An age and a time of day as the two settings write them now: 11 minutes ago, and the clock of that moment.
+    /// Three times as the two settings write them now, taken as if it were 6:00 PM: 11 minutes ago, this afternoon and this morning, so a
+    /// clock shows both its PM and its AM.
     private func displayPreview() -> some View {
-        let now = Date()
+        let calendar = Calendar.current
+        func today(_ hour: Int, _ minute: Int) -> Date { calendar.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) ?? Date() }
+        let now = today(18, 0)
         let format = TimeFormat.stored()
-        return SettingsGroup(title: "Preview") {
-            SettingsTabRow(title: "Updated 11 minutes ago", detail: "As an age or a clock time shows on a session row", first: true) {
-                Text(timeText(now.addingTimeInterval(-660), now: now, format: format)).monospacedDigit().foregroundStyle(.secondary)
+        return SettingsPreview {
+            HStack(spacing: 10) {
+                ForEach([today(17, 49), today(15, 40), today(9, 5)], id: \.self) { date in
+                    Text(timeText(date, now: now, format: format)).monospacedDigit()
+                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.secondary.opacity(0.1)))
+                }
             }
         }
     }
@@ -118,7 +130,7 @@ struct GeneralTabView: View {
     @AppStorage(AppPreferences.clockHoursKey) private var clockHours = ClockHours.system.rawValue
 
     var body: some View {
-        SettingsPageBody(reset: { AppPreferences().reset(.general) }, preview: displayPreview) {
+        SettingsPageBody(reset: { AppPreferences().reset(.general) }) {
             SettingsGroup(title: "Menu bar") {
                 SettingsTabRow(title: "Icon style", detail: "What the icon in the menu bar shows", first: true) {
                     // a saved value that is not a style reads as the default, as the icon does
@@ -158,6 +170,7 @@ struct GeneralTabView: View {
                     }
                     .labelsHidden().fixedSize()
                 }
+                displayPreview()
             }
             SettingsGroup(title: "Confirmations") {
                 SettingsTabRow(title: "Ask before stopping Carrier", detail: "Only when stopping would interrupt epics that are running", first: true) {
@@ -196,47 +209,58 @@ struct AppearanceTabView: View {
         """
 
     private func codePreview() -> some View {
-        SettingsGroup(title: "Preview") {
-            CodeBlockView(language: "swift", code: Self.sample).padding(.vertical, 10)
-        }
+        SettingsPreview { CodeBlockView(language: "swift", code: Self.sample) }
     }
 
     @AppStorage(AppPreferences.statesByShapeKey) private var statesByShape = false
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
     @State private var previewRoom: CGFloat = 0
 
-    /// A message of the agent in a column that is to the room as the chosen width is to the widest one, so the three read differently.
+    /// A message of the agent in a column that is to the room as the chosen width is to the widest one, drawn as a bubble on a track that is
+    /// the widest, so the four differ in where the lines break and in how much of the track the bubble takes.
     private var messagePreview: some View {
-        SettingsGroup(title: "Preview") {
-            MarkdownView(text: "The width of a message is how far a line runs before it wraps. A narrow column is easy on the eye; a wide one fits more of a table or a long command.")
-                .frame(width: previewRoom * messageWidth.points / MessageWidth.wide.points, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 12)
-                .onGeometryChange(for: CGFloat.self, of: \.size.width) { previewRoom = $0 }
+        SettingsPreview {
+            VStack(alignment: .leading, spacing: 0) {
+                MarkdownView(text: "I opened a pull request for the settings epic and asked the reviewer for a second look. The width of a message is how far a line runs before it wraps: a narrow column is easy on the eye, and a wide one fits more of a table or a long command, like `pnpm test && pnpm typecheck`.")
+                    .padding(12)
+                    .frame(width: previewRoom * messageWidth.points / MessageWidth.ultraWide.points, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.themeAccent.opacity(0.14)))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self, of: \.size.width) { previewRoom = $0 }
+            .padding(8)
+            .background(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
         }
     }
 
-    /// The four states as the app draws them now, with or without their symbols.
+    /// The four states as the app draws them now, with or without their symbols, larger than they are in a row so the mark inside reads.
     private var statesPreview: some View {
-        SettingsGroup(title: "Preview") {
-            HStack(spacing: 28) {
+        SettingsPreview {
+            // together in the middle, not one to a quarter of the width
+            HStack(alignment: .top, spacing: 0) {
                 state("Working") { StateGlyph(state: .running) }
                 state("Needs attention") { StateGlyph(state: .needsYou, attention: .input) }
                 state("Ready for test") { StateGlyph(state: .ready) }
                 state("A problem") { StateGlyph(state: .needsYou, attention: .error) }
             }
-            .frame(maxWidth: .infinity).padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
         }
     }
 
     private func state(_ title: String, @ViewBuilder glyph: () -> some View) -> some View {
-        VStack(spacing: 6) {
-            glyph()
+        VStack(spacing: 8) {
+            // at its own size: scaling the 20-point glyph up scaled its pixels, and the ring (a layer) showed them
+            glyph().frame(width: 28, height: 28)
             Text(title).font(.scaled(12)).foregroundStyle(.secondary)
         }
+        .frame(width: 120)
     }
 
     var body: some View {
-        SettingsPageBody(reset: { AppPreferences().reset(.appearance) }, preview: { codePreview(); statesPreview; messagePreview }) {
+        SettingsPageBody(reset: { AppPreferences().reset(.appearance) }) {
+            SettingsGroup(title: "Theme") {
+                ThemeGallery(theme: $theme)
+            }
             SettingsGroup(title: "Look") {
                 SettingsTabRow(title: "Color scheme", detail: "System follows the Mac; light and dark stay as chosen", first: true) {
                     Picker("Color scheme", selection: $colorScheme) {
@@ -259,13 +283,15 @@ struct AppearanceTabView: View {
                 }
                 SettingsTabRow(title: "Message width", detail: "How wide a message gets before it wraps") {
                     Picker("Message width", selection: $messageWidth) {
-                        ForEach(MessageWidth.allCases, id: \.self) { Text($0.title).tag($0) }
+                        ForEach(MessageWidth.allCases, id: \.self) { Text("\($0.title) · \(Int($0.points)) pt").tag($0) }
                     }
                     .labelsHidden().fixedSize()
                 }
+                messagePreview
                 SettingsTabRow(title: "Tell states apart by shape", detail: "A symbol in each state, so that color is not the only clue") {
                     Toggle("Tell states apart by shape", isOn: $statesByShape).labelsHidden().toggleStyle(.switch)
                 }
+                statesPreview
             }
             SettingsGroup(title: "Code and output") {
                 SettingsTabRow(title: "Font", detail: "The monospaced fonts installed on this Mac", first: true) {
@@ -297,9 +323,7 @@ struct AppearanceTabView: View {
                 SettingsTabRow(title: "Line numbers", detail: "In code blocks and the output of a command") {
                     Toggle("Line numbers", isOn: $lineNumbers).labelsHidden().toggleStyle(.switch)
                 }
-            }
-            SettingsGroup(title: "Theme") {
-                ThemeGallery(theme: $theme)
+                codePreview()
             }
             SettingsGroup(title: "Color") {
                 SettingsTabRow(title: "Accent color", detail: "Buttons, switches and the selection; the first one is the theme's own", first: true) {
@@ -322,7 +346,7 @@ struct AppearanceTabView: View {
     }
 }
 
-/// The six themes, each as its light and its dark version side by side; the chosen one has the accent's edge.
+/// The nine themes in a grid of three, each as its light and its dark version side by side; the chosen one has the accent's edge.
 private struct ThemeGallery: View {
     @Binding var theme: Theme
 
@@ -330,16 +354,16 @@ private struct ThemeGallery: View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
             ForEach(Theme.allCases, id: \.self) { option in
                 Button { theme = option } label: {
-                    VStack(spacing: 6) {
+                    VStack(spacing: 8) {
                         HStack(spacing: 6) {
                             ThemePreview(theme: option, scheme: .light)
                             ThemePreview(theme: option, scheme: .dark)
                         }
-                        Text(option.title).font(.caption)
+                        Text(option.title).font(.callout)
                     }
                     .padding(8).frame(maxWidth: .infinity)
-                    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(option == theme ? Color.themeAccent : Color.secondary.opacity(0.2), lineWidth: option == theme ? 2 : 1))
-                    .contentShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(option == theme ? Color.themeAccent : Color.secondary.opacity(0.2), lineWidth: option == theme ? 2 : 1))
+                    .contentShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(option.title).accessibilityAddTraits(option == theme ? .isSelected : [])
@@ -349,22 +373,43 @@ private struct ThemeGallery: View {
     }
 }
 
-/// A theme's window and sidebar in one version, with its accent as a bar: what the theme paints, nothing the system draws.
+/// A made-up window in one version of a theme: a sidebar with a selected row, a title, two messages and a button in the accent. Only
+/// what the theme paints (the window, the sidebar, the accent); the grey of the text is a stand-in.
 private struct ThemePreview: View {
     let theme: Theme
     let scheme: ThemeScheme
 
     var body: some View {
         let surfaces = themeSurfaces(theme, scheme: scheme, translucent: false)
+        let accent = surfaces.accent.map(Color.init) ?? .accentColor
+        let ink = scheme == .dark ? Color.white : Color.black
         HStack(spacing: 0) {
-            Color(surfaces.sidebar).frame(width: 16)
-            ZStack(alignment: .topLeading) {
-                Color(surfaces.window)
-                Capsule().fill(surfaces.accent.map(Color.init) ?? .accentColor).frame(width: 20, height: 5).padding(8)
+            VStack(alignment: .leading, spacing: 5) {
+                Capsule().fill(ink.opacity(0.25)).frame(width: 14, height: 3)
+                RoundedRectangle(cornerRadius: 2).fill(accent.opacity(0.35)).frame(height: 8)
+                Capsule().fill(ink.opacity(0.2)).frame(width: 18, height: 3)
+                Capsule().fill(ink.opacity(0.2)).frame(width: 14, height: 3)
+                Spacer(minLength: 0)
             }
+            .padding(6).frame(width: 34).background(Color(surfaces.sidebar))
+            VStack(alignment: .leading, spacing: 6) {
+                Capsule().fill(ink.opacity(0.4)).frame(width: 28, height: 4)
+                VStack(alignment: .leading, spacing: 3) {
+                    Capsule().fill(ink.opacity(0.22)).frame(height: 3)
+                    Capsule().fill(ink.opacity(0.22)).frame(width: 34, height: 3)
+                }
+                .padding(5).frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 4).fill(ink.opacity(0.07)))
+                Spacer(minLength: 0)
+                HStack(spacing: 4) {
+                    Capsule().fill(ink.opacity(0.12)).frame(height: 8)
+                    Capsule().fill(accent).frame(width: 14, height: 8)
+                }
+            }
+            .padding(6).frame(maxWidth: .infinity).background(Color(surfaces.window))
         }
-        .frame(height: 44).clipShape(RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.secondary.opacity(0.3), lineWidth: 0.5))
+        .frame(height: 84).clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.secondary.opacity(0.3), lineWidth: 0.5))
         .accessibilityHidden(true)
     }
 }
@@ -410,11 +455,7 @@ struct SidebarTabView: View {
     )
 
     var body: some View {
-        SettingsPageBody(reset: { AppPreferences().reset(.sidebar) }, preview: {
-            SettingsGroup(title: "Preview") {
-                SessionRowView(row: Self.sample, showsWorkspace: true).allowsHitTesting(false).padding(.vertical, 6)
-            }
-        }, content: {
+        SettingsPageBody(reset: { AppPreferences().reset(.sidebar) }) {
             SettingsGroup(title: "Order") {
                 SettingsTabRow(title: "Group epics by", detail: "How the epics under Carrier are grouped", first: true) {
                     picker("Group epics by", selection: $groupBy, options: GroupBy.allCases) { $0.title }
@@ -439,8 +480,11 @@ struct SidebarTabView: View {
                 SettingsTabRow(title: "Age", detail: "How long ago the session was last active") {
                     Toggle("Age", isOn: $showsAge).labelsHidden().toggleStyle(.switch)
                 }
+                SettingsPreview {
+                    SessionRowView(row: Self.sample, showsWorkspace: true).allowsHitTesting(false)
+                }
             }
-        })
+        }
     }
 
     private func picker<Value: Hashable>(_ name: String, selection: Binding<Value>, options: [Value], title: @escaping (Value) -> String) -> some View {
@@ -603,11 +647,11 @@ struct NotificationsTabView: View {
                     Toggle("Quiet hours", isOn: $quiet).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(title: "From", detail: "When the quiet starts") {
-                    DatePicker("From", selection: time($quietStart), displayedComponents: .hourAndMinute).labelsHidden()
+                    timePicker("From", $quietStart)
                 }
                 .disabled(quiet == false)
                 SettingsTabRow(title: "Until", detail: "When it ends, the next day if it is earlier than the start") {
-                    DatePicker("Until", selection: time($quietEnd), displayedComponents: .hourAndMinute).labelsHidden()
+                    timePicker("Until", $quietEnd)
                 }
                 .disabled(quiet == false)
             }
@@ -634,12 +678,17 @@ struct NotificationsTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
     }
 
-    /// A time of day kept as minutes after midnight, as the date picker wants it.
-    private func time(_ minutes: Binding<Int>) -> Binding<Date> {
-        Binding(
-            get: { Calendar.current.date(bySettingHour: minutes.wrappedValue / 60, minute: minutes.wrappedValue % 60, second: 0, of: Date()) ?? Date() },
-            set: { let parts = Calendar.current.dateComponents([.hour, .minute], from: $0); minutes.wrappedValue = (parts.hour ?? 0) * 60 + (parts.minute ?? 0) }
-        )
+    /// A time of day kept as minutes after midnight, chosen from a menu of every half hour (and the saved time itself when it is none of
+    /// those), written in the clock the Time format setting says.
+    private func timePicker(_ name: String, _ minutes: Binding<Int>) -> some View {
+        let hours = TimeFormat.stored().hours
+        let options = Array(Set(Array(stride(from: 0, to: 1440, by: 30)) + [minutes.wrappedValue])).sorted()
+        func label(_ minutes: Int) -> String {
+            let date = Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
+            return clockTime(date, hours: hours, locale: .current)
+        }
+        return Picker(name, selection: minutes) { ForEach(options, id: \.self) { Text(label($0)).tag($0) } }
+            .labelsHidden().fixedSize()
     }
 
     private static let systemSettingsURL = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!

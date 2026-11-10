@@ -60,26 +60,72 @@ struct FlowItemView: View {
     }
 }
 
-/// An agent's text laid out by block: lines with room between them, bullets that hang, a gap for a blank line.
+/// An agent's text: its lines and bullets run together as one text, so a drag selects across them (separate texts select only within
+/// themselves), and a fenced code block is a view of its own between two of those, which a selection does not cross. ponytail: a bullet
+/// that wraps goes back to the margin and does not hang under its text; an NSTextView with paragraph styles would hang it and select
+/// across the code blocks too, if that is missed.
 struct MarkdownView: View {
     let text: String
+    @Environment(\.colorScheme) private var scheme
+    private var dark: Bool { scheme == .dark }
+
+    private enum Segment {
+        case text(AttributedString)
+        case code(String?, String?, String)
+    }
+
+    /// Inline code as a chip: the theme's accent for the text over a stronger tint of it, with a little air at both ends (a non-breaking
+    /// space inside the tint), so a name in a sentence stands out of it.
+    private func chipped(_ line: AttributedString) -> AttributedString {
+        let ink = dark ? Color.themeAccent.mix(with: .white, by: 0.3) : Color.themeAccent.mix(with: .black, by: 0.25)
+        var out = AttributedString()
+        for run in line.runs {
+            var piece = AttributedString(line[run.range])
+            if run.inlinePresentationIntent?.contains(.code) == true {
+                piece = AttributedString("\u{00A0}") + piece + AttributedString("\u{00A0}")
+                piece.foregroundColor = ink
+                piece.backgroundColor = Color.themeAccent.opacity(dark ? 0.26 : 0.16)
+            }
+            out.append(piece)
+        }
+        return out
+    }
+
+    private var segments: [Segment] {
+        var segments: [Segment] = []
+        var run: AttributedString?
+        func add(_ piece: AttributedString) {
+            if var open = run { open.append(AttributedString("\n")); open.append(piece); run = open } else { run = piece }
+        }
+        for block in markdownBlocks(text) {
+            switch block {
+            case .line(let line): add(chipped(line))
+            case .bullet(let level, let line):
+                var bullet = AttributedString(String(repeating: "\u{2003}\u{2003}", count: level) + "•\u{2002}")
+                bullet.foregroundColor = .secondary
+                bullet.append(chipped(line))
+                add(bullet)
+            case .gap:
+                // an empty line a little shorter than a text one
+                var gap = AttributedString(" ")
+                gap.font = .scaled(6)
+                add(gap)
+            case .code(let language, let file, let code):
+                if let run { segments.append(.text(run)) }
+                run = nil
+                segments.append(.code(language, file, code))
+            }
+        }
+        if let run { segments.append(.text(run)) }
+        return segments
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            ForEach(Array(markdownBlocks(text).enumerated()), id: \.offset) { _, block in
-                switch block {
-                case .line(let line):
-                    Text(line).lineSpacing(3)
-                case .bullet(let level, let line):
-                    HStack(alignment: .firstTextBaseline, spacing: 7) {
-                        Text("•").foregroundStyle(.secondary)
-                        Text(line).lineSpacing(3)
-                    }
-                    .padding(.leading, CGFloat(level) * 16)
-                case .code(let language, let code):
-                    CodeBlockView(language: language, code: code)
-                case .gap:
-                    Color.clear.frame(height: 5)
+            ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+                switch segment {
+                case .text(let text): Text(text).lineSpacing(4)
+                case .code(let language, let file, let code): CodeBlockView(language: language, file: file, code: code)
                 }
             }
         }

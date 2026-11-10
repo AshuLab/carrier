@@ -7,11 +7,19 @@ public enum GroupBy: String, CaseIterable {
     case status, repo
 }
 
+/// The ids in a stored `SidebarStore.pinnedKey`.
+public func pinnedIds(_ stored: String) -> Set<String> { Set(stored.split(separator: ",").map(String.init)) }
+
+/// The string to store for these ids.
+public func storedPins(_ ids: Set<String>) -> String { ids.sorted().joined(separator: ",") }
+
 /// The grouping, the Sessions and Archive sorts and the unfolded section, kept in user defaults so they survive a relaunch.
 public struct SidebarStore {
     public static let groupByKey = "sidebar.groupBy"
     public static let sessionSortKey = "sidebar.sessionSort"
     public static let archiveSortKey = "sidebar.archiveSort"
+    /// The pinned sessions' ids, comma-separated (an `@AppStorage` string; read it with `pinnedIds`).
+    public static let pinnedKey = "sidebar.pinned"
     public static let showsIconKey = "sidebar.row.icon"
     public static let showsBranchKey = "sidebar.row.branch"
     public static let showsProvidersKey = "sidebar.row.providers"
@@ -32,6 +40,8 @@ public struct SidebarStore {
         get { defaults.string(forKey: Self.sessionSortKey).flatMap(SessionSort.init(rawValue:)) ?? .workspace }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Self.sessionSortKey) }
     }
+
+    public var pinned: Set<String> { pinnedIds(defaults.string(forKey: Self.pinnedKey) ?? "") }
 
     public var archiveSort: ArchiveSort {
         get { defaults.string(forKey: Self.archiveSortKey).flatMap(ArchiveSort.init(rawValue:)) ?? .dateArchived }
@@ -241,7 +251,7 @@ private func allSidebarGroups(_ snapshot: PanelSnapshot, by groupBy: GroupBy, wi
 
 /// The Carrier section's state, from what the app knows of the engine (docs/specs/sidebar-home-sessions-carrier.md).
 public struct CarrierCardState: Equatable {
-    public enum Kind: Equatable { case running, paused, stopped, problem, connecting }
+    public enum Kind: Equatable { case running, idle, paused, stopped, problem, connecting }
 
     public var kind: Kind
     /// Busy and total: present for running, paused and problem (when the engine answered), and for a stopped engine from the last
@@ -252,6 +262,7 @@ public struct CarrierCardState: Equatable {
     public var title: String {
         switch kind {
         case .running: "Running"
+        case .idle: "Idle"
         case .paused: "Paused"
         case .stopped: "Stopped"
         case .problem: "Problem"
@@ -264,11 +275,12 @@ public struct CarrierCardState: Equatable {
     }
 }
 
-/// A problem reported by the snapshot wins over a pause: it is what the person has to look at.
+/// A problem reported by the snapshot wins over a pause: it is what the person has to look at. An engine that answers with no slot busy is
+/// idle, and only one working an epic is running.
 public func carrierCardState(_ state: ConnectionState?, lastTotal: Int? = nil) -> CarrierCardState {
     switch state {
     case .running(let snapshot)?:
-        let kind: CarrierCardState.Kind = snapshot.problem != nil ? .problem : snapshot.paused ? .paused : .running
+        let kind: CarrierCardState.Kind = snapshot.problem != nil ? .problem : snapshot.paused ? .paused : snapshot.slots.busy > 0 ? .running : .idle
         return CarrierCardState(kind: kind, slots: (snapshot.slots.busy, snapshot.slots.total))
     case .incompatible?: return CarrierCardState(kind: .problem, slots: nil)
     case .stopped?: return CarrierCardState(kind: .stopped, slots: lastTotal.map { (0, $0) })

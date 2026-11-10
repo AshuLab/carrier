@@ -121,7 +121,7 @@ private struct HeaderGlyph: View {
     var body: some View {
         Group {
             switch state {
-            case .running: SpinningRing(diameter: 26, lineWidth: 3).overlay { StateMark(shape: .working, size: 12).foregroundStyle(.secondary) }
+            case .running: SpinningRing(diameter: 26, lineWidth: 3)
             case .needsYou: disc(.orange, "!", state.shape())
             case .ready: disc(.blue, "✓", .ready)
             case .done: disc(.green, "✓", nil)
@@ -134,7 +134,7 @@ private struct HeaderGlyph: View {
     }
 
     private func disc(_ color: Color, _ mark: String, _ shape: StateShape?) -> some View {
-        Circle().fill(color).frame(width: 30, height: 30).overlay { StateMark(text: mark, shape: shape, size: 15).foregroundStyle(.white) }
+        Disc(color: color, mark: mark, shape: shape, size: 30)
     }
 }
 

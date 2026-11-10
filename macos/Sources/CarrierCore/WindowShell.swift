@@ -125,13 +125,13 @@ public struct ArchiveRequest: Equatable {
 
     /// Runs a shortcut: a selection as a click on it would, ⌘F as a request to the open section (nothing with both folded). The
     /// session shortcuts read `sessions` in the order `sort` gives the sidebar; with none open, next picks the first and previous the last.
-    public func perform(_ action: ShortcutAction, sessions: [SessionRow] = [], sort: SessionSort = .workspace) {
+    public func perform(_ action: ShortcutAction, sessions: [SessionRow] = [], sort: SessionSort = .workspace, pinned: Set<String> = []) {
         switch action {
         case .select(let next): selection = next
         case .search:
             if let open { searchRequest = SearchRequest(section: open, count: (searchRequest?.count ?? 0) + 1) }
         case .nextSession, .previousSession:
-            let ids = sessionGroups(sessions, by: sort).flatMap(\.rows).map(\.id)
+            let ids = sessionGroups(sessions, by: sort, pinned: pinned).flatMap(\.rows).map(\.id)
             let step = action == .nextSession ? 1 : -1
             var current: Int?
             if case .session(let id) = selection { current = ids.firstIndex(of: id) }

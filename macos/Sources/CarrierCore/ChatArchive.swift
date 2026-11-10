@@ -106,22 +106,46 @@ public func deleteSessionQuestion(_ row: SessionRow, worktree: SessionDeletePrev
 public let archivedSessionNotice = "This session is archived: you are reading its transcript. Resume it to continue."
 
 public enum SessionMenuAction: Equatable {
-    case archive, restore, reveal(path: String), copy(String)
+    case stop, pin, unpin, rename, regenerateTitle, openInTerminal(path: String), filterWorkspace(String), archive, restore, delete
+    case copy(String)
 }
 
+/// One line of the menu: a button with `action`, or a submenu of `children` (no action).
 public struct SessionMenuItem: Equatable {
     public let title: String
-    public let action: SessionMenuAction
+    /// The SF Symbol drawn beside the title.
+    public let icon: String
+    public let action: SessionMenuAction?
+    public var children: [SessionMenuItem] = []
+    public var destructive = false
+
+    init(_ title: String, _ icon: String, _ action: SessionMenuAction?, children: [SessionMenuItem] = [], destructive: Bool = false) {
+        (self.title, self.icon, self.action, self.children, self.destructive) = (title, icon, action, children, destructive)
+    }
 }
 
-/// The context menu of a session row in the sidebar and on the Sessions home: Archive (Restore for an archived match), Reveal in
-/// Finder and Copy session id.
-public func sessionMenu(_ row: SessionRow) -> [SessionMenuItem] {
-    [
-        SessionMenuItem(title: row.archived ? "Restore" : "Archive", action: row.archived ? .restore : .archive),
-        SessionMenuItem(title: "Reveal in Finder", action: .reveal(path: row.folder)),
-        SessionMenuItem(title: "Copy session id", action: .copy(row.id)),
-    ]
+/// The context menu of a session row in the sidebar, on the Sessions home and in the Archive, as sections the view separates with a
+/// divider: Stop (while it works) and Pin; Rename and Regenerate title; Open in Terminal, Copy (path, branch name, session id) and, where the
+/// view can filter (`canFilter`, the home), Filter by the workspace; Archive (Restore for an archived one) and, for an archived one, Delete.
+/// An archived session is not listed in the groups, so it has no Pin.
+public func sessionMenu(_ row: SessionRow, pinned: Bool = false, canFilter: Bool = false) -> [[SessionMenuItem]] {
+    var copies = [SessionMenuItem("Path", "folder", .copy(row.folder))]
+    if let branch = row.branch { copies.append(SessionMenuItem("Branch name", "arrow.triangle.branch", .copy(branch))) }
+    copies.append(SessionMenuItem("Session id", "number", .copy(row.id)))
+
+    var control: [SessionMenuItem] = []
+    if row.state == .working { control.append(SessionMenuItem("Stop", "stop.circle", .stop)) }
+    if row.archived == false { control.append(pinned ? SessionMenuItem("Unpin", "pin.slash", .unpin) : SessionMenuItem("Pin", "pin", .pin)) }
+    var open = [SessionMenuItem("Open in Terminal", "terminal", .openInTerminal(path: row.folder)), SessionMenuItem("Copy", "doc.on.doc", nil, children: copies)]
+    if canFilter { open.append(SessionMenuItem("Filter by \u{201C}\(row.workspace)\u{201D}", "line.3.horizontal.decrease", .filterWorkspace(row.workspace))) }
+    var end = [row.archived ? SessionMenuItem("Restore", "arrow.uturn.backward", .restore) : SessionMenuItem("Archive", "archivebox", .archive)]
+    if row.archived { end.append(SessionMenuItem("Delete\u{2026}", "trash", .delete, destructive: true)) }
+    return [
+        control,
+        [SessionMenuItem("Rename\u{2026}", "pencil", .rename), SessionMenuItem("Regenerate title", "sparkles", .regenerateTitle)],
+        open,
+        end,
+    ].filter { $0.isEmpty == false }
 }
 
 /// Archives, restores and deletes sessions through the host. Each call returns what the host refused, in words, nil when it worked;
@@ -146,6 +170,13 @@ public func sessionMenu(_ row: SessionRow) -> [SessionMenuItem] {
     public func restore(_ id: String) async -> String? { await run("restore", id) { try await $0.archive(id, false) } }
 
     public func delete(_ id: String) async -> String? { await run("delete", id) { try await $0.delete(id) } }
+
+    /// Ends the turn that is in progress.
+    public func stop(_ id: String) async -> String? { await run("stop", id) { try await $0.interrupt(id) } }
+
+    public func rename(_ id: String, _ title: String) async -> String? { await run("rename", id) { try await $0.rename(id, title) } }
+
+    public func regenerateTitle(_ id: String) async -> String? { await run("regenerate the title", id) { _ = try await $0.regenerateTitle(id) } }
 
     /// What an alert before a delete is: the question to ask, or what the host refused when it was asked what the deletion would discard.
     public enum Confirmation: Equatable {

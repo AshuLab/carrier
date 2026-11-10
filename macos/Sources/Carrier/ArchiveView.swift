@@ -44,18 +44,7 @@ struct ArchiveView: View {
         Task { if let refusal = await actions.restore(row.id) { tell(refusal) } else { select(row.id) } }
     }
 
-    private func delete(_ row: SessionRow) {
-        Task {
-            switch await actions.confirmDelete(row) {
-            case .refused(let refusal): tell(refusal)
-            case .ask(let question):
-                guard ask(question) else { return }
-                fallthrough
-            case .proceed:
-                if let refusal = await actions.delete(row.id) { tell(refusal) }
-            }
-        }
-    }
+    private func delete(_ row: SessionRow) { deleteArchived(row, actions) }
 
     /// Deletes every archived session, not only the ones a search shows: the question names how many.
     private func clear() {
@@ -211,7 +200,7 @@ private struct ArchiveRow: View {
         .padding(.horizontal, 8).padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: 10).fill(hovered ? Color.primary.opacity(0.07) : .clear))
         .onHover { hovered = $0 }
-        .contextMenu { SessionMenuItems(row: row) }
+        .sessionContextMenu(row)
         .help(row.title)
     }
 

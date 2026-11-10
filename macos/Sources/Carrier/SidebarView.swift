@@ -193,7 +193,7 @@ private struct CarrierRow: View {
         switch kind {
         case .running: .green
         case .paused, .problem: .orange
-        case .stopped, .connecting: .gray
+        case .idle, .stopped, .connecting: .gray
         }
     }
 

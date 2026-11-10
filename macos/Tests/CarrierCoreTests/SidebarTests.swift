@@ -132,8 +132,10 @@ private func queued(_ repo: String, _ issue: Int) -> PanelSnapshot.QueuedEpic { 
     #expect(carrierCardState(.stopped) == CarrierCardState(kind: .stopped, slots: nil))
     #expect(carrierCardState(.incompatible(update: nil)) == CarrierCardState(kind: .problem, slots: nil))
     #expect(carrierCardState(nil) == CarrierCardState(kind: .connecting, slots: nil))
-    #expect([card(snapshot()), card(paused), card(problem), carrierCardState(.stopped), carrierCardState(nil)].map(\.title)
-        == ["Running", "Paused", "Problem", "Stopped", "Connecting"])
+    // answering with nothing busy is idle: only an engine working an epic is running
+    #expect(card(snapshot(busy: 0)) == CarrierCardState(kind: .idle, slots: (0, 3)))
+    #expect([card(snapshot(busy: 1)), card(snapshot(busy: 0)), card(paused), card(problem), carrierCardState(.stopped), carrierCardState(nil)].map(\.title)
+        == ["Running", "Idle", "Paused", "Problem", "Stopped", "Connecting"])
 }
 
 @Test func aStoppedEngineKeepsTheSlotsItLastReportedInGrey() {

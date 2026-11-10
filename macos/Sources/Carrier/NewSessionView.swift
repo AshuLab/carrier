@@ -149,33 +149,39 @@ struct NewSessionView: View {
             .contentShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    /// "What Send will do": what sending does, a step a line with its icon, the names in monospace and the full path in the tooltip.
+    /// What sending does, a step each: its badge, what it does in a few words and the sentence that tells it, with the names in monospace and
+    /// the full path in the tooltip. The surface and the layout are the closed-session notice's.
     private var sendSteps: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("What Send will do").fontWeight(.semibold)
+        VStack(alignment: .leading, spacing: 12) {
             ForEach(model.sendSteps, id: \.parts) { step in
-                HStack(alignment: .center, spacing: 10) {
-                    // the badge of the closed-session notice: white on the theme's accent
+                HStack(spacing: 12) {
                     Image(systemName: step.icon)
-                        .font(.scaled(12, weight: .medium)).foregroundStyle(.white)
-                        .frame(width: 26, height: 26)
-                        .background(RoundedRectangle(cornerRadius: 7).fill(Color.themeAccent.opacity(0.85)))
-                        .accessibilityHidden(true)
-                    step.parts.reduce(Text("")) { text, part in
-                        switch part {
-                        case .text(let words): text + Text(words)
-                        case .code(let name): text + Text(name).font(.callout.monospaced().weight(.medium)).foregroundStyle(.primary)
+                        .font(.scaled(14, weight: .medium)).foregroundStyle(.white)
+                        .frame(width: 30, height: 30)
+                        // the accent a little deepened, with a faint rim of light: the badge of the closed-session notice
+                        .background {
+                            RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.mix(with: .black, by: 0.18))
+                                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.2), lineWidth: 0.5))
                         }
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(step.title).fontWeight(.semibold)
+                        step.parts.reduce(Text("")) { text, part in
+                            switch part {
+                            case .text(let words): text + Text(words)
+                            case .code(let name): text + Text(name).font(.scaled(11).monospaced().weight(.medium)).foregroundStyle(.primary)
+                            }
+                        }
+                        .font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+                        .help(step.help ?? "")
                     }
-                    .font(.callout).foregroundStyle(.primary.opacity(0.78)).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
-                    .help(step.help ?? "")
+                    Spacer(minLength: 0)
                 }
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 12)
+        .font(.scaled(12)).padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // glass, like the closed-session notice: the same surface for what the app says above or below the box
-        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.3)), in: .rect(cornerRadius: 12))
+        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.15)), in: .rect(cornerRadius: 12))
         .accessibilityElement(children: .contain)
     }
 

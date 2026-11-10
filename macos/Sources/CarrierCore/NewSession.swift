@@ -523,15 +523,15 @@ public struct WatchNote: Equatable {
         if let repo, let folder {
             if toClone {
                 let projects = (projectsPath as NSString).abbreviatingWithTildeInPath
-                steps.append(SendStep(icon: "arrow.down.circle", parts: [.text("Downloads "), .code(repo), .text(" to "), .code(projects), .text(" (only this first time)")], help: folder))
+                steps.append(SendStep(icon: "arrow.down.circle", title: "Download the repository", parts: [.text("Downloads "), .code(repo), .text(" to "), .code(projects), .text(" (only this first time)")], help: folder))
             } else {
-                steps.append(SendStep(icon: "arrow.triangle.2.circlepath", parts: [.text("Updates "), .code(repo), .text(" from GitHub first")], help: folder))
+                steps.append(SendStep(icon: "arrow.triangle.2.circlepath", title: "Update the repository", parts: [.text("Updates "), .code(repo), .text(" from GitHub first")], help: folder))
             }
         }
         if worktree, let branch = startBranch {
             let name = worktreeBranchPrefix + (worktreeName.isEmpty ? "<name>" : worktreeName)
             let tail = toClone ? " in a separate folder." : " in a separate folder. Your current folder is not touched."
-            steps.append(SendStep(icon: "arrow.triangle.branch", parts: [.text("Creates the branch "), .code(name), .text(" from "), .code(branch), .text(tail)], help: nil))
+            steps.append(SendStep(icon: "arrow.triangle.branch", title: "Create a branch of its own", parts: [.text("Creates the branch "), .code(name), .text(" from "), .code(branch), .text(tail)], help: nil))
         }
         return steps
     }
@@ -784,6 +784,8 @@ public struct WatchNote: Equatable {
 public struct SendStep: Equatable {
     public enum Part: Hashable { case text(String), code(String) }
     public let icon: String
+    /// What the step does in a few words, over the sentence that tells it.
+    public let title: String
     public let parts: [Part]
     public let help: String?
 }

@@ -169,8 +169,8 @@ struct NewSessionView: View {
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.06)))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.primary.opacity(0.08)))
+        // glass, like the closed-session notice: the same surface for what the app says above or below the box
+        .glassEffect(.regular.tint(Color.themeAccent.opacity(0.3)), in: .rect(cornerRadius: 12))
         .accessibilityElement(children: .contain)
     }
 

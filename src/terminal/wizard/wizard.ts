@@ -1,6 +1,7 @@
 import { join, resolve } from 'node:path';
 import { carrierHome } from '../../config/default-path.ts';
 import { defaults, loadConfig } from '../../config/load.ts';
+import { providersPathOf } from '../../config/providers.ts';
 import { installFix } from '../../doctor/fixes.ts';
 import { localKinds, type LocalProvider } from '../../harnesses/local.ts';
 import { harnessNames } from '../../harnesses/names.ts';
@@ -50,6 +51,7 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
 
   // A config that is already there: edit it (its answers become the starting points), start over, or leave it.
   const fallback = join(folder, 'config.json');
+  const providersPath = providersPathOf(folder); // the accounts go here, whatever --out says (ADR 0020)
   let out = flags.out === undefined ? undefined : resolve(flags.out);
   let settled = false; // the question below settled where the config goes, and that it may be replaced
   let prior: Prior | undefined;
@@ -71,11 +73,11 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
     }
     if (choice === 'edit') {
       try {
-        prior = priorFrom(deps.readConfig(fallback));
+        prior = priorFrom(deps.readConfig(fallback), deps.exists(providersPath) ? deps.readConfig(providersPath) : {});
       } catch {
         // unreadable: handled as no prior below
       }
-      if (prior === undefined) ui.warn(`${tilde(fallback)} is not a valid config, so there is nothing to start from.`);
+      if (prior === undefined) ui.warn(`${tilde(fallback)} (with ${tilde(providersPath)}) is not a valid config, so there is nothing to start from.`);
     }
   }
 
@@ -148,8 +150,8 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   }
 
   const failover = prior?.failover ?? (unattended || Object.keys(providers).length < 2 ? undefined : await askFailover(ui, providers));
-  const user = buildConfig({ repos, author, reviewer, leadReviewer, providers, failover, identities });
-  const loaded = loadConfig(defaults, user);
+  const user = buildConfig({ repos, author, reviewer, leadReviewer, failover, identities });
+  const loaded = loadConfig(defaults, user, providers);
   if (!loaded.ok) throw new Error(`the answers do not make a valid config:\n${loaded.errors.map((e) => `  ${e.path}: ${e.message}`).join('\n')}`);
 
   out ??= resolve(await askOut(ui, fallback));
@@ -159,7 +161,8 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
     if (!(await ui.confirm('Save it?'))) throw new Cancelled();
   }
   deps.write(out, `${JSON.stringify(user, null, 2)}\n`);
-  ui.note(tilde(out), 'Config written');
+  deps.write(providersPath, `${JSON.stringify({ providers }, null, 2)}\n`);
+  ui.note(`${tilde(out)}\n${tilde(providersPath)}`, 'Written: config and providers');
 
   const checks = await deps.doctor(loaded.config, folder, {}, ui.check, ui.checkStart);
   const use = out === fallback ? '' : ` --config ${out}`; // the default location needs no flag

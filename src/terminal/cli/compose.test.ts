@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { loadConfig, defaults } from '../../config/load.ts';
+import { loadWithProviders } from '../../config/testing.ts';
 import type { Config } from '../../config/schema.ts';
 import { FakeAgentRunner, FakeWorkspaces } from '../../execution/fake.ts';
 import type { GitWorkspacesOptions } from '../../execution/git-workspaces.ts';
@@ -26,7 +26,7 @@ afterEach(async () => {
 });
 
 const config = (user: object = {}): Config => {
-  const result = loadConfig(defaults, {
+  const result = loadWithProviders({
     pollIntervalMinutes: 1,
     logLevel: 'debug',
     repos: [{ name: 'AshuLab/a', agents: { reviewer: { provider: 'override', model: 'override' } } }, { name: 'AshuLab/b' }],

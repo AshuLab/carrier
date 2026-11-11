@@ -3,6 +3,9 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { defaultConfigPath } from './default-path.ts';
 import { defaults, loadConfig } from './load.ts';
+import { resolveRepoConfig } from './resolve.ts';
+import { loadProviders } from './providers.ts';
+import { loadWithProviders } from './testing.ts';
 
 const valid = {
   repos: [{ name: 'AshuLab/carrier' }],
@@ -15,7 +18,7 @@ const valid = {
   },
 };
 
-const load = (user: object) => loadConfig(defaults, { ...valid, ...user });
+const load = (user: object) => loadWithProviders({ ...valid, ...user });
 const errorsOf = (user: object) => {
   const result = load(user);
   if (result.ok) throw new Error('expected invalid config');
@@ -51,8 +54,9 @@ describe('merge', () => {
 
   test('replaces lists whole', () => {
     const repos = [{ name: 'a/b' }];
-    const base = { ...defaults, ...valid, repos: [{ name: 'x/y' }, { name: 'z/w' }] };
-    expect(loadConfig(base, { repos })).toMatchObject({ ok: true, config: { repos } });
+    const { providers, ...file } = valid;
+    const base = { ...defaults, ...file, repos: [{ name: 'x/y' }, { name: 'z/w' }] };
+    expect(loadConfig(base, { repos }, providers as never)).toMatchObject({ ok: true, config: { repos } });
   });
 
   test('rejects an incompatible type without converting it', () => {
@@ -69,7 +73,7 @@ describe('merge', () => {
 describe('invalid config', () => {
   test('missing required fields are all listed at once', () => {
     const paths = loadConfig(defaults, {}) as { errors: { path: string }[] };
-    expect(paths.errors.map((e) => e.path).sort()).toEqual(['agents', 'orchestratorProfile', 'profiles', 'providers', 'repos']);
+    expect(paths.errors.map((e) => e.path).sort()).toEqual(['agents', 'orchestratorProfile', 'profiles', 'repos']);
   });
 
   test('empty repos', () => {
@@ -138,10 +142,10 @@ describe('identities', () => {
   });
 
   test('a per-repo override that makes the roles equal is refused once per repo under separate and accepted under shared', () => {
-    expect(loadConfig(defaults, perRepo).ok).toBe(false);
-    const errors = (loadConfig(defaults, perRepo) as { errors: { path: string }[] }).errors;
+    expect(loadWithProviders(perRepo).ok).toBe(false);
+    const errors = (loadWithProviders(perRepo) as { errors: { path: string }[] }).errors;
     expect(errors.map((e) => e.path)).toEqual(['repos.1.agents', 'repos.2.agents']);
-    expect(loadConfig(defaults, { ...perRepo, identities: 'shared' }).ok).toBe(true);
+    expect(loadWithProviders({ ...perRepo, identities: 'shared' }).ok).toBe(true);
   });
 
   test('shared accepts the same profile for both roles and also two different ones', () => {
@@ -243,45 +247,33 @@ describe('providers', () => {
     expect(result).toMatchObject({ ok: true, config: { repos: [{ agents: { reviewer: { provider: 'claude' } } }] } });
   });
 
-  test('`provider` is optional and only lmstudio or ollama', () => {
-    expect(load(withProviders({ ...valid.providers, codex: { harness: 'codex', provider: 'lmstudio' } }))).toMatchObject({ ok: true, config: { providers: { codex: { provider: 'lmstudio' } } } });
-    expect(providerPaths({ ...valid.providers, codex: { harness: 'codex', provider: 'vllm' } })).toEqual(['providers.codex.provider']);
-  });
-
-  test('agy is a harness, but it cannot use a provider', () => {
-    expect(load(withProviders({ ...valid.providers, agy: { harness: 'agy' } }, { ...valid.agents, author: { profile: 'author-bot', provider: 'agy', model: 'gemini-3.8-flash-low' } }))).toMatchObject({ ok: true });
-    expect(errorsOf(withProviders({ ...valid.providers, claude: { harness: 'agy', provider: 'ollama' } }))).toEqual([{ path: 'providers.claude.provider', message: 'providers.claude: agy cannot use the provider "ollama"' }]);
-  });
-
-  test('a provider name is a lowercase word of up to 40 characters', () => {
-    const provider = { harness: 'codex' };
-    for (const name of ['a', 'claude-ashu', 'x1-2', 'a'.repeat(40)]) expect(load(withProviders({ ...valid.providers, [name]: provider })).ok).toBe(true);
-    for (const name of ['Claude', '1claude', '-claude', 'claude_work', 'claude work', '', 'a'.repeat(41)]) {
-      const errors = errorsOf(withProviders({ ...valid.providers, [name]: provider }));
-      expect(errors.map((e) => e.path)).toEqual([`providers.${name}`]);
-      expect(errors[0]!.message).toContain('lowercase word');
-    }
-  });
-
   test('a role or a repo override pointing at a provider that is not declared names the field', () => {
     expect(errorsOf({ agents: { ...valid.agents, reviewer: { ...valid.agents.reviewer, provider: 'ghost' } } })).toEqual([{ path: 'agents.reviewer.provider', message: expect.stringContaining('ghost') }]);
     expect(errorsOf({ repos: [{ name: 'x/y', agents: { author: { provider: 'phantom' } } }] })).toEqual([{ path: 'repos.0.agents.author.provider', message: expect.stringContaining('phantom') }]);
   });
 
-  test('`configDir` is expanded from ~ and must then be absolute; an empty one is refused', () => {
-    expect(load(withProviders({ ...valid.providers, claude: { harness: 'claude', configDir: '~/.claude-ashu' } }))).toMatchObject({ ok: true, config: { providers: { claude: { configDir: join(homedir(), '.claude-ashu') } } } });
-    expect(load(withProviders({ ...valid.providers, codex: { harness: 'codex', configDir: '/srv/codex' } }))).toMatchObject({ ok: true, config: { providers: { codex: { configDir: '/srv/codex' } } } });
-    for (const configDir of ['', 'relative/dir', '.claude', '~other/dir']) expect(providerPaths({ ...valid.providers, claude: { harness: 'claude', configDir } })).toEqual(['providers.claude.configDir']);
+  test('the accounts come from providers.json: two of them, and the roles resolve to the harness, model and config folder of the one they name', () => {
+    const accounts = loadProviders({ providers: { work: { harness: 'claude', configDir: '/srv/claude-work', model: 'opus' }, spare: { harness: 'codex', configDir: '/srv/codex' } } });
+    if (!accounts.ok) throw new Error('expected valid accounts');
+    const { providers: _, ...file } = valid;
+    const roles = { agents: { author: { profile: 'author-bot', provider: 'work', model: 'm1' }, reviewer: { profile: 'reviewer-bot', provider: 'spare', model: 'm' } } };
+    const loaded = loadConfig(defaults, { ...file, ...roles }, accounts.providers);
+    if (!loaded.ok) throw new Error(JSON.stringify(loaded.errors));
+    expect(loaded.config.providers).toEqual(accounts.providers);
+    const { agents } = resolveRepoConfig(loaded.config, loaded.config.repos[0]!);
+    expect(agents.author).toMatchObject({ harness: 'claude', model: 'm1', configDir: '/srv/claude-work' });
+    expect(agents.reviewer).toMatchObject({ harness: 'codex', model: 'm', configDir: '/srv/codex' });
   });
 
-  test('an agy provider cannot have a `configDir`', () => {
-    const errors = errorsOf(withProviders({ ...valid.providers, claude: { harness: 'agy', configDir: '/srv/agy' } }));
-    expect(errors).toEqual([{ path: 'providers.claude.configDir', message: expect.stringContaining('agy') }]);
+  test('without providers.json a role that names an account fails as an undeclared one', () => {
+    const { providers: _, ...file } = valid;
+    const loaded = loadConfig(defaults, file);
+    expect(loaded.ok === false && loaded.errors.map((e) => e.path)).toEqual(['agents.author.provider', 'agents.reviewer.provider']);
+    expect(loaded.ok === false && loaded.errors[0]!.message).toBe('provider "claude" is not declared in providers');
   });
 
-  test('an unknown field inside a provider is refused', () => {
-    const errors = errorsOf(withProviders({ ...valid.providers, claude: { harness: 'claude', token: 'x' } }));
-    expect(errors).toEqual([{ path: 'providers.claude', message: expect.stringContaining('token') }]);
+  test('a config.json that still has `providers` is refused with a message that names providers.json', () => {
+    expect(loadConfig(defaults, valid)).toEqual({ ok: false, errors: [{ path: 'providers', message: expect.stringContaining('providers.json') }] });
   });
 
   test('`option` inside agents.<role> or a repo override is refused with where it went', () => {

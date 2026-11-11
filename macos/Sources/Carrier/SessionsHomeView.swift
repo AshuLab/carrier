@@ -32,6 +32,15 @@ struct SessionsHomeView: View {
                 } icon: { Image(systemName: "arrow.clockwise") }
                     .padding(.horizontal, 20).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
             }
+            if let notice = ChatHostStarter.shared.upgradeNotice {
+                Label {
+                    VStack(alignment: .leading) {
+                        Text(notice.title).bold()
+                        Text(notice.line).foregroundStyle(.secondary).textSelection(.enabled)
+                    }
+                } icon: { Image(systemName: "exclamationmark.triangle") }
+                    .padding(.horizontal, 20).padding(.vertical, 8).frame(maxWidth: .infinity, alignment: .leading)
+            }
             sessionsContent(page: page, searched: searched)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

@@ -12,6 +12,8 @@ import Observation
     private(set) var missing: [String] = []
     /// An older host is left running because a session is working: the Sessions section and the Sessions home say to restart it.
     private(set) var restartAdvised = false
+    /// Why the installed `carrier` older than the app could not be upgraded with Homebrew; nothing was changed and it is not retried.
+    private(set) var upgradeNotice: ChatHostNotice?
     /// The installed `carrier` is asked its version once per launch.
     private var versionChecked = false
 
@@ -29,6 +31,7 @@ import Observation
         // the socket asked here and the one the start waits on are the same: the Carrier folder decides both
         let socket = command?.socketPath ?? chatSocketPath()
         let fixture = CommandLine.arguments.contains("--fixture")
+        let homebrews = carrier == homebrewCarrier
         DispatchQueue.global().async {
             let answers = ControlClient.connect(path: socket) != nil
             DispatchQueue.main.async {
@@ -41,7 +44,7 @@ import Observation
                 case .leave:
                     if answers, self.versionChecked == false, self.starting == false, fixture == false, let command {
                         self.versionChecked = true
-                        self.replaceIfOlder(command)
+                        self.replaceIfOlder(command, homebrews: homebrews)
                     }
                     done(answers)
                 case .missing(let names):
@@ -59,6 +62,11 @@ import Observation
                         DispatchQueue.main.async {
                             self.starting = false
                             if let failure { StartController.showAlert(title: "The chat host did not start", reason: failure.reason, tail: failure.tail) }
+                            // a host the app just started runs the installed `carrier`, which may be the one to upgrade
+                            if failure == nil, self.versionChecked == false, fixture == false {
+                                self.versionChecked = true
+                                self.replaceIfOlder(command, homebrews: homebrews)
+                            }
                             done(failure == nil)
                         }
                     }
@@ -68,10 +76,25 @@ import Observation
     }
 
     /// A host that answers while the installed `carrier` is newer is replaced when no session is working or waiting, and otherwise
-    /// left running with a notice. Anything that cannot be read leaves it alone, and says so in the log.
-    private func replaceIfOlder(_ command: StartCommand) {
+    /// left running with a notice. Anything that cannot be read leaves it alone, and says so in the log. Before that, a Homebrew
+    /// `carrier` older than the app is upgraded and its version read again.
+    private func replaceIfOlder(_ command: StartCommand, homebrews: Bool) {
         Task.detached {
-            guard let installed = Self.installedVersion(command) else { return }
+            guard var installed = Self.installedVersion(command) else { return }
+            let app = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+            if homebrews, carrierIsOlder(installed: installed, app: app), CommandLine.arguments.contains("--selftest") == false {
+                BrewRunner.startLog()
+                switch upgradeCarrier(installed: installed, app: app, brew: BrewRunner.run) {
+                case .notNeeded: break
+                case .upgraded:
+                    guard let again = Self.installedVersion(command) else { return }
+                    installed = again
+                case .failed(let notice):
+                    FileHandle.standardError.write(Data("carrier: the installed carrier was not upgraded, see \(BrewRunner.logPath)\n".utf8))
+                    await MainActor.run { self.upgradeNotice = notice }
+                    return
+                }
+            }
             guard let client = ControlClient.connect(path: command.socketPath) else { return }
             let running = (try? client.hello())?.version ?? ""
             client.close()

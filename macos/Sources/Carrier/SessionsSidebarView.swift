@@ -74,6 +74,9 @@ struct SessionsRows: View {
             if ChatHostStarter.shared.restartAdvised {
                 SidebarEmptyBlock(icon: "arrow.clockwise", title: chatHostRestartNotice.title, line: chatHostRestartNotice.line) { EmptyView() }
             }
+            if let notice = ChatHostStarter.shared.upgradeNotice {
+                SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
+            }
             switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
             case .empty where ChatHostStarter.shared.missing.isEmpty:
                 let empty = EmptyState.noSessions

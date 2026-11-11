@@ -15,8 +15,8 @@ const log = createScopedLogger('chat');
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /** The requests a chat host answers; each slice that adds one adds its name here. */
-export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'plan' | 'stop' | 'reasoning' | 'rename';
-const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'plan', 'stop', 'reasoning', 'rename'];
+export type ChatCapability = 'agents' | 'list' | 'open' | 'resume' | 'send' | 'answer' | 'interrupt' | 'setOption' | 'agentOptions' | 'events' | 'close' | 'archive' | 'delete' | 'workspace' | 'fetch' | 'suggestName' | 'checkName' | 'deletePreview' | 'cloneRepo' | 'createProject' | 'githubRepos' | 'repoBranches' | 'health' | 'providers' | 'plan' | 'stop' | 'reasoning' | 'rename';
+const capabilities: ChatCapability[] = ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename'];
 
 const id = z.number().int().positive();
 const sessionId = z.uuid();
@@ -50,6 +50,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('githubRepos'), page: z.int().min(1).max(100) }),
   z.strictObject({ id, cmd: z.literal('repoBranches'), repo: z.string().regex(repoNamePattern) }),
   z.strictObject({ id, cmd: z.literal('health'), refresh: z.boolean().optional() }),
+  z.strictObject({ id, cmd: z.literal('providers') }),
   z.strictObject({ id, cmd: z.literal('stop') }),
 ]);
 type Request = z.infer<typeof chatRequest>;
@@ -91,6 +92,8 @@ export type ChatControls = {
   /** The default branch and the branches of a repository that need not be on disk; read-only. */
   repoBranches(args: Args<'repoBranches'>): Promise<unknown>;
   health(args: Args<'health'>): Promise<unknown>;
+  /** The accounts of `providers.json` with their state, the harnesses found with no account and the local servers; a file that does not match answers `problem`. */
+  providers(): Promise<unknown>;
 };
 
 async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatControls, gone: AbortSignal): Promise<unknown> {
@@ -147,6 +150,8 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
       return controls.repoBranches({ repo: request.repo });
     case 'health':
       return controls.health({ refresh: request.refresh });
+    case 'providers':
+      return controls.providers();
   }
 }
 

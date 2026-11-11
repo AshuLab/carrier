@@ -35,6 +35,14 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     #expect(try sameJSON(client.request("fileDiff", fields: repo + ",\"section\":\"slice-121\",\"path\":\"src/a.ts\""), first))
 }
 
+@Test func theFixtureChatHostAnswersProvidersFromItsGoldenFile() throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let client = try #require(ControlClient.connect(path: server.chatSocketPath))
+    #expect(try client.hello().capabilities.contains(.providers))
+    #expect(try sameJSON(client.request("providers"), golden("chat-providers.json")))
+}
+
 @Test func answersAnUnknownRequestWithAnError() throws {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }

@@ -21,6 +21,8 @@ struct ReposTabView: View {
     @State private var adding = false
     /// the repo whose page is on the right
     @State private var selection: String?
+    /// the role whose form is open on that page
+    @State private var roleSelection = RepoRoleSelection()
     private let doctor = AppHealth.doctor
     @ObservedObject private var setup = SetupController.shared
 
@@ -50,7 +52,10 @@ struct ReposTabView: View {
                                 RepoRowView(row: row, first: index == 0, onlyOne: draft.count == 1, engine: engine, selected: row.name == chosen?.name) {
                                     removing = row.name
                                 }
-                                .onTapGesture { selection = row.name }
+                                .onTapGesture {
+                                    selection = row.name
+                                    roleSelection = RepoRoleSelection()
+                                }
                             }
                         }
                     }
@@ -120,10 +125,13 @@ struct ReposTabView: View {
                 Text(row.name).font(.headline)
                 RepoStatusCard(status: repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine))))
                 let roles = configData.flatMap { repoRoles(json: $0, repo: row.name) }
-                RepoChecksCard(checks: repoChecks(repo: row.name, roles: roles?.rows ?? [], doctor: doctor.state), checking: doctor.state == .running, again: runDoctor)
+                RepoChecksCard(
+                    checks: repoChecks(repo: row.name, roles: roles?.rows ?? [], doctor: doctor.state), checking: doctor.state == .running, again: runDoctor,
+                    useAnotherIdentity: { roleSelection.useAnotherIdentity(on: $0) }
+                )
                 if let roles {
                     RepoRolesCard(
-                        rows: roles.rows, profiles: roles.profiles, accounts: declaredAccounts(providersJSON: providersData), refusal: refusal,
+                        rows: roles.rows, editing: $roleSelection.editing, profiles: roles.profiles, accounts: declaredAccounts(providersJSON: providersData), refusal: refusal,
                         save: { role, fields in saveRole(fields, role: role, repo: row.name) }
                     )
                 }
@@ -228,6 +236,7 @@ private struct RepoChecksCard: View {
     let checks: RepoChecks
     let checking: Bool
     let again: () -> Void
+    let useAnotherIdentity: (RepoCheckRow) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -248,6 +257,7 @@ private struct RepoChecksCard: View {
                             if let fix = row.fix, row.status != .ok { Text("Fix: \(fix)").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                         }
                         Spacer(minLength: 8)
+                        if row.anotherIdentity != nil { Button("Use another identity") { useAnotherIdentity(row) } }
                     }
                     .padding(.vertical, 10).frame(minHeight: 46)
                     .overlay(alignment: .top) { Divider().opacity(index == 0 ? 0 : 1) }
@@ -274,12 +284,12 @@ private struct RepoChecksCard: View {
 /// of the form is its own override: left on "Same as everywhere" it is not written.
 private struct RepoRolesCard: View {
     let rows: [RepoRoleRow]
+    @Binding var editing: AgentRole?
     let profiles: [String]
     let accounts: [String]
     /// why the doctor refused the config after the last save
     let refusal: String?
     let save: (AgentRole, RoleFields?) -> RoleSave
-    @State private var editing: AgentRole?
     @State private var draft = RoleFields()
     @State private var problem: String?
 
@@ -290,7 +300,7 @@ private struct RepoRolesCard: View {
                     HStack(spacing: 8) {
                         Text(row.isOwn ? row.value.text : "Same as everywhere").font(.caption).foregroundStyle(.secondary)
                             .lineLimit(2).multilineTextAlignment(.trailing)
-                        Button("Change") { open(row) }.disabled(editing == row.role)
+                        Button("Change") { editing = row.role }.disabled(editing == row.role)
                         if row.isOwn { Button("Reset") { finish(save(row.role, nil)) } }
                     }
                 }
@@ -300,12 +310,12 @@ private struct RepoRolesCard: View {
             if let refusal { Text(refusal).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.vertical, 8) }
             if editing == nil, let problem { Text(problem).font(.caption).foregroundStyle(.orange).padding(.vertical, 8) }
         }
-    }
-
-    private func open(_ row: RepoRoleRow) {
-        editing = row.role
-        draft = row.own
-        problem = nil
+        // the form opens from Change here or from a failed sign check above; either way it starts from the role's own fields
+        .onChange(of: editing) { _, role in
+            guard let row = rows.first(where: { $0.role == role }) else { return }
+            draft = row.own
+            problem = nil
+        }
     }
 
     private func finish(_ result: RoleSave) {
@@ -400,6 +410,8 @@ private struct RepoRowView: View {
             .onHover { hovering = $0 }
             .accessibilityLabel("Actions for \(row.name)")
         }
+        // the menu's `maxHeight: .infinity` centres it in the row; without this the row takes all the height the page offers
+        .fixedSize(horizontal: false, vertical: true)
         .contextMenu { actions(clone: clone, cloned: cloned) }
         .padding(.vertical, 12)
         .background(selected ? Color.themeAccent.opacity(0.1) : Color.clear)

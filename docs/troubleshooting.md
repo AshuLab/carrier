@@ -43,7 +43,7 @@ brew trust --formula ashulab/tap/carrier
 The app and `carrier` are two things `brew upgrade` can move at different moments. When their sockets speak different protocols the app says which one is behind and does not connect to that chat host or engine:
 
 - "carrier is older than this app": run `brew upgrade carrier` in Terminal, then restart Carrier.
-- "This app is older than carrier": run `brew upgrade --cask carrier` in Terminal, then open the app again.
+- "This app is older than carrier": the app updates itself; if it has not, run `brew upgrade --cask carrier` in Terminal, then open the app again.
 
 Running both (`brew upgrade carrier` and `brew upgrade --cask carrier`) leaves them at the same release.
 

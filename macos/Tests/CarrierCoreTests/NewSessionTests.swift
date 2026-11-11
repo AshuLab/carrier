@@ -719,7 +719,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
     #expect(model.picker(query: "")?.local.map(\.name) == ["main", "feat/x"])
     #expect(model.sentence == "Work in carrier on the base folder (main)" && model.offersWorktree && model.canSend == false)
     #expect(model.sendSteps == [SendStep(
-        icon: "arrow.down.circle", title: "Download the repository", parts: [.text("Downloads "), .code("AshuLab/carrier"), .text(" to "), .code(model.projectsPath), .text(" (only this first time)")], help: "/nowhere/AshuLab/carrier")])
+        icon: "arrow.down.circle", title: "Download the repository", parts: [.text("When you send, Carrier downloads "), .code("AshuLab/carrier"), .text(" from GitHub into "), .code(model.projectsPath), .text(". Only this first time: later sessions reuse that copy.")], help: "/nowhere/AshuLab/carrier")])
     // a fresh clone has no uncommitted changes, and nothing is said of the folder's branch
     #expect(model.warning == nil && model.branchNote == nil)
     model.choose(startBranch: "feat/x")

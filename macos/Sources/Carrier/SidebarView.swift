@@ -87,10 +87,11 @@ struct SidebarView: View {
                                     .opacity(queried ? 0 : 1)
                             }
                             .font(SidebarMetrics.group).foregroundStyle(.secondary)
-                            .frame(height: 22).padding(.horizontal, SidebarMetrics.inset).padding(.top, SidebarMetrics.groupTop)
+                            .frame(height: 22).padding(.horizontal, SidebarMetrics.inset)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(HoverFillButtonStyle())
+                        .padding(.top, SidebarMetrics.groupTop)
                         .accessibilityElement(children: .combine)
                         .accessibilityHint(expanded ? "Folds the group" : "Unfolds the group")
                         if expanded {
@@ -203,8 +204,36 @@ private struct CarrierRow: View {
     }
 }
 
-/// A 22-point plain button with an accessible name and a tooltip; `why` is the tooltip and the hint while it is disabled. In a list
-/// row it runs its action and does not select the row.
+/// The states of a sidebar button, drawn as the shape of the button: none at rest, a faint fill on hover, a stronger one while the mouse is
+/// down, the middle one while what it opened is `open`, and the whole button dimmed when it is disabled (no fill then).
+struct HoverFillButtonStyle: ButtonStyle {
+    var open = false
+    var radius: CGFloat = 6
+
+    func makeBody(configuration: Configuration) -> some View {
+        Shape(configuration: configuration, open: open, radius: radius)
+    }
+
+    private struct Shape: View {
+        let configuration: ButtonStyleConfiguration
+        let open: Bool
+        let radius: CGFloat
+        @State private var hovered = false
+        @Environment(\.isEnabled) private var enabled
+
+        var body: some View {
+            let fill = configuration.isPressed ? 0.2 : open ? (hovered ? 0.2 : 0.15) : hovered ? 0.1 : 0
+            configuration.label
+                .background(RoundedRectangle(cornerRadius: radius).fill(Color.primary.opacity(enabled ? fill : 0)))
+                .opacity(enabled ? 1 : 0.35)
+                .onHover { hovered = $0 }
+                .animation(.easeOut(duration: 0.12), value: fill)
+        }
+    }
+}
+
+/// A 24-point button with an accessible name and a tooltip, drawn in `HoverFillButtonStyle`; `why` is the tooltip and the hint while it is
+/// disabled. In a list row it runs its action and does not select the row.
 struct IconButton: View {
     let icon: String
     let name: String
@@ -218,10 +247,9 @@ struct IconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: icon).frame(width: 22, height: 22).contentShape(Rectangle())
-                .background(RoundedRectangle(cornerRadius: 5).fill(pressed ? Color.primary.opacity(0.15) : .clear))
+            Image(systemName: icon).frame(width: 24, height: 24).contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoverFillButtonStyle(open: pressed))
         .disabled(enabled == false)
         .help(enabled ? name + (shortcut.map { " (\($0))" } ?? "") : why ?? name)
         .accessibilityLabel(name)

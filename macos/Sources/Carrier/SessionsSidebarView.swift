@@ -23,6 +23,15 @@ struct SessionsRows: View {
     /// The search field's text while it is open, nil while it is closed; not remembered between launches.
     @State private var query: String?
     @FocusState private var searching: Bool
+    /// What the pointer is over, by group: the header and each row of it. A group's + shows while the pointer is anywhere in the group; a set
+    /// and not a flag, because leaving one row and entering the next arrive in either order.
+    @State private var hovering: [String: Set<String>] = [:]
+
+    private func track(_ group: String, _ id: String) -> (Bool) -> Void {
+        { inside in
+            if inside { hovering[group, default: []].insert(id) } else { hovering[group]?.remove(id) }
+        }
+    }
 
     private func openSearch() {
         // nothing to search while there are no open sessions
@@ -84,10 +93,14 @@ struct SessionsRows: View {
             case .rows, .empty: EmptyView()
             }
             ForEach(groups, id: \.title) { group in
-                GroupHeader(title: group.title, add: sort == .workspace && group.title != "Pinned" ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil)
+                GroupHeader(
+                    title: group.title, over: hovering[group.title]?.isEmpty == false, hover: track(group.title, "header"),
+                    add: sort == .workspace && group.title != "Pinned" ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil
+                )
                 ForEach(group.rows, id: \.id) { row in
                     SessionRowView(row: row, showsWorkspace: sort != .workspace)
                         .selectableSidebarRow(selected: selection == .session(id: row.id)) { selection = .session(id: row.id) }
+                        .onHover(perform: track(group.title, row.id))
                 }
             }
         }
@@ -104,23 +117,26 @@ private extension SessionSort {
     }
 }
 
-/// The title of a group of sessions, the same height in every order: a workspace's also has a + that appears on hover and starts a
-/// session in it (`add`; the other orders have none, and the room stays).
+/// The title of a group of sessions, the same height in every order: a workspace's also has a + that shows while the pointer is over the
+/// group (`over`: its header or any of its sessions) and starts a session in it (`add`; the other orders have none, and the room stays).
 private struct GroupHeader: View {
     let title: String
+    let over: Bool
+    let hover: (Bool) -> Void
     let add: (() -> Void)?
-    @State private var hovered = false
 
     var body: some View {
         HStack {
             Text(title).font(SidebarMetrics.group).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 0)
             if let add {
-                IconButton(icon: "plus", name: "New session in \(title)", action: add).opacity(hovered ? 1 : 0)
+                // it hides a moment late: the pointer crossing the gap between two rows, or on its way to the button, does not blink it
+                IconButton(icon: "plus", name: "New session in \(title)", action: add).opacity(over ? 1 : 0)
+                    .animation(over ? .easeOut(duration: 0.12) : .easeOut(duration: 0.12).delay(0.15), value: over)
             }
         }
         .frame(height: 22)
         .padding(.horizontal, SidebarMetrics.inset).padding(.top, SidebarMetrics.groupTop)
-        .onHover { hovered = $0 }
+        .onHover(perform: hover)
     }
 }

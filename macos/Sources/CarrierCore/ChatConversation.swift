@@ -274,7 +274,8 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
         let id = "e\(event.id)"
         switch event.kind {
         case "reasoning":
-            guard let text = event.text, text.isEmpty == false else { continue }
+            // trimmed: the provider's blocks start and end with blank lines, and the card shows two lines of a thought
+            guard let text = event.text?.trimmingCharacters(in: .whitespacesAndNewlines), text.isEmpty == false else { continue }
             if case .tools(let group, var run)? = rows.last {
                 run.thoughts.append(Thought(id: id, text: text, at: event.at, before: run.calls.count))
                 rows[rows.count - 1] = .tools(id: group, run)

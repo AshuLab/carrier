@@ -218,7 +218,7 @@ private struct ConversationBox: View {
             }
             MessageBox(
                 text: $model.draft, placeholder: "Message the agent", minLines: 2,
-                canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, busy: model.busy,
+                canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, canSendWithText: true, busy: model.busy,
                 focus: $boxFocused, commands: model.shownCommands, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
             ) {
                 ComposerMenuButton(
@@ -279,9 +279,16 @@ private struct FeedRowView: View {
         switch row {
         case .user(_, let text):
             // the files that came with it are chips over the bubble, and the bubble is what the person wrote
-            let sent = splitAttachments(text)
+            let attached = splitAttachments(text)
+            let sent = (paths: attached.paths, text: splitPastes(attached.text).text, pastes: splitPastes(attached.text).pastes)
             VStack(alignment: .trailing, spacing: 3) {
                 if sent.paths.isEmpty == false { SentAttachments(paths: sent.paths).padding(.bottom, 3) }
+                if sent.pastes.isEmpty == false {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        ForEach(Array(sent.pastes.enumerated()), id: \.offset) { _, pasted in PastedTextCard(text: pasted).frame(maxWidth: 440) }
+                    }
+                    .padding(.bottom, 3)
+                }
                 if sent.text.isEmpty == false {
                     messageText(sent.text, commands: commands).textSelection(.enabled)
                         .padding(.horizontal, 13).padding(.vertical, 8)
@@ -471,7 +478,7 @@ private struct QueuedMessageCard: View {
     var body: some View {
         NoticeCard(
             symbol: "clock.fill", tint: .gray, title: interrupts ? "Sends when the agent stops" : "Sends when the agent finishes",
-            detail: text, detailLines: 2, onTap: edit
+            detail: messagePreview(text), detailLines: 2, onTap: edit
         ) {
             if interrupts == false {
                 Button("Send now", action: sendNow).buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).help("Stop the agent and send it now")

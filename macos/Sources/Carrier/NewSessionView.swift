@@ -224,7 +224,7 @@ struct NewSessionView: View {
     private var box: some View {
         MessageBox(
             text: $model.text, placeholder: model.folder == nil ? "Choose a workspace to start…" : "Write the first message…",
-            canSend: model.canSend, sendHelp: model.canSend ? "Send" : model.hostOlder ? NewSessionModel.olderHostNotice : model.noAgentReason ?? "Choose a workspace and write a message",
+            canSend: model.canSend, canSendWithText: model.canSendWithText, sendHelp: model.canSend ? "Send" : model.hostOlder ? NewSessionModel.olderHostNotice : model.noAgentReason ?? "Choose a workspace and write a message",
             focus: $boxFocused, commands: model.agentCommands, send: send
         ) {
             ComposerMenuButton(

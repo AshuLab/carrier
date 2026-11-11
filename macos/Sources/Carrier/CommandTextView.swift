@@ -22,6 +22,8 @@ struct CommandTextView: NSViewRepresentable {
     /// Files dropped on the text: the box attaches them (true when it did).
     var onFiles: (([URL]) -> Bool)?
     var onFileDrag: ((Bool) -> Void)?
+    /// A text pasted that is longer than `pastedTextThreshold`: the box keeps it beside the text (true when it did).
+    var onLargePaste: ((String) -> Bool)?
     var sendKey = AppPreferences.defaultSendKey
     var writingTools = AppPreferences.defaultWritingTools
     var checksSpelling = AppPreferences.defaultChecksSpelling
@@ -86,6 +88,7 @@ struct CommandTextView: NSViewRepresentable {
         view.placeholder = placeholder
         view.onFiles = onFiles
         view.onFileDrag = onFileDrag
+        view.onLargePaste = onLargePaste
         view.insertionPointColor = NSColor(Color.themeAccent)
         // Writing Tools (Apple Intelligence) offer to rewrite what is selected, over the text: they are the person's to switch on
         view.writingToolsBehavior = writingTools ? .default : .none
@@ -279,7 +282,13 @@ final class PillTextView: NSTextView {
         NSAttributedString(string: placeholder, attributes: attributes).draw(in: bounds)
     }
 
-    override func paste(_ sender: Any?) { pasteAsPlainText(sender) }
+    /// A paste that is long goes to the box as a card; any other is typed in as plain text.
+    var onLargePaste: ((String) -> Bool)?
+
+    override func paste(_ sender: Any?) {
+        if let pasted = NSPasteboard.general.string(forType: .string), pasted.utf16.count > pastedTextThreshold, onLargePaste?(pasted) == true { return }
+        pasteAsPlainText(sender)
+    }
 
     /// In an empty box the caret has the height of the font and sits at the top of a line that is taller (the box fixes the line height), so
     /// it rode above the placeholder and above the first letter typed; it goes down to where the text is drawn.

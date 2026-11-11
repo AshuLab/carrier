@@ -197,6 +197,35 @@ test('each identity is minted once per repo, however many roles it has', async (
   ]);
 });
 
+test('two profile names for the same bot are one mint check that stands for both', async () => {
+  const mint = vi.fn(async () => 't');
+  const checks = await doctor(config({ profiles: { a: { kind: 'forge', agent: 'bot' }, b: { kind: 'forge', agent: 'bot' } } }), deps({ mint }));
+  expect(mint).toHaveBeenCalledTimes(1);
+  expect(checks.filter((c) => c.name.includes('can mint'))).toEqual([
+    { name: 'forge agent bot can mint a token for AshuLab/carrier', status: 'ok', repo: 'AshuLab/carrier', profiles: ['a', 'b'] },
+  ]);
+});
+
+test('the checks about a repo carry it with their profiles, the others carry neither, and never one without the other', async () => {
+  const checks = await doctor(config({ repos: [{ name: 'AshuLab/one' }, { name: 'AshuLab/two', agents: { author: { profile: 'b' }, reviewer: { profile: 'a' } } }] }), deps());
+  const about = checks.filter((c) => c.repo !== undefined).map((c) => [c.name, c.repo, c.profiles]);
+  expect(about).toEqual([
+    ['forge agent artanis-agent can mint a token for AshuLab/one', 'AshuLab/one', ['a']],
+    ['forge agent tassadar-agent can mint a token for AshuLab/one', 'AshuLab/one', ['b']],
+    ['forge agent artanis-agent can read AshuLab/one', 'AshuLab/one', ['a']],
+    ['forge agent tassadar-agent can mint a token for AshuLab/two', 'AshuLab/two', ['b']],
+    ['forge agent artanis-agent can mint a token for AshuLab/two', 'AshuLab/two', ['a']],
+    ['forge agent artanis-agent can read AshuLab/two', 'AshuLab/two', ['a']],
+  ]);
+  for (const c of checks) expect('repo' in c).toBe('profiles' in c);
+  expect(checks.filter((c) => c.repo === undefined).map((c) => c.name)).toContain('author and reviewer are different identities');
+});
+
+test('a failing read check carries the orchestrator profile', async () => {
+  const checks = await doctor(config(), deps({ listLabels: async () => Promise.reject(new Error('boom')) }));
+  expect(failed(checks)).toMatchObject([{ status: 'fail', repo: 'AshuLab/carrier', profiles: ['a'] }]);
+});
+
 test('onCheck sees every check as it finishes, in the order of the result', async () => {
   const seen: Check[] = [];
   const checks = await doctor(config(), deps(), (check) => seen.push(check));
@@ -424,7 +453,11 @@ test('--json prints the checks as one JSON array and nothing else, with the exit
     expect(checks).toEqual(await doctor(config(), overrides));
     expect(json.code).toBe(terminal.code);
     expect(json.code).toBe(checks.some((c) => c.status === 'fail') ? 1 : 0);
-    for (const check of checks) expect(Object.keys(check).every((key) => ['name', 'status', 'detail', 'fix'].includes(key))).toBe(true);
+    for (const check of checks) expect(Object.keys(check).every((key) => ['name', 'status', 'detail', 'fix', 'repo', 'profiles'].includes(key))).toBe(true);
+    // A reader that ignores repo and profiles sees what it saw before the fields existed.
+    const bare = (list: Check[]) => list.map(({ repo: _repo, profiles: _profiles, ...rest }) => rest);
+    expect(bare(checks).map((c) => c.name)).toEqual(checks.map((c) => c.name));
+    expect(bare(checks).every((c) => !('repo' in c) && !('profiles' in c))).toBe(true);
   }
 });
 

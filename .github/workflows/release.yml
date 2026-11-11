@@ -1,7 +1,7 @@
 # A tag vX.Y.Z publishes @ashulab/carrier at X.Y.Z, puts the app's zip on the GitHub Release and rewrites the formula and the cask in the tap.
 # Run by hand with dry-run on, it does everything up to the publishing and pushes nothing.
 # npm publishes through trusted publishing (OIDC, configured for this workflow on the package): no npm token.
-# Secret: TAP_TOKEN (push to AshuLab/homebrew-tap).
+# Secrets: TAP_TOKEN (push to AshuLab/homebrew-tap), SPARKLE_PRIVATE_KEY (the update key's private half: signs the app's zip, also in a dry run).
 name: Release
 
 on:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       dry-run:
-        description: Build, pack and install the formula from the tarball, build and check the app and the cask; publish and push nothing
+        description: Build, pack and install the formula from the tarball, build and check the app, sign its zip and check the appcast, check the cask; publish and push nothing
         type: boolean
         default: true
 
@@ -79,7 +79,7 @@ jobs:
 
       - name: Zip the app
         run: |
-          ditto -c -k --keepParent macos/Carrier.app "out/Carrier-$VERSION.zip"
+          ditto -c -k --sequesterRsrc --keepParent macos/Carrier.app "out/Carrier-$VERSION.zip"
           (cd out && shasum -a 256 "Carrier-$VERSION.zip" > "Carrier-$VERSION.zip.sha256")
           echo "APP_SHA256=$(cut -d' ' -f1 "out/Carrier-$VERSION.zip.sha256")" >> "$GITHUB_ENV"
 
@@ -90,7 +90,26 @@ jobs:
           test -d check/Carrier.app
           PLIST_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' check/Carrier.app/Contents/Info.plist)"
           test "$PLIST_VERSION" = "$VERSION" || { echo "the app's plist says $PLIST_VERSION, not $VERSION" >&2; exit 1; }
-          codesign --verify --strict check/Carrier.app
+          # --deep: Sparkle.framework inside the app keeps its own signature through the plain re-signing above.
+          codesign --verify --deep --strict check/Carrier.app
+
+      # The key only reaches the signing tool through the environment and its standard input: never a file, an argument or the log.
+      - name: Sign the zip
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          [ -n "$SPARKLE_PRIVATE_KEY" ] || { echo "the repository secret SPARKLE_PRIVATE_KEY is not set: the zip cannot be signed" >&2; exit 1; }
+          SIGNATURE="$(printf '%s\n' "$SPARKLE_PRIVATE_KEY" | macos/.build/artifacts/sparkle/Sparkle/bin/sign_update -p --ed-key-file - "out/Carrier-$VERSION.zip")"
+          echo "SIGNATURE=$SIGNATURE" >> "$GITHUB_ENV"
+
+      - name: Appcast
+        run: node .github/scripts/appcast.mjs write macos/Carrier.app "out/Carrier-$VERSION.zip" "$SIGNATURE" out/appcast.xml
+
+      # Reads the app out of the zip, not the one that was zipped; the same script writes and checks.
+      - name: Check the appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: node .github/scripts/appcast.mjs check out/appcast.xml check/Carrier.app "out/Carrier-$VERSION.zip"
 
       - name: Tap
         if: env.DRY_RUN != 'true'
@@ -188,6 +207,10 @@ jobs:
             echo "### Cask $([ "$DRY_RUN" = true ] && echo 'it would have written' || echo 'written') for $VERSION"
             echo '```ruby'
             cat cask/carrier.rb
+            echo '```'
+            echo "### Appcast for $VERSION"
+            echo '```xml'
+            cat out/appcast.xml
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

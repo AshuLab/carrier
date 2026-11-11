@@ -43,6 +43,8 @@ Everything a terminal user sees lives under `src/terminal`, so a future web UI i
 
 For users: [configuration](docs/configuration.md), [preparing a repo](docs/preparing-a-repo.md), [troubleshooting](docs/troubleshooting.md). Decisions: [ADRs](docs/adr/). Evidence behind them: [research](docs/research/).
 
+How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md). Every user-visible change adds a line under Unreleased in [CHANGELOG.md](CHANGELOG.md), in the same PR.
+
 A release is a pushed tag `vX.Y.Z`, run by `.github/workflows/release.yml`. The `release` skill (`.claude/skills/release`) is the same procedure by hand for when Actions is unavailable; change one, change the other.
 
 ## solve skills

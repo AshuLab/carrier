@@ -48,7 +48,10 @@ struct PreparationStepsView: View {
                 Spacer(minLength: 0)
                 switch preparation {
                 case .failed: Button("Try again", action: retry).buttonStyle(.glassProminent).buttonBorderShape(.capsule).controlSize(.small)
-                case .running: Button("Cancel", action: cancel).buttonStyle(.plain).foregroundStyle(.secondary)
+                case .running:
+                    // its shape shows on hover; the shape reaches a little into the card's margin so the word keeps its place near the edge
+                    Button(action: cancel) { Text("Cancel").padding(.horizontal, 10).padding(.vertical, 5).contentShape(Rectangle()) }
+                        .buttonStyle(HoverFillButtonStyle()).foregroundStyle(.secondary).padding(.trailing, -4)
                 case nil: EmptyView()
                 }
             }

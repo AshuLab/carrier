@@ -90,7 +90,7 @@ struct SidebarView: View {
                             .frame(height: 22).padding(.horizontal, SidebarMetrics.inset)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(SidebarButtonStyle())
+                        .buttonStyle(HoverFillButtonStyle())
                         .padding(.top, SidebarMetrics.groupTop)
                         .accessibilityElement(children: .combine)
                         .accessibilityHint(expanded ? "Folds the group" : "Unfolds the group")
@@ -206,7 +206,7 @@ private struct CarrierRow: View {
 
 /// The states of a sidebar button, drawn as the shape of the button: none at rest, a faint fill on hover, a stronger one while the mouse is
 /// down, the middle one while what it opened is `open`, and the whole button dimmed when it is disabled (no fill then).
-struct SidebarButtonStyle: ButtonStyle {
+struct HoverFillButtonStyle: ButtonStyle {
     var open = false
     var radius: CGFloat = 6
 
@@ -232,7 +232,7 @@ struct SidebarButtonStyle: ButtonStyle {
     }
 }
 
-/// A 24-point button with an accessible name and a tooltip, drawn in `SidebarButtonStyle`; `why` is the tooltip and the hint while it is
+/// A 24-point button with an accessible name and a tooltip, drawn in `HoverFillButtonStyle`; `why` is the tooltip and the hint while it is
 /// disabled. In a list row it runs its action and does not select the row.
 struct IconButton: View {
     let icon: String
@@ -249,7 +249,7 @@ struct IconButton: View {
         Button(action: action) {
             Image(systemName: icon).frame(width: 24, height: 24).contentShape(Rectangle())
         }
-        .buttonStyle(SidebarButtonStyle(open: pressed))
+        .buttonStyle(HoverFillButtonStyle(open: pressed))
         .disabled(enabled == false)
         .help(enabled ? name + (shortcut.map { " (\($0))" } ?? "") : why ?? name)
         .accessibilityLabel(name)

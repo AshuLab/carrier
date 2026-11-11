@@ -167,7 +167,7 @@ Check a config (yours or a hand-written one) at any time:
 carrier doctor
 ```
 
-It verifies the tools are installed, that each identity can get a token for each repo, and that the orchestrator can read it. `carrier schema` prints the JSON Schema of the config for your editor. `carrier doctor --json` prints the checks as a JSON array (`{ name, status, detail?, fix? }`, `status` `ok`, `warn` or `fail`) and nothing else, with the same exit code (1 when any fails); the macOS app's Health tab reads it.
+It verifies the tools are installed, that each identity can get a token for each repo, that the orchestrator can read it, and that each repo it could read has the Solve labels (`solve:epic` and `solve:epic:ready`; the fix is to run `solve:setup` in the repo). `carrier schema` prints the JSON Schema of the config for your editor. `carrier doctor --json` prints the checks as a JSON array (`{ name, status, detail?, fix?, repo?, profiles? }`, `status` `ok`, `warn` or `fail`; `repo` and `profiles`, the names under `config.profiles` the check stands for, are set together on the checks about one repo) and nothing else, with the same exit code (1 when any fails); the macOS app's Health tab reads it.
 
 #### The file, by hand
 

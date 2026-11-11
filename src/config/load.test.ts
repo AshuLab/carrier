@@ -382,6 +382,26 @@ describe('persona', () => {
   });
 });
 
+describe('effort', () => {
+  const withEffort = (effort: unknown) => ({ agents: { ...valid.agents, author: { ...valid.agents.author, effort } } });
+  const inRepo = (effort: unknown) => ({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { effort } } }] });
+
+  test('a role takes one of the five levels or none, globally and in a repo', () => {
+    for (const effort of ['low', 'medium', 'high', 'xhigh', 'max']) {
+      expect(load(withEffort(effort))).toMatchObject({ ok: true, config: { agents: { author: { effort } } } });
+      expect(load(inRepo(effort))).toMatchObject({ ok: true });
+    }
+    expect(load({})).toMatchObject({ ok: true });
+  });
+
+  test('anything else is refused naming the key', () => {
+    for (const effort of ['Max', '', 'ultra', 3]) {
+      expect(errorsOf(withEffort(effort)).map((e) => e.path)).toEqual(['agents.author.effort']);
+      expect(errorsOf(inRepo(effort)).map((e) => e.path)).toEqual(['repos.0.agents.reviewer.effort']);
+    }
+  });
+});
+
 describe('chat', () => {
   test('a `chat` section is refused as an unknown key; the chat has its own chat.json', () => {
     const errors = errorsOf({ chat: { agents: {} } });

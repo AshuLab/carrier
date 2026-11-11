@@ -201,7 +201,7 @@ test('the checks about a repo carry it with their profiles, the others carry nei
     ['AshuLab/two has the Solve labels', 'AshuLab/two', ['a']],
   ]);
   for (const c of checks) expect('repo' in c).toBe('profiles' in c);
-  expect(checks.filter((c) => c.repo === undefined).map((c) => c.name)).toContain('author and reviewer are different identities');
+  expect(checks.filter((c) => c.repo === undefined).map((c) => c.name)).not.toContain('author and reviewer are different identities');
 });
 
 test('a failing read check carries the orchestrator profile', async () => {

@@ -20,6 +20,8 @@ struct CodeBlockView: View {
     @State private var width: CGFloat = 0
 
     private static let numbersFrom = 5
+    /// The air over the first line and under the last one, plain code and diff alike.
+    private static let codePadding: CGFloat = 13
 
     /// Long lines wrap or scroll sideways as the monospace settings say.
     private var wrapped: Bool { MonospaceStyle.shared.settings.wrapLongLines }
@@ -56,7 +58,7 @@ struct CodeBlockView: View {
             Spacer(minLength: 0)
             CodeCopyButton(text: codeCopyText(code, language: resolved), visible: hovering)
         }
-        .padding(.leading, 14).padding(.trailing, 6).padding(.vertical, 4)
+        .padding(.leading, 14).padding(.trailing, 6).padding(.vertical, 6)
         .background(Color.primary.opacity(0.045))
     }
 
@@ -77,7 +79,7 @@ struct CodeBlockView: View {
             }
             .codeFont(11.5)
             .textSelection(.enabled)
-            .padding(.horizontal, 14).padding(.vertical, 10)
+            .padding(.horizontal, 14).padding(.vertical, Self.codePadding)
             .fixedSize(horizontal: wrapped == false, vertical: true)
             .frame(maxWidth: wrapped ? .infinity : nil, alignment: .leading)
         }
@@ -123,7 +125,7 @@ struct CodeBlockView: View {
         }
         .codeFont(11.5)
         .textSelection(.enabled)
-        .padding(.vertical, 10)
+        .padding(.vertical, Self.codePadding)
         .fixedSize(horizontal: wrapped == false, vertical: true)
     }
 

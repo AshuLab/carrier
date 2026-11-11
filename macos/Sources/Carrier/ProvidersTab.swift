@@ -8,6 +8,8 @@ import SwiftUI
 /// (`AddAccountForm`). The page has no automated test; the rows are `providersPage`'s and the
 /// commands `providerCommand`'s.
 struct ProvidersTabView: View {
+    /// Use in an agent… on an account no role names: opens the Agents page.
+    let openAgents: () -> Void
     private let store = AppHealth.providers
     @State private var selected = "claude"
     @State private var config: Data?
@@ -103,6 +105,9 @@ struct ProvidersTabView: View {
                                     if account.state == .signedOut {
                                         Button("Sign in") { open(.signIn, harness: tool.id, command: account.command, configDir: account.configDir) }
                                             .controlSize(.small).help("Opens Terminal and signs this account in")
+                                    }
+                                    if account.state == .ready, account.uses.isEmpty {
+                                        Button("Use in an agent…", action: openAgents).controlSize(.small).help("Opens Agents to pick \(account.name) for a role")
                                     }
                                     Button("Edit") { store.dismissProblem(); adding = nil; editing = account.name }
                                         .controlSize(.small).disabled(editing == account.name).help("Edit \(account.name)")

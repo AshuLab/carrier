@@ -8,6 +8,8 @@ import SwiftUI
 struct ReposTabView: View {
     private let timeChanges = TimeFormatChanges()
     let state: ConnectionState?
+    /// Open Agents: the page of the global roles, which every repo inherits.
+    let openAgents: () -> Void
     @ObservedObject private var start = StartController.shared
     @State private var saved: [String] = []
     @State private var draft: [String] = []
@@ -127,12 +129,12 @@ struct ReposTabView: View {
                 let roles = configData.flatMap { repoRoles(json: $0, repo: row.name) }
                 RepoChecksCard(
                     checks: repoChecks(repo: row.name, roles: roles?.rows ?? [], doctor: doctor.state), checking: doctor.state == .running, again: runDoctor,
-                    useAnotherIdentity: { roleSelection.useAnotherIdentity(on: $0) }
+                    useAnotherIdentity: { roleSelection.useAnotherIdentity(on: $0) }, openAgents: openAgents
                 )
                 if let roles {
                     RepoRolesCard(
                         rows: roles.rows, editing: $roleSelection.editing, profiles: roles.profiles, accounts: declaredAccounts(providersJSON: providersData), refusal: refusal,
-                        save: { role, fields in saveRole(fields, role: role, repo: row.name) }
+                        save: { role, fields in saveRole(fields, role: role, repo: row.name) }, openAgents: openAgents
                     )
                 }
             }
@@ -237,6 +239,7 @@ private struct RepoChecksCard: View {
     let checking: Bool
     let again: () -> Void
     let useAnotherIdentity: (RepoCheckRow) -> Void
+    let openAgents: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -257,7 +260,10 @@ private struct RepoChecksCard: View {
                             if let fix = row.fix, row.status != .ok { Text("Fix: \(fix)").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                         }
                         Spacer(minLength: 8)
-                        if row.anotherIdentity != nil { Button("Use another identity") { useAnotherIdentity(row) } }
+                        if row.anotherIdentity != nil {
+                            Button("Use another identity") { useAnotherIdentity(row) }
+                            Button("Open Agents", action: openAgents)
+                        }
                     }
                     .padding(.vertical, 10).frame(minHeight: 46)
                     .overlay(alignment: .top) { Divider().opacity(index == 0 ? 0 : 1) }
@@ -290,6 +296,7 @@ private struct RepoRolesCard: View {
     /// why the doctor refused the config after the last save
     let refusal: String?
     let save: (AgentRole, RoleFields?) -> RoleSave
+    let openAgents: () -> Void
     @State private var draft = RoleFields()
     @State private var problem: String?
 
@@ -306,6 +313,7 @@ private struct RepoRolesCard: View {
                 }
                 if editing == row.role { form(row) }
             }
+            SettingsTabRow(title: "Defaults", detail: "Every repo follows the roles of Agents unless it has its own") { Button("Open Agents", action: openAgents) }
             if let note = signatureNote(rows) { Text(note).font(.caption).foregroundStyle(.secondary).padding(.vertical, 8) }
             if let refusal { Text(refusal).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.vertical, 8) }
             if editing == nil, let problem { Text(problem).font(.caption).foregroundStyle(.orange).padding(.vertical, 8) }

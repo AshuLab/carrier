@@ -3,7 +3,7 @@ import SwiftUI
 
 /// What the agent did in one run, as one glass card (docs/research/macos-app-design/explorations/reasoning-card-states.html): a single line
 /// that is always folded until the person opens it, and opens to the steps in the order they were taken, a violet node for each thought and
-/// a node for each call, on one rail. While the agent works the line says what it is doing (thinking, the command that runs, waiting for an
+/// a node for each call, with no line between them. While the agent works the line says what it is doing (thinking, the command that runs, waiting for an
 /// answer), with its step, what failed and a timer, and three effects tell it is alive: a shimmer over the words, a glow that runs round
 /// the edge (amber while it waits for the person) and a roll when the words change. When the work ends the glow fades, the words roll to
 /// the summary and a tick bounces once and gives its place back. With Reduce Motion the effects stop; the icon and the words still tell it.
@@ -52,7 +52,7 @@ struct ChatToolGroupView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            // as wide as a node, so the rail hangs right under it
+            // as wide as a node, so the chevron sits right over the nodes
             LogChevron(open: open).opacity(steps.isEmpty ? 0 : 1).frame(width: 16)
             if lead != .none { LeadView(lead: lead, reduceMotion: reduceMotion).transition(.scale(scale: 0.5).combined(with: .opacity)) }
             // the words roll up when they change: the new ones come in from below, the old ones leave above
@@ -154,8 +154,6 @@ struct ChatToolGroupView: View {
                 }
             }
         }
-        // the rail the nodes hang from
-        .background(alignment: .leading) { Rectangle().fill(Color.primary.opacity(0.1)).frame(width: 1.5).padding(.leading, 7.25).padding(.vertical, 14) }
         .padding(.bottom, 8)
     }
 

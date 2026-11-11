@@ -61,9 +61,14 @@ struct ComposerMenuButton: View {
     private var pill: some View {
         HStack(spacing: 7) {
             ProviderMark(name: icon)
-            Text(menu.pillModel ?? agent).fontWeight(.medium).lineLimit(1)
-            if let level = menu.pillReasoning { Text("· \(level)").foregroundStyle(.secondary).lineLimit(1) }
-            if let flag = menu.accessFlag { Text("· \(flag)").foregroundStyle(.secondary).lineLimit(1) }
+            // the dot is its own element so it sits the same distance from the word on each side
+            HStack(spacing: 5) {
+                Text(menu.pillModel ?? agent).fontWeight(.medium).lineLimit(1)
+                ForEach([menu.pillReasoning, menu.accessFlag].compactMap { $0 }, id: \.self) { part in
+                    Text("·").foregroundStyle(.secondary)
+                    Text(part).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
             Image(systemName: "chevron.down").font(.scaled(9, weight: .bold)).foregroundStyle(.secondary)
         }
         .font(.callout).padding(.horizontal, 10).frame(height: 28)

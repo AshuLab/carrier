@@ -3,7 +3,7 @@ import SwiftUI
 
 /// What the agent did in one run, as one glass card (docs/research/macos-app-design/explorations/reasoning-card-states.html): a single line
 /// that is always folded until the person opens it, and opens to the steps in the order they were taken, a violet node for each thought and
-/// a node for each call, on one rail. While the agent works the line says what it is doing (thinking, the command that runs, waiting for an
+/// a node for each call, with no line between them. While the agent works the line says what it is doing (thinking, the command that runs, waiting for an
 /// answer), with its step, what failed and a timer, and three effects tell it is alive: a shimmer over the words, a glow that runs round
 /// the edge (amber while it waits for the person) and a roll when the words change. When the work ends the glow fades, the words roll to
 /// the summary and a tick bounces once and gives its place back. With Reduce Motion the effects stop; the icon and the words still tell it.
@@ -43,7 +43,7 @@ struct ChatToolGroupView: View {
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.045)))
         .glassEffect(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), in: .rect(cornerRadius: 12))
         .overlay { if glowing { GlowEdge(color: group.erred ? .red : waiting ? .attention : .thought, waiting: waiting, moves: reduceMotion == false).opacity(live ? 1 : 0).allowsHitTesting(false) } }
-        .animation(.smooth(duration: 0.28), value: open)
+        .animation(.smooth(duration: 0.35), value: open)
         .animation(.easeOut(duration: 0.5), value: live)
         .onChange(of: live, initial: true) { was, now in finish(was: was, now: now) }
     }
@@ -51,35 +51,44 @@ struct ChatToolGroupView: View {
     // MARK: the line
 
     private var header: some View {
-        HStack(spacing: 8) {
-            // as wide as a node, so the rail hangs right under it
-            LogChevron(open: open).opacity(steps.isEmpty ? 0 : 1).frame(width: 16)
-            if lead != .none { LeadView(lead: lead, reduceMotion: reduceMotion).transition(.scale(scale: 0.5).combined(with: .opacity)) }
-            // the words roll up when they change: the new ones come in from below, the old ones leave above
-            ZStack(alignment: .leading) { words.id(key).transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity))) }
-                .frame(height: 18).clipped()
-                .layoutPriority(1)
-            if live {
-                Text("· step \(max(1, steps.count))").font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1)
-            }
-            if group.failed > 0 {
-                HStack(spacing: 4) {
-                    StateMark(shape: .problem, size: 12)
-                    Text("\(group.failed) failed").font(.scaled(12.5))
+        HStack(spacing: 12) {
+            // what the run is doing: as long as it is, and what does not fit fades out at the edge of its room instead of pushing the right side
+            HStack(spacing: 8) {
+                if lead != .none { LeadView(lead: lead, reduceMotion: reduceMotion).transition(.scale(scale: 0.5).combined(with: .opacity)) }
+                // the words roll up when they change: the new ones come in from below, the old ones leave above
+                ZStack(alignment: .leading) { words.id(key).transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity))) }
+                    .frame(height: 18).clipped()
+                if live {
+                    Text("· step \(max(1, steps.count))").font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1)
                 }
-                .foregroundStyle(.red)
-            }
-            Spacer(minLength: 8)
-            if live {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(formatCallDuration(max(0, Int(context.date.timeIntervalSince1970 * 1000) - (since ?? group.startedAt))))
-                        .font(.scaled(12)).monospacedDigit().foregroundStyle(.tertiary)
+                if group.failed > 0 {
+                    HStack(spacing: 4) {
+                        StateMark(shape: .problem, size: 12)
+                        Text("\(group.failed) failed").font(.scaled(12.5))
+                    }
+                    .foregroundStyle(.red)
                 }
-            } else {
-                if group.added > 0 { Text("+\(group.added)").foregroundStyle(.green) }
-                if group.removed > 0 { Text("−\(group.removed)").foregroundStyle(.red) }
-                if let ms = group.durationMs { Text(formatCallDuration(ms)).foregroundStyle(.tertiary) }
             }
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.leading, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipped()
+            .mask { HStack(spacing: 0) { Rectangle(); LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 28) } }
+            // the right side never moves or shrinks: the time, and the chevron as wide as a node
+            HStack(spacing: 8) {
+                if live {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text(formatCallDuration(max(0, Int(context.date.timeIntervalSince1970 * 1000) - (since ?? group.startedAt))))
+                            .font(.scaled(12)).monospacedDigit().foregroundStyle(.tertiary)
+                    }
+                } else {
+                    if group.added > 0 { Text("+\(group.added)").foregroundStyle(.green) }
+                    if group.removed > 0 { Text("−\(group.removed)").foregroundStyle(.red) }
+                    if let ms = group.durationMs { Text(formatCallDuration(ms)).foregroundStyle(.tertiary) }
+                }
+                LogChevron(open: open).opacity(steps.isEmpty ? 0 : 1).frame(width: 16)
+            }
+            .fixedSize()
         }
         .font(.scaled(12, weight: .medium)).monospacedDigit()
         .frame(height: 30)
@@ -98,7 +107,7 @@ struct ChatToolGroupView: View {
 
     @ViewBuilder private var words: some View {
         if live {
-            Text(liveLabel).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            Text(liveLabel).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
                 .modifier(Shimmer(active: reduceMotion == false))
         } else {
             HStack(spacing: 8) {
@@ -154,13 +163,19 @@ struct ChatToolGroupView: View {
                 }
             }
         }
-        // the rail the nodes hang from
-        .background(alignment: .leading) { Rectangle().fill(Color.primary.opacity(0.1)).frame(width: 1.5).padding(.leading, 7.25).padding(.vertical, 14) }
         .padding(.bottom, 8)
     }
 
-    private func toggle(_ key: String) {
-        if flipped.insert(key).inserted == false { flipped.remove(key) }
+    private func toggle(_ key: String) { flip(key, in: $flipped) }
+}
+
+/// Opens or folds a step. The change is animated here, where it is made, and not by an `.animation` on the card: the feed is a lazy stack,
+/// which only moves what is under a card smoothly when the whole update is in the transaction; with the animation on the card alone the
+/// card faded while everything under it jumped to its place in one frame.
+private func flip(_ key: String, in flipped: Binding<Set<String>>) {
+    let animation: Animation? = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : .smooth(duration: 0.35)
+    withAnimation(animation) {
+        if flipped.wrappedValue.insert(key).inserted == false { flipped.wrappedValue.remove(key) }
     }
 }
 
@@ -192,7 +207,9 @@ private struct Reveal: ViewModifier {
     let progress: CGFloat
 
     func body(content: Content) -> some View {
-        RevealLayout(progress: progress) { content }.clipped().opacity(progress)
+        // the steps fade ahead of the height (squared): folding, they are gone before the card closes over them, and opening, they come in
+        // once there is room for them, so a cut-off row is never seen
+        RevealLayout(progress: progress) { content }.clipped().opacity(progress * progress)
     }
 }
 
@@ -326,7 +343,7 @@ private struct ThoughtRowView: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
-        .onTapGesture { if flipped.insert(key).inserted == false { flipped.remove(key) } }
+        .onTapGesture { flip(key, in: $flipped) }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Thought: \(thought.text)")
     }
@@ -344,7 +361,7 @@ private struct CallRowView: View {
         let open = call.opensByDefault(mode, opensFailed: opensFailed) != flipped.contains(key)
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                if flipped.insert(key).inserted == false { flipped.remove(key) }
+                flip(key, in: $flipped)
             } label: {
                 HStack(spacing: 9) {
                     node
@@ -365,7 +382,7 @@ private struct CallRowView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("\(call.tool) \(call.arg), \(call.result.isEmpty ? "running" : call.result)")
             .accessibilityHint(open ? "Hides the detail" : "Shows the detail")
-            if open { CallDetailView(call: call).padding(.leading, 25).padding(.bottom, 6) }
+            if open { CallDetailView(call: call).padding(.leading, 25).padding(.top, 6).padding(.bottom, 6) }
         }
     }
 
@@ -395,7 +412,7 @@ private struct CallDetailView: View {
         if call.diff.isEmpty == false {
             DiffView(rows: call.diff, showAll: $showAll, style: diffStyle).clipShape(RoundedRectangle(cornerRadius: 8))
         } else {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 10) {
                 // the row cuts a long or multi-line command in the middle: opened, the call shows all of it
                 if call.kind == .shell, call.arg.contains("\n") || call.arg.count > 80 { CodeBlockView(language: "bash", code: call.arg) }
                 if call.output.isEmpty {

@@ -51,7 +51,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SetupController.shared.detectIfFirstLaunch {
             guard underSelfTest == false else { return }
             // once the host answers (or was just started), ask how the machine is
-            ChatHostStarter.shared.checkAtOpen { _ in Task { @MainActor in await AppHealth.store.check(.open) } }
+            ChatHostStarter.shared.checkAtOpen { _ in
+                Task { @MainActor in
+                    await AppHealth.store.check(.open)
+                    await AppHealth.providers.createFileIfMissing()
+                }
+            }
         }
 
         if CommandLine.arguments.contains("--smoke-window") {
@@ -176,6 +181,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let server = try FixtureServer(fixtures: fixtures, longTranscript: CommandLine.arguments.contains("--fixture-long-transcript"))
             setenv("CARRIER_HOME", server.home, 1)
+            // the Agents page lists the bots of this registry, names only
+            setenv("AGENT_FORGE_CONFIG", server.home + "/agent-forge.json", 1)
             fixtureServer = server
         } catch {
             FileHandle.standardError.write(Data("carrier: --fixture failed: \(error)\n".utf8))

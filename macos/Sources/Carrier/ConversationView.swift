@@ -335,9 +335,11 @@ extension FeedRowView {
     /// Under a message: the copy button, its time and, for an agent message, what the turn that ended on it says of itself (the model as a
     /// chip, how long, the tokens). The row is the same height with or without them, so showing them moves nothing; they fade in and out.
     fileprivate func footer(_ text: String, summary: TurnSummary?, asks: Bool) -> some View {
-        let shown = hovering || pinned || copied
+        // the copy button is AppKit's: the pointer over it can end the row's hover, so over the button it keeps the footer up itself, and the button
+        // stays hit-testable (it is only ever reached from inside the row, where the footer is already up)
+        let shown = hovering || overCopy || pinned || copied
         return HStack(spacing: 14) {
-            copyControl(text, asks: asks).opacity(shown ? 1 : 0).allowsHitTesting(shown)
+            copyControl(text, asks: asks).opacity(shown ? 1 : 0)
             stamp(shown: shown)
             if let summary { summaryView(summary).opacity(shown ? 1 : 0) }
         }

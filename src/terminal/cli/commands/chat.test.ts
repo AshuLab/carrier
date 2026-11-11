@@ -120,7 +120,7 @@ test('--workspace starts the host when none answers', async () => {
 
 test('--workspace without --agent picks the first agent chat.json lists, and says so when it lists none', async () => {
   mkdirSync(join(root, 'chat'), { recursive: true });
-  writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify({ agents: { mine: { harness: 'claude' }, claude: { harness: 'claude' } } }));
+  writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify({ agents: { mine: { account: 'claude' }, claude: { account: 'claude' } } }));
   const { stop } = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude }, binaryFound: () => true });
   expect(await chatCommand({ workspace: root }, { input: typed('/quit') })).toBe(0);
   expect(written.join('')).toContain(" with mine in ");

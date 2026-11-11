@@ -72,7 +72,6 @@ public func healthSections(host: HostHealth?, facts: CarrierFacts, doctor: Docto
         mac = HealthSection(
             title: "This Mac", note: nil,
             rows: [macRow("git", .git, host.git), macRow("gh", .gh, host.gh)]
-                + host.agents.map { macRow($0.name, .agent(harness: $0.harness), $0.state) }
         )
     } else {
         let note = if facts.hostRunning == false {
@@ -124,6 +123,8 @@ private func setupSection(_ doctor: DoctorState, configExists: Bool) -> HealthSe
     case .running: return HealthSection(title: title, note: "Running carrier doctor…", rows: [])
     case .unknown(let reason):
         return HealthSection(title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: "Could not check: \(reason)")])
+    case .refused(let reason):
+        return HealthSection(title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: "Carrier refuses the config: \(reason)")])
     case .checks(let checks):
         return HealthSection(title: title, note: nil, rows: groupedChecks(checks))
     }

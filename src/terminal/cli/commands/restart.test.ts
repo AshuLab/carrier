@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import type { Ui } from '../../prompts/types.ts';
 import { askRestartOptions } from './restart.ts';
 
-const options = { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', choiceDeadline: null };
+const options = { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex' };
 
 // A terminal that records each question and answers it from `answers`, or with the preselected option.
 function scripted(answers: Record<string, string> = {}) {

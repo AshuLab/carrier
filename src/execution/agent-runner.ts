@@ -1,8 +1,9 @@
+import type { AccountRuntime } from '../config/providers.ts';
 import type { HarnessName } from '../harnesses/names.ts';
 import type { failureKinds } from '../storage/executions.ts';
 import type { AgentEvent } from './events.ts';
 
-export interface AgentTask {
+export interface AgentTask extends AccountRuntime {
   executionId: string;
   repo: string; // "owner/name"
   epic: number;
@@ -14,6 +15,7 @@ export interface AgentTask {
   option?: string; // name of the agent option the role ran on; absent on an epic saved before options existed
   configDir?: string; // the option's config folder (CLAUDE_CONFIG_DIR, CODEX_HOME); absent: the process environment's own
   persona?: { name?: string; prompt?: string }; // of the role, told in the prompt
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max'; // of the role: how hard the model thinks; absent, the CLI's own
   sharedIdentity?: boolean; // the epic's author and reviewer use one GitHub profile: the prompt asks for the signature
   workspace: string; // checkout where the agent runs
   resultPath: string; // where the caller writes its JSON

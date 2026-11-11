@@ -6,11 +6,11 @@ import { enginePlacesOf } from '../../config/engine-places.ts';
 import type { Config } from '../../config/schema.ts';
 import { repoNamePattern } from '../../config/schema.ts';
 import { defaults } from '../../config/load.ts';
+import { realMachine, type Machine } from '../../doctor/detect.ts';
 import { cliLoggedIn, runDoctor } from '../../doctor/doctor.ts';
 import { ghReposArgs, parseRepos } from '../../integrations/available-repos.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
 import { GhGitHub } from '../../integrations/github.ts';
-import { listLocalModels, type LocalProvider } from '../../harnesses/local.ts';
 import type { Option } from '../prompts/types.ts';
 import { readForgeAgents, type ForgeAgent } from './forge-registry.ts';
 
@@ -27,8 +27,8 @@ export interface InitDeps {
   codexModels: () => Option<string>[];
   /** The models `agy models` lists; empty when it cannot. */
   agyModels: () => Option<string>[];
-  /** The models a local server has; throws when it is not running. */
-  localModels: (local: LocalProvider) => Promise<string[]>;
+  /** What the detector asks of the Mac: the agent CLIs, their logins and the local model servers. */
+  machine: Machine;
   /** The config folders of that harness found in the home folder (`~/.claude`, `~/.claude-*`, `~/.codex`), absolute. */
   configFolders: (harness: 'claude' | 'codex') => string[];
   /** Whether that harness is logged in with that config folder (the environment when none); throws when its CLI cannot run. */
@@ -92,7 +92,7 @@ export const realDeps: InitDeps = {
       return []; // not installed, not logged in or offline: the model is typed
     }
   },
-  localModels: (local) => listLocalModels(local),
+  machine: realMachine,
   configFolders: (harness) => {
     const home = homedir();
     const isFolder = (path: string) => {

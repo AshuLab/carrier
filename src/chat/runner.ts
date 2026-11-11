@@ -1,3 +1,5 @@
+import type { Account } from '../config/providers.ts';
+
 // The chat runner: the port through which the host drives one provider (docs/specs/chat-host.md, Decisions). It speaks
 // Carrier's own chat events whatever the provider speaks, and it is not the engine's `AgentRunner`: nothing in it is
 // epic-shaped, there is no result file and the process is not done after one answer.
@@ -58,9 +60,12 @@ export interface ChatConversation {
   onEnd(listener: () => void): void;
 }
 
+/** What an account sets of how its CLI starts, besides its binary and login (`providers.json`): the adapter turns it into the arguments its CLI takes. */
+export type ChatLaunch = Pick<Account, 'autoCompact' | 'idleCompaction' | 'launchArgs'>;
+
 export interface ChatRunner {
   /** Rejects with a `ChatRefused` when the provider is not installed, not logged in, or does not know the id to resume. */
-  open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; env: NodeJS.ProcessEnv }): Promise<ChatConversation>;
+  open(args: { folder: string; resume?: string; options?: Record<string, string>; /** The agent's `command` from the config: the binary to run, else the one on the path. */ command?: string; /** The account's compaction and launch arguments; none when it sets none. */ launch?: ChatLaunch; env: NodeJS.ProcessEnv }): Promise<ChatConversation>;
 }
 
 /** A failure whose message is for the person, in words: it travels to the client as it is. Any other error is logged and reaches the client as "internal error". */

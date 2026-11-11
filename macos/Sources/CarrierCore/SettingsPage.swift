@@ -3,19 +3,30 @@
 public enum SettingsPage: String, CaseIterable {
     case general = "General", notifications = "Notifications", appearance = "Appearance", sidebar = "Sidebar", chat = "Chat"
     case keybindings = "Keybindings"
-    case engine = "Engine", behavior = "Behavior", repos = "Repos", sessions = "Sessions", health = "Health"
+    case providers = "Providers"
+    case repos = "Repos"
+    case agents = "Agents"
+    case engine = "Engine", behavior = "Behavior", sessions = "Sessions", health = "Health"
 
-    /// A group of the rail: the App one has no heading, Legacy has its own.
+    /// A group of the rail: the App and Providers ones have no heading, Carrier and Legacy have their own.
     public enum Group: CaseIterable {
-        case app, legacy
+        case app, providers, carrier, legacy
 
-        public var heading: String? { self == .legacy ? "Legacy" : nil }
+        public var heading: String? {
+            switch self {
+            case .app, .providers: nil
+            case .carrier: "Carrier"
+            case .legacy: "Legacy"
+            }
+        }
     }
 
     public var group: Group {
         switch self {
         case .general, .notifications, .appearance, .sidebar, .chat, .keybindings: .app
-        case .engine, .behavior, .repos, .sessions, .health: .legacy
+        case .providers: .providers
+        case .repos, .agents: .carrier
+        case .engine, .behavior, .sessions, .health: .legacy
         }
     }
 
@@ -28,9 +39,11 @@ public enum SettingsPage: String, CaseIterable {
         case .sidebar: "sidebar.left"
         case .chat: "bubble.left.and.text.bubble.right"
         case .keybindings: "keyboard"
+        case .providers: "brain"
         case .engine: "cpu"
         case .behavior: "slider.horizontal.3"
         case .repos: "tray.full"
+        case .agents: "person.2"
         case .sessions: "clock.arrow.circlepath"
         case .health: "stethoscope"
         }
@@ -45,9 +58,11 @@ public enum SettingsPage: String, CaseIterable {
         case .sidebar: "What the sessions list shows"
         case .chat: "The message box and the conversation"
         case .keybindings: "The keys that run the app's actions"
+        case .providers: "The AI tools on this Mac and their accounts"
         case .engine: "How the app starts Carrier"
         case .behavior: "How epics run"
         case .repos: "What Carrier watches"
+        case .agents: "Who works on an epic and where it goes when its tokens run out"
         case .sessions: "When sessions age out"
         case .health: "Is this Mac ready?"
         }

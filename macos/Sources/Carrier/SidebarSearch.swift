@@ -8,6 +8,7 @@ struct SidebarSearchField: View {
     @Binding var text: String
     var focus: FocusState<Bool>.Binding
     let close: () -> Void
+    @State private var clearHovered = false
 
     var body: some View {
         TextField(placeholder, text: $text)
@@ -23,9 +24,10 @@ struct SidebarSearchField: View {
                         text = ""
                         focus.wrappedValue = true
                     } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary).padding(.trailing, 5)
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(clearHovered ? .primary : .secondary).padding(.trailing, 5)
                     }
                     .buttonStyle(.plain)
+                    .onHover { clearHovered = $0 }
                     .help("Clear")
                     .accessibilityLabel("Clear")
                 }

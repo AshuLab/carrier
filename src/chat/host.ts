@@ -12,6 +12,7 @@ import { createProjects, ghBranches, ghLogin, ghRepos, ghToken, type GithubRepos
 import { openChatDatabase } from './db.ts';
 import { idleExit } from './idle.ts';
 import { startChatServer } from './server.ts';
+import { realMachine, type Machine } from '../doctor/detect.ts';
 import { realProbes, type HealthProbes } from './health.ts';
 import { binaryFound, createSessions, type ChatSessionsDeps, type SessionAges } from './sessions.ts';
 import { realProcesses, sweepDeadHost, type Processes } from './sweep.ts';
@@ -41,6 +42,7 @@ export interface ChatHostDeps {
   github: GithubRepos;
   binaryFound: ChatSessionsDeps['binaryFound'];
   probes: HealthProbes;
+  machine: Machine;
   /** The process table and the kill the start-up sweep uses. */
   processes: Processes;
 }
@@ -51,7 +53,7 @@ const realGithub = ({ githubCallTimeoutSeconds }: ChatSettings): GithubRepos => 
   branches: (repo) => ghBranches(repo, githubCallTimeoutSeconds * 1000),
 });
 
-const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub(settings), binaryFound, probes: realProbes, processes: realProcesses });
+const realDeps = (settings: ChatSettings): ChatHostDeps => ({ installLogging: installFileLogging, clock: realClock, exit: process.exit, signals: true, runners: { claude: claudeChatRunner(), codex: codexChatRunner() }, env: process.env, git: realGit, token: ghToken, github: realGithub(settings), binaryFound, probes: realProbes, machine: realMachine, processes: realProcesses });
 
 /**
  * Runs the chat host from the Carrier folder alone (`CARRIER_HOME`, else `~/.carrier`): its own lock, database and socket under
@@ -83,7 +85,7 @@ export async function startChatHost(overrides: Partial<ChatHostDeps> = {}) {
     return ages;
   };
   const projects = createProjects({ git: deps.git, token: deps.token, github: deps.github, clock: deps.clock });
-  const sessions = createSessions({ db, agents: settings.agents, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, ages: currentAges, onLiveChange: () => idle?.recheck() });
+  const sessions = createSessions({ db, agents: settings.agents, clock: deps.clock, runners: deps.runners, env: deps.env, git: deps.git, projects, binaryFound: deps.binaryFound, probes: deps.probes, machine: deps.machine, ages: currentAges, onLiveChange: () => idle?.recheck() });
   // The clock's pass, at start and every hour while the host runs; the ages are read from chat.json each time, and a wrong file skips the pass.
   let cancelPass = () => {};
   let stopped = false;

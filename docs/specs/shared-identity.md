@@ -1,6 +1,6 @@
 # Carrier runs with one GitHub identity, and every role has a persona
 
-Status: spec
+Status: spec; the `identities` key was removed: an epic is shared when its author and reviewer resolve to the same account, see [ADR 0021](../adr/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md).
 
 ## Problem
 

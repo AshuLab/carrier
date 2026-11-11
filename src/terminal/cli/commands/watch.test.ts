@@ -74,24 +74,16 @@ test('a socket that stops answering calls lost; a refused request does not', asy
   stop();
 });
 
-test('o and a reach the socket as chooseOptions when the engine lists agentOptions, and do nothing when it does not', async () => {
-  const waiting: PanelEpic = { ...epic, stage: null, executionId: null, options: { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', choiceDeadline: 5000 + 42_000 } };
-  const withCapability = await setup(false, { capabilities: ['sessions', 'agentOptions'], epics: [waiting] });
-  withCapability.press('o');
-  withCapability.press('right');
-  withCapability.press('return');
-  withCapability.press('a');
-  expect(withCapability.requests.filter(([cmd]) => cmd === 'chooseOptions')).toEqual([
-    ['chooseOptions', { repo: 'A/a', issue: 1, author: 'codex', reviewer: 'codex' }],
-    ['chooseOptions', { repo: 'A/a', issue: 1 }],
-  ]);
-  withCapability.stop();
-  const without = await setup(false, { epics: [waiting] });
-  without.press('o');
-  without.press('a');
-  expect(without.requests.map(([cmd]) => cmd)).not.toContain('chooseOptions');
-  expect(without.writes.at(-1)).not.toContain('o options');
-  without.stop();
+test('o and a send nothing to the socket and the screen does not offer them: no epic waits for a choice', async () => {
+  const starting: PanelEpic = { ...epic, stage: null, executionId: null, options: { names: ['claude', 'codex'], author: 'claude', reviewer: 'codex' } };
+  const { press, requests, writes, stop } = await setup(false, { epics: [starting] });
+  press('o');
+  press('a');
+  press('right');
+  press('return');
+  expect(requests.map(([cmd]) => cmd)).not.toContain('chooseOptions');
+  expect(writes.at(-1)).not.toContain('o options');
+  stop();
 });
 
 // The stage detail: a running card per epic, drawn from the provider the panel is given, with the engine's `sessions` answered by a fake client.

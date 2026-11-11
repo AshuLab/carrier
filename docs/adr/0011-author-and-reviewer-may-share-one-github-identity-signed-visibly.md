@@ -1,6 +1,6 @@
 # 0011 - Author and reviewer may share one GitHub identity, signed visibly
 
-- Status: accepted
+- Status: accepted; the `identities` key is replaced by a derived rule in [0021](0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md)
 - Date: 2026-10-25
 
 ## Context

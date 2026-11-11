@@ -4,17 +4,19 @@ import { LogLevel } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { carrierHome, expandHome } from '../config/default-path.ts';
 
-/** An agent a chat can start with. Narrower than the engine's harnesses: Antigravity is not offered. */
+const movedToAccount = (key: string) => z.never({ error: `${key} is declared by the account in providers.json now; name it with "account"` }).optional();
+
+/** An agent a chat can start with: an account of `providers.json` (ADR 0020), which sets its harness, login and binary. An Antigravity account is refused when a session opens. */
 export const chatAgent = z.strictObject({
-  harness: z.enum(['claude', 'codex']),
-  /** The binary, when it is not the one on the path. */
-  command: z.string().min(1).optional(),
+  account: z.string().min(1),
+  harness: movedToAccount('harness'),
+  command: movedToAccount('command'),
   model: z.string().min(1).optional(),
   /** Default options of the provider, by the provider's own option id. */
   options: z.record(z.string(), z.string()).optional(),
 });
 export const chatAgentName = /^[a-z][a-z0-9-]*$/;
-export type ChatAgent = z.infer<typeof chatAgent> & { name: string };
+export type ChatAgent = Omit<z.infer<typeof chatAgent>, 'harness' | 'command'> & { name: string };
 
 /** Days of no activity before the session lifecycle acts (ADR 0019): a whole number, or `"never"` to turn that step off. */
 const days = z.union([z.int().positive(), z.literal('never')]);
@@ -47,7 +49,7 @@ export const chatLogsOf = (folder = carrierHome()) => join(chatDirOf(folder), 'l
 export const chatSocketOf = (folder = carrierHome()) => join(chatStateOf(folder), 'chat.sock');
 export const chatConfigPathOf = (folder = carrierHome()) => join(chatDirOf(folder), 'chat.json');
 
-const defaultAgents = { claude: { harness: 'claude' }, codex: { harness: 'codex' } } as const;
+const defaultAgents = { claude: { account: 'claude' }, codex: { account: 'codex' } };
 
 /** The chat's settings from the parsed contents of `chat.json` (`{}` when there is no file), with the defaults for what it leaves out. */
 export function loadChatConfig(user: unknown, folder = carrierHome()): ChatConfigResult {

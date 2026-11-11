@@ -13,7 +13,6 @@ export async function initCommand(flags: Flags, folder: string): Promise<number 
     started = await runInit(
       {
         repo: flags.repo,
-        identities: flags.identities,
         authorProfile: flags['author-profile'],
         reviewerProfile: flags['reviewer-profile'],
         leadReviewerProfile: flags['lead-reviewer-profile'],
@@ -23,6 +22,9 @@ export async function initCommand(flags: Flags, folder: string): Promise<number 
         authorProvider: flags['author-provider'],
         reviewerProvider: flags['reviewer-provider'],
         leadReviewerProvider: flags['lead-reviewer-provider'],
+        authorEffort: flags['author-effort'],
+        reviewerEffort: flags['reviewer-effort'],
+        leadReviewerEffort: flags['lead-reviewer-effort'],
         authorPersonaName: flags['author-persona-name'],
         authorPersonaPrompt: flags['author-persona-prompt'],
         reviewerPersonaName: flags['reviewer-persona-name'],

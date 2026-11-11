@@ -25,8 +25,8 @@ export const fixes = {
   },
   solve: 'run solve:setup in the repo, it creates them',
   login: (harness: 'claude' | 'codex' | 'agy', configDir: string | undefined) => (harness === 'agy' ? 'log in with: agy' : `log in with: ${configDir ? `${configDirVariable[harness]}=${configDir} ` : ''}${harness === 'claude' ? 'claude /login' : 'codex login'}`),
+  command: (provider: string) => `fix "command" of the account ${provider} in providers.json: an absolute path to the CLI that runs`,
   socketPath: 'move the Carrier folder to a shorter path (CARRIER_HOME, at most 77 bytes)',
-  clash: 'use two different bots (agent-forge add) or one bot and your gh login, or set identities to "shared" to use one account for both',
   serverDown: 'start the server (LM Studio: lms server start, Ollama: ollama serve) and download the model',
   modelMissing: (model: string) => `download it in LM Studio / ollama pull ${model}`,
 };

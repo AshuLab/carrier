@@ -1,5 +1,7 @@
 import { join } from 'node:path';
 import { expect, test } from 'vitest';
+import { carrierHome } from '../../../config/default-path.ts';
+import { providersPathOf } from '../../../config/providers.ts';
 import { fakeDeps, quietUi, useTempDir } from '../testing.ts';
 import { runInit } from '../wizard.ts';
 
@@ -14,7 +16,7 @@ test('the default place is the global ~/.carrier/config.json, and the closing li
   } finally {
     delete process.env.CARRIER_HOME;
   }
-  expect(Object.keys(written)).toEqual([join(dir, 'home', 'config.json')]);
+  expect(Object.keys(written)).toEqual([join(dir, 'home', 'config.json'), join(dir, 'home', 'providers.json')]);
   expect(asked.at(-1)).toMatch(/^outro:Ready\. Start it with: carrier\n/);
 });
 
@@ -22,7 +24,7 @@ test('"Somewhere else…" asks for the path, and the closing line then points at
   const { deps, written } = fakeDeps();
   const { ui, asked } = quietUi({ 'Where should the config be saved?': '\0path', 'Path of the config file': join(dir, 'elsewhere.json') });
   await runInit({ repo: ['A/b'] }, ui, deps);
-  expect(Object.keys(written)).toEqual([join(dir, 'elsewhere.json')]);
+  expect(Object.keys(written)).toEqual([join(dir, 'elsewhere.json'), providersPathOf(carrierHome())]); // the accounts stay in the Carrier folder
   expect(asked.at(-1)).toContain(`carrier --config ${join(dir, 'elsewhere.json')}`);
 });
 
@@ -34,8 +36,8 @@ test('an existing file is overwritten only when confirmed or with --yes', async 
   expect(refused.written).toEqual({});
   const confirmed = fakeDeps({ exists: () => true });
   await runInit(base, quietUi({ [`${out} exists. Overwrite it?`]: true }).ui, confirmed.deps);
-  expect(Object.keys(confirmed.written)).toEqual([out]);
+  expect(Object.keys(confirmed.written)[0]).toBe(out);
   const forced = fakeDeps({ exists: () => true });
   await runInit({ ...base, yes: true }, quietUi().ui, forced.deps);
-  expect(Object.keys(forced.written)).toEqual([out]);
+  expect(Object.keys(forced.written)[0]).toBe(out);
 });

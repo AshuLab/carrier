@@ -1,17 +1,16 @@
+import type { Providers } from './providers.ts';
 import { configSchema, type Config } from './schema.ts';
 
 export const defaults = {
   pollIntervalMinutes: 5,
   finishedWindowDays: 15,
   logLevel: 'info',
-  identities: 'separate',
   limits: {
     maxConcurrentEpics: 3,
     maxReviews: 5,
     maxExecutionRetries: 3,
     maxExecutionHours: 4,
     githubCallTimeoutSeconds: 30,
-    optionChoiceSeconds: 60,
   },
 };
 
@@ -32,8 +31,16 @@ function merge(base: unknown, override: unknown): unknown {
 
 const movedKeys = ['option'];
 
-export function loadConfig(base: unknown, user: unknown): LoadResult {
-  const parsed = configSchema.safeParse(merge(base, user));
+/** The config from the user's file merged over `base`, with the accounts `providers.json` declares (read by `loadProviders`; none without the file) where `config.providers` is. */
+export function loadConfig(base: unknown, user: unknown, providers: Providers = {}): LoadResult {
+  if (isObject(user) && 'providers' in user) {
+    return { ok: false, errors: [{ path: 'providers', message: `accounts moved out of config.json into providers.json in the Carrier folder (see docs/configuration.md)` }] };
+  }
+  if (isObject(user) && 'identities' in user) {
+    return { ok: false, errors: [{ path: 'identities', message: `"identities" is gone: an epic is shared when its author and reviewer resolve to the same account, so there is nothing to set (see docs/configuration.md)` }] };
+  }
+  const merged = merge(base, user);
+  const parsed = configSchema.safeParse(isObject(merged) ? { ...merged, providers } : merged);
   if (parsed.success) return { ok: true, config: parsed.data };
   return {
     ok: false,

@@ -30,8 +30,10 @@ describe.skipIf(!enabled)('a chat session resumed by a second host, with the rea
   test('the second host answers with what the first was told', { timeout: 240_000 }, async () => {
     vi.stubEnv('CARRIER_HOME', root);
     mkdirSync(join(root, 'chat'), { recursive: true });
-    const chat = { agents: { claude: { harness: 'claude', model: 'haiku', ...(process.env.CARRIER_IT_CLAUDE_COMMAND && { command: process.env.CARRIER_IT_CLAUDE_COMMAND }) } } };
+    const chat = { agents: { claude: { account: 'claude', model: 'haiku' } } };
+    const providers = { providers: { claude: { harness: 'claude', ...(process.env.CARRIER_IT_CLAUDE_COMMAND && { command: process.env.CARRIER_IT_CLAUDE_COMMAND }) } } };
     writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify(chat));
+    writeFileSync(join(root, 'providers.json'), JSON.stringify(providers));
     const run = async (body: (client: Awaited<ReturnType<typeof connectControl>>) => Promise<void>) => {
       const exit = vi.fn();
       const host = await startChatHost({ installLogging: () => {}, clock: realClock, exit, signals: false, runners: { claude: claudeChatRunner() } });

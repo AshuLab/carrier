@@ -12,7 +12,7 @@ import { boundOutput, caps, clean, type AgentEvent, type EventState } from '../e
  */
 export function buildCodexCommand(task: AgentTask, ctx: CommandContext): AgentCommand {
   return {
-    bin: ctx.binary,
+    bin: task.command ?? ctx.binary,
     args: [
       'exec',
       ...(task.resumeSession ? ['resume', task.resumeSession] : []),
@@ -21,12 +21,15 @@ export function buildCodexCommand(task: AgentTask, ctx: CommandContext): AgentCo
       '--json',
       '--model',
       task.model,
+      ...(task.effort ? ['-c', `model_reasoning_effort=${task.effort}`] : []),
       // `--oss --local-provider` is refused by `exec resume`; the config key both of them set is accepted by every form.
       ...(task.provider ? ['-c', `model_provider="${task.provider}"`] : []),
       '--dangerously-bypass-approvals-and-sandbox',
       // Codex has no flag to name a run; a config key it ignores keeps the marker in argv for listActive/stop.
       '-c',
       `carrier_marker="${markerFor(task.executionId)}"`,
+      ...(task.autoCompact === undefined ? [] : ['-c', `model_auto_compact_token_limit=${task.autoCompact}`]),
+      ...(task.launchArgs ?? []),
     ],
     cwd: task.workspace,
     env: { ...childEnv(ctx), ...(task.configDir && { CODEX_HOME: task.configDir }), CARRIER_RESULT_PATH: task.resultPath },

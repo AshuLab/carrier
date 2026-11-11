@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { afterEach, expect, test, vi } from 'vitest';
-import { defaults, loadConfig } from '../config/load.ts';
+import { loadWithProviders } from '../config/testing.ts';
 import type { Config } from '../config/schema.ts';
 import { doctorCommand } from '../terminal/cli/commands/doctor.ts';
 import { cliLoggedIn, runDoctor, type Check, type DoctorDeps } from './doctor.ts';
@@ -24,7 +24,7 @@ const base = {
 };
 
 const config = (overrides: Record<string, unknown> = {}): Config => {
-  const result = loadConfig(defaults, { ...base, ...overrides });
+  const result = loadWithProviders({ ...base, ...overrides });
   if (!result.ok) throw new Error(JSON.stringify(result.errors));
   return result.config;
 };
@@ -46,6 +46,7 @@ const deps = (overrides: Partial<DoctorDeps> = {}): DoctorDeps => ({
   listLabels: async () => ['solve:epic', 'solve:epic:ready'],
   localModels: async () => [],
   loggedIn: async () => true,
+  commandRuns: async () => true,
   startAgy: () => fakeAgy({ stdout: '{"status":"SUCCESS"}', end: true }),
   ...overrides,
 });
@@ -63,7 +64,6 @@ test('everything in place: all checks pass and no token reaches the report', asy
     'agent-forge installed',
     'claude provider claude is logged in',
     'codex provider codex is logged in',
-    'author and reviewer are different identities',
     'forge agent artanis-agent can mint a token for AshuLab/carrier',
     'forge agent tassadar-agent can mint a token for AshuLab/carrier',
     'forge agent artanis-agent can read AshuLab/carrier',
@@ -114,45 +114,33 @@ test('without gh nothing that needs it runs', async () => {
   expect(mint).not.toHaveBeenCalled();
 });
 
-test('two profile names for the same forge agent are one identity', async () => {
-  const checks = await doctor(config({ profiles: { a: { kind: 'forge', agent: 'bot' }, b: { kind: 'forge', agent: 'bot' } } }), deps());
-  expect(failed(checks)).toMatchObject([
-    { name: 'author and reviewer are different identities', status: 'fail', detail: 'AshuLab/carrier: author and reviewer both use forge agent bot' },
-  ]);
-});
-
-test('two gh profiles are one identity', async () => {
-  const checks = await doctor(config({ profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } } }), deps({ which: (command) => command !== 'agent-forge' }));
-  expect(failed(checks).map((c) => c.name)).toEqual(['author and reviewer are different identities']);
-});
-
-test('lead reviewer sharing account with author fails the clash check under separate identities', async () => {
-  const cfg = config({
-    profiles: { a: { kind: 'gh' }, b: { kind: 'forge', agent: 'rev' }, c: { kind: 'gh' } },
-    agents: {
-      author: { profile: 'a', provider: 'claude', model: 'sonnet' },
-      reviewer: { profile: 'b', provider: 'codex', model: 'm' },
-      leadReviewer: { profile: 'c', provider: 'claude', model: 'sonnet' },
-    },
-  });
-  const checks = await doctor(cfg, deps());
-  expect(failed(checks)).toMatchObject([
-    { name: 'author and reviewer are different identities', status: 'fail', detail: expect.stringContaining('author and lead reviewer both use your gh login') },
-  ]);
-});
-
-const sharedGh = { identities: 'shared', profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } } };
+const sharedGh = { profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } } };
 const noForge = (command: string) => command !== 'agent-forge';
+const noIdentityCheck = (checks: Check[]) => expect(checks.map((c) => c.name).filter((name) => name.includes('different identities'))).toEqual([]);
 
-test('a shared identity with the same login for both roles has no failed check and no clash check', async () => {
-  const checks = await doctor(config(sharedGh), deps({ which: noForge }));
+test.each([
+  ['two names for the same bot', { profiles: { a: { kind: 'forge', agent: 'bot' }, b: { kind: 'forge', agent: 'bot' } } }, undefined],
+  ['two names for the person\'s own login', sharedGh, noForge],
+  [
+    'the lead reviewer on the author\'s account',
+    {
+      profiles: { a: { kind: 'gh' }, b: { kind: 'forge', agent: 'rev' }, c: { kind: 'gh' } },
+      agents: { author: { profile: 'a', provider: 'claude', model: 'm' }, reviewer: { profile: 'b', provider: 'codex', model: 'm' }, leadReviewer: { profile: 'c', provider: 'claude', model: 'm' } },
+    },
+    undefined,
+  ],
+  [
+    'a repo override that makes the roles one account',
+    {
+      profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'forge', agent: 'tassadar-agent' }, c: { kind: 'forge', agent: 'artanis-agent' } },
+      repos: [{ name: 'AshuLab/one' }, { name: 'AshuLab/two', agents: { reviewer: { profile: 'c' } } }],
+    },
+    undefined,
+  ],
+])('%s fails nothing and the doctor says nothing about it', async (_, overrides, which) => {
+  const checks = await doctor(config(overrides), deps(which ? { which } : {}));
   expect(failed(checks)).toEqual([]);
-  expect(checks.map((c) => c.name)).not.toContain('author and reviewer are different identities');
-});
-
-test('the same config under separate identities fails the clash check', async () => {
-  const checks = await doctor(config({ ...sharedGh, identities: 'separate' }), deps({ which: noForge }));
-  expect(failed(checks).map((c) => c.name)).toEqual(['author and reviewer are different identities']);
+  noIdentityCheck(checks);
 });
 
 test('a shared login that cannot get a token or read a repo still fails', async () => {
@@ -160,14 +148,6 @@ test('a shared login that cannot get a token or read a repo still fails', async 
   expect(failed(noToken).map((c) => c.name)).toEqual(['your gh login can mint a token for AshuLab/carrier']);
   const noRead = await doctor(config(sharedGh), deps({ which: noForge, listLabels: async () => { throw new Error('404'); } }));
   expect(failed(noRead).map((c) => c.name)).toEqual(['your gh login can read AshuLab/carrier']);
-});
-
-test('a per-repo override can make the roles clash even when the globals differ', async () => {
-  const clash = config({
-    profiles: { a: { kind: 'forge', agent: 'artanis-agent' }, b: { kind: 'forge', agent: 'tassadar-agent' }, c: { kind: 'forge', agent: 'artanis-agent' } },
-    repos: [{ name: 'AshuLab/one' }, { name: 'AshuLab/two', agents: { reviewer: { profile: 'c' } } }],
-  });
-  expect(failed(await doctor(clash, deps())).map((c) => c.detail)).toEqual(['AshuLab/two: author and reviewer both use forge agent artanis-agent']);
 });
 
 test('a token that cannot be minted fails for that repo only', async () => {
@@ -290,7 +270,6 @@ test.each([
   ['a gh login that cannot mint', () => fixOf(config({ profiles: gh, orchestratorProfile: 'b', agents: { author: { profile: 'a', provider: 'claude', model: 'm' }, reviewer: { profile: 'b', provider: 'codex', model: 'm' } } }), { mint: async (p) => (p.kind === 'gh' ? Promise.reject(new Error('x')) : 't') }), 'run: gh auth login'],
   ['a 404 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 404: Not Found')) }), 'the repo does not exist or this identity cannot see it: install the App on AshuLab and give it access to AshuLab/carrier'],
   ['a 401 on the repo', () => fixOf(config(), { listLabels: async () => Promise.reject(new Error('GitHub answered HTTP 401: Bad credentials')) }), "the identity's credentials were rejected: for gh run gh auth login, for a bot check its App in Forge"],
-  ['the same identity twice', () => fixOf(config({ profiles: { a: { kind: 'forge', agent: 'bot' }, b: { kind: 'forge', agent: 'bot' } } }), {}), 'use two different bots (agent-forge add) or one bot and your gh login, or set identities to "shared" to use one account for both'],
   ['a local server that is down', () => fixOf(local(), { localModels: async () => Promise.reject(new Error('ECONNREFUSED')) }), 'start the server (LM Studio: lms server start, Ollama: ollama serve) and download the model'],
   ['a missing local model', () => fixOf(local(), { localModels: async () => ['other'] }), 'download it in LM Studio / ollama pull google/gemma-4-12b'],
 ])('fix: %s', async (_, run, expected) => {
@@ -324,6 +303,18 @@ test('every Claude and Codex provider is asked with its folder, role or not, and
   const checks = await doctor(config(withDirs), deps({ loggedIn }));
   expect(loggedIn.mock.calls).toEqual([['claude', '/home/me/.claude-work'], ['codex', '/home/me/.codex-alt'], ['claude', '/home/me/.claude-spare']]);
   expect(failed(checks)).toEqual([]);
+});
+
+test('an account whose command does not exist or does not run fails, naming the account; its login is not asked', async () => {
+  const withCommand = { providers: { claude: { harness: 'claude', command: '/opt/claude' }, work: { harness: 'claude', command: '/opt/gone/claude' }, codex: { harness: 'codex' } } };
+  const commandRuns = vi.fn(async (command: string) => command !== '/opt/gone/claude');
+  const loggedIn = vi.fn(async (_harness: string, _dir: string | undefined, _command?: string) => true);
+  const checks = await doctor(config(withCommand), deps({ commandRuns, loggedIn }));
+  expect(failed(checks)).toMatchObject([{ name: 'claude provider work command runs', detail: '/opt/gone/claude does not exist or does not run', fix: expect.stringContaining('work') }]);
+  expect(commandRuns.mock.calls).toEqual([['/opt/claude'], ['/opt/gone/claude']]);
+  expect(loggedIn.mock.calls).toEqual([['claude', undefined, '/opt/claude'], ['codex', undefined]]);
+  const throwing = await doctor(config(withCommand), deps({ commandRuns: async () => { throw new Error('spawn ENOENT'); } }));
+  expect(failed(throwing).map((c) => c.name)).toEqual(['claude provider claude command runs', 'claude provider work command runs']);
 });
 
 test('a provider without a folder is checked in the process environment', async () => {

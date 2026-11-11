@@ -42,10 +42,9 @@ export const epics = sqliteTable(
     removedFrom: text({ enum: epicStates }),
     removedReason: text(),
     finishedAt: integer(), // ms since epoch, when the epic left `running`
-    // The agent option each role runs on, set when the epic is reserved and replaced by a choice; null on epics from before options existed.
+    // The agent option each role runs on, set when the epic is reserved and replaced by a choice at a restart; null on epics from before options existed.
     authorOption: text(),
     reviewerOption: text(),
-    choiceDeadline: integer(), // ms since epoch: while set, the running epic waits for its choice and has launched nothing
   },
   (table) => [uniqueIndex('epics_repo_issue').on(table.repo, table.issue)],
 );

@@ -52,6 +52,11 @@ public struct FailoverStep: Equatable {
     public var provider: String
     public var model: String?
 
+    public init(provider: String, model: String? = nil) {
+        self.provider = provider
+        self.model = model
+    }
+
     /// `codex · gpt-5`, or `codex` when the step takes the account's model.
     public var text: String { [provider, model].compactMap { $0 }.joined(separator: " · ") }
 }

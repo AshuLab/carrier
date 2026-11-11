@@ -12,6 +12,8 @@ struct AgentsTabView: View {
     @State private var selection: AgentRole = .author
     /// why the last change was refused, in words; nothing was written
     @State private var problem: String?
+    /// Switch automatically turned on for a role that has no first step yet: nothing is written until it has one
+    @State private var switchedOn: Set<AgentRole> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -51,6 +53,13 @@ struct AgentsTabView: View {
         load()
         problem = reason
         return result
+    }
+
+    /// The Details and failover cards write through here (`saveGlobalPersona`, `saveGlobalFailover`; tested in `RoleDetailsSaveTests`), then read the file back.
+    private func saveDetails(_ result: RoleSave) -> Bool {
+        load()
+        if case .refused(let why) = result { problem = why } else if case .failed(let why) = result { problem = why }
+        return result == .saved
     }
 
     private func list(_ page: AgentsPage) -> some View {
@@ -102,14 +111,33 @@ struct AgentsTabView: View {
                     if let problem { Text(problem).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.vertical, 8) }
                 }
                 SettingsGroup(title: "Details") {
-                    SettingsTabRow(title: "Persona", detail: personaLine(row.fields.persona), first: true) { EmptyView() }
+                    SettingsTabRow(title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
+                        CommitField(label: "Persona name", text: row.fields.persona?.name ?? "", width: 220, mono: false) {
+                            saveDetails(saveGlobalPersona(name: blankIsNil($0), prompt: row.fields.persona?.prompt, role: row.role, path: configFilePath()))
+                        }
+                        .id(row.role)
+                    }
+                    SettingsTabRow(title: "Persona prompt", detail: "Optional instructions") {
+                        CommitField(label: "Persona prompt", text: row.fields.persona?.prompt ?? "", width: 220, mono: false) {
+                            saveDetails(saveGlobalPersona(name: row.fields.persona?.name, prompt: blankIsNil($0), role: row.role, path: configFilePath()))
+                        }
+                        .id(row.role)
+                    }
                 }
                 SettingsGroup(title: "When it runs out of tokens") {
+                    let on = row.steps.isEmpty == false || switchedOn.contains(row.role)
                     SettingsTabRow(title: "Switch automatically", detail: "Usage limit, rate limit or service down", first: true) {
-                        Text(row.steps.isEmpty ? "Off" : "On").foregroundStyle(.secondary)
+                        Toggle("Switch automatically", isOn: Binding(get: { on }, set: { now in
+                            if now { switchedOn.insert(row.role) } else {
+                                switchedOn.remove(row.role)
+                                _ = saveDetails(saveGlobalFailover(first: nil, second: nil, role: row.role, path: configFilePath(), accounts: page.accounts))
+                            }
+                        })).labelsHidden().toggleStyle(.switch)
                     }
-                    SettingsTabRow(title: "First", detail: "Provider and model") { value(row.steps.first?.text, unset: "None") }
-                    SettingsTabRow(title: "Then", detail: "Optional") { value(row.steps.dropFirst().first?.text, unset: "None") }
+                    if on {
+                        stepRow("First", detail: "Provider and model", step: row.steps.first, row: row, page: page, index: 0)
+                        stepRow("Then", detail: "Optional", step: row.steps.dropFirst().first, row: row, page: page, index: 1)
+                    }
                     if row.steps.count > 2 {
                         Text("The file has \(row.steps.count - 2) more step\(row.steps.count == 3 ? "" : "s"), kept and tried in order.")
                             .font(.caption).foregroundStyle(.secondary).padding(.vertical, 8)
@@ -118,6 +146,32 @@ struct AgentsTabView: View {
             }
             // while the lead reviewer is off the rest of its page is shown, dimmed and not usable
             .opacity(row.off ? 0.4 : 1).disabled(row.off)
+        }
+    }
+
+    private func blankIsNil(_ text: String) -> String? {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : text
+    }
+
+    /// A step of the role's failover: a provider and, optionally, a model. Then can be taken back to None; First needs a provider before anything is written.
+    private func stepRow(_ title: String, detail: String, step: FailoverStep?, row: RoleRow, page: AgentsPage, index: Int) -> some View {
+        func write(_ own: FailoverStep?) -> Bool {
+            let first = index == 0 ? own : row.steps.first
+            let second = index == 1 ? own : row.steps.dropFirst().first
+            return saveDetails(saveGlobalFailover(first: first, second: second, role: row.role, path: configFilePath(), accounts: page.accounts))
+        }
+        return SettingsTabRow(title: title, detail: detail) {
+            HStack(spacing: 8) {
+                picker(title, selection: step?.provider ?? "", options: page.accounts, none: index == 0 ? "Choose…" : "None") { provider in
+                    _ = write(provider.isEmpty ? nil : FailoverStep(provider: provider, model: step?.model))
+                }
+                if let step {
+                    CommitField(label: "\(title) model", text: step.model ?? "", width: 160, mono: true, prompt: "Account’s model") {
+                        write(FailoverStep(provider: step.provider, model: $0))
+                    }
+                    .id(row.role.rawValue + title + step.provider)
+                }
+            }
         }
     }
 
@@ -149,16 +203,41 @@ struct AgentsTabView: View {
         }
         .labelsHidden().fixedSize()
     }
+}
 
-    private func value(_ text: String?, unset: String = "Not set", missing: Bool = false, mono: Bool = false) -> some View {
-        let shown = text.map { missing ? "\($0) (missing)" : $0 } ?? unset
-        return Text(shown).font(mono ? .scaled(11.5, design: .monospaced) : .callout).foregroundStyle(missing ? Color.orange : Color.secondary)
-            .lineLimit(1).truncationMode(.middle).textSelection(.enabled)
+/// A text saved when the person presses Return or leaves the field; what the file refuses is put back.
+private struct CommitField: View {
+    let label: String
+    let text: String
+    let width: CGFloat
+    let mono: Bool
+    var prompt = ""
+    let commit: (String) -> Bool
+    @State private var draft: String
+    @FocusState private var focused: Bool
+
+    init(label: String, text: String, width: CGFloat, mono: Bool, prompt: String = "", commit: @escaping (String) -> Bool) {
+        self.label = label
+        self.text = text
+        self.width = width
+        self.mono = mono
+        self.prompt = prompt
+        self.commit = commit
+        _draft = State(initialValue: text)
     }
 
-    private func personaLine(_ persona: RolePersona?) -> String {
-        guard let persona, persona.name != nil || persona.prompt != nil else { return "None. Optional name and instructions" }
-        return [persona.name, persona.prompt].compactMap { $0 }.joined(separator: " · ")
+    var body: some View {
+        TextField(label, text: $draft, prompt: Text(prompt)).textFieldStyle(.roundedBorder)
+            .font(mono ? .scaled(11.5, design: .monospaced) : .body).frame(width: width)
+            .focused($focused)
+            .onSubmit(save)
+            .onChange(of: focused) { _, now in if now == false { save() } }
+            .accessibilityLabel(label)
+    }
+
+    private func save() {
+        guard draft != text else { return }
+        if commit(draft) == false { draft = text }
     }
 }
 

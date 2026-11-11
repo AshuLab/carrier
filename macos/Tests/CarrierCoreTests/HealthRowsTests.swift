@@ -11,19 +11,19 @@ private func health(git: ToolState = .ready, gh: ToolState = .ready, claude: Too
     ])
 }
 
-@Test func thisMacListsGitGhAndEachAgentWithTheirState() throws {
+@Test func thisMacListsGitAndGhWithTheirStateAndNoAgentRows() throws {
     let mac = try #require(healthSections(host: health(gh: .signedOut, codex: .missing), facts: allWell).first)
     #expect(mac.title == "This Mac" && mac.note == nil)
-    #expect(mac.rows.map(\.title) == ["git", "gh", "claude", "codex"])
-    #expect(mac.rows.map(\.detail) == ["Ready", "Signed out", "Ready", "Not installed"])
-    #expect(mac.rows.map(\.mark) == [.ok, .problem, .ok, .problem])
+    #expect(mac.rows.map(\.title) == ["git", "gh"])
+    #expect(mac.rows.map(\.detail) == ["Ready", "Signed out"])
+    #expect(mac.rows.map(\.mark) == [.ok, .problem])
 }
 
 @Test func aRowAsksTheFixedListAboutItsToolAndState() throws {
-    let mac = try #require(healthSections(host: health(git: .missing, claude: .signedOut), facts: allWell).first)
+    let mac = try #require(healthSections(host: health(git: .missing, gh: .signedOut), facts: allWell).first)
     #expect(mac.rows[0].tool == .git && mac.rows[0].state == .missing)
-    #expect(mac.rows[2].tool == .agent(harness: "claude") && mac.rows[2].state == .signedOut)
-    #expect(healthFix(.agent(harness: "claude"), mac.rows[2].state)?.label == "claude auth login")
+    #expect(mac.rows[1].tool == .gh && mac.rows[1].state == .signedOut)
+    #expect(healthFix(.agent(harness: "claude"), .signedOut)?.label == "claude auth login")
 }
 
 @Test func anUnknownProbeIsNeitherAProblemNorReady() throws {

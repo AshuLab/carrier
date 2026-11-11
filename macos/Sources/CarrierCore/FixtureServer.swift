@@ -17,7 +17,7 @@ public enum FixtureError: Error, Equatable {
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; anything else is an error.
-/// It owns a temporary home (`home`) holding an empty `config.json` and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
+/// It owns a temporary home (`home`) holding a `config.json` with the roles and a failover order (so the Providers page has accounts in use) and a `chat.json` with two chat agents, and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 public final class FixtureServer {
     public let home: String
@@ -139,8 +139,11 @@ public final class FixtureServer {
         do {
             let state = home + "/engine/state"
             try FileManager.default.createDirectory(atPath: state, withIntermediateDirectories: true)
-            try Data("{}".utf8).write(to: URL(fileURLWithPath: home + "/config.json"))
+            let roles = #"{"agents":{"author":{"provider":"claude"},"reviewer":{"provider":"codex"}},"failover":{"enabled":true,"default":["claude","codex"]}}"#
+            try Data(roles.utf8).write(to: URL(fileURLWithPath: home + "/config.json"))
             try FileManager.default.createDirectory(atPath: home + "/chat/state", withIntermediateDirectories: true)
+            let chatConfig = #"{"agents":{"claude":{"account":"claude"},"codex":{"account":"codex"},"work":{"account":"claude-work"}}}"#
+            try Data(chatConfig.utf8).write(to: URL(fileURLWithPath: home + "/chat/chat.json"))
             listener = try Self.listen(path: state + "/control.sock")
             do { chatListener = try Self.listen(path: home + "/chat/state/chat.sock") } catch {
                 Darwin.close(listener)

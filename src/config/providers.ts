@@ -3,6 +3,7 @@ import { isAbsolute, join } from 'node:path';
 import { z } from 'zod';
 import { harnessNames, localProvidersOf } from '../harnesses/names.ts';
 import { carrierHome, expandHome } from './default-path.ts';
+import { refusedLaunchArg } from './launch-args.ts';
 
 /** The key of an account: stored and shown as is. */
 export const optionNamePattern = /^[a-z][a-z0-9-]{0,39}$/;
@@ -18,6 +19,14 @@ export const account = z.strictObject({
   provider: z.enum(['lmstudio', 'ollama']).optional(),
   /** `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. Absolute once `~` is expanded. */
   configDir: z.string().min(1).transform(expandHome).optional(),
+  /** The binary to run instead of the harness's name on the PATH. Absolute once `~` is expanded. */
+  command: z.string().min(1).transform(expandHome).optional(),
+  /** Claude: `"auto"` or 100000 to 1000000 tokens (`--autocompact`). Codex: a positive token count (`model_auto_compact_token_limit`). */
+  autoCompact: z.union([z.literal('auto'), z.int().positive()]).optional(),
+  /** Claude only: passed per run as `--settings '{"idleCompaction":…}'`; absent passes nothing. */
+  idleCompaction: z.boolean().optional(),
+  /** Appended to the arguments Carrier passes; the flags Carrier sets itself are refused. */
+  launchArgs: z.array(z.string().min(1)).optional(),
 });
 
 /** The accounts by name, each one checked on its own and against its harness. */
@@ -35,9 +44,38 @@ export const accounts = z.record(z.string(), account).superRefine((all, ctx) => 
     } else if (p.configDir !== undefined && p.configDir !== '' && !isAbsolute(p.configDir)) {
       ctx.addIssue({ code: 'custom', path: [name, 'configDir'], message: `${where}: configDir must be an absolute path, or start with ~/ (got "${p.configDir}")` });
     }
+    if (p.command !== undefined && !isAbsolute(p.command)) {
+      ctx.addIssue({ code: 'custom', path: [name, 'command'], message: `${where}: command must be an absolute path, or start with ~/ (got "${p.command}")` });
+    }
+    if (p.harness === 'agy') {
+      for (const key of ['autoCompact', 'idleCompaction'] as const) {
+        if (p[key] !== undefined) ctx.addIssue({ code: 'custom', path: [name, key], message: `${where}: agy has no ${key} setting` });
+      }
+    } else if (p.autoCompact !== undefined && p.autoCompact !== 'auto' && p.harness === 'claude' && (p.autoCompact < 100_000 || p.autoCompact > 1_000_000)) {
+      ctx.addIssue({ code: 'custom', path: [name, 'autoCompact'], message: `${where}: autoCompact for claude is "auto" or a token count from 100000 to 1000000 (got ${p.autoCompact})` });
+    } else if (p.autoCompact === 'auto' && p.harness === 'codex') {
+      ctx.addIssue({ code: 'custom', path: [name, 'autoCompact'], message: `${where}: autoCompact for codex is a token count, not "auto"` });
+    }
+    if (p.idleCompaction !== undefined && p.harness === 'codex') {
+      ctx.addIssue({ code: 'custom', path: [name, 'idleCompaction'], message: `${where}: codex has no idleCompaction setting` });
+    }
+    const refused = p.launchArgs && refusedLaunchArg(p.harness, p.launchArgs);
+    if (refused) {
+      ctx.addIssue({ code: 'custom', path: [name, 'launchArgs', refused.index], message: `${where}: launchArgs cannot repeat ${refused.what}, Carrier sets it` });
+    }
   }
 });
 export type Providers = z.infer<typeof accounts>;
+export type Account = z.infer<typeof account>;
+
+/** How an account's CLI runs: what reaches the process the engine starts. */
+export type AccountRuntime = Pick<Account, 'command' | 'autoCompact' | 'idleCompaction' | 'launchArgs'>;
+export const runtimeOf = ({ command, autoCompact, idleCompaction, launchArgs }: Account): AccountRuntime => ({
+  ...(command !== undefined && { command }),
+  ...(autoCompact !== undefined && { autoCompact }),
+  ...(idleCompaction !== undefined && { idleCompaction }),
+  ...(launchArgs !== undefined && { launchArgs }),
+});
 
 const providersFileSchema = z.strictObject({ providers: accounts.default({}) });
 

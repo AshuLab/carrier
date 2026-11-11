@@ -1,8 +1,9 @@
+import type { AccountRuntime } from '../config/providers.ts';
 import type { HarnessName } from '../harnesses/names.ts';
 import type { failureKinds } from '../storage/executions.ts';
 import type { AgentEvent } from './events.ts';
 
-export interface AgentTask {
+export interface AgentTask extends AccountRuntime {
   executionId: string;
   repo: string; // "owner/name"
   epic: number;

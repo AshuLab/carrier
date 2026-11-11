@@ -95,6 +95,17 @@ The file has one key, `providers`, and no other.
 | `model` | no | Optional default model for this provider connection, used when failover moves to this provider or when inherited by a role. |
 | `provider` | no | Who serves the model: `lmstudio` or `ollama` for a local server; without it, the harness's own cloud. See [Local models](#local-models). Not for `agy`. |
 | `configDir` | no | The harness's config folder, which holds its login: `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. It must be an absolute path once a leading `~` is expanded. Without it the agent inherits the environment of the process that started Carrier. Not for `agy`. |
+| `command` | no | The binary to run, instead of looking the harness's name up on the `PATH`. An absolute path, or one that starts with `~/`. `carrier doctor` fails the account when it does not exist or does not run (`--version`). |
+| `autoCompact` | no | When the CLI compacts the conversation. Claude: `"auto"` or a token count from 100000 to 1000000, passed as `--autocompact`. Codex: a positive token count, passed as `-c model_auto_compact_token_limit=N`. Not for `agy`. |
+| `idleCompaction` | no | Claude only: a boolean passed on every run as `--settings '{"idleCompaction":…}'`, so the `settings.json` of the person changes in nothing. Absent passes nothing. Not for Codex or `agy`. |
+| `launchArgs` | no | A list of strings appended to the arguments Carrier passes, for example `["--chrome"]`. An empty entry is refused, and so are the flags Carrier sets itself, below. Not for `agy`. |
+
+A flag in `launchArgs` is judged by its name, so `--model=x` and `--model x` are the same. These are refused when the file is read, naming the key, because repeating them would change the permission mode or break the parsing of events:
+
+- Claude: `-p`, `--model`, `--permission-mode`, `--output-format`, `--resume`, `--name`, `--add-dir`, `--settings`, `--autocompact`.
+- Codex: `--model`, `--json`, `--dangerously-bypass-approvals-and-sandbox`, `--sandbox`, and the key of a `-c` or `--config` pair, in each form the CLI takes (`-c k=v`, `-ck=v`, `--config k=v`, `--config=k=v`), when it is `model_provider`, `carrier_marker` or `model_auto_compact_token_limit`.
+
+The file holds no secret; a log names an account and a flag, never the value of an argument.
 
 `carrier init` writes the providers it collects to `providers.json` in the Carrier folder, even when `--out` puts the config elsewhere, and when it edits an existing setup it starts from the accounts already in that file. When assigning roles, each role points at a declared provider and specifies its model.
 
@@ -266,6 +277,7 @@ The chat host clones a GitHub repository for a session when the first message is
 - Provider names are lowercase words, a `configDir` is absolute after `~` is expanded, and a provider has no field this page does not list.
 - Repo names are `owner/name`, and no two repos share the same folder name (Solve's worktree paths have no owner).
 - A `provider` (local model server) is only accepted for a harness that can use it (Claude Code and Codex; not Antigravity), and so is a `configDir`.
+- A `command` is absolute after `~` is expanded; `autoCompact` and `idleCompaction` are accepted only where the table says, `autoCompact` in its range; `launchArgs` is a list of non-empty strings that repeats none of the flags above.
 - The effective configuration of an epic is saved, without credentials, when it starts and kept when it resumes, even if you change the file in between.
 
 ## Local models

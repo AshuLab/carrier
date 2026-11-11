@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { execFile, spawn, spawnSync } from 'node:child_process';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -32,7 +32,9 @@ export interface DoctorDeps {
   /** What a local model server has; throws when it does not answer. */
   localModels: (local: LocalProvider) => Promise<string[]>;
   /** Whether a Claude or Codex login works, with the option's config folder (the process environment when none); throws when the CLI cannot run. */
-  loggedIn: (harness: 'claude' | 'codex', configDir: string | undefined) => Promise<boolean>;
+  loggedIn: (harness: 'claude' | 'codex', configDir: string | undefined, command?: string) => Promise<boolean>;
+  /** Whether an account's `command` runs (`--version` ends well); false when it does not exist or fails. */
+  commandRuns: (command: string) => Promise<boolean>;
   /** Starts `agy -p /usage` for the Antigravity login check; throws when it cannot start. */
   startAgy: () => AgyProcess;
 }
@@ -87,11 +89,11 @@ function agyLogin(deps: Pick<DoctorDeps, 'startAgy'>): Promise<'in' | 'out' | 'u
 // Reads only the verdict: the output holds an email and an organisation, which never leave this function.
 // Async, so the wizard and the doctor's spinner go on while the CLI answers. After the timeout the whole process group is killed and the
 // probe rejects at once: a CLI that traps SIGTERM, or leaves a child holding the pipe, cannot keep it waiting.
-export function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | undefined, timeoutMs = LOGIN_TIMEOUT_MS) {
+export function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | undefined, timeoutMs = LOGIN_TIMEOUT_MS, command: string = harness) {
   const env = configDir ? { ...process.env, [configDirVariable[harness]]: configDir } : process.env;
-  const [command, args] = harness === 'claude' ? ['claude', ['auth', 'status']] : ['codex', ['login', 'status']];
+  const args = harness === 'claude' ? ['auth', 'status'] : ['login', 'status'];
   return new Promise<boolean>((resolve, reject) => {
-    const child = spawn(command!, args as string[], { env, stdio: ['ignore', 'pipe', 'ignore'], detached: true });
+    const child = spawn(command, args, { env, stdio: ['ignore', 'pipe', 'ignore'], detached: true });
     let out = '';
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk) => (out += chunk));
@@ -123,7 +125,8 @@ export function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | und
 
 const realDeps: DoctorDeps = {
   localModels: (local) => listLocalModels(local),
-  loggedIn: cliLoggedIn,
+  loggedIn: (harness, configDir, command) => cliLoggedIn(harness, configDir, undefined, command),
+  commandRuns: (command) => new Promise((resolve) => execFile(command, ['--version'], { timeout: 10_000 }, (error) => resolve(error === null))),
   startAgy,
   which: (command) => spawnSync('which', [command]).status === 0,
   mint: (profile, repo) => profileToken(profile)(repo),
@@ -169,7 +172,8 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
 
   const hasGit = installed('git');
   const hasGh = installed('gh');
-  for (const harness of new Set(repos.flatMap((repo) => rolesOf(repo).map((agent) => agent.harness)))) installed(harness);
+  // An agent that has its own `command` is not looked up on the PATH; the account's own check below runs it.
+  for (const harness of new Set(repos.flatMap((repo) => rolesOf(repo).filter((agent) => agent.command === undefined).map((agent) => agent.harness)))) installed(harness);
   const hasForge = profiles.some((profile) => profile.kind === 'forge') ? installed('agent-forge') : true;
 
   // A local model needs its server up and the model downloaded; one check per distinct server and model.
@@ -187,11 +191,19 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     }
   }
 
+  // A `command` that does not exist or does not run fails its account, whether a role uses it or not: the run would not start.
+  const commandRuns = async (provider: string, harness: string, command: string) => {
+    const name = `${harness} provider ${provider} command runs`;
+    onStart(name);
+    const runs = await deps.commandRuns(command).catch(() => false);
+    return report(runs ? { name, status: 'ok' } : { name, status: 'fail', detail: `${command} does not exist or does not run`, fix: fixes.command(provider) });
+  };
+
   // Every Claude and Codex provider, whether a role uses it or not: a login that has run out shows here before an epic needs it.
   // A role's provider that is not logged in fails; any other only warns. Antigravity has no folder and a behaviour test instead.
   const roleProviders = new Set(repos.flatMap((repo) => rolesOf(repo).flatMap((agent) => [agent.option, agent.providerName].filter((v): v is string => v !== undefined))));
-  for (const [provider, { harness, configDir }] of Object.entries(config.providers)) {
-    if (missing.has(harness)) continue;
+  for (const [provider, { harness, configDir, command }] of Object.entries(config.providers)) {
+    if (command === undefined ? missing.has(harness) : !(await commandRuns(provider, harness, command))) continue;
     if (harness === 'agy') {
       const name = `agy provider ${provider} is logged in`;
       onStart(name);
@@ -212,7 +224,7 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     const where = configDir ? `at ${configDir}` : 'in the environment Carrier runs in';
     onStart(name);
     try {
-      report((await deps.loggedIn(harness, configDir)) ? { name, status: 'ok' } : { name, status, detail: `not logged in ${where}`, fix: fixes.login(harness, configDir) });
+      report((await deps.loggedIn(harness, configDir, ...(command === undefined ? [] : [command]))) ? { name, status: 'ok' } : { name, status, detail: `not logged in ${where}`, fix: fixes.login(harness, configDir) });
     } catch (error) {
       log.error(`could not run ${harness} to check the login`, error, { provider });
       report({ name, status, detail: `could not run ${harness} to check the login ${where}`, fix: installFix[harness] });

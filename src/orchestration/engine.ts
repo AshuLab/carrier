@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import type { EnginePlaces } from '../config/engine-places.ts';
+import { runtimeOf } from '../config/providers.ts';
 import { failoverOrderFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
 import { failoverTriggers, matchesFailoverTrigger } from '../config/schema.ts';
 import type { HarnessName } from '../harnesses/names.ts';
@@ -245,6 +246,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       harness: provider.harness,
       ...(provider.provider && { provider: provider.provider }),
       ...(provider.configDir && { configDir: provider.configDir }),
+      ...runtimeOf(provider),
       ...(persona && { persona }),
       option: name,
       providerName: name,

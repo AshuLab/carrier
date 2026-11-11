@@ -96,7 +96,31 @@ private func summary(_ checks: RepoChecks) -> [String] {
     func found(_ repo: String) -> [RepoCheckRow.Status] {
         repoChecks(repo: repo, roles: repoRoles(json: fixture, repo: repo)?.rows ?? [], doctor: doctor).rows.map(\.status)
     }
+    // the repo whose owner has no installed bot offers Use another identity on its failed sign check
+    let api = repoChecks(repo: "acme/api", roles: repoRoles(json: fixture, repo: "acme/api")?.rows ?? [], doctor: doctor)
+    #expect(api.rows.map(\.anotherIdentity) == [nil, nil, .reviewer, nil])
     #expect(found("acme/web") == [.ok, .ok, .ok, .ok])
     #expect(found("acme/api") == [.ok, .ok, .fail, .fail])
     #expect(found("acme/a-really-long-repository-name-for-the-sidebar") == [.fail, .ok, .ok, .waiting])
+}
+
+@Test func onlyAFailedSignCheckOffersAnotherIdentityForItsRole() {
+    func offered(_ doctor: [DoctorCheck]) -> [AgentRole?] {
+        repoChecks(repo: "o/r", roles: roles("o/r"), doctor: .checks(doctor)).rows.map(\.anotherIdentity)
+    }
+    #expect(offered([read("o/r"), mint("a", "o/r", ["bot-a"], .fail), mint("c", "o/r", ["bot-c"]), solve("o/r")]) == [nil, .author, nil, nil])
+    #expect(offered([read("o/r"), mint("a", "o/r", ["bot-a"]), mint("c", "o/r", ["bot-c"], .fail), solve("o/r")]) == [nil, nil, .reviewer, nil])
+    // a failed read or Solve check offers none, nor do ok, warn and waiting ones
+    #expect(offered([read("o/r", .fail), mint("a", "o/r", ["bot-a"]), mint("c", "o/r", ["bot-c"], .warn), solve("o/r", .fail)]) == [nil, nil, nil, nil])
+    #expect(offered([]) == [nil, nil, nil, nil])
+}
+
+@Test func activatingAnotherIdentityOpensThatRolesForm() throws {
+    let doctor = DoctorState.checks([read("o/r"), mint("a", "o/r", ["bot-a"]), mint("c", "o/r", ["bot-c"], .fail), solve("o/r")])
+    let rows = repoChecks(repo: "o/r", roles: roles("o/r"), doctor: doctor).rows
+    var selection = RepoRoleSelection()
+    selection.useAnotherIdentity(on: rows[1])  // an ok row opens nothing
+    #expect(selection.editing == nil)
+    selection.useAnotherIdentity(on: rows[2])
+    #expect(selection.editing == .reviewer)
 }

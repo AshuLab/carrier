@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { connectControl } from '../terminal/cli/control-client.ts';
 import { FakeClock } from '../orchestration/fake.ts';
 import { acquireLock } from '../storage/lock.ts';
+import type { Machine } from '../doctor/detect.ts';
 import { FakeChatRunner, FakeGit } from './fake.ts';
 import { ChatConfigInvalid, HostBusy, startChatHost } from './host.ts';
 
@@ -751,4 +752,33 @@ test('stopping the host while a pass waits in git lets the pass finish without d
   await clock.advance(2 * 60 * 60_000);
   expect(h.git.calls).toEqual([]); // no pass was armed again
   errors.mockRestore();
+});
+
+test('the providers request answers over the socket the accounts with their state, what is found with no account and the servers; a wrong providers.json answers the problem and the host keeps running', async () => {
+  const machine: Machine = {
+    resolveBinary: (name) => {
+      if (name === 'agy') throw new Error('not on the PATH');
+      return `/opt/bin/${name}`;
+    },
+    version: async () => '1.0',
+    login: async (_harness, configDir) => (configDir === undefined ? 'in' : 'out'),
+    localModels: async () => Promise.reject(new Error('down')),
+  };
+  const started = await startChatHost({ installLogging: () => {}, clock: new FakeClock(), exit: vi.fn(), signals: false, runners: { claude: new FakeChatRunner() }, binaryFound: () => true, machine });
+  stops.push(started.stop);
+  const client = await connectControl(join(root, 'chat', 'state', 'chat.sock'));
+  expect(client.hello.capabilities).toContain('providers');
+  writeFileSync(join(root, 'providers.json'), JSON.stringify({ providers: { claude: { harness: 'claude' }, 'claude-work': { harness: 'claude', configDir: '/logins/work' } } }));
+  expect(await client.request('providers')).toEqual({
+    accounts: [
+      { name: 'claude', harness: 'claude', enabled: true, found: true, path: '/opt/bin/claude', version: '1.0', state: 'ready' },
+      { name: 'claude-work', harness: 'claude', configDir: '/logins/work', enabled: true, found: true, path: '/opt/bin/claude', version: '1.0', state: 'signedOut' },
+    ],
+    unadded: [{ harness: 'codex', path: '/opt/bin/codex', version: '1.0' }],
+    servers: [{ kind: 'lmstudio', running: false, models: [] }, { kind: 'ollama', running: false, models: [] }],
+  });
+  writeFileSync(join(root, 'providers.json'), JSON.stringify({ providers: { claude: { harness: 'claude', autoCompact: '300000' } } }));
+  expect(await client.request('providers')).toMatchObject({ accounts: [], problem: { path: 'providers.claude.autoCompact' } });
+  expect(await client.request('list')).toEqual({ sessions: [] });
+  client.close();
 });

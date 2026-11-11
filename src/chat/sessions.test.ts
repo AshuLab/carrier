@@ -897,6 +897,15 @@ const probesOf = (over: Partial<HealthProbes> = {}): HealthProbes & { calls: str
 };
 const allFound = { binaryFound: () => true };
 
+test('health judges two logins of one harness apart: claude-work signedOut while claude is ready, each probe given its own folder', async () => {
+  writeProviders({ claude: { harness: 'claude' }, 'claude-work': { harness: 'claude', configDir: '/logins/work' } });
+  const asked: unknown[] = [];
+  const probes = probesOf({ loggedIn: async (harness, account) => (asked.push([harness, account.configDir]), account.configDir === undefined) });
+  const { sessions } = setup({ agents: { claude: { account: 'claude' }, work: { account: 'claude-work' } } }, { probes, ...allFound });
+  expect(await sessions.health({})).toMatchObject({ agents: [{ name: 'claude', state: 'ready' }, { name: 'work', state: 'signedOut' }] });
+  expect(asked).toEqual([['claude', undefined], ['claude', '/logins/work']]);
+});
+
 test('health says ready for everything that works, and missing for a binary that is not found, an agent by its account\'s command', async () => {
   writeProviders({ claude: { harness: 'claude' }, mine: { harness: 'codex', command: '/opt/codex' } });
   const probes = probesOf();

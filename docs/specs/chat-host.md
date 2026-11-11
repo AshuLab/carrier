@@ -56,6 +56,7 @@ Text is redacted first and then cut, as in [0006](../adr/0006-agent-events-store
 { cmd: 'delete'; sessionId: string }
 { cmd: 'events'; sessionId: string; after?: number; limit: number }   // limit 1..200
 { cmd: 'health'; refresh?: boolean }                       // whether git, gh and each agent's CLI work; kept thirty seconds unless `refresh`
+{ cmd: 'providers' }                                       // the accounts of providers.json with their state, the harnesses found with no account and the local servers; `problem` and no accounts when the file does not match
 { cmd: 'stop' }                                            // the host: close every session and exit
 ```
 

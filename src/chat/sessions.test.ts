@@ -87,6 +87,22 @@ test('a chat agent runs on its account: that harness, that binary and that login
   expect(claude.opened[1]).toMatchObject({ command: undefined, env: { CLAUDE_CONFIG_DIR: '/logins/edited' } });
 });
 
+test('a chat agent hands its runner the account\'s compaction and launch arguments, and none for an account that sets none', async () => {
+  const [claude, codex] = [new FakeChatRunner(), new FakeChatRunner()];
+  const { sessions } = setup({ agents: { work: { account: 'claude-work' }, other: { account: 'codex-two' } } }, { runners: { claude, codex } });
+  writeProviders({
+    'claude-work': { harness: 'claude', autoCompact: 'auto', idleCompaction: false, launchArgs: ['--chrome'] },
+    'codex-two': { harness: 'codex', autoCompact: 200000, launchArgs: ['--search'] },
+  });
+  await sessions.open({ agent: 'work', folder: work });
+  await sessions.open({ agent: 'other', folder: work });
+  expect(claude.opened[0]).toMatchObject({ launch: { autoCompact: 'auto', idleCompaction: false, launchArgs: ['--chrome'] } });
+  expect(codex.opened[0]).toMatchObject({ launch: { autoCompact: 200000, launchArgs: ['--search'] } });
+  writeProviders({ 'claude-work': { harness: 'claude' }, 'codex-two': { harness: 'codex' } });
+  await sessions.open({ agent: 'work', folder: work });
+  expect(claude.opened[1]!.launch).toEqual({});
+});
+
 test('a chat agent on an account that is not in providers.json, or is Antigravity\'s, is refused naming the account, and a file that does not match names the key', async () => {
   writeProviders({ claude: { harness: 'claude' }, agy: { harness: 'agy' } });
   const { sessions, claude } = setup({ agents: { ghost: { account: 'ghost' }, anti: { account: 'agy' } } });
@@ -117,7 +133,7 @@ test('open starts the agent in the real folder with the host environment and the
   const { sessions, claude, onLiveChange } = setup({ agents: { claude: { account: 'claude', model: 'haiku', options: { mode: 'plan' } } } });
   claude.setup = offering(['model', ['haiku', 'sonnet'], 'haiku'], ['mode', ['plan', 'default'], 'plan']);
   const opened = await sessions.open({ agent: 'claude', folder: work, options: { mode: 'default' } });
-  expect(claude.opened).toEqual([{ folder: expect.stringContaining('work'), options: { model: 'haiku', mode: 'default' }, env: { SOME: 'env' } }]);
+  expect(claude.opened).toEqual([{ folder: expect.stringContaining('work'), options: { model: 'haiku', mode: 'default' }, command: undefined, launch: {}, env: { SOME: 'env' } }]);
   expect(opened.session).toMatchObject({ agent: 'claude', harness: 'claude', state: 'idle', title: null, nativeId: null, archived: false });
   expect(onLiveChange).toHaveBeenCalled();
   expect(sessions.list({}).sessions.map((s) => s.id)).toEqual([opened.session.id]);
@@ -481,7 +497,7 @@ test('resume opens a closed session again from its native id, folder and options
   clock.time = 5000;
 
   const resumed = await sessions.resume({ sessionId: id });
-  expect(claude.opened[1]).toEqual({ folder: expect.stringContaining('work'), resume: 'native-1', options: { model: 'haiku' }, env: { SOME: 'env' } });
+  expect(claude.opened[1]).toEqual({ folder: expect.stringContaining('work'), resume: 'native-1', options: { model: 'haiku' }, command: undefined, launch: {}, env: { SOME: 'env' } });
   expect(resumed.session).toMatchObject({ id, title: 'remember pineapple', nativeId: 'native-1', state: 'idle' });
   expect(sessions.list({}).sessions[0]).toMatchObject({ live: true });
   sessions.send({ sessionId: id, text: 'again' });
@@ -921,6 +937,15 @@ const probesOf = (over: Partial<HealthProbes> = {}): HealthProbes & { calls: str
   };
 };
 const allFound = { binaryFound: () => true };
+
+test('health judges two logins of one harness apart: claude-work signedOut while claude is ready, each probe given its own folder', async () => {
+  writeProviders({ claude: { harness: 'claude' }, 'claude-work': { harness: 'claude', configDir: '/logins/work' } });
+  const asked: unknown[] = [];
+  const probes = probesOf({ loggedIn: async (harness, account) => (asked.push([harness, account.configDir]), account.configDir === undefined) });
+  const { sessions } = setup({ agents: { claude: { account: 'claude' }, work: { account: 'claude-work' } } }, { probes, ...allFound });
+  expect(await sessions.health({})).toMatchObject({ agents: [{ name: 'claude', state: 'ready' }, { name: 'work', state: 'signedOut' }] });
+  expect(asked).toEqual([['claude', undefined], ['claude', '/logins/work']]);
+});
 
 test('health says ready for everything that works, and missing for a binary that is not found, an agent by its account\'s command', async () => {
   writeProviders({ claude: { harness: 'claude' }, mine: { harness: 'codex', command: '/opt/codex' } });

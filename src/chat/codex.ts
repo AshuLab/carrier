@@ -2,7 +2,7 @@ import { execFile, spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { endGroup, resolveAgentBinary } from './group.ts';
-import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner, type ChatUsage } from './runner.ts';
+import { ChatRefused, type ChatLaunch, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner, type ChatUsage } from './runner.ts';
 
 // The Codex adapter of the chat runner: the user's own `codex app-server`, JSON-RPC over stdio, one JSON object per
 // line (docs/research/chat-spike.md). No npm dependency: the adapter spawns the binary and speaks the protocol itself.
@@ -45,8 +45,8 @@ export type CodexChatDeps = {
   resolve: (command: string | undefined, env: NodeJS.ProcessEnv) => string;
   /** Whether the user is logged in to the binary. */
   loggedIn: (binary: string, env: NodeJS.ProcessEnv) => Promise<boolean>;
-  /** Starts `<binary> app-server` as the leader of its own process group. */
-  spawn: (binary: string, options: { cwd: string; env: NodeJS.ProcessEnv }) => CodexTransport;
+  /** Starts `<binary> app-server` followed by `args`, as the leader of its own process group. */
+  spawn: (binary: string, options: { cwd: string; env: NodeJS.ProcessEnv; args: string[] }) => CodexTransport;
 };
 
 const codexLoggedIn = (binary: string, env: NodeJS.ProcessEnv) =>
@@ -54,8 +54,8 @@ const codexLoggedIn = (binary: string, env: NodeJS.ProcessEnv) =>
     execFile(binary, ['login', 'status'], { env, timeout: 15_000 }, (error) => done(error === null)); // what it prints is not read: it names the login
   });
 
-const ownGroup: CodexChatDeps['spawn'] = (binary, { cwd, env }) => {
-  const child = spawn(binary, ['app-server'], { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
+const ownGroup: CodexChatDeps['spawn'] = (binary, { cwd, env, args }) => {
+  const child = spawn(binary, ['app-server', ...args], { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
   child.stderr.resume(); // drained and never read: it may say things about the login
   child.stdin.on('error', () => {}); // a write after the process ended; `onExit` reports the end
   const lines = createInterface({ input: child.stdout });
@@ -76,7 +76,7 @@ export const realCodexDeps: CodexChatDeps = { resolve: (command, env) => resolve
 
 export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner {
   return {
-    async open({ folder, resume, options = {}, command, env }) {
+    async open({ folder, resume, options = {}, command, launch = {}, env }) {
       let binary: string;
       try {
         binary = deps.resolve(command, env);
@@ -86,7 +86,7 @@ export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner
       if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('Codex is not logged in; run "codex login" once to log in');
       const conversation = new CodexConversation(options, binary);
       try {
-        await conversation.start(deps, { folder, env, resume });
+        await conversation.start(deps, { folder, env, resume, launch });
       } catch (error) {
         log.error('codex could not be started', error);
         await conversation.close();
@@ -96,6 +96,9 @@ export function codexChatRunner(deps: CodexChatDeps = realCodexDeps): ChatRunner
     },
   };
 }
+
+/** What follows `app-server`: the account's compaction as the `-c` pair `codex exec` takes, then its launch arguments. Empty when it sets none. */
+export const argsOf = ({ autoCompact, launchArgs = [] }: ChatLaunch) => [...(autoCompact === undefined ? [] : ['-c', `model_auto_compact_token_limit=${autoCompact}`]), ...launchArgs];
 
 class CodexConversation implements ChatConversation {
   nativeId: string | undefined;
@@ -131,8 +134,8 @@ class CodexConversation implements ChatConversation {
     this.sandbox = chosen.sandbox ?? 'workspace-write';
   }
 
-  async start(deps: CodexChatDeps, { folder, env, resume }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined }) {
-    this.transport = deps.spawn(this.binary, { cwd: folder, env });
+  async start(deps: CodexChatDeps, { folder, env, resume, launch }: { folder: string; env: NodeJS.ProcessEnv; resume: string | undefined; launch: ChatLaunch }) {
+    this.transport = deps.spawn(this.binary, { cwd: folder, env, args: argsOf(launch) });
     this.transport.onLine((line) => this.receive(line));
     this.transport.onExit(() => this.ended());
     const hello = await this.request('initialize', { clientInfo: { name: 'carrier', title: 'Carrier', version: '0.0.0' } });

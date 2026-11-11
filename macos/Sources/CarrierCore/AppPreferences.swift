@@ -278,8 +278,8 @@ public struct AppPreferences {
                 notifyDockBadgeKey, notifySoundKey, notifyReminderKey, notifyQuietKey, notifyQuietStartKey, notifyQuietEndKey,
             ]
         case .keybindings: [ShortcutTable.key]
-        // the Legacy pages keep their own settings and have no Reset
-        case .engine, .behavior, .repos, .sessions, .health: []
+        // the Providers page only reads, and the Legacy pages keep their own settings and have no Reset
+        case .providers, .engine, .behavior, .repos, .sessions, .health: []
         }
     }
 }

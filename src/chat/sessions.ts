@@ -10,7 +10,9 @@ import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
 import { checkFolder } from './folder.ts';
+import { realMachine, type Machine } from '../doctor/detect.ts';
 import { createHealth, realProbes, type HealthProbes } from './health.ts';
+import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
 import type { Plan, Step, StepEvent } from './plan.ts';
 import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
@@ -74,6 +76,8 @@ export type ChatSessionsDeps = {
   binaryFound: (command: string) => boolean;
   /** What the `health` request runs; the machine's own tools unless a test replaces it. */
   probes?: HealthProbes;
+  /** What the `providers` request asks of the machine; the real one unless a test replaces it. */
+  machine?: Machine;
   /** The lifecycle's ages now: `list` says from them when the clock will delete each archived session. */
   ages: () => SessionAges;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
@@ -98,8 +102,9 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, ages, onLiveChange }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, onLiveChange }: ChatSessionsDeps) {
   const health = createHealth({ agents, clock, binaryFound, probes });
+  const providers = createProviders({ clock, machine, binaryFound });
   const lives = new Map<string, Live>();
   /** Set by closeAll, the host's shutdown: a clock pass in flight leaves the sessions it has not reached alone. */
   let closed = false;
@@ -236,16 +241,16 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
   /** How an agent starts, from its account as `providers.json` has it now: refuses, naming the account, one that is missing or Antigravity's. */
   const launchOf = (chosen: ChatAgent) => {
-    const { harness, command, env: accountEnv } = chatAccount(readAccounts(), chosen, env);
+    const { harness, command, launch, env: accountEnv } = chatAccount(readAccounts(), chosen, env);
     const runner = runners[harness];
     if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${harness}`);
-    return { chosen, harness, runner, command, env: accountEnv };
+    return { chosen, harness, runner, command, launch, env: accountEnv };
   };
   type Launch = ReturnType<typeof launchOf>;
 
-  async function openConversation({ chosen, runner, command, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string }) {
+  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string }) {
     try {
-      return await runner.open({ ...args, command, env });
+      return await runner.open({ ...args, command, launch, env });
     } catch (error) {
       if (error instanceof ChatRefused) throw error;
       log.error('a chat runner failed to open', error);
@@ -459,6 +464,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     },
 
     health,
+    providers,
 
     /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
     list: ({ archived = false }: { archived?: boolean }) => {

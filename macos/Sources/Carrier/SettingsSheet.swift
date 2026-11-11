@@ -59,6 +59,7 @@ struct SettingsSheet: View {
             case .sidebar: SidebarTabView()
             case .chat: ChatTabView()
             case .keybindings: KeybindingsTabView()
+            case .providers: ProvidersTabView()
             case .engine: engine(banner, notConfigured: notConfigured)
             case .behavior: BehaviorTabView()
             case .repos: ReposTabView(state: state)
@@ -113,6 +114,8 @@ struct SettingsRail: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(Self.sections, id: \.group) { section in
+                        // Providers has no heading and is set apart from the App group by a gap
+                        if section.group == .providers { Color.clear.frame(height: 6) }
                         if let heading = section.group.heading {
                             Text(heading.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary)
                                 .padding(.leading, 8).padding(.top, 10).accessibilityAddTraits(.isHeader)

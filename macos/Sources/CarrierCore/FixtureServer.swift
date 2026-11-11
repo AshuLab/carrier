@@ -13,11 +13,11 @@ public enum FixtureError: Error, Equatable {
 /// (kept in memory, refused for a working or waiting one as the host does), `deletePreview`, which says what `chat-delete-preview.json`
 /// holds for the sessions it names and `worktree: null` for the other listed ones, and the worktree requests from `chat-workspace.json`
 /// (`workspace`, by folder; one not listed is a plain folder), `chat-fetch.json` (`fetch`, by folder), `chat-clone.json` (`cloneRepo`, by
-/// `owner/repo`; one not listed is refused as the host does for a repository it cannot see), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see), `chat-names.json` (`suggestName`,
+/// `owner/repo`; one not listed is refused as the host does for a repository it cannot see), `chat-github-repos.json` (`githubRepos`, by page, the login on page 1 only; a page not listed is refused), `chat-branches.json` (`repoBranches`, by `owner/repo`; one not listed is refused like a repository the login cannot see), `chat-providers.json` (`providers`), `chat-names.json` (`suggestName`,
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; anything else is an error.
-/// It owns a temporary home (`home`) holding a `config.json` (`fixtureConfig`: the watched repos, profiles and roles) and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
+/// It owns a temporary home (`home`) holding a `config.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 /// The `config.json` of the fixture home: the repos of the fixture snapshot, the profiles and the three global roles, and one repo that
 /// overrides the reviewer's model, so the Repos page shows an inherited role and a mixed one.
@@ -59,6 +59,7 @@ public final class FixtureServer {
     private let chatProjects: [String: [String: Any]]
     private let chatGithubRepos: [String: [String: Any]]
     private let chatBranches: [String: [String: Any]]
+    private let chatProviders: [String: Any]
     private let chatNames: [String: Any]
     private var suggested = 0
     /// `archive` and `delete` change it; the sockets' threads share it, so it is read and written with `lock`.
@@ -71,7 +72,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"plan\"]}\n".utf8)
+    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"providers\",\"plan\"]}\n".utf8)
     private let data: [String: Data]
     private let hello: Data
     private var stopped = false
@@ -135,6 +136,7 @@ public final class FixtureServer {
         chatProjects = try golden("chat-project.json", as: [String: [String: Any]].self)
         chatGithubRepos = try golden("chat-github-repos.json", as: [String: [String: Any]].self)
         chatBranches = try golden("chat-branches.json", as: [String: [String: Any]].self)
+        chatProviders = try golden("chat-providers.json", as: [String: Any].self)
         chatNames = try golden("chat-names.json", as: [String: Any].self)
         guard let previews = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: fixtures + "/chat-delete-preview.json"))) as? [String: Any])?["sessions"] as? [[String: Any]]
         else { throw FixtureError.unreadable("\(fixtures)/chat-delete-preview.json") }
@@ -166,6 +168,11 @@ public final class FixtureServer {
             // what the app's doctor run answers in `--fixture` mode (`doctorFixtureOutput`)
             try Data(contentsOf: URL(fileURLWithPath: fixtures + "/doctor.json")).write(to: URL(fileURLWithPath: home + "/doctor.json"))
             try FileManager.default.createDirectory(atPath: home + "/chat/state", withIntermediateDirectories: true)
+            let chatConfig = #"{"agents":{"claude":{"account":"claude"},"codex":{"account":"codex"},"work":{"account":"claude-work"}}}"#
+            try Data(chatConfig.utf8).write(to: URL(fileURLWithPath: home + "/chat/chat.json"))
+            // the accounts of the golden reply, without Antigravity: it is found and has no account, so the page shows its Add row
+            let accounts = #"{"providers":{"claude":{"harness":"claude"},"claude-work":{"harness":"claude","displayName":"Work","configDir":"/Users/demo/.claude-work"},"codex":{"harness":"codex","command":"/opt/homebrew/bin/codex"}}}"#
+            try ProvidersFile(folder: home).write(Data(accounts.utf8))
             listener = try Self.listen(path: state + "/control.sock")
             do { chatListener = try Self.listen(path: home + "/chat/state/chat.sock") } catch {
                 Darwin.close(listener)
@@ -296,6 +303,8 @@ public final class FixtureServer {
         case "repoBranches":
             guard let repo = request?["repo"] as? String else { break }
             return chatBranches[repo].map { Self.answer(id, $0) } ?? Self.refused(id, "\(repo) was not found, or your GitHub login cannot see it")
+        case "providers":
+            return Self.answer(id, providersReply())
         case "suggestName":
             let names = chatNames["suggestions"] as? [String] ?? []
             guard request?["folder"] is String, names.isEmpty == false else { break }
@@ -427,6 +436,41 @@ public final class FixtureServer {
         }
         locked { chatSessions.insert(session, at: 0) }
         return Self.answer(id, ["session": session, "options": [Any]()])
+    }
+
+    /// The golden `providers` reply as `<home>/providers.json` leaves it, so an Add, an edit or a Remove made in the app shows in the page as it
+    /// would against a real host: an account of the file is listed (what the golden reply knows of its name, else what this Mac has of its
+    /// harness) with the file's display name, binary, folder; a harness the file gives no account is "found, not added".
+    private func providersReply() -> [String: Any] {
+        var reply = chatProviders
+        let file = (try? ProvidersFile(folder: home).read()).flatMap { $0 }
+            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }?["providers"] as? [String: [String: Any]] ?? [:]
+        let golden = reply["accounts"] as? [[String: Any]] ?? []
+        let unadded = reply["unadded"] as? [[String: Any]] ?? []
+        // what this Mac has of each harness
+        var seen: [String: [String: Any]] = [:]
+        for entry in golden + unadded {
+            guard let harness = entry["harness"] as? String, seen[harness] == nil else { continue }
+            seen[harness] = ["path": entry["path"] ?? "", "version": entry["version"] as Any]
+        }
+        // the golden reply's accounts keep their order, those the app added follow by name
+        let goldenNames = golden.compactMap { $0["name"] as? String }
+        let order = goldenNames.filter { file[$0] != nil } + file.keys.filter { goldenNames.contains($0) == false }.sorted()
+        reply["accounts"] = order.compactMap { name -> [String: Any]? in
+            guard let account = file[name], let harness = account["harness"] as? String else { return nil }
+            var entry = golden.first { $0["name"] as? String == name }
+                ?? ["name": name, "harness": harness, "found": seen[harness] != nil, "path": seen[harness]?["path"] ?? "", "state": "unknown"]
+            if entry["version"] == nil, let version = seen[harness]?["version"] as? String { entry["version"] = version }
+            for key in ["displayName", "command", "configDir"] { entry[key] = account[key] }
+            return entry
+        }
+        let taken = Set(file.values.compactMap { $0["harness"] as? String })
+        reply["unadded"] = seen.keys.sorted().filter { taken.contains($0) == false }.map { harness in
+            var entry: [String: Any] = ["harness": harness, "path": seen[harness]?["path"] ?? ""]
+            if let version = seen[harness]?["version"] as? String { entry["version"] = version }
+            return entry
+        }
+        return reply
     }
 
     private static func answer(_ id: Int, _ data: Any) -> Data {

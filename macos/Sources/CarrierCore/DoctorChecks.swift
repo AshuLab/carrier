@@ -35,13 +35,16 @@ public let doctorTimeout: TimeInterval = 90
 public struct ProcessOutcome: Equatable {
     public var exitCode: Int32?
     public var stdout: String
+    /// what it printed on stderr: where the doctor says why it refused a config
+    public var stderr: String
     public var timedOut: Bool
     /// Why the process could not start; nil when it did.
     public var startError: String?
 
-    public init(exitCode: Int32? = nil, stdout: String = "", timedOut: Bool = false, startError: String? = nil) {
+    public init(exitCode: Int32? = nil, stdout: String = "", stderr: String = "", timedOut: Bool = false, startError: String? = nil) {
         self.exitCode = exitCode
         self.stdout = stdout
+        self.stderr = stderr
         self.timedOut = timedOut
         self.startError = startError
     }
@@ -52,6 +55,8 @@ public enum DoctorState: Equatable {
     case checks([DoctorCheck])
     /// The doctor could not answer, and why. Never a pass.
     case unknown(String)
+    /// The doctor refused the config itself, with this reason (its words, the keys named).
+    case refused(String)
 }
 
 /// The doctor exits 1 when a check failed and still prints the checks, so the output decides and the exit code only explains.
@@ -60,6 +65,10 @@ public func doctorState(from outcome: ProcessOutcome) -> DoctorState {
     if outcome.timedOut { return .unknown("carrier doctor did not finish in \(Int(doctorTimeout)) seconds and was stopped") }
     let exit = outcome.exitCode.map { " (exit \($0))" } ?? ""
     guard let checks = try? JSONDecoder().decode([DoctorCheck].self, from: Data(outcome.stdout.utf8)) else {
+        // a config the engine refuses ends the command before any check, with "Invalid config <file>:" and a line per key on stderr
+        if let start = outcome.stderr.range(of: "Invalid ") {
+            return .refused(outcome.stderr[start.lowerBound...].trimmingCharacters(in: .whitespacesAndNewlines))
+        }
         return .unknown("carrier doctor printed something that is not its checks" + exit)
     }
     return checks.isEmpty ? .unknown("carrier doctor printed no checks" + exit) : .checks(checks)

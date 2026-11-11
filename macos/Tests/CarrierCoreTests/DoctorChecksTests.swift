@@ -38,6 +38,17 @@ private let sample = #"[{"name":"config","status":"ok"},{"name":"gh","status":"w
     #expect(doctorState(from: ProcessOutcome(startError: "no such file")) == .unknown("carrier doctor could not start: no such file"))
 }
 
+@Test func aConfigTheEngineRefusesComesBackWithTheDoctorsReason() {
+    let stderr = "[12:00:00] info doctor starting\nInvalid config /tmp/config.json:\n  repos.0.agents.reviewer.effort: Invalid option: expected one of \"low\"\n"
+    #expect(doctorState(from: ProcessOutcome(exitCode: 1, stdout: "", stderr: stderr)) == .refused(
+        "Invalid config /tmp/config.json:\n  repos.0.agents.reviewer.effort: Invalid option: expected one of \"low\""
+    ))
+    // the checks win over the noise on stderr
+    #expect(doctorState(from: ProcessOutcome(exitCode: 1, stdout: sample, stderr: "Invalid x")) != .refused("Invalid x"))
+    let checks = repoChecks(repo: "o/r", roles: [], doctor: .refused("Invalid config: boom"))
+    #expect(checks.note == "Carrier refuses the config: Invalid config: boom")
+}
+
 @Test func theCommandRunsTheDoctorOnTheConfigOfTheCarrierFolder() throws {
     let settings = SetupSettings(node: "/usr/bin/node", path: "/usr/bin")
     let command = try #require(doctorCommand(settings: settings, carrier: "/opt/carrier.js", environment: ["CARRIER_HOME": "/tmp/folder"], home: "/Users/x"))

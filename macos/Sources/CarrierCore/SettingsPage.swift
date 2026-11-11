@@ -3,19 +3,27 @@
 public enum SettingsPage: String, CaseIterable {
     case general = "General", notifications = "Notifications", appearance = "Appearance", sidebar = "Sidebar", chat = "Chat"
     case keybindings = "Keybindings"
-    case engine = "Engine", behavior = "Behavior", repos = "Repos", sessions = "Sessions", health = "Health"
+    case repos = "Repos"
+    case engine = "Engine", behavior = "Behavior", sessions = "Sessions", health = "Health"
 
-    /// A group of the rail: the App one has no heading, Legacy has its own.
+    /// A group of the rail: the App one has no heading, Carrier and Legacy have their own.
     public enum Group: CaseIterable {
-        case app, legacy
+        case app, carrier, legacy
 
-        public var heading: String? { self == .legacy ? "Legacy" : nil }
+        public var heading: String? {
+            switch self {
+            case .app: nil
+            case .carrier: "Carrier"
+            case .legacy: "Legacy"
+            }
+        }
     }
 
     public var group: Group {
         switch self {
         case .general, .notifications, .appearance, .sidebar, .chat, .keybindings: .app
-        case .engine, .behavior, .repos, .sessions, .health: .legacy
+        case .repos: .carrier
+        case .engine, .behavior, .sessions, .health: .legacy
         }
     }
 

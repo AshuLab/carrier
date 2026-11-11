@@ -2,7 +2,7 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The Repos tab: which repos Carrier watches (the `repos` of `config.json`, CarrierCore/RepoList.swift), each with how its last
+/// The Repos page: which repos Carrier watches (the `repos` of `config.json`, CarrierCore/RepoList.swift), each with how its last
 /// check went. Add from the gh login's list, stop watching with a question first. Saved like the Behavior tab: every change is written
 /// as it is made, and nothing restarts Carrier, which reads the file when it starts.
 struct ReposTabView: View {
@@ -17,6 +17,8 @@ struct ReposTabView: View {
     /// the repo whose ✕ was pressed
     @State private var removing: String?
     @State private var adding = false
+    /// the repo whose page is on the right
+    @State private var selection: String?
 
     private var path: String { configFilePath() }
 
@@ -29,22 +31,32 @@ struct ReposTabView: View {
 
     var body: some View {
         let problem = reposProblem(draft)
+        let rows = repoRows(draft: draft, saved: saved, snapshot: snapshot)
+        let chosen = rows.first { $0.name == selection } ?? rows.first
         VStack(alignment: .leading, spacing: 12) {
             if unreadable {
                 Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange)
             }
-            if draft.isEmpty == false {
-                SettingsTabCard {
-                    ForEach(Array(repoRows(draft: draft, saved: saved, snapshot: snapshot).enumerated()), id: \.element.id) { index, row in
-                        RepoRowView(row: row, first: index == 0, onlyOne: draft.count == 1, engine: engine) { removing = row.name }
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 12) {
+                    if rows.isEmpty == false {
+                        SettingsTabCard {
+                            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                                RepoRowView(row: row, first: index == 0, onlyOne: draft.count == 1, engine: engine, selected: row.name == chosen?.name) {
+                                    removing = row.name
+                                }
+                                .onTapGesture { selection = row.name }
+                            }
+                        }
                     }
+                    Button("＋ Add repo…") { adding = true }.disabled(unreadable)
                 }
+                .frame(width: 300)
+                detail(chosen)
             }
             if let problem, unreadable == false { Label(problem, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange) }
-            HStack(spacing: 8) {
-                Button("＋ Add repo…") { adding = true }.disabled(unreadable)
-                Spacer(minLength: 8)
+            Group {
                 if let failure {
                     Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
                 } else if let note {
@@ -84,6 +96,19 @@ struct ReposTabView: View {
                 adding = false
             }
             .themed()
+        }
+    }
+
+    /// The chosen repo's page; the cards of a repo come in the next slices.
+    @ViewBuilder private func detail(_ row: RepoRow?) -> some View {
+        if let row {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(row.name).font(.headline)
+                Text(row.line).font(.callout).foregroundStyle(row.health == .error ? Color.red : Color.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        } else {
+            Text("Add a repo to see its page.").foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 
@@ -133,6 +158,7 @@ private struct RepoRowView: View {
     let first: Bool
     let onlyOne: Bool
     let engine: String
+    let selected: Bool
     let remove: () -> Void
     @State private var hovering = false
 
@@ -163,6 +189,9 @@ private struct RepoRowView: View {
         }
         .contextMenu { actions(clone: clone, cloned: cloned) }
         .padding(.vertical, 12)
+        .background(selected ? Color.themeAccent.opacity(0.1) : Color.clear)
+        .contentShape(Rectangle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
         .overlay(alignment: .top) { Divider().opacity(first ? 0 : 1) }
     }
 

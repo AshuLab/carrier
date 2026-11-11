@@ -36,6 +36,13 @@ describe('resolveRepoConfig', () => {
     expect(resolveFirst({}).agents).toEqual({ author: resolvedAuthor, reviewer: resolvedReviewer });
   });
 
+  test('the runtime keys of an account reach the role that names it', () => {
+    const runtime = { command: '/opt/claude', autoCompact: 'auto', idleCompaction: false, launchArgs: ['--chrome'] };
+    const { agents } = resolveFirst({ providers: { ...base.providers, claude: { harness: 'claude', ...runtime } } });
+    expect(agents.author).toEqual({ ...resolvedAuthor, ...runtime });
+    expect(agents.reviewer).toEqual(resolvedReviewer);
+  });
+
   test('an option override is the one used for that repo, with its provider and configDir', () => {
     const { agents } = resolveFirst({ repos: [{ name: 'x/y', agents: { reviewer: { provider: 'local', model: 'm3' } } }] });
     expect(agents.reviewer).toEqual({ profile: 'b', option: 'local', providerName: 'local', harness: 'codex', model: 'm3', provider: 'ollama', configDir: '/srv/codex' });

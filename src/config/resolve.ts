@@ -1,4 +1,5 @@
 import type { HarnessName } from '../harnesses/names.ts';
+import { runtimeOf, type AccountRuntime } from './providers.ts';
 import type { Config } from './schema.ts';
 
 // What an agent runs with: the role (profile, persona, model) and the provider it points at (harness, configDir, local server).
@@ -11,7 +12,7 @@ export type Agent = {
   persona?: Config['agents']['author']['persona'];
   option?: string;
   providerName?: string;
-};
+} & AccountRuntime;
 
 // Only profile names, never credentials: Agent Forge resolves those from the profile at run time.
 // `sharedIdentity` is saved with the epic so a later config change does not move it; absent on epics saved before it existed.
@@ -50,6 +51,7 @@ export function resolveRepoConfig(config: Config, repo: Config['repos'][number])
       model: merged.model ?? providerConfig?.model ?? '',
       ...(providerConfig?.provider && { provider: providerConfig.provider }),
       ...(providerConfig?.configDir && { configDir: providerConfig.configDir }),
+      ...(providerConfig && runtimeOf(providerConfig)),
       ...(merged.persona && { persona: merged.persona }),
       option: merged.provider,
       providerName: merged.provider,

@@ -46,6 +46,7 @@ const deps = (overrides: Partial<DoctorDeps> = {}): DoctorDeps => ({
   listLabels: async () => [],
   localModels: async () => [],
   loggedIn: async () => true,
+  commandRuns: async () => true,
   startAgy: () => fakeAgy({ stdout: '{"status":"SUCCESS"}', end: true }),
   ...overrides,
 });
@@ -266,6 +267,18 @@ test('every Claude and Codex provider is asked with its folder, role or not, and
   const checks = await doctor(config(withDirs), deps({ loggedIn }));
   expect(loggedIn.mock.calls).toEqual([['claude', '/home/me/.claude-work'], ['codex', '/home/me/.codex-alt'], ['claude', '/home/me/.claude-spare']]);
   expect(failed(checks)).toEqual([]);
+});
+
+test('an account whose command does not exist or does not run fails, naming the account; its login is not asked', async () => {
+  const withCommand = { providers: { claude: { harness: 'claude', command: '/opt/claude' }, work: { harness: 'claude', command: '/opt/gone/claude' }, codex: { harness: 'codex' } } };
+  const commandRuns = vi.fn(async (command: string) => command !== '/opt/gone/claude');
+  const loggedIn = vi.fn(async (_harness: string, _dir: string | undefined, _command?: string) => true);
+  const checks = await doctor(config(withCommand), deps({ commandRuns, loggedIn }));
+  expect(failed(checks)).toMatchObject([{ name: 'claude provider work command runs', detail: '/opt/gone/claude does not exist or does not run', fix: expect.stringContaining('work') }]);
+  expect(commandRuns.mock.calls).toEqual([['/opt/claude'], ['/opt/gone/claude']]);
+  expect(loggedIn.mock.calls).toEqual([['claude', undefined, '/opt/claude'], ['codex', undefined]]);
+  const throwing = await doctor(config(withCommand), deps({ commandRuns: async () => { throw new Error('spawn ENOENT'); } }));
+  expect(failed(throwing).map((c) => c.name)).toEqual(['claude provider claude command runs', 'claude provider work command runs']);
 });
 
 test('a provider without a folder is checked in the process environment', async () => {

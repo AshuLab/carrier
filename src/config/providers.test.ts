@@ -65,4 +65,39 @@ describe('providers.json', () => {
   test('an agy account cannot have a `configDir`', () => {
     expect(errorsOf({ a: { harness: 'agy', configDir: '/srv/agy' } })).toEqual([{ path: 'providers.a.configDir', message: expect.stringContaining('agy') }]);
   });
+
+  test('the runtime keys load as written, `command` expanded from ~', () => {
+    const result = loadProviders({ providers: { a: { harness: 'claude', command: '~/bin/claude', autoCompact: 'auto', idleCompaction: false, launchArgs: ['--chrome'] }, b: { harness: 'codex', autoCompact: 1500000, launchArgs: ['-c', 'model_reasoning_effort=high'] } } });
+    expect(result).toEqual({ ok: true, providers: { a: { harness: 'claude', command: join(homedir(), 'bin/claude'), autoCompact: 'auto', idleCompaction: false, launchArgs: ['--chrome'] }, b: { harness: 'codex', autoCompact: 1500000, launchArgs: ['-c', 'model_reasoning_effort=high'] } } });
+  });
+
+  test('a wrong runtime key is refused naming it', () => {
+    // A union that fails reports its key once per branch.
+    const claude = (extra: object) => [...new Set(pathsOf({ a: { harness: 'claude', ...extra } }))];
+    for (const autoCompact of ['300000', 0, -1, 1.5, 99999, 1000001]) expect(claude({ autoCompact })).toEqual(['providers.a.autoCompact']);
+    expect(pathsOf({ a: { harness: 'codex', autoCompact: 'auto' } })).toEqual(['providers.a.autoCompact']);
+    expect(claude({ launchArgs: '--chrome' })).toEqual(['providers.a.launchArgs']);
+    expect(claude({ launchArgs: ['--chrome', ''] })).toEqual(['providers.a.launchArgs.1']);
+    expect(claude({ command: '' })).toEqual(['providers.a.command']);
+    expect(claude({ command: 'claude' })).toEqual(['providers.a.command']);
+    expect(claude({ idleCompaction: 'false' })).toEqual(['providers.a.idleCompaction']);
+    expect(pathsOf({ a: { harness: 'codex', idleCompaction: false } })).toEqual(['providers.a.idleCompaction']);
+    expect(pathsOf({ a: { harness: 'agy', idleCompaction: false } })).toEqual(['providers.a.idleCompaction']);
+    expect(pathsOf({ a: { harness: 'agy', autoCompact: 'auto' } })).toEqual(['providers.a.autoCompact']);
+  });
+
+  test('every form of a flag Carrier sets is refused, one that is not on the list passes', () => {
+    const refused = (harness: string, launchArgs: string[]) => errorsOf({ a: { harness, launchArgs } }).map((e) => e.path);
+    for (const args of [['--model=x'], ['--model', 'x'], ['-p'], ['--settings={}'], ['--autocompact', '200000'], ['--chrome', '--add-dir', '/tmp']]) expect(refused('claude', args)).toEqual([expect.stringMatching(/^providers\.a\.launchArgs\.\d$/)]);
+    for (const args of [['--model=x'], ['--model', 'x'], ['--json'], ['--sandbox', 'read-only'], ['--dangerously-bypass-approvals-and-sandbox'], ['-c', 'model_provider=x'], ['-cmodel_provider=x'], ['--config', 'model_provider=x'], ['--config=model_provider=x'], ['-c', 'carrier_marker="x"'], ['-c', 'model_auto_compact_token_limit=1']]) {
+      expect(refused('codex', args)).toEqual([expect.stringMatching(/^providers\.a\.launchArgs\.\d$/)]);
+    }
+    expect(loadProviders({ providers: { a: { harness: 'claude', launchArgs: ['--chrome', '--model-x'] }, b: { harness: 'codex', launchArgs: ['-c', 'model_reasoning_effort=high', '-cshell_environment_policy.inherit=all', '--config=sandbox_mode=x'] } } }).ok).toBe(true);
+    expect(loadProviders({ providers: { a: { harness: 'codex', launchArgs: ['-p', '--settings'] } } }).ok).toBe(true);
+  });
+
+  test('a refusal names the flag and never the value of an argument', () => {
+    expect(errorsOf({ a: { harness: 'claude', launchArgs: ['--model=secret-value'] } })[0]!.message).not.toContain('secret-value');
+    expect(errorsOf({ a: { harness: 'codex', launchArgs: ['-c', 'model_provider=secret-value'] } })[0]!.message).not.toContain('secret-value');
+  });
 });

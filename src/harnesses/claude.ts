@@ -8,7 +8,7 @@ import { boundOutput, caps, clean, type AgentEvent, type EventState } from '../e
 /** Headless Claude as in docs/research/headless-agents.md; stdin is closed by the runner. */
 export function buildClaudeCommand(task: AgentTask, ctx: CommandContext): AgentCommand {
   return {
-    bin: ctx.binary,
+    bin: task.command ?? ctx.binary,
     args: [
       '-p',
       buildPrompt(task, { forgeAgent: ctx.forgeAgent }),
@@ -25,6 +25,10 @@ export function buildClaudeCommand(task: AgentTask, ctx: CommandContext): AgentC
       '--name',
       markerFor(task.executionId),
       ...(task.resumeSession ? ['--resume', task.resumeSession] : []),
+      ...(task.autoCompact === undefined ? [] : ['--autocompact', String(task.autoCompact)]),
+      // Per run, so the person's own settings.json stays as it is.
+      ...(task.idleCompaction === undefined ? [] : ['--settings', JSON.stringify({ idleCompaction: task.idleCompaction })]),
+      ...(task.launchArgs ?? []),
     ],
     cwd: task.workspace,
     env: { ...childEnv(ctx), ...(task.provider ? claudeLocalEnv(task.provider) : {}), ...(task.configDir && { CLAUDE_CONFIG_DIR: task.configDir }), CARRIER_RESULT_PATH: task.resultPath },

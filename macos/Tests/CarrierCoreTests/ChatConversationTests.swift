@@ -331,6 +331,10 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
         case .bullet(let level, _): "bullet\(level)"
         case .code(let language, _, let code): "code \(language ?? "-") \(code.split(separator: "\n").count)"
         case .gap: "gap"
+        case .table: "table"
+        case .numbered: "numbered"
+        case .quote: "quote"
+        case .rule: "rule"
         }
     }
     #expect(blocks.map(shape) == [
@@ -975,4 +979,40 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
     #expect(ConversationModel.words(ControlError.timeout) == "The chat host took too long to answer")
     #expect(ConversationModel.words(ControlError.badLine) == "The chat host sent something that was not understood")
     #expect(ConversationModel.words(ControlError.closed) == "The chat host is not answering")
+}
+
+@Test func aTableOfPipesIsOneBlockWithItsAlignmentsAndItsRowsCompleted() {
+    let blocks = markdownBlocks("Intro\n\n| Team | People |\n|:---|---:|\n| **Dollar** | Alex, Pipe |\n| Markets |\n\nAfter")
+    guard blocks.count == 5, case .table(let table) = blocks[2] else { Issue.record("expected one table, got \(blocks)"); return }
+    #expect(table.header.map { String($0.characters) } == ["Team", "People"] && table.aligns == [.leading, .trailing])
+    #expect(table.rows.map { $0.map { String($0.characters) } } == [["Dollar", "Alex, Pipe"], ["Markets", ""]])
+    #expect(blocks.map { if case .table = $0 { "table" } else { "other" } } == ["other", "other", "table", "other", "other"])
+    // a table still being written: the header with no separator yet is a line, and one with no rows is a table without rows
+    if case .line = markdownBlocks("| a | b |")[0] {} else { Issue.record("a lone header is a line") }
+    guard case .table(let early) = markdownBlocks("| a | b |\n|---|---|")[0] else { Issue.record("expected a table"); return }
+    #expect(early.rows.isEmpty && early.header.count == 2)
+    // a pipe inside a cell, escaped, and a line that only looks like a table
+    guard case .table(let escaped) = markdownBlocks("| a |\n|---|\n| x \\| y |")[0] else { Issue.record("expected a table"); return }
+    #expect(String(escaped.rows[0][0].characters) == "x | y")
+    if case .line = markdownBlocks("| not | a table |\nnext line")[0] {} else { Issue.record("no separator, no table") }
+}
+
+@Test func numberedItemsQuotesAndRulesAreBlocksOfTheirOwn() {
+    let blocks = markdownBlocks("1. first\n  2) second\n> quoted\n> and more\n---\n***bold*** is not a rule\n10 apples")
+    func shape(_ block: MarkdownBlock) -> String {
+        switch block {
+        case .numbered(let level, let number, _): "numbered \(level) \(number)"
+        case .quote(let text): "quote \(String(text.characters).replacingOccurrences(of: "\n", with: "/"))"
+        case .rule: "rule"
+        case .line: "line"
+        default: "other"
+        }
+    }
+    #expect(blocks.map(shape) == ["numbered 0 1", "numbered 1 2", "quote quoted/and more", "rule", "line", "line"])
+}
+
+@Test func aTableCopiesAsTabsForASpreadsheetAndAsMarkdownWithItsAlignments() {
+    guard case .table(let table) = markdownBlocks("| Plan | Price |\n|:--|--:|\n| **Free** | $0 |\n| Team | a \\| b |")[0] else { Issue.record("expected a table"); return }
+    #expect(table.tsv == "Plan\tPrice\nFree\t$0\nTeam\ta | b")
+    #expect(table.markdown == "| Plan | Price |\n| --- | ---: |\n| Free | $0 |\n| Team | a \\| b |")
 }

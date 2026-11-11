@@ -43,7 +43,7 @@ The appcast must never name a version the tap does not have yet, or a person wou
 
 `brew upgrade` of the formula may also upgrade what it depends on (`node`, `git`, `gh`) and their installed dependents, so it can take a while and it can move those; the app runs `brew update` first, because Homebrew updates its taps only every 24 hours (5 minutes for a fully qualified third-party name). A pinned formula is skipped and a `brew update` running elsewhere makes ours fail on its lock: both are reported, not retried.
 
-Homebrew itself can still upgrade the app, when it is older than the cask: it quits the running app to replace it. `HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS` turns that off, and the cask cannot set it.
+Homebrew itself can still upgrade the app, when it is older than the cask. The spike observed that it does not quit the running app (the cask has no `quit` stanza): it swaps the files under the running process, which keeps running the old code until it is reopened. `HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS` turns that off, and the cask cannot set it.
 
 The app now runs a package manager on the person's machine. It does so only after the person has accepted the app's update (or has chosen to install without asking), it uses one fixed command, and it never retries by itself.
 

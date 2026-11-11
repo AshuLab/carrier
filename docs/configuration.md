@@ -110,7 +110,7 @@ The file holds no secret; a log names an account and a flag, never the value of 
 
 Without `providers.json` there is one account per harness, named after it: `claude`, `codex` and `agy`, each with this Mac's own login (no `configDir`) and `enabled: false`. A role may name them, and since none is offered an epic never waits for a choice. A file that has a `providers` key replaces them: only the accounts it lists exist.
 
-`carrier init` writes the providers it collects to `providers.json` in the Carrier folder, even when `--out` puts the config elsewhere, and when it edits an existing setup it starts from the accounts already in that file. When assigning roles, each role points at a declared provider and specifies its model.
+`carrier init` does not ask which providers to use: it looks for the agent CLIs on the Mac (their real binary, never a wrapper under `~/.paradev` or `~/.superset`), shows where each is with its version and whether it is signed in, and writes one account per CLI it found, named after it, with `enabled: false`. It then asks only for extra accounts (another login of the same CLI, or one on a local server). The accounts go to `providers.json` in the Carrier folder, even when `--out` puts the config elsewhere, and the recap says so. The flags that declare an account (`--author-provider` and the like) add it to the file, and `--yes` writes it without asking. When it edits an existing setup it starts from the accounts already in that file instead. When assigning roles, each role points at a declared provider and specifies its model.
 
 ## Agents and roles
 

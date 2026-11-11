@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterAll } from 'vitest';
 import { carrierHome } from '../../config/default-path.ts';
 import { providersPathOf } from '../../config/providers.ts';
+import type { Machine } from '../../doctor/detect.ts';
 import type { Check } from '../../doctor/doctor.ts';
 import type { Ui } from '../prompts/types.ts';
 import type { InitDeps } from './deps.ts';
@@ -55,13 +56,14 @@ export const quietUi = (scripted: Answers = {}) => {
   const getAnswer = (message: string) => take(message);
   const asked: string[] = [];
   const listed: string[][] = [];
+  const notes: { title?: string; message: string }[] = [];
   const ui: Ui = {
     interactive: true,
     checkStart: () => {},
     checksEnd: (total, failed) => void asked.push(`checks:${total}/${failed}`),
     intro: () => {},
     outro: (m) => asked.push(`outro:${m}`),
-    note: () => {},
+    note: (message, title) => void notes.push({ message, title }),
     warn: (m) => asked.push(`warn:${m}`),
     check: () => {},
     text: async ({ message, defaultValue }) => {
@@ -88,11 +90,20 @@ export const quietUi = (scripted: Answers = {}) => {
       return typeof answer === 'string' ? answer.split(',') : (initialValues ?? []);
     },
   };
-  return { ui, asked, listed };
+  return { ui, asked, listed, notes };
 };
 
-/** Adds a second provider (the machine's other CLI, on its defaults) to the first, then stops: Claude and Codex. */
-export const twoOptions = { 'Add another AI provider?': [true, false] };
+/** A Mac with `claude` and `codex` installed and signed in, no `agy`, and no local server running. */
+export const fakeMachine = (over: Partial<Machine> = {}): Machine => ({
+  resolveBinary: (name) => {
+    if (name === 'agy') throw new Error('cannot find the real "agy" binary on PATH');
+    return `/opt/bin/${name}`;
+  },
+  version: async () => '1.0.0',
+  login: async () => 'in',
+  localModels: async () => Promise.reject(new Error('not running')),
+  ...over,
+});
 
 export const okCheck: Check = { name: 'x', status: 'ok' };
 export const fakeDeps = (over: Partial<InitDeps> = {}) => {
@@ -106,7 +117,7 @@ export const fakeDeps = (over: Partial<InitDeps> = {}) => {
     codexModel: () => 'gpt-test',
     codexModels: () => [],
     agyModels: () => [],
-    localModels: async () => Promise.reject(new Error('not running')),
+    machine: fakeMachine(),
     configFolders: () => [],
     loggedIn: async () => true,
     exists: () => false,

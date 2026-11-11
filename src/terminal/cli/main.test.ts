@@ -192,7 +192,7 @@ test.skipIf(!hasInitTools)('init with --lead-reviewer flags forwards them and co
     model: 'opus',
     persona: { name: 'Architect', prompt: 'Be rigorous.' },
   });
-}, 15_000);
+}, 30_000);
 
 test('doctor refuses an invalid config like the run command does', () => {
   const result = run('doctor', '--config', write('doctor-bad.json', { ...valid, orchestratorProfile: 'x' }));

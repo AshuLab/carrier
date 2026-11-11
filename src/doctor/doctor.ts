@@ -45,7 +45,7 @@ const AGY_TIMEOUT_MS = 30_000; // logged in answers in about five seconds
 const AGY_LOGGED_OUT = 'Authentication required';
 
 // Antigravity has no status command, so ask for /usage: it costs nothing. The stderr is never kept past the first line (it holds the login URL).
-function startAgy(): AgyProcess {
+export function startAgy(): AgyProcess {
   const cwd = mkdtempSync(join(tmpdir(), 'carrier-agy-'));
   const child = spawn('agy', ['-p', '/usage', '--output-format', 'json'], { cwd, env: { ...process.env, BROWSER: 'true' }, stdio: ['ignore', 'pipe', 'pipe'] });
   child.once('close', () => rmSync(cwd, { recursive: true, force: true }));
@@ -53,7 +53,7 @@ function startAgy(): AgyProcess {
 }
 
 /** 'in' on status SUCCESS, 'out' at the first stderr line asking for login (the process is killed then, not awaited), 'unknown' otherwise. */
-function agyLogin(deps: Pick<DoctorDeps, 'startAgy'>): Promise<'in' | 'out' | 'unknown'> {
+export function agyLogin(deps: Pick<DoctorDeps, 'startAgy'>): Promise<'in' | 'out' | 'unknown'> {
   return new Promise((resolve, reject) => {
     const child = deps.startAgy();
     let out = '';

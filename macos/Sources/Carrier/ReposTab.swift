@@ -12,6 +12,8 @@ struct ReposTabView: View {
     @State private var saved: [String] = []
     @State private var draft: [String] = []
     @State private var unreadable = false
+    /// the file as `load` read it, for the roles on a repo's page
+    @State private var configData: Data?
     @State private var failure: String?
     @State private var note: String?
     /// the repo whose ✕ was pressed
@@ -99,12 +101,13 @@ struct ReposTabView: View {
         }
     }
 
-    /// The chosen repo's page; its other cards come in the next slices.
+    /// The chosen repo's page; its Ready for Carrier card comes in the next slice.
     @ViewBuilder private func detail(_ row: RepoRow?) -> some View {
         if let row {
             VStack(alignment: .leading, spacing: 12) {
                 Text(row.name).font(.headline)
                 RepoStatusCard(status: repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine))))
+                if let roles = configData.flatMap({ repoRoles(json: $0, repo: row.name) }) { RepoRolesCard(rows: roles.rows) }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         } else {
@@ -115,6 +118,7 @@ struct ReposTabView: View {
     private func load() {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)), let names = configRepoNames(json: data) else {
             unreadable = true
+            configData = nil
             saved = []
             draft = []
             note = nil
@@ -122,6 +126,7 @@ struct ReposTabView: View {
             return
         }
         unreadable = false
+        configData = data
         saved = names
         draft = names
     }
@@ -174,6 +179,22 @@ private struct RepoStatusCard: View {
                 }
                 SettingsTabRow(title: "On GitHub", detail: status.gitHubURL.map { "github.com\($0.path)" } ?? "") {
                     if let url = status.gitHubURL { Button("Open") { NSWorkspace.shared.open(url) } }
+                }
+            }
+        }
+    }
+}
+
+/// Who works here: each role with what it inherits from the global roles, or the repo's own. Read-only for now.
+private struct RepoRolesCard: View {
+    let rows: [RepoRoleRow]
+
+    var body: some View {
+        SettingsGroup(title: "Who works here") {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                SettingsTabRow(title: row.title, detail: row.isOwn ? "Default: \(row.inherited.text)" : row.value.text, first: index == 0) {
+                    Text(row.isOwn ? row.value.text : "Same as everywhere").font(.caption).foregroundStyle(.secondary)
+                        .lineLimit(2).multilineTextAlignment(.trailing)
                 }
             }
         }

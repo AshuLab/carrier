@@ -474,6 +474,16 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var agent = ""
     /// Whether the session's agent process runs; a session that is not live shows the closed notice and resumes when a message is sent.
     public private(set) var live = true
+    /// Whether the session is asleep: closed, and not on its way to another state (being archived, prepared or woken by a send). Only then the
+    /// closed notice shows. It holds at once the first time the session is read; after that a session has to stay closed for a second, as
+    /// archiving closes it a moment before the host's list says it is archived.
+    public private(set) var asleep = false
+    /// Whether a send is waking the session.
+    public private(set) var waking = false
+    @ObservationIgnored private var closedSince: Date?
+    @ObservationIgnored private var known = true
+    @ObservationIgnored private var preparingSession = false
+    private static let settle: TimeInterval = 1
     /// Whether the session is in the archive: its transcript is read only and the box gives way to a notice with Resume.
     public private(set) var archived = false
     /// The message whose send or resume the host refused, for the banner's Try again; nil with no refusal or when it was not a send.
@@ -563,18 +573,26 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
                 cursor = reply.cursor
                 changed = changed || reply.events.isEmpty == false
             } while reply.events.count >= Self.page
+            let first = loaded == false
             if let session = try await host.list(archived: false).first(where: { $0.id == sessionId }) {
                 agent = session.agent
                 live = session.live
                 archived = false
+                known = true
+                preparingSession = session.state == .preparing
             } else if let session = try await host.list(archived: true).first(where: { $0.id == sessionId }) {
                 agent = session.agent
                 live = false
                 archived = true
+                known = true
+                preparingSession = false
             } else {
                 live = false
                 archived = false
+                known = false
+                preparingSession = false
             }
+            settleAsleep(first: first)
             changed = changed || reply.streaming != streaming
             streaming = reply.streaming
             changed = changed || reply.pending != pending
@@ -724,10 +742,23 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         }
     }
 
+    private func settleAsleep(first: Bool) {
+        if live || archived || known == false || preparingSession || waking {
+            closedSince = nil
+        } else if closedSince == nil {
+            closedSince = first ? .distantPast : .now
+        }
+        let next = closedSince.map { Date.now.timeIntervalSince($0) >= Self.settle } ?? false
+        if asleep != next { asleep = next }
+    }
+
     /// Sends the text, resuming the session first when the host's list says it is not live. A refusal is shown and the text goes back
     /// to the box when it came from there or from the queue (`refill`); on success the box is emptied unless the person has typed something else.
     private func deliver(_ text: String, refill: Bool = true) async {
         sends += 1
+        waking = true
+        asleep = false
+        defer { waking = false }
         // the box empties on Enter and not when the host has answered; a refusal puts the text back
         if refill, draft.trimmingCharacters(in: .whitespacesAndNewlines) == text { draft = "" }
         do {

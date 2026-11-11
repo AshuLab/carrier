@@ -533,6 +533,31 @@ private func preview(_ id: String, _ worktree: SessionDeletePreview.Worktree?) -
     #expect(model.archived == false)
 }
 
+@MainActor @Test func theClosedNoticeIsForASleepingSessionNotForOneOnItsWayToAnotherState() async throws {
+    let host = FakeHost()
+    // read for the first time and closed: asleep at once
+    host.active = [try session("a", live: false)]
+    let sleeping = ConversationModel(host: host, sessionId: "a", log: { _ in })
+    await sleeping.poll()
+    #expect(sleeping.asleep)
+    // a live session that closes while it is open (archiving closes it before the list says archived) is not asleep yet
+    host.active = [try session("b")]
+    let leaving = ConversationModel(host: host, sessionId: "b", log: { _ in })
+    await leaving.poll()
+    host.active = [try session("b", live: false)]
+    await leaving.poll()
+    #expect(leaving.live == false && leaving.asleep == false)
+    host.active = []
+    host.archived = [try session("b", live: false, archived: true)]
+    await leaving.poll()
+    #expect(leaving.archived && leaving.asleep == false)
+    // a session being prepared is closed too, and is not asleep
+    host.active = [try session("c", state: "preparing", live: false)]
+    let preparing = ConversationModel(host: host, sessionId: "c", log: { _ in })
+    await preparing.poll()
+    #expect(preparing.asleep == false)
+}
+
 // Delete and Clear ask the host what would be lost first, and a refusal of `delete` is told with the session left alone.
 
 private func freshPreferences() -> AppPreferences { AppPreferences(defaults: UserDefaults(suiteName: "delete-\(UUID().uuidString)")!) }

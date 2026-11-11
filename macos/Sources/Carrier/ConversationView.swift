@@ -203,7 +203,7 @@ struct ConversationView: View {
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            if model.loaded, model.live == false { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
+            if model.asleep { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
             if let queued = model.queued {
                 HStack(spacing: 8) {
                     Image(systemName: "clock").foregroundStyle(.secondary)
@@ -228,7 +228,7 @@ struct ConversationView: View {
                     options: model.shownOptions,
                     // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app
                     // never saw running lists nothing, and the panel says so
-                    emptyNote: model.loaded && model.live == false ? "The provider lists these once the session is awake. Send a message to wake it up." : "Reading what the provider offers…",
+                    emptyNote: model.asleep ? "The provider lists these once the session is awake. Send a message to wake it up." : "Reading what the provider offers…",
                     busy: model.busy, chooseAgent: { _ in }, choose: { option, value in Task { await model.setOption(option, value) } }
                 )
             }
@@ -242,7 +242,7 @@ struct ConversationView: View {
             }
         }
         .animation(.smooth(duration: 0.25), value: model.queued)
-        .animation(.smooth(duration: 0.25), value: model.live)
+        .animation(.smooth(duration: 0.25), value: model.asleep)
         .animation(.smooth(duration: 0.25), value: pendingApprovals(model.rows).first?.approvalId)
         // the window asks the box for its smallest size with no width at all, and a notice that wraps would answer with a word a line:
         // taller than the window (a closed session's notice made it ask for 450 points more than it had)

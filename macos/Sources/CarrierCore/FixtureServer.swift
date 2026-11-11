@@ -37,8 +37,20 @@ public let fixtureConfig = """
     "author": {"profile": "acme-author", "provider": "claude", "model": "claude-sonnet-5-5", "effort": "high"},
     "reviewer": {"profile": "acme-reviewer", "provider": "codex", "model": "gpt-5", "effort": "high"},
     "leadReviewer": {"profile": "acme-lead", "provider": "claude", "model": "claude-opus-5"}
+  },
+  "failover": {
+    "roles": {
+      "author": [{"provider": "codex", "model": "gpt-5"}, {"provider": "claude-work"}],
+      "reviewer": [{"provider": "claude", "model": "claude-opus-5"}]
+    }
   }
 }
+"""
+
+/// The Agent Forge registry of the fixture home (`AGENT_FORGE_CONFIG` points at it under `--fixture`): the three bots of the roles and a spare one.
+/// A key would never be in a file the app reads, so none is here either.
+public let fixtureForgeRegistry = """
+{"agents": [{"name": "acme-author"}, {"name": "acme-reviewer"}, {"name": "acme-lead"}, {"name": "acme-spare", "label": "A bot no role uses"}]}
 """
 
 /// The golden doctor output the fixture home holds, for the app to answer its doctor run with in `--fixture` mode.
@@ -165,6 +177,7 @@ public final class FixtureServer {
             let state = home + "/engine/state"
             try FileManager.default.createDirectory(atPath: state, withIntermediateDirectories: true)
             try Data(fixtureConfig.utf8).write(to: URL(fileURLWithPath: home + "/config.json"))
+            try Data(fixtureForgeRegistry.utf8).write(to: URL(fileURLWithPath: home + "/agent-forge.json"))
             // what the app's doctor run answers in `--fixture` mode (`doctorFixtureOutput`)
             try Data(contentsOf: URL(fileURLWithPath: fixtures + "/doctor.json")).write(to: URL(fileURLWithPath: home + "/doctor.json"))
             try FileManager.default.createDirectory(atPath: home + "/chat/state", withIntermediateDirectories: true)

@@ -16,10 +16,11 @@ import Testing
     #expect(SettingsPage.pages(in: .legacy) == [.engine, .behavior, .sessions, .health])
 }
 
-@Test func theCarrierGroupHasItsHeadingAndHoldsRepos() {
+@Test func theCarrierGroupHasItsHeadingAndHoldsReposThenAgents() {
     #expect(SettingsPage.Group.carrier.heading == "Carrier")
-    #expect(SettingsPage.pages(in: .carrier) == [.repos])
+    #expect(SettingsPage.pages(in: .carrier) == [.repos, .agents])
     #expect(SettingsPage.repos.group == .carrier)
+    #expect(SettingsPage.agents.group == .carrier)
 }
 
 @Test func theRailListsTheAppGroupFirstAndEveryPageHasARow() {

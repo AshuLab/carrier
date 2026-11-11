@@ -5,6 +5,7 @@ public enum SettingsPage: String, CaseIterable {
     case keybindings = "Keybindings"
     case providers = "Providers"
     case repos = "Repos"
+    case agents = "Agents"
     case engine = "Engine", behavior = "Behavior", sessions = "Sessions", health = "Health"
 
     /// A group of the rail: the App and Providers ones have no heading, Carrier and Legacy have their own.
@@ -24,7 +25,7 @@ public enum SettingsPage: String, CaseIterable {
         switch self {
         case .general, .notifications, .appearance, .sidebar, .chat, .keybindings: .app
         case .providers: .providers
-        case .repos: .carrier
+        case .repos, .agents: .carrier
         case .engine, .behavior, .sessions, .health: .legacy
         }
     }
@@ -42,6 +43,7 @@ public enum SettingsPage: String, CaseIterable {
         case .engine: "cpu"
         case .behavior: "slider.horizontal.3"
         case .repos: "tray.full"
+        case .agents: "person.2"
         case .sessions: "clock.arrow.circlepath"
         case .health: "stethoscope"
         }
@@ -60,6 +62,7 @@ public enum SettingsPage: String, CaseIterable {
         case .engine: "How the app starts Carrier"
         case .behavior: "How epics run"
         case .repos: "What Carrier watches"
+        case .agents: "Who works on an epic and where it goes when its tokens run out"
         case .sessions: "When sessions age out"
         case .health: "Is this Mac ready?"
         }

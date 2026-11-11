@@ -1,6 +1,6 @@
 # 0020 - Accounts live in a file both processes read
 
-- Status: accepted
+- Status: accepted; its `enabled` key is superseded by [0021](0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md)
 - Date: 2026-11-10
 
 ## Context

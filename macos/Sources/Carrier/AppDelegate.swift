@@ -180,6 +180,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             let server = try FixtureServer(fixtures: fixtures, longTranscript: CommandLine.arguments.contains("--fixture-long-transcript"))
             setenv("CARRIER_HOME", server.home, 1)
+            // the Agents page lists the bots of this registry, names only
+            setenv("AGENT_FORGE_CONFIG", server.home + "/agent-forge.json", 1)
             fixtureServer = server
         } catch {
             FileHandle.standardError.write(Data("carrier: --fixture failed: \(error)\n".utf8))

@@ -4,9 +4,10 @@ import SwiftUI
 
 /// The Providers page of Settings (docs/specs/providers-in-settings.md): the AI tools of this Mac in a list, and for the chosen one its version
 /// and path with Update, its accounts with who uses each and Sign in for a signed-out one (`providersPage`) or, for a local server, its models.
-/// The page has no automated test; the rows are `providersPage`'s and the commands `providerCommand`'s.
+/// A tool found with no account has an Add (`ProvidersStore.add`). The page has no automated test; the rows are `providersPage`'s and the
+/// commands `providerCommand`'s.
 struct ProvidersTabView: View {
-    @State private var store = ProvidersStore(host: SocketChatHost())
+    private let store = AppHealth.providers
     @State private var selected = "claude"
     @State private var config: Data?
     @State private var chat: Data?
@@ -80,7 +81,14 @@ struct ProvidersTabView: View {
                 if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
                 switch tool.status {
                 case .missing: note("Not installed on this Mac.")
-                case .foundNotAdded: note("Found on this Mac and not added as an account yet.")
+                case .foundNotAdded:
+                    VStack(alignment: .leading, spacing: 8) {
+                        note("Found on this Mac and not added as an account yet.")
+                        HStack(spacing: 10) {
+                            Button("Add") { Task { await store.add(harness: tool.id) } }.buttonStyle(.glass).buttonBorderShape(.capsule)
+                            if let problem = store.addProblem { Text(problem).font(.callout).foregroundStyle(.red) }
+                        }
+                    }
                 default:
                     SettingsGroup(title: "Accounts") {
                         ForEach(Array(tool.accounts.enumerated()), id: \.element.id) { index, account in

@@ -50,7 +50,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SetupController.shared.detectIfFirstLaunch {
             guard underSelfTest == false else { return }
             // once the host answers (or was just started), ask how the machine is
-            ChatHostStarter.shared.checkAtOpen { _ in Task { @MainActor in await AppHealth.store.check(.open) } }
+            ChatHostStarter.shared.checkAtOpen { _ in
+                Task { @MainActor in
+                    await AppHealth.store.check(.open)
+                    await AppHealth.providers.createFileIfMissing()
+                }
+            }
         }
 
         if CommandLine.arguments.contains("--smoke-window") {

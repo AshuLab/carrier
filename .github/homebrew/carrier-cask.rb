@@ -7,6 +7,7 @@ cask "carrier" do
   desc "Mac app for Carrier, the autonomous epic orchestrator"
   homepage "https://github.com/AshuLab/carrier"
 
+  auto_updates true
   depends_on formula: "carrier"
   depends_on arch: :arm64
   depends_on macos: :tahoe
@@ -19,5 +20,8 @@ cask "carrier" do
     run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/Carrier.app"]
   end
 
-  zap trash: "~/Library/Preferences/dev.ashulab.carrier.plist"
+  zap trash: [
+    "~/Library/Caches/dev.ashulab.carrier",
+    "~/Library/Preferences/dev.ashulab.carrier.plist",
+  ]
 end

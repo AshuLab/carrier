@@ -45,7 +45,7 @@ For users: [configuration](docs/configuration.md), [preparing a repo](docs/prepa
 
 How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md). Every user-visible change adds a line under Unreleased in [CHANGELOG.md](CHANGELOG.md), in the same PR.
 
-A release is a pushed tag `vX.Y.Z`, run by `.github/workflows/release.yml`. The `release` skill (`.claude/skills/release`) is the same procedure by hand for when Actions is unavailable; change one, change the other.
+A release is a pushed tag `vX.Y.Z`, run by `.github/workflows/release.yml`; how a release flows to an installed Carrier, the update key and the checks of the first real release are in [releasing](docs/releasing.md). The `release` skill (`.claude/skills/release`) is the same procedure by hand for when Actions is unavailable; change one, change the other.
 
 ## solve skills
 

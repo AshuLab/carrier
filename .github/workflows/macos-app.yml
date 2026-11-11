@@ -21,3 +21,6 @@ jobs:
       - name: Test
         working-directory: macos
         run: swift test
+      - name: Bundle
+        working-directory: macos
+        run: scripts/check-app.sh

@@ -12,6 +12,8 @@ import Observation
     private(set) var missing: [String] = []
     /// An older host is left running because a session is working: the Sessions section and the Sessions home say to restart it.
     private(set) var restartAdvised = false
+    /// Why the installed `carrier` older than the app could not be upgraded with Homebrew; nothing was changed and it is not retried.
+    private(set) var upgradeNotice: ChatHostNotice?
     /// The installed `carrier` is asked its version once per launch.
     private var versionChecked = false
 
@@ -29,6 +31,7 @@ import Observation
         // the socket asked here and the one the start waits on are the same: the Carrier folder decides both
         let socket = command?.socketPath ?? chatSocketPath()
         let fixture = CommandLine.arguments.contains("--fixture")
+        let homebrews = carrier == homebrewCarrier
         DispatchQueue.global().async {
             let answers = ControlClient.connect(path: socket) != nil
             DispatchQueue.main.async {
@@ -41,7 +44,7 @@ import Observation
                 case .leave:
                     if answers, self.versionChecked == false, self.starting == false, fixture == false, let command {
                         self.versionChecked = true
-                        self.replaceIfOlder(command)
+                        self.replaceIfOlder(command, homebrews: homebrews)
                     }
                     done(answers)
                 case .missing(let names):
@@ -59,6 +62,11 @@ import Observation
                         DispatchQueue.main.async {
                             self.starting = false
                             if let failure { StartController.showAlert(title: "The chat host did not start", reason: failure.reason, tail: failure.tail) }
+                            // a host the app just started runs the installed `carrier`, which may be the one to upgrade
+                            if failure == nil, self.versionChecked == false, fixture == false {
+                                self.versionChecked = true
+                                self.replaceIfOlder(command, homebrews: homebrews)
+                            }
                             done(failure == nil)
                         }
                     }
@@ -68,25 +76,56 @@ import Observation
     }
 
     /// A host that answers while the installed `carrier` is newer is replaced when no session is working or waiting, and otherwise
-    /// left running with a notice. Anything that cannot be read leaves it alone, and says so in the log.
-    private func replaceIfOlder(_ command: StartCommand) {
+    /// left running with a notice. Anything that cannot be read leaves it alone, and says so in the log. Before that, a Homebrew
+    /// `carrier` older than the app is upgraded and its version read again. After the host, the engine gets the same comparison.
+    private func replaceIfOlder(_ command: StartCommand, homebrews: Bool) {
         Task.detached {
-            guard let installed = Self.installedVersion(command) else { return }
-            guard let client = ControlClient.connect(path: command.socketPath) else { return }
-            let running = (try? client.hello())?.version ?? ""
-            client.close()
-            let sessions: [ChatSession]
-            do { sessions = try await SocketChatHost(socketPath: { command.socketPath }).list(archived: false) } catch {
-                FileHandle.standardError.write(Data("carrier: the chat host was left alone, its sessions could not be listed: \(error)\n".utf8))
-                return
+            guard var installed = Self.installedVersion(command) else { return }
+            let app = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+            if homebrews, carrierIsOlder(installed: installed, app: app), CommandLine.arguments.contains("--selftest") == false {
+                BrewRunner.startLog()
+                switch upgradeCarrier(installed: installed, app: app, brew: BrewRunner.run) {
+                case .notNeeded: break
+                case .upgraded:
+                    guard let again = Self.installedVersion(command) else { return }
+                    installed = again
+                case .failed(let notice):
+                    FileHandle.standardError.write(Data("carrier: the installed carrier was not upgraded, see \(BrewRunner.logPath)\n".utf8))
+                    await MainActor.run { self.upgradeNotice = notice }
+                    return
+                }
             }
-            // ponytail: a session that starts working between the list and the stop is closed with the host; a guard in the host if it bites
-            switch hostReplacement(running: running, installed: installed, working: sessions.contains { $0.state != .idle }) {
-            case .keep: break
-            case .askRestart: await MainActor.run { self.restartAdvised = true }
-            case .replace: await self.replace(command)
-            }
+            await self.replaceHostIfOlder(command, installed: installed)
+            await self.replaceEngineIfOlder(installed: installed)
         }
+    }
+
+    private func replaceHostIfOlder(_ command: StartCommand, installed: String) async {
+        guard let client = ControlClient.connect(path: command.socketPath) else { return }
+        let running = (try? client.hello())?.version ?? ""
+        client.close()
+        let sessions: [ChatSession]
+        do { sessions = try await SocketChatHost(socketPath: { command.socketPath }).list(archived: false) } catch {
+            FileHandle.standardError.write(Data("carrier: the chat host was left alone, its sessions could not be listed: \(error)\n".utf8))
+            return
+        }
+        // ponytail: a session that starts working between the list and the stop is closed with the host; a guard in the host if it bites
+        switch hostReplacement(running: running, installed: installed, working: sessions.contains { $0.state != .idle }) {
+        case .keep: break
+        case .askRestart: await MainActor.run { restartAdvised = true }
+        case .replace: await replace(command)
+        }
+    }
+
+    /// An engine that is running and older than the installed `carrier` is replaced once it is free; one that is stopped stays so.
+    /// A failed start shows the engine's own alert.
+    private func replaceEngineIfOlder(installed: String) async {
+        let result = await replaceEngine(
+            socketPath: controlSocketPath(), installed: installed,
+            beforeStop: { NotificationWatcher.app.expectStop() },
+            start: { await withCheckedContinuation { next in DispatchQueue.main.async { StartController.shared.start { next.resume(returning: $0) } } } }
+        )
+        if case .failed(let reason) = result { FileHandle.standardError.write(Data("carrier: the older engine was not replaced: \(reason)\n".utf8)) }
     }
 
     /// Stops the host, waits for its socket to go, starts the installed one; a failed start keeps the alert. A start that is already

@@ -84,7 +84,7 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
 @Test func aHostOfAnotherProtocolIsNotAskedAndSaysWhichSideToUpdate() async {
     let cases = [
         (0, "carrier is older than this app. Run brew upgrade carrier in Terminal, then restart Carrier."),
-        (2, "This app is older than carrier. Run brew upgrade --cask carrier in Terminal, then open the app again."),
+        (2, "This app is older than carrier. It updates itself; if it has not, run brew upgrade --cask carrier in Terminal, then open the app again."),
     ]
     for (version, sentence) in cases {
         var asked = false

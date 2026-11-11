@@ -23,6 +23,18 @@ public func hostReplacement(running: String, installed: String, working: Bool) -
     return working ? .askRestart : .replace
 }
 
+/// What the app does about an engine older than the installed `carrier`: leave it, pause intake until its executions end, or replace it.
+public enum EngineReplacement: Equatable { case keep, pauseAndWait, replace }
+
+/// The host's comparison, with executions in flight where the host has a session working: an engine that is working is not stopped.
+public func engineReplacement(running: String, installed: String, executionsInFlight: Int) -> EngineReplacement {
+    switch hostReplacement(running: running, installed: installed, working: executionsInFlight > 0) {
+    case .keep: .keep
+    case .askRestart: .pauseAndWait
+    case .replace: .replace
+    }
+}
+
 /// What the Sessions section and the Sessions home say while an older host is left running because a session is working.
 public let chatHostRestartNotice = ChatHostNotice(
     title: "The chat host is older than Carrier",

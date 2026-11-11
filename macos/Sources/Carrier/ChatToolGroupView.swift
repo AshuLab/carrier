@@ -363,7 +363,7 @@ private struct CallRowView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("\(call.tool) \(call.arg), \(call.result.isEmpty ? "running" : call.result)")
             .accessibilityHint(open ? "Hides the detail" : "Shows the detail")
-            if open { CallDetailView(call: call).padding(.leading, 25).padding(.bottom, 6) }
+            if open { CallDetailView(call: call).padding(.leading, 25).padding(.top, 6).padding(.bottom, 6) }
         }
     }
 

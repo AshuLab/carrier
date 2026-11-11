@@ -135,7 +135,7 @@ brew uninstall --cask carrier   # the app first: it depends on the command
 brew uninstall carrier          # the command
 ```
 
-This leaves `~/.carrier` (or your `CARRIER_HOME`), with your config, sessions and clones. Add `--zap` to the cask (`brew uninstall --zap --cask carrier`) to remove also the app's own preferences (`~/Library/Preferences/dev.ashulab.carrier.plist`), and nothing else.
+This leaves `~/.carrier` (or your `CARRIER_HOME`), with your config, sessions and clones. Add `--zap` to the cask (`brew uninstall --zap --cask carrier`) to remove also the app's own preferences (`~/Library/Preferences/dev.ashulab.carrier.plist`) and its cache, where the updater keeps what it downloads (`~/Library/Caches/dev.ashulab.carrier`), and nothing else.
 
 To remove the Carrier folder as well, stop Carrier first (`carrier stop` and `carrier chat --stop`), then delete it by hand:
 

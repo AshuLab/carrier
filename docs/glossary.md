@@ -17,8 +17,11 @@ _Avoid_: skill, orchestrator when referring to the agent that interprets the rep
 **Harness** - The agent CLI that runs the loop and the tools of an execution (Claude Code, Codex, Antigravity). Carrier launches it as a child process, as the user's normal CLI. It is the `harness` of an agent in the config.
 _Avoid_: provider, agent (the author and the reviewer are agents; the harness is what runs them), runner.
 
-**Model provider** - Who serves the model the harness uses: the harness's own cloud (Anthropic for Claude Code, OpenAI for Codex) or a local server (LM Studio, Ollama). It is the optional `provider` of an agent; without it, the harness's own cloud.
+**Model provider** - Who serves the model the harness uses: the harness's own cloud (Anthropic for Claude Code, OpenAI for Codex) or a local server (LM Studio, Ollama). It is the optional `provider` of an account; without it, the harness's own cloud.
 _Avoid_: harness, local model (a local model is a model whose provider is a local server).
+
+**Account** - One login of an agent CLI that Carrier can run an agent with: a name, its harness, where its login lives (a config folder, `CLAUDE_CONFIG_DIR` or `CODEX_HOME`, or this Mac's own) and how its CLI is run (binary, launch arguments, compaction). It is what the config calls a `provider`: a role, a failover list and a chat agent each name one. It is kept in `providers.json`, and the app's Providers page lists the tools found on this Mac with their accounts under each. An account is offered when an epic's agent option is chosen only if it is `enabled`.
+_Avoid_: provider (the app's page of tools, and the config key under which accounts are kept), login, connection, option (the older name), identity (a GitHub profile is that).
 
 **GitHub profile** - User-configured reference to an available GitHub identity and its authentication mechanism. It is assigned to the orchestrator, author or reviewer; it is independent of the AI harness/model and of an agent's working session.
 _Avoid_: model, agent session, AI identity for a GitHub account.
@@ -50,7 +53,7 @@ _Avoid_: external reviewer, review bot.
 **Carrier folder** - The one folder where Carrier keeps everything it owns: `~/.carrier/` by default, changed with `CARRIER_HOME`. It holds the engine's config (`config.json`) and one subfolder per process, each with its own state, logs and lock: `engine/` (with its `state/`, `logs/`, `repos/`, `worktrees/` and `reviews/`) and `chat/` (with its config `chat.json`, its `projects/` and its `worktrees/`). Solve never receives it ([0016](adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)). It is independent of where the app's code lives or from where it is started.
 _Avoid_: shared root, root, Carrier home (that is the app's page of the Carrier world), data folder, workspace (it is an epic's checkout, inside `engine/worktrees/`).
 
-**Config level** - One of the three places a setting lives, by who reads it: the engine's `config.json`, the chat's `chat/chat.json` and the app's preferences (user defaults, read only by the app). A setting lives in one level and no process reads another's. The chat host starts with neither file; the engine needs its own.
+**Config level** - One of the four places a setting lives, by who reads it: the engine's `config.json`, the chat's `chat/chat.json`, the app's preferences (user defaults, read only by the app) and `providers.json`, the accounts that the engine and the chat host both read ([0020](adr/0020-accounts-live-in-a-file-both-processes-read.md)). A setting lives in one level and no process reads another's, except the accounts. The chat host starts with neither `chat.json` nor `providers.json`; the engine needs its own `config.json`.
 _Avoid_: settings file (there are two files and the preferences), global config.
 
 **Health check** - The app's answer to "is everything Carrier needs ready?", in the Health tab of Settings, in three layers: this Mac (`git`, `gh` and the logins of `claude`, `codex` and `gh`), Carrier itself (the `carrier` command, the chat host, the engine) and the engine's setup (the checks of `carrier doctor`, once there is a config). Each check is ready, missing, signed out or unknown, and what a failure breaks is switched off with its reason.

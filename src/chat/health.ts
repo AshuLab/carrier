@@ -1,8 +1,12 @@
 import { execFile } from 'node:child_process';
+import { createScopedLogger } from '@ashulab/universal-logger';
 import { cliLoggedIn } from '../doctor/doctor.ts';
 import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
+import { chatAccount, readAccounts } from './account.ts';
 import type { ChatAgent } from './config.ts';
+
+const log = createScopedLogger('chat');
 
 /** What one check comes to. `unknown`: the probe timed out, could not start or could not be read. */
 export type ToolState = 'ready' | 'missing' | 'signedOut' | 'unknown';
@@ -14,8 +18,8 @@ const SYSTEM_GIT = '/usr/bin/git';
 
 /** The probes the health check runs. Each rejects when it cannot tell; only verdicts leave them, never the output. */
 export interface HealthProbes {
-  /** Whether the harness's CLI is logged in (the doctor's `cliLoggedIn`). */
-  loggedIn(harness: ChatAgent['harness'], timeoutMs: number): Promise<boolean>;
+  /** Whether the account's CLI is logged in (the doctor's `cliLoggedIn`), with the account's own folder and binary. */
+  loggedIn(harness: 'claude' | 'codex', account: { configDir?: string; command?: string }, timeoutMs: number): Promise<boolean>;
   /** The exit code of `command args`, run without a shell. */
   exitCode(command: string, args: string[], timeoutMs: number): Promise<number>;
   /** The `git` the host's PATH finds; throws when there is none. */
@@ -23,7 +27,7 @@ export interface HealthProbes {
 }
 
 export const realProbes: HealthProbes = {
-  loggedIn: (harness, timeoutMs) => cliLoggedIn(harness, undefined, timeoutMs),
+  loggedIn: (harness, { configDir, command }, timeoutMs) => cliLoggedIn(harness, configDir, timeoutMs, command),
   exitCode: (command, args, timeoutMs) =>
     new Promise((resolve, reject) =>
       execFile(command, args, { timeout: timeoutMs }, (error) => {
@@ -58,10 +62,20 @@ export function createHealth({ agents, clock, binaryFound, probes }: { agents: C
   const signedIn = async (ok: Promise<boolean>): Promise<ToolState> => ((await ok) ? 'ready' : 'signedOut');
 
   const gh = async () => (binaryFound('gh') ? signedIn(probes.exitCode('gh', ['auth', 'status', '--hostname', 'github.com'], PROBE_LIMIT_MS).then((code) => code === 0)) : 'missing');
-  const agent = async ({ command, harness }: ChatAgent) => (binaryFound(command ?? harness) ? signedIn(probes.loggedIn(harness, PROBE_LIMIT_MS)) : 'missing');
+  // Each agent is judged by its own account, read now; one whose account cannot be used is `unknown`, and the host's log says why.
+  const accountOf = (chosen: ChatAgent) => {
+    try {
+      return chatAccount(readAccounts(), chosen);
+    } catch (error) {
+      log.warn('a chat agent has no usable account', { agent: chosen.name, reason: error instanceof Error ? error.message : String(error) });
+      return undefined;
+    }
+  };
+  const agent = async ({ harness, command, configDir }: NonNullable<ReturnType<typeof accountOf>>) => (binaryFound(command ?? harness) ? signedIn(probes.loggedIn(harness, { configDir, command }, PROBE_LIMIT_MS)) : 'missing');
   const probe = async (): Promise<Health> => {
-    const [git, ghState, ...states] = await Promise.all([limited(() => gitState({ binaryFound, probes })), limited(gh), ...agents.map((chosen) => limited(() => agent(chosen)))]);
-    return { git, gh: ghState, agents: agents.map(({ name, harness }, index) => ({ name, harness, state: states[index]! })) };
+    const accounts = agents.map(accountOf);
+    const [git, ghState, ...states] = await Promise.all([limited(() => gitState({ binaryFound, probes })), limited(gh), ...accounts.map((account) => (account === undefined ? 'unknown' : limited(() => agent(account))))]);
+    return { git, gh: ghState, agents: agents.map(({ name }, index) => ({ name, harness: accounts[index]?.harness ?? 'unknown', state: states[index]! })) };
   };
 
   let kept: { at: number; health: Promise<Health> } | undefined;

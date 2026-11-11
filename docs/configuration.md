@@ -216,14 +216,14 @@ Profile names used in an override must exist in `profiles`, and provider names i
 
 ## Chat configuration
 
-The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrier`, or `CARRIER_HOME`) and read no engine config. Everything the chat owns is in `<folder>/chat/` (`state/`, `logs/`, `projects/`, `worktrees/`), and its settings are in the optional `<folder>/chat/chat.json`. Every key is optional and so is the file; with neither, the chat uses the defaults below. Unknown keys are errors. A file that is not valid JSON or does not match makes `carrier chat-host` exit with a message that names the file and the key, and the host does not start.
+The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrier`, or `CARRIER_HOME`) and read no engine config. The chat reads `providers.json` in the same folder for its accounts, and nothing else of the engine's. Everything the chat owns is in `<folder>/chat/` (`state/`, `logs/`, `projects/`, `worktrees/`), and its settings are in the optional `<folder>/chat/chat.json`. Every key is optional and so is the file; with neither, the chat uses the defaults below. Unknown keys are errors. A file that is not valid JSON or does not match makes `carrier chat-host` exit with a message that names the file and the key, and the host does not start.
 
 ```json
 {
   "agents": {
-    "claude": { "harness": "claude" },
-    "claude-opus": { "harness": "claude", "model": "opus", "options": { "permissionMode": "plan" } },
-    "codex": { "harness": "codex", "command": "/opt/homebrew/bin/codex" }
+    "claude": { "account": "claude" },
+    "claude-opus": { "account": "claude-work", "model": "opus", "options": { "permissionMode": "plan" } },
+    "codex": { "account": "codex" }
   },
   "projectsFolder": "~/Projects/carrier",
   "githubCallTimeoutSeconds": 30,
@@ -235,7 +235,7 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `agents` | `claude` and `codex` | The agents a chat can start with, by name, in the order written, and only those (`{}` means none). `carrier chat` without `--agent` uses the first. See [Chat agents](#chat-agents). Read when the host starts. |
+| `agents` | `claude` and `codex` | The agents a chat can start with, by name, in the order written, and only those (`{}` means none). `carrier chat` without `--agent` uses the first. See [Chat agents](#chat-agents). Read when the host starts (the accounts they name are read from `providers.json` at each request). |
 | `projectsFolder` | `<folder>/chat/projects` | Where the host puts the repositories it clones (`<owner>/<repo>` inside it). An absolute path, or one starting with `~/`. It may not lie inside `<folder>/engine/` or the chat's own `state/`, `logs/` or `worktrees/`. Read at each request, so a change applies to the next clone with no restart. See [Projects folder](#projects-folder). |
 | `githubCallTimeoutSeconds` | `30` | A positive whole number: how long a call to GitHub (the repository list, the login) may take. Read when the host starts. |
 | `logLevel` | `info` | `debug`, `info`, `warn` or `error`. Read when the host starts. |
@@ -259,13 +259,14 @@ The reasons are in [ADR 0019](adr/0019-sessions-age-by-the-clock-and-an-automati
 
 ## Chat agents
 
-A chat (`carrier chat`) starts with one of the agents in `agents`, each running its own harness with the binary on the path and the provider's defaults unless it says otherwise.
+A chat (`carrier chat`) starts with one of the agents in `agents`. Each names an [account](#ai-providers) of `providers.json`, and a chat on it runs that account's harness with its login (`configDir`) and its binary (`command`), with the provider's defaults unless the agent says otherwise. Without `chat.json` the agents are `claude` and `codex`, each on the account of the same name; those accounts exist even without `providers.json`.
+
+`providers.json` is read each time the host opens a session or answers the list of agents, so an edit reaches the next chat with no restart, and a file that does not match stops the request with the key named. A session on an account that is not in `providers.json`, or that is Antigravity's (a chat does not offer it), is refused naming the account. The list of agents says, for each one, whether its account's binary is found.
 
 | Field | Required | Meaning |
 |-------|----------|---------|
 | the key | yes | The agent's name: lowercase letters, digits and hyphens, starting with a letter. |
-| `harness` | yes | `claude` or `codex`. Antigravity is not offered in a chat. |
-| `command` | no | The binary, when it is not the one on the path. Not empty. |
+| `account` | yes | The name of an account in `providers.json`, which sets the harness, the login and the binary. A `claude` or `codex` account; Antigravity is not offered in a chat. `harness` and `command` are no longer keys of an agent: they are refused, naming the key. |
 | `model` | no | The model the provider starts with. Not empty. |
 | `options` | no | Default options of the provider, by the provider's own option id. An option the provider does not list is refused when the session opens. |
 

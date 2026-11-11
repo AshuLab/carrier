@@ -297,6 +297,16 @@ test('open rejects with a reason when Codex is not installed, not logged in, or 
   expect(refused).toBeInstanceOf(ChatRefused);
 });
 
+test('an account\'s binary and login folder are what the login check and the app-server start with', async () => {
+  const { transport } = replay(main);
+  const started: unknown[] = [];
+  const checked: unknown[] = [];
+  const env = { CODEX_HOME: '/logins/two' };
+  await codexChatRunner(deps(transport, { loggedIn: async (binary, given) => (checked.push([binary, given]), true), spawn: (binary, options) => (started.push([binary, options.env]), transport) })).open({ folder: '/work', command: '/opt/codex-two', env });
+  expect(checked).toEqual([['/opt/codex-two', env]]);
+  expect(started).toEqual([['/opt/codex-two', env]]);
+});
+
 test('the process ending on its own ends the running turn as an error', async () => {
   const { conversation, events, transport } = await openWith(main);
   const from = events.length;
@@ -320,13 +330,17 @@ let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'cx-'));
   mkdirSync(join(dir, 'work'));
+  vi.stubEnv('CARRIER_HOME', join(dir, 'home')); // no providers.json: the default accounts
 });
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => {
+  rmSync(dir, { recursive: true, force: true });
+  vi.unstubAllEnvs();
+});
 
 test('the host stores the transcript of the replayed conversation and the native thread id', async () => {
   const db = openChatDatabase(join(dir, 'chat.db'));
   const runner = codexChatRunner(deps(replay(main).transport));
-  const sessions = createSessions({ db, agents: [{ name: 'claude', harness: 'claude' }, { name: 'codex', harness: 'codex' }], clock: new FakeClock(), runners: { codex: runner }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+  const sessions = createSessions({ db, agents: [{ name: 'claude', account: 'claude' }, { name: 'codex', account: 'codex' }], clock: new FakeClock(), runners: { codex: runner }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
   const { session } = await sessions.open({ agent: 'codex', folder: join(dir, 'work') });
   for (const text of mainTexts.slice(0, 2)) {
     sessions.send({ sessionId: session.id, text });

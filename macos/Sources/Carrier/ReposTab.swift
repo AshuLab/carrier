@@ -21,6 +21,8 @@ struct ReposTabView: View {
     @State private var adding = false
     /// the repo whose page is on the right
     @State private var selection: String?
+    private let doctor = AppHealth.doctor
+    @ObservedObject private var setup = SetupController.shared
 
     private var path: String { configFilePath() }
 
@@ -73,6 +75,8 @@ struct ReposTabView: View {
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
         .disabled(unreadable)
         .onAppear(perform: load)
+        // the doctor runs when the page opens and on Check again, never in the background
+        .task { runDoctor() }
         .onChange(of: start.configExists) { load() }
         // a file that is there but unreadable may be fixed in another app: look again when Carrier is back in front (only then, so no edit is lost)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if unreadable { load() } }
@@ -101,13 +105,23 @@ struct ReposTabView: View {
         }
     }
 
-    /// The chosen repo's page; its Ready for Carrier card comes in the next slice.
+    /// Not awaited: the card says it is running. The store ignores a run while one is running and runs only with a `config.json`.
+    private func runDoctor() {
+        let settings = setup.settings, configExists = start.configExists
+        // a fixture has no `carrier` to find: any path will do, the run answers with the golden output
+        let carrier = setup.carrier ?? (CommandLine.arguments.contains("--fixture") ? "/fixture/carrier" : nil)
+        Task { await doctor.check(settings: settings, carrier: carrier, environment: ProcessInfo.processInfo.environment, configExists: configExists) }
+    }
+
+    /// The chosen repo's page.
     @ViewBuilder private func detail(_ row: RepoRow?) -> some View {
         if let row {
             VStack(alignment: .leading, spacing: 12) {
                 Text(row.name).font(.headline)
                 RepoStatusCard(status: repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine))))
-                if let roles = configData.flatMap({ repoRoles(json: $0, repo: row.name) }) { RepoRolesCard(rows: roles.rows) }
+                let roles = configData.flatMap { repoRoles(json: $0, repo: row.name) }
+                RepoChecksCard(checks: repoChecks(repo: row.name, roles: roles?.rows ?? [], doctor: doctor.state), checking: doctor.state == .running, again: runDoctor)
+                if let roles { RepoRolesCard(rows: roles.rows) }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         } else {
@@ -182,6 +196,53 @@ private struct RepoStatusCard: View {
                 }
             }
         }
+    }
+}
+
+/// Ready for Carrier: the four checks of the doctor for this repo, each ok, failed with its reason or waiting.
+private struct RepoChecksCard: View {
+    let checks: RepoChecks
+    let checking: Bool
+    let again: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("READY FOR CARRIER").font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary)
+                Spacer(minLength: 8)
+                if checking { ProgressView().controlSize(.small) }
+                Button("Check again", action: again).disabled(checking)
+            }
+            .padding(.horizontal, 14).padding(.top, 8)
+            SettingsTabCard {
+                ForEach(Array(checks.rows.enumerated()), id: \.element.id) { index, row in
+                    HStack(alignment: .top, spacing: 10) {
+                        mark(row.status).padding(.top, 2)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(row.title).fontWeight(.medium)
+                            if let detail = row.detail { Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                            if let fix = row.fix, row.status != .ok { Text("Fix: \(fix)").font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                        }
+                        Spacer(minLength: 8)
+                    }
+                    .padding(.vertical, 10).frame(minHeight: 46)
+                    .overlay(alignment: .top) { Divider().opacity(index == 0 ? 0 : 1) }
+                    .accessibilityElement(children: .combine)
+                }
+            }
+            if let note = checks.note { Text(note).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 14) }
+        }
+    }
+
+    private func mark(_ status: RepoCheckRow.Status) -> some View {
+        let (symbol, color, label): (String, Color, String) = switch status {
+        case .ok: ("checkmark", .green, "Ready")
+        case .warn: ("exclamationmark", .yellow, "Warning")
+        case .fail: ("xmark", .orange, "Failed")
+        case .waiting: ("ellipsis", .gray, "Waiting")
+        }
+        return Image(systemName: symbol).font(.scaled(10, weight: .heavy)).foregroundStyle(.white)
+            .frame(width: 18, height: 18).background(Circle().fill(color)).accessibilityLabel(label)
     }
 }
 

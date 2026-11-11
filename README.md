@@ -258,6 +258,7 @@ Unattended agents run with **your** permissions: Claude with permissions bypasse
 - [ADRs](docs/adr/) — coordination vs. evaluation, SQLite as the authority, agents on the host (which replaces the container ADR 0003), the engine independent of the macOS app, and Carrier running detached on demand, not as a login service.
 - [Research](docs/research/) — headless agents, Antigravity, Agent Forge, logging and panel, containers (dropped, kept as reference).
 - [`AGENTS.md`](AGENTS.md) — entry point for coding agents working in this repo.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute, and the [changelog](CHANGELOG.md) of each release.
 
 ## License
 

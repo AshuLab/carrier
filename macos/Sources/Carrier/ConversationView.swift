@@ -82,7 +82,9 @@ struct ConversationView: View {
                     }
                     // between Enter and the first thing the agent does: the card of its work already, so the first step takes its place unseen
                     if model.busy, model.steps.isEmpty, case .user = feed.last {
-                        ChatToolGroupView(id: "thinking", group: ToolGroup(calls: []), live: true, waiting: waiting, since: began, flipped: $flipped).transition(.identity)
+                        ChatToolGroupView(id: "thinking", group: ToolGroup(calls: []), live: true, waiting: waiting, since: began, flipped: $flipped)
+                            // gone at once when the answer or the first step takes its place: left to fade with the rows' animation it stays under the answer's first line
+                            .transition(.asymmetric(insertion: .identity, removal: .opacity.animation(.linear(duration: 0.01))))
                     }
                 } else if model.failure == nil {
                     LoadingRow()
@@ -281,7 +283,7 @@ private struct FeedRowView: View {
             // the files that came with it are chips over the bubble, and the bubble is what the person wrote
             let attached = splitAttachments(text)
             let sent = (paths: attached.paths, text: splitPastes(attached.text).text, pastes: splitPastes(attached.text).pastes)
-            VStack(alignment: .trailing, spacing: 3) {
+            VStack(alignment: .trailing, spacing: 8) {
                 if sent.paths.isEmpty == false { SentAttachments(paths: sent.paths).padding(.bottom, 3) }
                 if sent.pastes.isEmpty == false {
                     VStack(alignment: .trailing, spacing: 6) {
@@ -300,7 +302,7 @@ private struct FeedRowView: View {
             .padding(.leading, 120)
             .onHover { hovering = $0 }
         case .agent(_, let text, let inProgress):
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 10) {
                 MarkdownView(text: text)
                 // the cursor takes the footer's height, so the answer does not grow when it ends and the footer takes its place
                 if inProgress { Text("▍").foregroundStyle(.secondary).frame(height: 24, alignment: .leading) }
@@ -334,7 +336,7 @@ extension FeedRowView {
     /// chip, how long, the tokens). The row is the same height with or without them, so showing them moves nothing; they fade in and out.
     fileprivate func footer(_ text: String, summary: TurnSummary?, asks: Bool) -> some View {
         let shown = hovering || pinned || copied
-        return HStack(spacing: 10) {
+        return HStack(spacing: 14) {
             copyControl(text, asks: asks).opacity(shown ? 1 : 0).allowsHitTesting(shown)
             stamp(shown: shown)
             if let summary { summaryView(summary).opacity(shown ? 1 : 0) }

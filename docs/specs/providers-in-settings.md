@@ -121,3 +121,5 @@ A migration of the old shape: the author moves their own `providers` block and f
 ## Open questions
 
 Whether `codex app-server` honours `-c model_auto_compact_token_limit` and the other `-c` pairs the way `codex exec` does, since the chat uses the first and the engine the second. Both helps accept `-c`, and `app-server --print-startup-config` does not echo the override, so only a real run can tell. The adapter's gated integration test answers it. If the answer is no, the Auto-compact field of a Codex account applies to the engine's runs only and the page says so in its line; the rest of the epic does not wait on it.
+
+The `enabled` key described above was removed by [0021](../adr/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md): an epic starts at once on its roles, so no account is held back, and a `providers.json` that has `enabled` is refused naming the key.

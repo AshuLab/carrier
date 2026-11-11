@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { loadProviders } from '../config/providers.ts';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { eq } from 'drizzle-orm';
@@ -2709,6 +2710,43 @@ test('with one option declared nothing waits and the epic starts as it does toda
   expect(rows(engine.db)[0]).toMatchObject({ stage: 'ship', choiceDeadline: null });
 });
 
+// An account is offered, and counted for the wait, only when enabled; one without the key is enabled.
+const accountsOf = (providers: Record<string, { enabled?: boolean }>) => choosing({ claude: claudeOption, codex: codexOption }).map((r) => ({ ...r, options: undefined, providers: Object.fromEntries(Object.entries(providers).map(([name, extra]) => [name, { ...(name === 'claude' ? claudeOption : codexOption), ...extra }])) }) as EffectiveRepoConfig);
+
+test('without providers.json the accounts are disabled: no choice wait, the epic starts on its role, and the config freezes them', async () => {
+  const defaults = loadProviders({});
+  if (!defaults.ok) throw new Error('defaults');
+  expect(Object.keys(defaults.providers)).toEqual(['claude', 'codex', 'agy']);
+  github.ready = { 'AshuLab/a': ready(1) };
+  const config = [{ ...choosing()[0]!, options: undefined, providers: defaults.providers }];
+  const engine = await start(1, config);
+  await clock.advance(5 * MIN);
+  expect(runner.tasks).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'ship', choiceDeadline: null });
+  expect(rows(engine.db)[0]!.config!.providers).toEqual(defaults.providers);
+});
+
+test('two enabled accounts make the epic wait, an account without enabled counts as enabled, and the snapshot lists them', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const engine = await start(1, accountsOf({ claude: {}, codex: { enabled: true } }));
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ stage: null, choiceDeadline: 5 * MIN + 60_000 });
+  expect(rows(engine.db)[0]!.config!.providers).toMatchObject({ codex: { enabled: true } });
+});
+
+test('two accounts where one is disabled make no wait, and the snapshot offers only the enabled one', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const engine = await start(1, accountsOf({ claude: { enabled: true }, codex: { enabled: false } }));
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ stage: 'ship', choiceDeadline: null });
+  expect(rows(engine.db)[0]!.config!.providers).toMatchObject({ codex: { enabled: false } });
+  const { epics: shown } = buildSnapshot(engine.db, {
+    now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false,
+    slices: () => null, version: 'x', pollIntervalMs: 5 * MIN,
+  });
+  expect(shown[0]!.options!.names).toEqual(['claude']);
+});
+
 test('the option definitions are frozen when the epic is reserved: editing the config afterwards changes no waiting epic', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   const first = await start(1, choosing());
@@ -2828,6 +2866,21 @@ test('resumeEpic accepts an option declared after the epic was frozen: the reque
   const { claude: _added, ...frozen } = row!.config!.options!;
   engine.db.update(epics).set({ config: { ...row!.config!, options: frozen } }).where(eq(epics.id, row!.id)).run();
   await restartWith(engine, { author: 'claude' });
+  expect(runner.tasks[1]).toMatchObject({ stage: 'ship', option: 'claude' });
+});
+
+test('resumeEpic accepts a declared account that is disabled: enabled decides what is offered, not what a restart may name', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => ({ sessionId: 's-1', write: result(task, { outcome: 'needs_human', reason: 'the CI is red' }) });
+  const config = accountsOf({ claude: { enabled: true }, codex: { enabled: true } });
+  const engine = await start(1, config);
+  await clock.advance(5 * MIN);
+  await engine.chooseOptions('AshuLab/a', 1, { author: 'codex' });
+  await engine.idle();
+  runner.behavior = () => ({ exit: 'hang' });
+  (config[0]!.providers as Record<string, { enabled?: boolean }>).claude!.enabled = false;
+  await restartWith(engine as Awaited<ReturnType<typeof stoppedOnCodex>>, { author: 'claude' });
   expect(runner.tasks[1]).toMatchObject({ stage: 'ship', option: 'claude' });
 });
 

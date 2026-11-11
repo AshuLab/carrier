@@ -51,35 +51,44 @@ struct ChatToolGroupView: View {
     // MARK: the line
 
     private var header: some View {
-        HStack(spacing: 8) {
-            // as wide as a node, so the chevron sits right over the nodes
-            LogChevron(open: open).opacity(steps.isEmpty ? 0 : 1).frame(width: 16)
-            if lead != .none { LeadView(lead: lead, reduceMotion: reduceMotion).transition(.scale(scale: 0.5).combined(with: .opacity)) }
-            // the words roll up when they change: the new ones come in from below, the old ones leave above
-            ZStack(alignment: .leading) { words.id(key).transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity))) }
-                .frame(height: 18).clipped()
-                .layoutPriority(1)
-            if live {
-                Text("· step \(max(1, steps.count))").font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1)
-            }
-            if group.failed > 0 {
-                HStack(spacing: 4) {
-                    StateMark(shape: .problem, size: 12)
-                    Text("\(group.failed) failed").font(.scaled(12.5))
+        HStack(spacing: 12) {
+            // what the run is doing: as long as it is, and what does not fit fades out at the edge of its room instead of pushing the right side
+            HStack(spacing: 8) {
+                if lead != .none { LeadView(lead: lead, reduceMotion: reduceMotion).transition(.scale(scale: 0.5).combined(with: .opacity)) }
+                // the words roll up when they change: the new ones come in from below, the old ones leave above
+                ZStack(alignment: .leading) { words.id(key).transition(reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .move(edge: .top).combined(with: .opacity))) }
+                    .frame(height: 18).clipped()
+                if live {
+                    Text("· step \(max(1, steps.count))").font(.scaled(12)).foregroundStyle(.tertiary).lineLimit(1)
                 }
-                .foregroundStyle(.red)
-            }
-            Spacer(minLength: 8)
-            if live {
-                TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(formatCallDuration(max(0, Int(context.date.timeIntervalSince1970 * 1000) - (since ?? group.startedAt))))
-                        .font(.scaled(12)).monospacedDigit().foregroundStyle(.tertiary)
+                if group.failed > 0 {
+                    HStack(spacing: 4) {
+                        StateMark(shape: .problem, size: 12)
+                        Text("\(group.failed) failed").font(.scaled(12.5))
+                    }
+                    .foregroundStyle(.red)
                 }
-            } else {
-                if group.added > 0 { Text("+\(group.added)").foregroundStyle(.green) }
-                if group.removed > 0 { Text("−\(group.removed)").foregroundStyle(.red) }
-                if let ms = group.durationMs { Text(formatCallDuration(ms)).foregroundStyle(.tertiary) }
             }
+            .fixedSize(horizontal: true, vertical: false)
+            .padding(.leading, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipped()
+            .mask { HStack(spacing: 0) { Rectangle(); LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing).frame(width: 28) } }
+            // the right side never moves or shrinks: the time, and the chevron as wide as a node
+            HStack(spacing: 8) {
+                if live {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        Text(formatCallDuration(max(0, Int(context.date.timeIntervalSince1970 * 1000) - (since ?? group.startedAt))))
+                            .font(.scaled(12)).monospacedDigit().foregroundStyle(.tertiary)
+                    }
+                } else {
+                    if group.added > 0 { Text("+\(group.added)").foregroundStyle(.green) }
+                    if group.removed > 0 { Text("−\(group.removed)").foregroundStyle(.red) }
+                    if let ms = group.durationMs { Text(formatCallDuration(ms)).foregroundStyle(.tertiary) }
+                }
+                LogChevron(open: open).opacity(steps.isEmpty ? 0 : 1).frame(width: 16)
+            }
+            .fixedSize()
         }
         .font(.scaled(12, weight: .medium)).monospacedDigit()
         .frame(height: 30)
@@ -98,7 +107,7 @@ struct ChatToolGroupView: View {
 
     @ViewBuilder private var words: some View {
         if live {
-            Text(liveLabel).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+            Text(liveLabel).font(.scaled(12.5, weight: .semibold)).foregroundStyle(.secondary).lineLimit(1)
                 .modifier(Shimmer(active: reduceMotion == false))
         } else {
             HStack(spacing: 8) {

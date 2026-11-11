@@ -30,32 +30,45 @@ private func freeProfileName(_ name: String, in profiles: [String: Any]) -> Stri
 /// Applies `change` to the global `role` in the file at `path`, read just now. A bot the registry (`bots`) does not list, a provider that is not
 /// an account, an empty model, or a role left without profile, provider or model is refused before anything is written.
 public func saveGlobalRole(_ change: RoleChange, role: AgentRole, path: String, accounts: [String], bots: [String]) -> RoleSave {
+    saveGlobalRole([change], role: role, path: path, accounts: accounts, bots: bots)
+}
+
+/// Applies `changes` together: one write, or none. With `creating` the role may not be in the file yet (turning the Lead reviewer on), and then
+/// the changes have to make the whole role, identity, provider and model, or nothing is written.
+public func saveGlobalRole(_ changes: [RoleChange], role: AgentRole, path: String, accounts: [String], bots: [String], creating: Bool = false) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), var file = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any] else {
         return .failed("The config file could not be read.")
     }
     var agents = file["agents"] as? [String: Any] ?? [:]
-    guard var entry = agents[role.rawValue] as? [String: Any] else {
+    var entry: [String: Any]
+    if let existing = agents[role.rawValue] as? [String: Any] {
+        entry = existing
+    } else if creating {
+        entry = [:]
+    } else {
         return .refused("\(role.title) has no entry in config.json. Add it there first.")
     }
     var profiles = file["profiles"] as? [String: Any] ?? [:]
 
-    switch change {
-    case .bot(let name):
-        guard bots.contains(name) else { return .refused("“\(name)” is not in Agent Forge’s list. Pick another one.") }
-        let existing = profiles.keys.sorted().first { (profiles[$0] as? [String: Any]).map { $0["kind"] as? String == "forge" && $0["agent"] as? String == name } ?? false }
-        let profile = existing ?? freeProfileName(name, in: profiles)
-        profiles[profile] = profiles[profile] ?? ["kind": "forge", "agent": name]
-        entry["profile"] = profile
-    case .gh:
-        let existing = profiles.keys.sorted().first { (profiles[$0] as? [String: Any])?["kind"] as? String == "gh" }
-        let profile = existing ?? freeProfileName("gh", in: profiles)
-        profiles[profile] = profiles[profile] ?? ["kind": "gh"]
-        entry["profile"] = profile
-    case .provider(let provider): entry["provider"] = provider
-    case .model(let model): entry["model"] = model.trimmingCharacters(in: .whitespacesAndNewlines)
-    case .effort(let effort):
-        if let effort { entry["effort"] = effort } else { entry.removeValue(forKey: "effort") }
+    for change in changes {
+        switch change {
+        case .bot(let name):
+            guard bots.contains(name) else { return .refused("“\(name)” is not in Agent Forge’s list. Pick another one.") }
+            let existing = profiles.keys.sorted().first { (profiles[$0] as? [String: Any]).map { $0["kind"] as? String == "forge" && $0["agent"] as? String == name } ?? false }
+            let profile = existing ?? freeProfileName(name, in: profiles)
+            profiles[profile] = profiles[profile] ?? ["kind": "forge", "agent": name]
+            entry["profile"] = profile
+        case .gh:
+            let existing = profiles.keys.sorted().first { (profiles[$0] as? [String: Any])?["kind"] as? String == "gh" }
+            let profile = existing ?? freeProfileName("gh", in: profiles)
+            profiles[profile] = profiles[profile] ?? ["kind": "gh"]
+            entry["profile"] = profile
+        case .provider(let provider): entry["provider"] = provider
+        case .model(let model): entry["model"] = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .effort(let effort):
+            if let effort { entry["effort"] = effort } else { entry.removeValue(forKey: "effort") }
+        }
     }
 
     let fields = roleFields(entry).normalized()

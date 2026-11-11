@@ -7,15 +7,14 @@ const answers = {
   repos: ['A/b'],
   author: { identity: parseIdentity('gh'), provider: 'claude', model: 'sonnet' },
   reviewer: { identity: parseIdentity('forge:bot'), provider: 'codex', model: 'x:y' },
-  providers,
 };
 
 test('buildConfig names a forge profile after its agent and the login "gh", and points each role at its provider and model', () => {
   const config = buildConfig(answers);
   expect(config.profiles).toEqual({ gh: { kind: 'gh' }, bot: { kind: 'forge', agent: 'bot' } });
   expect(config.agents.reviewer).toEqual({ profile: 'bot', provider: 'codex', model: 'x:y' });
-  expect(config.providers).toEqual(providers);
-  expect(loadConfig(defaults, config).ok).toBe(true);
+  expect(config).not.toHaveProperty('providers'); // the accounts go in providers.json
+  expect(loadConfig(defaults, config, providers).ok).toBe(true);
   expect(() => parseIdentity('forge')).toThrow('invalid identity');
   expect(parseHarnessModel('codex:x:y')).toEqual({ harness: 'codex', model: 'x:y' });
   expect(() => parseHarnessModel('gpt:4')).toThrow('invalid agent');
@@ -33,17 +32,13 @@ test('buildConfig writes a persona only when given, and the config loads', () =>
   const config = buildConfig({ ...answers, reviewer: { ...answers.reviewer, persona: { name: 'Rex', prompt: 'Strict.' } } });
   expect(config.agents.author).not.toHaveProperty('persona');
   expect(config.agents.reviewer).toMatchObject({ persona: { name: 'Rex', prompt: 'Strict.' } });
-  const loaded = loadConfig(defaults, config);
+  const loaded = loadConfig(defaults, config, providers);
   expect(loaded.ok && loaded.config.agents.reviewer.persona).toEqual({ name: 'Rex', prompt: 'Strict.' });
 });
 
 test('buildConfig writes the failover block only when given, and a config with folders and a block loads', () => {
   expect(buildConfig(answers)).not.toHaveProperty('failover');
-  const config = buildConfig({
-    ...answers,
-    providers: { ...providers, personal: { harness: 'claude', configDir: '~/.claude-personal' } },
-    failover: { enabled: true, default: ['personal', 'codex'] },
-  });
+  const config = buildConfig({ ...answers, failover: { enabled: true, default: ['personal', 'codex'] } });
   expect(config.failover).toEqual({ enabled: true, default: ['personal', 'codex'] });
-  expect(loadConfig(defaults, config).ok).toBe(true);
+  expect(loadConfig(defaults, config, { ...providers, personal: { harness: 'claude', configDir: '/home/me/.claude-personal' } }).ok).toBe(true);
 });

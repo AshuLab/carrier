@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { defaults, loadConfig } from './load.ts';
+import { loadWithProviders } from './testing.ts';
 import { resolveRepoConfig } from './resolve.ts';
 
 const base = {
@@ -19,7 +19,7 @@ const base = {
 const resolvedAuthor = { profile: 'a', option: 'claude', providerName: 'claude', harness: 'claude', model: 'm1' };
 const resolvedReviewer = { profile: 'b', option: 'codex', providerName: 'codex', harness: 'codex', model: 'm2' };
 
-const load = (user: object) => loadConfig(defaults, { ...base, ...user });
+const load = (user: object) => loadWithProviders({ ...base, ...user });
 const errorsOf = (user: object) => {
   const result = load(user);
   if (result.ok) throw new Error('expected invalid config');

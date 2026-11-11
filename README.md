@@ -181,10 +181,6 @@ A JSON file merged over the defaults (objects merge by field, simple values repl
     "reviewer-bot": { "kind": "forge", "agent": "<forge-agent-2>" }
   },
   "orchestratorProfile": "author-bot",
-  "providers": {
-    "claude": { "harness": "claude" },
-    "codex": { "harness": "codex" }
-  },
   "agents": {
     "author": { "profile": "author-bot", "provider": "claude", "model": "<model>" },
     "reviewer": { "profile": "reviewer-bot", "provider": "codex", "model": "<model>" }
@@ -192,7 +188,7 @@ A JSON file merged over the defaults (objects merge by field, simple values repl
 }
 ```
 
-Defaults: `pollIntervalMinutes` 5, `logLevel` `info`, and `limits` of `maxConcurrentEpics` 3, `maxReviews` 5, `maxExecutionRetries` 3, `maxExecutionHours` 4 (or `"unlimited"`), `githubCallTimeoutSeconds` 30. Identity, provider, model and persona for author and reviewer can be overridden per repo; an AI provider (`providers`) is a harness, optional local server provider and optional config folder. The file holds no secrets: a profile is `{ "kind": "forge", "agent": ... }` or `{ "kind": "gh" }`.
+Defaults: `pollIntervalMinutes` 5, `logLevel` `info`, and `limits` of `maxConcurrentEpics` 3, `maxReviews` 5, `maxExecutionRetries` 3, `maxExecutionHours` 4 (or `"unlimited"`), `githubCallTimeoutSeconds` 30. Identity, provider, model and persona for author and reviewer can be overridden per repo; an AI provider is declared in `providers.json` in the Carrier folder (`{ "providers": { "claude": { "harness": "claude" }, "codex": { "harness": "codex" } } }`, with an optional local server provider, config folder, model and display name per account). The files hold no secrets: a profile is `{ "kind": "forge", "agent": ... }` or `{ "kind": "gh" }`.
 
 ### 4. Run it
 

@@ -15,4 +15,10 @@ function optionalWhereDefaulted(schema: JsonSchema, base: Record<string, unknown
 }
 
 /** JSON Schema of the config file as the user writes it, for editors and for agents that write it. */
-export const userConfigJsonSchema = () => optionalWhereDefaulted(z.toJSONSchema(configSchema, { io: 'input' }) as JsonSchema, defaults);
+export function userConfigJsonSchema() {
+  const schema = optionalWhereDefaulted(z.toJSONSchema(configSchema, { io: 'input' }) as JsonSchema, defaults);
+  // the accounts are not a key of the file: they live in providers.json (ADR 0020)
+  delete schema.properties?.providers;
+  schema.required = schema.required?.filter((key) => key !== 'providers');
+  return schema;
+}

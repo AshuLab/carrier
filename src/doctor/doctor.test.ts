@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { afterEach, expect, test, vi } from 'vitest';
-import { defaults, loadConfig } from '../config/load.ts';
+import { loadWithProviders } from '../config/testing.ts';
 import type { Config } from '../config/schema.ts';
 import { doctorCommand } from '../terminal/cli/commands/doctor.ts';
 import { cliLoggedIn, runDoctor, type Check, type DoctorDeps } from './doctor.ts';
@@ -24,7 +24,7 @@ const base = {
 };
 
 const config = (overrides: Record<string, unknown> = {}): Config => {
-  const result = loadConfig(defaults, { ...base, ...overrides });
+  const result = loadWithProviders({ ...base, ...overrides });
   if (!result.ok) throw new Error(JSON.stringify(result.errors));
   return result.config;
 };

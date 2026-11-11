@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { ChatCapability } from '../chat/server.ts';
 import type { AvailableRepo } from '../integrations/available-repos.ts';
 import { controlSocketIn } from '../config/engine-places.ts';
-import { optionNamePattern } from '../config/schema.ts';
+import { optionNamePattern } from '../config/providers.ts';
 import { ResumeRefused } from '../orchestration/resume-refused.ts';
 import type { EpicReply, EventsReply, FileDiffReply, FilesReply, SessionsReply } from './replies.ts';
 

@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { expect, test } from 'vitest';
 import { defaults, loadConfig } from '../../config/load.ts';
 import { Cancelled, type Ui } from '../prompts/types.ts';
-import { fakeDeps, okCheck, quietUi, twoOptions, useTempDir } from './testing.ts';
+import { asFiles, fakeDeps, okCheck, providersWritten, quietUi, twoOptions, useTempDir } from './testing.ts';
 import { runInit } from './wizard.ts';
 
 const dir = useTempDir();
@@ -40,13 +40,13 @@ test('the questions fill a config that has only what defaults lack, and the doct
     repos: [{ name: 'AshuLab/a' }, { name: 'AshuLab/b' }],
     profiles: { 'artanis-agent': { kind: 'forge', agent: 'artanis-agent' }, 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' } },
     orchestratorProfile: 'artanis-agent',
-    providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } },
     agents: {
       author: { profile: 'artanis-agent', provider: 'claude', model: 'sonnet' },
       reviewer: { profile: 'tassadar-agent', provider: 'codex', model: 'gpt-test' }, // author's bot is not offered again; codex default from ~/.codex
     },
   });
-  expect(doctored).toMatchObject({ pollIntervalMinutes: 5 }); // the doctor gets the merged config
+  expect(providersWritten(written)).toEqual({ claude: { harness: 'claude' }, codex: { harness: 'codex' } });
+  expect(doctored).toMatchObject({ pollIntervalMinutes: 5, providers: { claude: { harness: 'claude' } } }); // the doctor gets the merged config, accounts included
   expect(result.checks).toEqual([okCheck]);
   expect(asked.at(-1)).toContain(`carrier --config ${out}`);
 });
@@ -58,9 +58,10 @@ test('every flag skips its question', async () => {
   await runInit({ repo: ['AshuLab/x'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'codex:m1', reviewer: 'claude:m2', out, yes: true }, ui, deps);
   expect(asked.filter((a) => !a.startsWith('outro') && !a.startsWith('checks:'))).toEqual([]);
   const config = JSON.parse(written[out]!);
-  expect(config.providers).toEqual({ codex: { harness: 'codex' }, claude: { harness: 'claude' } });
+  expect(config).not.toHaveProperty('providers');
+  expect(providersWritten(written)).toEqual({ codex: { harness: 'codex' }, claude: { harness: 'claude' } });
   expect(config.agents).toEqual({ author: { profile: 'artanis-agent', provider: 'codex', model: 'm1' }, reviewer: { profile: 'gh', provider: 'claude', model: 'm2' } });
-  expect(loadConfig(defaults, config).ok).toBe(true);
+  expect(loadConfig(defaults, config, providersWritten(written) as never).ok).toBe(true);
 });
 
 test('failed checks are reported in the closing line', async () => {
@@ -114,18 +115,20 @@ test('--yes skips the recap and the start question', async () => {
 });
 
 test('an existing config can be edited: its answers are the starting points and no question about the file is asked', async () => {
-  const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => existing });
+  const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(existing) });
   const { ui, asked } = quietUi();
   await withHome(() => runInit({}, ui, deps));
   const [path] = Object.keys(written);
   expect(path).toBe(join(dir, 'home', 'config.json'));
-  expect(JSON.parse(written[path!]!)).toEqual(existing);
+  const { providers, ...config } = existing;
+  expect(JSON.parse(written[path!]!)).toEqual(config);
+  expect(providersWritten(written, join(dir, 'home'))).toEqual(providers); // the existing accounts are the starting points
   expect(asked).not.toContain('Where should the config be saved?');
   expect(asked.some((q) => q.endsWith('exists. Overwrite it?'))).toBe(false);
 });
 
 test('"Start over" ignores the old answers but still replaces that file without asking again', async () => {
-  const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => existing });
+  const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(existing) });
   const { ui } = quietUi({ [existingKey]: 'fresh' });
   await withHome(() => runInit({}, ui, deps));
   expect(JSON.parse(written[join(dir, 'home', 'config.json')]!).repos).toEqual([{ name: 'AshuLab/carrier' }]); // the origin suggestion, not the old repos
@@ -196,13 +199,12 @@ test('choosing shared by answer asks no identity, never touches Forge, and write
     identities: 'shared',
     profiles: { gh: { kind: 'gh' } },
     orchestratorProfile: 'gh',
-    providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } },
     agents: {
       author: { profile: 'gh', provider: 'claude', model: 'sonnet' },
       reviewer: { profile: 'gh', provider: 'codex', model: 'gpt-test' },
     },
   });
-  expect(loadConfig(defaults, written1).ok).toBe(true);
+  expect(loadConfig(defaults, written1, providersWritten(written) as never).ok).toBe(true);
   expect(asked.some((q) => q.startsWith('GitHub identity for'))).toBe(false);
   expect(notes.indexOf('Shared identity')).toBeGreaterThan(-1);
 });
@@ -264,14 +266,16 @@ test('editing a shared config starts with shared selected, and the recap shows t
       reviewer: { profile: 'gh', provider: 'codex', model: 'gpt-test' },
     },
   };
-  const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => shared, forgeAgents: touchesForge });
+  const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(shared), forgeAgents: touchesForge });
   const { ui } = quietUi({ 'Use your gh login for both roles?': true });
   const initial: unknown[] = [];
   const notes: Record<string, string> = {};
   await withHome(() => runInit({}, { ...ui, select: async (o) => (o.message === sharedMessage && initial.push(o.initialValue), ui.select(o)), note: (m, t) => void (notes[t] = m) }, deps));
   expect(initial).toEqual(['shared']);
   expect(notes['This is what will be saved']).toContain('Identity    shared: both roles act as your gh login');
-  expect(JSON.parse(written[join(dir, 'home', 'config.json')]!)).toEqual(shared);
+  const { providers, ...config } = shared;
+  expect(JSON.parse(written[join(dir, 'home', 'config.json')]!)).toEqual(config);
+  expect(providersWritten(written, join(dir, 'home'))).toEqual(providers);
 });
 
 // Personas: a name and a prompt per role, asked right after its agent.
@@ -301,7 +305,7 @@ test('personas are asked under a shared identity too, and the config loads', asy
   await runInit({ repo: ['A/b'], out }, ui, deps);
   const user = JSON.parse(written[out]!);
   expect(user.agents.author.persona).toEqual({ name: 'Ada' });
-  expect(loadConfig(defaults, user).ok).toBe(true);
+  expect(loadConfig(defaults, user, providersWritten(written) as never).ok).toBe(true);
 });
 
 test('the four persona flags skip their questions and reach the file', async () => {
@@ -344,7 +348,7 @@ test('an answer outside the limits is refused in the question', async () => {
 test('editing a config with personas starts from them, and the recap lists them', async () => {
   const persona = { name: 'Rex', prompt: 'Be strict.' };
   const withPersona = { ...existing, agents: { ...existing.agents, reviewer: { ...existing.agents.reviewer, persona } } };
-  const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => withPersona });
+  const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(withPersona) });
   const { ui } = quietUi({ [gateOf('reviewer')]: 'set' });
   const defaultsSeen: Record<string, string | undefined> = {};
   const notes: Record<string, string> = {};
@@ -352,12 +356,13 @@ test('editing a config with personas starts from them, and the recap lists them'
   expect(defaultsSeen[nameOf('reviewer')]).toBe('Rex');
   expect(defaultsSeen[promptOf('reviewer')]).toBe('Be strict.');
   expect(notes['This is what will be saved']).toContain('persona: Rex · Be strict.');
-  expect(JSON.parse(written[join(dir, 'home', 'config.json')]!)).toEqual(withPersona);
+  const { providers: _, ...config } = withPersona;
+  expect(JSON.parse(written[join(dir, 'home', 'config.json')]!)).toEqual(config);
 });
 
 test('editing a persona: a dash clears the field, and clearing both leaves no persona', async () => {
   const withPersona = { ...existing, agents: { ...existing.agents, reviewer: { ...existing.agents.reviewer, persona: { name: 'Rex', prompt: 'Be strict.' } } } };
-  const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => withPersona });
+  const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(withPersona) });
   const { ui } = quietUi({ [gateOf('reviewer')]: 'set', [nameOf('reviewer')]: '-', [promptOf('reviewer')]: '-' });
   await withHome(() => runInit({}, ui, deps));
   expect(JSON.parse(written[join(dir, 'home', 'config.json')]!).agents.reviewer).not.toHaveProperty('persona');
@@ -366,7 +371,7 @@ test('editing a persona: a dash clears the field, and clearing both leaves no pe
 test('editing a persona: Keep leaves it as it was without asking its fields, Remove drops it', async () => {
   const withPersona = { ...existing, agents: { ...existing.agents, reviewer: { ...existing.agents.reviewer, persona: { name: 'Rex', prompt: 'Be strict.' } } } };
   for (const [answer, expected] of [[undefined, { name: 'Rex', prompt: 'Be strict.' }], ['default', undefined]] as const) {
-    const { deps, written } = fakeDeps({ exists: () => true, readConfig: () => withPersona });
+    const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(withPersona) });
     const { ui, asked } = quietUi(answer ? { [gateOf('reviewer')]: answer } : {});
     await withHome(() => runInit({}, ui, deps));
     expect(asked).not.toContain(nameOf('reviewer'));
@@ -399,7 +404,7 @@ test('adding a lead reviewer asks its identity, provider, model and persona, and
     model: 'opus',
     persona: { name: 'Architect' },
   });
-  expect(loadConfig(defaults, config).ok).toBe(true);
+  expect(loadConfig(defaults, config, providersWritten(written) as never).ok).toBe(true);
 });
 
 test('lead reviewer flag configures lead reviewer in unattended runs', async () => {
@@ -423,5 +428,5 @@ test('lead reviewer flag configures lead reviewer in unattended runs', async () 
     provider: 'claude',
     model: 'opus',
   });
-  expect(loadConfig(defaults, config).ok).toBe(true);
+  expect(loadConfig(defaults, config, providersWritten(written) as never).ok).toBe(true);
 });

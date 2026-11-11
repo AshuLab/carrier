@@ -253,6 +253,27 @@ test('an account\'s binary and login folder are what the login check and the SDK
   expect(seen.options).toMatchObject({ env, pathToClaudeCodeExecutable: '/opt/claude-work' });
 });
 
+test('an account\'s compaction and launch arguments reach the SDK as extraArgs, and an account that sets none adds nothing', async () => {
+  const run = async (launch?: Parameters<ReturnType<typeof claudeChatRunner>['open']>[0]['launch']) => {
+    const { query, seen } = replay([]);
+    await claudeChatRunner(deps(query)).open({ folder: '/work', env: {}, launch });
+    return seen.options!.extraArgs;
+  };
+  expect(await run()).toEqual({ 'thinking-display': 'summarized' });
+  expect(await run({})).toEqual({ 'thinking-display': 'summarized' });
+  expect(await run({ autoCompact: 'auto', idleCompaction: false, launchArgs: ['--chrome', '--max-turns', '5', '--add-x=a=b'] })).toEqual({
+    chrome: null,
+    'max-turns': '5',
+    'add-x': 'a=b',
+    autocompact: 'auto',
+    settings: '{"idleCompaction":false}',
+    'thinking-display': 'summarized',
+  });
+  expect(await run({ autoCompact: 300000 })).toMatchObject({ autocompact: '300000' });
+  await expect(run({ launchArgs: ['-v'] })).rejects.toThrow('launchArgs entry 1 is not a --flag');
+  await expect(run({ launchArgs: ['--chrome', '--a', 'secret-value', 'stray'] })).rejects.toThrow(/^(?!.*secret-value).*entry 4 /); // a stray token is refused by place, never by text
+});
+
 // Through the host's sessions, over a temporary SQLite: the person's message, the agent's and the turn are stored, and the native id lands on the session.
 let dir: string;
 beforeEach(() => {

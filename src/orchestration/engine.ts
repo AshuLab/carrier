@@ -5,7 +5,7 @@ import { createScopedLogger } from '@ashulab/universal-logger';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import type { EnginePlaces } from '../config/engine-places.ts';
 import { runtimeOf } from '../config/providers.ts';
-import { failoverOrderFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
+import { failoverStepsFor, type Agent, type EffectiveRepoConfig } from '../config/resolve.ts';
 import { failoverTriggers, matchesFailoverTrigger } from '../config/schema.ts';
 import type { HarnessName } from '../harnesses/names.ts';
 import type { AgentExit, AgentFailure, AgentRun, AgentRunner, AgentTask } from '../execution/agent-runner.ts';
@@ -236,13 +236,17 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     agy: 'gemini-3.8-flash-low',
   };
 
+  // The triggers that move a role: none while it has no steps.
+  const failoverTriggersOf = (failover: EffectiveRepoConfig['failover'], role: 'author' | 'reviewer') => (failoverStepsFor(failover, role).length > 0 ? (failover?.triggers ?? failoverTriggers) : []);
+
   // The role of the epic's saved config pointed at another of its saved options or providers: same profile and persona.
-  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string): Agent => {
+  // `stepModel` is the model a failover step settled on; without it, the account's, then the role's own on the same harness, else the harness's default.
+  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string, stepModel?: string): Agent => {
     const roleAgent = config.agents[role];
-    const { profile, persona, model } = roleAgent;
+    const { profile, persona, model, effort } = roleAgent;
     const provider = (config.providers ?? config.options)?.[name];
     if (!provider) throw new Error(`provider "${name}" is not declared in config.providers`);
-    const modelStr: string = provider.model ?? (provider.harness === roleAgent.harness ? model : defaultHarnessModels[provider.harness] ?? model);
+    const modelStr: string = stepModel ?? provider.model ?? (provider.harness === roleAgent.harness ? model : defaultHarnessModels[provider.harness] ?? model);
     return {
       profile,
       model: modelStr,
@@ -251,6 +255,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       ...(provider.configDir && { configDir: provider.configDir }),
       ...runtimeOf(provider),
       ...(persona && { persona }),
+      ...(effort && { effort }),
       option: name,
       providerName: name,
     };
@@ -261,24 +266,30 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   async function failOver(epicId: number, stage: AgentTask['stage'], failedExecution: Execution): Promise<{ relaunched: true } | { relaunched: false; why: string }> {
     const epic = fresh(epicId);
     const { config } = epic;
-    if (!config?.failover?.enabled) return { relaunched: false, why: '' };
-    const triggers = config.failover.triggers ?? failoverTriggers;
+    const role = stage === 'review' ? 'reviewer' : 'author';
+    const steps = failoverStepsFor(config?.failover, role);
+    if (!config || steps.length === 0) return { relaunched: false, why: '' };
+    const triggers = config.failover?.triggers ?? failoverTriggers;
     if (!matchesFailoverTrigger(triggers, failedExecution.failureKind, failedExecution.failureDetail)) return { relaunched: false, why: '' };
     const failoverKinds = [
       ...(triggers.includes('usage_limit') ? (['usage_limit'] as const) : []),
       ...((triggers.includes('service_down') || triggers.includes('rate_limit')) ? (['api_error', 'spawn_error'] as const) : []),
     ];
-    const ranOut = [...new Set(db.select({ option: executions.option }).from(executions).where(and(eq(executions.epicId, epicId), inArray(executions.failureKind, failoverKinds))).orderBy(asc(sql`rowid`)).all().flatMap(({ option }) => option ?? []))];
-    const role = stage === 'review' ? 'reviewer' : 'author';
-    const order = failoverOrderFor(config.failover, role) ?? config.failover.default ?? [];
-    const next = order.find((name) => !ranOut.includes(name));
-    if (next === undefined) return { relaunched: false, why: `; no provider left in failover, ran out: ${ranOut.join(', ')}` };
+    // A step is tried by the provider and the model it ran on: the role's own and every step that failed.
+    const ranOut = db.select({ option: executions.option, model: executions.model }).from(executions).where(and(eq(executions.epicId, epicId), inArray(executions.failureKind, failoverKinds))).orderBy(asc(sql`rowid`)).all();
+    const modelOf = ({ provider, model }: { provider: string; model?: string }) => {
+      const account = (config.providers ?? config.options)?.[provider];
+      return model ?? account?.model ?? (account && defaultHarnessModels[account.harness]);
+    };
+    const hasRunOut = (step: { provider: string; model?: string }) => ranOut.some((run) => run.option === step.provider && run.model === modelOf(step));
+    const next = steps.find((step) => !hasRunOut(step));
+    if (next === undefined) return { relaunched: false, why: `; no step left in failover, ran out: ${[...new Set(ranOut.map((run) => `${run.option ?? '?'} ${run.model ?? '?'}`))].join(', ')}` };
     if (stopping || epic.status !== 'running') return { relaunched: true };
     // Read only; GitHub being down is not a reason to stop: the agent verifies the state first anyway.
     const found = await github.findPullRequest(epic.repo, epic.issue).catch((e) => (failed(e), null));
     db.transaction((tx) => {
-      tx.update(epics).set({ config: { ...config, agents: { ...config.agents, [role]: onOption(config, role, next) } }, ...(role === 'author' ? { authorOption: next } : { reviewerOption: next }) }).where(eq(epics.id, epicId)).run();
-      tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'option_switched', data: { role, from: config.agents[role].option ?? null, to: next, stage } }).run();
+      tx.update(epics).set({ config: { ...config, agents: { ...config.agents, [role]: onOption(config, role, next.provider, modelOf(next)) } }, ...(role === 'author' ? { authorOption: next.provider } : { reviewerOption: next.provider }) }).where(eq(epics.id, epicId)).run();
+      tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'option_switched', data: { role, from: config.agents[role].option ?? null, fromModel: config.agents[role].model, to: next.provider, toModel: modelOf(next), stage } }).run();
     });
     await execute(fresh(epicId), stage, failedExecution, { pr: found && { number: found.number, headSha: found.headSha } });
     return { relaunched: true };
@@ -397,8 +408,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         active.delete(executionId);
         output.flush();
         (exit === 'ok' ? log.info : log.warn)('execution ended', { ...context, exit });
-        const failoverConfig = epic.config?.failover;
-        const triggers = failoverConfig?.enabled ? (failoverConfig.triggers ?? failoverTriggers) : [];
+        const triggers = failoverTriggersOf(epic.config?.failover, stage === 'review' ? 'reviewer' : 'author');
         const isFailoverFailure = exit === 'failed' && processFailure?.kind !== undefined && matchesFailoverTrigger(triggers, processFailure.kind, processFailure.detail);
         const outOfCredits = exit === 'failed' && processFailure?.kind === 'usage_limit';
         // Like a timeout, failover leaves no error on the execution: it is not a retryable failure and ends the streak.
@@ -717,8 +727,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
         epic.stage !== null &&
         last.status === 'failed' &&
         (last.failureKind === 'usage_limit' ||
-          (epic.config?.failover?.enabled &&
-            matchesFailoverTrigger(epic.config.failover.triggers ?? failoverTriggers, last.failureKind, last.failureDetail)))
+          matchesFailoverTrigger(failoverTriggersOf(epic.config?.failover, last.stage === 'review' ? 'reviewer' : 'author'), last.failureKind, last.failureDetail))
       ) {
         // Stopped before the epic moved on: no agent is running and none would be launched. A requeued epic (no stage yet) keeps its old
         // executions: that history is not this stop, the restart's own launch (begin, resumeChoices) takes it from here.

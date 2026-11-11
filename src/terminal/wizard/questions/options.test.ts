@@ -111,9 +111,8 @@ test('with two or more options failover is asked, and "yes" asks the order until
   expect(picks['Failover order: which provider goes first?']).toEqual(['claude', 'codex', 'claude-ashu-lab']);
   expect(picks['Failover order: which provider goes next?']).toEqual(['claude-ashu-lab', '\0done']); // codex and claude are already in; the person ends it here
   expect(load(written, out).failover).toEqual({
-    enabled: true,
-    default: ['codex', 'claude'],
     triggers: ['usage_limit', 'rate_limit', 'service_down'],
+    roles: { author: [{ provider: 'codex' }, { provider: 'claude' }], reviewer: [{ provider: 'codex' }, { provider: 'claude' }] },
   });
 
   const off = fakeDeps();
@@ -130,7 +129,7 @@ test('running again on an existing config keeps its options and failover, adds m
     profiles: { 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' }, gh: { kind: 'gh' } },
     orchestratorProfile: 'tassadar-agent',
     providers: { work: { harness: 'claude', configDir: '~/.claude-work' }, codex: { harness: 'codex' } },
-    failover: { enabled: true, default: ['codex'] },
+    failover: { roles: { author: [{ provider: 'codex', model: 'gpt-x' }] } },
     agents: { author: { profile: 'tassadar-agent', provider: 'codex', model: 'gpt-test' }, reviewer: { profile: 'gh', provider: 'work', model: 'opus' } },
   };
   const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(existing) });

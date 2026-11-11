@@ -38,7 +38,7 @@ test('buildConfig writes a persona only when given, and the config loads', () =>
 
 test('buildConfig writes the failover block only when given, and a config with folders and a block loads', () => {
   expect(buildConfig(answers)).not.toHaveProperty('failover');
-  const config = buildConfig({ ...answers, failover: { enabled: true, default: ['personal', 'codex'] } });
-  expect(config.failover).toEqual({ enabled: true, default: ['personal', 'codex'] });
+  const config = buildConfig({ ...answers, failover: { roles: { author: [{ provider: 'personal' }, { provider: 'codex', model: 'gpt' }] } } });
+  expect(config.failover).toEqual({ roles: { author: [{ provider: 'personal' }, { provider: 'codex', model: 'gpt' }] } });
   expect(loadConfig(defaults, config, { ...providers, personal: { harness: 'claude', configDir: '/home/me/.claude-personal' } }).ok).toBe(true);
 });

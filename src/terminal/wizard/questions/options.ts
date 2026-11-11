@@ -97,5 +97,6 @@ export async function askFailover(ui: Ui, providers: Providers): Promise<Failove
     if (pick === done) break;
     order.push(pick);
   }
-  return { enabled: true, triggers: ['usage_limit', 'rate_limit', 'service_down'], default: order };
+  const steps = order.map((provider) => ({ provider }));
+  return { triggers: ['usage_limit', 'rate_limit', 'service_down'], roles: { author: steps, reviewer: steps } };
 }

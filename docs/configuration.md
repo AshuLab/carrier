@@ -57,7 +57,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `agents.leadReviewer` | no | none | Optional technical lead role `{ profile, provider, model, persona? }` (configuration setup; reserved for upcoming lead reviewer gating in the Carrier flow). |
 | `agents.<role>.effort` | no | none | How hard the model thinks: one of `low`, `medium`, `high`, `xhigh` or `max`, in the global role and in a repo's override of it. Passed as `--effort` to Claude and Antigravity and as `-c model_reasoning_effort=<level>` to Codex, in every run and resume. Without it nothing is passed and the CLI uses its own. Anything else is refused naming the key. |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
-| `failover` | no | off | `{ enabled, triggers?, default?, roles? }`: moves a role to the next AI provider when its credits run out or service fails. See [Failover](#failover). |
+| `failover` | no | none | `{ triggers?, roles? }`: for each role, a list of steps it moves through when its credits run out or service fails. See [Failover](#failover). |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
 | `finishedWindowDays` | no | `15` | Days a merged or cancelled epic stays in the snapshot after it ends, a whole number from 1 to 30 (30 is the retention purge). |
 | `logLevel` | no | `info` | `debug`, `info`, `warn` or `error`. |
@@ -93,7 +93,7 @@ The file has one key, `providers`, and no other.
 | (the key) | | The provider's name: a lowercase word, with letters, digits and hyphens, starting with a letter, up to 40 characters. |
 | `harness` | yes | The agent CLI that runs it: `claude` (Claude Code), `codex` or `agy` (Antigravity). |
 | `displayName` | no | What an app shows instead of the key: one line, trimmed, 1 to 60 characters. |
-| `model` | no | Optional default model for this provider connection, used when failover moves to this provider or when inherited by a role. |
+| `model` | no | Optional default model for this provider connection, used when a failover step names this provider without a model or when inherited by a role. |
 | `provider` | no | Who serves the model: `lmstudio` or `ollama` for a local server; without it, the harness's own cloud. See [Local models](#local-models). Not for `agy`. |
 | `enabled` | no | Whether the account is offered when an epic's agent option is chosen, and counted for the wait of [Choosing the provider of an epic](#choosing-the-provider-of-an-epic). `true` when absent, so an account written by hand is offered. A role, a failover list, a repo override or a restart may name an account whether it is enabled or not. |
 | `configDir` | no | The harness's config folder, which holds its login: `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. It must be an absolute path once a leading `~` is expanded. Without it the agent inherits the environment of the process that started Carrier. Not for `agy`. |
@@ -135,27 +135,24 @@ With fewer than two enabled providers nothing is asked. With two or more, a rese
 
 ### Failover
 
-Off unless the config has a `failover` block with `enabled: true`.
+A role has failover when its list of steps in `failover.roles` is not empty. There is no global switch and no default list: a missing or empty list (`[]`) means that role stops when its login runs out.
 
-Failover automatically moves an agent to the next provider in its fallback chain when an execution fails due to account/provider issues, without wasting technical retries on a broken provider.
+A step is a provider, an account of `providers.json`, and optionally the model to run there. Without a model the step uses the account's `model`, then the harness's default.
 
 ```jsonc
 "failover": {
-  "enabled": true,
   // Events that trigger failover (defaults to all three):
   "triggers": ["usage_limit", "rate_limit", "service_down"],
 
-  // Global fallback chain used by any role without a specific override:
-  "default": ["claude-teams", "claude-personal", "codex"],
-
-  // Optional role-specific fallback chains:
   "roles": {
-    "author": ["claude-teams", "claude-personal", "codex"],
-    "reviewer": ["codex", "claude-personal"],
-    "leadReviewer": ["claude-personal", "codex"]
+    "author": [{ "provider": "claude-personal", "model": "sonnet" }, { "provider": "codex" }],
+    "reviewer": [{ "provider": "claude-personal", "model": "haiku" }],
+    "leadReviewer": []
   }
 }
 ```
+
+The old shape is refused naming this one: `failover.enabled` and `failover.default` are gone, and a step written as a name (`["codex"]`) must be `{ "provider": "codex" }`. Nothing is migrated.
 
 #### Triggers
 - `usage_limit`: The agent CLI or API ran out of credits/billing quota.
@@ -163,13 +160,12 @@ Failover automatically moves an agent to the next provider in its fallback chain
 - `service_down`: Provider or local server unavailable (`ECONNREFUSED`, 5xx, or CLI connection failure).
 
 #### Fallback resolution
-When a role experiences a failure matching `triggers`:
-1. Carrier checks `failover.roles.<role>`. If defined, it uses that role's fallback chain.
-2. Otherwise, it falls back to `failover.default`.
-3. The role moves to the next provider in the chain that has not already failed in this epic. The stage restarts as a fresh session in the epic's worktree with its context rebuilt from SQLite and GitHub (spending no retry and emitting an `option_switched` event).
-4. If no providers in the chain are left, the epic stops in `needs-human` detailing which providers failed.
+When a role experiences a failure matching `triggers`, and its list has steps:
+1. The role moves to the next step not already tried in this epic (a step is tried by its provider and model, the role's own included). The stage restarts as a fresh session in the epic's worktree with its context rebuilt from SQLite and GitHub, on that step's model, spending no retry.
+2. The epic's events record an `option_switched` with the provider and model it moved from and to (`from`, `fromModel`, `to`, `toModel`).
+3. If no step is left, the epic stops in `needs-human` naming each provider and model that ran out.
 
-Every provider name in `default` or `roles.<role>` must be declared in `providers.json`, and none may appear twice within the same list.
+Every step's `provider` must be declared in `providers.json`; the error names the key. A step with an empty provider, a step repeated in its list, and a step equal to the role's own provider and model are refused naming their position.
 
 ## Personas
 
@@ -278,7 +274,7 @@ The chat host clones a GitHub repository for a session when the first message is
 ## Things that are checked
 
 - Every profile named anywhere is declared in `profiles`, and every provider named anywhere in `providers.json`.
-- Every name in `failover.default` or `failover.roles` is declared in `providers.json` and appears once per list.
+- Every `provider` of a step in `failover.roles` is declared in `providers.json`, and a step appears once per list and is not the role's own provider and model.
 - Provider names are lowercase words, a `configDir` is absolute after `~` is expanded, and a provider has no field this page does not list.
 - Repo names are `owner/name`, and no two repos share the same folder name (Solve's worktree paths have no owner).
 - A `provider` (local model server) is only accepted for a harness that can use it (Claude Code and Codex; not Antigravity), and so is a `configDir`.

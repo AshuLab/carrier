@@ -410,6 +410,8 @@ private struct RepoRowView: View {
             .onHover { hovering = $0 }
             .accessibilityLabel("Actions for \(row.name)")
         }
+        // the menu's `maxHeight: .infinity` centres it in the row; without this the row takes all the height the page offers
+        .fixedSize(horizontal: false, vertical: true)
         .contextMenu { actions(clone: clone, cloned: cloned) }
         .padding(.vertical, 12)
         .background(selected ? Color.themeAccent.opacity(0.1) : Color.clear)

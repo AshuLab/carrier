@@ -2,6 +2,9 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll } from 'vitest';
+import { carrierHome } from '../../config/default-path.ts';
+import { providersPathOf } from '../../config/providers.ts';
+import type { Machine } from '../../doctor/detect.ts';
 import type { Check } from '../../doctor/doctor.ts';
 import type { Ui } from '../prompts/types.ts';
 import type { InitDeps } from './deps.ts';
@@ -15,11 +18,14 @@ export function useTempDir() {
   return dir;
 }
 
-/** A role of a written config with the provider it points at spread in, to assert on harness, model and provider. */
-export function roleOf(written: string, role: 'author' | 'reviewer' | 'leadReviewer') {
-  const config = JSON.parse(written);
+/** The accounts `runInit` wrote to `providers.json` in the Carrier folder. */
+export const providersWritten = (written: Record<string, string>, folder = carrierHome()) => JSON.parse(written[providersPathOf(folder)]!).providers as Record<string, Record<string, string>>;
+
+/** A role of a written config with the account it points at spread in, to assert on harness, model and provider. */
+export function roleOf(written: Record<string, string>, out: string, role: 'author' | 'reviewer' | 'leadReviewer') {
+  const config = JSON.parse(written[out]!);
   const agent = config.agents[role];
-  const provider = config.providers?.[agent.provider];
+  const provider = providersWritten(written)[agent.provider];
   return {
     profile: agent.profile,
     harness: provider?.harness,
@@ -29,6 +35,9 @@ export function roleOf(written: string, role: 'author' | 'reviewer' | 'leadRevie
     ...(agent.persona && { persona: agent.persona }),
   };
 }
+
+/** `readConfig` over a config that still has its accounts in it: they are served as `providers.json`, the rest as `config.json`. */
+export const asFiles = ({ providers, ...config }: Record<string, unknown>) => (path: string) => (path.endsWith('providers.json') ? { providers } : config);
 
 /** An answer by question; a list answers the same question again and again, in order, and what is left unanswered takes the default. */
 type Answers = Record<string, string | boolean | (string | boolean)[]>;
@@ -47,13 +56,14 @@ export const quietUi = (scripted: Answers = {}) => {
   const getAnswer = (message: string) => take(message);
   const asked: string[] = [];
   const listed: string[][] = [];
+  const notes: { title?: string; message: string }[] = [];
   const ui: Ui = {
     interactive: true,
     checkStart: () => {},
     checksEnd: (total, failed) => void asked.push(`checks:${total}/${failed}`),
     intro: () => {},
     outro: (m) => asked.push(`outro:${m}`),
-    note: () => {},
+    note: (message, title) => void notes.push({ message, title }),
     warn: (m) => asked.push(`warn:${m}`),
     check: () => {},
     text: async ({ message, defaultValue }) => {
@@ -80,11 +90,20 @@ export const quietUi = (scripted: Answers = {}) => {
       return typeof answer === 'string' ? answer.split(',') : (initialValues ?? []);
     },
   };
-  return { ui, asked, listed };
+  return { ui, asked, listed, notes };
 };
 
-/** Adds a second provider (the machine's other CLI, on its defaults) to the first, then stops: Claude and Codex. */
-export const twoOptions = { 'Add another AI provider?': [true, false] };
+/** A Mac with `claude` and `codex` installed and signed in, no `agy`, and no local server running. */
+export const fakeMachine = (over: Partial<Machine> = {}): Machine => ({
+  resolveBinary: (name) => {
+    if (name === 'agy') throw new Error('cannot find the real "agy" binary on PATH');
+    return `/opt/bin/${name}`;
+  },
+  version: async () => '1.0.0',
+  login: async () => 'in',
+  localModels: async () => Promise.reject(new Error('not running')),
+  ...over,
+});
 
 export const okCheck: Check = { name: 'x', status: 'ok' };
 export const fakeDeps = (over: Partial<InitDeps> = {}) => {
@@ -98,7 +117,7 @@ export const fakeDeps = (over: Partial<InitDeps> = {}) => {
     codexModel: () => 'gpt-test',
     codexModels: () => [],
     agyModels: () => [],
-    localModels: async () => Promise.reject(new Error('not running')),
+    machine: fakeMachine(),
     configFolders: () => [],
     loggedIn: async () => true,
     exists: () => false,

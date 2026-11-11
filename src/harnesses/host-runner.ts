@@ -118,7 +118,7 @@ export class HostAgentRunner implements AgentRunner {
       if (reason) return { exit: reason };
       let command: AgentCommand;
       try {
-        const binary = this.options.binaries?.[task.harness] ?? resolveBinary(task.harness);
+        const binary = task.command ?? this.options.binaries?.[task.harness] ?? resolveBinary(task.harness);
         command = adapter.command(task, { binary, baseEnv: process.env, ...credentials });
         mkdirSync(dirname(task.resultPath), { recursive: true });
       } catch (e) {

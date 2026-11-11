@@ -1,12 +1,12 @@
 import { basename } from 'node:path';
-import { optionNamePattern } from '../../../config/schema.ts';
+import { optionNamePattern } from '../../../config/providers.ts';
 import type { LocalProvider } from '../../../harnesses/local.ts';
 import type { HarnessName } from '../../../harnesses/names.ts';
 import type { Ui } from '../../prompts/types.ts';
-import { parseHarnessModel, parseProvider, type AIProvider, type Failover } from '../build-config.ts';
+import { parseHarnessModel, parseProvider, type AIProvider, type Failover, type Role } from '../build-config.ts';
 import type { InitDeps } from '../deps.ts';
 import { providerLine } from '../summary.ts';
-import { askAIProvider } from './agent.ts';
+import { askAIProvider, askModel } from './agent.ts';
 
 export type Providers = Record<string, AIProvider>;
 type RoleName = 'author' | 'reviewer' | 'lead reviewer';
@@ -80,22 +80,30 @@ export function declareFlaggedProvider(providers: Providers, role: string, flag:
 }
 
 const done = '\0done';
+const ordinal = ['first', 'second'];
 
-/** With two or more providers: whether to move a role to another provider when its credits run out or errors occur, and in which order. */
-export async function askFailover(ui: Ui, providers: Providers): Promise<Failover | undefined> {
+/** With two or more providers, for each role the person wants it on: up to two steps, each a provider and a model, that the role moves through when its credits run out or errors occur. A step may not repeat another or be the role's own provider and model. */
+export async function askFailover(ui: Ui, providers: Providers, roles: { role: RoleName; key: 'author' | 'reviewer' | 'leadReviewer'; own: Pick<Role, 'provider' | 'model'> }[], locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps): Promise<Failover | undefined> {
   const names = Object.keys(providers);
-  if (names.length < 2 || !(await ui.confirm('Turn failover on? A role that runs out of credits then moves to the next provider you list, so its code can reach another provider.'))) return undefined;
-  const order: string[] = [];
-  while (order.length < names.length) {
-    const pick = await ui.select({
-      message: `Failover order: which provider goes ${order.length === 0 ? 'first' : 'next'}?`,
-      options: [
-        ...names.filter((name) => !order.includes(name)).map((name) => ({ value: name, label: name, hint: providerLine(providers[name]!) })),
-        ...(order.length > 0 ? [{ value: done, label: 'That is all' }] : []),
-      ],
-    });
-    if (pick === done) break;
-    order.push(pick);
+  if (names.length < 2) return undefined;
+  const chosen: NonNullable<Failover['roles']> = {};
+  for (const { role, key, own } of roles) {
+    if (!(await ui.confirm(`Turn failover on for the ${role}? When it runs out of credits it moves to the steps you list, each a provider and a model.`))) continue;
+    const steps: { provider: string; model: string }[] = [];
+    while (steps.length < ordinal.length) {
+      const pick = await ui.select({
+        message: `Failover for the ${role}: which provider goes ${ordinal[steps.length]}?`,
+        options: [
+          ...names.map((name) => ({ value: name, label: name, hint: providerLine(providers[name]!) })),
+          ...(steps.length > 0 ? [{ value: done, label: 'That is all' }] : []),
+        ],
+      });
+      if (pick === done) break;
+      const model = await askModel(ui, providers[pick]!.harness, providers[pick]!.provider, locals, deps, `${role}'s ${ordinal[steps.length]} failover step`);
+      if ([own, ...steps].some((step) => step.provider === pick && step.model === model)) ui.warn(`${pick} · ${model} is already the ${role}'s own or an earlier step, so it would move nowhere: pick another.`);
+      else steps.push({ provider: pick, model });
+    }
+    if (steps.length > 0) chosen[key] = steps;
   }
-  return { enabled: true, triggers: ['usage_limit', 'rate_limit', 'service_down'], default: order };
+  return Object.keys(chosen).length > 0 ? { triggers: ['usage_limit', 'rate_limit', 'service_down'], roles: chosen } : undefined;
 }

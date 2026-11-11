@@ -114,3 +114,23 @@ test('a retried 429, and a usage-limit error event with no turn.failed, are not 
   expect(parseCodexLine('{"type":"error","message":"You\'ve hit your usage limit. Try again later."}')).toBeUndefined();
   expect(parseCodexLine('{"type":"turn.failed","error":{}}')).toEqual({ failure: { kind: 'api_error', detail: 'the turn failed' } });
 });
+
+test('an account\'s command, compaction and launch arguments reach the process; without them the command is unchanged', () => {
+  const plain = buildCodexCommand(task, ctx);
+  const command = buildCodexCommand({ ...task, command: '/opt/codex/bin/codex', autoCompact: 200000, launchArgs: ['--skip-git-repo-check'] }, ctx);
+  expect(command.bin).toBe('/opt/codex/bin/codex');
+  expect(command.args).toEqual([...plain.args, '-c', 'model_auto_compact_token_limit=200000', '--skip-git-repo-check']);
+  expect(command.env).toEqual(plain.env);
+  expect(buildCodexCommand({ ...task, launchArgs: [] }, ctx)).toEqual(plain);
+});
+
+test('an effort is passed as -c model_reasoning_effort, in a new run and in a resume; without one nothing is added', () => {
+  expect(buildCodexCommand(task, ctx).args.join(' ')).not.toContain('model_reasoning_effort');
+  for (const resumeSession of [undefined, 't-1']) {
+    const run = { ...task, ...(resumeSession && { resumeSession }) };
+    const plain = buildCodexCommand(run, ctx).args;
+    const args = buildCodexCommand({ ...run, effort: 'high' }, ctx).args;
+    expect(args.filter((a) => a !== '-c' && a !== 'model_reasoning_effort=high')).toEqual(plain.filter((a) => a !== '-c'));
+    expect(args[args.indexOf('model_reasoning_effort=high') - 1]).toBe('-c');
+  }
+});

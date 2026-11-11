@@ -96,3 +96,11 @@ test('parseAgyLine reads each quota text as usage_limit and any other ERROR resu
   expect(parseAgyLine('{"event":"result","result":{"status":"ERROR"}}')).toEqual({ failure: { kind: 'api_error', detail: 'the run ended: ERROR' } });
   expect(parseAgyLine('{"event":"result","result":{"status":"SUCCESS","error":"AI credits balance is too low"}}')).toBeUndefined();
 });
+
+test('an effort is passed as --effort, and without one nothing is added', () => {
+  const plain = buildAgyCommand(task, ctx);
+  expect(plain.args).not.toContain('--effort');
+  const args = buildAgyCommand({ ...task, effort: 'max' }, ctx).args;
+  expect(args.filter((_, i) => args[i] !== '--effort' && args[i - 1] !== '--effort')).toEqual(plain.args);
+  expect(args[args.indexOf('--effort') + 1]).toBe('max');
+});

@@ -5,7 +5,7 @@
 // stopping, and the fourth is the shutdown's time limit in ms.
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { defaults, loadConfig } from '../../config/load.ts';
+import { loadWithProviders } from '../../config/testing.ts';
 import { FakeAgentRunner, FakeWorkspaces } from '../../execution/fake.ts';
 import { FakeGitHub } from '../../orchestration/fake.ts';
 import type { LabelStyle } from '../../orchestration/github.ts';
@@ -31,7 +31,7 @@ class RecordingGitHub extends FakeGitHub {
   }
 }
 
-const loaded = loadConfig(defaults, {
+const loaded = loadWithProviders({
   pollIntervalMinutes: 20 / 60_000, // 20 ms
   repos: [{ name: 'AshuLab/a' }],
   profiles: { a: { kind: 'gh' }, b: { kind: 'gh' } },

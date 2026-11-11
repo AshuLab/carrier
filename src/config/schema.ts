@@ -1,9 +1,6 @@
-import { isAbsolute } from 'node:path';
 import { LogLevel } from '@ashulab/universal-logger';
 import { z } from 'zod';
-import { harnessNames, localProvidersOf } from '../harnesses/names.ts';
-import { expandHome } from './default-path.ts';
-import { resolveRepoConfig } from './resolve.ts';
+import { accounts } from './providers.ts';
 
 /** `owner/name`, each part a plain folder name: the managed clone lives in `repos/<owner>/<name>`. */
 export const repoNamePattern = /^(?!\.{1,2}\/)(?!.*\/\.{1,2}$)[\w.-]+\/[\w.-]+$/;
@@ -14,19 +11,7 @@ export const persona = z.strictObject({
   prompt: z.string().trim().min(1).max(4000).optional(),
 });
 
-/** An AI provider account / connection. */
-export const aiProvider = z.strictObject({
-  harness: z.enum(harnessNames),
-  /** Optional default model for this provider connection. */
-  model: z.string().min(1).optional(),
-  /** Run on a local server through the harness's CLI instead of the cloud. */
-  provider: z.enum(['lmstudio', 'ollama']).optional(),
-  /** `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. Absolute once `~` is expanded. */
-  configDir: z.string().min(1).transform(expandHome).optional(),
-});
-
-/** The key of a provider or option: stored and shown as is. */
-export const optionNamePattern = /^[a-z][a-z0-9-]{0,39}$/;
+export const efforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 
 // A role keeps its GitHub identity and persona, and points at an AI provider and model.
 const agent = z.strictObject({
@@ -34,6 +19,7 @@ const agent = z.strictObject({
   profile: z.string().min(1),
   provider: z.string().min(1),
   model: z.string().min(1),
+  effort: z.enum(efforts).optional(),
 });
 
 // The two shapes the spike fixed (docs/research/agent-forge.md): a bot through Agent Forge, or the user's own `gh` login. No secrets here.
@@ -58,27 +44,27 @@ export function matchesFailoverTrigger(
   return false;
 }
 
-const failoverSchema = z.strictObject({
-  enabled: z.boolean(),
-  triggers: z.array(z.enum(failoverTriggers)).min(1).optional(),
-  default: z.array(z.string()).optional(),
-  roles: z
-    .strictObject({
-      author: z.array(z.string()).optional(),
-      reviewer: z.array(z.string()).optional(),
-      leadReviewer: z.array(z.string()).optional(),
-    })
-    .partial()
-    .optional(),
-});
+const newFailoverShape = 'a role has failover when its list of steps is not empty: "failover": { "roles": { "author": [{ "provider": "<account>", "model": "<optional>" }] } }';
+
+/** One place to move to: an account of `providers.json` and optionally the model to run there. */
+const step = z.strictObject(
+  { provider: z.string().min(1), model: z.string().min(1).optional() },
+  { error: (issue) => (issue.code === 'invalid_type' && issue.expected === 'object' ? `a failover step is { "provider": "<account>", "model": "<optional>" }, not a name` : undefined) },
+);
+
+const failoverSchema = z.strictObject(
+  {
+    triggers: z.array(z.enum(failoverTriggers)).min(1).optional(),
+    roles: z.strictObject({ author: z.array(step).optional(), reviewer: z.array(step).optional(), leadReviewer: z.array(step).optional() }).optional(),
+  },
+  { error: (issue) => (issue.code === 'unrecognized_keys' && issue.keys.some((key) => key === 'enabled' || key === 'default') ? `failover.enabled and failover.default are gone: ${newFailoverShape}` : undefined) },
+);
 
 export const configSchema = z
   .strictObject({
     pollIntervalMinutes: z.number().positive(),
     finishedWindowDays: z.int().min(1).max(30),
     logLevel: z.enum(LogLevel),
-    /** `shared`: the author and the reviewer may be the same GitHub profile (ADR 0011). */
-    identities: z.enum(['separate', 'shared']),
     repos: z
       .array(
         z.strictObject({
@@ -88,10 +74,12 @@ export const configSchema = z
       )
       .min(1),
     profiles: z.record(z.string(), profile),
-    orchestratorProfile: z.string().min(1),
-    providers: z.record(z.string(), aiProvider),
+    /** Left out, it is the author's profile (ADR 0021). */
+    orchestratorProfile: z.string().min(1).optional(),
+    /** Not a key of `config.json`: the loader puts here what `providers.json` declares (ADR 0020). */
+    providers: accounts,
     agents: z.strictObject({ author: agent, reviewer: agent, leadReviewer: agent.optional() }),
-    /** Off unless present and enabled. Moves a role to the next AI provider upon usage_limit, rate_limit, or service_down. */
+    /** A role with a non-empty list of steps moves to the next one upon usage_limit, rate_limit, or service_down. */
     failover: failoverSchema.optional(),
     limits: z.strictObject({
       maxConcurrentEpics: z.int().positive(),
@@ -99,13 +87,11 @@ export const configSchema = z
       maxExecutionRetries: z.int().nonnegative(),
       maxExecutionHours: z.union([z.literal('unlimited'), z.int().positive()]),
       githubCallTimeoutSeconds: z.int().positive(),
-      /** How long a reserved epic waits for its choice of agent options when there are two or more. */
-      optionChoiceSeconds: z.int().positive(),
-    }),
+    }, { error: (issue) => (issue.code === 'unrecognized_keys' && issue.keys.includes('optionChoiceSeconds') ? 'limits.optionChoiceSeconds is gone: an epic starts at once on its roles and waits for no choice. Remove it' : undefined) }),
   })
   .superRefine((config, ctx) => {
     const refs: [(string | number)[], string][] = [
-      [['orchestratorProfile'], config.orchestratorProfile],
+      ...(config.orchestratorProfile === undefined ? [] : ([[['orchestratorProfile'], config.orchestratorProfile]] as [(string | number)[], string][])),
       [['agents', 'author', 'profile'], config.agents.author.profile],
       [['agents', 'reviewer', 'profile'], config.agents.reviewer.profile],
     ];
@@ -139,51 +125,19 @@ export const configSchema = z
       }
     }
 
-    if (config.failover?.enabled) {
-      const hasDefault = config.failover.default && config.failover.default.length > 0;
-      const hasRoles = config.failover.roles && Object.values(config.failover.roles).some((r) => r && r.length > 0);
-      if (!hasDefault && !hasRoles) {
-        ctx.addIssue({ code: 'custom', path: ['failover'], message: 'failover is enabled but has neither a default nor role-specific fallback order' });
-      }
-    }
-
-    const checkFailoverList = (list: string[] | undefined, basePath: (string | number)[]) => {
-      if (!list) return;
-      const named = new Set<string>();
-      list.forEach((name, i) => {
-        const p = [...basePath, i];
-        const label = basePath.join('.');
-        if (!Object.hasOwn(config.providers, name)) {
-          ctx.addIssue({ code: 'custom', path: p, message: `${label}: provider "${name}" is not declared in providers` });
-        } else if (named.has(name)) {
-          ctx.addIssue({ code: 'custom', path: p, message: `${label}: provider "${name}" appears twice` });
-        }
-        named.add(name);
+    for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
+      const own = config.agents[role];
+      const label = `failover.roles.${role}`;
+      const seen = new Set<string>();
+      config.failover?.roles?.[role]?.forEach(({ provider, model }, i) => {
+        if (provider === '') return; // already refused by the step's own shape
+        const key = JSON.stringify([provider, model]);
+        const path = ['failover', 'roles', role, i];
+        if (!Object.hasOwn(config.providers, provider)) ctx.addIssue({ code: 'custom', path: [...path, 'provider'], message: `${label}.${i}.provider: "${provider}" is not declared in providers` });
+        else if (seen.has(key)) ctx.addIssue({ code: 'custom', path, message: `${label}.${i}: step repeats another step of the list` });
+        else if (own?.provider === provider && own.model === model) ctx.addIssue({ code: 'custom', path, message: `${label}.${i}: step is the role's own provider and model, so it would move nowhere` });
+        seen.add(key);
       });
-    };
-
-    if (config.failover) {
-      checkFailoverList(config.failover.default, ['failover', 'default']);
-      if (config.failover.roles) {
-        for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
-          checkFailoverList(config.failover.roles[role], ['failover', 'roles', role]);
-        }
-      }
-    }
-
-    for (const [name, p] of Object.entries(config.providers)) {
-      const where = `providers.${name}`;
-      if (!optionNamePattern.test(name)) {
-        ctx.addIssue({ code: 'custom', path: ['providers', name], message: `${where}: a provider name is a lowercase word: letters, digits and hyphens, starting with a letter, up to 40 characters` });
-      }
-      if (p.provider !== undefined && !(localProvidersOf[p.harness] as readonly string[]).includes(p.provider)) {
-        ctx.addIssue({ code: 'custom', path: ['providers', name, 'provider'], message: `${where}: ${p.harness} cannot use the provider "${p.provider}"` });
-      }
-      if (p.configDir !== undefined && p.harness === 'agy') {
-        ctx.addIssue({ code: 'custom', path: ['providers', name, 'configDir'], message: `${where}: agy has no config folder setting, so it cannot have a configDir` });
-      } else if (p.configDir !== undefined && p.configDir !== '' && !isAbsolute(p.configDir)) {
-        ctx.addIssue({ code: 'custom', path: ['providers', name, 'configDir'], message: `${where}: configDir must be an absolute path, or start with ~/ (got "${p.configDir}")` });
-      }
     }
 
     // Solve's worktrees are `worktrees/<repo>/<feature>`, with no owner: same-name repos would share paths.
@@ -206,32 +160,7 @@ export const configSchema = z
         }
       }
     });
-
-    // Under separate identities, author and reviewer must differ, globally and for each repo once its overrides are applied.
-    if (config.identities !== 'separate') return;
-    // A global clash is reported once, not again for every repo that inherits it.
-    const clash = (path: (string | number)[], where: string, profile: string, role1 = 'agents.author.profile', role2 = 'agents.reviewer.profile') =>
-      ctx.addIssue({
-        code: 'custom',
-        path,
-        message: `${where}${role1} and ${role2} must differ, both are "${profile}" (or set identities to "shared" to use one account for both)`,
-      });
-    if (config.agents.author.profile === config.agents.reviewer.profile) {
-      clash(['agents'], '', config.agents.author.profile);
-      return;
-    }
-    if (config.agents.leadReviewer && config.agents.author.profile === config.agents.leadReviewer.profile) {
-      clash(['agents'], '', config.agents.author.profile, 'agents.author.profile', 'agents.leadReviewer.profile');
-      return;
-    }
-    config.repos.forEach((repo, i) => {
-      const resolved = resolveRepoConfig(config, repo).agents;
-      if (!resolved.author || !resolved.reviewer) return;
-      if (resolved.author.profile === resolved.reviewer.profile) clash(['repos', i, 'agents'], `repo "${repo.name}": `, resolved.author.profile);
-      else if (resolved.leadReviewer && resolved.author.profile === resolved.leadReviewer.profile) {
-        clash(['repos', i, 'agents'], `repo "${repo.name}": `, resolved.author.profile, 'agents.author.profile', 'agents.leadReviewer.profile');
-      }
-    });
-  });
+  })
+  .transform((config) => ({ ...config, orchestratorProfile: config.orchestratorProfile ?? config.agents.author.profile }));
 
 export type Config = z.infer<typeof configSchema>;

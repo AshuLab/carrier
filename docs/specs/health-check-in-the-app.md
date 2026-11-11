@@ -14,7 +14,7 @@ We know it is solved when a person who opens the app can see in one place whethe
 
 ## Solution
 
-A Health tab in Settings, next to Behavior and Repos, answers "is everything Carrier needs ready?" in three layers (the glossary's Health check). This Mac: `git`, `gh` and its login, and each chat agent's CLI (`claude`, `codex`) and its login. Carrier: the `carrier` command found and its version, the chat host running and at the installed version, the engine configured and running. The engine's setup: the checks of `carrier doctor`, shown when `<folder>/config.json` exists and replaced by a line saying it needs the config when it does not.
+A Health tab in Settings, answers "is everything Carrier needs ready?" in three layers (the glossary's Health check). This Mac: `git`, `gh` and its login, and each chat agent's CLI (`claude`, `codex`) and its login. Carrier: the `carrier` command found and its version, the chat host running and at the installed version, the engine configured and running. The engine's setup: the checks of `carrier doctor`, shown when `<folder>/config.json` exists and replaced by a line saying it needs the config when it does not.
 
 The checks run where the thing they check will run. The Mac layer is asked of the chat host in a new request, `health`, listed in the host's capabilities so an older host keeps working, because a session runs in the host's environment and not in the app's: a `claude` that the app's shell finds and the host's `PATH` does not would pass in the app and fail in the session. The engine's layer runs `carrier doctor --json` as a process with `CARRIER_HOME`, because the doctor needs the config and not a running engine. The app answers what only it knows: whether `carrier` is found, its version (the one it already asks for to decide on replacing a host), and whether the engine's socket answers.
 
@@ -32,7 +32,7 @@ The documentation gets a short section for the person: what the Health tab check
 
 ## Scope
 
-1. `carrier doctor --json` prints the checks as a JSON array of `{ name, status, detail?, fix? }` and exits with the code it has today.
+1. `carrier doctor --json` prints the checks as a JSON array of `{ name, status, detail?, fix? }` and exits with the code it has today. The checks about one repo also carry `repo` and `profiles` (the names under `config.profiles` the check stands for, both present or both absent, so a reader that ignores them is unaffected), and for each repo the doctor could read it adds `<repo> has the Solve labels`, failing when `solve:epic` or `solve:epic:ready` is missing ([Repos in Settings](repos-in-settings.md)).
 2. The chat host answers a `health` request, listed in its capabilities, with the state of `git`, `gh` and each chat agent, run in parallel with a five-second limit per probe, kept for thirty seconds unless refresh is asked, and carrying no email, organisation or token.
 3. `git` is probed with `xcode-select -p` when it is the system's stub and with `--version` otherwise, and never starts the installer dialog.
 4. The app asks the host for the health when it opens, when it becomes active and on Check again, and a host without the capability is treated as before (the agent's binary found or not).

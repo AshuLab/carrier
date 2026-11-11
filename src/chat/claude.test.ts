@@ -273,18 +273,31 @@ test('open rejects with a reason when Claude is not installed or not logged in, 
   await expect(claudeChatRunner(deps(broken)).open({ folder: '/work', resume: 'x', env: {} })).rejects.toThrow(/could not resume/);
 });
 
+test('an account\'s binary and login folder are what the login check and the SDK start with', async () => {
+  const { query, seen } = replay([]);
+  const checked: unknown[] = [];
+  const env = { CLAUDE_CONFIG_DIR: '/logins/work' };
+  await claudeChatRunner(deps(query, { loggedIn: async (binary, given) => (checked.push([binary, given]), true) })).open({ folder: '/work', command: '/opt/claude-work', env });
+  expect(checked).toEqual([['/opt/claude-work', env]]);
+  expect(seen.options).toMatchObject({ env, pathToClaudeCodeExecutable: '/opt/claude-work' });
+});
+
 // Through the host's sessions, over a temporary SQLite: the person's message, the agent's and the turn are stored, and the native id lands on the session.
 let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'cl-'));
   mkdirSync(join(dir, 'work'));
+  vi.stubEnv('CARRIER_HOME', join(dir, 'home')); // no providers.json: the default accounts
 });
-afterEach(() => rmSync(dir, { recursive: true, force: true }));
+afterEach(() => {
+  rmSync(dir, { recursive: true, force: true });
+  vi.unstubAllEnvs();
+});
 
 test('the host stores the transcript of the replayed conversation and the native session id', async () => {
   const db = openChatDatabase(join(dir, 'chat.db'));
   const runner = claudeChatRunner(deps(replay(main).query));
-  const sessions = createSessions({ db, agents: [{ name: 'claude', harness: 'claude' }, { name: 'codex', harness: 'codex' }], clock: new FakeClock(), runners: { claude: runner }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+  const sessions = createSessions({ db, agents: [{ name: 'claude', account: 'claude' }, { name: 'codex', account: 'codex' }], clock: new FakeClock(), runners: { claude: runner }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
   const { session } = await sessions.open({ agent: 'claude', folder: join(dir, 'work') });
   expect(session.nativeId).toBeNull();
   for (const segment of main.slice(0, 3)) {

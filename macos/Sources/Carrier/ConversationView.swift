@@ -26,7 +26,6 @@ struct ConversationView: View {
     @State private var markers: [TurnMarker] = []
     /// The feed's column; medium is the one of the mockups (chat-ui-conv2.html).
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
-    @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
 
     /// Where the first message of the session the draft opened is handed over, so it shows while the session is prepared.
     private let draft: NewSessionModel?
@@ -184,7 +183,18 @@ struct ConversationView: View {
 
     /// The message box, the same as the draft's (chat-ui-conv.html, section 3): the queued message above it, then the box with the
     /// session's provider and the options the provider lists in one button, and what the host refused under it.
-    private var box: some View {
+    private var box: some View { ConversationBox(model: model, boxFocused: $boxFocused) }
+}
+
+/// The box of an open session, in a view of its own: what is typed in it is `model.draft`, and a view that reads it is drawn again at every
+/// key, which for the whole conversation (its feed folded, filtered and laid out) made typing slow.
+private struct ConversationBox: View {
+    @Bindable var model: ConversationModel
+    @Binding var boxFocused: Bool
+    @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
+    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             let approvals = pendingApprovals(model.rows)
             if let card = approvals.first {

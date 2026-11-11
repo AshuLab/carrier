@@ -279,7 +279,7 @@ public struct AppPreferences {
             ]
         case .keybindings: [ShortcutTable.key]
         // the Providers page only reads, and the Legacy pages keep their own settings and have no Reset
-        case .providers, .engine, .behavior, .repos, .sessions, .health: []
+        case .providers, .engine, .behavior, .repos, .agents, .sessions, .health: []
         }
     }
 }

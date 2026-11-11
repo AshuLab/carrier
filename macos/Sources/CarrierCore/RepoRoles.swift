@@ -98,7 +98,7 @@ public func repoRoles(json: Data, repo: String) -> RepoRoles? {
     )
 }
 
-private func roleFields(_ value: Any?) -> RoleFields {
+func roleFields(_ value: Any?) -> RoleFields {
     guard let role = value as? [String: Any] else { return RoleFields() }
     func text(_ key: String) -> String? { (role[key] as? String).flatMap { $0.isEmpty ? nil : $0 } }
     let persona = (role["persona"] as? [String: Any]).map { RolePersona(name: $0["name"] as? String, prompt: $0["prompt"] as? String) }

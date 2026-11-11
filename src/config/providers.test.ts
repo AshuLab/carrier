@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { loadProviders, offeredNames } from './providers.ts';
+import { loadProviders } from './providers.ts';
 
 const errorsOf = (providers: unknown) => {
   const result = loadProviders({ providers });
@@ -11,15 +11,16 @@ const errorsOf = (providers: unknown) => {
 const pathsOf = (providers: unknown) => errorsOf(providers).map((e) => e.path);
 
 describe('providers.json', () => {
-  test('no file is one account per harness, named after it, with no folder and not enabled', () => {
-    expect(loadProviders({})).toEqual({ ok: true, providers: { claude: { harness: 'claude', enabled: false }, codex: { harness: 'codex', enabled: false }, agy: { harness: 'agy', enabled: false } } });
+  test('no file is one account per harness, named after it, with no folder', () => {
+    expect(loadProviders({})).toEqual({ ok: true, providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' }, agy: { harness: 'agy' } } });
     expect(loadProviders({ providers: {} })).toEqual({ ok: true, providers: {} });
   });
 
-  test('enabled is a boolean, and an account without it is offered', () => {
-    expect(pathsOf({ claude: { harness: 'claude', enabled: 'no' } })).toEqual(['providers.claude.enabled']);
-    const result = loadProviders({ providers: { a: { harness: 'claude' }, b: { harness: 'codex', enabled: true }, c: { harness: 'codex', enabled: false } } });
-    expect(result.ok && offeredNames(result.providers)).toEqual(['a', 'b']);
+  test('an account with enabled is refused naming the key and saying an epic starts at once on its roles', () => {
+    const errors = errorsOf({ claude: { harness: 'claude', enabled: false } });
+    expect(errors.map((e) => e.path)).toEqual(['providers.claude']);
+    expect(errors[0]!.message).toContain('enabled is gone');
+    expect(errors[0]!.message).toContain('starts at once on its roles');
   });
 
   test('two accounts load with every key of this slice', () => {

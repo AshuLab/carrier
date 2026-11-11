@@ -37,10 +37,11 @@ describe('merge', () => {
     expect(result).toMatchObject({ ok: true, config: { pollIntervalMinutes: 5, limits: defaults.limits } });
   });
 
-  test('limits.optionChoiceSeconds defaults to 60 and must be a positive whole number', () => {
-    expect(load({})).toMatchObject({ ok: true, config: { limits: { optionChoiceSeconds: 60 } } });
-    expect(load({ limits: { optionChoiceSeconds: 15 } })).toMatchObject({ ok: true, config: { limits: { optionChoiceSeconds: 15 } } });
-    for (const bad of [0, -1, 1.5, '60']) expect(errorsOf({ limits: { optionChoiceSeconds: bad } }).map((e) => e.path)).toEqual(['limits.optionChoiceSeconds']);
+  test('limits.optionChoiceSeconds is refused naming the key and saying an epic starts at once on its roles', () => {
+    const errors = errorsOf({ limits: { optionChoiceSeconds: 15 } });
+    expect(errors.map((e) => e.path)).toEqual(['limits']);
+    expect(errors[0]!.message).toContain('limits.optionChoiceSeconds is gone');
+    expect(errors[0]!.message).toContain('starts at once on its roles');
   });
 
   test('merges objects field by field', () => {
@@ -254,12 +255,12 @@ describe('providers', () => {
     expect(loaded.ok === false && loaded.errors[0]!.message).toBe('provider "claude" is not declared in providers');
   });
 
-  test('with no providers.json the config has claude, codex and agy disabled, and a role that names claude loads', () => {
+  test('with no providers.json the config has claude, codex and agy, and a role that names claude loads', () => {
     const { providers: _, ...file } = valid;
     const accounts = loadProviders({});
     if (!accounts.ok) throw new Error('defaults');
     const loaded = loadConfig(defaults, file, accounts.providers);
-    expect(loaded).toMatchObject({ ok: true, config: { providers: { claude: { harness: 'claude', enabled: false }, codex: { harness: 'codex', enabled: false }, agy: { harness: 'agy', enabled: false } }, agents: { author: { provider: 'claude' } } } });
+    expect(loaded).toMatchObject({ ok: true, config: { providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' }, agy: { harness: 'agy' } }, agents: { author: { provider: 'claude' } } } });
   });
 
   test('a config.json that still has `providers` is refused with a message that names providers.json', () => {

@@ -11,7 +11,6 @@ export const defaults = {
     maxExecutionRetries: 3,
     maxExecutionHours: 4,
     githubCallTimeoutSeconds: 30,
-    optionChoiceSeconds: 60,
   },
 };
 

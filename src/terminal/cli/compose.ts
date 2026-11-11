@@ -114,7 +114,6 @@ export async function startCarrier(config: Config, folder: string, overrides: Pa
     maxConcurrentEpics: limits.maxConcurrentEpics,
     maxReviews: limits.maxReviews,
     maxExecutionRetries: limits.maxExecutionRetries,
-    optionChoiceSeconds: limits.optionChoiceSeconds,
     maxExecutionHours: limits.maxExecutionHours,
     places,
     sessionDirs: deps.sessionDirs,
@@ -172,7 +171,6 @@ export async function startCarrier(config: Config, folder: string, overrides: Pa
     fileDiff: (repo: string, issue: number, section: string, path: string) => fileDiff(db, places.repos, repo, issue, section, path),
     availableRepos: (page: number) => deps.listRepos(page, limits.githubCallTimeoutSeconds * 1000),
     resumeEpic: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => engine.resumeEpic(repo, issue, chosen),
-    chooseOptions: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => engine.chooseOptions(repo, issue, chosen),
   };
   stopControl = (await startControlServer({ stateDir: places.state, snapshot, startedAt, controls, stop: shutdown })).close;
   const detail = (repo: string, issue: number) => controls.sessions(repo, issue)?.sessions ?? null;

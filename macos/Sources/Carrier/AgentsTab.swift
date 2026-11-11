@@ -3,12 +3,15 @@ import CarrierCore
 import SwiftUI
 
 /// The Agents page of Settings (docs/specs/agents-in-settings.md): the three roles of every epic in a list, and for the chosen one its Who,
-/// Details and When it runs out of tokens cards. This slice only reads `config.json`, `providers.json` and the Agent Forge registry
-/// (`agentsPage`, tested in `AgentsPageTests`); the page has no automated test.
+/// Details and When it runs out of tokens cards. It reads `config.json`, `providers.json` and the Agent Forge registry (`agentsPage`, tested
+/// in `AgentsPageTests`); the Who card writes one field of one role as it changes (`saveGlobalRole`, tested in `GlobalRoleSaveTests`). The page has no
+/// automated test.
 struct AgentsTabView: View {
     @ObservedObject private var start = StartController.shared
     @State private var page: AgentsPage?
     @State private var selection: AgentRole = .author
+    /// why the last change was refused, in words; nothing was written
+    @State private var problem: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -33,7 +36,21 @@ struct AgentsTabView: View {
 
     private func load() {
         let providers = try? Data(contentsOf: URL(fileURLWithPath: currentCarrierFolder() + "/providers.json"))
+        problem = nil
         page = currentConfig().flatMap { agentsPage(config: $0, providers: providers, bots: forgeBots(registry: currentForgeRegistry())) }
+    }
+
+    /// Writes the change, then reads the file back so the page shows what is there, whether it was saved or refused.
+    private func save(_ change: RoleChange, role: AgentRole, page: AgentsPage) -> RoleSave {
+        let result = saveGlobalRole(change, role: role, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
+        let reason: String?
+        switch result {
+        case .saved: reason = nil
+        case .refused(let why), .failed(let why): reason = why
+        }
+        load()
+        problem = reason
+        return result
     }
 
     private func list(_ page: AgentsPage) -> some View {
@@ -66,12 +83,22 @@ struct AgentsTabView: View {
             }
             VStack(alignment: .leading, spacing: 12) {
                 SettingsGroup(title: "Who") {
-                    SettingsTabRow(title: "Identity", detail: row.identityDetail, first: true) { value(row.fields.profile, missing: row.identity == .missing) }
+                    SettingsTabRow(title: "Identity", detail: row.identityDetail, first: true) { identityPicker(row, page: page) }
                     SettingsTabRow(title: "Provider", detail: row.providerMissing ? "Not an account of providers.json" : "An account from Providers") {
-                        value(row.fields.provider, missing: row.providerMissing)
+                        picker("Provider", selection: row.fields.provider ?? "", options: page.accounts) {
+                            _ = save(.provider($0), role: row.role, page: page)
+                        }
                     }
-                    SettingsTabRow(title: "Model", detail: "") { value(row.fields.model, mono: true) }
-                    SettingsTabRow(title: "Effort", detail: "How hard it thinks") { value(row.fields.effort, unset: "Default") }
+                    SettingsTabRow(title: "Model", detail: "") {
+                        ModelField(model: row.fields.model ?? "") { save(.model($0), role: row.role, page: page) == .saved }
+                            .id(row.role)
+                    }
+                    SettingsTabRow(title: "Effort", detail: "How hard it thinks") {
+                        picker("Effort", selection: row.fields.effort ?? "", options: roleEfforts, none: "Default") {
+                            _ = save(.effort($0.isEmpty ? nil : $0), role: row.role, page: page)
+                        }
+                    }
+                    if let problem { Text(problem).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.vertical, 8) }
                 }
                 SettingsGroup(title: "Details") {
                     SettingsTabRow(title: "Persona", detail: personaLine(row.fields.persona), first: true) { EmptyView() }
@@ -93,6 +120,35 @@ struct AgentsTabView: View {
         }
     }
 
+    /// The bots of the registry and the person's own login; a profile that is no longer there stays, marked, and picking it again is a no-op.
+    private func identityPicker(_ row: RoleRow, page: AgentsPage) -> some View {
+        let current: String
+        switch row.identity {
+        case .forge(let bot): current = "bot:" + bot
+        case .gh: current = "gh"
+        case .missing, .unset: current = "keep"
+        }
+        return Picker("Identity", selection: Binding(get: { current }, set: { choice in
+            if choice == "gh" { _ = save(.gh, role: row.role, page: page) }
+            else if choice.hasPrefix("bot:") { _ = save(.bot(String(choice.dropFirst(4))), role: row.role, page: page) }
+        })) {
+            if current == "keep" { Text(row.fields.profile.map { "\($0) (missing)" } ?? "Not set").tag("keep") }
+            ForEach(page.bots.names, id: \.self) { Text($0).tag("bot:" + $0) }
+            Text("Your gh login").tag("gh")
+        }
+        .labelsHidden().fixedSize()
+    }
+
+    /// A name that is no longer declared stays in the list, marked, so it is seen and refused when chosen again, not dropped.
+    private func picker(_ title: String, selection: String, options: [String], none: String? = nil, set: @escaping (String) -> Void) -> some View {
+        Picker(title, selection: Binding(get: { selection }, set: set)) {
+            if let none { Text(none).tag("") }
+            if selection.isEmpty == false, options.contains(selection) == false { Text("\(selection) (missing)").tag(selection) }
+            ForEach(options, id: \.self) { Text($0).tag($0) }
+        }
+        .labelsHidden().fixedSize()
+    }
+
     private func value(_ text: String?, unset: String = "Not set", missing: Bool = false, mono: Bool = false) -> some View {
         let shown = text.map { missing ? "\($0) (missing)" : $0 } ?? unset
         return Text(shown).font(mono ? .scaled(11.5, design: .monospaced) : .callout).foregroundStyle(missing ? Color.orange : Color.secondary)
@@ -102,5 +158,32 @@ struct AgentsTabView: View {
     private func personaLine(_ persona: RolePersona?) -> String {
         guard let persona, persona.name != nil || persona.prompt != nil else { return "None. Optional name and instructions" }
         return [persona.name, persona.prompt].compactMap { $0 }.joined(separator: " · ")
+    }
+}
+
+/// The model, saved when the person presses Return or leaves the field; what the file refuses is put back.
+private struct ModelField: View {
+    let model: String
+    let commit: (String) -> Bool
+    @State private var text: String
+    @FocusState private var focused: Bool
+
+    init(model: String, commit: @escaping (String) -> Bool) {
+        self.model = model
+        self.commit = commit
+        _text = State(initialValue: model)
+    }
+
+    var body: some View {
+        TextField("Model", text: $text).textFieldStyle(.roundedBorder).font(.scaled(11.5, design: .monospaced)).frame(width: 220)
+            .focused($focused)
+            .onSubmit(save)
+            .onChange(of: focused) { _, now in if now == false { save() } }
+            .accessibilityLabel("Model")
+    }
+
+    private func save() {
+        guard text != model else { return }
+        if commit(text) == false { text = model }
     }
 }

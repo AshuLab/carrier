@@ -44,8 +44,15 @@ export function boundEvent(event: ChatEvent | StepEvent): Record<string, unknown
   }
 }
 
+// A text pasted into the message box goes in a fenced block marked `pasted` (the app reads it back as a card); a title or a preview says
+// it in a few words and not as its first lines.
+const pastedBlock = /^(`{3,})pasted\n([\s\S]*?)\n\1[ \t]*$/gm;
+
+/** The message as a title or a preview reads it: each pasted block is "[Pasted text · 87 lines]". */
+export const withoutPasted = (text: string) => text.replace(pastedBlock, (_block, _fence, body: string) => `[Pasted text · ${body.split('\n').length} lines]`);
+
 /** What a list says of a session's last message: its words on one line, cut. */
-export const previewOf = (text: string) => clean(text.replace(/\s+/g, ' ').trim(), chatCaps.preview);
+export const previewOf = (text: string) => clean(withoutPasted(text).replace(/\s+/g, ' ').trim(), chatCaps.preview);
 
 /** The title of a session: the first line of its first message, cut. */
-export const titleOf = (text: string) => clean(text.trim().split('\n')[0]!, chatCaps.title);
+export const titleOf = (text: string) => clean(withoutPasted(text).trim().split('\n')[0]!, chatCaps.title);

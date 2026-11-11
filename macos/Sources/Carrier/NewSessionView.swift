@@ -31,16 +31,7 @@ struct NewSessionView: View {
                 if let warning = model.warning { uncommittedNotice(warning) }
                 if let reason = model.noAgentReason { Text(reason).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
                 if model.hostOlder { Text(NewSessionModel.olderHostNotice).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
-                ForEach(model.agents.filter { $0.fix != nil }, id: \.name) { agent in
-                    HStack(spacing: 8) {
-                        Text("\(agent.name) is \(agent.note ?? "unavailable"):").font(.callout).foregroundStyle(.secondary)
-                        HealthFixButton(tool: .agent(harness: agent.harness), state: agent.state)
-                    }
-                }
                 if model.gitMissing { HealthFixButton(tool: .git, state: .missing) }
-                if model.gitMissing || model.agents.contains(where: { $0.state.blocks }) {
-                    Button("Open Health in Settings", action: openHealth).buttonStyle(.link).font(.callout)
-                }
                 if model.sendSteps.isEmpty == false { sendSteps }
                 if let refusal = model.refusal {
                     VStack(alignment: .leading, spacing: 2) {

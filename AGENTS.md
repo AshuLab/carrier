@@ -43,7 +43,7 @@ Everything a terminal user sees lives under `src/terminal`, so a future web UI i
 
 For users: [configuration](docs/configuration.md), [preparing a repo](docs/preparing-a-repo.md), [troubleshooting](docs/troubleshooting.md). Decisions: [ADRs](docs/adr/). Evidence behind them: [research](docs/research/).
 
-A release is a pushed tag `vX.Y.Z`, run by `.github/workflows/release.yml`. The `release` skill (`.claude/skills/release`) is the same procedure by hand for when Actions is unavailable; change one, change the other.
+A release is a pushed tag `vX.Y.Z`, run by `.github/workflows/release.yml`; how a release flows to an installed Carrier, the update key and the checks of the first real release are in [releasing](docs/releasing.md). The `release` skill (`.claude/skills/release`) is the same procedure by hand for when Actions is unavailable; change one, change the other.
 
 ## solve skills
 

@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # release - ship Carrier without GitHub Actions
 
-The normal release is a pushed tag `vX.Y.Z`: `.github/workflows/release.yml` builds, publishes and updates the tap, with npm trusted publishing and no token. **Use it whenever Actions works.** This is the same procedure by hand. `release.yml` is the source of truth: if it changes, change this file in the same PR.
+The normal release is a pushed tag `vX.Y.Z`: `.github/workflows/release.yml` builds, publishes and updates the tap, with npm trusted publishing and no token. **Use it whenever Actions works.** This is the same procedure by hand. `release.yml` is the source of truth: if it changes, change this file in the same PR. The flow as a whole, the update key and what a stopped run leaves are in [docs/releasing.md](../../../docs/releasing.md).
 
 Every step that is public (npm, the Release, the tap) needs the person's yes first: say what it will publish, then run it. Never run one step "to see".
 

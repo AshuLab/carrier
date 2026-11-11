@@ -47,6 +47,41 @@ The app and `carrier` are two things `brew upgrade` can move at different moment
 
 Running both (`brew upgrade carrier` and `brew upgrade --cask carrier`) leaves them at the same release.
 
+### The app never shows an update
+
+The app checks by itself (Sparkle, once a day, and in the background each time it opens) and asks before it installs ([how the update works](releasing.md#2-what-the-installed-app-does)). If a new release does not arrive:
+
+- **The release is not out yet.** The feed is `https://github.com/AshuLab/carrier/releases/latest/download/appcast.xml` and it moves to a version only when its release is published, the last step of a release; a run that stopped in the middle leaves a draft and the feed on the previous version. `gh release list --repo AshuLab/carrier` shows a `Draft`, and `curl -sIL` on the feed shows which version it serves. Finishing the run publishes it ([releasing](releasing.md#what-a-run-that-stops-leaves-and-how-to-finish-it)). For about ten seconds after a release is published the feed may answer 404.
+- **The app does not check.** The two choices (check by itself, install by itself) are Sparkle's own preferences and Settings has no page for them yet. `defaults read dev.ashulab.carrier SUEnableAutomaticChecks` printing `0` means checking was turned off; `defaults delete dev.ashulab.carrier SUEnableAutomaticChecks` goes back to the default, on. A build with no feed (run with `swift run`, or under `--fixture`) never checks.
+- **The app is older than the first release with Sparkle,** which cannot update itself: run `brew upgrade --cask carrier` once, and from then on it moves by itself.
+- **The update was refused.** `log show --last 1h --predicate 'subsystem == "org.sparkle-project.Sparkle"'` says why. "The update is improperly signed" means the zip was not signed with the key inside the installed app (see "The update key was lost" below). The line "Code signature of the new version doesn't match the old version" appears at the Error level on every update of an ad hoc app and is not a failure.
+- **This Mac is not supported by the release:** the app needs an Apple Silicon Mac on macOS 26 or later.
+
+### Carrier could not be updated after the app updated
+
+After Sparkle replaces the app, the app finds the installed `carrier` older than itself and upgrades it with Homebrew (`brew update`, then `brew upgrade --formula ashulab/tap/carrier`). When that fails, the Sessions home and the Sessions section of the sidebar show **"Carrier could not be updated"** with the reason: "Homebrew was not found at /opt/homebrew/bin/brew", or "`brew update` failed" / "`brew upgrade` failed, so the app kept the Carrier it has" followed by the last lines of Homebrew's output. Nothing was changed: the old `carrier`, chat host and engine keep working with the new app, and the app tries again the next time it opens.
+
+The whole output is in `<folder>/engine/logs/app-upgrade.log` (`<folder>` is the Carrier folder, `~/.carrier` or `CARRIER_HOME`); each job replaces the previous log. The usual causes:
+
+- **No network.** Connect and open the app again, or run `brew update && brew upgrade --formula ashulab/tap/carrier` in Terminal.
+- **Another `brew update` or `brew upgrade` is running** and holds Homebrew's lock. Wait for it, then open the app again.
+- **The formula is pinned.** Homebrew skips a pinned formula, so there may be no notice at all and `carrier --version` stays old. `brew list --pinned` lists `carrier`; `brew unpin carrier` and upgrade.
+- **Homebrew is not in `/opt/homebrew`.** The app only runs that one `brew` (Apple Silicon); upgrade in Terminal with your own.
+
+### The engine or the chat host is still on the old version after an update
+
+The app replaces them only when doing so loses nothing:
+
+- **The chat host** is replaced when no session is working or waiting for an approval. Otherwise the Sessions home says "The chat host is older than Carrier"; restart it when the session finishes: `carrier chat --stop`, and the next new session starts the installed one.
+- **The engine** is replaced only if it was running, and once it has no execution in flight. While it waits the app pauses intake, so the panel and the app show it paused; when the last execution ends the app stops it, starts the installed `carrier` and pauses it again if you had paused it. An engine you had stopped stays stopped: start it with `carrier start`. If the app was quit during the wait, intake stays paused: `carrier resume`, then `carrier stop` and `carrier start` to move to the new version.
+- If the upgrade itself failed (the section above), neither is touched.
+
+`carrier --version` prints the installed version; a process started before the upgrade runs the old one until it is restarted.
+
+### The update key was lost
+
+Each release's zip is signed with the update key. If its private half is lost, the next release cannot be signed with the key the installed apps trust, so Sparkle refuses it as improperly signed; the apps keep working but stop updating, and the key cannot be rotated with an ad hoc signature ([releasing, the update key](releasing.md#4-the-update-key)). The owner makes a new pair, puts its public half in `macos/update-key.pub`, sets the repository secret `SPARKLE_PRIVATE_KEY` and cuts a release. People who already have Carrier then run `brew reinstall --cask carrier`, which brings a zip with the new public key; only those who run it are updated again, and their Carrier folder is left alone.
+
 ## An epic ends in `solve:epic:needs-human`
 
 The reason is in the panel and the logs. Carrier stops the epic and leaves everything as it was (sessions, worktrees, uncommitted work); the others keep going. Common reasons:

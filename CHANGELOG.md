@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.1.4] - 2026-11-11
 
+The chat in the Mac app got friendlier: the agent can now ask you things and you can answer.
+
 ### Added
 
 - Chat in the macOS app: a card for the agent's questions (`AskUserQuestion`) so you can answer them instead of only allowing or denying, one card for each run of reasoning and tool calls, a notice card, and markdown tables.
@@ -17,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - About in the macOS app is the system's About window, with the real app icon.
 
 ## [0.1.3] - 2026-11-10
+
+Settings and the chat in the Mac app got a big polish, and the app builds again with the macOS 26 SDK.
 
 ### Added
 
@@ -29,11 +33,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.1.2] - 2026-11-08
 
+A quick fix so the Mac app opens and stays open.
+
 ### Fixed
 
 - The macOS app no longer quits at launch when it draws its first provider or file icon (it could not find its resource bundle in the app built by the release workflow).
 
 ## [0.1.1] - 2026-11-06
+
+Housekeeping after the first release: Homebrew 7 syntax and npm publishing without a token.
 
 ### Fixed
 
@@ -46,7 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.1.0] - 2026-11-05
 
-First release.
+First release. Carrier picks up your ready epics, builds them with one agent, reviews them with another, and never merges the last pull request for you.
 
 ### Added
 

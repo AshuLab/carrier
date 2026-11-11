@@ -1,5 +1,5 @@
 import { carrierHome } from '../config/default-path.ts';
-import { providersProblem, readProvidersFile, type Providers } from '../config/providers.ts';
+import { providersProblem, readProvidersFile, runtimeOf, type Providers } from '../config/providers.ts';
 import { configDirVariable } from '../harnesses/names.ts';
 import type { ChatAgent } from './config.ts';
 import { ChatRefused } from './runner.ts';
@@ -11,11 +11,12 @@ export function readAccounts(folder = carrierHome()): Providers {
   return read.providers;
 }
 
-/** What a chat agent runs with: its account's harness, binary and login, the login as the environment the CLI reads it from. Refuses, naming the account, one that is missing or Antigravity's. */
+/** What a chat agent runs with: its account's harness, binary, compaction and launch arguments, and login, the login as the environment the CLI reads it from. Refuses, naming the account, one that is missing or Antigravity's. */
 export function chatAccount(providers: Providers, agent: ChatAgent, env: NodeJS.ProcessEnv = {}) {
   const found = providers[agent.account];
   if (found === undefined) throw new ChatRefused(`The chat agent "${agent.name}" names the account "${agent.account}", which is not in providers.json`);
   if (found.harness === 'agy') throw new ChatRefused(`The chat agent "${agent.name}" names the account "${agent.account}", which is Antigravity's: a chat does not offer it`);
-  const { harness, command, configDir } = found;
-  return { harness, command, configDir, env: configDir === undefined ? env : { ...env, [configDirVariable[harness]]: configDir } };
+  const { harness, configDir } = found;
+  const { command, ...launch } = runtimeOf(found);
+  return { harness, command, launch, configDir, env: configDir === undefined ? env : { ...env, [configDirVariable[harness]]: configDir } };
 }

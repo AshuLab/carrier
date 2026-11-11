@@ -307,6 +307,18 @@ test('an account\'s binary and login folder are what the login check and the app
   expect(started).toEqual([['/opt/codex-two', env]]);
 });
 
+test('app-server starts alone for an account that sets nothing, and with the -c pair and the launch arguments for one that does', async () => {
+  const started: string[][] = [];
+  const run = async (launch?: Parameters<ReturnType<typeof codexChatRunner>['open']>[0]['launch']) => {
+    await codexChatRunner(deps(replay(main).transport, { spawn: (_binary, options) => (started.push(options.args), replay(main).transport) })).open({ folder: '/work', env: {}, launch });
+    return started.at(-1);
+  };
+  expect(await run()).toEqual([]);
+  expect(await run({})).toEqual([]);
+  expect(await run({ autoCompact: 200000, launchArgs: ['--search', '-c', 'x=1'] })).toEqual(['-c', 'model_auto_compact_token_limit=200000', '--search', '-c', 'x=1']);
+  expect(await run({ launchArgs: ['--search'] })).toEqual(['--search']);
+});
+
 test('the process ending on its own ends the running turn as an error', async () => {
   const { conversation, events, transport } = await openWith(main);
   const from = events.length;
@@ -357,16 +369,16 @@ test('the real transport starts "<binary> app-server" as the leader of its own g
   const binary = join(dir, 'fake-codex');
   writeFileSync(binary, '#!/bin/sh\necho "{\\"args\\":\\"$*\\"}"\nsleep 30\n');
   chmodSync(binary, 0o755);
-  const transport = realCodexDeps.spawn(binary, { cwd: dir, env: process.env });
+  const transport = realCodexDeps.spawn(binary, { cwd: dir, env: process.env, args: ['-c', 'k=1'] });
   const lines: string[] = [];
   transport.onLine((line) => lines.push(line));
-  await vi.waitFor(() => expect(lines).toEqual(['{"args":"app-server"}']));
+  await vi.waitFor(() => expect(lines).toEqual(['{"args":"app-server -c k=1"}']));
   expect(execFileSync('ps', ['-o', 'pgid=', '-p', String(transport.pid)], { encoding: 'utf8' }).trim()).toBe(String(transport.pid));
   const ended = new Promise<void>((resolve) => transport.onExit(resolve));
   await endGroup(transport.pid!);
   await ended;
 
-  const missing = realCodexDeps.spawn(join(dir, 'nothing-here'), { cwd: dir, env: process.env });
+  const missing = realCodexDeps.spawn(join(dir, 'nothing-here'), { cwd: dir, env: process.env, args: [] });
   await new Promise<void>((resolve) => missing.onExit(resolve));
 });
 

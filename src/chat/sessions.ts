@@ -236,16 +236,16 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
 
   /** How an agent starts, from its account as `providers.json` has it now: refuses, naming the account, one that is missing or Antigravity's. */
   const launchOf = (chosen: ChatAgent) => {
-    const { harness, command, env: accountEnv } = chatAccount(readAccounts(), chosen, env);
+    const { harness, command, launch, env: accountEnv } = chatAccount(readAccounts(), chosen, env);
     const runner = runners[harness];
     if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${harness}`);
-    return { chosen, harness, runner, command, env: accountEnv };
+    return { chosen, harness, runner, command, launch, env: accountEnv };
   };
   type Launch = ReturnType<typeof launchOf>;
 
-  async function openConversation({ chosen, runner, command, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string }) {
+  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string }) {
     try {
-      return await runner.open({ ...args, command, env });
+      return await runner.open({ ...args, command, launch, env });
     } catch (error) {
       if (error instanceof ChatRefused) throw error;
       log.error('a chat runner failed to open', error);

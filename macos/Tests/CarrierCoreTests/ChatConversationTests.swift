@@ -784,6 +784,11 @@ private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case 
     #expect(texts(chatFeed(failed)) == ["user: go", "tools: Thought | 1 thought", "error: boom", "user: again"])
     // an empty thinking block draws nothing
     #expect(texts(chatFeed([user, ChatEvent(id: 2, at: 2, kind: "reasoning", text: "")])) == ["user: go"])
+    // so does one of only blank lines, and a block with blank lines around it is shown without them
+    #expect(texts(chatFeed([user, ChatEvent(id: 2, at: 2, kind: "reasoning", text: " \n\n ")])) == ["user: go"])
+    let padded = chatFeed([user, ChatEvent(id: 2, at: 2, kind: "reasoning", text: "\n\n  Hm.\n ")])
+    let step = runs(padded).first?.steps.first
+    #expect(step.map { if case .thought(let t) = $0 { t.text } else { "" } } == "Hm.")
 }
 
 @Test func aThoughtThatCameFirstGivesItsRunItsIdAndASoloThoughtCountsItsTimeFromTheStartOfTheTurn() throws {

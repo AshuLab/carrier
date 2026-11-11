@@ -28,6 +28,7 @@ struct NewSessionView: View {
             VStack(alignment: .leading, spacing: 16) {
                 sentence
                 box
+                if let warning = model.warning { uncommittedNotice(warning) }
                 if let reason = model.noAgentReason { Text(reason).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
                 if model.hostOlder { Text(NewSessionModel.olderHostNotice).font(.callout).foregroundStyle(.orange).textSelection(.enabled) }
                 ForEach(model.agents.filter { $0.fix != nil }, id: \.name) { agent in
@@ -110,11 +111,23 @@ struct NewSessionView: View {
             if model.branchesPartial { Text("Only the first branches GitHub lists are offered; the others can be checked out once the repository is on this Mac.").font(.subheadline).foregroundStyle(.secondary) }
             if let note = model.projectNote { Label(note, systemImage: "folder.badge.plus").font(.subheadline).foregroundStyle(.secondary).textSelection(.enabled) }
             if let note = model.branchNote { Text(note).font(.callout).foregroundStyle(.secondary) }
-            if let warning = model.warning { Text(warning).font(.callout).foregroundStyle(.orange) }
             if case .problem(let reason) = model.nameState, model.worktree {
                 Text(reason).font(.callout).foregroundStyle(.red).textSelection(.enabled)
             }
             if let problem = model.workspaceProblem { Text(problem).font(.callout).foregroundStyle(.red).textSelection(.enabled) }
+        }
+    }
+
+    /// The uncommitted files of the folder, under the box where the other notes about sending are: the first sentence is the title, the rest
+    /// what to do, and a worktree is one tap away.
+    private func uncommittedNotice(_ warning: String) -> some View {
+        let split = warning.range(of: ". ")
+        let title = split.map { String(warning[..<$0.lowerBound]) } ?? warning
+        let detail = split.map { String(warning[$0.upperBound...]) }
+        return NoticeCard(symbol: "exclamationmark", tint: .orange, title: title, detail: detail, edge: true) {
+            if model.offersWorktree, model.worktree == false {
+                Button("Use a worktree") { Task { await model.useWorktree(true) } }.buttonStyle(HoverTextButtonStyle(tint: .themeAccent))
+            }
         }
     }
 

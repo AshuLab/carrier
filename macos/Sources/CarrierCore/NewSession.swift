@@ -523,7 +523,7 @@ public struct WatchNote: Equatable {
         if let repo, let folder {
             if toClone {
                 let projects = (projectsPath as NSString).abbreviatingWithTildeInPath
-                steps.append(SendStep(icon: "arrow.down.circle", title: "Download the repository", parts: [.text("Downloads "), .code(repo), .text(" to "), .code(projects), .text(" (only this first time)")], help: folder))
+                steps.append(SendStep(icon: "arrow.down.circle", title: "Download the repository", parts: [.text("When you send, Carrier downloads "), .code(repo), .text(" from GitHub into "), .code(projects), .text(". Only this first time: later sessions reuse that copy.")], help: folder))
             } else {
                 steps.append(SendStep(icon: "arrow.triangle.2.circlepath", title: "Update the repository", parts: [.text("Updates "), .code(repo), .text(" from GitHub first")], help: folder))
             }

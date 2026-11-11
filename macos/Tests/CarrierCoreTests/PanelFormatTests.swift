@@ -93,3 +93,11 @@ private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(content
     snapshot.nextCheckAt = 999_000
     #expect(isChecking(snapshot, asked: nil, now: start))
 }
+
+@Test func aBareAddressInAMessageIsCutToItsHostAndTail() {
+    func label(_ address: String) -> String { linkLabel(URL(string: address)!) }
+    #expect(label("https://www.example.com/") == "example.com")
+    #expect(label("https://github.com/AshuLab/carrier") == "github.com/AshuLab/carrier")
+    #expect(label("https://github.com/AshuLab/carrier/pull/748/files#diff-3f2a9c?x=1") == "github.com/…/files")
+    #expect(label("https://example.com/a-very-long-single-piece-of-path-that-goes-on") == "example.com/a-very-long-single-piece-of…")
+}

@@ -65,6 +65,17 @@ public func browserURL(_ string: String) -> URL? {
     return url
 }
 
+/// What a bare web address says of itself in a message: the host and the path without the scheme, `www.` or query, and a long one cut
+/// in its middle to the host, an ellipsis and the last piece of the path ("github.com/…/files"). The link keeps the whole address.
+public func linkLabel(_ url: URL) -> String {
+    let host = (url.host ?? "").replacingOccurrences(of: "www.", with: "", options: .anchored)
+    let path = url.path == "/" ? "" : url.path
+    guard host.count + path.count > 40 else { return host + path }
+    let pieces = path.split(separator: "/")
+    if pieces.count > 1, let last = pieces.last { return "\(host)/…/\(last)" }
+    return String((host + path).prefix(39)) + "…"
+}
+
 /// The finished epic's links; the snapshot gives the repo ("owner/name") and the numbers, GitHub is where they live.
 public func doneIssueURL(_ done: PanelSnapshot.DoneEpic) -> String { "https://github.com/\(done.repo)/issues/\(done.issue)" }
 

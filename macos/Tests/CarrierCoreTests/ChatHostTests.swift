@@ -205,6 +205,37 @@ private func hello(_ capabilities: String = "\"agents\",\"list\"", protocol vers
     #expect(asked == false)
 }
 
+@Test @MainActor func theProvidersStoreHoldsTheReplyOfAHostThatListsProvidersAndSaysWhyOtherwise() async throws {
+    let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Fixtures").path
+    let fixture = try FixtureServer(fixtures: fixtures)
+    defer { fixture.stop() }
+    let store = ProvidersStore(host: SocketChatHost(socketPath: { fixture.chatSocketPath }), log: { _ in })
+    #expect(store.outcome == .unasked)
+    await store.load()
+    guard case .reply(let reply) = store.outcome else { throw ControlError.closed }
+    #expect(reply.accounts.map(\.name) == ["claude", "claude-work", "codex"] && reply.problem == nil)
+
+    let old = TestServer { connection in connection.send(hello("\"agents\"")) }
+    defer { old.stop() }
+    let tooOld = ProvidersStore(host: SocketChatHost(socketPath: { old.path }), log: { _ in })
+    await tooOld.load()
+    #expect(tooOld.outcome == .tooOld)
+
+    let absent = ProvidersStore(host: SocketChatHost(socketPath: { "/tmp/carrier-no-such-host.sock" }), log: { _ in })
+    await absent.load()
+    #expect(absent.outcome == .noHost)
+
+    let failing = TestServer { connection in
+        connection.send(hello("\"providers\""))
+        guard let id = connection.readRequestId() else { return }
+        connection.send("{\"id\":\(id),\"ok\":false,\"error\":\"internal error\"}\n")
+    }
+    defer { failing.stop() }
+    let failed = ProvidersStore(host: SocketChatHost(socketPath: { failing.path }), log: { _ in })
+    await failed.load()
+    #expect(failed.outcome == .failed("internal error"))
+}
+
 // MARK: the preparation of a session
 
 @Test func theEventsReplyCarriesStepEventsThePreparationAndTheProgress() throws {

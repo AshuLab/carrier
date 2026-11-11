@@ -202,6 +202,9 @@ public protocol ChatHost {
     /// The state of `git`, `gh` and each chat agent on the host's machine; `refresh` skips the answer the host kept for thirty seconds.
     /// Only for a host whose hello lists `health`.
     func health(refresh: Bool) async throws -> HostHealth
+    /// The accounts of `providers.json` with their state, the harnesses found with no account and the local servers with their models; a file
+    /// that does not match answers `problem`. Only for a host whose hello lists `providers`.
+    func providers() async throws -> HostProviders
     /// The events of a session after the cursor, at most `limit` (the host takes 1 to 200).
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents
     /// Opens a closed session's agent again; the host refuses a `send` to one that is not live.
@@ -246,6 +249,9 @@ extension ChatHost {
 
     /// A host that cannot say how the machine is refuses; the app only asks one that lists `health`.
     public func health(refresh: Bool) async throws -> HostHealth { throw ControlError.remote("the chat host does not support health") }
+
+    /// A host that cannot list the AI tools refuses; the app only asks one that lists `providers`.
+    public func providers() async throws -> HostProviders { throw ControlError.remote("the chat host does not support providers") }
 
     /// A host that cannot rename refuses; the app only asks one that lists `rename`.
     public func rename(_ id: String, _ title: String) async throws { throw ControlError.remote("the chat host does not support rename") }
@@ -375,6 +381,12 @@ public struct SocketChatHost: ChatHost {
         let fields = refresh ? ",\"refresh\":true" : ""
         let path = socketPath()
         return try await Task.detached { try chatRequest(path, "health", requires: .health, fields: fields, timeout: 15) }.value
+    }
+
+    /// Every probe of the host has its five seconds, in parallel, and a version is read after them, so the wait is longer than the 5 of the other requests.
+    public func providers() async throws -> HostProviders {
+        let path = socketPath()
+        return try await Task.detached { try chatRequest(path, "providers", requires: .providers, timeout: 20) }.value
     }
 
     public func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents {

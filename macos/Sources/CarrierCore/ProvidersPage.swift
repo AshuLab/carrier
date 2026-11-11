@@ -1,0 +1,265 @@
+import Foundation
+import Observation
+
+// The Providers page of Settings (docs/specs/providers-in-settings.md): what the chat host says of the AI tools on this Mac (`providers`),
+// joined with who uses each account, read from `config.json` (roles, repo overrides, failover) and `chat.json` (chat agents). Read only.
+
+/// The reply of `providers`: the accounts of `providers.json` with their state, the harnesses found that no account has, and the local servers.
+public struct HostProviders: Decodable, Equatable {
+    public struct Account: Decodable, Equatable {
+        public let name: String
+        public let harness: String
+        public let displayName: String?
+        public let command: String?
+        public let configDir: String?
+        public let enabled: Bool
+        public let found: Bool
+        public let path: String?
+        public let version: String?
+        public let state: ToolState
+    }
+
+    public struct Unadded: Decodable, Equatable {
+        public let harness: String
+        public let path: String
+        public let version: String?
+    }
+
+    public struct Server: Decodable, Equatable {
+        public let kind: String
+        public let running: Bool
+        public let models: [String]
+    }
+
+    /// `providers.json` does not match: why, with no accounts.
+    public struct Problem: Decodable, Equatable {
+        public let path: String
+        public let message: String
+    }
+
+    public let accounts: [Account]
+    public let unadded: [Unadded]
+    public let servers: [Server]
+    public let problem: Problem?
+}
+
+public enum ProviderRole: CaseIterable {
+    case author, reviewer, leadReviewer
+
+    /// The key of the role in `config.json`.
+    var key: String {
+        switch self {
+        case .author: "author"
+        case .reviewer: "reviewer"
+        case .leadReviewer: "leadReviewer"
+        }
+    }
+
+    public var title: String {
+        switch self {
+        case .author: "Author"
+        case .reviewer: "Reviewer"
+        case .leadReviewer: "Lead reviewer"
+        }
+    }
+}
+
+/// One way an account is named by the files: a role, a repo's override of a role, a failover list or a chat agent.
+public enum AccountUse: Equatable {
+    case role(ProviderRole)
+    case repoOverride(repo: String, role: ProviderRole)
+    /// nil is the default order, which any role without its own list follows.
+    case failover(ProviderRole?)
+    case chatAgent(String)
+
+    public var text: String {
+        switch self {
+        case .role(let role): role.title
+        case .repoOverride(let repo, let role): "\(role.title) in \(repo)"
+        case .failover(nil): "Failover, default order"
+        case .failover(let role?): "Failover of \(role.title)"
+        case .chatAgent(let name): "Chat agent \(name)"
+        }
+    }
+}
+
+/// Who uses each account, by account name. A missing `chat.json` (or one with no `agents`) is the chat's defaults: `claude` and `codex`, each
+/// on the account of the same name. The failover lists count only while failover is enabled. A file that does not read names nobody.
+public func accountUses(config: Data?, chat: Data?) -> [String: [AccountUse]] {
+    func object(_ data: Data?) -> [String: Any] {
+        data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+    }
+    func provider(_ role: Any?, _ key: String) -> String? { (role as? [String: Any])?[key] as? String }
+    var uses: [String: [AccountUse]] = [:]
+    let file = object(config)
+
+    let roles = file["agents"] as? [String: Any] ?? [:]
+    for role in ProviderRole.allCases {
+        if let name = provider(roles[role.key], "provider") { uses[name, default: []].append(.role(role)) }
+    }
+    for repo in file["repos"] as? [[String: Any]] ?? [] {
+        guard let repoName = repo["name"] as? String, let overrides = repo["agents"] as? [String: Any] else { continue }
+        for role in ProviderRole.allCases {
+            if let name = provider(overrides[role.key], "provider") { uses[name, default: []].append(.repoOverride(repo: repoName, role: role)) }
+        }
+    }
+    if let failover = file["failover"] as? [String: Any], failover["enabled"] as? Bool == true {
+        for name in failover["default"] as? [String] ?? [] { uses[name, default: []].append(.failover(nil)) }
+        let lists = failover["roles"] as? [String: Any] ?? [:]
+        for role in ProviderRole.allCases {
+            for name in lists[role.key] as? [String] ?? [] { uses[name, default: []].append(.failover(role)) }
+        }
+    }
+
+    let agents = object(chat)["agents"] as? [String: Any] ?? ["claude": ["account": "claude"], "codex": ["account": "codex"]]
+    for agent in agents.keys.sorted() {
+        if let name = provider(agents[agent], "account") { uses[name, default: []].append(.chatAgent(agent)) }
+    }
+    return uses
+}
+
+public struct ProviderAccount: Equatable, Identifiable {
+    public let name: String
+    /// The name the person gave it, else the account's name.
+    public let title: String
+    public let state: ToolState
+    public let enabled: Bool
+    public let configDir: String?
+    public let uses: [AccountUse]
+
+    public var id: String { name }
+    /// "Used by Author, Chat agent claude", or "Not used yet".
+    public var usedBy: String { uses.isEmpty ? "Not used yet" : "Used by " + uses.map(\.text).joined(separator: ", ") }
+}
+
+public struct ProviderTool: Equatable, Identifiable {
+    public enum Status: Equatable {
+        case ready, signedOut, unknown, missing
+        /// The CLI is on this Mac and no account has it.
+        case foundNotAdded
+
+        public var text: String {
+            switch self {
+            case .ready: "Signed in"
+            case .signedOut: "Signed out"
+            case .unknown: "Could not check"
+            case .missing: "Not installed"
+            case .foundNotAdded: "Found, not added"
+            }
+        }
+    }
+
+    /// The harness: `claude`, `codex` or `agy`.
+    public let id: String
+    public let title: String
+    /// The name of the bundled mark (`providerIconURL`).
+    public let icon: String
+    public let status: Status
+    public let version: String?
+    public let path: String?
+    public let accounts: [ProviderAccount]
+}
+
+public struct ProviderServer: Equatable, Identifiable {
+    public let id: String
+    public let title: String
+    public let running: Bool
+    public let models: [String]
+
+    public var status: String { running ? "Running · " + (models.count == 1 ? "1 model" : "\(models.count) models") : "Not running" }
+}
+
+public struct ProvidersPage: Equatable {
+    public let tools: [ProviderTool]
+    public let servers: [ProviderServer]
+}
+
+private let harnesses: [(id: String, title: String, icon: String)] = [("claude", "Claude Code", "claude"), ("codex", "Codex", "codex"), ("agy", "Antigravity", "antigravity")]
+private let localServers: [(id: String, title: String)] = [("lmstudio", "LM Studio"), ("ollama", "Ollama")]
+
+/// The rows of the page: every tool with its state, version and path and its accounts with who uses them, and the local servers with their models.
+public func providersPage(_ reply: HostProviders, config: Data?, chat: Data?) -> ProvidersPage {
+    let uses = accountUses(config: config, chat: chat)
+    let tools = harnesses.map { harness -> ProviderTool in
+        let own = reply.accounts.filter { $0.harness == harness.id }
+        let seen = own.first { $0.found }
+        let unadded = reply.unadded.first { $0.harness == harness.id }
+        let status: ProviderTool.Status
+        if seen == nil && own.isEmpty && unadded != nil {
+            status = .foundNotAdded
+        } else if seen == nil {
+            status = .missing
+        } else if own.contains(where: { $0.state == .ready }) {
+            status = .ready
+        } else if own.contains(where: { $0.state == .signedOut }) {
+            status = .signedOut
+        } else {
+            status = .unknown
+        }
+        return ProviderTool(
+            id: harness.id, title: harness.title, icon: harness.icon, status: status,
+            version: seen?.version ?? unadded?.version, path: seen?.path ?? unadded?.path,
+            accounts: own.map {
+                ProviderAccount(name: $0.name, title: $0.displayName ?? $0.name, state: $0.state, enabled: $0.enabled, configDir: $0.configDir, uses: uses[$0.name] ?? [])
+            }
+        )
+    }
+    let servers = localServers.map { local -> ProviderServer in
+        let seen = reply.servers.first { $0.kind == local.id }
+        return ProviderServer(id: local.id, title: local.title, running: seen?.running ?? false, models: seen?.models ?? [])
+    }
+    return ProvidersPage(tools: tools, servers: servers)
+}
+
+/// What the app got when it asked the host: the reply, or why there is none.
+public enum ProvidersOutcome: Equatable {
+    case unasked
+    /// No chat host is running.
+    case noHost
+    /// The host's hello does not list `providers`.
+    case tooOld
+    case failed(String)
+    case reply(HostProviders)
+
+    /// Said in place of the page when there is no reply, or when `providers.json` does not match (the reply then has no accounts); nil when
+    /// there is a page to draw.
+    public var note: String? {
+        switch self {
+        case .unasked: "Looking at this Mac…"
+        case .noHost: "The chat host is not running, so this Mac was not looked at. Open Health to see why."
+        case .tooOld: "The chat host is too old to list the AI tools. Restart it to use the installed Carrier."
+        case .failed(let reason): "The chat host could not list the AI tools: \(reason)"
+        case .reply(let reply): reply.problem.map { "providers.json does not match, so no accounts are shown. \($0.message)" }
+        }
+    }
+}
+
+/// The last answer of `providers`; asked when the page opens and again on request, and only of a host that lists it.
+@MainActor @Observable public final class ProvidersStore {
+    public private(set) var outcome = ProvidersOutcome.unasked
+
+    @ObservationIgnored private let host: ChatHost
+    @ObservationIgnored private let log: (String) -> Void
+
+    public init(host: ChatHost, log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }) {
+        self.host = host
+        self.log = log
+    }
+
+    public func load() async {
+        let capabilities: Set<ControlClient.Capability>
+        do { capabilities = try await host.capabilities() } catch {
+            outcome = .noHost
+            return
+        }
+        guard capabilities.contains(.providers) else {
+            outcome = .tooOld
+            return
+        }
+        do { outcome = .reply(try await host.providers()) } catch {
+            let reason = ConversationModel.words(error)
+            log("providers: \(reason)")
+            outcome = .failed(reason)
+        }
+    }
+}

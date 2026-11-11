@@ -72,7 +72,6 @@ public func healthSections(host: HostHealth?, facts: CarrierFacts, doctor: Docto
         mac = HealthSection(
             title: "This Mac", note: nil,
             rows: [macRow("git", .git, host.git), macRow("gh", .gh, host.gh)]
-                + host.agents.map { macRow($0.name, .agent(harness: $0.harness), $0.state) }
         )
     } else {
         let note = if facts.hostRunning == false {

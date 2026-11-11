@@ -14,13 +14,16 @@ struct AgentsTabView: View {
     @State private var problem: String?
     /// Switch automatically turned on for a role that has no first step yet: nothing is written until it has one
     @State private var switchedOn: Set<AgentRole> = []
+    /// the Lead reviewer's switch is on in the page and the file has no role yet: what is chosen waits here until the role is whole
+    @State private var turningOnLead = false
+    @State private var leadDraft = LeadReviewerDraft()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let page {
                 HStack(alignment: .top, spacing: 16) {
                     list(page).frame(width: 300)
-                    if let row = page.rows.first(where: { $0.role == selection }) { detail(row, page: page).frame(maxWidth: .infinity, alignment: .topLeading) }
+                    if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page).frame(maxWidth: .infinity, alignment: .topLeading) }
                 }
                 if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
                 if let note = page.bots.note { Text(note).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
@@ -44,6 +47,7 @@ struct AgentsTabView: View {
 
     /// Writes the change, then reads the file back so the page shows what is there, whether it was saved or refused.
     private func save(_ change: RoleChange, role: AgentRole, page: AgentsPage) -> RoleSave {
+        if role == .leadReviewer, turningOnLead { return fillLead(change, page: page) }
         let result = saveGlobalRole(change, role: role, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
         let reason: String?
         switch result {
@@ -60,6 +64,35 @@ struct AgentsTabView: View {
         load()
         if case .refused(let why) = result { problem = why } else if case .failed(let why) = result { problem = why }
         return result == .saved
+    }
+
+    /// A choice for the role being turned on: kept in the draft, and written only when identity, provider and model are all there.
+    private func fillLead(_ change: RoleChange, page: AgentsPage) -> RoleSave {
+        leadDraft.apply(change)
+        guard leadDraft.isComplete else { return .saved }
+        let result = turnLeadReviewerOn(leadDraft, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
+        if result == .saved {
+            turningOnLead = false
+            leadDraft = LeadReviewerDraft()
+        }
+        load()
+        if case .refused(let why) = result { problem = why } else if case .failed(let why) = result { problem = why }
+        return result
+    }
+
+    private func setLeadSwitch(on: Bool, row: RoleRow) {
+        leadDraft = LeadReviewerDraft()
+        problem = nil
+        if on {
+            turningOnLead = true
+        } else if row.off {
+            turningOnLead = false
+        } else {
+            turningOnLead = false
+            let result = turnLeadReviewerOff(path: configFilePath())
+            load()
+            if case .refused(let why) = result { problem = why } else if case .failed(let why) = result { problem = why }
+        }
     }
 
     private func list(_ page: AgentsPage) -> some View {
@@ -85,10 +118,12 @@ struct AgentsTabView: View {
         VStack(alignment: .leading, spacing: 12) {
             if row.hasSwitch {
                 SettingsTabCard {
-                    SettingsTabRow(title: "Use a lead reviewer", detail: row.off ? "Off: the file has no lead reviewer" : row.what, first: true) {
-                        Toggle("Use a lead reviewer", isOn: .constant(row.off == false)).labelsHidden().toggleStyle(.switch).disabled(true)
+                    SettingsTabRow(title: "Use a lead reviewer", detail: row.switchDetail, first: true) {
+                        Toggle("Use a lead reviewer", isOn: Binding(get: { row.usable(turningOn: turningOnLead) }, set: { setLeadSwitch(on: $0, row: row) }))
+                            .labelsHidden().toggleStyle(.switch)
                     }
                 }
+                if turningOnLead, let hint = leadDraft.hint { Text(hint).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
             }
             VStack(alignment: .leading, spacing: 12) {
                 SettingsGroup(title: "Who") {
@@ -145,7 +180,7 @@ struct AgentsTabView: View {
                 }
             }
             // while the lead reviewer is off the rest of its page is shown, dimmed and not usable
-            .opacity(row.off ? 0.4 : 1).disabled(row.off)
+            .opacity(row.usable(turningOn: turningOnLead) ? 1 : 0.4).disabled(row.usable(turningOn: turningOnLead) == false)
         }
     }
 

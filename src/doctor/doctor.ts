@@ -12,6 +12,7 @@ import { forgeCwd } from '../integrations/forge-cwd.ts';
 import { GhGitHub, type GitHubProfile } from '../integrations/github.ts';
 import { listLocalModels, localLabel, localUrl, type LocalProvider } from '../harnesses/local.ts';
 import { configDirVariable } from '../harnesses/names.ts';
+import { epicLabel, readyLabel } from '../orchestration/github.ts';
 import { fixes, installFix } from './fixes.ts';
 
 /**
@@ -139,6 +140,7 @@ const realDeps: DoctorDeps = {
 };
 
 const identity = (profile: GitHubProfile) => (profile.kind === 'forge' ? `forge agent ${profile.agent}` : 'your gh login');
+const solveLabels = [epicLabel, readyLabel];
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** What the machine has to be able to do, and whether each identity can act on each repo. Reads only; creates nothing on GitHub. */
@@ -261,12 +263,19 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     if (!usable(orchestrator)) continue;
     const name = `${identity(orchestrator)} can read ${repo.name}`;
     onStart(name);
+    let labels: string[];
     try {
-      await deps.listLabels(config, repo.name, folder);
-      report({ name, status: 'ok', repo: repo.name, profiles: [config.orchestratorProfile] });
+      labels = await deps.listLabels(config, repo.name, folder);
     } catch (error) {
       report({ name, status: 'fail', detail: message(error), fix: fixes.read(repo.name, message(error)), repo: repo.name, profiles: [config.orchestratorProfile] });
+      continue;
     }
+    report({ name, status: 'ok', repo: repo.name, profiles: [config.orchestratorProfile] });
+    // The labels the read check already fetched say whether Solve is set up: no second call.
+    const solveName = `${repo.name} has the Solve labels`;
+    onStart(solveName);
+    const missing = solveLabels.filter((label) => !labels.includes(label));
+    report(missing.length === 0 ? { name: solveName, status: 'ok', repo: repo.name, profiles: [config.orchestratorProfile] } : { name: solveName, status: 'fail', detail: `missing ${missing.join(', ')}`, fix: fixes.solve, repo: repo.name, profiles: [config.orchestratorProfile] });
   }
   return checks;
 }

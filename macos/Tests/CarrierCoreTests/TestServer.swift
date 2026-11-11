@@ -34,9 +34,12 @@ final class TestServer {
     private var stopped = false
     private let lock = NSLock()
 
-    init(handler: @escaping (ServerConnection) -> Void) {
-        let path = "/tmp/cc-\(UUID().uuidString.prefix(8)).sock"
+    /// `path` serves a replacement at the place the one that stopped had.
+    init(path: String? = nil, handler: @escaping (ServerConnection) -> Void) {
+        let path = path ?? "/tmp/cc-\(UUID().uuidString.prefix(8)).sock"
         self.path = path
+        // a probe that connects and leaves (the app polls for a socket to go) can be gone before NOSIGPIPE is set on its accepted socket, and the hello then raises SIGPIPE
+        signal(SIGPIPE, SIG_IGN)
         var address = sockaddr_un()
         address.sun_family = sa_family_t(AF_UNIX)
         withUnsafeMutableBytes(of: &address.sun_path) { $0.copyBytes(from: path.utf8) }

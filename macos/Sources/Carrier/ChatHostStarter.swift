@@ -77,7 +77,7 @@ import Observation
 
     /// A host that answers while the installed `carrier` is newer is replaced when no session is working or waiting, and otherwise
     /// left running with a notice. Anything that cannot be read leaves it alone, and says so in the log. Before that, a Homebrew
-    /// `carrier` older than the app is upgraded and its version read again.
+    /// `carrier` older than the app is upgraded and its version read again. After the host, the engine gets the same comparison.
     private func replaceIfOlder(_ command: StartCommand, homebrews: Bool) {
         Task.detached {
             guard var installed = Self.installedVersion(command) else { return }
@@ -95,21 +95,37 @@ import Observation
                     return
                 }
             }
-            guard let client = ControlClient.connect(path: command.socketPath) else { return }
-            let running = (try? client.hello())?.version ?? ""
-            client.close()
-            let sessions: [ChatSession]
-            do { sessions = try await SocketChatHost(socketPath: { command.socketPath }).list(archived: false) } catch {
-                FileHandle.standardError.write(Data("carrier: the chat host was left alone, its sessions could not be listed: \(error)\n".utf8))
-                return
-            }
-            // ponytail: a session that starts working between the list and the stop is closed with the host; a guard in the host if it bites
-            switch hostReplacement(running: running, installed: installed, working: sessions.contains { $0.state != .idle }) {
-            case .keep: break
-            case .askRestart: await MainActor.run { self.restartAdvised = true }
-            case .replace: await self.replace(command)
-            }
+            await self.replaceHostIfOlder(command, installed: installed)
+            await self.replaceEngineIfOlder(installed: installed)
         }
+    }
+
+    private func replaceHostIfOlder(_ command: StartCommand, installed: String) async {
+        guard let client = ControlClient.connect(path: command.socketPath) else { return }
+        let running = (try? client.hello())?.version ?? ""
+        client.close()
+        let sessions: [ChatSession]
+        do { sessions = try await SocketChatHost(socketPath: { command.socketPath }).list(archived: false) } catch {
+            FileHandle.standardError.write(Data("carrier: the chat host was left alone, its sessions could not be listed: \(error)\n".utf8))
+            return
+        }
+        // ponytail: a session that starts working between the list and the stop is closed with the host; a guard in the host if it bites
+        switch hostReplacement(running: running, installed: installed, working: sessions.contains { $0.state != .idle }) {
+        case .keep: break
+        case .askRestart: await MainActor.run { restartAdvised = true }
+        case .replace: await replace(command)
+        }
+    }
+
+    /// An engine that is running and older than the installed `carrier` is replaced once it is free; one that is stopped stays so.
+    /// A failed start shows the engine's own alert.
+    private func replaceEngineIfOlder(installed: String) async {
+        let result = await replaceEngine(
+            socketPath: controlSocketPath(), installed: installed,
+            beforeStop: { NotificationWatcher.app.expectStop() },
+            start: { await withCheckedContinuation { next in DispatchQueue.main.async { StartController.shared.start { next.resume(returning: $0) } } } }
+        )
+        if case .failed(let reason) = result { FileHandle.standardError.write(Data("carrier: the older engine was not replaced: \(reason)\n".utf8)) }
     }
 
     /// Stops the host, waits for its socket to go, starts the installed one; a failed start keeps the alert. A start that is already

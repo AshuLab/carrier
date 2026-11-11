@@ -30,3 +30,18 @@ import Testing
     #expect(versionNumbers("0.1.0\n") == [0, 1, 0])
     #expect(versionNumbers("usage: carrier") == nil)
 }
+
+@Test func anOlderEngineWaitsWhileItWorksAndIsReplacedWhenItDoesNot() {
+    #expect(engineReplacement(running: "0.1.0", installed: "0.2.0", executionsInFlight: 2) == .pauseAndWait)
+    #expect(engineReplacement(running: "0.1.0", installed: "0.2.0", executionsInFlight: 0) == .replace)
+    #expect(engineReplacement(running: "0.9.0", installed: "0.10.0", executionsInFlight: 0) == .replace)
+}
+
+@Test func anEqualNewerOrUnreadableEngineStays() {
+    #expect(engineReplacement(running: "0.2.0", installed: "0.2.0", executionsInFlight: 0) == .keep)
+    #expect(engineReplacement(running: "0.3.0", installed: "0.2.0", executionsInFlight: 1) == .keep)
+    for bad in ["", "unknown", "1.2-beta"] {
+        #expect(engineReplacement(running: bad, installed: "9.0.0", executionsInFlight: 0) == .keep)
+        #expect(engineReplacement(running: "0.1.0", installed: bad, executionsInFlight: 3) == .keep)
+    }
+}

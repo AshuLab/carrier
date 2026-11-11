@@ -80,7 +80,7 @@ export const runtimeOf = ({ command, autoCompact, idleCompaction, launchArgs }: 
 });
 
 /** Without `providers.json`: one account per harness, named after it, with this Mac's own login, offered to nobody. */
-const defaultAccounts: Providers = Object.fromEntries(harnessNames.map((harness) => [harness, { harness, enabled: false }]));
+export const defaultAccounts: Providers = Object.fromEntries(harnessNames.map((harness) => [harness, { harness, enabled: false }]));
 
 const providersFileSchema = z.strictObject({ providers: accounts.default(defaultAccounts) });
 

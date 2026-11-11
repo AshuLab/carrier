@@ -98,6 +98,8 @@ public struct RepoRow: Equatable, Identifiable {
     public var epics: RepoEpics?
     /// in the draft but not in the file yet
     public var isNew: Bool
+    /// the running engine has loaded it, so its epics and last check are known
+    public var isLoaded = false
     public var id: String { name }
 
     public var owner: String { String(name.split(separator: "/").first ?? "") }
@@ -124,9 +126,9 @@ public func repoRows(draft: [String], saved: [String], snapshot: PanelSnapshot?)
             return RepoRow(name: name, health: .unknown, line: "Carrier has not loaded it yet · it does after a restart", epics: epics, isNew: false)
         }
         if watched.ok == false {
-            return RepoRow(name: name, health: .error, line: watched.error ?? "GitHub refused it", epics: epics, isNew: false)
+            return RepoRow(name: name, health: .error, line: watched.error ?? "GitHub refused it", epics: epics, isNew: false, isLoaded: true)
         }
-        guard let at = watched.lastCheckedAt else { return RepoRow(name: name, health: .unknown, line: "Not checked yet", epics: epics, isNew: false) }
-        return RepoRow(name: name, health: .ok, line: "Checked \(agoLine(at, now: snapshot.now))", epics: epics, isNew: false)
+        guard let at = watched.lastCheckedAt else { return RepoRow(name: name, health: .unknown, line: "Not checked yet", epics: epics, isNew: false, isLoaded: true) }
+        return RepoRow(name: name, health: .ok, line: "Checked \(agoLine(at, now: snapshot.now))", epics: epics, isNew: false, isLoaded: true)
     }
 }

@@ -19,7 +19,9 @@ public func forgeRegistryPath(environment: [String: String] = ProcessInfo.proces
 }
 
 /// The registry's bytes, read each time; nil when the file is not there or cannot be read.
-public func currentForgeRegistry() -> Data? { try? Data(contentsOf: URL(fileURLWithPath: forgeRegistryPath())) }
+public func currentForgeRegistry(environment: [String: String] = ProcessInfo.processInfo.environment, home: String = NSHomeDirectory()) -> Data? {
+    try? Data(contentsOf: URL(fileURLWithPath: forgeRegistryPath(environment: environment, home: home)))
+}
 
 /// The names in `registry` (`{ "agents": [{ "name": … }] }`), as the engine's `readForgeAgents` reads them. No file, or one that is not a JSON
 /// object, gives no names and a note, not an error.

@@ -67,6 +67,7 @@ struct AgentsTabView: View {
             VStack(alignment: .leading, spacing: 12) {
                 SettingsGroup(title: "Who") {
                     SettingsTabRow(title: "Identity", detail: row.identityDetail, first: true) { value(row.fields.profile, missing: row.identity == .missing) }
+                    CreateBotRow()
                     SettingsTabRow(title: "Provider", detail: row.providerMissing ? "Not an account of providers.json" : "An account from Providers") {
                         value(row.fields.provider, missing: row.providerMissing)
                     }

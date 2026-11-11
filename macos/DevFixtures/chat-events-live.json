@@ -14,6 +14,7 @@
     { "id": 11, "at": 1794350252707, "kind": "tool_start", "callId": "b2", "tool": "Bash", "arg": "pnpm test sync/worker --reporter verbose" }
   ],
   "cursor": 11,
+  "session": { "state": "working" },
   "streaming": "",
   "options": [
     { "id": "model", "label": "Model", "values": [{"id": "sonnet", "label": "Sonnet"}, {"id": "opus", "label": "Opus"}], "current": "sonnet" },

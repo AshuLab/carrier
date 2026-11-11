@@ -731,6 +731,20 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     /// Drops the queued message.
     public func cancelQueued() { queued = nil }
 
+    /// Takes the queued message back into the box to be edited; what is already typed there stays under it.
+    public func editQueued() {
+        guard let held = queued else { return }
+        queued = nil
+        draft = draft.isEmpty ? held : held + "\n" + draft
+    }
+
+    /// Send now on the queued message: stops the turn, and the poll that sees the agent idle delivers it.
+    public func sendQueuedNow() async {
+        guard queued != nil else { return }
+        await stop()
+        await poll()
+    }
+
     /// The Stop button: ends the turn; the queued message, if any, goes when the poll sees the agent idle.
     public func stop() async {
         do {

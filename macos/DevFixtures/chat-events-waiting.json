@@ -60,5 +60,8 @@
     }
   ],
   "cursor": 6,
-  "streaming": ""
+  "streaming": "",
+  "session": {
+    "state": "waiting_approval"
+  }
 }

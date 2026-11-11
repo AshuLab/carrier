@@ -205,17 +205,10 @@ struct ConversationView: View {
             }
             if model.asleep { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
             if let queued = model.queued {
-                HStack(spacing: 8) {
-                    Image(systemName: "clock").foregroundStyle(.secondary)
-                    Text(queued).lineLimit(2).textSelection(.enabled)
-                    Spacer(minLength: 0)
-                    Text(whileWorking == .interrupt ? "Sends when the agent stops" : "Sends when the agent finishes").font(.scaled(11)).foregroundStyle(.secondary)
-                    Button { model.cancelQueued() } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain).foregroundStyle(.secondary).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
-                }
-                .font(.scaled(12))
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
+                QueuedMessageCard(
+                    text: queued, interrupts: whileWorking == .interrupt,
+                    edit: { model.editQueued() }, sendNow: { Task { await model.sendQueuedNow() } }, cancel: { model.cancelQueued() }
+                )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             MessageBox(
@@ -461,6 +454,64 @@ private struct WorkState {
     let live: Bool
     let waiting: Bool
     let since: Int?
+}
+
+/// The message held while the agent answers, over the message box in the same glass as the work card: what it says and when it goes.
+/// Clicking the message puts it back in the box to edit; Send now stops the turn and sends it (not offered when sending already stops
+/// the turn, which is what the setting says); the cross drops it.
+private struct QueuedMessageCard: View {
+    let text: String
+    let interrupts: Bool
+    let edit: () -> Void
+    let sendNow: () -> Void
+    let cancel: () -> Void
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "clock").font(.scaled(11, weight: .semibold)).foregroundStyle(.secondary)
+                .frame(width: 26, height: 26).background(Circle().fill(Color.primary.opacity(0.08)))
+                .accessibilityHidden(true)
+            Button(action: edit) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(interrupts ? "Queued · sends when the agent stops" : "Queued · sends when the agent finishes").font(.scaled(11)).foregroundStyle(.secondary)
+                    Text(text).font(.scaled(12.5)).lineLimit(2).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Click to edit").accessibilityHint("Puts it back in the box to edit")
+            if interrupts == false {
+                Button("Send now", action: sendNow).buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).help("Stop the agent and send it now")
+            }
+            Button(action: cancel) { Image(systemName: "xmark").font(.scaled(10, weight: .bold)) }
+                .buttonStyle(HoverTextButtonStyle(tint: nil)).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
+        }
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        // the glass, tint and fill of the work card, so the cards over the box are one family
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.primary.opacity(0.045)))
+        .glassEffect(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), in: .rect(cornerRadius: 14))
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// A button that is only its text (or icon) until the pointer is over it, when a pill lights behind it: light enough to sit beside a
+/// message without weighing as much as it.
+private struct HoverTextButtonStyle: ButtonStyle {
+    let tint: Color?
+    @State private var hovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.scaled(12, weight: .medium))
+            .foregroundStyle(tint ?? (hovered ? Color.primary : Color.secondary))
+            .padding(.horizontal, 10).frame(minWidth: 26, minHeight: 26)
+            .background(Capsule().fill(Color.primary.opacity(configuration.isPressed ? 0.16 : hovered ? 0.09 : 0)))
+            .contentShape(Capsule())
+            .onHover { hovered = $0 }
+            .animation(.easeOut(duration: 0.12), value: hovered)
+    }
 }
 
 /// A session whose agent is not running: what it means and what a message does, above the box, in the colour of night.

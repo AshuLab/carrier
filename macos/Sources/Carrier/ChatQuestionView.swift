@@ -189,9 +189,9 @@ struct QuestionCardView: View {
     }
 }
 
-/// The one look of the card's buttons: a pill. Back is quiet, Skip is quiet and turns red under the pointer (as a choice that does not
+/// The one look of the buttons of the cards over the message box: a pill. Back is quiet, Skip is quiet and turns red under the pointer (as a choice that does not
 /// allow does on the approval card), Send and Next wear the accent.
-private struct PillButtonStyle: ButtonStyle {
+struct PillButtonStyle: ButtonStyle {
     enum Kind { case quiet, decline, primary }
     let kind: Kind
     init(_ kind: Kind) { self.kind = kind }

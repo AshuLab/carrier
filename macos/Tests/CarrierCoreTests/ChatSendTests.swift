@@ -219,6 +219,22 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     #expect(host.calls == ["send first", "interrupt", "send instead"])
 }
 
+@MainActor @Test func theQueuedMessageCanBeSentNowOrTakenBackIntoTheBox() async {
+    let host = FakeChat()
+    let chat = model(host)
+    chat.draft = "first"
+    await chat.submit()
+    chat.draft = "instead"
+    await chat.submit()
+    chat.draft = "typing"
+    chat.editQueued()
+    #expect(chat.queued == nil && chat.draft == "instead\ntyping")
+    chat.draft = "instead"
+    await chat.submit()
+    await chat.sendQueuedNow()
+    #expect(host.calls == ["send first", "interrupt", "send instead"] && chat.queued == nil)
+}
+
 // MARK: interrupt
 
 @MainActor @Test func withInterruptSendingWhileTheAgentAnswersStopsTheTurnAndThenDeliversTheMessage() async {

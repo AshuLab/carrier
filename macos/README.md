@@ -28,6 +28,8 @@ cd macos
 ./build-app.sh          # release build wrapped in Carrier.app (bundle id dev.ashulab.carrier), signed ad hoc
 ./build-app.sh --open   # same, then opens it
 ./build-app.sh 1.2.3    # same, with 1.2.3 as the app's version in the plist (0.1.0 when none is given); the release workflow does this with the tag's version
+
+`build-app.sh` also embeds Sparkle (`Contents/Frameworks/Sparkle.framework`, with an rpath so the app finds it) and writes `SUFeedURL`, `SUPublicEDKey` (the content of `update-key.pub`) and `SUEnableAutomaticChecks` into the plist. `CFBundleVersion`, the number Sparkle compares, is `X*10000 + Y*100 + Z` for the version given (1 when none is given); a minor or patch of 100 or more is refused. The app starts Sparkle's updater and asks for a background check when it opens from a bundle that has `SUFeedURL`, never under `--fixture` or `--selftest`. `scripts/check-app.sh` builds the app and asserts all of this (the workflow runs it); `update-key.pub` holds a placeholder until the owner generates the real key.
 open Carrier.app
 ```
 

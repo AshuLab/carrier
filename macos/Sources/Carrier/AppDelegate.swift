@@ -47,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         // the host starts when the app opens, once the settings are known; the self-test only checks what would run
         let underSelfTest = CommandLine.arguments.contains("--selftest")
+        AppUpdater.start()
         SetupController.shared.detectIfFirstLaunch {
             guard underSelfTest == false else { return }
             // once the host answers (or was just started), ask how the machine is

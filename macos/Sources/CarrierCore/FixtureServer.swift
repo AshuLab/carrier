@@ -145,7 +145,8 @@ public final class FixtureServer {
             let chatConfig = #"{"agents":{"claude":{"account":"claude"},"codex":{"account":"codex"},"work":{"account":"claude-work"}}}"#
             try Data(chatConfig.utf8).write(to: URL(fileURLWithPath: home + "/chat/chat.json"))
             // the accounts of the golden reply, without Antigravity: it is found and has no account, so the page shows its Add row
-            try ProvidersFile(folder: home).write(applyingAccounts([("claude", "claude"), ("claude-work", "claude"), ("codex", "codex")], to: nil))
+            let accounts = #"{"providers":{"claude":{"harness":"claude","enabled":true},"claude-work":{"harness":"claude","displayName":"Work","configDir":"/Users/demo/.claude-work","enabled":false},"codex":{"harness":"codex","command":"/opt/homebrew/bin/codex","enabled":true}}}"#
+            try ProvidersFile(folder: home).write(Data(accounts.utf8))
             listener = try Self.listen(path: state + "/control.sock")
             do { chatListener = try Self.listen(path: home + "/chat/state/chat.sock") } catch {
                 Darwin.close(listener)
@@ -400,22 +401,39 @@ public final class FixtureServer {
         return Self.answer(id, ["session": session, "options": [Any]()])
     }
 
-    /// The golden `providers` reply as `<home>/providers.json` leaves it: a harness the file gives an account stops being "found, not added" and
-    /// is listed as an account named in the file, so an Add made in the app shows in the page as it would against a real host.
+    /// The golden `providers` reply as `<home>/providers.json` leaves it, so an Add, an edit or a Remove made in the app shows in the page as it
+    /// would against a real host: an account of the file is listed (what the golden reply knows of its name, else what this Mac has of its
+    /// harness) with the file's display name, binary, folder and `enabled`; a harness the file gives no account is "found, not added".
     private func providersReply() -> [String: Any] {
         var reply = chatProviders
         let file = (try? ProvidersFile(folder: home).read()).flatMap { $0 }
             .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }?["providers"] as? [String: [String: Any]] ?? [:]
         let golden = reply["accounts"] as? [[String: Any]] ?? []
-        let known = Set(golden.compactMap { $0["name"] as? String })
         let unadded = reply["unadded"] as? [[String: Any]] ?? []
-        let added = file.filter { known.contains($0.key) == false }.compactMap { name, account -> [String: Any]? in
-            guard let seen = unadded.first(where: { $0["harness"] as? String == account["harness"] as? String }) else { return nil }
-            return ["name": name, "harness": account["harness"] ?? "", "enabled": account["enabled"] ?? true, "found": true, "path": seen["path"] ?? "", "version": seen["version"] ?? "", "state": "unknown"]
+        // what this Mac has of each harness
+        var seen: [String: [String: Any]] = [:]
+        for entry in golden + unadded {
+            guard let harness = entry["harness"] as? String, seen[harness] == nil else { continue }
+            seen[harness] = ["path": entry["path"] ?? "", "version": entry["version"] as Any]
         }
-        reply["accounts"] = golden + added.sorted { ($0["name"] as? String ?? "") < ($1["name"] as? String ?? "") }
+        // the golden reply's accounts keep their order, those the app added follow by name
+        let goldenNames = golden.compactMap { $0["name"] as? String }
+        let order = goldenNames.filter { file[$0] != nil } + file.keys.filter { goldenNames.contains($0) == false }.sorted()
+        reply["accounts"] = order.compactMap { name -> [String: Any]? in
+            guard let account = file[name], let harness = account["harness"] as? String else { return nil }
+            var entry = golden.first { $0["name"] as? String == name }
+                ?? ["name": name, "harness": harness, "found": seen[harness] != nil, "path": seen[harness]?["path"] ?? "", "state": "unknown"]
+            if entry["version"] == nil, let version = seen[harness]?["version"] as? String { entry["version"] = version }
+            entry["enabled"] = account["enabled"] ?? true
+            for key in ["displayName", "command", "configDir"] { entry[key] = account[key] }
+            return entry
+        }
         let taken = Set(file.values.compactMap { $0["harness"] as? String })
-        reply["unadded"] = unadded.filter { taken.contains($0["harness"] as? String ?? "") == false }
+        reply["unadded"] = seen.keys.sorted().filter { taken.contains($0) == false }.map { harness in
+            var entry: [String: Any] = ["harness": harness, "path": seen[harness]?["path"] ?? ""]
+            if let version = seen[harness]?["version"] as? String { entry["version"] = version }
+            return entry
+        }
         return reply
     }
 

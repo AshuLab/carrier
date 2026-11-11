@@ -231,21 +231,6 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     }
   }
 
-  // The schema compares profile names; two names can still point at the same bot or the same login. A shared identity allows it.
-  if (config.identities === 'separate') {
-    onStart('author and reviewer are different identities');
-    const clashes = repos.flatMap((repo) => {
-      const author = config.profiles[repo.agents.author.profile]!;
-      const reviewer = config.profiles[repo.agents.reviewer.profile]!;
-      const lead = repo.agents.leadReviewer ? config.profiles[repo.agents.leadReviewer.profile] : undefined;
-      const issues: string[] = [];
-      if (sameAccount(author, reviewer)) issues.push(`${repo.name}: author and reviewer both use ${identity(author)}`);
-      if (lead && sameAccount(author, lead)) issues.push(`${repo.name}: author and lead reviewer both use ${identity(author)}`);
-      return issues;
-    });
-    report(clashes.length === 0 ? { name: 'author and reviewer are different identities', status: 'ok' } : { name: 'author and reviewer are different identities', status: 'fail', detail: clashes.join('; '), fix: fixes.clash });
-  }
-
   // Without gh, or without agent-forge for a forge profile, the checks below would only repeat the same failure.
   const usable = (profile: GitHubProfile) => hasGit && hasGh && (profile.kind === 'gh' || hasForge);
   const minted = new Set<string>();

@@ -219,7 +219,6 @@ test('choosing shared by answer asks no identity, never touches Forge, and write
   const written1 = JSON.parse(written[out]!);
   expect(written1).toEqual({
     repos: [{ name: 'A/b' }],
-    identities: 'shared',
     profiles: { gh: { kind: 'gh' } },
     orchestratorProfile: 'gh',
     agents: {
@@ -240,7 +239,7 @@ test('--identities shared with --yes is the consent, and the note about the toke
   await runInit({ repo: ['A/b'], identities: 'shared', out, yes: true }, { ...ui, note: (m, t) => void (notes[t] = m) }, deps);
   expect(notes['Shared identity']).toContain('everything your gh token can do');
   expect(asked.some((q) => q.startsWith('Use your gh login'))).toBe(false);
-  expect(JSON.parse(written[out]!).identities).toBe('shared');
+  expect(JSON.parse(written[out]!)).toMatchObject({ profiles: { gh: { kind: 'gh' } }, agents: { author: { profile: 'gh' }, reviewer: { profile: 'gh' } } });
 });
 
 test('declining the note goes back to the question, where separate can be picked', async () => {
@@ -280,7 +279,6 @@ test('--identities separate asks the identity questions and writes no identities
 test('editing a shared config starts with shared selected, and the recap shows the identity setup', async () => {
   const shared = {
     repos: [{ name: 'X/y' }],
-    identities: 'shared',
     profiles: { gh: { kind: 'gh' } },
     orchestratorProfile: 'gh',
     providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } },

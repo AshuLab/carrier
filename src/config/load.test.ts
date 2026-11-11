@@ -73,7 +73,7 @@ describe('merge', () => {
 describe('invalid config', () => {
   test('missing required fields are all listed at once', () => {
     const paths = loadConfig(defaults, {}) as { errors: { path: string }[] };
-    expect(paths.errors.map((e) => e.path).sort()).toEqual(['agents', 'orchestratorProfile', 'profiles', 'repos']);
+    expect(paths.errors.map((e) => e.path).sort()).toEqual(['agents', 'profiles', 'repos']);
   });
 
   test('empty repos', () => {
@@ -129,54 +129,36 @@ describe('maxExecutionHours', () => {
   });
 });
 
-describe('identities', () => {
+describe('sharing is derived', () => {
   const same = { profiles: { me: { kind: 'gh' }, bot: { kind: 'gh' } }, orchestratorProfile: 'me', providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } }, agents: { author: { profile: 'me', provider: 'claude', model: 'm' }, reviewer: { profile: 'me', provider: 'codex', model: 'm' } } };
-  const perRepo = { ...valid, repos: [{ name: 'a/one' }, { name: 'a/two', agents: { reviewer: { profile: 'author-bot' } } }, { name: 'a/three', agents: { reviewer: { profile: 'author-bot' } } }] };
 
-  test('defaults to separate', () => {
-    expect(load({})).toMatchObject({ ok: true, config: { identities: 'separate' } });
+  test('the same profile for both roles, or for the author and the lead reviewer, loads: there is no key to say it', () => {
+    expect(load(same).ok).toBe(true);
+    expect(load({ agents: { ...valid.agents, leadReviewer: { profile: 'author-bot', provider: 'claude', model: 'm' } } }).ok).toBe(true);
+    const perRepo = { ...valid, repos: [{ name: 'a/one' }, { name: 'a/two', agents: { reviewer: { profile: 'author-bot' } } }] };
+    expect(loadWithProviders(perRepo).ok).toBe(true);
   });
 
-  test.each([{}, { identities: 'separate' }])('the same profile for both roles is refused when identities is absent or separate: %j', (identities) => {
-    expect(errorsOf({ ...same, ...identities }).map((e) => e.path)).toEqual(['agents']);
+  test.each(['separate', 'shared', 'both', '', true])('an identities key of %j is refused, naming the key and saying sharing is derived', (identities) => {
+    expect(errorsOf({ identities })).toEqual([{ path: 'identities', message: expect.stringContaining('shared when its author and reviewer resolve to the same account') }]);
   });
 
-  test('a per-repo override that makes the roles equal is refused once per repo under separate and accepted under shared', () => {
-    expect(loadWithProviders(perRepo).ok).toBe(false);
-    const errors = (loadWithProviders(perRepo) as { errors: { path: string }[] }).errors;
-    expect(errors.map((e) => e.path)).toEqual(['repos.1.agents', 'repos.2.agents']);
-    expect(loadWithProviders({ ...perRepo, identities: 'shared' }).ok).toBe(true);
+  test('profiles that are not declared are still refused', () => {
+    expect(errorsOf({ ...same, orchestratorProfile: 'ghost' }).map((e) => e.path)).toEqual(['orchestratorProfile']);
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'phantom', provider: 'claude', model: 'm' } } })).toEqual([{ path: 'agents.leadReviewer.profile', message: expect.stringContaining('phantom') }]);
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'reviewer-bot', provider: 'phantom', model: 'm' } } })).toEqual([{ path: 'agents.leadReviewer.provider', message: expect.stringContaining('phantom') }]);
+  });
+});
+
+describe('orchestratorProfile', () => {
+  const { orchestratorProfile: _, ...withoutOrchestrator } = valid;
+
+  test('left out, it is the author\'s profile', () => {
+    expect(loadWithProviders(withoutOrchestrator)).toMatchObject({ ok: true, config: { orchestratorProfile: 'author-bot' } });
   });
 
-  test('shared accepts the same profile for both roles and also two different ones', () => {
-    expect(load({ ...same, identities: 'shared' })).toMatchObject({ ok: true, config: { identities: 'shared' } });
-    expect(load({ identities: 'shared' })).toMatchObject({ ok: true, config: { identities: 'shared' } });
-  });
-
-  test('shared still checks that the profiles exist', () => {
-    expect(errorsOf({ ...same, identities: 'shared', orchestratorProfile: 'ghost' }).map((e) => e.path)).toEqual(['orchestratorProfile']);
-  });
-
-  test('lead reviewer profile and provider validation', () => {
-    expect(load({ agents: { ...valid.agents, leadReviewer: { profile: 'reviewer-bot', provider: 'claude', model: 'm' } } })).toMatchObject({
-      ok: true,
-      config: { agents: { leadReviewer: { profile: 'reviewer-bot', provider: 'claude', model: 'm' } } },
-    });
-    // Under separate identities, lead reviewer cannot share profile with author
-    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'author-bot', provider: 'claude', model: 'm' } } })).toEqual([
-      { path: 'agents', message: expect.stringContaining('agents.author.profile and agents.leadReviewer.profile must differ') },
-    ]);
-    // Unknown profile or provider
-    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'phantom', provider: 'claude', model: 'm' } } })).toEqual([
-      { path: 'agents.leadReviewer.profile', message: expect.stringContaining('phantom') },
-    ]);
-    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'reviewer-bot', provider: 'phantom', model: 'm' } } })).toEqual([
-      { path: 'agents.leadReviewer.provider', message: expect.stringContaining('phantom') },
-    ]);
-  });
-
-  test.each(['both', 'Shared', '', true])('rejects %j', (identities) => {
-    expect(errorsOf({ identities }).map((e) => e.path)).toEqual(['identities']);
+  test('given, it is kept', () => {
+    expect(load({ orchestratorProfile: 'reviewer-bot' })).toMatchObject({ ok: true, config: { orchestratorProfile: 'reviewer-bot' } });
   });
 });
 

@@ -38,12 +38,11 @@ export function parseProvider(text: string): LocalProvider {
 const profileName = (identity: Identity) => (identity.kind === 'gh' ? 'gh' : identity.agent);
 
 /** The user config (what goes in the file): only what has no default, and not the accounts, which go in `providers.json`. The author's profile also acts as orchestrator. */
-export function buildConfig({ repos, author, reviewer, leadReviewer, failover, identities }: Answers) {
+export function buildConfig({ repos, author, reviewer, leadReviewer, failover }: Answers) {
   const [a, r] = [profileName(author.identity), profileName(reviewer.identity)];
   const l = leadReviewer ? profileName(leadReviewer.identity) : undefined;
   return {
     repos: repos.map((name) => ({ name })),
-    ...(identities === 'shared' && { identities }), // the default, separate, is not written
     profiles: {
       [a]: author.identity,
       [r]: reviewer.identity,

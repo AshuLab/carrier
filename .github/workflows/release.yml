@@ -1,4 +1,6 @@
 # A tag vX.Y.Z publishes @ashulab/carrier at X.Y.Z, puts the app's zip on the GitHub Release and rewrites the formula and the cask in the tap.
+# The order never leaves `releases/latest` (the app's update feed) on a version without its appcast or its formula: npm, the Release as a draft with the zip,
+# the tap, the appcast on the draft, and only then the Release is published. A run that fails leaves a draft and the feed on the previous release; a re-run finishes it.
 # Run by hand with dry-run on, it does everything up to the publishing and pushes nothing.
 # npm publishes through trusted publishing (OIDC, configured for this workflow on the package): no npm token.
 # Secrets: TAP_TOKEN (push to AshuLab/homebrew-tap), SPARKLE_PRIVATE_KEY (the update key's private half: signs the app's zip, also in a dry run).
@@ -147,6 +149,8 @@ jobs:
           # Like the formula: the tap's cask is rewritten; the one in this repo only seeds a tap that has none yet.
           if [ -f tap/Casks/carrier.rb ]; then cp tap/Casks/carrier.rb cask/carrier.rb; else cp .github/homebrew/carrier-cask.rb cask/carrier.rb; fi
           sed -i '' -E "s|^  version \".*\"|  version \"$VERSION\"|; s|^  sha256 \".*\"|  sha256 \"$APP_SHA256\"|" cask/carrier.rb
+          # auto_updates true and Sparkle's cache in zap, whether or not the tap's copy has them.
+          node .github/scripts/cask.mjs ensure cask/carrier.rb
           mkdir -p "$(brew --repository local/ci)/Casks"
           cp cask/carrier.rb "$(brew --repository local/ci)/Casks/carrier.rb"
           # A finding about the quarantine step is named in a comment next to that step in the cask; any other one fails the run.
@@ -184,18 +188,39 @@ jobs:
           PUBLISHED="$(shasum -a 256 published.tgz | cut -d' ' -f1)"
           sed -i '' -E "s|^  sha256 \".*\"|  sha256 \"$PUBLISHED\"|" formula/carrier.rb
 
-      - name: GitHub Release
+      - name: GitHub Release as a draft
         if: env.DRY_RUN != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        # A re-run finds the release already there and replaces its files.
+        # A draft is never `releases/latest`. A re-run finds the release as it was left, draft or published, and replaces its files.
+        run: .github/scripts/github-release.sh draft "$VERSION" "out/Carrier-$VERSION.zip" "out/Carrier-$VERSION.zip.sha256"
+
+      - name: Push the formula and the cask to the tap
+        if: env.DRY_RUN != 'true'
+        working-directory: tap
         run: |
-          FILES=("out/Carrier-$VERSION.zip" "out/Carrier-$VERSION.zip.sha256")
-          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "v$VERSION" "${FILES[@]}" --clobber --repo "$GITHUB_REPOSITORY"
-          else
-            gh release create "v$VERSION" "${FILES[@]}" --title "v$VERSION" --generate-notes --repo "$GITHUB_REPOSITORY"
-          fi
+          mkdir -p Formula Casks
+          cp ../formula/carrier.rb Formula/carrier.rb
+          cp ../cask/carrier.rb Casks/carrier.rb
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/carrier.rb Casks/carrier.rb
+          # nothing to commit when a re-run finds the tap already at this version
+          git diff --cached --quiet || git commit -m "carrier $VERSION"
+          git push
+
+      - name: Attach the appcast
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/github-release.sh attach "$VERSION" out/appcast.xml
+
+      # The last step: from here on the feed answers with this version.
+      - name: Publish the release
+        if: env.DRY_RUN != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/github-release.sh publish "$VERSION"
 
       - name: Summary
         run: |
@@ -213,17 +238,3 @@ jobs:
             cat out/appcast.xml
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Push the formula and the cask to the tap
-        if: env.DRY_RUN != 'true'
-        working-directory: tap
-        run: |
-          mkdir -p Formula Casks
-          cp ../formula/carrier.rb Formula/carrier.rb
-          cp ../cask/carrier.rb Casks/carrier.rb
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/carrier.rb Casks/carrier.rb
-          # nothing to commit when a re-run finds the tap already at this version
-          git diff --cached --quiet || git commit -m "carrier $VERSION"
-          git push

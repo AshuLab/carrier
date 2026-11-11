@@ -63,10 +63,7 @@ struct ComposerMenuButton: View {
             ProviderMark(name: icon)
             Text(menu.pillModel ?? agent).fontWeight(.medium).lineLimit(1)
             if let level = menu.pillReasoning { Text("· \(level)").foregroundStyle(.secondary).lineLimit(1) }
-            if let flag = menu.accessFlag {
-                Text(flag).font(.caption.weight(.semibold)).foregroundStyle(.orange)
-                    .padding(.horizontal, 6).padding(.vertical, 1).background(Capsule().fill(Color.orange.opacity(0.2)))
-            }
+            if let flag = menu.accessFlag { Text("· \(flag)").foregroundStyle(.secondary).lineLimit(1) }
             Image(systemName: "chevron.down").font(.scaled(9, weight: .bold)).foregroundStyle(.secondary)
         }
         .font(.callout).padding(.horizontal, 10).frame(height: 28)
@@ -146,7 +143,7 @@ struct ComposerMenuButton: View {
     private var models: some View {
         let shown = menu.models.filter { query.isEmpty || $0.label.localizedCaseInsensitiveContains(query) }
         let chosen = pendingModel ?? menu.models.first(where: \.ticked)?.id
-        return ScrollView {
+        return ScrollViewReader { proxy in ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(shown) { model in
                     let ticked = model.id == chosen
@@ -162,10 +159,14 @@ struct ComposerMenuButton: View {
                         }
                         .padding(.horizontal, 10).padding(.vertical, 7)
                     }
+                    .id(model.id)
                 }
                 if shown.isEmpty { Text("No model matches").font(.scaled(12)).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(14) }
             }
             .padding(.horizontal, 8).padding(.vertical, 8)
+        }
+        // the chosen model may be down the list: opening the panel brings it into view
+        .onAppear { if let chosen { DispatchQueue.main.async { proxy.scrollTo(chosen, anchor: .center) } } }
         }
         .frame(maxHeight: .infinity)
         // what was just chosen shows at once; the host's answer takes a moment, and replaces it

@@ -27,7 +27,8 @@ private func groupIds(_ rows: [FeedRow]) -> [String] { rows.compactMap { if case
 private func openGroups(_ rows: [FeedRow], flipped: Set<String>) -> [Bool] {
     rows.compactMap { row in
         guard case .tools(let id, let group) = row else { return nil }
-        return group.opensByDefault(.collapsed, opensFailed: true) != flipped.contains(id)
+        _ = group
+        return flipped.contains(id)
     }
 }
 
@@ -42,35 +43,23 @@ private func openGroups(_ rows: [FeedRow], flipped: Set<String>) -> [Bool] {
     #expect(ShortcutCommand.foldTools.defaultCombo?.text == "⌥⌘E")
 }
 
-@Test func foldingFoldsEveryRunWhenTheyAreMixed() {
-    let rows = feed()
-    // the failed run opens by itself, the other is folded
-    #expect(openGroups(rows, flipped: []) == [false, true])
-    let next = togglingToolGroups(in: rows, mode: .collapsed, opensFailed: true, flipped: [])
-    #expect(openGroups(rows, flipped: next) == [false, false])
+@Test func everyRunIsFoldedUntilItIsFlipped() {
+    #expect(openGroups(feed(), flipped: []) == [false, false])
 }
 
-@Test func foldingFoldsAllWhenAllAreOpenAndUnfoldsAllWhenAllAreFolded() {
+@Test func foldingUnfoldsAllWhenAllAreFoldedAndFoldsAllWhenAnyIsOpen() {
     let rows = feed()
     let ids = groupIds(rows)
-    let allOpen = Set(ids.prefix(1))
-    #expect(openGroups(rows, flipped: allOpen) == [true, true])
-    #expect(openGroups(rows, flipped: togglingToolGroups(in: rows, mode: .collapsed, opensFailed: true, flipped: allOpen)) == [false, false])
-    let folded = togglingToolGroups(in: rows, mode: .collapsed, opensFailed: true, flipped: [])
-    #expect(openGroups(rows, flipped: togglingToolGroups(in: rows, mode: .collapsed, opensFailed: true, flipped: folded)) == [true, true])
-}
-
-@Test func foldingFollowsTheDefaultOfTheMode() {
-    let rows = feed(secondFails: false)
-    // expanded: all open by default, so the first press folds them, the second unfolds
-    let folded = togglingToolGroups(in: rows, mode: .expanded, opensFailed: true, flipped: [])
-    #expect(folded == Set(groupIds(rows)))
-    #expect(togglingToolGroups(in: rows, mode: .expanded, opensFailed: true, flipped: folded).isEmpty)
+    let unfolded = togglingToolGroups(in: rows, flipped: [])
+    #expect(unfolded == Set(ids) && openGroups(rows, flipped: unfolded) == [true, true])
+    // one open and one folded: everything folds
+    #expect(openGroups(rows, flipped: togglingToolGroups(in: rows, flipped: Set(ids.prefix(1)))) == [false, false])
+    #expect(togglingToolGroups(in: rows, flipped: unfolded).isEmpty)
 }
 
 @Test func foldingAConversationWithoutRunsChangesNothing() {
     let rows: [FeedRow] = [.user(id: "u", text: "hi")]
-    #expect(togglingToolGroups(in: rows, mode: .collapsed, opensFailed: true, flipped: ["x"]) == ["x"])
+    #expect(togglingToolGroups(in: rows, flipped: ["x"]) == ["x"])
 }
 
 @Test func theLastAnswerIsTheTextOfTheLastAgentMessage() {

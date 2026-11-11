@@ -15,7 +15,6 @@ private func texts(_ rows: [FeedRow]) -> [String] {
         switch $0 {
         case .user(_, let text): "user: \(text)"
         case .agent(_, let text, let inProgress): "agent\(inProgress ? "…" : ""): \(text.prefix(24))"
-        case .reasoning(_, let text): "reasoning: \(text)"
         case .turnEnd(_, let summary): "end: \(summary.text)"
         case .tools(_, let group): "tools: \(group.title) | \(group.summary)"
         case .approval(_, let card): "card: \(card.question) | \(card.arg ?? "") | \(card.choices.map(\.label).joined(separator: " / "))"
@@ -42,16 +41,16 @@ private func group(_ rows: [FeedRow]) -> ToolGroup {
         "allowed: Allowed Bash pnpm lint · Allow · by you",
         "tools: Worked | 1 command",
         "agent: The page is two componen",
-        "end: claude-sonnet-5-5 · 12s · 10.8k context · 436 out",
+        "end: sonnet 5.5 · 12s · 10.8k context · 436 out",
         "user: Now run the tests.",
         "error: The turn failed",
-        "end: claude-sonnet-5-5 · 1s",
+        "end: sonnet 5.5 · 1s",
     ])
 }
 
 @Test func aStoppedTurnLeavesTheMarkAfterItsClosingLineAndOnlyTheLastOneOffersAWayOut() throws {
     let rows = chatFeed(try golden("stopped").events)
-    #expect(texts(rows) == ["user: Rename the config keys to snake_case.", "agent: I will start with the ke", "end: claude-sonnet-5-5 · 4s", "stopped"])
+    #expect(texts(rows) == ["user: Rename the config keys to snake_case.", "agent: I will start with the ke", "end: sonnet 5.5 · 4s", "stopped"])
     #expect(openOutcome(rows) == rows.last?.id)
     // the person wrote again: the mark is a record
     #expect(openOutcome(rows + [.user(id: "u", text: "go on")]) == nil)
@@ -208,7 +207,7 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
         "agent: One test still fails. Le",
         "tools: Worked | 1 other tool",
         "agent: The server is fine, so t",
-        "end: claude-sonnet-5-5 · 16s · 2.1k context · 310 out",
+        "end: sonnet 5.5 · 16s · 2.1k context · 310 out",
     ])
     let explored = group(rows)
     #expect(explored.calls.map(\.result) == ["3 lines", "3 lines", "2 matches"] && explored.durationMs == 1600 && explored.failed == 0)
@@ -274,6 +273,24 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
     })
 }
 
+@Test func aTurnThatEndsInAnErrorMarksItsLastRunFailedAndAnAnswerAfterTheRunKeepsItClean() {
+    let ended = chatFeed([
+        ChatEvent(id: 1, at: 0, kind: "user", text: "go"),
+        ChatEvent(id: 2, at: 1, kind: "tool_start", callId: "a", tool: "Bash", arg: "pnpm test"),
+        ChatEvent(id: 3, at: 2, kind: "error", text: "boom"),
+        ChatEvent(id: 4, at: 3, kind: "turn_end", outcome: "error"),
+    ])
+    #expect(group(ended).erred && group(ended).title == "Failed" && group(ended).isWorking == false)
+    let answered = chatFeed([
+        ChatEvent(id: 1, at: 0, kind: "user", text: "go"),
+        ChatEvent(id: 2, at: 1, kind: "tool_start", callId: "a", tool: "Bash", arg: "ls"),
+        ChatEvent(id: 3, at: 2, kind: "tool_end", callId: "a", tool: "Bash", status: "ok"),
+        ChatEvent(id: 4, at: 3, kind: "assistant", text: "done"),
+        ChatEvent(id: 5, at: 4, kind: "turn_end", outcome: "error"),
+    ])
+    #expect(group(answered).erred == false)
+}
+
 @Test func aTurnStoppedToSendAMessageReadsAsStoppedAndThenTheNewMessageAndItsCallsAreNotEnded() {
     let events = [
         ChatEvent(id: 1, at: 0, kind: "user", text: "first"),
@@ -314,6 +331,10 @@ private func call(_ id: Int, _ tool: String, _ arg: String = "", output: [String
         case .bullet(let level, _): "bullet\(level)"
         case .code(let language, _, let code): "code \(language ?? "-") \(code.split(separator: "\n").count)"
         case .gap: "gap"
+        case .table: "table"
+        case .numbered: "numbered"
+        case .quote: "quote"
+        case .rule: "rule"
         }
     }
     #expect(blocks.map(shape) == [
@@ -430,7 +451,7 @@ private final class ScriptedHost: ChatHost, @unchecked Sendable {
     }
     func send(_ id: String, _ text: String) async throws { sent.append(text) }
     func interrupt(_ id: String) async throws {}
-    func answer(_ id: String, approval: String, choice: String) async throws {}
+    func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws {}
     func setOption(_ id: String, option: String, value: String) async throws {}
     func archive(_ id: String, _ archived: Bool) async throws {}
     func delete(_ id: String) async throws {}
@@ -726,7 +747,7 @@ private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case 
 
 // MARK: the agent's reasoning
 
-@Test func aReasoningEventIsFoldedUnderTheMessageOfItsTurnAndAnUnknownKindFromANewerHostIsNotDrawn() throws {
+@Test func aReasoningEventIsAThoughtOfItsRunInOrderAndAnUnknownKindFromANewerHostIsNotDrawn() throws {
     let json = """
     {"events":[
       {"id":1,"at":1,"kind":"user","text":"go"},
@@ -741,30 +762,82 @@ private func runs(_ rows: [FeedRow]) -> [ToolGroup] { rows.compactMap { if case 
     """
     let reply = try JSONDecoder().decode(ChatEvents.self, from: Data(json.utf8))
     #expect(reply.events[1].kind == "reasoning" && reply.events[1].text == "Look at the file first.")
-    #expect(texts(chatFeed(reply.events)) == ["user: go", "tools: Explored | 1 file read", "agent: done", "reasoning: Look at the file first.", "reasoning: Now answer.", "end: 0s"])
+    let rows = chatFeed(reply.events)
+    #expect(texts(rows) == ["user: go", "tools: Explored | 2 thoughts · 1 file read", "agent: done", "end: 0s"])
+    // the steps are in the order the agent took them, and the group is named by the first thought that started it
+    let group = try #require(runs(rows).first)
+    #expect(group.steps.map { if case .thought(let t) = $0 { "thought: \(t.text)" } else { "call: \($0.id)" } } == ["thought: Look at the file first.", "call: a", "thought: Now answer."])
+    #expect(rows[1].id == "e2")
 }
 
-@Test func reasoningWaitsForTheMessageBeingWrittenAndComesBeforeAnErrorOrTheNextTurnWhenThereIsNoMessage() {
+@Test func thoughtsWithNoCallAfterThemAreARunOfTheirOwnAboveTheMessageOrTheEndOfTheTurn() {
     let think = ChatEvent(id: 2, at: 2, kind: "reasoning", text: "Hm.")
     let user = ChatEvent(id: 1, at: 1, kind: "user", text: "go")
-    // the message is still streaming: the reasoning sits under it
-    #expect(texts(chatFeed([user, think], streaming: "Hel")) == ["user: go", "agent…: Hel", "reasoning: Hm."])
+    // the message is still streaming: the thought sits above it
+    #expect(texts(chatFeed([user, think], streaming: "Hel")) == ["user: go", "tools: Thought | 1 thought", "agent…: Hel"])
     // nothing written yet: it is the last thing
-    #expect(texts(chatFeed([user, think])) == ["user: go", "reasoning: Hm."])
+    #expect(texts(chatFeed([user, think])) == ["user: go", "tools: Thought | 1 thought"])
+    // the message came: the thought is above it, not under it
+    #expect(texts(chatFeed([user, think, ChatEvent(id: 3, at: 3, kind: "assistant", text: "done")])) == ["user: go", "tools: Thought | 1 thought", "agent: done"])
     // the turn failed with no message: it stays inside its turn
     let failed = [user, think, ChatEvent(id: 3, at: 3, kind: "error", text: "boom"), ChatEvent(id: 4, at: 4, kind: "user", text: "again")]
-    #expect(texts(chatFeed(failed)) == ["user: go", "reasoning: Hm.", "error: boom", "user: again"])
+    #expect(texts(chatFeed(failed)) == ["user: go", "tools: Thought | 1 thought", "error: boom", "user: again"])
     // an empty thinking block draws nothing
     #expect(texts(chatFeed([user, ChatEvent(id: 2, at: 2, kind: "reasoning", text: "")])) == ["user: go"])
 }
 
-@Test func theShowReasoningSwitchTakesTheRowsOutOfTheVisibleFeedAndNothingElse() {
+@Test func aThoughtThatCameFirstGivesItsRunItsIdAndASoloThoughtCountsItsTimeFromTheStartOfTheTurn() throws {
+    let user = ChatEvent(id: 1, at: 1000, kind: "user", text: "go")
+    let think = ChatEvent(id: 2, at: 4000, kind: "reasoning", text: "Hm.")
+    let alone = try #require(runs(chatFeed([user, think])).first)
+    #expect(alone.durationMs == 3000 && alone.startedAt == 1000 && alone.isWorking == false)
+    // with a call the run counts from its first step
+    let withCall = chatFeed([user, think] + call(2, "Bash", "ls", at: 4100, took: 400))
+    let group = try #require(runs(withCall).first)
+    #expect(group.startedAt == 4000 && group.durationMs == 500)
+    #expect(withCall[1].id == "e2" && group.title == "Worked")
+}
+
+@Test func theShowReasoningSwitchTakesTheThoughtsOutAndTheHiddenToolsTakeTheCallsOutAndARunWithNothingLeftGoes() {
     let rows = chatFeed([
         ChatEvent(id: 1, at: 1, kind: "user", text: "go"), ChatEvent(id: 2, at: 2, kind: "reasoning", text: "Hm."),
-        ChatEvent(id: 3, at: 3, kind: "assistant", text: "done"),
+        ChatEvent(id: 3, at: 3, kind: "tool_start", callId: "a", tool: "Bash", arg: "ls"), ChatEvent(id: 4, at: 4, kind: "tool_end", callId: "a", tool: "Bash", status: "ok"),
+        ChatEvent(id: 5, at: 5, kind: "assistant", text: "done"),
     ])
-    #expect(texts(visibleFeed(rows, mode: .collapsed)) == ["user: go", "agent: done", "reasoning: Hm."])
-    #expect(texts(visibleFeed(rows, mode: .collapsed, showsReasoning: false)) == ["user: go", "agent: done"])
+    #expect(texts(visibleFeed(rows, mode: .collapsed)) == ["user: go", "tools: Worked | 1 thought · 1 command", "agent: done"])
+    #expect(texts(visibleFeed(rows, mode: .collapsed, showsReasoning: false)) == ["user: go", "tools: Worked | 1 command", "agent: done"])
+    #expect(texts(visibleFeed(rows, mode: .hidden)) == ["user: go", "tools: Thought | 1 thought", "agent: done"])
+    #expect(texts(visibleFeed(rows, mode: .hidden, showsReasoning: false)) == ["user: go", "agent: done"])
+}
+
+@Test func theClosingLineOfATurnWithReasoningFoldsIntoItsMessage() {
+    let rows = chatFeed([
+        ChatEvent(id: 1, at: 0, kind: "user", text: "go"), ChatEvent(id: 2, at: 1, kind: "reasoning", text: "Hm."),
+        ChatEvent(id: 3, at: 2, kind: "assistant", text: "done"), ChatEvent(id: 4, at: 9000, kind: "turn_end", outcome: "ok", model: "claude-sonnet-5-5"),
+    ])
+    let folded = foldingClosingLines(rows)
+    #expect(folded.rows.map(\.id) == ["e1", "e2", "e3"])
+    #expect(folded.lines["e3"]?.text == "sonnet 5.5 · 9s")
+}
+
+@Test func theRunTheAgentWorksInIsTheLastOneUntilAMessageComesAfterIt() {
+    let user = ChatEvent(id: 1, at: 1, kind: "user", text: "go")
+    let think = ChatEvent(id: 2, at: 2, kind: "reasoning", text: "Hm.")
+    #expect(workInProgress(in: chatFeed([user])) == nil)
+    #expect(workInProgress(in: chatFeed([user, think])) == "e2")
+    #expect(workInProgress(in: chatFeed([user, think] + call(2, "Bash", "ls"))) == "e2")
+    // the answer began, or the turn ended: the work is over
+    #expect(workInProgress(in: chatFeed([user, think], streaming: "Hel")) == nil)
+    #expect(workInProgress(in: chatFeed([user, think, ChatEvent(id: 9, at: 9, kind: "turn_end", outcome: "ok")])) == nil)
+    // an answered approval is a line between, and the run is still the one
+    let ask = ChatEvent(id: 3, at: 3, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [])
+    let answered = chatFeed([user, think, ask, ChatEvent(id: 4, at: 4, kind: "approval_answered", approvalId: "p", choiceId: "y")])
+    #expect(workInProgress(in: answered) == "e2")
+}
+
+@Test func aClosingLineThatStaysARowSaysTheModelAsAPersonDoes() {
+    #expect(TurnSummary(model: "claude-sonnet-5-5", duration: "9s").text == "sonnet 5.5 · 9s")
+    #expect(TurnSummary(model: "gpt-5-codex", duration: "9s").text == "gpt-5-codex · 9s")
 }
 
 @MainActor @Test func aHostThatSendsNoReasoningLeavesTheConversationAsItWas() async {
@@ -811,22 +884,18 @@ private func eventsRequest(capabilities: [String]) async throws -> String {
     #expect(visibleFeed(rows, mode: .collapsed) == rows && visibleFeed(rows, mode: .expanded) == rows)
 }
 
-@Test func collapsedFoldsEachRunAndExpandedOpensEveryRunAndCall() {
-    let groups = runs(toolsFeed())
-    #expect(groups.map { $0.opensByDefault(.collapsed, opensFailed: false) } == [false, false])
-    #expect(groups.map { $0.opensByDefault(.expanded, opensFailed: false) } == [true, true])
-    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.expanded, opensFailed: false) } == [true, true, true])
-    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.collapsed, opensFailed: false) } == [false, false, false])
+@Test func expandedOpensEveryCallAndCollapsedFoldsThem() {
+    let calls = runs(toolsFeed()).flatMap(\.calls)
+    #expect(calls.map { $0.opensByDefault(.expanded, opensFailed: false) } == [true, true, true])
+    #expect(calls.map { $0.opensByDefault(.collapsed, opensFailed: false) } == [false, false, false])
 }
 
-@Test func aFailedCallOpensByItselfWhileTheSwitchIsOnAndOnlyItsRunAndItself() {
-    let groups = runs(toolsFeed())
-    #expect(groups.map { $0.opensByDefault(.collapsed, opensFailed: true) } == [true, false])
-    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.collapsed, opensFailed: true) } == [false, true, false])
+@Test func aFailedCallOpensByItselfWhileTheSwitchIsOn() {
+    let calls = runs(toolsFeed()).flatMap(\.calls)
+    #expect(calls.map { $0.opensByDefault(.collapsed, opensFailed: true) } == [false, true, false])
     // expanded opens everything with the switch either way, and hidden opens nothing
-    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.expanded, opensFailed: true) } == [true, true, true])
-    #expect(groups.flatMap(\.calls).map { $0.opensByDefault(.hidden, opensFailed: true) } == [false, false, false])
-    #expect(groups.map { $0.opensByDefault(.hidden, opensFailed: true) } == [false, false])
+    #expect(calls.map { $0.opensByDefault(.expanded, opensFailed: true) } == [true, true, true])
+    #expect(calls.map { $0.opensByDefault(.hidden, opensFailed: true) } == [false, false, false])
 }
 
 @Test func aCallsOutputIsCutAtTheChosenLengthAndSaysHowManyAreLeft() {
@@ -863,4 +932,87 @@ private func eventsRequest(capabilities: [String]) async throws -> String {
     #expect(progressFraction("Receiving objects:  63% (1234/1960)") == 0.63)
     #expect(progressFraction("Resolving deltas: 100% (10/10), done.") == 1)
     #expect(progressFraction("Counting objects") == nil && progressFraction(nil) == nil && progressFraction("999%") == nil)
+}
+
+// MARK: AskUserQuestion
+
+private let askedQuestions = """
+{ "id": 1, "at": 0, "kind": "approval", "approvalId": "q1", "tool": "AskUserQuestion",
+  "questions": [
+    { "question": "Which auth approach?", "header": "Auth", "multiSelect": false, "options": [{ "label": "JWT", "description": "Stateless", "preview": "Bearer x" }, { "label": "Cookies", "description": "Sessions" }] },
+    { "question": "Which providers?", "header": "Providers", "multiSelect": true, "options": [{ "label": "GitHub", "description": "" }, { "label": "Google", "description": "" }] }
+  ],
+  "choices": [{ "id": "allow", "label": "Send answers", "allow": true }, { "id": "deny", "label": "Skip", "allow": false }] }
+"""
+
+private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().decode(ChatEvent.self, from: Data(json.utf8)) }
+
+@Test func anApprovalWithQuestionsIsACardThatCarriesThemAndAnyOtherCardHasNone() throws {
+    let ask = try answered(askedQuestions)
+    guard case .approval(_, let card)? = chatFeed([ask], pending: ["q1"]).first else {
+        Issue.record("not a card")
+        return
+    }
+    #expect(card.questions.map(\.header) == ["Auth", "Providers"] && card.questions.map(\.multiSelect) == [false, true])
+    #expect(card.questions[0].options.map(\.label) == ["JWT", "Cookies"] && card.questions[0].options[0].preview == "Bearer x")
+    #expect(card.questions[0].options[1].preview == nil && card.choices.map(\.id) == ["allow", "deny"])
+    let plain = ChatEvent(id: 2, at: 0, kind: "approval", tool: "Bash", arg: "ls", approvalId: "p", choices: [.init(id: "y", label: "Yes", allow: true)])
+    guard case .approval(_, let generic)? = chatFeed([plain], pending: ["p"]).first else {
+        Issue.record("not a card")
+        return
+    }
+    #expect(generic.questions.isEmpty)
+}
+
+@Test func anAnsweredQuestionIsOneLineWithEachAnswerAndASkippedOneSaysSo() throws {
+    let ask = try answered(askedQuestions)
+    func line(_ choice: String, _ answers: [String: String]?) -> String {
+        texts(chatFeed([ask, ChatEvent(id: 2, at: 0, kind: "approval_answered", approvalId: "q1", choiceId: choice, answers: answers)]))[0]
+    }
+    #expect(line("allow", ["Which auth approach?": "JWT", "Which providers?": "GitHub, Google"]) == "allowed: Answered · by you\nAuth: JWT\nProviders: GitHub, Google")
+    #expect(line("deny", nil) == "declined: Skipped the questions · by you")
+    // answers that did not come with an allowing choice are not shown as given
+    #expect(line("deny", ["Which auth approach?": "JWT"]) == "declined: Skipped the questions · by you")
+}
+
+@Test func aRequestThatTimedOutIsNotSaidToBeSomethingTheHostSentThatWasNotUnderstood() {
+    #expect(ConversationModel.words(ControlError.timeout) == "The chat host took too long to answer")
+    #expect(ConversationModel.words(ControlError.badLine) == "The chat host sent something that was not understood")
+    #expect(ConversationModel.words(ControlError.closed) == "The chat host is not answering")
+}
+
+@Test func aTableOfPipesIsOneBlockWithItsAlignmentsAndItsRowsCompleted() {
+    let blocks = markdownBlocks("Intro\n\n| Team | People |\n|:---|---:|\n| **Dollar** | Alex, Pipe |\n| Markets |\n\nAfter")
+    guard blocks.count == 5, case .table(let table) = blocks[2] else { Issue.record("expected one table, got \(blocks)"); return }
+    #expect(table.header.map { String($0.characters) } == ["Team", "People"] && table.aligns == [.leading, .trailing])
+    #expect(table.rows.map { $0.map { String($0.characters) } } == [["Dollar", "Alex, Pipe"], ["Markets", ""]])
+    #expect(blocks.map { if case .table = $0 { "table" } else { "other" } } == ["other", "other", "table", "other", "other"])
+    // a table still being written: the header with no separator yet is a line, and one with no rows is a table without rows
+    if case .line = markdownBlocks("| a | b |")[0] {} else { Issue.record("a lone header is a line") }
+    guard case .table(let early) = markdownBlocks("| a | b |\n|---|---|")[0] else { Issue.record("expected a table"); return }
+    #expect(early.rows.isEmpty && early.header.count == 2)
+    // a pipe inside a cell, escaped, and a line that only looks like a table
+    guard case .table(let escaped) = markdownBlocks("| a |\n|---|\n| x \\| y |")[0] else { Issue.record("expected a table"); return }
+    #expect(String(escaped.rows[0][0].characters) == "x | y")
+    if case .line = markdownBlocks("| not | a table |\nnext line")[0] {} else { Issue.record("no separator, no table") }
+}
+
+@Test func numberedItemsQuotesAndRulesAreBlocksOfTheirOwn() {
+    let blocks = markdownBlocks("1. first\n  2) second\n> quoted\n> and more\n---\n***bold*** is not a rule\n10 apples")
+    func shape(_ block: MarkdownBlock) -> String {
+        switch block {
+        case .numbered(let level, let number, _): "numbered \(level) \(number)"
+        case .quote(let text): "quote \(String(text.characters).replacingOccurrences(of: "\n", with: "/"))"
+        case .rule: "rule"
+        case .line: "line"
+        default: "other"
+        }
+    }
+    #expect(blocks.map(shape) == ["numbered 0 1", "numbered 1 2", "quote quoted/and more", "rule", "line", "line"])
+}
+
+@Test func aTableCopiesAsTabsForASpreadsheetAndAsMarkdownWithItsAlignments() {
+    guard case .table(let table) = markdownBlocks("| Plan | Price |\n|:--|--:|\n| **Free** | $0 |\n| Team | a \\| b |")[0] else { Issue.record("expected a table"); return }
+    #expect(table.tsv == "Plan\tPrice\nFree\t$0\nTeam\ta | b")
+    #expect(table.markdown == "| Plan | Price |\n| --- | ---: |\n| Free | $0 |\n| Team | a \\| b |")
 }

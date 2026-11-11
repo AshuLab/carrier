@@ -1,0 +1,67 @@
+{
+  "sessionId": "b8c9d0e1-7f6a-4b32-8d5e-6f7a8b9c0d09",
+  "events": [
+    {
+      "id": 1,
+      "at": 1794356221401,
+      "kind": "user",
+      "text": "Apply the pending migration to the staging database."
+    },
+    {
+      "id": 2,
+      "at": 1794356224401,
+      "kind": "reasoning",
+      "text": "Check which migrations are pending before touching staging, then run the apply script. The apply command writes to the database, so it will ask."
+    },
+    {
+      "id": 3,
+      "at": 1794356225401,
+      "kind": "tool_start",
+      "callId": "m1",
+      "tool": "Bash",
+      "arg": "pnpm db:status"
+    },
+    {
+      "id": 4,
+      "at": 1794356226401,
+      "kind": "tool_end",
+      "callId": "m1",
+      "tool": "Bash",
+      "status": "ok",
+      "output": [
+        "pending: 0008_add_invoices.sql"
+      ]
+    },
+    {
+      "id": 5,
+      "at": 1794356231401,
+      "kind": "reasoning",
+      "text": "One pending migration, 0008. Apply it to staging only."
+    },
+    {
+      "id": 6,
+      "at": 1794356232401,
+      "kind": "approval",
+      "approvalId": "w1",
+      "tool": "Bash",
+      "arg": "pnpm db:migrate --env staging",
+      "choices": [
+        {
+          "id": "allow",
+          "label": "Allow",
+          "allow": true
+        },
+        {
+          "id": "deny",
+          "label": "Deny",
+          "allow": false
+        }
+      ]
+    }
+  ],
+  "cursor": 6,
+  "streaming": "",
+  "session": {
+    "state": "waiting_approval"
+  }
+}

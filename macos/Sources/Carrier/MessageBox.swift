@@ -9,6 +9,8 @@ struct MessageBox<Selects: View>: View {
     var placeholder: String
     var minLines = 3
     var canSend: Bool
+    /// Whether the session would take a message if it had a text: a long text pasted into the box is a message without one. Nil when it cannot say.
+    var canSendWithText: Bool?
     var sendHelp = "Send"
     /// Whether the agent is answering: the button is Stop, and Enter still sends (the session holds the message until the turn ends).
     var busy = false
@@ -29,12 +31,22 @@ struct MessageBox<Selects: View>: View {
     @State private var cursor = 0
     /// The files dropped on the box, which go with the next message as paths under it.
     @State private var attachments: [AttachedFile] = []
+    /// The long texts pasted into the box, which go with the next message in fenced blocks under what is typed.
+    @State private var pastes: [Pasted] = []
     /// Whether files are being dragged over the box.
     @State private var dropping = false
     @AppStorage(AppPreferences.sendKeyKey) private var sendKey = AppPreferences.defaultSendKey
     @AppStorage(AppPreferences.writingToolsKey) private var writingTools = AppPreferences.defaultWritingTools
     @AppStorage(AppPreferences.checksSpellingKey) private var checksSpelling = AppPreferences.defaultChecksSpelling
     @AppStorage(AppPreferences.correctsSpellingKey) private var correctsSpelling = AppPreferences.defaultCorrectsSpelling
+
+    private struct Pasted: Identifiable, Equatable {
+        let id = UUID()
+        var text: String
+    }
+
+    /// Whether there is something to send: a text, or a pasted text when the session would take one.
+    private var ready: Bool { canSend || (pastes.contains { $0.text.allSatisfy(\.isWhitespace) == false } && canSendWithText == true) }
 
     /// The word under the caret, while it is a slash and what is typed of a name.
     private var token: CommandToken? { commands.isEmpty ? nil : commandToken(in: text, cursor: cursor) }
@@ -52,6 +64,19 @@ struct MessageBox<Selects: View>: View {
                     commandList
                     Divider()
                 }
+                if pastes.isEmpty == false {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(pastes) { pasted in
+                            PastedTextCard(
+                                text: pasted.text,
+                                edit: { edited in if let at = pastes.firstIndex(where: { $0.id == pasted.id }) { pastes[at].text = edited } },
+                                remove: { withAnimation(.smooth(duration: 0.2)) { pastes.removeAll { $0.id == pasted.id } } }
+                            )
+                                .transition(.scale(scale: 0.95, anchor: .top).combined(with: .opacity))
+                        }
+                    }
+                    .animation(.smooth(duration: 0.2), value: pastes)
+                }
                 if attachments.isEmpty == false {
                     FlowLayout(spacing: 8) {
                         ForEach(attachments) { file in
@@ -62,10 +87,18 @@ struct MessageBox<Selects: View>: View {
                     .animation(.smooth(duration: 0.2), value: attachments)
                 }
                 CommandTextView(
-                    text: $text, cursor: $cursor, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onFiles: attach, onFileDrag: { dropping = $0 },
+                    text: $text, cursor: $cursor, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onFiles: attach, onFileDrag: { dropping = $0 }, onLargePaste: keep,
                     sendKey: sendKey, writingTools: writingTools, checksSpelling: checksSpelling, correctsSpelling: correctsSpelling
                 )
-                .onChange(of: text) { highlighted = 0 }
+                .onChange(of: text) { _, now in
+                    highlighted = 0
+                    // a message that came back (a refused send, a queued one taken back to edit) has its pasted texts in blocks: they are cards again
+                    guard now.contains("```pasted") else { return }
+                    let split = splitPastes(now)
+                    guard split.pastes.isEmpty == false else { return }
+                    withAnimation(.smooth(duration: 0.2)) { pastes += split.pastes.map { Pasted(text: $0) } }
+                    text = split.text
+                }
                 HStack {
                     selects()
                     Spacer(minLength: 0)
@@ -94,6 +127,13 @@ struct MessageBox<Selects: View>: View {
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.themeAccent, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4])))
         .allowsHitTesting(false)
         .transition(.opacity)
+    }
+
+    /// A long pasted text waits beside the box as a card instead of filling it.
+    private func keep(_ pasted: String) -> Bool {
+        withAnimation(.smooth(duration: 0.2)) { pastes.append(Pasted(text: pasted)) }
+        focus.wrappedValue = true
+        return true
     }
 
     /// Dropped files become chips, the ones already there kept once. Only what is a file of the Mac counts.
@@ -211,10 +251,13 @@ struct MessageBox<Selects: View>: View {
 
     /// Enter and the button: sends, and makes the arrow bounce when there is something to send.
     private func fire() {
-        if canSend || busy { sent += 1 }
-        // the files go as paths under the message, and are taken out of the box once it is on its way
-        if canSend, attachments.isEmpty == false {
-            text = messageWithAttachments(text, files: attachments)
+        if ready || busy { sent += 1 }
+        // the long texts go in blocks under what is typed, then the files as paths; both are taken out of the box once the message is on its way
+        if ready {
+            var message = messageWithPastes(text.trimmingCharacters(in: .whitespacesAndNewlines), pastes: pastes.map(\.text).filter { $0.allSatisfy(\.isWhitespace) == false })
+            if attachments.isEmpty == false { message = messageWithAttachments(message, files: attachments) }
+            if message != text { text = message }
+            pastes = []
             attachments = []
         }
         send()
@@ -223,7 +266,7 @@ struct MessageBox<Selects: View>: View {
     /// A round glass button of the system's, tinted when there is something to send and plain when there is not; it gives under the finger
     /// and springs back. The arrow becomes the Stop square while the agent answers, bounces up on a send and pulses while it works.
     @ViewBuilder private var button: some View {
-        let active = canSend || busy
+        let active = ready || busy
         let action = busy ? stop : fire
         let label = Image(systemName: busy ? "stop.fill" : "arrow.up")
             .font(.scaled(busy ? 12 : 14, weight: .bold)).foregroundStyle(active ? .white : .secondary)

@@ -93,3 +93,36 @@ private func fixture() throws -> PanelSnapshot { try decodeSnapshot(Data(content
     snapshot.nextCheckAt = 999_000
     #expect(isChecking(snapshot, asked: nil, now: start))
 }
+
+@Test func aBareAddressInAMessageIsCutToItsHostAndTail() {
+    func label(_ address: String) -> String { linkLabel(URL(string: address)!) }
+    #expect(label("https://www.example.com/") == "example.com")
+    #expect(label("https://github.com/AshuLab/carrier") == "github.com/AshuLab/carrier")
+    #expect(label("https://github.com/AshuLab/carrier/pull/748/files#diff-3f2a9c?x=1") == "github.com/…/files")
+    #expect(label("https://example.com/a-very-long-single-piece-of-path-that-goes-on") == "example.com/a-very-long-single-piece-of…")
+}
+
+@Test func aLongPasteGoesWithTheMessageInAFencedBlockAndComesBackOutOfIt() {
+    let log = (1...50).map { "line \($0)" }.joined(separator: "\n")
+    let message = messageWithPastes("why does this fail?", pastes: [log, "second `code` ``` fence"])
+    #expect(message.hasPrefix("why does this fail?\n\n```pasted\nline 1\n") && message.contains("````pasted\nsecond `code` ``` fence\n````"))
+    let back = splitPastes(message)
+    #expect(back.text == "why does this fail?" && back.pastes == [log, "second `code` ``` fence"])
+    // no text, no pastes, an unclosed block and an ordinary fence are left as they are
+    #expect(splitPastes(messageWithPastes("", pastes: [log])).text == "" && splitPastes(messageWithPastes("", pastes: [log])).pastes == [log])
+    #expect(messageWithPastes("hi", pastes: []) == "hi")
+    #expect(splitPastes("hi\n```pasted\nnever closed").pastes.isEmpty)
+    #expect(splitPastes("hi\n```swift\nlet a = 1\n```").pastes.isEmpty)
+}
+
+@Test func whatAPasteHoldsIsSaidInOneLine() {
+    #expect(pasteStats(String(repeating: "a", count: 3412)) == "3,412 chars · 1 line · ~853 tokens")
+    #expect(pasteStats(Array(repeating: "x", count: 87).joined(separator: "\n")).contains("87 lines"))
+}
+
+@Test func aQueuedMessageWithAPasteShowsWhatWasTypedAndOneLineForTheText() {
+    let message = messageWithPastes("why?", pastes: [Array(repeating: "x", count: 87).joined(separator: "\n")])
+    #expect(messagePreview(message) == "why?\nPasted text · 87 lines")
+    #expect(messagePreview(messageWithPastes("", pastes: ["a\nb"])) == "Pasted text · 2 lines")
+    #expect(messagePreview("plain") == "plain")
+}

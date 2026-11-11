@@ -34,7 +34,7 @@ async function hostClient(socketPath: string, start: typeof startDetached): Prom
 }
 
 type Option = { id: string; label: string; values: { id: string; label: string }[]; current: string };
-type Approval = { approvalId: string; tool: string; arg?: string; choices: { id: string; label: string; allow: boolean }[] };
+type Approval = { approvalId: string; tool: string; arg?: string; choices: { id: string; label: string; allow: boolean }[]; questions?: { question: string }[] };
 type Reply = { events: Record<string, any>[]; cursor: number; streaming: string; options: Option[]; approvals: Approval[] };
 
 const HISTORY_EVENTS = 20;
@@ -118,6 +118,11 @@ async function converse(client: CarrierClient, { start, input, pollMs, sigint }:
 
   /** Shows an approval with the provider's choices and sends the one the person picks; gives up when it is no longer pending (an interrupt, another client). */
   const decide = async (approval: Approval) => {
+    if (approval.questions) {
+      // ponytail: the terminal has no form for questions, it skips them; add one when the terminal needs it
+      write(`${approval.tool} asks questions that need the app; skipping them\n`);
+      return void (await client.request('answer', { sessionId, approvalId: approval.approvalId, choiceId: 'deny' }).catch((error) => write(`${error instanceof Error ? error.message : String(error)}\n`)));
+    }
     write(`${approval.tool}${approval.arg ? ` ${approval.arg}` : ''} needs your approval:\n${approval.choices.map((choice, i) => `  ${i + 1}) ${choice.label}\n`).join('')}`);
     const watch = { on: true, still: () => watch.on };
     const gone = (async () => {

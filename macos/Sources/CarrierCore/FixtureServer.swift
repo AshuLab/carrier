@@ -46,7 +46,7 @@ public final class FixtureServer {
     private var chatOptions: [String: [[String: Any]]] = [:]
     /// Under `longTranscript`, every listed session answers this instead.
     private var longChat: [[String: Any]]?
-    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"plan\"]}\n".utf8)
+    private let chatHello = Data("{\"event\":\"hello\",\"protocol\":1,\"pid\":0,\"startedAt\":0,\"version\":\"fixture\",\"capabilities\":[\"agents\",\"list\",\"open\",\"resume\",\"send\",\"events\",\"answer\",\"setOption\",\"archive\",\"delete\",\"deletePreview\",\"workspace\",\"fetch\",\"suggestName\",\"checkName\",\"cloneRepo\",\"createProject\",\"githubRepos\",\"repoBranches\",\"plan\"]}\n".utf8)
     private let data: [String: Data]
     private let hello: Data
     private var stopped = false
@@ -279,6 +279,15 @@ public final class FixtureServer {
         case "open":
             if let plan = request?["plan"] as? [String: Any] { return openPlan(id, plan) }
             return open(id, request ?? [:])
+        case "resume":
+            // a closed session wakes: the next list says it is live
+            guard let session = request?["sessionId"] as? String else { break }
+            let found = locked { () -> Bool in
+                guard let at = chatSessions.firstIndex(where: { $0["id"] as? String == session }) else { return false }
+                chatSessions[at]["live"] = true
+                return true
+            }
+            return found ? Self.answer(id, [String: Any]()) : Self.refused(id, "unknown session")
         case "send":
             guard let session = request?["sessionId"] as? String, let text = request?["text"] as? String else { break }
             let found = locked { () -> Bool in
@@ -299,7 +308,9 @@ public final class FixtureServer {
             guard (asked["choices"] as? [[String: Any]] ?? []).contains(where: { $0["id"] as? String == choice }) else {
                 return Self.line("{\"id\":\(id),\"ok\":false,\"error\":\"That is not one of the choices\"}")
             }
-            events.append(["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "approval_answered", "approvalId": approval, "choiceId": choice])
+            var answered: [String: Any] = ["id": (events.last?["id"] as? Int ?? 0) + 1, "at": Int(Date().timeIntervalSince1970 * 1000), "kind": "approval_answered", "approvalId": approval, "choiceId": choice]
+            if let answers = request?["answers"] as? [String: String] { answered["answers"] = answers }
+            events.append(answered)
             chatConversations[session]?.events = events
             return Self.line("{\"id\":\(id),\"ok\":true,\"data\":{}}")
         case "setOption":

@@ -17,6 +17,35 @@ public struct ChatChoice: Codable, Equatable {
     }
 }
 
+/// One question of an `AskUserQuestion` approval: a short header, the question, the options the provider lists (the person may also
+/// write their own) and whether more than one can be picked.
+public struct ChatQuestion: Codable, Equatable {
+    public struct Option: Codable, Equatable {
+        public let label: String
+        public let description: String
+        /// Optional text (a mockup, a snippet) to show while the option is focused.
+        public let preview: String?
+
+        public init(label: String, description: String, preview: String? = nil) {
+            self.label = label
+            self.description = description
+            self.preview = preview
+        }
+    }
+
+    public let question: String
+    public let header: String
+    public let options: [Option]
+    public let multiSelect: Bool
+
+    public init(question: String, header: String, options: [Option], multiSelect: Bool = false) {
+        self.question = question
+        self.header = header
+        self.options = options
+        self.multiSelect = multiSelect
+    }
+}
+
 /// An event of the conversation as the host stores it (docs/specs/chat-host.md, Decisions): `kind` says which of the fields are there.
 public struct ChatEvent: Codable, Equatable {
     public let id: Int
@@ -32,6 +61,10 @@ public struct ChatEvent: Codable, Equatable {
     public var approvalId: String?
     public var choices: [ChatChoice]?
     public var choiceId: String?
+    /// An approval that asks questions (`AskUserQuestion`) lists them here; `arg` is absent then.
+    public var questions: [ChatQuestion]?
+    /// What the person answered to those, by question text (more than one pick comma-separated); on an `approval_answered`.
+    public var answers: [String: String]?
     public var outcome: String?
     public var model: String?
     /// As the provider reported it: its keys differ (`input_tokens` or `inputTokens`), and any of them can be missing.
@@ -43,7 +76,8 @@ public struct ChatEvent: Codable, Equatable {
     public init(
         id: Int, at: Int, kind: String, text: String? = nil, callId: String? = nil, tool: String? = nil, arg: String? = nil, output: [String]? = nil,
         status: String? = nil, approvalId: String? = nil, choices: [ChatChoice]? = nil, choiceId: String? = nil, outcome: String? = nil,
-        model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil
+        model: String? = nil, usage: [String: Double]? = nil, step: String? = nil, detail: String? = nil, questions: [ChatQuestion]? = nil,
+        answers: [String: String]? = nil
     ) {
         self.id = id
         self.at = at
@@ -57,6 +91,8 @@ public struct ChatEvent: Codable, Equatable {
         self.approvalId = approvalId
         self.choices = choices
         self.choiceId = choiceId
+        self.questions = questions
+        self.answers = answers
         self.outcome = outcome
         self.model = model
         self.usage = usage
@@ -134,11 +170,9 @@ public enum FeedRow: Equatable, Identifiable {
     case user(id: String, text: String)
     /// What the agent wrote, as markdown; `inProgress` is the text still being written, which is not stored yet.
     case agent(id: String, text: String, inProgress: Bool)
-    /// The agent's reasoning, folded under its message: one finished thinking block.
-    case reasoning(id: String, text: String)
     /// The line that closes a turn: the model, how long it took and the usage the provider reported.
     case turnEnd(id: String, TurnSummary)
-    /// A run of tool calls: one row that opens to its calls.
+    /// A run of the agent's work, its reasoning and its calls: one row that opens to its steps.
     case tools(id: String, ToolGroup)
     /// An approval waiting for the person: a card with the provider's choices.
     case approval(id: String, ApprovalCard)
@@ -153,7 +187,7 @@ public enum FeedRow: Equatable, Identifiable {
 
     public var id: String {
         switch self {
-        case .user(let id, _), .agent(let id, _, _), .reasoning(let id, _), .turnEnd(let id, _), .tools(let id, _), .approval(let id, _), .decided(let id, _, _),
+        case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .tools(let id, _), .approval(let id, _), .decided(let id, _, _),
             .line(let id, _), .error(let id, _), .stopped(let id): id
         }
     }
@@ -212,58 +246,69 @@ public struct ApprovalCard: Equatable {
     public let tool: String
     public let arg: String?
     public let choices: [ChatChoice]
+    /// The questions of an `AskUserQuestion` approval; empty for any other, which is drawn as the generic card.
+    public let questions: [ChatQuestion]
 }
 
 /// The rows the events make, in order, and then the message in progress when `streaming` has text. Consecutive calls are one row
 /// at the place where the first started, each completed by its end (a turn that ends first stops the calls still going); an
 /// approval is one row at the place where it was asked: a card while its id is in `pending` (what the host still waits for),
 /// a line once answered, and a plain line when it is neither (the turn ended without it).
-/// A `reasoning` event is held and drawn right under the message that follows it in its turn (the host stores it before the message),
-/// or where the turn ends without one. Anything else the host may add is not drawn.
+/// A `reasoning` event is a thought of the run of calls it comes in (the host stores each block where the agent had it); one that comes
+/// before the first call of a run waits for it, and one with no call after it is a run of its own, before the message or the end of its
+/// turn: the agent's work is always above its answer. Anything else the host may add is not drawn.
 public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set<String> = []) -> [FeedRow] {
     var rows: [FeedRow] = []
     // where each call still going is: its row and its place in it
     var going: [String: (row: Int, call: Int)] = [:]
     var asked: [String: (row: Int, event: ChatEvent)] = [:]
     var turnStart: Int?
-    var held: [FeedRow] = []
+    var held: [Thought] = []
+    // thoughts no call came to take: a run of their own, where the piece that ends them begins
     func release() {
-        rows += held
+        guard let first = held.first else { return }
+        rows.append(.tools(id: first.id, ToolGroup(calls: [], thoughts: held, since: turnStart)))
         held = []
     }
     for event in events {
         let id = "e\(event.id)"
         switch event.kind {
         case "reasoning":
-            if let text = event.text, text.isEmpty == false { held.append(.reasoning(id: id, text: text)) }
+            guard let text = event.text, text.isEmpty == false else { continue }
+            if case .tools(let group, var run)? = rows.last {
+                run.thoughts.append(Thought(id: id, text: text, at: event.at, before: run.calls.count))
+                rows[rows.count - 1] = .tools(id: group, run)
+            } else {
+                held.append(Thought(id: id, text: text, at: event.at, before: 0))
+            }
         case "user":
             release()
             turnStart = event.at
             rows.append(.user(id: id, text: event.text ?? ""))
         case "assistant":
-            rows.append(.agent(id: id, text: event.text ?? "", inProgress: false))
             release()
+            rows.append(.agent(id: id, text: event.text ?? "", inProgress: false))
         case "tool_start":
             let call = ToolCall(start: event)
-            going[call.id] = place(call, in: &rows, id: id)
+            going[call.id] = place(call, in: &rows, id: id, held: &held)
         case "tool_end":
             if let call = event.callId, let spot = going.removeValue(forKey: call), case .tools(let group, var calls) = rows[spot.row] {
                 calls.calls[spot.call].finish(event)
                 rows[spot.row] = .tools(id: group, calls)
             } else {
-                _ = place(ToolCall(orphanEnd: event), in: &rows, id: id)
+                _ = place(ToolCall(orphanEnd: event), in: &rows, id: id, held: &held)
             }
         case "approval":
             if let approval = event.approvalId { asked[approval] = (rows.count, event) }
             if let approval = event.approvalId, pending.contains(approval) {
                 let tool = event.tool ?? "the tool"
-                rows.append(.approval(id: id, ApprovalCard(approvalId: approval, question: "Allow \(tool)?", tool: tool, arg: event.arg, choices: event.choices ?? [])))
+                rows.append(.approval(id: id, ApprovalCard(approvalId: approval, question: "Allow \(tool)?", tool: tool, arg: event.arg, choices: event.choices ?? [], questions: event.questions ?? [])))
             } else {
                 rows.append(.line(id: id, text: "\(what(event)) · no longer waiting for an answer"))
             }
         case "approval_answered":
             guard let approval = event.approvalId, let question = asked[approval] else { continue }
-            rows[question.row] = decided(question.event, choice: event.choiceId, id: rows[question.row].id)
+            rows[question.row] = decided(question.event, choice: event.choiceId, answers: event.answers, id: rows[question.row].id)
         case "turn_end":
             release()
             for spot in going.values {
@@ -272,6 +317,7 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
                 rows[spot.row] = .tools(id: group, calls)
             }
             going = [:]
+            if event.outcome == "error" { markLastRunErred(in: &rows) }
             if let summary = TurnSummary(event, turnStart: turnStart) { rows.append(.turnEnd(id: id, summary)) }
             if event.outcome == "interrupted" { rows.append(.stopped(id: "\(id)-stopped")) }
             turnStart = nil
@@ -282,26 +328,48 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
             continue
         }
     }
-    if streaming.isEmpty == false { rows.append(.agent(id: "streaming", text: streaming, inProgress: true)) }
     release()
+    if streaming.isEmpty == false { rows.append(.agent(id: "streaming", text: streaming, inProgress: true)) }
     return rows
 }
 
-/// Puts a call at the end of the run the last row is, or opens a row for it.
-private func place(_ call: ToolCall, in rows: inout [FeedRow], id: String) -> (row: Int, call: Int) {
+/// The run a turn that failed ended in: the last one of the turn, when the agent had not written an answer after it.
+private func markLastRunErred(in rows: inout [FeedRow]) {
+    for index in rows.indices.reversed() {
+        switch rows[index] {
+        case .tools(let id, var group):
+            group.erred = true
+            rows[index] = .tools(id: id, group)
+            return
+        case .user, .agent: return
+        default: continue
+        }
+    }
+}
+
+/// Puts a call at the end of the run the last row is, or opens a row for it that starts with the thoughts that were waiting.
+private func place(_ call: ToolCall, in rows: inout [FeedRow], id: String, held: inout [Thought]) -> (row: Int, call: Int) {
     if case .tools(let group, var run)? = rows.last {
         run.calls.append(call)
         rows[rows.count - 1] = .tools(id: group, run)
         return (rows.count - 1, run.calls.count - 1)
     }
-    rows.append(.tools(id: id, ToolGroup(calls: [call])))
+    rows.append(.tools(id: held.first?.id ?? id, ToolGroup(calls: [call], thoughts: held)))
+    held = []
     return (rows.count - 1, 0)
 }
 
 private func what(_ approval: ChatEvent) -> String { [approval.tool, approval.arg].compactMap { $0 }.joined(separator: " ") }
 
 /// "Allowed pnpm test · Allow once · by you": the verb is from whether the chosen choice allows, the label is the provider's own.
-private func decided(_ approval: ChatEvent, choice: String?, id: String) -> FeedRow {
+private func decided(_ approval: ChatEvent, choice: String?, answers: [String: String]?, id: String) -> FeedRow {
+    if let questions = approval.questions, questions.isEmpty == false {
+        guard let answers, let chosen = approval.choices?.first(where: { $0.id == choice })?.allow, chosen else {
+            return .decided(id: id, text: "Skipped the questions · by you", allow: false)
+        }
+        let parts = questions.compactMap { question in answers[question.question].map { "\(question.header): \($0)" } }
+        return .decided(id: id, text: (["Answered · by you"] + parts).joined(separator: "\n"), allow: true)
+    }
     guard let chosen = approval.choices?.first(where: { $0.id == choice }) else {
         return .decided(id: id, text: "Answered \(what(approval)) · by you", allow: false)
     }
@@ -343,7 +411,7 @@ public struct TurnSummary: Equatable {
     public static func tokens(_ count: Double) -> String { count < 1000 ? "\(Int(count))" : String(format: "%.1fk", count / 1000) }
 
     public var text: String {
-        [model, duration, context.map { "\(Self.tokens($0)) context" }, output.map { "\(Self.tokens($0)) out" }].compactMap { $0 }.joined(separator: " · ")
+        [shortModel, duration, context.map { "\(Self.tokens($0)) context" }, output.map { "\(Self.tokens($0)) out" }].compactMap { $0 }.joined(separator: " · ")
     }
 
     /// The model as a person says it: `claude-haiku-5-5` is `haiku 5.5`, and a dated one (`claude-opus-4-1-20250805`) loses its date. A name
@@ -406,6 +474,16 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     public private(set) var agent = ""
     /// Whether the session's agent process runs; a session that is not live shows the closed notice and resumes when a message is sent.
     public private(set) var live = true
+    /// Whether the session is asleep: closed, and not on its way to another state (being archived, prepared or woken by a send). Only then the
+    /// closed notice shows. It holds at once the first time the session is read; after that a session has to stay closed for a second, as
+    /// archiving closes it a moment before the host's list says it is archived.
+    public private(set) var asleep = false
+    /// Whether a send is waking the session.
+    public private(set) var waking = false
+    @ObservationIgnored private var closedSince: Date?
+    @ObservationIgnored private var known = true
+    @ObservationIgnored private var preparingSession = false
+    private static let settle: TimeInterval = 1
     /// Whether the session is in the archive: its transcript is read only and the box gives way to a notice with Resume.
     public private(set) var archived = false
     /// The message whose send or resume the host refused, for the banner's Try again; nil with no refusal or when it was not a send.
@@ -495,18 +573,26 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
                 cursor = reply.cursor
                 changed = changed || reply.events.isEmpty == false
             } while reply.events.count >= Self.page
+            let first = loaded == false
             if let session = try await host.list(archived: false).first(where: { $0.id == sessionId }) {
                 agent = session.agent
                 live = session.live
                 archived = false
+                known = true
+                preparingSession = session.state == .preparing
             } else if let session = try await host.list(archived: true).first(where: { $0.id == sessionId }) {
                 agent = session.agent
                 live = false
                 archived = true
+                known = true
+                preparingSession = false
             } else {
                 live = false
                 archived = false
+                known = false
+                preparingSession = false
             }
+            settleAsleep(first: first)
             changed = changed || reply.streaming != streaming
             streaming = reply.streaming
             changed = changed || reply.pending != pending
@@ -566,9 +652,9 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
 
     /// A button of an approval card: passes the choice to the host and polls, so the card becomes the line once the host recorded the
     /// answer. A refusal (not pending any more, not one of the choices) is shown in words; the next poll draws what the host says.
-    public func answer(_ approvalId: String, choice: String) async {
+    public func answer(_ approvalId: String, choice: String, answers: [String: String]? = nil) async {
         do {
-            try await host.answer(sessionId, approval: approvalId, choice: choice)
+            try await host.answer(sessionId, approval: approvalId, choice: choice, answers: answers)
         } catch {
             refusedText = nil
             refusal = report(error, "answer the approval")
@@ -645,6 +731,20 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
     /// Drops the queued message.
     public func cancelQueued() { queued = nil }
 
+    /// Takes the queued message back into the box to be edited; what is already typed there stays under it.
+    public func editQueued() {
+        guard let held = queued else { return }
+        queued = nil
+        draft = draft.isEmpty ? held : held + "\n" + draft
+    }
+
+    /// Send now on the queued message: stops the turn, and the poll that sees the agent idle delivers it.
+    public func sendQueuedNow() async {
+        guard queued != nil else { return }
+        await stop()
+        await poll()
+    }
+
     /// The Stop button: ends the turn; the queued message, if any, goes when the poll sees the agent idle.
     public func stop() async {
         do {
@@ -656,10 +756,23 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         }
     }
 
+    private func settleAsleep(first: Bool) {
+        if live || archived || known == false || preparingSession || waking {
+            closedSince = nil
+        } else if closedSince == nil {
+            closedSince = first ? .distantPast : .now
+        }
+        let next = closedSince.map { Date.now.timeIntervalSince($0) >= Self.settle } ?? false
+        if asleep != next { asleep = next }
+    }
+
     /// Sends the text, resuming the session first when the host's list says it is not live. A refusal is shown and the text goes back
     /// to the box when it came from there or from the queue (`refill`); on success the box is emptied unless the person has typed something else.
     private func deliver(_ text: String, refill: Bool = true) async {
         sends += 1
+        waking = true
+        asleep = false
+        defer { waking = false }
         // the box empties on Enter and not when the host has answered; a refusal puts the text back
         if refill, draft.trimmingCharacters(in: .whitespacesAndNewlines) == text { draft = "" }
         do {
@@ -717,6 +830,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         switch error {
         case ControlError.closed: "The chat host is not answering"
         case ControlError.remote(let reason): reason
+        case ControlError.timeout: "The chat host took too long to answer"
         default: "The chat host sent something that was not understood"
         }
     }

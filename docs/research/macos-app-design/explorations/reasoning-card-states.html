@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Work card — always collapsed, effects</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* s- = this page only */
+.s-top{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.s-stage{border-radius:22px;background:var(--win);box-shadow:var(--shadow);padding:20px 26px 24px;min-width:0}
+.s-demo{max-width:760px;margin-bottom:26px}
+.s-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:20px;max-width:1700px}
+.s-h{font-size:11px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:0 0 3px}
+.s-h b{color:var(--text);letter-spacing:0}
+.s-why{color:var(--dim);font-size:12px;margin:0 0 12px;line-height:1.45;min-height:32px}
+.s-feed{display:flex;flex-direction:column;gap:10px;font-size:13.5px;line-height:1.5;min-height:60px}
+.s-user{align-self:flex-end;max-width:85%;padding:7px 12px;border-radius:16px;background:rgba(10,132,255,.14);box-shadow:0 0 0 .5px rgba(10,132,255,.35) inset}
+.s-msg{color:var(--text)}
+.s-cur{display:inline-block;width:7px;height:14px;background:var(--dim);vertical-align:-2px;animation:s-blink 1s steps(2) infinite}
+@keyframes s-blink{50%{opacity:0}}
+.s-note{margin-top:12px;padding-top:10px;border-top:.5px solid var(--line);color:var(--dim);font-size:12px;line-height:1.5}
+.s-note b{color:var(--text)}
+.s-spark{color:#c9a0ff}
+svg.s-i{width:14px;height:14px;flex:none;display:inline-block}
+
+/* ---- the card ---- */
+.s-card{border-radius:14px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;padding:5px 12px;transition:box-shadow .3s,background .3s}
+.s-card.live{box-shadow:0 0 0 .5px rgba(201,160,255,.4) inset,0 0 18px rgba(201,160,255,.07)}
+.s-card.wait{box-shadow:0 0 0 .5px rgba(236,153,56,.5) inset}
+.s-card.stop{opacity:.9}
+.s-bar{display:flex;gap:8px;align-items:center;cursor:pointer;user-select:none;padding:5px 0;font-size:12.5px;color:var(--dim);min-height:28px}
+.s-bar:hover{color:var(--text)}
+.s-bar b{font-weight:600;color:var(--text)}
+.s-bar .d{color:var(--faint)}
+.s-bar .t{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--faint)}
+.s-chev{width:9px;height:9px;flex:none;transition:transform .18s;opacity:.8}
+.s-card.open .s-chev{transform:rotate(90deg)}
+.s-lead{width:16px;height:16px;display:grid;place-items:center;flex:none}
+.s-spin{width:13px;height:13px;border-radius:50%;border:1.8px solid rgba(235,235,245,.22);border-top-color:var(--text);animation:s-r .8s linear infinite}
+@keyframes s-r{to{transform:rotate(360deg)}}
+.s-pulse{animation:s-p 1.6s ease-in-out infinite}
+@keyframes s-p{50%{opacity:.35;transform:scale(.86)}}
+.s-tw{animation:s-tw 2.4s ease-in-out infinite}
+@keyframes s-tw{0%,100%{opacity:1;transform:scale(1) rotate(0)}50%{opacity:.5;transform:scale(.82) rotate(18deg)}}
+.s-sh{background:linear-gradient(90deg,var(--dim) 30%,#fff 50%,var(--dim) 70%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:s-sh 2.2s linear infinite;font-weight:600}
+@keyframes s-sh{from{background-position:200% 0}to{background-position:-200% 0}}
+.s-owl{width:9px;height:9px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 3px rgba(236,153,56,.22);animation:s-p 1.4s ease-in-out infinite}
+.s-fold{display:grid;grid-template-rows:0fr;transition:grid-template-rows .22s ease}
+.s-card.open .s-fold{grid-template-rows:1fr}
+.s-fold>div{overflow:hidden;min-height:0}
+.s-tl{margin:4px 0 6px 4px;display:flex;flex-direction:column;font-size:12.5px;color:var(--dim)}
+.s-ev{display:grid;grid-template-columns:16px 1fr auto;gap:9px;padding:5px 0;position:relative;align-items:start}
+.s-ev:last-child{animation:s-in .28s ease-out}
+@keyframes s-in{from{opacity:0;transform:translateY(5px)}}
+.s-ev:not(:last-child)::after{content:"";position:absolute;left:7.25px;top:24px;bottom:-5px;width:1.5px;background:rgba(235,235,245,.12)}
+.s-ev i{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;background:var(--card2);margin-top:1px;font-style:normal}
+.s-ev i svg{width:9px;height:9px}
+.s-ev.th i{background:rgba(201,160,255,.2);color:#c9a0ff}
+.s-ev.err i{background:rgba(255,69,58,.18);color:var(--red)}
+.s-ev.wait i{background:rgba(236,153,56,.2)}
+.s-ev code{font:11.5px var(--mono);color:var(--text);background:rgba(0,0,0,.25);padding:1px 6px;border-radius:5px;word-break:break-all}
+.s-ev .tx{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+.s-ev .tx.full{-webkit-line-clamp:unset}
+.s-ev .st{font-size:11.5px;color:var(--faint);font-variant-numeric:tabular-nums;white-space:nowrap;padding-top:2px}
+.s-ev.err .st{color:var(--red)}
+.s-ev.wait .st{color:var(--orange)}
+.s-ev .out{grid-column:2/4;margin-top:4px;font:11px/1.5 var(--mono);color:var(--dim);background:rgba(0,0,0,.28);border-radius:8px;padding:6px 9px;white-space:pre-wrap}
+.s-prev{font-size:11.5px;color:var(--faint);padding:3px 0 3px 25px;cursor:pointer}
+.s-prev:hover{color:var(--text)}
+/* the approval stays over the box, as today */
+.s-appr{margin-top:12px;border-radius:14px;padding:10px 12px;background:rgba(236,153,56,.1);box-shadow:0 0 0 .5px rgba(236,153,56,.4) inset;font-size:12px;color:var(--dim)}
+.s-appr b{color:var(--text)}
+/* legend */
+.s-leg{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;max-width:1100px;margin:0 0 24px}
+.s-leg div{background:var(--card);border-radius:12px;padding:10px 12px;color:var(--dim);font-size:12px;line-height:1.45}
+.s-leg b{display:flex;gap:8px;align-items:center;color:var(--text);margin-bottom:4px;font-size:12.5px}
+.s-rules{max-width:1100px;margin:26px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.s-rules div{background:var(--card);border-radius:12px;padding:12px 15px;color:var(--dim);line-height:1.5}
+.s-rules b{display:block;color:var(--text);margin-bottom:3px}
+code.s-k{font:11.5px var(--mono);background:rgba(0,0,0,.28);padding:1px 6px;border-radius:5px;color:var(--text)}
+.s-foot{display:flex;align-items:center;gap:10px;height:24px;color:var(--dim);font-size:12px}
+.s-model{font-size:11px;font-weight:550;padding:2px 7px;border-radius:99px;background:rgba(235,235,245,.12)}
+
+/* ---- effects (body classes fx-sh / fx-gl / fx-tk) ---- */
+@property --s-a{syntax:"<angle>";initial-value:0deg;inherits:false}
+.s-card{position:relative}
+.s-roll{display:flex;gap:6px;align-items:baseline;min-width:0;overflow:hidden;white-space:nowrap}
+.s-roll code{font:11.5px var(--mono);color:var(--text);background:rgba(0,0,0,.25);padding:1px 6px;border-radius:5px;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.s-roll .w{color:var(--dim);font-weight:600}
+.s-bar .d{white-space:nowrap}
+.s-bar .d i{font-style:normal;color:var(--red)}
+body:not(.fx-sh) .s-sh{background:none;color:var(--dim);animation:none;-webkit-text-fill-color:currentColor}
+body.fx-tk .s-card.live .s-roll,body.fx-tk .s-card.wait .s-roll{animation:s-roll .34s cubic-bezier(.2,.8,.2,1)}
+@keyframes s-roll{from{opacity:0;transform:translateY(9px)}}
+body.fx-gl .s-card.live::after,body.fx-gl .s-card.wait::after{content:"";position:absolute;inset:0;border-radius:14px;padding:1.2px;pointer-events:none;
+  background:conic-gradient(from var(--s-a),transparent 0 62%,rgba(201,160,255,.95) 82%,rgba(120,170,255,.8) 90%,transparent 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:s-rot 3.4s linear infinite}
+body.fx-gl .s-card.wait::after{background:conic-gradient(from var(--s-a),transparent 0 62%,rgba(236,153,56,.95) 85%,transparent 100%)}
+@keyframes s-rot{to{--s-a:360deg}}
+body.fx-gl .s-card.live{box-shadow:0 0 0 .5px var(--line) inset,0 0 22px rgba(201,160,255,.08)}
+.s-fx{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.s-fx span{color:var(--dim);font-size:12px;margin-right:2px}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="s-spark" viewBox="0 0 16 16"><path fill="currentColor" d="M6.5 1.5l1.2 3.3 3.3 1.2-3.3 1.2-1.2 3.3-1.2-3.3L2 6l3.3-1.2zM12 9l.7 1.8 1.8.7-1.8.7L12 14l-.7-1.8-1.8-.7 1.8-.7z"/></symbol>
+  <symbol id="s-chev" viewBox="0 0 10 10"><path d="M3 1.5L6.8 5 3 8.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="s-term" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M3 4.5l4 3.5-4 3.5M8.5 12h4.5"/></symbol>
+  <symbol id="s-x" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 4l8 8M12 4l-8 8"/></symbol>
+  <symbol id="s-ok" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3.5 8.5l3 3 6-7"/></symbol>
+</defs></svg>
+
+<h1>Work card — always collapsed, with its effect</h1>
+<p class="sub">Decided: <b>the card is always one collapsed line</b>, live or finished; whoever wants the detail opens it. So the live state has to fit in that one line: what the agent is doing right now (thinking, which command is running, waiting for you), the step count, anything that failed, and a timer. Texts are in English as the app shows them. Pick an effect at the top and play the turn.</p>
+
+<div class="s-top">
+  <button class="tab on" id="s-play">▶ Play turn</button>
+  <button class="tab" id="s-reset">↺ Reset</button>
+  <button class="tab" id="s-theme">Light / dark</button>
+  <span class="sp"></span>
+  <div class="s-fx"><span>Effect</span>
+    <button class="tab" data-fx="sh">Shimmer</button>
+    <button class="tab" data-fx="gl">Glow border</button>
+    <button class="tab" data-fx="tk">Ticker</button>
+    <button class="tab on" data-fx="sh gl tk">All three</button>
+    <button class="tab" data-fx="">None</button>
+  </div>
+</div>
+
+<div class="s-stage s-demo">
+  <p class="s-h"><b>One full turn</b> · live</p>
+  <p class="s-why" id="s-demo-why">Press Play.</p>
+  <div class="s-feed" id="s-demo"></div>
+</div>
+
+<div class="s-leg">
+  <div><b>Shimmer</b>A light sweeps across the live text ("Thinking…", "Running"). Says "alive" without moving anything. Off when the card is not live.</div>
+  <div><b>Glow border</b>A violet highlight runs around the card's edge while it works (amber while it waits for you). Quiet, and visible from far away in a long feed.</div>
+  <div><b>Ticker</b>When the step changes, the line rolls up: the new status slides in from below. It is what makes a collapsed line feel like it is progressing.</div>
+  <div><b>✦ twinkle</b>The spark turns and fades slowly while thinking. Always on; it is the card's icon, not an effect to choose.</div>
+</div>
+
+<div class="s-grid" id="s-grid"></div>
+
+<div class="s-rules">
+  <div><b>The one line, by state</b><b style="display:inline;font-weight:600">Live:</b> ✦ <i>Thinking…</i> · step 1 · 0:03 &nbsp;/&nbsp; ◌ <i>Running</i> <code class="s-k">gh api /events?id=4812</code> · step 2 · 0:09 &nbsp;/&nbsp; ● <i>Waiting for your answer</i> · step 3. A failure stays visible as "· 1 failed" in red. <b style="display:inline;font-weight:600">Done:</b> Worked · 3 thoughts · 3 commands · 0:09. Commands only: Worked · 3 commands. Thought only: Thought · 0:04. Stopped: ■ Stopped · 3 steps.</div>
+  <div><b>Opened by hand</b>The person's choice is kept for that turn, live or finished. A live card that is open shows the last 4 steps and "N earlier steps", so it does not push the feed while the agent works.</div>
+  <div><b>Reasoning setting off</b>The card keeps only the commands: it is today's "Worked" row, and the ✦ steps are not drawn.</div>
+  <div><b>Reduce Motion</b>All four effects stop: the glow border stays still, the shimmer is plain text, the ticker is a plain change, the ✦ does not turn. The state is still told by the icon and the words.</div>
+</div>
+
+<script>
+const ICON={th:'<svg><use href="#s-spark"/></svg>',cmd:'<svg><use href="#s-term"/></svg>',err:'<svg><use href="#s-x"/></svg>'};
+const clock=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+const plural=(n,a,b)=>`${n} ${n===1?a:b}`;
+const last=m=>m.evs[m.evs.length-1]||{k:'th',s:'live'};
+
+function lead(m){
+  if(m.phase==='stop') return '<span class="s-lead" style="color:var(--dim)">■</span>';
+  if(m.phase==='done') return '';
+  const l=last(m);
+  if(l.s==='wait') return '<span class="s-lead"><span class="s-owl"></span></span>';
+  if(l.k==='cmd') return '<span class="s-lead"><span class="s-spin"></span></span>';
+  return '<span class="s-lead"><svg class="s-i s-spark s-tw"><use href="#s-spark"/></svg></span>';
+}
+function label(m){
+  const th=m.evs.filter(e=>e.k==='th').length, cm=m.evs.filter(e=>e.k==='cmd').length;
+  const failed=m.evs.filter(e=>e.s==='err').length;
+  const bad=failed?` · <i>${failed} failed</i>`:'';
+  if(m.phase==='live'){
+    const l=last(m);
+    const w=l.s==='wait'?'<span class="s-sh">Waiting for your answer</span>'
+      :l.k==='cmd'?`<span class="s-sh">Running</span><code>${l.cmd}</code>`:'<span class="s-sh">Thinking…</span>';
+    return `<span class="s-roll">${w}</span><span class="d">· step ${m.evs.length||1}${bad}</span><span class="t">${clock(m.t)}</span>`;
+  }
+  if(m.phase==='stop') return `<span class="s-roll"><b>Stopped</b></span><span class="d">· ${plural(m.evs.length,'step','steps')}${bad}</span><span class="t">${clock(m.t)}</span>`;
+  const bits=[];
+  if(th) bits.push(plural(th,'thought','thoughts'));
+  if(cm) bits.push(plural(cm,'command','commands'));
+  return `<span class="s-roll"><b>${cm?'Worked':'Thought'}</b></span><span class="d">· ${bits.join(' · ')}${bad}</span><span class="t">${clock(m.t)}</span>`;
+}
+function ev(e){
+  const cls=e.k==='th'?'th':e.s==='err'?'err':e.s==='wait'?'wait':'cmd';
+  let ic=ICON[e.k==='th'?'th':e.s==='err'?'err':'cmd'], body, st='';
+  if(e.k==='th'){
+    body=e.s==='live'?'<span class="s-sh" style="font-weight:500">Thinking…</span>':`<div class="tx" onclick="this.classList.toggle('full')">${e.text}</div>`;
+    if(e.s==='live') ic='<svg class="s-tw"><use href="#s-spark"/></svg>';
+  } else {
+    body=`<code>${e.cmd}</code>`;
+    st=e.s==='run'?`<span style="display:inline-flex;gap:6px;align-items:center"><span class="s-spin" style="width:10px;height:10px;border-width:1.5px"></span>${e.st}</span>`:e.s==='wait'?'waiting':e.s==='err'?'failed · exit 1':e.st||'';
+    if(e.s==='ok') ic='<svg><use href="#s-ok"/></svg>';
+  }
+  return `<div class="s-ev ${cls}"><i>${ic}</i><div>${body}</div><span class="st">${st}</span>${e.out?`<div class="out">${e.out}</div>`:''}</div>`;
+}
+function card(m,open,id){
+  const cap=4, hide=(m.phase==='live'&&m.evs.length>cap)?m.evs.length-cap:0;
+  const l=last(m);
+  const cls=['s-card',open?'open':'',m.phase==='live'?(l.s==='wait'?'wait':'live'):m.phase==='stop'?'stop':''].join(' ');
+  return `<div class="${cls}" ${id?`id="${id}"`:''}><div class="s-bar" onclick="this.parentElement.classList.toggle('open')"><svg class="s-chev"><use href="#s-chev"/></svg>${lead(m)}${label(m)}</div>
+  <div class="s-fold"><div><div class="s-tl">${hide?`<div class="s-prev" onclick="event.stopPropagation()">▸ ${hide} earlier steps</div>`:''}${m.evs.slice(hide).map(ev).join('')}</div></div></div></div>`;
+}
+const foot=`<div class="s-foot"><span class="s-model">sonnet 5.5</span><span style="color:rgba(235,235,245,.5)">9s · 99.5k context · 814 out</span></div>`;
+const ans='Yes. Marina owns that event; the POST was cut off in v1, v2 still needs confirming.';
+const Q='Do you know who owns that event?';
+const T1='Reading the request: they want to know who owns the event, not the full list.';
+const T2='The POST output was cut off at the first 200 lines, so I never saw the v2 part, and I did not read the API docs (v1 vs v2) either. I also remember the earlier hook problem.';
+const T3='Summarize in Spanish, concise, with a bit of Rioplatense voseo.';
+const done6=[{k:'th',s:'ok',text:T1},{k:'cmd',s:'ok',cmd:'gh api /events?id=4812',st:'0.4s'},{k:'cmd',s:'ok',cmd:'curl -X POST /api/v2/lookup',st:'1.2s'},{k:'th',s:'ok',text:T2},{k:'cmd',s:'ok',cmd:'sed -n 1,200p out.json',st:'0.1s'},{k:'th',s:'ok',text:T3}];
+
+const scenes=[
+ {h:'1 · Starts thinking',why:'First second of the turn. One line: the ✦ turns, "Thinking…" shimmers, timer runs. Nothing else to read yet.',m:{phase:'live',t:3,evs:[{k:'th',s:'live'}]}},
+ {h:'2 · Running a command',why:'The line names the command that is running: the ◌ spins, the command is clipped with an ellipsis if long.',m:{phase:'live',t:9,evs:[{k:'th',s:'ok',text:T1},{k:'cmd',s:'run',cmd:'gh api /events?id=4812',st:'4s'}]}},
+ {h:'3 · Waiting for your approval',why:'Amber dot, amber glow, "Waiting for your answer". The approval card itself is over the message box, as today.',m:{phase:'live',t:21,evs:[{k:'th',s:'ok',text:T1},{k:'cmd',s:'ok',cmd:'gh api /events?id=4812',st:'0.4s'},{k:'cmd',s:'wait',cmd:'curl -X POST /api/v2/lookup'}]},extra:'<div class="s-appr"><b>Allow Bash?</b> · <code class="s-k">curl -X POST /api/v2/lookup</code> · Waiting for you</div>'},
+ {h:'4 · A command failed, thinking again',why:'The failure does not take over the line: it stays as "· 1 failed" in red. Opening the card shows which one and its last output lines.',m:{phase:'live',t:27,evs:[{k:'th',s:'ok',text:T1},{k:'cmd',s:'err',cmd:'curl -X POST /api/v2/lookup',out:'curl: (22) The requested URL returned error: 404\nendpoint /api/v2/lookup not found'},{k:'th',s:'live'}]}},
+ {h:'5 · Lots of work, still going',why:'Step 11 and counting: the line is as short as in step 1. Only the number and the timer grow.',m:{phase:'live',t:64,evs:Array.from({length:10},(_,i)=>i%3===0?{k:'th',s:'ok',text:T1}:{k:'cmd',s:'ok',cmd:'pnpm test',st:'2s'}).concat([{k:'cmd',s:'run',cmd:'pnpm typecheck',st:'3s'}])}},
+ {h:'6 · Live, opened by hand',why:'The person opened it mid-turn: last 4 steps and "7 earlier steps". The effects stay on the header.',m:{phase:'live',t:64,evs:[{k:'th',s:'ok',text:T1},{k:'cmd',s:'ok',cmd:'ls src',st:'0.1s'},{k:'cmd',s:'ok',cmd:'rg "lookup" src',st:'0.2s'},{k:'th',s:'ok',text:T2},{k:'cmd',s:'ok',cmd:'sed -n 1,200p out.json',st:'0.1s'},{k:'cmd',s:'ok',cmd:'pnpm test lookup',st:'7s'},{k:'th',s:'ok',text:T3},{k:'cmd',s:'ok',cmd:'pnpm typecheck',st:'11s'},{k:'cmd',s:'run',cmd:'pnpm test',st:'3s'}]},open:1},
+ {h:'7 · Done',why:'Quiet: no icon, no color, no effect. The answer and its closing line below, on one line.',m:{phase:'done',t:9,evs:done6},after:ans,foot:1},
+ {h:'8 · Done, opened',why:'Opened afterwards to review: the whole timeline, each thought clipped to 2 lines (click opens it), times per command.',m:{phase:'done',t:9,evs:done6},open:1,after:ans,foot:1},
+ {h:'9 · Commands only',why:'A model without reasoning, or the Reasoning setting off: today\'s "Worked" row.',m:{phase:'done',t:6,evs:[{k:'cmd',s:'ok',cmd:'ls src',st:'0.1s'},{k:'cmd',s:'ok',cmd:'rg "lookup" src',st:'0.2s'},{k:'cmd',s:'ok',cmd:'pnpm test lookup',st:'5s'}]},after:ans},
+ {h:'10 · Thought only',why:'It answered without running anything: the label is "Thought", with no commands to count.',m:{phase:'done',t:4,evs:[{k:'th',s:'ok',text:T3}]},after:'Marina.',foot:1},
+ {h:'11 · You stopped it',why:'■ in place of the icon, "Stopped" and the steps it reached, no effect. Below, the usual mark with Continue.',m:{phase:'stop',t:17,evs:[{k:'th',s:'ok',text:T1},{k:'cmd',s:'ok',cmd:'gh api /events?id=4812',st:'0.4s'},{k:'cmd',s:'ok',cmd:'pnpm test',st:'—'}]},after:'<span style="color:var(--dim);font-size:12px">■ You stopped this turn &nbsp;<a style="color:var(--blue)">Continue</a></span>'},
+ {h:'12 · The answer starts writing',why:'The card was already one line, so nothing closes or moves: the effects stop and the text grows under it.',m:{phase:'done',t:9,evs:done6.slice(0,3)},after:'Yes. Marina owns that event; the POST was cut off in v1<span class="s-cur"></span>'},
+];
+const grid=document.getElementById('s-grid');
+grid.innerHTML=scenes.map(s=>`<section class="s-stage"><p class="s-h"><b>${s.h}</b></p><p class="s-why">${s.why}</p><div class="s-feed"><div class="s-user">${Q}</div>${card(s.m,s.open)}${s.extra||''}${s.after?`<div class="s-msg">${s.after}</div>`:''}${s.foot?foot:''}</div></section>`).join('');
+
+/* ---- the player ---- */
+const demo=document.getElementById('s-demo'),why=document.getElementById('s-demo-why');
+let m,timers=[],tick,hand=false;
+function draw(extra=''){demo.innerHTML=`<div class="s-user">${Q}</div>${card(m,hand,'s-live')}${extra}`}
+function reset(){timers.forEach(clearTimeout);clearInterval(tick);hand=false;m={phase:'live',t:0,evs:[]};demo.innerHTML=`<div class="s-user">${Q}</div>`;why.textContent='Press Play.'}
+function play(){
+  reset();
+  const say=t=>why.textContent=t, at=(ms,fn)=>timers.push(setTimeout(fn,ms));
+  tick=setInterval(()=>{if(m.phase!=='live')return;m.t++;const b=document.querySelector('#s-live .s-bar .t');if(b)b.textContent=clock(m.t);
+    const r=m.evs.find(e=>e.s==='run');if(r){r.st=(parseInt(r.st)+1)+'s';const sp=document.querySelector('#s-live .s-ev .s-spin');if(sp)sp.parentElement.lastChild.textContent=r.st}},1000);
+  at(0,()=>{m.evs=[{k:'th',s:'live'}];draw();say('Thinking: ✦ turning, text shimmering, border running.')});
+  at(2600,()=>{m.evs=[{k:'th',s:'ok',text:T1},{k:'cmd',s:'run',cmd:'gh api /events?id=4812',st:'0s'}];draw();say('First thought done; it runs a command. The line rolls up to "Running …".')});
+  at(5200,()=>{m.evs[1]={k:'cmd',s:'ok',cmd:'gh api /events?id=4812',st:'0.4s'};m.evs.push({k:'cmd',s:'wait',cmd:'curl -X POST /api/v2/lookup'});draw('<div class="s-appr"><b>Allow Bash?</b> · <code class="s-k">curl -X POST /api/v2/lookup</code> · Waiting for you</div>');say('The next command asks permission: amber dot and amber border. The approval is over the box.')});
+  at(8200,()=>{m.evs[2]={k:'cmd',s:'err',cmd:'curl -X POST /api/v2/lookup',out:'curl: (22) The requested URL returned error: 404\nendpoint /api/v2/lookup not found'};m.evs.push({k:'th',s:'live'});draw();say('You allowed it, it failed: "· 1 failed" in red on the line, and it thinks again.')});
+  at(11000,()=>{m.evs[3]={k:'th',s:'ok',text:T2};m.evs.push({k:'cmd',s:'run',cmd:'sed -n 1,200p out.json',st:'0s'});draw();say('Retries with another command. Step 5, the line is still one line.')});
+  at(13800,()=>{m.evs[4]={k:'cmd',s:'ok',cmd:'sed -n 1,200p out.json',st:'0.1s'};m.evs.push({k:'th',s:'live'});draw();say('Last thought before answering.')});
+  at(16000,()=>{m.evs[5]={k:'th',s:'ok',text:T3};m.phase='done';draw('<div class="s-msg">Yes. Marina owns that event; the POST was cut off in v1<span class="s-cur"></span></div>');say('The answer starts: the card goes quiet (no icon, no effect), already collapsed.')});
+  at(18500,()=>{draw(`<div class="s-msg">${ans}</div>${foot}`);say('End of the turn. Click the line to review everything it did.')});
+}
+document.getElementById('s-play').onclick=play;
+document.getElementById('s-reset').onclick=reset;
+document.getElementById('s-theme').onclick=()=>document.body.classList.toggle('light');
+demo.addEventListener('click',e=>{if(e.target.closest('.s-bar'))hand=document.getElementById('s-live').classList.contains('open')});
+document.querySelectorAll('[data-fx]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('[data-fx]').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  document.body.classList.remove('fx-sh','fx-gl','fx-tk');(b.dataset.fx||'').split(' ').filter(Boolean).forEach(c=>document.body.classList.add('fx-'+c));
+});
+document.body.classList.add('fx-sh','fx-gl','fx-tk');
+reset();
+</script>
+</body></html>

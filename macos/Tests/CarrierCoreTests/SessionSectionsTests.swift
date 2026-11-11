@@ -272,6 +272,10 @@ func everySessionIsShownOldestFirstAndOnlyTheNewestIsOpen(total: Int) {
         case .line(let line), .bullet(_, let line): String(line.characters)
         case .code(_, _, let code): code
         case .gap: "·"
+        case .table: "table"
+        case .numbered: "numbered"
+        case .quote: "quote"
+        case .rule: "rule"
         }
     }
     #expect(blocks.map(text) == ["no blockers, see a.ts.", "·", "one", "two", "Next", "https://github.com/acme/web/pull/1 and x and ok"])

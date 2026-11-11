@@ -103,7 +103,7 @@ public func deleteSessionQuestion(_ row: SessionRow, worktree: SessionDeletePrev
 }
 
 /// What replaces the message box of an archived session, beside its Resume button.
-public let archivedSessionNotice = "This session is archived: you are reading its transcript. Resume it to continue."
+public let archivedSessionNotice = (title: "This session is archived", detail: "You are reading its transcript. Resume it to continue.")
 
 public enum SessionMenuAction: Equatable {
     case stop, pin, unpin, rename, regenerateTitle, openInTerminal(path: String), filterWorkspace(String), archive, restore, delete

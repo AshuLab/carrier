@@ -1,0 +1,60 @@
+{
+  "sessionId": "c9d0e1f2-8a7b-4c43-9e6f-7a8b9c0d1e0a",
+  "events": [
+    {
+      "id": 1,
+      "at": 1794352661401,
+      "kind": "user",
+      "text": "Summarize the open pull requests."
+    },
+    {
+      "id": 2,
+      "at": 1794352663401,
+      "kind": "reasoning",
+      "text": "List the open PRs with gh, then read the titles and the review state of each."
+    },
+    {
+      "id": 3,
+      "at": 1794352664401,
+      "kind": "tool_start",
+      "callId": "p1",
+      "tool": "Bash",
+      "arg": "gh pr list --state open --json number,title"
+    },
+    {
+      "id": 4,
+      "at": 1794352665401,
+      "kind": "tool_end",
+      "callId": "p1",
+      "tool": "Bash",
+      "status": "ok",
+      "output": [
+        "[{\"number\":748,\"title\":\"About window\"}]"
+      ]
+    },
+    {
+      "id": 5,
+      "at": 1794352667401,
+      "kind": "tool_start",
+      "callId": "p2",
+      "tool": "Bash",
+      "arg": "gh pr view 748 --json reviews"
+    },
+    {
+      "id": 6,
+      "at": 1794352668401,
+      "kind": "error",
+      "text": "API Error: 529 Overloaded. The model is busy right now, try again in a moment."
+    },
+    {
+      "id": 7,
+      "at": 1794352668401,
+      "kind": "turn_end",
+      "outcome": "error",
+      "model": "claude-sonnet-5-5",
+      "usage": {}
+    }
+  ],
+  "cursor": 7,
+  "streaming": ""
+}

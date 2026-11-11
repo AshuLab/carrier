@@ -175,6 +175,35 @@ describe('what a repo\'s page writes under repos[].agents', () => {
   });
 });
 
+describe('what the Agents page writes under agents.<role> and profiles', () => {
+  const author = valid.agents.author;
+  const bot = { kind: 'forge', agent: 'spare' };
+
+  const written: [string, object][] = [
+    ['a bot chosen for the author', { profiles: { ...valid.profiles, spare: bot }, agents: { ...valid.agents, author: { ...author, profile: 'spare' } } }],
+    ['the person\'s login chosen for the author', { profiles: { ...valid.profiles, gh: { kind: 'gh' } }, agents: { ...valid.agents, author: { ...author, profile: 'gh' } } }],
+    ['another account', { agents: { ...valid.agents, author: { ...author, provider: 'codex' } } }],
+    ['another model', { agents: { ...valid.agents, author: { ...author, model: 'gpt-5' } } }],
+    ['no effort', { agents: { ...valid.agents, author: { ...author } } }],
+    ...['low', 'medium', 'high', 'xhigh', 'max'].map((effort): [string, object] => [`effort ${effort}`, { agents: { ...valid.agents, author: { ...author, effort } } }]),
+    ['the same bot for both roles', { profiles: { ...valid.profiles, spare: bot }, agents: { author: { ...author, profile: 'spare' }, reviewer: { ...valid.agents.reviewer, profile: 'spare' } } }],
+    ['two names for the same bot', { profiles: { ...valid.profiles, one: bot, two: bot }, agents: { author: { ...author, profile: 'one' }, reviewer: { ...valid.agents.reviewer, profile: 'two' } } }],
+  ];
+
+  test.each(written)('%s loads', (_, user) => {
+    expect(load(user).ok).toBe(true);
+  });
+
+  test('both roles on one bot, by one name or two, are one account for the engine', () => {
+    for (const names of [['spare', 'spare'], ['one', 'two']] as const) {
+      const profiles = { ...valid.profiles, spare: bot, one: bot, two: bot };
+      const loaded = load({ profiles, agents: { author: { ...author, profile: names[0] }, reviewer: { ...valid.agents.reviewer, profile: names[1] } } });
+      if (!loaded.ok) throw new Error('expected a valid config');
+      expect(resolveRepoConfig(loaded.config, loaded.config.repos[0]!).sharedIdentity).toBe(true);
+    }
+  });
+});
+
 describe('orchestratorProfile', () => {
   const { orchestratorProfile: _, ...withoutOrchestrator } = valid;
 

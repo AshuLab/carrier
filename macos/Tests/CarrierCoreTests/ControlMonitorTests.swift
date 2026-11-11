@@ -45,7 +45,7 @@ private func observe(path: String, waits: Int) -> (states: [ConnectionState], in
     }
     defer { server.stop() }
     let seen = observe(path: server.path, waits: 1)
-    #expect(seen.states == [.incompatible(update: "This app is older than carrier. Run brew upgrade --cask carrier in Terminal, then open the app again.")])
+    #expect(seen.states == [.incompatible(update: "This app is older than carrier. It updates itself; if it has not, run brew upgrade --cask carrier in Terminal, then open the app again.")])
     #expect(seen.intervals == [3])
     #expect(asked == false)
 }

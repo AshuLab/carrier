@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Question card — directions</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* q- = this page only */
+.q-top{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.q-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(600px,1fr));gap:20px;max-width:1700px}
+.q-stage{border-radius:22px;background:var(--win);box-shadow:var(--shadow);padding:20px 26px 24px;min-width:0}
+.q-h{font-size:11px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:0 0 3px}
+.q-h b{color:var(--text);letter-spacing:0}
+.q-why{color:var(--dim);font-size:12px;margin:0 0 14px;line-height:1.45;min-height:34px}
+.q-lab{font-size:11px;color:var(--faint);margin:14px 0 6px;letter-spacing:.04em;text-transform:uppercase}
+.q-note{margin-top:14px;padding-top:12px;border-top:.5px solid var(--line);color:var(--dim);font-size:12px;line-height:1.5}
+.q-note b{color:var(--text)}
+:root{--q-attn:#c98a58;--q-attn-a:rgba(201,138,88,.85);--q-glass:rgba(10,12,18,.42)}
+.q-sk{font:11px var(--mono);color:var(--faint)}
+
+/* ---- the card chrome shared by A B D (= NoticeCard) ---- */
+.q-card{border-radius:14px;background:var(--q-glass);box-shadow:0 0 0 .5px rgba(255,255,255,.1) inset,0 0 0 1px rgba(201,138,88,.38);padding:11px 13px 9px;backdrop-filter:blur(24px) saturate(1.5)}
+.q-hd{display:flex;gap:13px;align-items:center}
+.q-bd{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:none;background:var(--q-attn-a);color:#fff;font-weight:800;font-size:13px}
+.q-tx{flex:1;min-width:0}
+.q-tt{font-size:13.5px;font-weight:650;line-height:1.3}
+.q-dd{font-size:11.5px;color:var(--dim);margin-top:3px;display:flex;gap:6px;align-items:center}
+.q-dd .tag{padding:0 7px;border-radius:99px;background:rgba(235,235,245,.1);font-size:11px;color:var(--dim)}
+.q-act{display:flex;gap:4px;align-items:center;flex:none}
+.q-tb{font:inherit;font-size:12px;font-weight:550;color:var(--dim);border:0;background:transparent;padding:0 10px;height:26px;border-radius:99px;cursor:pointer}
+.q-tb:hover{background:rgba(255,255,255,.09);color:var(--text)}
+.q-tb.acc{color:#5aa9ff}.q-tb.red:hover{color:#ff6b62;background:rgba(255,69,58,.14)}
+.q-tb.dis{opacity:.4;pointer-events:none}
+.q-dots{display:flex;gap:4px;margin-right:6px}.q-dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.25)}.q-dots i.on{background:rgba(255,255,255,.75)}
+.q-prev{font-size:11px;color:var(--faint);padding:6px 0 0 43px}
+
+/* options as quiet rows */
+.q-opts{margin:8px 0 0 43px;display:flex;flex-direction:column}
+.q-o{display:flex;gap:11px;align-items:flex-start;padding:7px 10px;margin:0 -10px;border-radius:10px;cursor:pointer;position:relative}
+.q-o+.q-o::before{content:"";position:absolute;left:10px;right:10px;top:0;height:.5px;background:var(--line)}
+.q-o:hover,.q-o.hov{background:rgba(255,255,255,.07)}
+.q-o:hover+.q-o::before,.q-o.hov+.q-o::before,.q-o:hover::before,.q-o.hov::before{opacity:0}
+.q-n{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;flex:none;font:600 10.5px var(--mono);color:var(--dim);background:rgba(255,255,255,.09);margin-top:1px}
+.q-n.sq{border-radius:5px}
+.q-o.sel .q-n{background:#34c3a0;color:#fff}
+.q-ot{flex:1;min-width:0}
+.q-ol{font-size:13px;font-weight:600}
+.q-od{font-size:11.5px;color:var(--dim);margin-top:1px}
+.q-key{font:11px var(--mono);color:var(--faint);opacity:0;transition:opacity .12s;margin-top:2px}
+.q-o:hover .q-key,.q-o.hov .q-key,.q-show .q-key{opacity:1}
+.q-other{display:flex;gap:8px;align-items:center;margin:6px 0 0 43px;padding:7px 11px;border-radius:10px;background:rgba(255,255,255,.07);box-shadow:0 0 0 .5px rgba(255,255,255,.25) inset;font-size:13px;color:var(--text)}
+.q-other i{width:1px;height:15px;background:var(--text);animation:q-bl 1s steps(2) infinite}
+@keyframes q-bl{50%{opacity:0}}
+.q-ft{display:flex;gap:6px;align-items:center;justify-content:flex-end;margin-top:6px}
+
+/* B: chips */
+.q-chips{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 0 43px}
+.q-ch{display:inline-flex;gap:7px;align-items:center;height:30px;padding:0 13px 0 9px;border-radius:99px;background:rgba(255,255,255,.08);box-shadow:0 0 0 .5px rgba(255,255,255,.12) inset;font-size:12.5px;font-weight:600;cursor:pointer}
+.q-ch:hover,.q-ch.hov{background:rgba(255,255,255,.15)}
+.q-ch.sel{background:rgba(52,195,160,.22);box-shadow:0 0 0 1px rgba(52,195,160,.7) inset}
+.q-ch .k{font:600 10px var(--mono);color:var(--faint);padding:1px 5px;border-radius:5px;background:rgba(255,255,255,.1)}
+.q-ch.sel .k{background:#34c3a0;color:#fff}
+.q-ex{margin:9px 0 0 43px;font-size:11.5px;color:var(--dim);min-height:17px}
+.q-ex b{color:var(--text);font-weight:600}
+
+/* C: no container */
+.q-C{position:relative;padding:2px 0 2px 16px}
+.q-C::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:2.5px;border-radius:2px;background:var(--q-attn)}
+.q-C .eyebrow{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--q-attn);display:flex;gap:10px;align-items:center}
+.q-C .eyebrow .sp2{margin-left:auto;font-weight:500;letter-spacing:0;text-transform:none;color:var(--faint)}
+.q-C .q-tt{margin-top:4px;font-size:14px}
+.q-C .q-opts{margin:8px 0 0}
+.q-C .q-ft{margin-top:4px}
+
+/* D: key caps */
+.q-D .q-opts{margin-left:43px}
+.q-D .q-o{align-items:baseline;gap:10px;padding:6px 10px}
+.q-cap{font:600 10.5px var(--mono);color:var(--dim);min-width:30px;text-align:center;padding:2px 0;border-radius:6px;background:rgba(255,255,255,.1);box-shadow:0 1px 0 rgba(255,255,255,.08),0 0 0 .5px rgba(255,255,255,.12) inset;flex:none}
+.q-o.sel .q-cap{background:#34c3a0;color:#fff}
+.q-D .q-ol{font-size:13px}
+.q-D .q-od{display:inline;margin-left:7px}
+.q-chk{margin-left:auto;color:#34c3a0;opacity:0;font-weight:800}
+.q-o.sel .q-chk{opacity:1}
+
+.q-panel{max-width:1100px;margin:22px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.q-panel div{background:var(--card);border-radius:12px;padding:12px 15px;color:var(--dim);line-height:1.5}
+.q-panel b{display:block;color:var(--text);margin-bottom:3px}
+body.light{--q-glass:rgba(255,255,255,.6)}
+</style></head>
+<body>
+<h1>Question card — directions</h1>
+<p class="sub">What is not working in the screenshot: the card is <b>much lighter and flatter than the other cards</b> (a grey slab where the Notice cards are dark glass), it stacks <b>five kinds of chrome</b> (chip, badge, "Waiting for you", dots, "Choose one") before the question, every option has a filled circle <b>and</b> a ⌥ hint <b>and</b> a two-line body, and Skip floats alone at the bottom. Each direction below changes that. All keep the keyboard model (⌥1…⌥4, ⌘↩ send, ⌥⎋ skip) and show two states: the first question, and the second one (several picks, with what was answered before).</p>
+<div class="q-top">
+  <button class="tab" id="q-hov">Show ⌥ hints</button>
+  <button class="tab" id="q-theme">Light / dark</button>
+</div>
+
+<div class="q-grid">
+
+<!-- ======================= A ======================= -->
+<section class="q-stage">
+  <p class="q-h"><b>A</b> · the Notice family</p>
+  <p class="q-why">Same grammar as the error and sleep cards: badge, <b>the question as the title</b>, one line under it ("Auth method · Choose one"), the actions on the right (progress dots and Skip as text). The options are quiet rows under it, hairlines between them, the ⌥ hint only on hover. Dark glass with a thin amber edge, not a flat fill.</p>
+  <div class="q-card">
+    <div class="q-hd"><div class="q-bd">?</div>
+      <div class="q-tx"><div class="q-tt">Which auth approach should the API use?</div><div class="q-dd"><span class="tag">Auth method</span>Choose one</div></div>
+      <div class="q-act"><span class="q-dots"><i class="on"></i><i></i></span><button class="q-tb red">Skip</button></div></div>
+    <div class="q-opts">
+      <div class="q-o"><span class="q-n">1</span><div class="q-ot"><div class="q-ol">Session cookies</div><div class="q-od">Server-side sessions; simplest for the web app, needs a store.</div></div><span class="q-key">⌥1</span></div>
+      <div class="q-o hov"><span class="q-n">2</span><div class="q-ot"><div class="q-ol">JWT</div><div class="q-od">Stateless tokens; works for the mobile app too, harder to revoke.</div></div><span class="q-key">⌥2</span></div>
+      <div class="q-o"><span class="q-n">3</span><div class="q-ot"><div class="q-ol">OAuth only</div><div class="q-od">Delegate sign-in to GitHub and Google; no passwords to store.</div></div><span class="q-key">⌥3</span></div>
+      <div class="q-o"><span class="q-n">4</span><div class="q-ot"><div class="q-ol">Other…</div></div><span class="q-key">⌥4</span></div>
+    </div>
+  </div>
+  <p class="q-lab">second question · several picks · with what was answered</p>
+  <div class="q-card">
+    <div class="q-hd"><div class="q-bd">?</div>
+      <div class="q-tx"><div class="q-tt">Which providers should sign-in support?</div><div class="q-dd"><span class="tag">Providers</span>Choose any that apply</div></div>
+      <div class="q-act"><span class="q-dots"><i></i><i class="on"></i></span><button class="q-tb red">Skip</button></div></div>
+    <div class="q-prev">Auth method · JWT</div>
+    <div class="q-opts">
+      <div class="q-o sel"><span class="q-n sq">✓</span><div class="q-ot"><div class="q-ol">GitHub</div><div class="q-od">Developers' default.</div></div><span class="q-key">⌥1</span></div>
+      <div class="q-o sel"><span class="q-n sq">✓</span><div class="q-ot"><div class="q-ol">Google</div><div class="q-od">Everyone else.</div></div><span class="q-key">⌥2</span></div>
+      <div class="q-o"><span class="q-n sq">3</span><div class="q-ot"><div class="q-ol">Email link</div><div class="q-od">Magic link, no password.</div></div><span class="q-key">⌥3</span></div>
+      <div class="q-o"><span class="q-n sq">4</span><div class="q-ot"><div class="q-ol">Other…</div></div><span class="q-key">⌥4</span></div>
+    </div>
+    <div class="q-ft"><button class="q-tb">‹ Back</button><button class="q-tb acc">Send</button></div>
+  </div>
+  <div class="q-note"><b>Gains:</b> the most consistent with what we already built, and it reuses <code>NoticeCard</code>'s chrome (title, detail, actions). Half the chrome of today. <b>Costs:</b> still a card, so still some weight.</div>
+</section>
+
+<!-- ======================= B ======================= -->
+<section class="q-stage">
+  <p class="q-h"><b>B</b> · options as chips</p>
+  <p class="q-why">Same header as A, but the options are <b>chips in a row</b> with their key cap on the left, and the description of the one under the pointer shows on one line below. A question with 3–4 short options takes about 2 lines instead of 8. Best for the common "pick one of three".</p>
+  <div class="q-card">
+    <div class="q-hd"><div class="q-bd">?</div>
+      <div class="q-tx"><div class="q-tt">Which auth approach should the API use?</div><div class="q-dd"><span class="tag">Auth method</span>Choose one</div></div>
+      <div class="q-act"><span class="q-dots"><i class="on"></i><i></i></span><button class="q-tb red">Skip</button></div></div>
+    <div class="q-chips">
+      <span class="q-ch"><span class="k">1</span>Session cookies</span>
+      <span class="q-ch hov"><span class="k">2</span>JWT</span>
+      <span class="q-ch"><span class="k">3</span>OAuth only</span>
+      <span class="q-ch"><span class="k">4</span>Other…</span>
+    </div>
+    <div class="q-ex"><b>JWT</b> · Stateless tokens; works for the mobile app too, harder to revoke.</div>
+  </div>
+  <p class="q-lab">second question · several picks</p>
+  <div class="q-card">
+    <div class="q-hd"><div class="q-bd">?</div>
+      <div class="q-tx"><div class="q-tt">Which providers should sign-in support?</div><div class="q-dd"><span class="tag">Providers</span>Choose any that apply · Auth method · JWT</div></div>
+      <div class="q-act"><span class="q-dots"><i></i><i class="on"></i></span><button class="q-tb red">Skip</button></div></div>
+    <div class="q-chips">
+      <span class="q-ch sel"><span class="k">✓</span>GitHub</span>
+      <span class="q-ch sel"><span class="k">✓</span>Google</span>
+      <span class="q-ch"><span class="k">3</span>Email link</span>
+      <span class="q-ch"><span class="k">4</span>Other…</span>
+    </div>
+    <div class="q-ex">Choose as many as you like.</div>
+    <div class="q-ft"><button class="q-tb">‹ Back</button><button class="q-tb acc">Send</button></div>
+  </div>
+  <div class="q-note"><b>Gains:</b> by far the lightest and the shortest; it leaves the conversation visible above. <b>Costs:</b> descriptions are one hover away (and options with long labels or paragraphs of explanation do not fit chips: those fall back to rows). A real flow layout in SwiftUI (<code>FlowLayout</code> already exists in the repo).</div>
+</section>
+
+<!-- ======================= C ======================= -->
+<section class="q-stage">
+  <p class="q-h"><b>C</b> · no container</p>
+  <p class="q-why">No card at all: an amber bar on the left, a small label, the question, and the options as plain rows with hairlines and a hover fill. It reads as part of the conversation, like a message that asks, and weighs nothing. Skip is text at the bottom.</p>
+  <div class="q-C">
+    <div class="eyebrow">Auth method<span class="sp2">Choose one · 1 of 2</span></div>
+    <div class="q-tt">Which auth approach should the API use?</div>
+    <div class="q-opts">
+      <div class="q-o"><span class="q-n">1</span><div class="q-ot"><div class="q-ol">Session cookies</div><div class="q-od">Server-side sessions; simplest for the web app, needs a store.</div></div><span class="q-key">⌥1</span></div>
+      <div class="q-o hov"><span class="q-n">2</span><div class="q-ot"><div class="q-ol">JWT</div><div class="q-od">Stateless tokens; works for the mobile app too, harder to revoke.</div></div><span class="q-key">⌥2</span></div>
+      <div class="q-o"><span class="q-n">3</span><div class="q-ot"><div class="q-ol">OAuth only</div><div class="q-od">Delegate sign-in to GitHub and Google; no passwords to store.</div></div><span class="q-key">⌥3</span></div>
+      <div class="q-o"><span class="q-n">4</span><div class="q-ot"><div class="q-ol">Other…</div></div><span class="q-key">⌥4</span></div>
+    </div>
+    <div class="q-ft"><button class="q-tb red">Skip</button></div>
+  </div>
+  <p class="q-lab">second question · several picks</p>
+  <div class="q-C">
+    <div class="eyebrow">Providers<span class="sp2">Choose any that apply · 2 of 2 · Auth method: JWT</span></div>
+    <div class="q-tt">Which providers should sign-in support?</div>
+    <div class="q-opts">
+      <div class="q-o sel"><span class="q-n sq">✓</span><div class="q-ot"><div class="q-ol">GitHub</div><div class="q-od">Developers' default.</div></div><span class="q-key">⌥1</span></div>
+      <div class="q-o sel"><span class="q-n sq">✓</span><div class="q-ot"><div class="q-ol">Google</div><div class="q-od">Everyone else.</div></div><span class="q-key">⌥2</span></div>
+      <div class="q-o"><span class="q-n sq">3</span><div class="q-ot"><div class="q-ol">Email link</div><div class="q-od">Magic link, no password.</div></div><span class="q-key">⌥3</span></div>
+    </div>
+    <div class="q-ft"><button class="q-tb">‹ Back</button><button class="q-tb red">Skip</button><button class="q-tb acc">Send</button></div>
+  </div>
+  <div class="q-note"><b>Gains:</b> the lightest possible and nothing competes with the message box. <b>Costs:</b> it loses the "this needs you" weight of the other cards (an approval, an error), which is the point of the badge and the glass; and the options sit over the feed's own background, so the contrast depends on it. Not a <code>NoticeCard</code>.</div>
+</section>
+
+<!-- ======================= D ======================= -->
+<section class="q-stage q-D">
+  <p class="q-h"><b>D</b> · keyboard first</p>
+  <p class="q-why">The card chrome of A, but each option is <b>one line</b>: a key cap (⌥1) in place of the circle, the label, and its description inline in grey. The key caps are the interface: the person who types never reaches for the mouse. A selected row turns the key cap green and ends in a check.</p>
+  <div class="q-card">
+    <div class="q-hd"><div class="q-bd">?</div>
+      <div class="q-tx"><div class="q-tt">Which auth approach should the API use?</div><div class="q-dd"><span class="tag">Auth method</span>Choose one</div></div>
+      <div class="q-act"><span class="q-dots"><i class="on"></i><i></i></span><button class="q-tb red">Skip</button></div></div>
+    <div class="q-opts">
+      <div class="q-o"><span class="q-cap">⌥1</span><div class="q-ot"><span class="q-ol">Session cookies</span><span class="q-od">Server-side sessions; needs a store</span></div></div>
+      <div class="q-o hov"><span class="q-cap">⌥2</span><div class="q-ot"><span class="q-ol">JWT</span><span class="q-od">Stateless tokens; harder to revoke</span></div></div>
+      <div class="q-o"><span class="q-cap">⌥3</span><div class="q-ot"><span class="q-ol">OAuth only</span><span class="q-od">Delegate sign-in; no passwords to store</span></div></div>
+      <div class="q-o"><span class="q-cap">⌥4</span><div class="q-ot"><span class="q-ol">Other…</span></div></div>
+    </div>
+  </div>
+  <p class="q-lab">second question · several picks</p>
+  <div class="q-card">
+    <div class="q-hd"><div class="q-bd">?</div>
+      <div class="q-tx"><div class="q-tt">Which providers should sign-in support?</div><div class="q-dd"><span class="tag">Providers</span>Choose any that apply · Auth method · JWT</div></div>
+      <div class="q-act"><span class="q-dots"><i></i><i class="on"></i></span><button class="q-tb red">Skip</button></div></div>
+    <div class="q-opts">
+      <div class="q-o sel"><span class="q-cap">⌥1</span><div class="q-ot"><span class="q-ol">GitHub</span><span class="q-od">Developers' default</span></div><span class="q-chk">✓</span></div>
+      <div class="q-o sel"><span class="q-cap">⌥2</span><div class="q-ot"><span class="q-ol">Google</span><span class="q-od">Everyone else</span></div><span class="q-chk">✓</span></div>
+      <div class="q-o"><span class="q-cap">⌥3</span><div class="q-ot"><span class="q-ol">Email link</span><span class="q-od">Magic link, no password</span></div><span class="q-chk">✓</span></div>
+      <div class="q-o"><span class="q-cap">⌥4</span><div class="q-ot"><span class="q-ol">Other…</span></div><span class="q-chk">✓</span></div>
+    </div>
+    <div class="q-ft"><button class="q-tb">‹ Back</button><button class="q-tb acc">Send</button></div>
+  </div>
+  <div class="q-note"><b>Gains:</b> as compact as B but keeps every description visible, and the shortcuts are on screen without hover. <b>Costs:</b> long descriptions get cut to one line (the full text in the tooltip), and it reads denser; the ⌥ glyph on every row is a bit techy.</div>
+</section>
+
+</div>
+
+<div class="q-panel">
+  <div><b>What changes in every direction</b>The card goes to the dark glass of <code>NoticeCard</code> (today's card tints its glass with amber, the Notice cards with black). The number circle no longer carries a fill unless the option is picked. "Waiting for you" goes away: the amber edge already says it. The Back/Send/Skip trio become text buttons that light a pill, as in the queued message. One <code>Other…</code> field per card, styled as in A.</div>
+  <div><b>What I'd pick</b><b style="display:inline;font-weight:650">A</b> for the default, with <b style="display:inline;font-weight:650">B's chips</b> used automatically when every option's label is short (≤ 16 characters) and has no long description, which is most questions. It keeps the family and gets the weight down where it counts. C is lovely but breaks the pattern of "things that need you are glass cards".</div>
+</div>
+
+<script>
+document.getElementById('q-theme').onclick=()=>document.body.classList.toggle('light');
+let on=false;document.getElementById('q-hov').onclick=e=>{on=!on;e.target.classList.toggle('on',on);document.querySelectorAll('.q-stage').forEach(s=>s.classList.toggle('q-show',on))};
+document.querySelectorAll('.q-o').forEach(o=>o.addEventListener('click',()=>{const g=o.parentElement;if(g.querySelector('.q-n.sq,.q-chk')){o.classList.toggle('sel')}else{g.querySelectorAll('.q-o').forEach(x=>x.classList.remove('sel'));o.classList.add('sel')}}));
+document.querySelectorAll('.q-ch').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('sel')));
+</script>
+</body></html>

@@ -120,3 +120,11 @@ test('a repo persona replaces the global one of that role whole', () => {
   expect(agents.reviewer.persona).toEqual({ name: 'Rex' });
   expect(resolveFirst({ agents: global }).agents.author.persona).toEqual({ name: 'Ada', prompt: 'Be terse.' });
 });
+
+test('a repo that overrides only the effort gets it, with every other field inherited', () => {
+  const global = { author: { ...base.agents.author, effort: 'low' }, reviewer: base.agents.reviewer };
+  const { agents } = resolveFirst({ agents: global, repos: [{ name: 'x/y', agents: { author: { effort: 'max' } } }] });
+  expect(agents.author).toMatchObject({ ...resolvedAuthor, effort: 'max' });
+  expect(resolveFirst({ agents: global }).agents.author.effort).toBe('low');
+  expect(resolveFirst({}).agents.author).not.toHaveProperty('effort');
+});

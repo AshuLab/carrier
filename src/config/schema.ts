@@ -18,6 +18,7 @@ const agent = z.strictObject({
   profile: z.string().min(1),
   provider: z.string().min(1),
   model: z.string().min(1),
+  effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
 });
 
 // The two shapes the spike fixed (docs/research/agent-forge.md): a bot through Agent Forge, or the user's own `gh` login. No secrets here.

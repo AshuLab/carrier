@@ -55,6 +55,7 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `orchestratorProfile` | yes | | Profile used to read issues and PRs and to change labels. It may be the author's. |
 | `agents.author` / `agents.reviewer` | yes | | `{ profile, provider, model, persona? }` for each role: the GitHub identity it acts as, the AI provider it connects through, and the model it uses. |
 | `agents.leadReviewer` | no | none | Optional technical lead role `{ profile, provider, model, persona? }` (configuration setup; reserved for upcoming lead reviewer gating in the Carrier flow). |
+| `agents.<role>.effort` | no | none | How hard the model thinks: one of `low`, `medium`, `high`, `xhigh` or `max`, in the global role and in a repo's override of it. Passed as `--effort` to Claude and Antigravity and as `-c model_reasoning_effort=<level>` to Codex, in every run and resume. Without it nothing is passed and the CLI uses its own. Anything else is refused naming the key. |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
 | `failover` | no | none | `{ triggers?, roles? }`: for each role, a list of steps it moves through when its credits run out or service fails. See [Failover](#failover). |
 | `pollIntervalMinutes` | no | `5` | How often it looks for ready epics. |
@@ -114,11 +115,11 @@ Without `providers.json` there is one account per harness, named after it: `clau
 
 ## Agents and roles
 
-Each role in `agents` (`author`, `reviewer`, and optional `leadReviewer`) specifies its GitHub identity (`profile`), its AI connection (`provider`), the `model` it runs on, and an optional `persona`.
+Each role in `agents` (`author`, `reviewer`, and optional `leadReviewer`) specifies its GitHub identity (`profile`), its AI connection (`provider`), the `model` it runs on, an optional `effort`, and an optional `persona`.
 
 ```json
 "agents": {
-  "author": { "profile": "author-bot", "provider": "claude-work", "model": "sonnet" },
+  "author": { "profile": "author-bot", "provider": "claude-work", "model": "sonnet", "effort": "high" },
   "reviewer": { "profile": "reviewer-bot", "provider": "codex", "model": "gpt-5.3-codex" },
   "leadReviewer": { "profile": "reviewer-bot", "provider": "claude-personal", "model": "opus" }
 }

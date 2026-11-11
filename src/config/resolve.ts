@@ -10,6 +10,7 @@ export type Agent = {
   provider?: 'lmstudio' | 'ollama';
   configDir?: string;
   persona?: Config['agents']['author']['persona'];
+  effort?: Config['agents']['author']['effort'];
   option?: string;
   providerName?: string;
 } & AccountRuntime;
@@ -50,6 +51,7 @@ export function resolveRepoConfig(config: Config, repo: Config['repos'][number])
       ...(providerConfig?.configDir && { configDir: providerConfig.configDir }),
       ...(providerConfig && runtimeOf(providerConfig)),
       ...(merged.persona && { persona: merged.persona }),
+      ...(merged.effort && { effort: merged.effort }),
       option: merged.provider,
       providerName: merged.provider,
     } as Agent;

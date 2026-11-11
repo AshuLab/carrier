@@ -22,6 +22,7 @@ export function buildAgyCommand(task: AgentTask, ctx: CommandContext): AgentComm
       'stream-json',
       '--model',
       task.model,
+      ...(task.effort ? ['--effort', task.effort] : []),
       '--dangerously-skip-permissions',
       '--add-dir',
       dirname(task.resultPath),

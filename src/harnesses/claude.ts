@@ -20,6 +20,7 @@ export function buildClaudeCommand(task: AgentTask, ctx: CommandContext): AgentC
       '--verbose',
       '--model',
       task.model,
+      ...(task.effort ? ['--effort', task.effort] : []),
       '--add-dir',
       dirname(task.resultPath),
       '--name',

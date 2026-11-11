@@ -123,3 +123,14 @@ test('an account\'s command, compaction and launch arguments reach the process; 
   expect(command.env).toEqual(plain.env);
   expect(buildCodexCommand({ ...task, launchArgs: [] }, ctx)).toEqual(plain);
 });
+
+test('an effort is passed as -c model_reasoning_effort, in a new run and in a resume; without one nothing is added', () => {
+  expect(buildCodexCommand(task, ctx).args.join(' ')).not.toContain('model_reasoning_effort');
+  for (const resumeSession of [undefined, 't-1']) {
+    const run = { ...task, ...(resumeSession && { resumeSession }) };
+    const plain = buildCodexCommand(run, ctx).args;
+    const args = buildCodexCommand({ ...run, effort: 'high' }, ctx).args;
+    expect(args.filter((a) => a !== '-c' && a !== 'model_reasoning_effort=high')).toEqual(plain.filter((a) => a !== '-c'));
+    expect(args[args.indexOf('model_reasoning_effort=high') - 1]).toBe('-c');
+  }
+});

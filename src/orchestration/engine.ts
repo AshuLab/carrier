@@ -84,7 +84,7 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
   session_unavailable: 'failed',
 };
 
-export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, optionChoiceSeconds, runner, workspaces, places, sessionDirs }: EngineOptions) {
+export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, runner, workspaces, places, sessionDirs }: EngineOptions) {
   let error: GitHubUnavailable | AuthError | null = null;
   let nextPollAt: number | null = null;
   let paused = false; // intake only: nothing new is reserved, what is running goes on
@@ -156,8 +156,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     if (epic.status !== 'running' || epic.stage !== null) return;
     const restarted = restarts.get(epic.id);
     restarts.delete(epic.id);
-    if (restarted && epic.choiceDeadline !== null) await startChosen(epic.id, declaredOnly(epic, restarted)); // already chosen at the restart: no wait
-    else if (epic.choiceDeadline === null) await launch(epic, 'ship');
+    if (restarted) {
+      // Chosen at the restart: no wait. The deadline (now) is what startChosen claims and puts back if GitHub fails, so a later poll starts it.
+      db.update(epics).set({ choiceDeadline: clock.now() }).where(eq(epics.id, epic.id)).run();
+      await startChosen(epic.id, declaredOnly(epic, restarted));
+    } else if (epic.choiceDeadline === null) await launch(epic, 'ship');
     else await awaitChoice(epic);
   };
 
@@ -240,7 +243,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // `stepModel` is the model a failover step settled on; without it, the account's, then the role's own on the same harness, else the harness's default.
   const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string, stepModel?: string): Agent => {
     const roleAgent = config.agents[role];
-    const { profile, persona, model } = roleAgent;
+    const { profile, persona, model, effort } = roleAgent;
     const provider = (config.providers ?? config.options)?.[name];
     if (!provider) throw new Error(`provider "${name}" is not declared in config.providers`);
     const modelStr: string = stepModel ?? provider.model ?? (provider.harness === roleAgent.harness ? model : defaultHarnessModels[provider.harness] ?? model);
@@ -252,6 +255,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       ...(provider.configDir && { configDir: provider.configDir }),
       ...runtimeOf(provider),
       ...(persona && { persona }),
+      ...(effort && { effort }),
       option: name,
       providerName: name,
     };
@@ -653,7 +657,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   async function fillSlots() {
     for (;;) {
       if (stopping || suspended || paused) return;
-      const epic = reserve(db, { maxConcurrent: maxConcurrentEpics, now: clock.now(), repos, choiceMs: optionChoiceSeconds * 1000 });
+      const epic = reserve(db, { maxConcurrent: maxConcurrentEpics, now: clock.now(), repos });
       if (!epic) return;
       const cancelWith = (cancelReason: string) =>
         db.update(epics).set({ status: 'cancelled', cancelReason, finishedAt: clock.now(), labelPending: false }).where(eq(epics.id, epic.id)).run();

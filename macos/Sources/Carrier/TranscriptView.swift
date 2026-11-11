@@ -287,7 +287,9 @@ struct MarkdownView: View {
     /// Inline code, and a link, as a chip: the theme's accent for the text over a stronger tint of it, with a little air at both ends (a non-breaking
     /// space inside the tint), so a name in a sentence stands out of it.
     private func chipped(_ line: AttributedString) -> AttributedString {
-        let ink = dark ? Color.themeAccent.mix(with: .white, by: 0.3) : Color.themeAccent.mix(with: .black, by: 0.25)
+        // kept low on purpose: a message full of names and links is a lot of colour, so the tint is faint and the text only a little lighter than the accent
+        let ink = dark ? Color.themeAccent.mix(with: .white, by: 0.12) : Color.themeAccent.mix(with: .black, by: 0.12)
+        let tint = Color.themeAccent.opacity(dark ? 0.13 : 0.09)
         var out = AttributedString()
         for run in line.runs {
             var piece = AttributedString(line[run.range])
@@ -297,12 +299,12 @@ struct MarkdownView: View {
                 if shown == link.absoluteString { piece = AttributedString(linkLabel(link), attributes: piece.runs.first?.attributes ?? AttributeContainer()) }
                 piece = AttributedString("\u{00A0}") + piece + AttributedString("\u{00A0}\u{2197}\u{FE0E}\u{00A0}")
                 piece.foregroundColor = ink
-                piece.backgroundColor = Color.themeAccent.opacity(dark ? 0.26 : 0.16)
+                piece.backgroundColor = tint
                 piece.link = link
             } else if run.inlinePresentationIntent?.contains(.code) == true {
                 piece = AttributedString("\u{00A0}") + piece + AttributedString("\u{00A0}")
                 piece.foregroundColor = ink
-                piece.backgroundColor = Color.themeAccent.opacity(dark ? 0.26 : 0.16)
+                piece.backgroundColor = tint
             }
             out.append(piece)
         }

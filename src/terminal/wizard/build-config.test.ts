@@ -21,12 +21,18 @@ test('buildConfig names a forge profile after its agent and the login "gh", and 
 });
 
 test('buildConfig never writes identities, and a shared pair is one profile for both roles', () => {
-  const same = { ...answers, reviewer: { identity: parseIdentity('gh'), provider: 'codex', model: 'x:y' } };
-  expect(buildConfig({ ...same, identities: 'separate' })).not.toHaveProperty('identities');
-  const shared = buildConfig({ ...same, identities: 'shared' });
+  const shared = buildConfig({ ...answers, reviewer: { identity: parseIdentity('gh'), provider: 'codex', model: 'x:y' } });
   expect(shared).not.toHaveProperty('identities');
   expect(shared).toMatchObject({ profiles: { gh: { kind: 'gh' } }, orchestratorProfile: 'gh' });
   expect(shared.agents.author.profile).toBe(shared.agents.reviewer.profile);
+});
+
+test('buildConfig writes an effort only when given, and the config loads with it', () => {
+  const config = buildConfig({ ...answers, reviewer: { ...answers.reviewer, effort: 'max' } });
+  expect(config.agents.author).not.toHaveProperty('effort');
+  expect(config.agents.reviewer).toMatchObject({ effort: 'max' });
+  const loaded = loadConfig(defaults, config, providers);
+  expect(loaded.ok && loaded.config.agents.reviewer.effort).toBe('max');
 });
 
 test('buildConfig writes a persona only when given, and the config loads', () => {

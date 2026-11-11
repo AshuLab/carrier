@@ -31,14 +31,14 @@ export async function askConfigDir(ui: Ui, harness: 'claude' | 'codex', deps: In
   return typed.trim();
 }
 
-/** Ask the model for a role (author or reviewer) on a specific harness. */
+/** Ask the model for a role (or one of its failover steps) on a specific harness. */
 export async function askModel(
   ui: Ui,
   harness: HarnessName,
   provider: LocalProvider | undefined,
   locals: Partial<Record<LocalProvider, string[]>>,
   deps: InitDeps,
-  role: 'author' | 'reviewer' | 'lead reviewer',
+  role: string, // 'author', or what the model is for, e.g. a failover step
   current?: string,
 ): Promise<string> {
   const typed = async (suggestion?: string) => (await ui.text({ message: `Model for the ${role}`, placeholder: suggestion ?? 'model name', defaultValue: suggestion, validate: (v) => (v.trim() ? undefined : 'Required') })).trim();

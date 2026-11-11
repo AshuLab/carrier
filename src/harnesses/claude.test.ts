@@ -159,10 +159,11 @@ test('git store and erase answer nothing and do not call agent-forge', () => {
   });
 });
 
-test('resolveBinary skips the Superset wrappers', () => {
+test('resolveBinary skips the Superset and Paradev wrappers', () => {
   const executable = (path: string) => path.endsWith('/claude');
   expect(resolveBinary('claude', '/Users/x/.superset/bin:/Users/x/.local/bin:/usr/bin', executable)).toBe('/Users/x/.local/bin/claude');
-  expect(() => resolveBinary('claude', '/Users/x/.superset/bin', executable)).toThrow(/real "claude"/);
+  expect(resolveBinary('claude', '/Users/x/.paradev/bin:/Users/x/.local/bin:/usr/bin', executable)).toBe('/Users/x/.local/bin/claude');
+  expect(() => resolveBinary('claude', '/Users/x/.superset/bin:/Users/x/.paradev/bin', executable)).toThrow(/real "claude"/);
 });
 
 // Lines as claude 2.1.301 printed them (trimmed).

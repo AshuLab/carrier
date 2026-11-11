@@ -81,9 +81,8 @@ test('builds the engine with the config\'s limits, effective repos and the real 
 
   // Limits and effective repos: two epics at once, the repo override reaches the reviewer, the time limit is in ms.
   await clock.advance(MIN);
-  expect(runner.tasks).toEqual([]); // two options are declared: the epics wait for their choice first
-  expect(app.db.$client.prepare('select count(*) from epics where choiceDeadline is not null').pluck().get()).toBe(2);
-  await clock.advance(1000);
+  // two accounts are declared and the epics start at once: no wait for a choice
+  expect(app.db.$client.prepare('select count(*) from epics where choiceDeadline is not null').pluck().get()).toBe(0);
   expect(runner.tasks.map((t) => [t.epic, t.stage, t.timeoutMs])).toEqual([[1, 'ship', 2 * 3_600_000], [2, 'ship', 2 * 3_600_000]]);
   expect(app.db.$client.prepare('select config from epics order by id').pluck().get()).toContain('"model":"override"');
 });

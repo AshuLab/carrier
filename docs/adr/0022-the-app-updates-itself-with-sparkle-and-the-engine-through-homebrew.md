@@ -1,4 +1,4 @@
-# 0020 - The app updates itself with Sparkle, and the app brings the engine up to date through Homebrew
+# 0022 - The app updates itself with Sparkle, and the app brings the engine up to date through Homebrew
 
 - Status: accepted
 - Date: 2026-11-11

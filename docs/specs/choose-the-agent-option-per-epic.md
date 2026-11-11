@@ -1,6 +1,6 @@
 # An epic runs on the agent option you choose, and can switch when one runs out of credits
 
-Status: spec
+Status: spec; the choice at the start of an epic was removed and failover took another shape, see [ADR 0021](../adr/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md). An epic now starts at once on its roles.
 
 ## Problem
 

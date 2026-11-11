@@ -11,7 +11,11 @@ enum AppHealth {
 /// Runs `command` (`carrier ...` with its environment) off the main thread and returns what it printed; ended after `doctorTimeout`
 /// (killed a second later). The output of the doctor is the JSON on stdout; stderr is dropped.
 @Sendable func runProcess(_ command: StartCommand) async -> ProcessOutcome {
-    await Task.detached { () -> ProcessOutcome in
+    // `--fixture` has no engine: the doctor answers with the golden output the fixture home holds
+    if CommandLine.arguments.contains("--fixture") {
+        return ProcessOutcome(exitCode: 1, stdout: command.environment["CARRIER_HOME"].flatMap { doctorFixtureOutput(home: $0) } ?? "")
+    }
+    return await Task.detached { () -> ProcessOutcome in
         let process = Process()
         process.executableURL = URL(fileURLWithPath: command.program)
         process.arguments = command.arguments

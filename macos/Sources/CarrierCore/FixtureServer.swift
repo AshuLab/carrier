@@ -28,7 +28,11 @@ public let fixtureConfig = """
     {"name": "acme/api", "agents": {"reviewer": {"model": "gpt-5-mini"}}},
     {"name": "acme/a-really-long-repository-name-for-the-sidebar"}
   ],
-  "profiles": {"acme-author": {"kind": "gh"}, "acme-reviewer": {"kind": "gh"}, "acme-lead": {"kind": "gh"}},
+  "profiles": {
+    "acme-author": {"kind": "forge", "agent": "acme-author"},
+    "acme-reviewer": {"kind": "forge", "agent": "acme-reviewer"},
+    "acme-lead": {"kind": "forge", "agent": "acme-lead"}
+  },
   "agents": {
     "author": {"profile": "acme-author", "provider": "claude", "model": "claude-sonnet-5-5", "effort": "high"},
     "reviewer": {"profile": "acme-reviewer", "provider": "codex", "model": "gpt-5", "effort": "high"},
@@ -36,6 +40,9 @@ public let fixtureConfig = """
   }
 }
 """
+
+/// The golden doctor output the fixture home holds, for the app to answer its doctor run with in `--fixture` mode.
+public func doctorFixtureOutput(home: String) -> String? { try? String(contentsOfFile: home + "/doctor.json", encoding: .utf8) }
 
 public final class FixtureServer {
     public let home: String
@@ -156,6 +163,8 @@ public final class FixtureServer {
             let state = home + "/engine/state"
             try FileManager.default.createDirectory(atPath: state, withIntermediateDirectories: true)
             try Data(fixtureConfig.utf8).write(to: URL(fileURLWithPath: home + "/config.json"))
+            // what the app's doctor run answers in `--fixture` mode (`doctorFixtureOutput`)
+            try Data(contentsOf: URL(fileURLWithPath: fixtures + "/doctor.json")).write(to: URL(fileURLWithPath: home + "/doctor.json"))
             try FileManager.default.createDirectory(atPath: home + "/chat/state", withIntermediateDirectories: true)
             listener = try Self.listen(path: state + "/control.sock")
             do { chatListener = try Self.listen(path: home + "/chat/state/chat.sock") } catch {

@@ -99,12 +99,12 @@ struct ReposTabView: View {
         }
     }
 
-    /// The chosen repo's page; the cards of a repo come in the next slices.
+    /// The chosen repo's page; its other cards come in the next slices.
     @ViewBuilder private func detail(_ row: RepoRow?) -> some View {
         if let row {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 12) {
                 Text(row.name).font(.headline)
-                Text(row.line).font(.callout).foregroundStyle(row.health == .error ? Color.red : Color.secondary)
+                RepoStatusCard(status: repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine))))
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         } else {
@@ -150,6 +150,33 @@ struct ReposTabView: View {
     private func autosave() {
         guard unreadable == false, draft != saved, reposProblem(draft) == nil else { return }
         if write() { note = "Saved" }
+    }
+}
+
+/// Status: the epics and the last check (or that Carrier reads the repo when it starts), the clone with Reveal and the repo on GitHub with Open.
+private struct RepoStatusCard: View {
+    let status: RepoStatus
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("STATUS").font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary).padding(.leading, 14).padding(.top, 8)
+            SettingsTabCard {
+                if let note = status.note {
+                    SettingsTabRow(title: "Epics and last check", detail: note, first: true) { EmptyView() }
+                } else {
+                    SettingsTabRow(title: "Epics", detail: status.epics ?? "", first: true) { EmptyView() }
+                    SettingsTabRow(title: "Last check", detail: status.lastCheck ?? "") { EmptyView() }
+                }
+                SettingsTabRow(title: "Clone", detail: status.clone, mono: true) {
+                    if status.canRevealClone {
+                        Button("Reveal") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: status.clonePath)]) }
+                    }
+                }
+                SettingsTabRow(title: "On GitHub", detail: status.gitHubURL.map { "github.com\($0.path)" } ?? "") {
+                    if let url = status.gitHubURL { Button("Open") { NSWorkspace.shared.open(url) } }
+                }
+            }
+        }
     }
 }
 

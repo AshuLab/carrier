@@ -170,11 +170,9 @@ public enum FeedRow: Equatable, Identifiable {
     case user(id: String, text: String)
     /// What the agent wrote, as markdown; `inProgress` is the text still being written, which is not stored yet.
     case agent(id: String, text: String, inProgress: Bool)
-    /// The agent's reasoning, folded under its message: one finished thinking block.
-    case reasoning(id: String, text: String)
     /// The line that closes a turn: the model, how long it took and the usage the provider reported.
     case turnEnd(id: String, TurnSummary)
-    /// A run of tool calls: one row that opens to its calls.
+    /// A run of the agent's work, its reasoning and its calls: one row that opens to its steps.
     case tools(id: String, ToolGroup)
     /// An approval waiting for the person: a card with the provider's choices.
     case approval(id: String, ApprovalCard)
@@ -189,7 +187,7 @@ public enum FeedRow: Equatable, Identifiable {
 
     public var id: String {
         switch self {
-        case .user(let id, _), .agent(let id, _, _), .reasoning(let id, _), .turnEnd(let id, _), .tools(let id, _), .approval(let id, _), .decided(let id, _, _),
+        case .user(let id, _), .agent(let id, _, _), .turnEnd(let id, _), .tools(let id, _), .approval(let id, _), .decided(let id, _, _),
             .line(let id, _), .error(let id, _), .stopped(let id): id
         }
     }
@@ -256,40 +254,49 @@ public struct ApprovalCard: Equatable {
 /// at the place where the first started, each completed by its end (a turn that ends first stops the calls still going); an
 /// approval is one row at the place where it was asked: a card while its id is in `pending` (what the host still waits for),
 /// a line once answered, and a plain line when it is neither (the turn ended without it).
-/// A `reasoning` event is held and drawn right under the message that follows it in its turn (the host stores it before the message),
-/// or where the turn ends without one. Anything else the host may add is not drawn.
+/// A `reasoning` event is a thought of the run of calls it comes in (the host stores each block where the agent had it); one that comes
+/// before the first call of a run waits for it, and one with no call after it is a run of its own, before the message or the end of its
+/// turn: the agent's work is always above its answer. Anything else the host may add is not drawn.
 public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set<String> = []) -> [FeedRow] {
     var rows: [FeedRow] = []
     // where each call still going is: its row and its place in it
     var going: [String: (row: Int, call: Int)] = [:]
     var asked: [String: (row: Int, event: ChatEvent)] = [:]
     var turnStart: Int?
-    var held: [FeedRow] = []
+    var held: [Thought] = []
+    // thoughts no call came to take: a run of their own, where the piece that ends them begins
     func release() {
-        rows += held
+        guard let first = held.first else { return }
+        rows.append(.tools(id: first.id, ToolGroup(calls: [], thoughts: held, since: turnStart)))
         held = []
     }
     for event in events {
         let id = "e\(event.id)"
         switch event.kind {
         case "reasoning":
-            if let text = event.text, text.isEmpty == false { held.append(.reasoning(id: id, text: text)) }
+            guard let text = event.text, text.isEmpty == false else { continue }
+            if case .tools(let group, var run)? = rows.last {
+                run.thoughts.append(Thought(id: id, text: text, at: event.at, before: run.calls.count))
+                rows[rows.count - 1] = .tools(id: group, run)
+            } else {
+                held.append(Thought(id: id, text: text, at: event.at, before: 0))
+            }
         case "user":
             release()
             turnStart = event.at
             rows.append(.user(id: id, text: event.text ?? ""))
         case "assistant":
-            rows.append(.agent(id: id, text: event.text ?? "", inProgress: false))
             release()
+            rows.append(.agent(id: id, text: event.text ?? "", inProgress: false))
         case "tool_start":
             let call = ToolCall(start: event)
-            going[call.id] = place(call, in: &rows, id: id)
+            going[call.id] = place(call, in: &rows, id: id, held: &held)
         case "tool_end":
             if let call = event.callId, let spot = going.removeValue(forKey: call), case .tools(let group, var calls) = rows[spot.row] {
                 calls.calls[spot.call].finish(event)
                 rows[spot.row] = .tools(id: group, calls)
             } else {
-                _ = place(ToolCall(orphanEnd: event), in: &rows, id: id)
+                _ = place(ToolCall(orphanEnd: event), in: &rows, id: id, held: &held)
             }
         case "approval":
             if let approval = event.approvalId { asked[approval] = (rows.count, event) }
@@ -310,6 +317,7 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
                 rows[spot.row] = .tools(id: group, calls)
             }
             going = [:]
+            if event.outcome == "error" { markLastRunErred(in: &rows) }
             if let summary = TurnSummary(event, turnStart: turnStart) { rows.append(.turnEnd(id: id, summary)) }
             if event.outcome == "interrupted" { rows.append(.stopped(id: "\(id)-stopped")) }
             turnStart = nil
@@ -320,19 +328,34 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
             continue
         }
     }
-    if streaming.isEmpty == false { rows.append(.agent(id: "streaming", text: streaming, inProgress: true)) }
     release()
+    if streaming.isEmpty == false { rows.append(.agent(id: "streaming", text: streaming, inProgress: true)) }
     return rows
 }
 
-/// Puts a call at the end of the run the last row is, or opens a row for it.
-private func place(_ call: ToolCall, in rows: inout [FeedRow], id: String) -> (row: Int, call: Int) {
+/// The run a turn that failed ended in: the last one of the turn, when the agent had not written an answer after it.
+private func markLastRunErred(in rows: inout [FeedRow]) {
+    for index in rows.indices.reversed() {
+        switch rows[index] {
+        case .tools(let id, var group):
+            group.erred = true
+            rows[index] = .tools(id: id, group)
+            return
+        case .user, .agent: return
+        default: continue
+        }
+    }
+}
+
+/// Puts a call at the end of the run the last row is, or opens a row for it that starts with the thoughts that were waiting.
+private func place(_ call: ToolCall, in rows: inout [FeedRow], id: String, held: inout [Thought]) -> (row: Int, call: Int) {
     if case .tools(let group, var run)? = rows.last {
         run.calls.append(call)
         rows[rows.count - 1] = .tools(id: group, run)
         return (rows.count - 1, run.calls.count - 1)
     }
-    rows.append(.tools(id: id, ToolGroup(calls: [call])))
+    rows.append(.tools(id: held.first?.id ?? id, ToolGroup(calls: [call], thoughts: held)))
+    held = []
     return (rows.count - 1, 0)
 }
 
@@ -388,7 +411,7 @@ public struct TurnSummary: Equatable {
     public static func tokens(_ count: Double) -> String { count < 1000 ? "\(Int(count))" : String(format: "%.1fk", count / 1000) }
 
     public var text: String {
-        [model, duration, context.map { "\(Self.tokens($0)) context" }, output.map { "\(Self.tokens($0)) out" }].compactMap { $0 }.joined(separator: " · ")
+        [shortModel, duration, context.map { "\(Self.tokens($0)) context" }, output.map { "\(Self.tokens($0)) out" }].compactMap { $0 }.joined(separator: " · ")
     }
 
     /// The model as a person says it: `claude-haiku-5-5` is `haiku 5.5`, and a dated one (`claude-opus-4-1-20250805`) loses its date. A name

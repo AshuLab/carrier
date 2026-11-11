@@ -16,7 +16,6 @@ struct ConversationView: View {
     /// Whether the feed has been taken to its end after it loaded: until then it is not drawn, so the way down is not seen.
     @State private var positioned = false
     @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
-    @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
     @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
@@ -69,17 +68,22 @@ struct ConversationView: View {
                         guard let index = feed.lastIndex(where: { if case .agent(_, _, false) = $0 { true } else { false } }) else { return nil }
                         return feed[index...].contains(where: { if case .agent(_, _, true) = $0 { true } else { false } }) ? nil : feed[index].id
                     }()
+                    // the run the agent is working in, whether an approval holds it and when the turn began
+                    let working = model.busy ? workInProgress(in: feed) : nil
+                    let waiting = pendingApprovals(model.rows).isEmpty == false
+                    let began = feed.last(where: { if case .user = $0 { true } else { false } }).flatMap { model.times[$0.id] }
                     ForEach(feed) { row in
                         FeedRowView(
                             row: row, time: model.times[row.id], summary: closing[row.id], pinned: row.id == pinnedAnswer, flipped: $flipped, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
+                            work: WorkState(live: row.id == working, waiting: waiting, since: began),
                             continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
                             answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
                         )
                         .transition(Self.transition(of: row))
                     }
-                    // between Enter and the first words of the answer
+                    // between Enter and the first thing the agent does: the card of its work already, so the first step takes its place unseen
                     if model.busy, model.steps.isEmpty, case .user = feed.last {
-                        ThinkingRow().transition(.opacity)
+                        ChatToolGroupView(id: "thinking", group: ToolGroup(calls: []), live: true, waiting: waiting, since: began, flipped: $flipped).transition(.identity)
                     }
                 } else if model.failure == nil {
                     LoadingRow()
@@ -142,11 +146,15 @@ struct ConversationView: View {
         }
     }
 
-    /// A row comes in from the bottom and fades out, except an agent's message: it grows in place as it is written, and the message in
+    /// A row comes in from the bottom and fades out, except an agent's message and the run of the agent's work: it grows in place as it is written, and the message in
     /// progress is replaced by the finished one (another row id) with nothing to see, so it does not leave and come in again when the
     /// answer ends.
     private static func transition(of row: FeedRow) -> AnyTransition {
-        if case .agent = row { return .identity }
+        // the card of the agent's work is there from the first moment (see the card drawn while the agent starts), so it comes in with nothing to see
+        switch row {
+        case .agent, .tools: return .identity
+        default: break
+        }
         return .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity)
     }
 
@@ -156,7 +164,7 @@ struct ConversationView: View {
         case .stopAgent: if model.busy { Task { await model.stop() } }
         case .jumpToLatest: position.scrollTo(edge: .bottom)
         case .toggleToolFolds:
-            flipped = togglingToolGroups(in: visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning), mode: toolOutput, opensFailed: opensFailed, flipped: flipped)
+            flipped = togglingToolGroups(in: visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning), flipped: flipped)
         case .copyLastAnswer:
             guard let answer = lastAnswer(in: model.rows) else { return }
             NSPasteboard.general.clearContents()
@@ -259,6 +267,8 @@ private struct FeedRowView: View {
     let commands: [ChatCommand]
     /// Whether this is the stopped or failed turn the person can still act on: Continue and Try again show only there.
     let offersWayOut: Bool
+    /// What a run of the agent's work needs to know to draw itself: whether it is the one working now.
+    let work: WorkState
     let continueTurn: () -> Void
     let retry: () -> Void
     let answer: (String, String) -> Void
@@ -292,12 +302,10 @@ private struct FeedRowView: View {
                 if inProgress == false { footer(text, summary: summary, asks: true) }
             }
             .onHover { hovering = $0 }
-        case .reasoning(let id, let text):
-            ReasoningRow(id: id, text: text, flipped: $flipped)
         case .turnEnd(_, let summary):
             Text(summary.text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
         case .tools(let id, let group):
-            ChatToolGroupView(id: id, group: group, flipped: $flipped)
+            ChatToolGroupView(id: id, group: group, live: work.live, waiting: work.waiting, since: work.since, flipped: $flipped)
         case .approval:
             EmptyView() // drawn over the message box, never in the feed (`visibleFeed`)
         case .decided(_, let text, let allow):
@@ -448,44 +456,11 @@ private struct BannerView: View {
     }
 }
 
-/// The agent has the message and has not said anything yet: three dots that run.
-private struct ThinkingRow: View {
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "ellipsis").symbolEffect(.variableColor.iterative, options: .repeating)
-            Text("Thinking…")
-        }
-        .font(.scaled(12)).foregroundStyle(.secondary)
-        .accessibilityElement(children: .combine)
-    }
-}
-
-/// The agent's reasoning under its message: one line that opens to the text; folded until the person opens it (kept in `flipped`).
-private struct ReasoningRow: View {
-    let id: String
-    let text: String
-    @Binding var flipped: Set<String>
-
-    var body: some View {
-        let open = flipped.contains(id)
-        VStack(alignment: .leading, spacing: 6) {
-            Button {
-                if open { flipped.remove(id) } else { flipped.insert(id) }
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "chevron.right").font(.scaled(9, weight: .semibold)).rotationEffect(.degrees(open ? 90 : 0))
-                    Text("Reasoning")
-                }
-                .font(.scaled(12)).foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityValue(open ? "expanded" : "collapsed")
-            if open {
-                Text(text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
-                    .padding(.leading, 14).frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-    }
+/// What a run of the agent's work draws itself from: whether it is the one working now, whether an approval holds it, when the turn began.
+private struct WorkState {
+    let live: Bool
+    let waiting: Bool
+    let since: Int?
 }
 
 /// A session whose agent is not running: what it means and what a message does, above the box, in the colour of night.

@@ -6,15 +6,33 @@ import { runInit } from '../wizard.ts';
 
 const dir = useTempDir();
 
-test('with no Forge agents the reviewer has nothing left, and the error says what to do', async () => {
-  const { deps } = fakeDeps({ forgeAgents: () => [], which: (c) => c !== 'agent-forge' }); // and no way to add one from here
-  await expect(runInit({ out: join(dir, 'd.json') }, quietUi().ui, deps)).rejects.toThrow('agent-forge add');
+test('with no Forge agents both roles are the gh login: it is accepted, and the recap says it will show', async () => {
+  const { deps, written } = fakeDeps({ forgeAgents: () => [], which: (c) => c !== 'agent-forge' }); // and no way to add one from here
+  const { ui } = quietUi();
+  const notes: Record<string, string> = {};
+  const out = join(dir, 'd.json');
+  await runInit({ out }, { ...ui, note: (m, t) => void (notes[t] = m) }, deps);
+  const config = JSON.parse(written[out]!);
+  expect(config.profiles).toEqual({ gh: { kind: 'gh' } });
+  expect(config.agents.author.profile).toBe('gh');
+  expect(config.agents.reviewer.profile).toBe('gh');
+  expect(notes['This is what will be saved']).toContain('Identity    shared: author and reviewer are the same account, and the signature in what they publish will show it');
 });
 
-test('the same identity twice is refused before anything is written', async () => {
+test('picking the same identity for the author and the reviewer is accepted without a word of protest', async () => {
   const { deps, written } = fakeDeps();
-  await expect(runInit({ repo: ['AshuLab/x'], authorProfile: 'gh', reviewerProfile: 'gh', out: join(dir, 'e.json') }, quietUi().ui, deps)).rejects.toThrow('must differ');
-  expect(written).toEqual({});
+  const out = join(dir, 'e.json');
+  await runInit({ repo: ['AshuLab/x'], authorProfile: 'gh', reviewerProfile: 'gh', out }, quietUi().ui, deps);
+  expect(JSON.parse(written[out]!).agents).toMatchObject({ author: { profile: 'gh' }, reviewer: { profile: 'gh' } });
+});
+
+test('the reviewer starts on an identity the author does not have, and no question is about sharing', async () => {
+  const { deps, written } = fakeDeps();
+  const { ui, asked } = quietUi();
+  const out = join(dir, 'e2.json');
+  await runInit({ repo: ['A/b'], out }, ui, deps);
+  expect(asked.some((q) => /shared|identities/i.test(q))).toBe(false);
+  expect(JSON.parse(written[out]!).agents).toMatchObject({ author: { profile: 'artanis-agent' }, reviewer: { profile: 'tassadar-agent' } });
 });
 
 test('when the reviewer has no identity left, a bot can be added right there and the list is read again', async () => {

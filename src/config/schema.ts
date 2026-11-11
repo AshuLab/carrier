@@ -11,13 +11,15 @@ export const persona = z.strictObject({
   prompt: z.string().trim().min(1).max(4000).optional(),
 });
 
+export const efforts = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+
 // A role keeps its GitHub identity and persona, and points at an AI provider and model.
 const agent = z.strictObject({
   persona: persona.optional(),
   profile: z.string().min(1),
   provider: z.string().min(1),
   model: z.string().min(1),
-  effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
+  effort: z.enum(efforts).optional(),
 });
 
 // The two shapes the spike fixed (docs/research/agent-forge.md): a bot through Agent Forge, or the user's own `gh` login. No secrets here.

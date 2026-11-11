@@ -2,7 +2,8 @@ import { homedir } from 'node:os';
 import type { Detected } from '../../doctor/detect.ts';
 import { harnessLabel, harnessNames, type HarnessName } from '../../harnesses/names.ts';
 import { localKinds, localLabel, type LocalProvider } from '../../harnesses/local.ts';
-import type { AIProvider, Failover, Identities, Role } from './build-config.ts';
+import { sameAccount } from '../../config/resolve.ts';
+import type { AIProvider, Failover, Role } from './build-config.ts';
 
 /** `~` for the home folder, for what is shown to a person. */
 export const tilde = (path: string) => (path.startsWith(`${homedir()}/`) ? `~${path.slice(homedir().length)}` : path);
@@ -14,7 +15,7 @@ const personaLine = ({ persona }: Role) => (persona ? [`${persona.name ?? '(no n
 const roleLine = (r: Role, providers: Record<string, AIProvider>) => {
   const p = providers[r.provider];
   const pDesc = p ? `${r.provider} (${providerLine(p)})` : r.provider;
-  return [`${r.identity.kind === 'gh' ? 'your gh login' : r.identity.agent} · ${pDesc} · ${r.model}`, ...personaLine(r).map((item) => `\n          persona: ${item}`)].join('');
+  return [`${r.identity.kind === 'gh' ? 'your gh login' : r.identity.agent} · ${pDesc} · ${r.model}${r.effort ? ` · ${r.effort}` : ''}`, ...personaLine(r).map((item) => `\n          persona: ${item}`)].join('');
 };
 
 const loginText = { in: 'signed in', out: 'signed out', unknown: 'login not checked' } as const;
@@ -38,12 +39,11 @@ export const summary = (
   failover: Failover | undefined,
   out: string,
   providersPath: string,
-  identities: Identities = 'separate',
   leadReviewer?: Role,
 ) =>
   [
     `Repos       ${repos.join(', ')}`,
-    ...(identities === 'shared' ? ['Identity    shared: both roles act as your gh login'] : []),
+    ...(sameAccount(author.identity, reviewer.identity) ? ['Identity    shared: author and reviewer are the same account, and the signature in what they publish will show it'] : []),
     `Providers   ${Object.keys(providers).join(', ')}`,
     `Author      ${roleLine(author, providers)}`,
     `Reviewer    ${roleLine(reviewer, providers)}`,

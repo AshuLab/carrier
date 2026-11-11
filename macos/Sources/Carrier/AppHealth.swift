@@ -4,6 +4,8 @@ import CarrierCore
 /// The one health the app holds: the draft reads it, and what asks again (Check again) goes through it.
 enum AppHealth {
     @MainActor static let store = HealthStore(host: SocketChatHost())
+    /// The Providers page's state: asked when the app opens too, to write `providers.json` the first time.
+    @MainActor static let providers = ProvidersStore(host: SocketChatHost())
     /// The engine's setup: runs only when the Health tab opens and on Check again.
     @MainActor static let doctor = DoctorStore(run: runProcess)
 }

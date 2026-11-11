@@ -43,6 +43,18 @@ private func sameJSON(_ a: Data, _ b: Data) throws -> Bool {
     #expect(try sameJSON(client.request("providers"), golden("chat-providers.json")))
 }
 
+@Test func anAddInTheFixtureHomeTakesTheFoundNotAddedRowAway() throws {
+    let server = try FixtureServer(fixtures: fixtures)
+    defer { server.stop() }
+    let client = try #require(ControlClient.connect(path: server.chatSocketPath))
+    _ = try client.hello()
+    let file = ProvidersFile(folder: server.home)
+    try file.write(applyingAccounts([(name: "agy", harness: "agy")], to: try file.read()))
+    let reply = try JSONDecoder().decode(HostProviders.self, from: client.request("providers"))
+    #expect(reply.unadded.isEmpty && reply.accounts.map(\.name) == ["claude", "claude-work", "codex", "agy"])
+    #expect(reply.accounts.last?.harness == "agy" && reply.accounts.last?.found == true)
+}
+
 @Test func answersAnUnknownRequestWithAnError() throws {
     let server = try FixtureServer(fixtures: fixtures)
     defer { server.stop() }

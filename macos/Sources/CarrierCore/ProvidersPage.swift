@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 // The Providers page of Settings (docs/specs/providers-in-settings.md): what the chat host says of the AI tools on this Mac (`providers`),
-// joined with who uses each account, read from `config.json` (roles, repo overrides, failover) and `chat.json` (chat agents). Read only.
+// joined with who uses each account, read from `config.json` (roles, repo overrides, failover) and `chat.json` (chat agents). The page reads; the one write is the Add of a harness found with no account (`ProvidersStore`, `ProvidersFile`).
 
 /// The reply of `providers`: the accounts of `providers.json` with their state, the harnesses found that no account has, and the local servers.
 public struct HostProviders: Decodable, Equatable {
@@ -237,13 +237,51 @@ public enum ProvidersOutcome: Equatable {
 /// The last answer of `providers`; asked when the page opens and again on request, and only of a host that lists it.
 @MainActor @Observable public final class ProvidersStore {
     public private(set) var outcome = ProvidersOutcome.unasked
+    /// Why the last Add did not write the account, in words; nil when it did or none was made.
+    public private(set) var addProblem: String?
 
     @ObservationIgnored private let host: ChatHost
+    @ObservationIgnored private let file: () -> ProvidersFile
     @ObservationIgnored private let log: (String) -> Void
 
-    public init(host: ChatHost, log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }) {
+    /// `file` is looked up at each use, so the Carrier folder is the one the app has then.
+    public init(host: ChatHost, file: @escaping () -> ProvidersFile = ProvidersFile.current, log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }) {
         self.host = host
+        self.file = file
         self.log = log
+    }
+
+    /// When the app opens: with no `providers.json`, writes one account per harness the host found, named after it and not offered for an
+    /// epic's choice (`enabled: false`). With a file there it writes nothing, so an account that was removed stays removed; with nothing found
+    /// it writes nothing either (an empty file would leave the roles' default accounts undeclared), and a host that cannot answer is not guessed at.
+    public func createFileIfMissing() async {
+        guard file().exists == false else { return }
+        await load()
+        guard case .reply(let reply) = outcome, reply.problem == nil else { return }
+        let found = reply.accounts.filter(\.found).map { (name: $0.name, harness: $0.harness) }
+        guard found.isEmpty == false, file().exists == false else { return }
+        do { try file().write(applyingAccounts(found, to: nil)) } catch {
+            log("providers: could not create providers.json: \(error)")
+            return
+        }
+        await load()
+    }
+
+    /// The Add of a "Found, not added" row: the account named after the harness, then the host is asked again so the row goes away.
+    public func add(harness: String) async {
+        addProblem = nil
+        do {
+            let current = try file().read()
+            try file().write(applyingAccounts([(name: harness, harness: harness)], to: current))
+        } catch ProvidersFileError.notAnObject {
+            addProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
+        } catch ProvidersFileError.taken(let name) {
+            addProblem = "There is already an account named \(name)."
+        } catch {
+            log("providers: could not add \(harness): \(error)")
+            addProblem = "providers.json could not be written; the file stays as it was."
+        }
+        await load()
     }
 
     public func load() async {

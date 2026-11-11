@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { execFile, spawn, spawnSync } from 'node:child_process';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -12,10 +12,14 @@ import { forgeCwd } from '../integrations/forge-cwd.ts';
 import { GhGitHub, type GitHubProfile } from '../integrations/github.ts';
 import { listLocalModels, localLabel, localUrl, type LocalProvider } from '../harnesses/local.ts';
 import { configDirVariable } from '../harnesses/names.ts';
+import { epicLabel, readyLabel } from '../orchestration/github.ts';
 import { fixes, installFix } from './fixes.ts';
 
-/** `fix` is one remedy line for the person at the terminal; only failures and warnings have one. */
-export type Check = { name: string; status: 'ok' | 'warn' | 'fail'; detail?: string; fix?: string };
+/**
+ * `fix` is one remedy line for the person at the terminal; only failures and warnings have one.
+ * `repo` and `profiles` are set together on the checks about one repo: the names under `config.profiles` the check stands for, never empty.
+ */
+export type Check = { name: string; status: 'ok' | 'warn' | 'fail'; detail?: string; fix?: string; repo?: string; profiles?: string[] };
 
 /** The part of the agy process the login check reads; the check kills it as soon as it knows. */
 export interface AgyProcess {
@@ -32,7 +36,9 @@ export interface DoctorDeps {
   /** What a local model server has; throws when it does not answer. */
   localModels: (local: LocalProvider) => Promise<string[]>;
   /** Whether a Claude or Codex login works, with the option's config folder (the process environment when none); throws when the CLI cannot run. */
-  loggedIn: (harness: 'claude' | 'codex', configDir: string | undefined) => Promise<boolean>;
+  loggedIn: (harness: 'claude' | 'codex', configDir: string | undefined, command?: string) => Promise<boolean>;
+  /** Whether an account's `command` runs (`--version` ends well); false when it does not exist or fails. */
+  commandRuns: (command: string) => Promise<boolean>;
   /** Starts `agy -p /usage` for the Antigravity login check; throws when it cannot start. */
   startAgy: () => AgyProcess;
 }
@@ -43,7 +49,7 @@ const AGY_TIMEOUT_MS = 30_000; // logged in answers in about five seconds
 const AGY_LOGGED_OUT = 'Authentication required';
 
 // Antigravity has no status command, so ask for /usage: it costs nothing. The stderr is never kept past the first line (it holds the login URL).
-function startAgy(): AgyProcess {
+export function startAgy(): AgyProcess {
   const cwd = mkdtempSync(join(tmpdir(), 'carrier-agy-'));
   const child = spawn('agy', ['-p', '/usage', '--output-format', 'json'], { cwd, env: { ...process.env, BROWSER: 'true' }, stdio: ['ignore', 'pipe', 'pipe'] });
   child.once('close', () => rmSync(cwd, { recursive: true, force: true }));
@@ -51,7 +57,7 @@ function startAgy(): AgyProcess {
 }
 
 /** 'in' on status SUCCESS, 'out' at the first stderr line asking for login (the process is killed then, not awaited), 'unknown' otherwise. */
-function agyLogin(deps: Pick<DoctorDeps, 'startAgy'>): Promise<'in' | 'out' | 'unknown'> {
+export function agyLogin(deps: Pick<DoctorDeps, 'startAgy'>): Promise<'in' | 'out' | 'unknown'> {
   return new Promise((resolve, reject) => {
     const child = deps.startAgy();
     let out = '';
@@ -87,11 +93,11 @@ function agyLogin(deps: Pick<DoctorDeps, 'startAgy'>): Promise<'in' | 'out' | 'u
 // Reads only the verdict: the output holds an email and an organisation, which never leave this function.
 // Async, so the wizard and the doctor's spinner go on while the CLI answers. After the timeout the whole process group is killed and the
 // probe rejects at once: a CLI that traps SIGTERM, or leaves a child holding the pipe, cannot keep it waiting.
-export function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | undefined, timeoutMs = LOGIN_TIMEOUT_MS) {
+export function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | undefined, timeoutMs = LOGIN_TIMEOUT_MS, command: string = harness) {
   const env = configDir ? { ...process.env, [configDirVariable[harness]]: configDir } : process.env;
-  const [command, args] = harness === 'claude' ? ['claude', ['auth', 'status']] : ['codex', ['login', 'status']];
+  const args = harness === 'claude' ? ['auth', 'status'] : ['login', 'status'];
   return new Promise<boolean>((resolve, reject) => {
-    const child = spawn(command!, args as string[], { env, stdio: ['ignore', 'pipe', 'ignore'], detached: true });
+    const child = spawn(command, args, { env, stdio: ['ignore', 'pipe', 'ignore'], detached: true });
     let out = '';
     child.stdout.setEncoding('utf8');
     child.stdout.on('data', (chunk) => (out += chunk));
@@ -123,7 +129,8 @@ export function cliLoggedIn(harness: 'claude' | 'codex', configDir: string | und
 
 const realDeps: DoctorDeps = {
   localModels: (local) => listLocalModels(local),
-  loggedIn: cliLoggedIn,
+  loggedIn: (harness, configDir, command) => cliLoggedIn(harness, configDir, undefined, command),
+  commandRuns: (command) => new Promise((resolve) => execFile(command, ['--version'], { timeout: 10_000 }, (error) => resolve(error === null))),
   startAgy,
   which: (command) => spawnSync('which', [command]).status === 0,
   mint: (profile, repo) => profileToken(profile)(repo),
@@ -136,6 +143,7 @@ const realDeps: DoctorDeps = {
 };
 
 const identity = (profile: GitHubProfile) => (profile.kind === 'forge' ? `forge agent ${profile.agent}` : 'your gh login');
+const solveLabels = [epicLabel, readyLabel];
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** What the machine has to be able to do, and whether each identity can act on each repo. Reads only; creates nothing on GitHub. */
@@ -169,7 +177,8 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
 
   const hasGit = installed('git');
   const hasGh = installed('gh');
-  for (const harness of new Set(repos.flatMap((repo) => rolesOf(repo).map((agent) => agent.harness)))) installed(harness);
+  // An agent that has its own `command` is not looked up on the PATH; the account's own check below runs it.
+  for (const harness of new Set(repos.flatMap((repo) => rolesOf(repo).filter((agent) => agent.command === undefined).map((agent) => agent.harness)))) installed(harness);
   const hasForge = profiles.some((profile) => profile.kind === 'forge') ? installed('agent-forge') : true;
 
   // A local model needs its server up and the model downloaded; one check per distinct server and model.
@@ -187,11 +196,19 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     }
   }
 
+  // A `command` that does not exist or does not run fails its account, whether a role uses it or not: the run would not start.
+  const commandRuns = async (provider: string, harness: string, command: string) => {
+    const name = `${harness} provider ${provider} command runs`;
+    onStart(name);
+    const runs = await deps.commandRuns(command).catch(() => false);
+    return report(runs ? { name, status: 'ok' } : { name, status: 'fail', detail: `${command} does not exist or does not run`, fix: fixes.command(provider) });
+  };
+
   // Every Claude and Codex provider, whether a role uses it or not: a login that has run out shows here before an epic needs it.
   // A role's provider that is not logged in fails; any other only warns. Antigravity has no folder and a behaviour test instead.
   const roleProviders = new Set(repos.flatMap((repo) => rolesOf(repo).flatMap((agent) => [agent.option, agent.providerName].filter((v): v is string => v !== undefined))));
-  for (const [provider, { harness, configDir }] of Object.entries(config.providers)) {
-    if (missing.has(harness)) continue;
+  for (const [provider, { harness, configDir, command }] of Object.entries(config.providers)) {
+    if (command === undefined ? missing.has(harness) : !(await commandRuns(provider, harness, command))) continue;
     if (harness === 'agy') {
       const name = `agy provider ${provider} is logged in`;
       onStart(name);
@@ -212,55 +229,50 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     const where = configDir ? `at ${configDir}` : 'in the environment Carrier runs in';
     onStart(name);
     try {
-      report((await deps.loggedIn(harness, configDir)) ? { name, status: 'ok' } : { name, status, detail: `not logged in ${where}`, fix: fixes.login(harness, configDir) });
+      report((await deps.loggedIn(harness, configDir, ...(command === undefined ? [] : [command]))) ? { name, status: 'ok' } : { name, status, detail: `not logged in ${where}`, fix: fixes.login(harness, configDir) });
     } catch (error) {
       log.error(`could not run ${harness} to check the login`, error, { provider });
       report({ name, status, detail: `could not run ${harness} to check the login ${where}`, fix: installFix[harness] });
     }
   }
 
-  // The schema compares profile names; two names can still point at the same bot or the same login. A shared identity allows it.
-  if (config.identities === 'separate') {
-    onStart('author and reviewer are different identities');
-    const clashes = repos.flatMap((repo) => {
-      const author = config.profiles[repo.agents.author.profile]!;
-      const reviewer = config.profiles[repo.agents.reviewer.profile]!;
-      const lead = repo.agents.leadReviewer ? config.profiles[repo.agents.leadReviewer.profile] : undefined;
-      const issues: string[] = [];
-      if (sameAccount(author, reviewer)) issues.push(`${repo.name}: author and reviewer both use ${identity(author)}`);
-      if (lead && sameAccount(author, lead)) issues.push(`${repo.name}: author and lead reviewer both use ${identity(author)}`);
-      return issues;
-    });
-    report(clashes.length === 0 ? { name: 'author and reviewer are different identities', status: 'ok' } : { name: 'author and reviewer are different identities', status: 'fail', detail: clashes.join('; '), fix: fixes.clash });
-  }
-
   // Without gh, or without agent-forge for a forge profile, the checks below would only repeat the same failure.
   const usable = (profile: GitHubProfile) => hasGit && hasGh && (profile.kind === 'gh' || hasForge);
-  const minted = new Set<string>();
   for (const repo of repos) {
+    // One mint check per identity, standing for every profile name the roles of this repo use for it.
+    const minted = new Map<string, string[]>();
     for (const agent of rolesOf(repo)) {
-      const profile = config.profiles[agent.profile]!;
-      const key = `${identity(profile)}|${repo.name}`;
-      if (minted.has(key) || !usable(profile)) continue;
-      minted.add(key);
+      const key = identity(config.profiles[agent.profile]!);
+      minted.set(key, [...new Set([...(minted.get(key) ?? []), agent.profile])]);
+    }
+    for (const names of minted.values()) {
+      const profile = config.profiles[names[0]!]!;
+      if (!usable(profile)) continue;
       const name = `${identity(profile)} can mint a token for ${repo.name}`;
       onStart(name);
       try {
         await deps.mint(profile, repo.name);
-        report({ name, status: 'ok' });
+        report({ name, status: 'ok', repo: repo.name, profiles: names });
       } catch (error) {
-        report({ name, status: 'fail', detail: message(error), fix: fixes.mint(profile, repo.name, message(error)) });
+        report({ name, status: 'fail', detail: message(error), fix: fixes.mint(profile, repo.name, message(error)), repo: repo.name, profiles: names });
       }
     }
     if (!usable(orchestrator)) continue;
     const name = `${identity(orchestrator)} can read ${repo.name}`;
     onStart(name);
+    let labels: string[];
     try {
-      await deps.listLabels(config, repo.name, folder);
-      report({ name, status: 'ok' });
+      labels = await deps.listLabels(config, repo.name, folder);
     } catch (error) {
-      report({ name, status: 'fail', detail: message(error), fix: fixes.read(repo.name, message(error)) });
+      report({ name, status: 'fail', detail: message(error), fix: fixes.read(repo.name, message(error)), repo: repo.name, profiles: [config.orchestratorProfile] });
+      continue;
     }
+    report({ name, status: 'ok', repo: repo.name, profiles: [config.orchestratorProfile] });
+    // The labels the read check already fetched say whether Solve is set up: no second call.
+    const solveName = `${repo.name} has the Solve labels`;
+    onStart(solveName);
+    const missing = solveLabels.filter((label) => !labels.includes(label));
+    report(missing.length === 0 ? { name: solveName, status: 'ok', repo: repo.name, profiles: [config.orchestratorProfile] } : { name: solveName, status: 'fail', detail: `missing ${missing.join(', ')}`, fix: fixes.solve, repo: repo.name, profiles: [config.orchestratorProfile] });
   }
   return checks;
 }

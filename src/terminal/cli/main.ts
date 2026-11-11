@@ -34,11 +34,11 @@ else if (cli.flags.help) {
         break;
       case 'doctor':
         if (configPath === undefined) throw noConfig('Usage: carrier doctor --config <path>');
-        exit = await (await import('./commands/doctor.ts')).doctorCommand(loadConfigFile(configPath), folder, cli.flags.json === true);
+        exit = await (await import('./commands/doctor.ts')).doctorCommand(loadConfigFile(configPath, folder), folder, cli.flags.json === true);
         break;
       case 'start':
         if (configPath === undefined) throw noConfig('Usage: carrier start --config <path>');
-        loadConfigFile(configPath); // refuses a config the detached run would only fail on
+        loadConfigFile(configPath, folder); // refuses a config the detached run would only fail on
         exit = await (await import('./commands/start.ts')).startCommand(folder, resolve(configPath));
         break;
       case 'status':
@@ -65,7 +65,7 @@ else if (cli.flags.help) {
         break;
       default:
         if (configPath === undefined) throw noConfig(usage(), '');
-        await (await import('./commands/run.ts')).runCommand(loadConfigFile(configPath), folder); // runs until Ctrl+C
+        await (await import('./commands/run.ts')).runCommand(loadConfigFile(configPath, folder), folder); // runs until Ctrl+C
     }
     if (exit !== undefined) process.exit(exit); // otherwise the command keeps the process alive (running), or has nothing left to do
   } catch (error) {

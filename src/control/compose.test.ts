@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { enginePlacesOf } from '../config/engine-places.ts';
-import { defaults, loadConfig } from '../config/load.ts';
+import { loadWithProviders } from '../config/testing.ts';
 import { FakeAgentRunner, FakeWorkspaces } from '../execution/fake.ts';
 import { FakeClock, FakeGitHub } from '../orchestration/fake.ts';
 import { InstanceBusy, startCarrier, type CarrierDeps } from '../terminal/cli/compose.ts';
@@ -48,7 +48,7 @@ const deps = (): Partial<CarrierDeps> => ({
   onSigint: () => async () => {},
 });
 const config = () => {
-  const result = loadConfig(defaults, {
+  const result = loadWithProviders({
     repos: [{ name: 'AshuLab/a' }],
     profiles: { orchestrator: { kind: 'gh' }, author: { kind: 'forge', agent: 'artanis-agent' }, reviewer: { kind: 'forge', agent: 'tassadar-agent' } },
     orchestratorProfile: 'orchestrator',

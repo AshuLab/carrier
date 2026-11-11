@@ -1,4 +1,5 @@
 import type { HarnessName } from '../harnesses/names.ts';
+import { runtimeOf, type AccountRuntime } from './providers.ts';
 import type { Config } from './schema.ts';
 
 // What an agent runs with: the role (profile, persona, model) and the provider it points at (harness, configDir, local server).
@@ -9,9 +10,10 @@ export type Agent = {
   provider?: 'lmstudio' | 'ollama';
   configDir?: string;
   persona?: Config['agents']['author']['persona'];
+  effort?: Config['agents']['author']['effort'];
   option?: string;
   providerName?: string;
-};
+} & AccountRuntime;
 
 // Only profile names, never credentials: Agent Forge resolves those from the profile at run time.
 // `sharedIdentity` is saved with the epic so a later config change does not move it; absent on epics saved before it existed.
@@ -29,11 +31,8 @@ export type EffectiveRepoConfig = {
 // Two names can point at the same bot or at the same `gh` login: what matters is the account that posts.
 export const sameAccount = (a: Config['profiles'][string], b: Config['profiles'][string]) => a.kind === b.kind && (a.kind === 'gh' || a.agent === (b as typeof a).agent);
 
-/** Returns the failover order for a specific role: role-specific chain if configured, else default chain. */
-export function failoverOrderFor(failover: Config['failover'], role: 'author' | 'reviewer' | 'leadReviewer'): string[] | undefined {
-  if (!failover?.enabled) return undefined;
-  return failover.roles?.[role] ?? failover.default ?? (failover as any).order;
-}
+/** The steps a role moves through when its login runs out; none means no failover for it. */
+export const failoverStepsFor = (failover: Config['failover'], role: 'author' | 'reviewer' | 'leadReviewer') => failover?.roles?.[role] ?? [];
 
 // Each repo inherits the global value of every field it does not override.
 export function resolveRepoConfig(config: Config, repo: Config['repos'][number]): EffectiveRepoConfig {
@@ -50,7 +49,9 @@ export function resolveRepoConfig(config: Config, repo: Config['repos'][number])
       model: merged.model ?? providerConfig?.model ?? '',
       ...(providerConfig?.provider && { provider: providerConfig.provider }),
       ...(providerConfig?.configDir && { configDir: providerConfig.configDir }),
+      ...(providerConfig && runtimeOf(providerConfig)),
       ...(merged.persona && { persona: merged.persona }),
+      ...(merged.effort && { effort: merged.effort }),
       option: merged.provider,
       providerName: merged.provider,
     } as Agent;

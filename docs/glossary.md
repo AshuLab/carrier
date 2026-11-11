@@ -17,8 +17,11 @@ _Avoid_: skill, orchestrator when referring to the agent that interprets the rep
 **Harness** - The agent CLI that runs the loop and the tools of an execution (Claude Code, Codex, Antigravity). Carrier launches it as a child process, as the user's normal CLI. It is the `harness` of an agent in the config.
 _Avoid_: provider, agent (the author and the reviewer are agents; the harness is what runs them), runner.
 
-**Model provider** - Who serves the model the harness uses: the harness's own cloud (Anthropic for Claude Code, OpenAI for Codex) or a local server (LM Studio, Ollama). It is the optional `provider` of an agent; without it, the harness's own cloud.
+**Model provider** - Who serves the model the harness uses: the harness's own cloud (Anthropic for Claude Code, OpenAI for Codex) or a local server (LM Studio, Ollama). It is the optional `provider` of an account; without it, the harness's own cloud.
 _Avoid_: harness, local model (a local model is a model whose provider is a local server).
+
+**Account** - One login of an agent CLI that Carrier can run an agent with: a name, its harness, where its login lives (a config folder, `CLAUDE_CONFIG_DIR` or `CODEX_HOME`, or this Mac's own) and how its CLI is run (binary, launch arguments, compaction). It is what the config calls a `provider`: a role, a failover list and a chat agent each name one. It is kept in `providers.json`, and the app's Providers page lists the tools found on this Mac with their accounts under each.
+_Avoid_: provider (the app's page of tools, and the config key under which accounts are kept), login, connection, option (the older name), identity (a GitHub profile is that).
 
 **GitHub profile** - User-configured reference to an available GitHub identity and its authentication mechanism. It is assigned to the orchestrator, author or reviewer; it is independent of the AI harness/model and of an agent's working session.
 _Avoid_: model, agent session, AI identity for a GitHub account.
@@ -50,7 +53,7 @@ _Avoid_: external reviewer, review bot.
 **Carrier folder** - The one folder where Carrier keeps everything it owns: `~/.carrier/` by default, changed with `CARRIER_HOME`. It holds the engine's config (`config.json`) and one subfolder per process, each with its own state, logs and lock: `engine/` (with its `state/`, `logs/`, `repos/`, `worktrees/` and `reviews/`) and `chat/` (with its config `chat.json`, its `projects/` and its `worktrees/`). Solve never receives it ([0016](adr/0016-carrier-keeps-everything-in-one-folder-with-a-subfolder-per-process.md)). It is independent of where the app's code lives or from where it is started.
 _Avoid_: shared root, root, Carrier home (that is the app's page of the Carrier world), data folder, workspace (it is an epic's checkout, inside `engine/worktrees/`).
 
-**Config level** - One of the three places a setting lives, by who reads it: the engine's `config.json`, the chat's `chat/chat.json` and the app's preferences (user defaults, read only by the app). A setting lives in one level and no process reads another's. The chat host starts with neither file; the engine needs its own.
+**Config level** - One of the four places a setting lives, by who reads it: the engine's `config.json`, the chat's `chat/chat.json`, the app's preferences (user defaults, read only by the app) and `providers.json`, the accounts that the engine and the chat host both read ([0020](adr/0020-accounts-live-in-a-file-both-processes-read.md)). A setting lives in one level and no process reads another's, except the accounts. The chat host starts with neither `chat.json` nor `providers.json`; the engine needs its own `config.json`.
 _Avoid_: settings file (there are two files and the preferences), global config.
 
 **Health check** - The app's answer to "is everything Carrier needs ready?", in the Health tab of Settings, in three layers: this Mac (`git`, `gh` and the logins of `claude`, `codex` and `gh`), Carrier itself (the `carrier` command, the chat host, the engine) and the engine's setup (the checks of `carrier doctor`, once there is a config). Each check is ready, missing, signed out or unknown, and what a failure breaks is switched off with its reason.
@@ -161,10 +164,10 @@ _Avoid_: warning colour, error orange, problem state.
 **Resume (an epic)** - Putting an epic that stopped in needs-human back in the queue once a person has dealt with the cause. It does what the person did by hand before: `solve:epic:ready` goes back on the issue, the `needs-human` mirror comes off, and the epic starts again from ship, reusing its worktree and its pull request, with the review rounds starting over. Nothing checks that the cause is really fixed: if it is not, the epic stops again with the new error. The macOS app asks the engine to do it, with a confirmation first; in a terminal it is `carrier restart`, which can also change the option of each role.
 _Avoid_: retry (an execution retry is the automatic one after a technical failure), continue (continue in terminal is about a session).
 
-**Separate identities** - Setup where the author and the reviewer use different GitHub profiles: two Agent Forge bots, or one bot and the user's `gh` login. It is the default, and what makes the reviewer's comments not the author's own.
+**Separate identities** - Setup where the author and the reviewer use different GitHub profiles: two Agent Forge bots, or one bot and the user's `gh` login. It follows from the two roles' accounts, no key says it, and it is what makes the reviewer's comments not the author's own.
 _Avoid_: dual identity, bot mode.
 
-**Shared identity** - Setup where the author and the reviewer use the same GitHub profile, normally the user's own `gh` login, so everything the agents publish goes out under that account. It exists for the user who cannot install a GitHub App on the repos they work in. Each role signs what it publishes, and the agents act with everything that login can do.
+**Shared identity** - Setup where the author and the reviewer use the same GitHub profile, normally the user's own `gh` login, so everything the agents publish goes out under that account. It exists for the user who cannot install a GitHub App on the repos they work in. Each role signs what it publishes, and the agents act with everything that login can do. It is not a setting: an epic is shared when its author and reviewer resolve to the same account ([0021](adr/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md)).
 _Avoid_: single login, same-account mode, bot-less mode.
 
 **Persona** - What a role (author or reviewer) is given besides its harness and model: a name the user chooses and an optional prompt that says who the agent is and how it behaves. Carrier adds it to the agent's prompt in either identity setup. It is not a GitHub profile: the profile says which account posts, the persona says who is speaking.
@@ -179,11 +182,16 @@ _Avoid_: GitHub down, GitHub refused (that is the panel's section for the repos 
 **Failure kind** - Why an agent execution ended badly, one value from a closed list kept on the execution beside its status: `usage_limit`, `api_error`, `killed` (a signal from outside Carrier ended the process), `crashed` (a nonzero exit), `spawn_error`, `auth`, `session_lost`, `timeout`, `invalid_result` and `unknown`. It mostly diagnoses: only `usage_limit` changes anything, because it stops the epic at once in needs-human, naming the option that ran out, and spends no retry (like `timeout`, it does not count in the failure streak). It stays on the execution, so the history says why long after the epic's last error was cleared. An execution that ended `ok`, or that Carrier itself stopped, has none.
 _Avoid_: error type, exit reason, technical failure kind (a technical failure is what an execution retry answers; the kind says which one it was), GitHub unavailable's kind (a different list, for GitHub calls).
 
-**Agent option** - A named way to run an agent, declared once in the config: a harness, the harness's config folder (`CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex) when it has one, and a model. An epic runs each of its two roles, author and reviewer, on one option, so two Claude logins, Codex and Antigravity are four interchangeable options. The harness's login lives in its config folder, so the folder is what picks the account.
-_Avoid_: account (an option is more than the login), provider (that is the model provider), profile (that is the GitHub profile), agent (the author and the reviewer are agents; an option is what one of them runs on).
+**Agent option** - The older name of what a role runs on: a harness, its config folder and a model, declared once in the config and chosen for each epic. It is replaced by an account of the config (a harness and where its login lives) and the model set on the role or on a failover step; an epic no longer chooses ([0021](adr/0021-an-epic-starts-on-its-three-roles-and-a-roles-failover-chain-names-a-provider-and-a-model.md)).
+_Avoid_: use account for the login and role for what runs on it.
 
-**Failover** - Carrier moving a role of a running epic from the agent option that ran out of credits to the next one in the config's `failover.order`, with no person involved. It is off until the config turns it on, it only ever moves to an option listed in `order`, and it is remembered for that epic only. Each switch is an epic event that says from which option to which, and why.
-_Avoid_: fallback, automatic retry (an execution retry repeats the same option; a failover changes it).
+**Failover** - Carrier moving a role of a running epic from the provider and model that ran out of credits to the next step of that role's chain, with no person involved. A role has failover when its list of steps is not empty, it only ever moves to a step in that list, and it is remembered for that epic only. Each switch is an epic event that says from which provider and model to which, and why.
+_Avoid_: fallback, automatic retry (an execution retry repeats the same provider and model; a failover changes them).
+
+**Failover step** - One entry of a role's failover chain: a provider, an account of the config, and optionally a model; without a model it is the account's, then the harness's. A role has as many as the config lists, and the app offers two.
+
+**Role** - One of the three jobs of an epic: Author, Reviewer and Lead reviewer (optional). Each has a GitHub identity, an account, a model, an effort and an optional persona, and its own failover chain. There are no others and the user cannot make more; the same role can differ for one repo.
+_Avoid_: agent (the AI that runs a role; and in Agent Forge, a bot), persona (a role's name and prompt, not the role).
 
 **Homebrew tap** - Our repository of Homebrew recipes, `AshuLab/homebrew-tap`: the formula `carrier` (the engine and the chat host, from the npm package) and the cask `carrier` (the app). A person installs with `brew install ashulab/tap/carrier`. Homebrew loads a tap's code only once it is trusted, and the full name trusts just that item ([0017](adr/0017-carrier-is-installed-with-a-homebrew-tap-and-the-app-is-not-signed-with-a-developer-id.md)).
 _Avoid_: repo (it is not where the code lives), registry, package (the npm package is what the formula installs).
@@ -203,5 +211,5 @@ _Avoid_: expiry, retention, auto-clean.
 **Settings group** - One heading of the Settings rail, by what its pages configure: App (how the app looks and behaves on this Mac: the app's preferences, a config level), Carrier (the engine, its `config.json`) and Chat (the chat host, its `chat.json`). App has no heading in the rail and comes first; Carrier and Chat have theirs. A page belongs to one group, and the group says where its settings live without the page naming a file.
 _Avoid_: tab (a page is a row of the rail, not a tab), section (that is a part of a page, or a sidebar section), category.
 
-**Legacy group** - The Settings group that holds the pages that existed before the groups (Engine, Behavior, Repos, Sessions, Health) as they were, until each one is redesigned into the App, Carrier or Chat group. It is meant to empty out, not to grow.
+**Legacy group** - The Settings group that holds the pages that existed before the groups (Engine, Behavior, Sessions, Health) as they were, until each one is redesigned into the App, Carrier or Chat group. It is meant to empty out, not to grow.
 _Avoid_: old settings, misc, other.

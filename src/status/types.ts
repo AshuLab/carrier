@@ -1,7 +1,7 @@
 import type { needsHumanKinds } from '../storage/schema.ts';
 
-/** The agent options of an epic: the names it can choose from, the option each role runs on, and while it waits for the choice, when the wait ends (ms since epoch). */
-export type EpicOptions = { names: string[]; author: string | null; reviewer: string | null; choiceDeadline: number | null };
+/** The agent options of an epic: the accounts it can restart on, the option each role runs on. */
+export type EpicOptions = { names: string[]; author: string | null; reviewer: string | null };
 
 // What the panel shows, whatever draws it: read from SQLite by snapshot.ts, drawn by dashboard.ts (a terminal) or plain.ts (a pipe).
 export type PanelEpic = {

@@ -1,14 +1,15 @@
 import { localKinds, type LocalProvider } from '../../harnesses/local.ts';
+import type { Providers } from '../../config/providers.ts';
 import type { Config } from '../../config/schema.ts';
 import { harnessNames, type HarnessName } from '../../harnesses/names.ts';
 
 export type Identity = { kind: 'forge'; agent: string } | { kind: 'gh' };
 export type Persona = NonNullable<Config['agents']['author']['persona']>;
-export type AIProvider = Config['providers'][string];
+export type AIProvider = Providers[string];
 export type Failover = NonNullable<Config['failover']>;
-export type Role = { identity: Identity; provider: string; model: string; persona?: Persona };
-export type Identities = 'separate' | 'shared';
-export type Answers = { repos: string[]; author: Role; reviewer: Role; leadReviewer?: Role; providers: Record<string, AIProvider>; failover?: Failover; identities?: Identities };
+export type Effort = NonNullable<Config['agents']['author']['effort']>;
+export type Role = { identity: Identity; provider: string; model: string; effort?: Effort; persona?: Persona };
+export type Answers = { repos: string[]; author: Role; reviewer: Role; leadReviewer?: Role; failover?: Failover };
 
 /** `forge:<agent>` or `gh`, the form used by flags and by the prompts' values. */
 export function parseIdentity(text: string): Identity {
@@ -36,32 +37,32 @@ export function parseProvider(text: string): LocalProvider {
 // A forge profile is named after its agent; the user's own login is just "gh".
 const profileName = (identity: Identity) => (identity.kind === 'gh' ? 'gh' : identity.agent);
 
-/** The user config (what goes in the file): only what has no default. The author's profile also acts as orchestrator. */
-export function buildConfig({ repos, author, reviewer, leadReviewer, providers, failover, identities }: Answers) {
+/** The user config (what goes in the file): only what has no default, and not the accounts, which go in `providers.json`. The author's profile also acts as orchestrator. */
+export function buildConfig({ repos, author, reviewer, leadReviewer, failover }: Answers) {
   const [a, r] = [profileName(author.identity), profileName(reviewer.identity)];
   const l = leadReviewer ? profileName(leadReviewer.identity) : undefined;
   return {
     repos: repos.map((name) => ({ name })),
-    ...(identities === 'shared' && { identities }), // the default, separate, is not written
     profiles: {
       [a]: author.identity,
       [r]: reviewer.identity,
       ...(l && leadReviewer ? { [l]: leadReviewer.identity } : {}),
     },
     orchestratorProfile: a,
-    providers,
     ...(failover && { failover }),
     agents: {
       author: {
         profile: a,
         provider: author.provider,
         model: author.model,
+        ...(author.effort && { effort: author.effort }),
         ...(author.persona && { persona: author.persona }),
       },
       reviewer: {
         profile: r,
         provider: reviewer.provider,
         model: reviewer.model,
+        ...(reviewer.effort && { effort: reviewer.effort }),
         ...(reviewer.persona && { persona: reviewer.persona }),
       },
       ...(leadReviewer && l ? {
@@ -69,6 +70,7 @@ export function buildConfig({ repos, author, reviewer, leadReviewer, providers, 
           profile: l,
           provider: leadReviewer.provider,
           model: leadReviewer.model,
+          ...(leadReviewer.effort && { effort: leadReviewer.effort }),
           ...(leadReviewer.persona && { persona: leadReviewer.persona }),
         },
       } : {}),

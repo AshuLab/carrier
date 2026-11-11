@@ -2,7 +2,8 @@ import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { codexChatRunner } from './codex.ts';
+import { argsOf, codexChatRunner, realCodexDeps } from './codex.ts';
+import { endGroup } from './group.ts';
 import type { ChatConversation, ChatEvent } from './runner.ts';
 
 // The real Codex, through the user's own `codex` binary and login, in a temporary folder: two turns in one conversation,
@@ -11,6 +12,8 @@ import type { ChatConversation, ChatEvent } from './runner.ts';
 // few tiny prompts at low reasoning effort, so it uses a little of the user's own plan. It only runs when this is set
 // explicitly:
 //   CARRIER_IT_CODEX_CHAT=1   (optional: CARRIER_IT_CODEX_COMMAND=<path to the codex binary>, else the one on the path)
+// One more test spends nothing: it starts `app-server` as the adapter does for an account that sets Auto-compact and reads the effective config
+// over the protocol, to show whether `-c model_auto_compact_token_limit` reaches the server the way it does `codex exec` (the open question of docs/specs/providers-in-settings.md).
 // No token is read or printed: the agent runs with the environment of this process, as the chat host runs it.
 const enabled = process.env.CARRIER_IT_CODEX_CHAT === '1';
 
@@ -71,5 +74,29 @@ describe.skipIf(!enabled)('the Codex chat adapter against the real Codex', () =>
     } finally {
       await conversation.close();
     }
+  });
+
+  test('app-server honours -c model_auto_compact_token_limit: the effective config carries the account\'s limit, and none without it', { timeout: 60_000 }, async () => {
+    const effectiveLimit = async (args: string[]) => {
+      const binary = realCodexDeps.resolve(process.env.CARRIER_IT_CODEX_COMMAND, process.env);
+      const transport = realCodexDeps.spawn(binary, { cwd: folder, env: process.env, args });
+      const replies = new Map<number, any>();
+      transport.onLine((line) => {
+        const message = JSON.parse(line);
+        if (typeof message.id === 'number') replies.set(message.id, message);
+      });
+      try {
+        transport.write(JSON.stringify({ id: 1, method: 'initialize', params: { clientInfo: { name: 'carrier', title: 'Carrier', version: '0.0.0' } } }));
+        await expect.poll(() => replies.has(1), { timeout: 30_000, interval: 50 }).toBe(true);
+        transport.write(JSON.stringify({ method: 'initialized' }));
+        transport.write(JSON.stringify({ id: 2, method: 'config/read', params: { includeLayers: false, cwd: folder } }));
+        await expect.poll(() => replies.has(2), { timeout: 30_000, interval: 50 }).toBe(true);
+        return replies.get(2).result.config.model_auto_compact_token_limit ?? null;
+      } finally {
+        await endGroup(transport.pid!);
+      }
+    };
+    expect(await effectiveLimit(argsOf({ autoCompact: 123456 }))).toBe(123456);
+    expect(await effectiveLimit(argsOf({}))).toBeNull();
   });
 });

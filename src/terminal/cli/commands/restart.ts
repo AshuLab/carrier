@@ -17,7 +17,7 @@ const refusals: Record<string, (target: string) => string> = {
   'not stopped': (target) => `${target} is not stopped, so there is nothing to restart.`,
   'github unavailable': () => 'GitHub did not answer, so nothing changed. Try again in a moment.',
   'did not restart': () => 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.',
-  'unknown option': () => 'That option is not in agentOptions of the configuration. Use a name declared there.',
+  'unknown option': () => 'That account is not declared in providers.json. Use a name declared there.',
 };
 
 /**
@@ -55,7 +55,6 @@ export async function restartCommand(folder: string, { repo, issue }: EpicTarget
     throw new CliError(1, 'Carrier is not running');
   }
   try {
-    if (client.hello.capabilities.includes('agentOptions') === false) throw new CliError(1, 'The running Carrier is too old to restart an epic on a chosen option (it lacks the agentOptions capability). Update it.');
     let chosen: Chosen = { ...(flags.author && { author: flags.author }), ...(flags.reviewer && { reviewer: flags.reviewer }) };
     if (flags.author === undefined && flags.reviewer === undefined && process.stdin.isTTY && process.stdout.isTTY) {
       const { epics } = (await client.request('snapshot')) as ControlSnapshot;

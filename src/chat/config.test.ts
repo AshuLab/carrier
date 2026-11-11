@@ -32,7 +32,7 @@ test('the chat lives in <folder>/chat, and the socket in its state folder', () =
 
 test('without the file, or with an empty one, every setting has its default', () => {
   const defaults = {
-    agents: [{ name: 'claude', harness: 'claude' }, { name: 'codex', harness: 'codex' }],
+    agents: [{ name: 'claude', account: 'claude' }, { name: 'codex', account: 'codex' }],
     projectsFolder: join(folder, 'chat', 'projects'),
     githubCallTimeoutSeconds: 30,
     logLevel: 'info',
@@ -45,11 +45,11 @@ test('without the file, or with an empty one, every setting has its default', ()
 });
 
 test('a key that is set replaces its default, agents in the order written and `~/` expanded', () => {
-  const agents = { zed: { harness: 'codex' }, work: { harness: 'claude', command: '/opt/claude', model: 'opus', options: { permissionMode: 'plan' } } };
+  const agents = { zed: { account: 'codex' }, work: { account: 'claude-work', model: 'opus', options: { permissionMode: 'plan' } } };
   write(JSON.stringify({ agents, projectsFolder: '~/Projects', githubCallTimeoutSeconds: 5, logLevel: 'debug', archiveAfterDays: 7, deleteAfterDays: 'never' }));
   expect(readChatConfig()).toEqual({
     ok: true,
-    settings: { agents: [{ name: 'zed', harness: 'codex' }, { name: 'work', ...agents.work }], projectsFolder: join(homedir(), 'Projects'), githubCallTimeoutSeconds: 5, logLevel: 'debug', archiveAfterDays: 7, deleteAfterDays: 'never' },
+    settings: { agents: [{ name: 'zed', account: 'codex' }, { name: 'work', ...agents.work }], projectsFolder: join(homedir(), 'Projects'), githubCallTimeoutSeconds: 5, logLevel: 'debug', archiveAfterDays: 7, deleteAfterDays: 'never' },
   });
   expect(loadChatConfig({ agents: {} }, folder)).toMatchObject({ ok: true, settings: { agents: [] } }); // none, not the defaults
 });
@@ -62,10 +62,17 @@ test('an unknown key, a wrong type or a bad value is an error naming the key', (
   for (const projectsFolder of ['', 'relative/dir', './x', '~other/dir', 5]) expect(errorsOf({ projectsFolder }).map((e) => e.path)).toEqual(['projectsFolder']);
   expect(errorsOf({ projectsFolder: 'x' })[0]!.message).toContain('absolute');
   const one = (agent: object, name = 'a') => errorsOf({ agents: { [name]: agent } });
-  expect(one({ harness: 'claude', extra: 1 }).map((e) => e.path)).toEqual(['agents.a']);
-  expect(one({ harness: 'agy' }).map((e) => e.path)).toEqual(['agents.a.harness']);
-  expect(one({ harness: 'claude', command: '' }).map((e) => e.path)).toEqual(['agents.a.command']);
-  for (const name of ['Work', 'my agent', '1st', '-x']) expect(one({ harness: 'claude' }, name).map((e) => e.path.startsWith('agents'))).toEqual([true]);
+  expect(one({ account: 'claude', extra: 1 }).map((e) => e.path)).toEqual(['agents.a']);
+  expect(one({ account: '' }).map((e) => e.path)).toEqual(['agents.a.account']);
+  expect(one({}).map((e) => e.path)).toEqual(['agents.a.account']);
+  for (const name of ['Work', 'my agent', '1st', '-x']) expect(one({ account: 'claude' }, name).map((e) => e.path.startsWith('agents'))).toEqual([true]);
+});
+
+test('an agent that still has harness or command is refused naming the key and the account that replaces it', () => {
+  const errors = errorsOf({ agents: { a: { account: 'claude', harness: 'claude', command: '/opt/claude' } } });
+  expect(errors.map((e) => e.path)).toEqual(['agents.a.harness', 'agents.a.command']);
+  for (const e of errors) expect(e.message).toContain('providers.json');
+  expect(loadChatConfig({ agents: { work: { account: 'claude-work', model: 'opus' } } }, folder)).toEqual({ ok: true, settings: expect.objectContaining({ agents: [{ name: 'work', account: 'claude-work', model: 'opus' }] }) });
 });
 
 test('the session ages default to 15 and 30, and one key alone takes the other\'s default', () => {

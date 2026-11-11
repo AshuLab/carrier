@@ -4,12 +4,15 @@ import { randomUUID } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, isNotNull, ne } from 'drizzle-orm';
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { carrierHome } from '../config/default-path.ts';
+import { chatAccount, readAccounts } from './account.ts';
 import type { ChatAgent, ChatSettings } from './config.ts';
 import { resolveBinary } from '../harnesses/common.ts';
 import type { Clock } from '../orchestration/clock.ts';
 import type { ChatDb } from './db.ts';
 import { checkFolder } from './folder.ts';
+import { realMachine, type Machine } from '../doctor/detect.ts';
 import { createHealth, realProbes, type HealthProbes } from './health.ts';
+import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
 import type { Plan, Step, StepEvent } from './plan.ts';
 import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
@@ -73,6 +76,8 @@ export type ChatSessionsDeps = {
   binaryFound: (command: string) => boolean;
   /** What the `health` request runs; the machine's own tools unless a test replaces it. */
   probes?: HealthProbes;
+  /** What the `providers` request asks of the machine; the real one unless a test replaces it. */
+  machine?: Machine;
   /** The lifecycle's ages now: `list` says from them when the clock will delete each archived session. */
   ages: () => SessionAges;
   /** Called when a session becomes or stops being live, so the host can start or cancel its own countdown. */
@@ -97,8 +102,9 @@ export function binaryFound(command: string): boolean {
 }
 
 /** The sessions of the chat host: what the socket's requests do, over `chat.db` and the runners. */
-export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, ages, onLiveChange }: ChatSessionsDeps) {
+export function createSessions({ db, agents, clock, runners, env, git, projects, binaryFound, probes = realProbes, machine = realMachine, ages, onLiveChange }: ChatSessionsDeps) {
   const health = createHealth({ agents, clock, binaryFound, probes });
+  const providers = createProviders({ clock, machine, binaryFound });
   const lives = new Map<string, Live>();
   /** Set by closeAll, the host's shutdown: a clock pass in flight leaves the sessions it has not reached alone. */
   let closed = false;
@@ -233,9 +239,18 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     if (lives.has(sessionId)) throw new ChatRefused('This session was resumed meanwhile; close it first'); // a resume that finished during the close
   }
 
-  async function openConversation(chosen: ChatAgent, runner: ChatRunner, args: { folder: string; options: Record<string, string>; resume?: string }) {
+  /** How an agent starts, from its account as `providers.json` has it now: refuses, naming the account, one that is missing or Antigravity's. */
+  const launchOf = (chosen: ChatAgent) => {
+    const { harness, command, launch, env: accountEnv } = chatAccount(readAccounts(), chosen, env);
+    const runner = runners[harness];
+    if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${harness}`);
+    return { chosen, harness, runner, command, launch, env: accountEnv };
+  };
+  type Launch = ReturnType<typeof launchOf>;
+
+  async function openConversation({ chosen, runner, command, launch, env }: Launch, args: { folder: string; options: Record<string, string>; resume?: string }) {
     try {
-      return await runner.open({ ...args, command: chosen.command, env });
+      return await runner.open({ ...args, command, launch, env });
     } catch (error) {
       if (error instanceof ChatRefused) throw error;
       log.error('a chat runner failed to open', error);
@@ -363,17 +378,18 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   }
 
   /** The steps of a plan, in the background: it never throws, a failure is recorded as a step that failed. */
-  async function prepare(sessionId: string, chosen: ChatAgent, runner: ChatRunner, base: string, plan: Plan, signal: AbortSignal) {
+  async function prepare(sessionId: string, launch: Launch, base: string, plan: Plan, signal: AbortSignal) {
     try {
       if (plan.workspace.kind === 'project' && (await makeProject(sessionId, plan.workspace.name)) === false) return;
       if (plan.workspace.kind === 'repo' && (await bring(sessionId, plan.workspace.repo, signal)) === false) return;
       const folder = await arrange(sessionId, plan.workspace.kind === 'project' ? row(sessionId).folder : base, plan, signal);
       if (folder === undefined || signal.aborted) return;
       stepEvent(sessionId, 'agent', 'running');
+      const { chosen } = launch;
       const options = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...plan.options };
       let conversation: ChatConversation | undefined;
       try {
-        conversation = await openConversation(chosen, runner, { folder, options });
+        conversation = await openConversation(launch, { folder, options });
         for (const [id, value] of Object.entries(options)) checkOption(conversation.options, id, value);
       } catch (error) {
         await conversation?.close().catch((closing) => log.error('closing a refused conversation failed', closing));
@@ -410,15 +426,13 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
   const targetOf = (plan: Plan) => {
     const chosen = agents.find((candidate) => candidate.name === plan.agent);
     if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${plan.agent}"`);
-    const runner = runners[chosen.harness];
-    if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
-    return { chosen, runner, folder: plan.workspace.kind === 'project' ? projectFolder(plan.workspace.name) : plan.workspace.kind === 'repo' ? projects.repoFolder(plan.workspace.repo) : checkFolder(plan.workspace.folder, carrierHome()) };
+    return { launch: launchOf(chosen), folder: plan.workspace.kind === 'project' ? projectFolder(plan.workspace.name) : plan.workspace.kind === 'repo' ? projects.repoFolder(plan.workspace.repo) : checkFolder(plan.workspace.folder, carrierHome()) };
   };
   /** Runs the steps of a plan in the background. */
-  const begin = (sessionId: string, { chosen, runner, folder }: ReturnType<typeof targetOf>, plan: Plan) => {
+  const begin = (sessionId: string, { launch, folder }: ReturnType<typeof targetOf>, plan: Plan) => {
     const running = { abort: new AbortController(), done: Promise.resolve() };
     preparing.set(sessionId, running);
-    running.done = prepare(sessionId, chosen, runner, folder, plan, running.abort.signal);
+    running.done = prepare(sessionId, launch, folder, plan, running.abort.signal);
   };
 
   /** What each agent offered when it was last asked (a draft lists the models before a session exists), kept ten minutes. */
@@ -435,9 +449,22 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       for (const [sessionId, live] of lives) armIdle(sessionId, live);
     },
 
-    agents: () => agents.map(({ name, harness, model, command }) => ({ name, harness, model, found: binaryFound(command ?? harness) })),
+    /** Each agent with its account's harness and whether that account's binary is found; one whose account is missing or Antigravity's is not found, and `unknown` for its harness when it has none. */
+    agents: () => {
+      const providers = readAccounts();
+      return agents.map((chosen) => {
+        try {
+          const { harness, command } = chatAccount(providers, chosen);
+          return { name: chosen.name, harness, model: chosen.model, found: binaryFound(command ?? harness) };
+        } catch (error) {
+          if (error instanceof ChatRefused === false) throw error;
+          return { name: chosen.name, harness: providers[chosen.account]?.harness ?? 'unknown', model: chosen.model, found: false };
+        }
+      });
+    },
 
     health,
+    providers,
 
     /** The rows, each with `lastMessage`, `turns` and `model` (see `activity`), `kept` (spared by the clock for unsaved work, only while it is due under the current ages) and `deleteAt` (when the clock deletes it, in ms; null unless archived, with both ages set and not kept). */
     list: ({ archived = false }: { archived?: boolean }) => {
@@ -455,15 +482,14 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const chosen = agents.find((candidate) => candidate.name === agent);
       if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
       const real = checkFolder(folder, carrierHome());
-      const runner = runners[chosen.harness];
-      if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
+      const launch = launchOf(chosen);
       const chosenOptions = { ...(chosen.model && { model: chosen.model }), ...chosen.options, ...options };
       const made = worktree === undefined ? undefined : await exclusive(() => createWorktree(git, real, worktree));
       let conversation: ChatConversation | undefined;
       let created: typeof sessions.$inferSelect;
       // One step: a worktree whose session could not be created is taken away again.
       try {
-        conversation = await openConversation(chosen, runner, { folder: made?.path ?? real, options: chosenOptions });
+        conversation = await openConversation(launch, { folder: made?.path ?? real, options: chosenOptions });
         for (const [id, value] of Object.entries(chosenOptions)) checkOption(conversation.options, id, value);
         const now = clock.now();
         created = db
@@ -471,7 +497,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
           .values({
             id: randomUUID(),
             agent: chosen.name,
-            harness: chosen.harness,
+            harness: launch.harness,
             folder: made?.path ?? real,
             ...(made !== undefined && { workspaceKind: 'worktree', worktreeBranch: made.branch, worktreeFrom: made.from, worktreeBase: made.base, worktreePath: made.path }),
             options: chosenOptions,
@@ -499,7 +525,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       const now = clock.now();
       const created = db
         .insert(sessions)
-        .values({ id: randomUUID(), agent: target.chosen.name, harness: target.chosen.harness, folder: target.folder, plan, title: titleOf(plan.text), state: 'preparing', createdAt: now, lastActiveAt: now })
+        .values({ id: randomUUID(), agent: target.launch.chosen.name, harness: target.launch.harness, folder: target.folder, plan, title: titleOf(plan.text), state: 'preparing', createdAt: now, lastActiveAt: now })
         .returning()
         .get();
       begin(created.id, target, plan); // before the answer, so the host is never idle between the reply and the first step
@@ -543,12 +569,11 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     async agentOptions({ agent }: { agent: string }) {
       const chosen = agents.find((candidate) => candidate.name === agent);
       if (chosen === undefined) throw new ChatRefused(`There is no chat agent named "${agent}"`);
-      const runner = runners[chosen.harness];
-      if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
+      const launch = launchOf(chosen);
       const known = offered.get(agent);
       if (known !== undefined && clock.now() - known.at < 10 * 60_000) return await known.offer;
       const offer = (async () => {
-        const conversation = await openConversation(chosen, runner, { folder: tmpdir(), options: { ...(chosen.model && { model: chosen.model }), ...chosen.options } });
+        const conversation = await openConversation(launch, { folder: tmpdir(), options: { ...(chosen.model && { model: chosen.model }), ...chosen.options } });
         try {
           return { options: [...conversation.options], commands: [...conversation.commands] };
         } finally {
@@ -573,11 +598,10 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
       if (deleting.has(sessionId)) throw new ChatRefused('This session is being deleted');
       const chosen = agents.find((candidate) => candidate.name === current.agent);
       if (chosen === undefined) throw new ChatRefused(`The agent "${current.agent}" of this session is not configured any more`);
-      const runner = runners[chosen.harness];
-      if (runner === undefined) throw new ChatRefused(`This host has no chat runner for ${chosen.harness}`);
+      const launch = launchOf(chosen);
       const folder = checkFolder(current.folder, carrierHome());
       // a session that never got a native id (nothing was said) has nothing to resume: it starts again, as it was opened
-      const conversation = await openConversation(chosen, runner, { folder, options: current.options ?? {}, ...(current.nativeId !== null && { resume: current.nativeId }) });
+      const conversation = await openConversation(launch, { folder, options: current.options ?? {}, ...(current.nativeId !== null && { resume: current.nativeId }) });
       if (lives.has(sessionId)) {
         // another client resumed it while this one waited for the provider
         await conversation.close();

@@ -59,6 +59,7 @@ const controls = (): ChatControls => ({
   githubRepos: async ({ page }) => ({ page }),
   repoBranches: async ({ repo }) => ({ repo }),
   health: async ({ refresh }) => ({ refresh }),
+  providers: async () => ({ accounts: [] }),
 });
 const seen: AbortSignal[] = [];
 async function open({ stop = async () => {}, clients = noClients } = {}) {
@@ -95,7 +96,7 @@ test('the socket is 0600, and a client gets a hello and the empty list', async (
   await open();
   expect(statSync(join(dir, 'chat.sock')).mode & 0o777).toBe(0o600);
   const c = await client();
-  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'plan', 'stop', 'reasoning', 'rename'] });
+  expect(c.hello).toMatchObject({ event: 'hello', protocol: 1, pid: process.pid, startedAt: 1234, capabilities: ['agents', 'list', 'open', 'resume', 'send', 'answer', 'interrupt', 'setOption', 'agentOptions', 'events', 'close', 'archive', 'delete', 'workspace', 'fetch', 'suggestName', 'checkName', 'deletePreview', 'cloneRepo', 'createProject', 'githubRepos', 'repoBranches', 'health', 'providers', 'plan', 'stop', 'reasoning', 'rename'] });
   expect(typeof c.hello.version).toBe('string');
   expect(await c.ask('{"id":1,"cmd":"list"}')).toEqual({ id: 1, ok: true, data: { sessions: [] } });
 });
@@ -109,6 +110,7 @@ test.each([
   ['an answer with no choice', `{"id":7,"cmd":"answer","sessionId":"${uuid}","approvalId":"a"}`, 7],
   ['a health refresh that is not a boolean', '{"id":8,"cmd":"health","refresh":"yes"}', 8],
   ['a health with an extra field', '{"id":10,"cmd":"health","agent":"claude"}', 10],
+  ['providers with a field', '{"id":12,"cmd":"providers","refresh":true}', 12],
   ['events asking for reasoning with a non-boolean', `{"id":11,"cmd":"events","sessionId":"${uuid}","limit":10,"reasoning":"yes"}`, 11],
   ['a missing id', '{"cmd":"list"}', null],
   ['a bad id', '{"id":-1,"cmd":"list"}', null],

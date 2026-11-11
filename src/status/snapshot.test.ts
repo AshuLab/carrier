@@ -7,7 +7,7 @@ import { openDatabase, type Db } from '../storage/db.ts';
 import { executions } from '../storage/executions.ts';
 import { epics, epicStates } from '../storage/schema.ts';
 import { renderPanel } from '../terminal/dashboard/plain.ts';
-import { buildSnapshot, watchedOf } from './snapshot.ts';
+import { buildSnapshot, optionsOf, watchedOf } from './snapshot.ts';
 
 let dir: string;
 let db: Db;
@@ -166,4 +166,10 @@ test('an epic carries its slices once they are known and null before', () => {
   expect(snapshot().epics.map((e) => e.slices)).toEqual([null, null]);
   slices = (repo, issue) => (repo === 'acme/web' && issue === 12 ? { done: 3, total: 5 } : null);
   expect(snapshot().epics.map((e) => e.slices)).toEqual([{ done: 3, total: 5 }, null]);
+});
+
+test('a restart is offered every account the epic declares, and no deadline comes with them', () => {
+  const providers = { claude: { harness: 'claude' as const }, codex: { harness: 'codex' as const }, spare: { harness: 'claude' as const } };
+  const options = optionsOf({ config: { providers, agents: {} } as never, authorOption: 'claude', reviewerOption: 'codex' });
+  expect(options).toEqual({ names: ['claude', 'codex', 'spare'], author: 'claude', reviewer: 'codex' });
 });

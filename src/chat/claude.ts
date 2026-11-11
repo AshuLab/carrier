@@ -3,7 +3,7 @@ import { query as sdkQuery, type ModelInfo, type PermissionResult, type Permissi
 import { createScopedLogger } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { endGroup, resolveAgentBinary } from './group.ts';
-import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner, type ChatUsage } from './runner.ts';
+import { ChatRefused, type ChatLaunch, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner, type ChatUsage } from './runner.ts';
 
 // The Claude adapter of the chat runner: the Agent SDK pointed at the user's own `claude` binary, which runs as the
 // leader of its own process group (docs/research/chat-spike.md). The SDK is only the transport: everything below the
@@ -48,7 +48,7 @@ export const realClaudeDeps: ClaudeChatDeps = { query: sdkQuery, resolve: resolv
 
 export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRunner {
   return {
-    async open({ folder, resume, options = {}, command, env }) {
+    async open({ folder, resume, options = {}, command, launch = {}, env }) {
       let binary: string;
       try {
         binary = deps.resolve(command, env);
@@ -56,9 +56,10 @@ export function claudeChatRunner(deps: ClaudeChatDeps = realClaudeDeps): ChatRun
         throw new ChatRefused(`Claude is not installed: ${command === undefined ? 'there is no "claude" on the path' : `"${command}" cannot be run`}`);
       }
       if (!(await deps.loggedIn(binary, env))) throw new ChatRefused('Claude is not logged in; run "claude" once to log in');
+      const extraArgs = extraArgsOf(launch); // before anything starts, so a refusal reaches the person in its own words
       const conversation = new ClaudeConversation(options, resume);
       try {
-        await conversation.start(deps, { folder, binary, env });
+        await conversation.start(deps, { folder, binary, env, extraArgs });
       } catch (error) {
         log.error('claude could not be started', error);
         await conversation.close();
@@ -103,7 +104,7 @@ class ClaudeConversation implements ChatConversation {
     this.effort = chosen.effort ?? '';
   }
 
-  async start(deps: ClaudeChatDeps, { folder, binary, env }: { folder: string; binary: string; env: NodeJS.ProcessEnv }) {
+  async start(deps: ClaudeChatDeps, { folder, binary, env, extraArgs }: { folder: string; binary: string; env: NodeJS.ProcessEnv; extraArgs: Record<string, string | null> }) {
     const spawnOwn = deps.spawn && ((o: Parameters<NonNullable<ClaudeChatDeps['spawn']>>[0]) => {
       const child = deps.spawn!(o);
       this.pid = (child as { pid?: number }).pid;
@@ -118,7 +119,7 @@ class ClaudeConversation implements ChatConversation {
         pathToClaudeCodeExecutable: binary,
         includePartialMessages: true,
         // by default Claude Code sends each thinking block with its text left out, so there is nothing to show; this asks for the summary
-        extraArgs: { 'thinking-display': 'summarized' },
+        extraArgs: { ...extraArgs, 'thinking-display': 'summarized' },
         canUseTool: (tool, input, { toolUseID, suggestions = [], title }) => this.ask(toolUseID, tool, input, suggestions, title),
         ...(spawnOwn && { spawnClaudeCodeProcess: spawnOwn }),
         ...(this.chosen.model && { model: this.chosen.model }),
@@ -323,6 +324,26 @@ class ClaudeConversation implements ChatConversation {
     events.push({ kind: 'turn_end', outcome: interrupted ? 'interrupted' : m.is_error ? 'error' : 'ok', model, usage });
     return events;
   }
+}
+
+/**
+ * The account's compaction and launch arguments as the SDK's `extraArgs`, which renders `--key value` or `--key`. A launch argument that is not
+ * a `--flag` with an optional value cannot be said that way and is refused; the message names its place, never its text.
+ */
+export function extraArgsOf({ autoCompact, idleCompaction, launchArgs = [] }: ChatLaunch): Record<string, string | null> {
+  const extra: Record<string, string | null> = {};
+  for (let i = 0; i < launchArgs.length; i++) {
+    const token = launchArgs[i]!;
+    if (token.startsWith('--') === false || token.length === 2) throw new ChatRefused(`launchArgs entry ${i + 1} is not a --flag: a chat passes only long flags`);
+    const [key, ...inline] = token.slice(2).split('=');
+    const next = launchArgs[i + 1];
+    if (inline.length > 0) extra[key!] = inline.join('=');
+    else if (next !== undefined && next.startsWith('-') === false) extra[key!] = launchArgs[++i]!;
+    else extra[key!] = null;
+  }
+  if (autoCompact !== undefined) extra.autocompact = String(autoCompact);
+  if (idleCompaction !== undefined) extra.settings = JSON.stringify({ idleCompaction });
+  return extra;
 }
 
 /** Messages the person typed, as the stream the SDK reads; it ends when the conversation closes. */

@@ -1,4 +1,5 @@
 import { defaults, loadConfig } from '../../config/load.ts';
+import { sameAccount } from '../../config/resolve.ts';
 import { loadProviders } from '../../config/providers.ts';
 import type { Config } from '../../config/schema.ts';
 import type { AIProvider, Failover, Identities, Role } from './build-config.ts';
@@ -19,7 +20,7 @@ export function priorFrom(raw: unknown, rawProviders: unknown): Prior | undefine
   const providers = Object.fromEntries(Object.entries(config.providers).map(([name, p]) => [name, p.configDir ? { ...p, configDir: tilde(p.configDir) } : p]));
   return {
     repos: config.repos.map((r) => r.name),
-    identities: config.identities,
+    identities: sameAccount(config.profiles[config.agents.author.profile]!, config.profiles[config.agents.reviewer.profile]!) ? 'shared' : 'separate',
     providers,
     ...(config.failover && { failover: config.failover }),
     author: role(config.agents.author),

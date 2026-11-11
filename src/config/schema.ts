@@ -1,7 +1,6 @@
 import { LogLevel } from '@ashulab/universal-logger';
 import { z } from 'zod';
 import { accounts } from './providers.ts';
-import { resolveRepoConfig } from './resolve.ts';
 
 /** `owner/name`, each part a plain folder name: the managed clone lives in `repos/<owner>/<name>`. */
 export const repoNamePattern = /^(?!\.{1,2}\/)(?!.*\/\.{1,2}$)[\w.-]+\/[\w.-]+$/;
@@ -64,8 +63,6 @@ export const configSchema = z
     pollIntervalMinutes: z.number().positive(),
     finishedWindowDays: z.int().min(1).max(30),
     logLevel: z.enum(LogLevel),
-    /** `shared`: the author and the reviewer may be the same GitHub profile (ADR 0011). */
-    identities: z.enum(['separate', 'shared']),
     repos: z
       .array(
         z.strictObject({
@@ -75,7 +72,8 @@ export const configSchema = z
       )
       .min(1),
     profiles: z.record(z.string(), profile),
-    orchestratorProfile: z.string().min(1),
+    /** Left out, it is the author's profile (ADR 0021). */
+    orchestratorProfile: z.string().min(1).optional(),
     /** Not a key of `config.json`: the loader puts here what `providers.json` declares (ADR 0020). */
     providers: accounts,
     agents: z.strictObject({ author: agent, reviewer: agent, leadReviewer: agent.optional() }),
@@ -93,7 +91,7 @@ export const configSchema = z
   })
   .superRefine((config, ctx) => {
     const refs: [(string | number)[], string][] = [
-      [['orchestratorProfile'], config.orchestratorProfile],
+      ...(config.orchestratorProfile === undefined ? [] : ([[['orchestratorProfile'], config.orchestratorProfile]] as [(string | number)[], string][])),
       [['agents', 'author', 'profile'], config.agents.author.profile],
       [['agents', 'reviewer', 'profile'], config.agents.reviewer.profile],
     ];
@@ -162,32 +160,7 @@ export const configSchema = z
         }
       }
     });
-
-    // Under separate identities, author and reviewer must differ, globally and for each repo once its overrides are applied.
-    if (config.identities !== 'separate') return;
-    // A global clash is reported once, not again for every repo that inherits it.
-    const clash = (path: (string | number)[], where: string, profile: string, role1 = 'agents.author.profile', role2 = 'agents.reviewer.profile') =>
-      ctx.addIssue({
-        code: 'custom',
-        path,
-        message: `${where}${role1} and ${role2} must differ, both are "${profile}" (or set identities to "shared" to use one account for both)`,
-      });
-    if (config.agents.author.profile === config.agents.reviewer.profile) {
-      clash(['agents'], '', config.agents.author.profile);
-      return;
-    }
-    if (config.agents.leadReviewer && config.agents.author.profile === config.agents.leadReviewer.profile) {
-      clash(['agents'], '', config.agents.author.profile, 'agents.author.profile', 'agents.leadReviewer.profile');
-      return;
-    }
-    config.repos.forEach((repo, i) => {
-      const resolved = resolveRepoConfig(config, repo).agents;
-      if (!resolved.author || !resolved.reviewer) return;
-      if (resolved.author.profile === resolved.reviewer.profile) clash(['repos', i, 'agents'], `repo "${repo.name}": `, resolved.author.profile);
-      else if (resolved.leadReviewer && resolved.author.profile === resolved.leadReviewer.profile) {
-        clash(['repos', i, 'agents'], `repo "${repo.name}": `, resolved.author.profile, 'agents.author.profile', 'agents.leadReviewer.profile');
-      }
-    });
-  });
+  })
+  .transform((config) => ({ ...config, orchestratorProfile: config.orchestratorProfile ?? config.agents.author.profile }));
 
 export type Config = z.infer<typeof configSchema>;

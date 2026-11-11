@@ -20,11 +20,12 @@ test('buildConfig names a forge profile after its agent and the login "gh", and 
   expect(() => parseHarnessModel('gpt:4')).toThrow('invalid agent');
 });
 
-test('buildConfig writes identities only when shared, with one profile for both roles', () => {
+test('buildConfig never writes identities, and a shared pair is one profile for both roles', () => {
   const same = { ...answers, reviewer: { identity: parseIdentity('gh'), provider: 'codex', model: 'x:y' } };
   expect(buildConfig({ ...same, identities: 'separate' })).not.toHaveProperty('identities');
   const shared = buildConfig({ ...same, identities: 'shared' });
-  expect(shared).toMatchObject({ identities: 'shared', profiles: { gh: { kind: 'gh' } }, orchestratorProfile: 'gh' });
+  expect(shared).not.toHaveProperty('identities');
+  expect(shared).toMatchObject({ profiles: { gh: { kind: 'gh' } }, orchestratorProfile: 'gh' });
   expect(shared.agents.author.profile).toBe(shared.agents.reviewer.profile);
 });
 

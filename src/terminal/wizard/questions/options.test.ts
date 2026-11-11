@@ -33,7 +33,7 @@ test('the folder is chosen among the ones found, each with its login state, plus
     { value: '\0path', hint: undefined },
   ]);
   const config = load(written, out);
-  expect(config.providers).toEqual({ claude: { harness: 'claude', enabled: false }, codex: { harness: 'codex', enabled: false }, 'claude-ashu-lab': { harness: 'claude', configDir: '/h/.claude-ashu-lab' } }); // what was found, then the extra
+  expect(config.providers).toEqual({ claude: { harness: 'claude' }, codex: { harness: 'codex' }, 'claude-ashu-lab': { harness: 'claude', configDir: '/h/.claude-ashu-lab' } }); // what was found, then the extra
 });
 
 test('a typed path is validated, and a login that cannot be checked is said so', async () => {
@@ -159,7 +159,7 @@ test('the flags declare the options and skip the section, the failover question 
   await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'claude:m1', reviewer: 'claude:m2', out, yes: true }, ui, deps);
   expect(asked.filter((q) => !q.startsWith('outro') && !q.startsWith('checks:'))).toEqual([]);
   const config = load(written, out);
-  expect(config.providers).toEqual({ claude: { harness: 'claude', enabled: false }, codex: { harness: 'codex', enabled: false } }); // the flags name what was found
+  expect(config.providers).toEqual({ claude: { harness: 'claude' }, codex: { harness: 'codex' } }); // the flags name what was found
   expect(config.agents).toMatchObject({
     author: { provider: 'claude', model: 'm1' },
     reviewer: { provider: 'claude', model: 'm2' },

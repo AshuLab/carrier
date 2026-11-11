@@ -87,8 +87,8 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   const repos = flags.repo ?? (await askRepos(ui, deps, prior?.repos));
 
   // 1. AI Providers: accounts and connections (pure setup, no models)
-  // What was found becomes the accounts, switched off for epics; an edit starts from the file's own accounts instead.
-  let providers: Record<string, AIProvider> = prior !== undefined && deps.exists(providersPath) ? { ...prior.providers } : Object.fromEntries(harnesses.map((harness) => [harness, { harness, enabled: false }]));
+  // What was found becomes the accounts; an edit starts from the file's own accounts instead.
+  let providers: Record<string, AIProvider> = prior !== undefined && deps.exists(providersPath) ? { ...prior.providers } : Object.fromEntries(harnesses.map((harness) => [harness, { harness }]));
   const flagged = (roleKey: 'author' | 'reviewer' | 'leadReviewer', roleName: 'author' | 'reviewer' | 'lead reviewer') => {
     const flag = flags[roleKey];
     if (flag === undefined) return undefined;

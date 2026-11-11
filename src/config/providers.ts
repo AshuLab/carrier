@@ -27,9 +27,7 @@ export const account = z.strictObject({
   idleCompaction: z.boolean().optional(),
   /** Appended to the arguments Carrier passes; the flags Carrier sets itself are refused. */
   launchArgs: z.array(z.string().min(1)).optional(),
-  /** Whether the account is offered when an epic's agent option is chosen; true when absent. A role, a failover list or a chat agent may name it either way. */
-  enabled: z.boolean().optional(),
-});
+}, { error: (issue) => (issue.code === 'unrecognized_keys' && issue.keys.includes('enabled') ? 'enabled is gone: an epic starts at once on its roles and no choice is held, so there is nothing to switch off. Remove it' : undefined) });
 
 /** The accounts by name, each one checked on its own and against its harness. */
 export const accounts = z.record(z.string(), account).superRefine((all, ctx) => {
@@ -79,13 +77,10 @@ export const runtimeOf = ({ command, autoCompact, idleCompaction, launchArgs }: 
   ...(launchArgs !== undefined && { launchArgs }),
 });
 
-/** Without `providers.json`: one account per harness, named after it, with this Mac's own login, offered to nobody. */
-export const defaultAccounts: Providers = Object.fromEntries(harnessNames.map((harness) => [harness, { harness, enabled: false }]));
+/** Without `providers.json`: one account per harness, named after it, with this Mac's own login. */
+export const defaultAccounts: Providers = Object.fromEntries(harnessNames.map((harness) => [harness, { harness }]));
 
 const providersFileSchema = z.strictObject({ providers: accounts.default(defaultAccounts) });
-
-/** The names of the accounts offered for an epic's choice, which is also what the choice wait counts: the enabled ones. */
-export const offeredNames = (directory: Record<string, { harness: string; enabled?: boolean }> | undefined) => Object.entries(directory ?? {}).filter(([, a]) => a.enabled !== false).map(([name]) => name);
 
 export type ProvidersError = { path: string; message: string };
 export type ProvidersResult = { ok: true; providers: Providers } | { ok: false; errors: ProvidersError[] };

@@ -363,7 +363,7 @@ test('a Carrier that speaks another protocol makes the commands exit 2', async (
 });
 
 // A stand-in for a running Carrier in the folder `home`: says hello, records every request and answers `reply(request)`; `ok` is the answer, an Error refuses it.
-async function fakeCarrier(home: string, { capabilities = ['agentOptions', 'resumeEpic'], reply = (): unknown => undefined }: { capabilities?: string[]; reply?: (request: any) => unknown } = {}) {
+async function fakeCarrier(home: string, { capabilities = ['resumeEpic'], reply = (): unknown => undefined }: { capabilities?: string[]; reply?: (request: any) => unknown } = {}) {
   mkdirSync(join(home, 'engine', 'state'), { recursive: true });
   const requests: any[] = [];
   const server = createServer((connection) => {
@@ -414,7 +414,7 @@ test.each([
   ['not stopped', 'AshuLab/carrier#5 is not stopped, so there is nothing to restart.'],
   ['github unavailable', 'GitHub did not answer, so nothing changed. Try again in a moment.'],
   ['did not restart', 'The ready label is back on the issue, but the epic did not start within 30 seconds. The next check will take it.'],
-  ['unknown option', 'That option is not in agentOptions of the configuration. Use a name declared there.'],
+  ['unknown option', 'That account is not declared in providers.json. Use a name declared there.'],
   ['internal error', 'Carrier refused: internal error'],
 ])('restart refused as "%s" says what it means and exits 1', async (reason, words) => {
   home = withAccounts(join(dir, 'r2'));
@@ -422,19 +422,6 @@ test.each([
   try {
     const result = await runAsync('restart', 'AshuLab/carrier#5');
     expect([result.status, result.stdout, result.stderr]).toEqual([1, 'Restarting AshuLab/carrier#5…\n', `${words}\n`]);
-  } finally {
-    carrier.close();
-  }
-});
-
-test('restart against an engine without the agentOptions capability says so and sends nothing', async () => {
-  home = withAccounts(join(dir, 'r3'));
-  const carrier = await fakeCarrier(home, { capabilities: ['resumeEpic'] });
-  try {
-    const result = await runAsync('restart', 'AshuLab/carrier#5');
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain('agentOptions');
-    expect(carrier.requests).toEqual([]);
   } finally {
     carrier.close();
   }

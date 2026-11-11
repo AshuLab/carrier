@@ -45,7 +45,7 @@ test('the questions fill a config that has only what defaults lack, and the doct
       reviewer: { profile: 'tassadar-agent', provider: 'codex', model: 'gpt-test' }, // author's bot is not offered again; codex default from ~/.codex
     },
   });
-  expect(providersWritten(written)).toEqual({ claude: { harness: 'claude', enabled: false }, codex: { harness: 'codex', enabled: false } });
+  expect(providersWritten(written)).toEqual({ claude: { harness: 'claude' }, codex: { harness: 'codex' } });
   expect(doctored).toMatchObject({ pollIntervalMinutes: 5, providers: { claude: { harness: 'claude' } } }); // the doctor gets the merged config, accounts included
   expect(result.checks).toEqual([okCheck]);
   expect(asked.at(-1)).toContain(`carrier --config ${out}`);
@@ -59,7 +59,7 @@ test('every flag skips its question', async () => {
   expect(asked.filter((a) => !a.startsWith('outro') && !a.startsWith('checks:'))).toEqual([]);
   const config = JSON.parse(written[out]!);
   expect(config).not.toHaveProperty('providers');
-  expect(providersWritten(written)).toEqual({ claude: { harness: 'claude', enabled: false }, codex: { harness: 'codex', enabled: false } }); // the flags name what was detected
+  expect(providersWritten(written)).toEqual({ claude: { harness: 'claude' }, codex: { harness: 'codex' } }); // the flags name what was detected
   expect(config.agents).toEqual({ author: { profile: 'artanis-agent', provider: 'codex', model: 'm1' }, reviewer: { profile: 'gh', provider: 'claude', model: 'm2' } });
   expect(loadConfig(defaults, config, providersWritten(written) as never).ok).toBe(true);
 });
@@ -74,7 +74,7 @@ test('providers are not asked: what the detector found is shown and written swit
   expect(notes.find((n) => n.title === 'Found on this Mac')!.message).toBe(
     ['Claude Code  /opt/bin/claude · 2.1.3 · signed in', 'Codex        /opt/bin/codex · 0.5.0 · signed out', 'Antigravity  not found', 'LM Studio    not running', 'Ollama       running · 1 models'].join('\n'),
   );
-  expect(providersWritten(written, folder)).toEqual({ claude: { harness: 'claude', enabled: false }, codex: { harness: 'codex', enabled: false }, 'claude-2': { harness: 'claude', provider: 'ollama' } });
+  expect(providersWritten(written, folder)).toEqual({ claude: { harness: 'claude' }, codex: { harness: 'codex' }, 'claude-2': { harness: 'claude', provider: 'ollama' } });
   expect(notes.find((n) => n.title === 'This is what will be saved')!.message).toContain(`Accounts in ${join(folder, 'providers.json')}`); // not next to --out
 });
 
@@ -84,7 +84,7 @@ test('a flag adds its account to the file, and an unattended run asks nothing', 
   const folder = join(dir, 'carrier-home-e');
   await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'claude:m1', authorProvider: 'ollama', reviewer: 'codex:m2', out: join(dir, 'e.json'), yes: true }, ui, deps, folder);
   expect(asked.filter((a) => !a.startsWith('outro') && !a.startsWith('checks:'))).toEqual([]);
-  expect(providersWritten(written, folder)).toEqual({ claude: { harness: 'claude', enabled: false }, codex: { harness: 'codex', enabled: false }, 'claude-author': { harness: 'claude', provider: 'ollama' } });
+  expect(providersWritten(written, folder)).toEqual({ claude: { harness: 'claude' }, codex: { harness: 'codex' }, 'claude-author': { harness: 'claude', provider: 'ollama' } });
 });
 
 test('failed checks are reported in the closing line', async () => {

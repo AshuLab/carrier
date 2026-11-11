@@ -272,6 +272,14 @@ describe('providers', () => {
     expect(loaded.ok === false && loaded.errors[0]!.message).toBe('provider "claude" is not declared in providers');
   });
 
+  test('with no providers.json the config has claude, codex and agy disabled, and a role that names claude loads', () => {
+    const { providers: _, ...file } = valid;
+    const accounts = loadProviders({});
+    if (!accounts.ok) throw new Error('defaults');
+    const loaded = loadConfig(defaults, file, accounts.providers);
+    expect(loaded).toMatchObject({ ok: true, config: { providers: { claude: { harness: 'claude', enabled: false }, codex: { harness: 'codex', enabled: false }, agy: { harness: 'agy', enabled: false } }, agents: { author: { provider: 'claude' } } } });
+  });
+
   test('a config.json that still has `providers` is refused with a message that names providers.json', () => {
     expect(loadConfig(defaults, valid)).toEqual({ ok: false, errors: [{ path: 'providers', message: expect.stringContaining('providers.json') }] });
   });

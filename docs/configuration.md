@@ -66,13 +66,13 @@ The accounts the roles name (`claude` and `codex` here) are declared in `provide
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
-| `limits.optionChoiceSeconds` | no | `60` | With two or more accounts in `providers.json`, how long a reserved epic holds its slot waiting for the provider of each role to be chosen. When it passes, or nobody answers, the epic starts on the defaults of `agents`. With one provider nothing waits. |
+| `limits.optionChoiceSeconds` | no | `60` | With two or more enabled accounts, how long a reserved epic holds its slot waiting for the provider of each role to be chosen. When it passes, or nobody answers, the epic starts on the defaults of `agents`. With fewer than two enabled accounts nothing waits. |
 
 ## AI providers
 
 An AI provider represents an account/login setup for an AI harness (e.g. Claude Code with a specific `configDir`, Antigravity, or Codex). A provider defines the account and installation independently of the model.
 
-The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `config.json` and wherever `--config` points: [ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md). It is optional (without it no role can name an account), it is read when the engine starts, and a file that does not match stops it with the key named. A `config.json` that still has `providers` is refused and told to move it here.
+The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `config.json` and wherever `--config` points: [ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md). It is optional (without it there is one account per harness, see below), it is read when the engine starts, and a file that does not match stops it with the key named. A `config.json` that still has `providers` is refused and told to move it here.
 
 ```json
 {
@@ -94,6 +94,7 @@ The file has one key, `providers`, and no other.
 | `displayName` | no | What an app shows instead of the key: one line, trimmed, 1 to 60 characters. |
 | `model` | no | Optional default model for this provider connection, used when failover moves to this provider or when inherited by a role. |
 | `provider` | no | Who serves the model: `lmstudio` or `ollama` for a local server; without it, the harness's own cloud. See [Local models](#local-models). Not for `agy`. |
+| `enabled` | no | Whether the account is offered when an epic's agent option is chosen, and counted for the wait of [Choosing the provider of an epic](#choosing-the-provider-of-an-epic). `true` when absent, so an account written by hand is offered. A role, a failover list, a repo override or a restart may name an account whether it is enabled or not. |
 | `configDir` | no | The harness's config folder, which holds its login: `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. It must be an absolute path once a leading `~` is expanded. Without it the agent inherits the environment of the process that started Carrier. Not for `agy`. |
 | `command` | no | The binary to run, instead of looking the harness's name up on the `PATH`. An absolute path, or one that starts with `~/`. `carrier doctor` fails the account when it does not exist or does not run (`--version`). |
 | `autoCompact` | no | When the CLI compacts the conversation. Claude: `"auto"` or a token count from 100000 to 1000000, passed as `--autocompact`. Codex: a positive token count, passed as `-c model_auto_compact_token_limit=N`. Not for `agy`. |
@@ -106,6 +107,8 @@ A flag in `launchArgs` is judged by its name, so `--model=x` and `--model x` are
 - Codex: `--model`, `--json`, `--dangerously-bypass-approvals-and-sandbox`, `--sandbox`, and the key of a `-c` or `--config` pair, in each form the CLI takes (`-c k=v`, `-ck=v`, `--config k=v`, `--config=k=v`), when it is `model_provider`, `carrier_marker` or `model_auto_compact_token_limit`.
 
 The file holds no secret; a log names an account and a flag, never the value of an argument.
+
+Without `providers.json` there is one account per harness, named after it: `claude`, `codex` and `agy`, each with this Mac's own login (no `configDir`) and `enabled: false`. A role may name them, and since none is offered an epic never waits for a choice. A file that has a `providers` key replaces them: only the accounts it lists exist.
 
 `carrier init` writes the providers it collects to `providers.json` in the Carrier folder, even when `--out` puts the config elsewhere, and when it edits an existing setup it starts from the accounts already in that file. When assigning roles, each role points at a declared provider and specifies its model.
 
@@ -127,7 +130,7 @@ Each role in `agents` (`author`, `reviewer`, and optional `leadReviewer`) specif
 
 ### Choosing the provider of an epic
 
-With one provider nothing is asked. With two or more, a reserved epic does not start its author at once: it holds its slot for `limits.optionChoiceSeconds` (default 60) while the provider of each role can be chosen over the control socket (`chooseOptions`, listed in the hello's `capabilities` as `agentOptions`). `carrier status` shows the epic as waiting for its choice, with the seconds left. A role that is not chosen runs on the provider `agents.<role>.provider` names, and so does every role when the time passes, when nobody answers, or when Carrier starts again after the deadline.
+With fewer than two enabled providers nothing is asked. With two or more, a reserved epic does not start its author at once: it holds its slot for `limits.optionChoiceSeconds` (default 60) while the provider of each role can be chosen over the control socket (`chooseOptions`, listed in the hello's `capabilities` as `agentOptions`). `carrier status` shows the epic as waiting for its choice, with the seconds left, and lists only the enabled accounts as the ones to choose from; a restart may still name a disabled account that is declared. A role that is not chosen runs on the provider `agents.<role>.provider` names, and so does every role when the time passes, when nobody answers, or when Carrier starts again after the deadline.
 
 ### Failover
 

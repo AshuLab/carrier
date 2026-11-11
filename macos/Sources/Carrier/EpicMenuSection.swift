@@ -36,10 +36,11 @@ final class EpicMenuSection: NSObject, NSMenuDelegate {
         let item = NSMenuItem(title: epic.title, action: #selector(open(_:)), keyEquivalent: "")
         item.target = self
         item.representedObject = epic
+        item.toolTip = epic.detail
         item.attributedTitle = {
             let text = NSMutableAttributedString(string: epic.title)
             text.append(NSAttributedString(
-                string: "\n" + epic.detail,
+                string: "\n" + Self.shortened(epic.detail),
                 attributes: [.font: NSFont.menuFont(ofSize: 11), .foregroundColor: NSColor.secondaryLabelColor]
             ))
             return text
@@ -47,6 +48,14 @@ final class EpicMenuSection: NSObject, NSMenuDelegate {
         showIcon(epic.state.symbol, on: item, color: Self.color(epic.state))
         if let badge = epic.badge { item.badge = NSMenuItemBadge(string: badge) }
         return item
+    }
+
+    /// A menu is as wide as its longest line, so a long reason (a needs-human note can be a paragraph) would stretch it across the screen:
+    /// one line of at most `detailLimit` characters here, the whole text in the tooltip.
+    private static let detailLimit = 70
+    private static func shortened(_ text: String) -> String {
+        let line = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return line.count > detailLimit ? line.prefix(detailLimit - 1).trimmingCharacters(in: .whitespaces) + "…" : line
     }
 
     private static func color(_ state: EpicMenuState) -> NSColor {

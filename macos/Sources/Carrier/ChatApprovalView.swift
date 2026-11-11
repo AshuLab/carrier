@@ -16,7 +16,7 @@ struct ApprovalCardView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark").font(.scaled(12, weight: .bold)).foregroundStyle(.white)
-                    .frame(width: 26, height: 26).background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.orange))
+                    .frame(width: 26, height: 26).background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.attention))
                 Text(card.question).font(.scaled(14, weight: .semibold))
                 Spacer(minLength: 0)
                 Text(behind > 0 ? "\(behind) more waiting" : "Waiting for you").font(.scaled(11)).foregroundStyle(.secondary)
@@ -28,7 +28,7 @@ struct ApprovalCardView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular.tint(Color.orange.opacity(0.25)), in: .rect(cornerRadius: 18))
+        .glassEffect(.regular.tint(Color.attention.opacity(0.16)), in: .rect(cornerRadius: 18))
         .accessibilityElement(children: .contain)
     }
 
@@ -60,15 +60,20 @@ struct ApprovalCardView: View {
     }
 }
 
+extension Color {
+    /// What asks for the person's attention (approvals, questions): a dusty amber, less bright than the system orange.
+    static let attention = Color(hue: 0.07, saturation: 0.5, brightness: 0.78)
+}
+
 /// What an answered approval became: one line, with a check when the choice allowed and a cross when it did not.
 struct ApprovalDecidedView: View {
     let text: String
     let allow: Bool
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: allow ? "checkmark" : "xmark").foregroundStyle(allow ? Color.green : Color.red)
-            Text(text).foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
+            Text(text).foregroundStyle(.secondary).lineLimit(8).textSelection(.enabled)
         }
         .codeFont(12)
     }

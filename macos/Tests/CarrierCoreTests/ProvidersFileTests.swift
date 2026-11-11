@@ -87,7 +87,7 @@ private final class ProvidersHost: ChatHost, @unchecked Sendable {
     func createProject(_ name: String) async throws -> String { throw ControlError.closed }
     func githubRepos(page: Int) async throws -> GithubReposPage { throw ControlError.closed }
     func deletePreview(_ ids: [String]) async throws -> [SessionDeletePreview] { [] }
-    func answer(_ id: String, approval: String, choice: String) async throws {}
+    func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws {}
     func events(_ id: String, after: Int, limit: Int) async throws -> ChatEvents { ChatEvents(events: [], cursor: after, options: [], commands: []) }
     func setOption(_ id: String, option: String, value: String) async throws {}
 }

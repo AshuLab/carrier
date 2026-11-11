@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>Links in messages — directions</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="shared.css">
+<style>
+/* l- = this page only */
+.l-top{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.l-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(560px,1fr));gap:20px;max-width:1700px}
+.l-stage{border-radius:22px;background:var(--win);box-shadow:var(--shadow);padding:20px 26px 26px;min-width:0;position:relative}
+.l-h{font-size:11px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:0 0 3px}
+.l-h b{color:var(--text);letter-spacing:0}
+.l-why{color:var(--dim);font-size:12px;margin:0 0 14px;line-height:1.45;min-height:34px}
+.l-msg{font-size:14px;line-height:1.62;color:var(--text);display:flex;flex-direction:column;gap:11px}
+.l-msg p{margin:0}
+.l-msg ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:5px}
+.l-sec{color:var(--dim);font-size:12px}
+.l-note{margin-top:14px;padding-top:12px;border-top:.5px solid var(--line);color:var(--dim);font-size:12px;line-height:1.5}
+.l-note b{color:var(--text)}
+.l-cost{display:inline-block;font-size:10.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:99px;margin-right:6px;vertical-align:1px}
+.l-cost.lo{background:rgba(48,209,88,.16);color:#5fe08a}.l-cost.md{background:rgba(255,159,10,.16);color:#ffb340}.l-cost.hi{background:rgba(255,69,58,.16);color:#ff7a70}
+svg.l-i{width:12px;height:12px;flex:none;display:inline-block;vertical-align:-1.5px}
+:root{--l-link:#4aa3ff}
+body.light{--l-link:#0a6cdc}
+
+/* ---- 0 · today ---- */
+.l-0 a{color:var(--l-link);text-decoration:none;cursor:pointer}
+
+/* ---- A · arrow ---- */
+.l-A a{color:var(--l-link);text-decoration:none;cursor:pointer;border-radius:4px;padding:0 1px;transition:background .15s}
+.l-A a svg{width:10px;height:10px;margin-left:2px;opacity:.75;vertical-align:0;transition:transform .15s,opacity .15s}
+.l-A a:hover{background:color-mix(in srgb,var(--l-link) 14%,transparent);text-decoration:underline;text-underline-offset:3px}
+.l-A a:hover svg{opacity:1;transform:translate(1px,-1px)}
+
+/* ---- B · chip ---- */
+.l-B a.c{display:inline-flex;align-items:center;gap:5px;vertical-align:baseline;margin:0 1px;padding:1px 4px 1px 8px;border-radius:99px;background:color-mix(in srgb,var(--l-link) 13%,transparent);color:var(--l-link);text-decoration:none;font-size:13px;line-height:1.5;cursor:pointer;box-shadow:0 0 0 .5px color-mix(in srgb,var(--l-link) 30%,transparent) inset;transition:background .15s}
+.l-B a.c:hover{background:color-mix(in srgb,var(--l-link) 22%,transparent)}
+.l-B a.c .dom{color:color-mix(in srgb,var(--l-link) 55%,var(--dim));font-size:11.5px}
+.l-B a.c .cp{display:inline-grid;place-items:center;width:0;height:18px;border-radius:99px;overflow:hidden;opacity:0;transition:width .16s,opacity .16s,background .15s;color:var(--l-link)}
+.l-B a.c:hover .cp,.l-B a.c.hov .cp{width:18px;opacity:1}
+.l-B a.c .cp:hover{background:color-mix(in srgb,var(--l-link) 25%,transparent)}
+.l-B a.c:not(:hover) .tail{width:4px}
+.l-B a.c .ln{width:11px;height:11px}
+
+/* ---- C · hover card ---- */
+.l-C a{color:var(--l-link);text-decoration:none;cursor:pointer;position:relative;border-bottom:1px dashed color-mix(in srgb,var(--l-link) 55%,transparent)}
+.l-C a svg{width:10px;height:10px;margin-left:2px;opacity:.75;vertical-align:0}
+.l-C a:hover{border-bottom-style:solid}
+.l-C .card{position:absolute;left:-8px;top:calc(100% + 10px);z-index:5;width:330px;padding:12px;border-radius:16px;
+  background:rgba(40,40,46,.86);backdrop-filter:blur(30px) saturate(1.6);box-shadow:0 12px 36px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.14) inset;
+  opacity:0;pointer-events:none;transform:translateY(-4px) scale(.98);transform-origin:top left;transition:opacity .14s,transform .14s;color:var(--text);font-size:12.5px;line-height:1.4;white-space:normal;cursor:default}
+body.light .l-C .card{background:rgba(250,250,252,.9)}
+.l-C a:hover .card,.l-C a.hov .card{opacity:1;pointer-events:auto;transform:none;transition-delay:.25s}
+.l-C .card .tl{display:flex;gap:10px;align-items:center}
+.l-tile{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-weight:700;font-size:14px;color:#fff;flex:none;box-shadow:0 0 0 .5px rgba(255,255,255,.25) inset}
+.l-C .card .tt{font-weight:600;font-size:13px;color:var(--text)}
+.l-C .card .uu{color:var(--dim);font-size:11.5px;font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:240px;margin-top:1px}
+.l-C .card .bt{display:flex;gap:6px;margin-top:11px}
+.l-btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:99px;border:0;font:inherit;font-size:12px;font-weight:550;color:var(--text);background:var(--card2);box-shadow:0 0 0 .5px var(--line) inset;cursor:pointer}
+.l-btn:hover{background:rgba(255,255,255,.16)}
+.l-btn.pri{background:#2f7be0;color:#fff}
+.l-btn.ok{color:var(--green)}
+
+/* ---- D · link rows for standalone links + A inline ---- */
+.l-D a.in{color:var(--l-link);text-decoration:none;cursor:pointer;border-radius:4px;padding:0 1px}
+.l-D a.in svg{width:10px;height:10px;margin-left:2px;opacity:.75;vertical-align:0}
+.l-D a.in:hover{background:color-mix(in srgb,var(--l-link) 14%,transparent);text-decoration:underline;text-underline-offset:3px}
+.l-row{display:flex;align-items:center;gap:11px;padding:8px 10px 8px 8px;border-radius:12px;background:var(--card);box-shadow:0 0 0 .5px var(--line) inset;text-decoration:none;color:var(--text);cursor:pointer;transition:background .15s;max-width:100%}
+.l-row:hover{background:var(--card2)}
+.l-row .tx{min-width:0;flex:1}
+.l-row .tt{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.l-row .uu{color:var(--dim);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.l-row .act{display:flex;gap:2px;opacity:0;transition:opacity .15s}
+.l-row:hover .act,.l-row.hov .act{opacity:1}
+.l-ib{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:var(--dim);background:transparent}
+.l-ib:hover{background:var(--card2);color:var(--text)}
+.l-ib.ok{color:var(--green)}
+.l-ib svg{width:13px;height:13px}
+.l-rowflex{display:flex;flex-direction:column;gap:6px;margin:2px 0}
+
+.l-states{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:10px 0 0;font-size:11.5px;color:var(--faint)}
+.l-states span.lab{display:block;margin-bottom:5px}
+.l-ctx{margin-top:14px;display:inline-block;min-width:200px;border-radius:12px;padding:5px;background:rgba(40,40,46,.9);box-shadow:0 10px 30px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.14) inset;font-size:12.5px}
+body.light .l-ctx{background:rgba(250,250,252,.95)}
+.l-ctx div{padding:4px 10px;border-radius:6px;display:flex;justify-content:space-between;gap:20px}
+.l-ctx div.on{background:#2f6bdb;color:#fff}
+.l-ctx div i{font-style:normal;opacity:.55}
+.l-ctx hr{border:0;border-top:.5px solid var(--line);margin:4px 6px}
+.l-panel{max-width:1100px;margin:22px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.l-panel div{background:var(--card);border-radius:12px;padding:12px 15px;color:var(--dim);line-height:1.5}
+.l-panel b{display:block;color:var(--text);margin-bottom:3px}
+code.l-k{font:11.5px var(--mono);background:rgba(0,0,0,.28);padding:1px 6px;border-radius:5px;color:var(--text)}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="l-ext" viewBox="0 0 12 12"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" d="M4 2.5H2.5v7h7V8M6.5 2h3.5v3.5M10 2L5.5 6.5"/></symbol>
+  <symbol id="l-arrow" viewBox="0 0 12 12"><path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M3.5 8.5l5-5M4 3.5h4.5V8"/></symbol>
+  <symbol id="l-link" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" d="M6.8 9.2a2.6 2.6 0 003.7 0l2.2-2.2a2.6 2.6 0 00-3.7-3.7l-.7.7M9.2 6.8a2.6 2.6 0 00-3.7 0L3.3 9a2.6 2.6 0 003.7 3.7l.7-.7"/></symbol>
+  <symbol id="l-copy" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="1.3" d="M5.5 5.5V3.2c0-.4.3-.7.7-.7h6.6c.4 0 .7.3.7.7v6.6c0 .4-.3.7-.7.7h-2.3M3.2 5.5h6.6c.4 0 .7.3.7.7v6.6c0 .4-.3.7-.7.7H3.2c-.4 0-.7-.3-.7-.7V6.2c0-.4.3-.7.7-.7z"/></symbol>
+  <symbol id="l-ok" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M3.5 8.5l3 3 6-7"/></symbol>
+</defs></svg>
+
+<h1>Links en los mensajes — direcciones</h1>
+<p class="sub">Hoy un link es texto azul sin más: no se distingue de una palabra resaltada, no dice a dónde va ni deja copiarlo sin abrirlo. El texto de los mensajes es un <code class="l-k">Text(AttributedString)</code> con el atributo <code class="l-k">.link</code>, y el código en línea ya es una pastilla hecha con atributos; por eso cada opción trae su <b>costo de implementación</b> en SwiftUI. Pasa el mouse sobre los links, o activa "Forzar hover".</p>
+<div class="l-top">
+  <button class="tab" id="l-hov">Forzar hover</button>
+  <button class="tab" id="l-theme">Claro / oscuro</button>
+</div>
+
+<div class="l-grid">
+
+<!-- ================= 0 ================= -->
+<section class="l-stage l-0">
+  <p class="l-h"><b>Hoy</b></p>
+  <p class="l-why">Azul, sin ícono, sin subrayado. No se ve que es un link hasta que lo tocas, y no hay forma de copiarlo.</p>
+  <div class="l-msg">
+    <p>La RC se ve sana con el tráfico observado, pero todavía no hay volumen suficiente para sacar conclusiones firmes. <a>Dashboard de Fury</a>.</p>
+    <p>Los detalles están en <a>el PR #748</a> y en <a>https://github.com/AshuLab/carrier/pull/748/files#diff-3f2a9c</a>.</p>
+  </div>
+</section>
+
+<!-- ================= A ================= -->
+<section class="l-stage l-A">
+  <p class="l-h"><b>A</b> · flecha ↗ al final</p>
+  <p class="l-why">El texto sigue siendo texto, pero termina en una flechita que dice "esto sale de la app". Al pasar el mouse: fondo suave y subrayado. Copiar va en el menú contextual (clic derecho).</p>
+  <div class="l-msg">
+    <p>La RC se ve sana con el tráfico observado, pero todavía no hay volumen suficiente para sacar conclusiones firmes. <a>Dashboard de Fury<svg class="l-i"><use href="#l-arrow"/></svg></a>.</p>
+    <p>Los detalles están en <a>el PR #748<svg class="l-i"><use href="#l-arrow"/></svg></a> y en <a>github.com/…/pull/748/files<svg class="l-i"><use href="#l-arrow"/></svg></a>.</p>
+  </div>
+  <div class="l-ctx"><div class="on">Open Link<i>↩</i></div><div>Copy Link<i></i></div><hr><div>Copy Link Text<i></i></div></div>
+  <div class="l-note"><span class="l-cost lo">costo bajo</span><b>Gana:</b> casi gratis (un <code class="l-k">Text(Image)</code> al final de la corrida del link, y <code class="l-k">.contextMenu</code>). Se lee bien en medio de una frase. <b>Cuesta:</b> copiar queda escondido en el clic derecho; no hay una pista visual de a dónde va.</div>
+</section>
+
+<!-- ================= B ================= -->
+<section class="l-stage l-B">
+  <p class="l-h"><b>B</b> · pastilla con ícono, dominio y copiar</p>
+  <p class="l-why">Cada link es una pastilla en la línea: ícono de link, el texto y el dominio atenuado. Al pasar el mouse crece un botón de copiar dentro de la misma pastilla.</p>
+  <div class="l-msg">
+    <p>La RC se ve sana con el tráfico observado, pero todavía no hay volumen suficiente para sacar conclusiones firmes. <a class="c"><svg class="l-i ln"><use href="#l-link"/></svg>Dashboard de Fury<span class="dom">fury.ashulab.com</span><span class="cp" title="Copy link"><svg class="l-i"><use href="#l-copy"/></svg></span></a>.</p>
+    <p>Los detalles están en <a class="c"><svg class="l-i ln"><use href="#l-link"/></svg>el PR #748<span class="dom">github.com</span><span class="cp"><svg class="l-i"><use href="#l-copy"/></svg></span></a> y en <a class="c"><svg class="l-i ln"><use href="#l-link"/></svg>pull/748/files<span class="dom">github.com</span><span class="cp"><svg class="l-i"><use href="#l-copy"/></svg></span></a>.</p>
+  </div>
+  <div class="l-states">
+    <div><span class="lab">reposo</span><span class="l-B"><a class="c"><svg class="l-i ln"><use href="#l-link"/></svg>Dashboard<span class="dom">fury.ashulab.com</span><span class="cp"><svg class="l-i"><use href="#l-copy"/></svg></span></a></span></div>
+    <div><span class="lab">hover</span><span class="l-B"><a class="c hov"><svg class="l-i ln"><use href="#l-link"/></svg>Dashboard<span class="dom">fury.ashulab.com</span><span class="cp"><svg class="l-i"><use href="#l-copy"/></svg></span></a></span></div>
+    <div><span class="lab">copiado</span><span class="l-B"><a class="c hov"><svg class="l-i ln"><use href="#l-link"/></svg>Dashboard<span class="dom">fury.ashulab.com</span><span class="cp" style="color:var(--green)"><svg class="l-i"><use href="#l-ok"/></svg></span></a></span></div>
+  </div>
+  <div class="l-note"><span class="l-cost hi">costo alto</span><b>Gana:</b> es lo más claro y deja copiar sin menú. <b>Cuesta:</b> un botón dentro del texto no se puede hacer en un <code class="l-k">Text</code>: habría que dibujar los mensajes con un layout propio (palabras y pastillas en un flujo), y eso toca selección de texto, cortes de línea y accesibilidad de todos los mensajes. Una pastilla simple, sin botón, sí es más barata (como el código en línea).</div>
+</section>
+
+<!-- ================= C ================= -->
+<section class="l-stage l-C">
+  <p class="l-h"><b>C</b> · texto con subrayado punteado y tarjeta al pasar el mouse</p>
+  <p class="l-why">El texto casi no cambia (subrayado punteado + flecha). Tras 0,25 s de hover sale una tarjeta de vidrio: ícono con la inicial del sitio, nombre, dirección completa recortada en el medio, y Abrir / Copiar.</p>
+  <div class="l-msg" style="min-height:230px">
+    <p>La RC se ve sana con el tráfico observado, pero todavía no hay volumen suficiente para sacar conclusiones firmes. <a class="hov" id="l-c1">Dashboard de Fury<svg class="l-i"><use href="#l-arrow"/></svg>
+      <span class="card"><span class="tl"><span class="l-tile" style="background:#e5603b">F</span><span style="min-width:0"><span class="tt" style="display:block">Dashboard de Fury</span><span class="uu" style="display:block">https://fury.ashulab.com/dashboards/rc-health</span></span></span>
+      <span class="bt"><button class="l-btn pri"><svg class="l-i"><use href="#l-arrow"/></svg>Open</button><button class="l-btn" data-copy><svg class="l-i"><use href="#l-copy"/></svg><span>Copy link</span></button></span></span></a>.</p>
+    <p>Los detalles están en <a>el PR #748<svg class="l-i"><use href="#l-arrow"/></svg></a>.</p>
+  </div>
+  <div class="l-note"><span class="l-cost md">costo medio</span><b>Gana:</b> el mensaje se lee limpio, y la tarjeta da todo (a dónde va, copiar) sin ocupar espacio. <b>Cuesta:</b> en SwiftUI no hay hover por palabra dentro de un <code class="l-k">Text</code>; hace falta saber dónde cayó la corrida del link (un <code class="l-k">Layout</code> o <code class="l-k">NSTextView</code> propio). Y el hover no existe con el teclado ni con VoiceOver: copiar seguiría en el menú contextual.</div>
+</section>
+
+<!-- ================= D ================= -->
+<section class="l-stage l-D">
+  <p class="l-h"><b>D</b> · en línea como A, y fila propia para los links sueltos</p>
+  <p class="l-why">Dos casos: el link dentro de una frase se queda como en A (flecha). El que va solo en su línea, o la URL "cruda" larga, se convierte en una fila de vidrio: ícono, título, dirección recortada y, al pasar el mouse, Copiar y Abrir a la derecha.</p>
+  <div class="l-msg">
+    <p>La RC se ve sana con el tráfico observado, pero todavía no hay volumen suficiente para sacar conclusiones firmes. <a class="in">Dashboard de Fury<svg class="l-i"><use href="#l-arrow"/></svg></a>.</p>
+    <p>Dejé los dos enlaces que usé:</p>
+    <div class="l-rowflex">
+      <a class="l-row hov"><span class="l-tile" style="background:#e5603b">F</span><span class="tx"><span class="tt" style="display:block">Dashboard de Fury</span><span class="uu" style="display:block">fury.ashulab.com/dashboards/rc-health</span></span><span class="act"><span class="l-ib" data-copy title="Copy link"><svg><use href="#l-copy"/></svg></span><span class="l-ib"><svg><use href="#l-arrow"/></svg></span></span></a>
+      <a class="l-row"><span class="l-tile" style="background:#34383f">G</span><span class="tx"><span class="tt" style="display:block">AshuLab/carrier · pull/748/files</span><span class="uu" style="display:block">github.com/AshuLab/carrier/pull/748/files#diff-3f2a9c…</span></span><span class="act"><span class="l-ib" data-copy><svg><use href="#l-copy"/></svg></span><span class="l-ib"><svg><use href="#l-arrow"/></svg></span></span></a>
+    </div>
+  </div>
+  <div class="l-note"><span class="l-cost lo">costo bajo–medio</span><b>Gana:</b> los links sueltos y las URLs largas (lo que más estorba hoy) tienen un lugar propio con Copiar visible, y los de frase siguen simples. Una fila es una vista SwiftUI normal, con botones, foco y VoiceOver de verdad. <b>Cuesta:</b> hay que decidir cuándo un link "va solo" (párrafo que es solo un link, o una URL cruda de más de ~40 caracteres); el título del enlace es el del markdown, o el dominio si no hay.</div>
+</section>
+
+</div>
+
+<div class="l-panel">
+  <div><b>Comportamiento común (cualquier opción)</b>Clic abre en el navegador predeterminado. Clic derecho: Open Link, Copy Link, Copy Link Text. Tooltip nativo (<code class="l-k">.help</code>) con la dirección completa. Solo <code class="l-k">http</code>/<code class="l-k">https</code>/<code class="l-k">mailto</code> se abren; cualquier otro esquema queda como texto. Un link con texto distinto a su dirección ("Dashboard de Fury" → otro dominio) muestra siempre el dominio real, para que no engañe.</div>
+  <div><b>Qué recomiendo</b><b style="display:inline;font-weight:650">D.</b> Resuelve lo que más molesta (URLs largas y links sueltos) con vistas normales y accesibles, y deja los links de frase con la flecha de A, que es casi gratis. B es lo más vistoso pero obliga a rehacer cómo se dibuja el texto; C se puede sumar después sobre A si hace falta más información al pasar el mouse.</div>
+</div>
+
+<script>
+document.getElementById('l-theme').onclick=()=>document.body.classList.toggle('light');
+let forced=false;
+document.getElementById('l-hov').onclick=e=>{forced=!forced;e.target.classList.toggle('on',forced);
+  document.querySelectorAll('.l-B a.c').forEach(a=>a.classList.toggle('hov',forced));
+  document.querySelectorAll('.l-C a').forEach(a=>{ if(a.id!=='l-c1') a.classList.toggle('hov',forced) });
+  document.querySelectorAll('.l-row').forEach(a=>a.classList.toggle('hov',forced));
+};
+// copy feedback
+document.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',e=>{
+  e.preventDefault();e.stopPropagation();
+  try{navigator.clipboard&&navigator.clipboard.writeText('https://fury.ashulab.com/dashboards/rc-health')}catch(_){}
+  const lab=b.querySelector('span'),svg=b.querySelector('use'),old=svg.getAttribute('href'),oldT=lab&&lab.textContent;
+  svg.setAttribute('href','#l-ok');b.classList.add('ok');if(lab)lab.textContent='Copied';
+  setTimeout(()=>{svg.setAttribute('href',old);b.classList.remove('ok');if(lab)lab.textContent=oldT},1300);
+}));
+document.querySelectorAll('.l-B .cp').forEach(c=>c.addEventListener('click',e=>{
+  e.preventDefault();e.stopPropagation();const u=c.querySelector('use'),o=u.getAttribute('href');u.setAttribute('href','#l-ok');c.style.color='var(--green)';
+  setTimeout(()=>{u.setAttribute('href',o);c.style.color=''},1300)}));
+</script>
+</body></html>

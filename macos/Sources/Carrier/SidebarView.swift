@@ -111,7 +111,7 @@ struct SidebarView: View {
             }
         }
         .themedSidebarBackground()
-        .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 320)
+        .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 600)
         .safeAreaBar(edge: .bottom, spacing: 0) {
             // Archive above the divider and Settings alone under it; both stay while the list above scrolls, over the system's scroll pocket
             VStack(spacing: 0) {
@@ -340,18 +340,6 @@ struct SidebarRowView: View {
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     private static let titleLine: CGFloat = 17, detailLine: CGFloat = 15
 
-    /// What the project's icon wears for the epic's state: a halo while it runs, a mark on its corner when there is something to say.
-    private var mark: ProjectIcon.Mark? {
-        switch row.state {
-        case .needsYou: .init(text: "!", color: (row.attention ?? .input).color, shape: row.state.shape(attention: row.attention))
-        case .ready: .init(text: "✓", color: .blue, shape: .ready)
-        case .done: .init(text: "✓", color: .green)
-        case .cancelled: .init(text: "✕", color: .gray)
-        case .running: .init(text: "", color: .blue, shape: .working)
-        case .waiting: nil
-        }
-    }
-
     private var detailColor: Color {
         guard row.state == .needsYou else { return .secondary }
         return row.attention == .error ? .red : SessionRowView.attention
@@ -359,7 +347,7 @@ struct SidebarRowView: View {
 
     var body: some View {
         HStack(spacing: SidebarMetrics.inset) {
-            ProjectIcon(name: row.name, colorKey: projectColorKey(row.repo), halo: row.state == .running, mark: mark)
+            ProjectIcon(name: row.name, colorKey: projectColorKey(row.repo), halo: row.state == .running)
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 // two lines before the ellipsis: a title is a sentence, and the number no longer takes room from it
                 Text(row.title ?? row.name).font(SidebarMetrics.item).lineLimit(2)

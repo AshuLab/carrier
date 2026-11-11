@@ -22,6 +22,8 @@ struct CommandTextView: NSViewRepresentable {
     /// Files dropped on the text: the box attaches them (true when it did).
     var onFiles: (([URL]) -> Bool)?
     var onFileDrag: ((Bool) -> Void)?
+    /// A text pasted that is longer than `pastedTextThreshold`: the box keeps it beside the text (true when it did).
+    var onLargePaste: ((String) -> Bool)?
     var sendKey = AppPreferences.defaultSendKey
     var writingTools = AppPreferences.defaultWritingTools
     var checksSpelling = AppPreferences.defaultChecksSpelling
@@ -60,6 +62,9 @@ struct CommandTextView: NSViewRepresentable {
         view.textContainerInset = NSSize.zero
         view.isVerticallyResizable = true
         view.isHorizontallyResizable = false
+        // a text view made in code starts with no room to grow: without these it stops at the height the box has and the lines after it are not reachable
+        view.minSize = NSSize(width: 0, height: 0)
+        view.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         view.autoresizingMask = NSView.AutoresizingMask.width
         view.typingAttributes = Self.attributes
         view.insertionPointColor = NSColor(Color.themeAccent)
@@ -83,6 +88,7 @@ struct CommandTextView: NSViewRepresentable {
         view.placeholder = placeholder
         view.onFiles = onFiles
         view.onFileDrag = onFileDrag
+        view.onLargePaste = onLargePaste
         view.insertionPointColor = NSColor(Color.themeAccent)
         // Writing Tools (Apple Intelligence) offer to rewrite what is selected, over the text: they are the person's to switch on
         view.writingToolsBehavior = writingTools ? .default : .none
@@ -90,13 +96,22 @@ struct CommandTextView: NSViewRepresentable {
         view.isAutomaticSpellingCorrectionEnabled = correctsSpelling
         let rescaled = coordinator.textSize != textSize
         coordinator.textSize = textSize
-        if view.hasMarkedText() == false {
+        // what the box itself reported is already in the text view: only a text or a command list that came from outside needs the work
+        let settled = rescaled == false && text == coordinator.reported && commands == coordinator.reportedCommands
+        if view.hasMarkedText() == false, settled == false {
             let rendered = render(text, commands: commands)
+            let length = (text as NSString).length
             if rescaled || view.plain != text || view.string != rendered.string {
-                view.replace(with: rendered, plainCursor: min(cursor, (text as NSString).length))
+                // a text put in from outside (a refused message that came back, a queued one taken back to edit) is written for the person
+                // to go on at its end; the caret the box knew was the one of the text it replaced
+                let outside = view.plain != text
+                view.replace(with: rendered, plainCursor: outside ? length : min(cursor, length))
+                if outside { DispatchQueue.main.async { if cursor != length { cursor = length } } }
             } else if view.plainOffset(of: view.selectedRange().location) != cursor {
                 view.setSelectedRange(NSRange(location: view.location(ofPlainOffset: cursor), length: 0))
             }
+            coordinator.reported = text
+            coordinator.reportedCommands = commands
         }
         if focus {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -110,7 +125,23 @@ struct CommandTextView: NSViewRepresentable {
     func sizeThatFits(_ proposal: ProposedViewSize, nsView scroll: NSScrollView, context: Context) -> CGSize? {
         guard let view = scroll.documentView as? PillTextView else { return nil }
         let width = proposal.width ?? 400
-        let used = Self.height(of: view.attributedString(), width: width)
+        // SwiftUI asks several times for each key with the same text and width: the layout is made once
+        let coordinator = context.coordinator
+        var key = Hasher()
+        key.combine(view.string)
+        key.combine(width)
+        key.combine(textSize)
+        let used: CGFloat
+        if let known = coordinator.measured, known.key == key.finalize() {
+            used = known.height
+        } else {
+            used = Self.height(of: view.attributedString(), width: width)
+            var again = Hasher()
+            again.combine(view.string)
+            again.combine(width)
+            again.combine(textSize)
+            coordinator.measured = (again.finalize(), used)
+        }
         let lines = CGFloat(minLines)...CGFloat(maxLines)
         return CGSize(width: width, height: min(max(used, lines.lowerBound * Self.lineHeight), lines.upperBound * Self.lineHeight))
     }
@@ -148,6 +179,11 @@ struct CommandTextView: NSViewRepresentable {
         var updating = false
         /// The text size the text view was last drawn at.
         var textSize: Int
+        /// The text and the commands the box last put in the text view or took from it: what is already there.
+        var reported = ""
+        var reportedCommands: [ChatCommand] = []
+        /// The height the last layout measured, and what it was measured for.
+        var measured: (key: Int, height: CGFloat)?
 
         init(_ parent: CommandTextView) {
             self.parent = parent
@@ -158,13 +194,19 @@ struct CommandTextView: NSViewRepresentable {
             guard updating == false, let view = notification.object as? PillTextView, view.hasMarkedText() == false else { return }
             let text = view.plain
             let cursor = view.plainOffset(of: view.selectedRange().location)
-            let rendered = parent.render(text, commands: parent.commands)
-            if view.string != rendered.string {
-                updating = true
-                view.replace(with: rendered, plainCursor: cursor)
-                updating = false
+            // a command becomes a pill only where there is a slash: no other text needs rendering again
+            if text.contains("/") {
+                let rendered = parent.render(text, commands: parent.commands)
+                if view.string != rendered.string {
+                    updating = true
+                    view.replace(with: rendered, plainCursor: cursor)
+                    updating = false
+                }
             }
             view.typingAttributes = CommandTextView.attributes
+            view.scrollRangeToVisible(view.selectedRange())
+            reported = text
+            reportedCommands = parent.commands
             parent.text = text
             parent.cursor = cursor
         }
@@ -207,6 +249,12 @@ private final class PillScrollView: NSScrollView {
         let width = contentSize.width
         if view.frame.width != width { view.setFrameSize(NSSize(width: width, height: view.frame.height)) }
         if container.size.width != width { container.size = NSSize(width: width, height: CGFloat.greatestFiniteMagnitude) }
+        // as tall as the text, and at least as the box, so what does not fit scrolls inside it
+        if let layout = view.layoutManager {
+            layout.ensureLayout(for: container)
+            let height = max(layout.usedRect(for: container).height, contentSize.height)
+            if abs(view.frame.height - height) > 0.5 { view.setFrameSize(NSSize(width: width, height: height)) }
+        }
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -221,7 +269,10 @@ private final class PillScrollView: NSScrollView {
 final class PillTextView: NSTextView {
     var placeholder = ""
 
-    var plain: String { plainText(textStorage ?? NSTextStorage()) }
+    /// Whether the text holds a pill: with none, the text is the plain text and positions are the same, and nothing needs counting.
+    private var hasPills: Bool { (string as NSString).range(of: "\u{FFFC}").location != NSNotFound }
+
+    var plain: String { hasPills ? plainText(textStorage ?? NSTextStorage()) : string }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -231,7 +282,13 @@ final class PillTextView: NSTextView {
         NSAttributedString(string: placeholder, attributes: attributes).draw(in: bounds)
     }
 
-    override func paste(_ sender: Any?) { pasteAsPlainText(sender) }
+    /// A paste that is long goes to the box as a card; any other is typed in as plain text.
+    var onLargePaste: ((String) -> Bool)?
+
+    override func paste(_ sender: Any?) {
+        if let pasted = NSPasteboard.general.string(forType: .string), pasted.utf16.count > pastedTextThreshold, onLargePaste?(pasted) == true { return }
+        pasteAsPlainText(sender)
+    }
 
     /// In an empty box the caret has the height of the font and sits at the top of a line that is taller (the box fixes the line height), so
     /// it rode above the placeholder and above the first letter typed; it goes down to where the text is drawn.
@@ -310,18 +367,21 @@ final class PillTextView: NSTextView {
         }
         typingAttributes = CommandTextView.attributes
         setSelectedRange(NSRange(location: location(ofPlainOffset: plainCursor), length: 0))
+        scrollRangeToVisible(selectedRange())
     }
 
     /// The position in the plain text of a position in the text.
     func plainOffset(of location: Int) -> Int {
         guard let storage = textStorage else { return location }
         let end = min(location, storage.length)
+        guard hasPills else { return end }
         return (plainText(storage.attributedSubstring(from: NSRange(location: 0, length: end))) as NSString).length
     }
 
     /// The position in the text of a position in the plain text; a pill is crossed whole.
     func location(ofPlainOffset offset: Int) -> Int {
         guard let storage = textStorage else { return offset }
+        guard hasPills else { return min(offset, storage.length) }
         var location = 0
         var counted = 0
         while location < storage.length, counted < offset {

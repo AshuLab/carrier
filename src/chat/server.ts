@@ -31,7 +31,7 @@ export const chatRequest = z.union([
   z.strictObject({ id, cmd: z.literal('resume'), sessionId }),
   // a message has text, unless it invokes a command, which may take nothing after its name
   z.strictObject({ id, cmd: z.literal('send'), sessionId, text: z.string(), command: z.string().min(1).max(1000).optional() }).refine((r) => r.text.length > 0 || r.command !== undefined),
-  z.strictObject({ id, cmd: z.literal('answer'), sessionId, approvalId: z.string().min(1), choiceId: z.string().min(1) }),
+  z.strictObject({ id, cmd: z.literal('answer'), sessionId, approvalId: z.string().min(1), choiceId: z.string().min(1), answers: z.record(z.string().max(1000), z.string().max(4000)).refine((a) => Object.keys(a).length <= 4).optional() }),
   z.strictObject({ id, cmd: z.literal('interrupt'), sessionId }),
   z.strictObject({ id, cmd: z.literal('agentOptions'), agent: z.string().min(1) }),
   z.strictObject({ id, cmd: z.literal('setOption'), sessionId, option: z.string().min(1), value: z.string().min(1) }),
@@ -113,7 +113,7 @@ async function run(request: Exclude<Request, { cmd: 'stop' }>, controls: ChatCon
     case 'send':
       return controls.send({ sessionId: request.sessionId, text: request.text, command: request.command });
     case 'answer':
-      return controls.answer({ sessionId: request.sessionId, approvalId: request.approvalId, choiceId: request.choiceId });
+      return controls.answer({ sessionId: request.sessionId, approvalId: request.approvalId, choiceId: request.choiceId, answers: request.answers });
     case 'interrupt':
       return controls.interrupt({ sessionId: request.sessionId });
     case 'agentOptions':

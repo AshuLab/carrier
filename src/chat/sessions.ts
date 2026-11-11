@@ -15,7 +15,7 @@ import { createHealth, realProbes, type HealthProbes } from './health.ts';
 import { createProviders } from './providers.ts';
 import type { Git } from './git.ts';
 import type { Plan, Step, StepEvent } from './plan.ts';
-import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner } from './runner.ts';
+import { ChatRefused, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner } from './runner.ts';
 import { chatEvents, chatTurns, sessions } from './schema.ts';
 import { boundEvent, chatCaps, previewOf, titleOf } from './transcript.ts';
 import { checkName, suggestName } from './names.ts';
@@ -44,7 +44,7 @@ export type SessionSummary = Omit<typeof sessions.$inferSelect, 'keptAt' | 'opti
   preparation: 'running' | 'failed' | null;
 };
 
-export type PendingApproval = { approvalId: string; tool: string; arg?: string; choices: ChatChoice[] };
+export type PendingApproval = { approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; questions?: ChatQuestion[] };
 
 /** A session whose agent process runs: what is only true while it does. */
 type Live = {
@@ -643,16 +643,22 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
     },
 
     /** Passes the person's choice for a pending approval to the agent; the adapter says it was answered and the host records that. */
-    answer({ sessionId, approvalId, choiceId }: { sessionId: string; approvalId: string; choiceId: string }) {
+    answer({ sessionId, approvalId, choiceId, answers }: { sessionId: string; approvalId: string; choiceId: string; answers?: Record<string, string> }) {
       row(sessionId);
       const live = lives.get(sessionId);
       if (live === undefined) throw new ChatRefused('This session is closed');
       const approval = live.approvals.get(approvalId);
       if (approval === undefined) throw new ChatRefused('That approval is not pending: it is unknown or was already answered');
       if (approval.choices.some((choice) => choice.id === choiceId) === false) throw new ChatRefused(`"${choiceId}" is not one of the choices: ${approval.choices.map((choice) => choice.id).join(', ')}`);
+      if (approval.questions === undefined && answers !== undefined) throw new ChatRefused('That approval asks no questions, so it takes no answers');
+      if (approval.questions !== undefined && choiceId === 'allow') {
+        if (answers === undefined) throw new ChatRefused('Answer the questions first');
+        const stray = Object.keys(answers).find((key) => approval.questions!.some((q) => q.question === key) === false);
+        if (stray !== undefined) throw new ChatRefused(`"${stray}" is not one of the questions`);
+      }
       live.approvals.delete(approvalId); // before the agent hears it, so a second answer finds nothing
       try {
-        live.conversation.answer(approvalId, choiceId);
+        live.conversation.answer(approvalId, choiceId, answers);
       } catch (error) {
         live.approvals.set(approvalId, approval);
         if (error instanceof ChatRefused) throw error;

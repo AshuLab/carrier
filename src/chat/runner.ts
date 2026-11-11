@@ -24,6 +24,8 @@ export type ChatCommand = {
   kind: 'skill' | 'command';
 };
 export type ChatChoice = { id: string; label: string; allow: boolean };
+/** A question the agent asks the person with options to pick from; the person may also write an answer of their own. */
+export type ChatQuestion = { question: string; header: string; options: { label: string; description: string; preview?: string }[]; multiSelect: boolean };
 /** As the provider reports it. */
 export type ChatUsage = Record<string, number>;
 
@@ -33,8 +35,8 @@ export type ChatEvent =
   | { kind: 'reasoning'; text: string } // one finished thinking block, before the answer of its turn; never streamed
   | { kind: 'delta'; text: string } // streaming, never stored
   | { kind: 'tool_start' | 'tool_end'; callId: string; tool: string; arg?: string; output?: string[]; status?: 'ok' | 'err' }
-  | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[] }
-  | { kind: 'approval_answered'; approvalId: string; choiceId: string }
+  | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; /** Set when the approval is the agent asking questions: the person answers them with `answers`. */ questions?: ChatQuestion[] }
+  | { kind: 'approval_answered'; approvalId: string; choiceId: string; /** Question text to the answer; a multiple choice joins its picks with a comma. */ answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
   | { kind: 'error'; text: string };
@@ -49,7 +51,7 @@ export interface ChatConversation {
   readonly process?: { pid: number; pgid: number; command: string };
   /** `text` is the message, or what follows the command's name when one is invoked (the provider's own way of invoking it is the adapter's). */
   send(text: string, command?: ChatCommand): void;
-  answer(approvalId: string, choiceId: string): void;
+  answer(approvalId: string, choiceId: string, answers?: Record<string, string>): void;
   interrupt(): Promise<void>;
   setOption(id: string, value: string): Promise<void>;
   close(): Promise<void>;

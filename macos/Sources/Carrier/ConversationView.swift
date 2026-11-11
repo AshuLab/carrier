@@ -16,7 +16,6 @@ struct ConversationView: View {
     /// Whether the feed has been taken to its end after it loaded: until then it is not drawn, so the way down is not seen.
     @State private var positioned = false
     @AppStorage(AppPreferences.toolOutputKey) private var toolOutput = AppPreferences.defaultToolOutput
-    @AppStorage(AppPreferences.opensFailedCallsKey) private var opensFailed = AppPreferences.defaultOpensFailedCalls
     @AppStorage(AppPreferences.densityKey) private var density = AppPreferences.defaultDensity
     @AppStorage(AppPreferences.showsReasoningKey) private var showsReasoning = AppPreferences.defaultShowsReasoning
     @AppStorage(AppPreferences.followsOutputKey) private var followsOutput = AppPreferences.defaultFollowsOutput
@@ -27,7 +26,6 @@ struct ConversationView: View {
     @State private var markers: [TurnMarker] = []
     /// The feed's column; medium is the one of the mockups (chat-ui-conv2.html).
     @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
-    @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
 
     /// Where the first message of the session the draft opened is handed over, so it shows while the session is prepared.
     private let draft: NewSessionModel?
@@ -69,17 +67,24 @@ struct ConversationView: View {
                         guard let index = feed.lastIndex(where: { if case .agent(_, _, false) = $0 { true } else { false } }) else { return nil }
                         return feed[index...].contains(where: { if case .agent(_, _, true) = $0 { true } else { false } }) ? nil : feed[index].id
                     }()
+                    // the run the agent is working in, whether an approval holds it and when the turn began
+                    let working = model.busy ? workInProgress(in: feed) : nil
+                    let waiting = pendingApprovals(model.rows).isEmpty == false
+                    let began = feed.last(where: { if case .user = $0 { true } else { false } }).flatMap { model.times[$0.id] }
                     ForEach(feed) { row in
                         FeedRowView(
-                            row: row, time: model.times[row.id], summary: closing[row.id], pinned: row.id == pinnedAnswer, flipped: $flipped, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
+                            row: row, time: model.times[row.id], summary: closing[row.id], pinned: row.id == pinnedAnswer, flipped: $flipped, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open && model.refusedText == nil,
+                            work: WorkState(live: row.id == working, waiting: waiting, since: began),
                             continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
                             answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
                         )
                         .transition(Self.transition(of: row))
                     }
-                    // between Enter and the first words of the answer
+                    // between Enter and the first thing the agent does: the card of its work already, so the first step takes its place unseen
                     if model.busy, model.steps.isEmpty, case .user = feed.last {
-                        ThinkingRow().transition(.opacity)
+                        ChatToolGroupView(id: "thinking", group: ToolGroup(calls: []), live: true, waiting: waiting, since: began, flipped: $flipped)
+                            // gone at once when the answer or the first step takes its place: left to fade with the rows' animation it stays under the answer's first line
+                            .transition(.asymmetric(insertion: .identity, removal: .opacity.animation(.linear(duration: 0.01))))
                     }
                 } else if model.failure == nil {
                     LoadingRow()
@@ -142,11 +147,15 @@ struct ConversationView: View {
         }
     }
 
-    /// A row comes in from the bottom and fades out, except an agent's message: it grows in place as it is written, and the message in
+    /// A row comes in from the bottom and fades out, except an agent's message and the run of the agent's work: it grows in place as it is written, and the message in
     /// progress is replaced by the finished one (another row id) with nothing to see, so it does not leave and come in again when the
     /// answer ends.
     private static func transition(of row: FeedRow) -> AnyTransition {
-        if case .agent = row { return .identity }
+        // the card of the agent's work is there from the first moment (see the card drawn while the agent starts), so it comes in with nothing to see
+        switch row {
+        case .agent, .tools: return .identity
+        default: break
+        }
         return .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity), removal: .opacity)
     }
 
@@ -156,7 +165,7 @@ struct ConversationView: View {
         case .stopAgent: if model.busy { Task { await model.stop() } }
         case .jumpToLatest: position.scrollTo(edge: .bottom)
         case .toggleToolFolds:
-            flipped = togglingToolGroups(in: visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning), mode: toolOutput, opensFailed: opensFailed, flipped: flipped)
+            flipped = togglingToolGroups(in: visibleFeed(model.rows, mode: toolOutput, showsReasoning: showsReasoning), flipped: flipped)
         case .copyLastAnswer:
             guard let answer = lastAnswer(in: model.rows) else { return }
             NSPasteboard.general.clearContents()
@@ -166,46 +175,52 @@ struct ConversationView: View {
 
     /// An archived session is read only: a notice with Resume, which takes it out of the archive (the next poll gives the box back).
     private var archivedBox: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "archivebox").foregroundStyle(.secondary)
-            Text(archivedSessionNotice).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
+        NoticeCard(symbol: "archivebox.fill", tint: .gray, title: archivedSessionNotice.title, detail: archivedSessionNotice.detail) {
             Button("Resume") { Task { if let refusal = await actions.restore(model.sessionId) { tell(refusal) } } }
-                .buttonStyle(.glassProminent).buttonBorderShape(.capsule)
+                .buttonStyle(HoverTextButtonStyle(tint: .themeAccent))
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 18).fill(Color.secondary.opacity(0.10)))
         .padding(.horizontal, 40).padding(.vertical, 12)
         .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
     }
 
     /// The message box, the same as the draft's (chat-ui-conv.html, section 3): the queued message above it, then the box with the
     /// session's provider and the options the provider lists in one button, and what the host refused under it.
-    private var box: some View {
+    private var box: some View { ConversationBox(model: model, boxFocused: $boxFocused) }
+}
+
+/// The box of an open session, in a view of its own: what is typed in it is `model.draft`, and a view that reads it is drawn again at every
+/// key, which for the whole conversation (its feed folded, filtered and laid out) made typing slow.
+private struct ConversationBox: View {
+    @Bindable var model: ConversationModel
+    @Binding var boxFocused: Bool
+    @AppStorage(AppPreferences.whileWorkingKey) private var whileWorking = AppPreferences.defaultWhileWorking
+    @AppStorage(AppPreferences.messageWidthKey) private var messageWidth = AppPreferences.defaultMessageWidth
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             let approvals = pendingApprovals(model.rows)
             if let card = approvals.first {
-                ApprovalCardView(card: card, behind: approvals.count - 1) { approval, choice in Task { await model.answer(approval, choice: choice) } }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-            if model.loaded, model.live == false { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
-            if let queued = model.queued {
-                HStack(spacing: 8) {
-                    Image(systemName: "clock").foregroundStyle(.secondary)
-                    Text(queued).lineLimit(2).textSelection(.enabled)
-                    Spacer(minLength: 0)
-                    Text(whileWorking == .interrupt ? "Sends when the agent stops" : "Sends when the agent finishes").font(.scaled(11)).foregroundStyle(.secondary)
-                    Button { model.cancelQueued() } label: { Image(systemName: "xmark.circle.fill") }
-                        .buttonStyle(.plain).foregroundStyle(.secondary).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
+                Group {
+                    if card.questions.isEmpty {
+                        ApprovalCardView(card: card, behind: approvals.count - 1) { approval, choice in Task { await model.answer(approval, choice: choice) } }
+                    } else {
+                        QuestionCardView(card: card, behind: approvals.count - 1) { approval, choice, answers in Task { await model.answer(approval, choice: choice, answers: answers) } }
+                            .id(card.approvalId)
+                    }
                 }
-                .font(.scaled(12))
-                .padding(.horizontal, 12).padding(.vertical, 8)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.secondary.opacity(0.12)))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            if model.asleep { ClosedSessionNotice(chosen: model.wakeOptions.isEmpty == false).transition(.opacity) }
+            if let queued = model.queued {
+                QueuedMessageCard(
+                    text: queued, interrupts: whileWorking == .interrupt,
+                    edit: { model.editQueued() }, sendNow: { Task { await model.sendQueuedNow() } }, cancel: { model.cancelQueued() }
+                )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             MessageBox(
                 text: $model.draft, placeholder: "Message the agent", minLines: 2,
-                canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, busy: model.busy,
+                canSend: model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false, canSendWithText: true, busy: model.busy,
                 focus: $boxFocused, commands: model.shownCommands, send: { Task { await model.submit(whileWorking: whileWorking) } }, stop: { Task { await model.stop() } }
             ) {
                 ComposerMenuButton(
@@ -213,7 +228,7 @@ struct ConversationView: View {
                     options: model.shownOptions,
                     // a closed session lists what it offered when it last ran, and what is chosen waits for the message that wakes it; one the app
                     // never saw running lists nothing, and the panel says so
-                    emptyNote: model.loaded && model.live == false ? "The provider lists these once the session is awake. Send a message to wake it up." : "Reading what the provider offers…",
+                    emptyNote: model.asleep ? "The provider lists these once the session is awake. Send a message to wake it up." : "Reading what the provider offers…",
                     busy: model.busy, chooseAgent: { _ in }, choose: { option, value in Task { await model.setOption(option, value) } }
                 )
             }
@@ -227,7 +242,7 @@ struct ConversationView: View {
             }
         }
         .animation(.smooth(duration: 0.25), value: model.queued)
-        .animation(.smooth(duration: 0.25), value: model.live)
+        .animation(.smooth(duration: 0.25), value: model.asleep)
         .animation(.smooth(duration: 0.25), value: pendingApprovals(model.rows).first?.approvalId)
         // the window asks the box for its smallest size with no width at all, and a notice that wraps would answer with a word a line:
         // taller than the window (a closed session's notice made it ask for 450 points more than it had)
@@ -252,6 +267,8 @@ private struct FeedRowView: View {
     let commands: [ChatCommand]
     /// Whether this is the stopped or failed turn the person can still act on: Continue and Try again show only there.
     let offersWayOut: Bool
+    /// What a run of the agent's work needs to know to draw itself: whether it is the one working now.
+    let work: WorkState
     let continueTurn: () -> Void
     let retry: () -> Void
     let answer: (String, String) -> Void
@@ -264,9 +281,16 @@ private struct FeedRowView: View {
         switch row {
         case .user(_, let text):
             // the files that came with it are chips over the bubble, and the bubble is what the person wrote
-            let sent = splitAttachments(text)
-            VStack(alignment: .trailing, spacing: 3) {
+            let attached = splitAttachments(text)
+            let sent = (paths: attached.paths, text: splitPastes(attached.text).text, pastes: splitPastes(attached.text).pastes)
+            VStack(alignment: .trailing, spacing: 8) {
                 if sent.paths.isEmpty == false { SentAttachments(paths: sent.paths).padding(.bottom, 3) }
+                if sent.pastes.isEmpty == false {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        ForEach(Array(sent.pastes.enumerated()), id: \.offset) { _, pasted in PastedTextCard(text: pasted).frame(maxWidth: 440) }
+                    }
+                    .padding(.bottom, 3)
+                }
                 if sent.text.isEmpty == false {
                     messageText(sent.text, commands: commands).textSelection(.enabled)
                         .padding(.horizontal, 13).padding(.vertical, 8)
@@ -278,19 +302,17 @@ private struct FeedRowView: View {
             .padding(.leading, 120)
             .onHover { hovering = $0 }
         case .agent(_, let text, let inProgress):
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 10) {
                 MarkdownView(text: text)
                 // the cursor takes the footer's height, so the answer does not grow when it ends and the footer takes its place
                 if inProgress { Text("▍").foregroundStyle(.secondary).frame(height: 24, alignment: .leading) }
                 if inProgress == false { footer(text, summary: summary, asks: true) }
             }
             .onHover { hovering = $0 }
-        case .reasoning(let id, let text):
-            ReasoningRow(id: id, text: text, flipped: $flipped)
         case .turnEnd(_, let summary):
             Text(summary.text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
         case .tools(let id, let group):
-            ChatToolGroupView(id: id, group: group, flipped: $flipped)
+            ChatToolGroupView(id: id, group: group, live: work.live, waiting: work.waiting, since: work.since, flipped: $flipped)
         case .approval:
             EmptyView() // drawn over the message box, never in the feed (`visibleFeed`)
         case .decided(_, let text, let allow):
@@ -314,7 +336,7 @@ extension FeedRowView {
     /// chip, how long, the tokens). The row is the same height with or without them, so showing them moves nothing; they fade in and out.
     fileprivate func footer(_ text: String, summary: TurnSummary?, asks: Bool) -> some View {
         let shown = hovering || pinned || copied
-        return HStack(spacing: 10) {
+        return HStack(spacing: 14) {
             copyControl(text, asks: asks).opacity(shown ? 1 : 0).allowsHitTesting(shown)
             stamp(shown: shown)
             if let summary { summaryView(summary).opacity(shown ? 1 : 0) }
@@ -407,77 +429,66 @@ struct MessageTimeLabel: View {
     }
 }
 
-/// A banner of a failed turn or a refused send: red for a failure, orange when the provider is not signed in (chat-ui-conv.html, section 3).
+/// A failed turn or a refused send: a `NoticeCard` in red (orange when the provider is not signed in, chat-ui-conv.html, section 3), with
+/// the way out as text that lights a pill under the pointer.
 private struct BannerView: View {
     let banner: FailureBanner
     /// Copy details puts the provider's text on the pasteboard; a failed turn has it, a refusal says its reason in full already.
     let copyDetails: Bool
     /// Nil when the turn is no longer the last thing: the banner is then only a record.
     let retry: (() -> Void)?
+    @State private var copied = false
 
     private var tint: Color { banner.hint == nil ? .red : .orange }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 11) {
-            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(tint)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(banner.title).fontWeight(.semibold)
-                Text(banner.detail).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
-                if let hint = banner.hint { Text(hint).font(.scaled(12)).foregroundStyle(.secondary) }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if let retry { Button("Try again", action: retry) }
+        NoticeCard(symbol: "exclamationmark", tint: tint, title: banner.title, detail: banner.detail, hint: banner.hint, edge: true) {
             if copyDetails {
-                Button("Copy details") {
+                Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(banner.detail, forType: .string)
-                }
+                    copied = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.3))
+                        copied = false
+                    }
+                } label: { Label(copied ? "Copied" : "Copy details", systemImage: copied ? "checkmark" : "doc.on.doc") }
+                    .buttonStyle(HoverTextButtonStyle(tint: copied ? .green : nil))
             }
+            if let retry { Button(action: retry) { Label("Try again", systemImage: "arrow.clockwise") }.buttonStyle(HoverTextButtonStyle(tint: tint)) }
         }
-        .font(.scaled(12))
-        .padding(.horizontal, 13).padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 16).fill(tint.opacity(0.11)))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(tint.opacity(0.5), lineWidth: 1))
     }
 }
 
-/// The agent has the message and has not said anything yet: three dots that run.
-private struct ThinkingRow: View {
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "ellipsis").symbolEffect(.variableColor.iterative, options: .repeating)
-            Text("Thinking…")
-        }
-        .font(.scaled(12)).foregroundStyle(.secondary)
-        .accessibilityElement(children: .combine)
-    }
+/// What a run of the agent's work draws itself from: whether it is the one working now, whether an approval holds it, when the turn began.
+private struct WorkState {
+    let live: Bool
+    let waiting: Bool
+    let since: Int?
 }
 
-/// The agent's reasoning under its message: one line that opens to the text; folded until the person opens it (kept in `flipped`).
-private struct ReasoningRow: View {
-    let id: String
+/// The message held while the agent answers: when it goes, and what it says under it. Clicking the message puts it back in the box to
+/// edit; Send now stops the turn and sends it (not offered when sending already stops the turn, which is what the setting says); the
+/// cross drops it.
+private struct QueuedMessageCard: View {
     let text: String
-    @Binding var flipped: Set<String>
+    let interrupts: Bool
+    let edit: () -> Void
+    let sendNow: () -> Void
+    let cancel: () -> Void
 
     var body: some View {
-        let open = flipped.contains(id)
-        VStack(alignment: .leading, spacing: 6) {
-            Button {
-                if open { flipped.remove(id) } else { flipped.insert(id) }
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "chevron.right").font(.scaled(9, weight: .semibold)).rotationEffect(.degrees(open ? 90 : 0))
-                    Text("Reasoning")
-                }
-                .font(.scaled(12)).foregroundStyle(.secondary)
+        NoticeCard(
+            symbol: "clock.fill", tint: .gray, title: interrupts ? "Sends when the agent stops" : "Sends when the agent finishes",
+            detail: messagePreview(text), detailLines: 2, onTap: edit
+        ) {
+            if interrupts == false {
+                Button("Send now", action: sendNow).buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).help("Stop the agent and send it now")
             }
-            .buttonStyle(.plain)
-            .accessibilityValue(open ? "expanded" : "collapsed")
-            if open {
-                Text(text).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
-                    .padding(.leading, 14).frame(maxWidth: .infinity, alignment: .leading)
-            }
+            Button(action: cancel) { Image(systemName: "xmark").font(.scaled(10, weight: .bold)) }
+                .buttonStyle(HoverTextButtonStyle(tint: nil)).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
         }
+        .help("Click the message to edit it")
     }
 }
 
@@ -487,21 +498,6 @@ private struct ClosedSessionNotice: View {
     let chosen: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "moon.zzz.fill")
-                .font(.scaled(14, weight: .medium)).foregroundStyle(.white)
-                .frame(width: 30, height: 30)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.indigo.opacity(0.85)))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(closedSessionNotice.title).fontWeight(.semibold)
-                Text(chosen ? closedSessionNotice.chosen : closedSessionNotice.detail).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .font(.scaled(12)).padding(12)
-        // glass, so the conversation that scrolls under it is blurred and not seen through it
-        .glassEffect(.regular.tint(Color.indigo.opacity(0.3)), in: .rect(cornerRadius: 12))
-        .accessibilityElement(children: .combine)
+        NoticeCard(symbol: "moon.zzz.fill", tint: .indigo, title: closedSessionNotice.title, detail: chosen ? closedSessionNotice.chosen : closedSessionNotice.detail, tinted: true) {}
     }
 }

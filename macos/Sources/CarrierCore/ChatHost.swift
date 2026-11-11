@@ -217,7 +217,7 @@ public protocol ChatHost {
     /// Ends the turn that is in progress.
     func interrupt(_ id: String) async throws
     /// Passes the person's choice for a pending approval to the agent; the host refuses one that is not pending and a choice the provider did not list.
-    func answer(_ id: String, approval: String, choice: String) async throws
+    func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws
 
     /// Changes one of the session's options; the host refuses a value the provider does not list and an option that can only change between turns.
     func setOption(_ id: String, option: String, value: String) async throws
@@ -235,6 +235,11 @@ public protocol ChatHost {
 }
 
 extension ChatHost {
+    /// An answer that is only a choice, the one every approval but a question has.
+    public func answer(_ id: String, approval: String, choice: String) async throws {
+        try await answer(id, approval: approval, choice: choice, answers: nil)
+    }
+
     /// A host that cannot prepare a session from a plan has nothing to try again.
     public func retryPreparation(_ id: String) async throws { throw ControlError.remote("the chat host does not support retryPreparation") }
 
@@ -398,7 +403,8 @@ public struct SocketChatHost: ChatHost {
     public func resume(_ id: String) async throws {
         let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
-        let _: AnyReply = try await Task.detached { try chatRequest(path, "resume", requires: .resume, fields: fields) }.value
+        // resuming starts the agent again and reads its whole history: a long session takes far more than the 5 seconds of a request that only asks
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "resume", requires: .resume, fields: fields, timeout: 60) }.value
     }
 
     /// The text goes on the wire JSON-encoded, so quotes, newlines and anything else in it stay inside the string.
@@ -417,12 +423,14 @@ public struct SocketChatHost: ChatHost {
     }
 
     /// Both ids go on the wire JSON-encoded, as they come from the provider.
-    public func answer(_ id: String, approval: String, choice: String) async throws {
+    public func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws {
         let encoder = JSONEncoder()
-        let fields = ",\"sessionId\":\"\(try wireId(id))\",\"approvalId\":" + String(decoding: try encoder.encode(approval), as: UTF8.self)
+        var fields = ",\"sessionId\":\"\(try wireId(id))\",\"approvalId\":" + String(decoding: try encoder.encode(approval), as: UTF8.self)
             + ",\"choiceId\":" + String(decoding: try encoder.encode(choice), as: UTF8.self)
+        if let answers { fields += ",\"answers\":" + String(decoding: try encoder.encode(answers), as: UTF8.self) }
         let path = socketPath()
-        let _: AnyReply = try await Task.detached { try chatRequest(path, "answer", requires: .answer, fields: fields) }.value
+        let wire = fields
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "answer", requires: .answer, fields: wire) }.value
     }
 
     public func setOption(_ id: String, option: String, value: String) async throws {

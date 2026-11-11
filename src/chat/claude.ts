@@ -1,8 +1,9 @@
 import { execFile, spawn } from 'node:child_process';
 import { query as sdkQuery, type ModelInfo, type PermissionResult, type PermissionUpdate, type Query, type SDKMessage, type SDKUserMessage, type SlashCommand } from '@anthropic-ai/claude-agent-sdk';
 import { createScopedLogger } from '@ashulab/universal-logger';
+import { z } from 'zod';
 import { endGroup, resolveAgentBinary } from './group.ts';
-import { ChatRefused, type ChatLaunch, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatRunner, type ChatUsage } from './runner.ts';
+import { ChatRefused, type ChatLaunch, type ChatChoice, type ChatCommand, type ChatConversation, type ChatEvent, type ChatOption, type ChatQuestion, type ChatRunner, type ChatUsage } from './runner.ts';
 
 // The Claude adapter of the chat runner: the Agent SDK pointed at the user's own `claude` binary, which runs as the
 // leader of its own process group (docs/research/chat-spike.md). The SDK is only the transport: everything below the
@@ -83,7 +84,7 @@ class ClaudeConversation implements ChatConversation {
   private model: string;
   private effort: string;
   private input = inputQueue();
-  private pending = new Map<string, { input: Record<string, unknown>; suggestions: PermissionUpdate[]; resolve: (result: PermissionResult) => void }>();
+  private pending = new Map<string, { input: Record<string, unknown>; suggestions: PermissionUpdate[]; asking: boolean; resolve: (result: PermissionResult) => void }>();
   private tools = new Map<string, string>();
   private turning = false;
   private interrupting = false;
@@ -159,16 +160,17 @@ class ClaudeConversation implements ChatConversation {
     this.input.push(command === undefined ? text : `/${command.name}${text === '' ? '' : ` ${text}`}`);
   }
 
-  answer(approvalId: string, choiceId: string) {
+  answer(approvalId: string, choiceId: string, answers?: Record<string, string>) {
     const ask = this.pending.get(approvalId);
     if (ask === undefined) throw new ChatRefused('That approval is not pending any more');
     const suggestion = choiceId.startsWith('suggestion:') ? ask.suggestions[Number(choiceId.slice('suggestion:'.length))] : undefined;
-    if (choiceId === 'deny') ask.resolve({ behavior: 'deny', message: 'The user declined this.' });
-    else if (choiceId === 'allow') ask.resolve({ behavior: 'allow', updatedInput: ask.input });
+    if (choiceId === 'deny') ask.resolve({ behavior: 'deny', message: ask.asking ? 'The user skipped the questions.' : 'The user declined this.' });
+    else if (choiceId === 'allow' && ask.asking && answers === undefined) throw new ChatRefused('The questions need their answers');
+    else if (choiceId === 'allow') ask.resolve({ behavior: 'allow', updatedInput: answers === undefined ? ask.input : { ...ask.input, answers } });
     else if (suggestion) ask.resolve({ behavior: 'allow', updatedInput: ask.input, updatedPermissions: [suggestion] });
     else throw new ChatRefused('That is not one of the choices');
     this.pending.delete(approvalId);
-    this.emit({ kind: 'approval_answered', approvalId, choiceId });
+    this.emit({ kind: 'approval_answered', approvalId, choiceId, ...(answers && { answers }) });
   }
 
   async interrupt() {
@@ -226,14 +228,17 @@ class ClaudeConversation implements ChatConversation {
   }
 
   private ask(approvalId: string, tool: string, input: Record<string, unknown>, suggestions: PermissionUpdate[], title?: string): Promise<PermissionResult> {
-    const choices: ChatChoice[] = [
-      { id: 'allow', label: 'Allow', allow: true },
-      { id: 'deny', label: 'Deny', allow: false },
-      ...suggestions.map((s, i) => ({ id: `suggestion:${i}`, label: labelOf(s), allow: true })),
-    ];
+    const questions = tool === 'AskUserQuestion' ? questionsOf(input) : undefined;
+    const choices: ChatChoice[] = questions
+      ? [{ id: 'allow', label: 'Send answers', allow: true }, { id: 'deny', label: 'Skip', allow: false }]
+      : [
+          { id: 'allow', label: 'Allow', allow: true },
+          { id: 'deny', label: 'Deny', allow: false },
+          ...suggestions.map((s, i) => ({ id: `suggestion:${i}`, label: labelOf(s), allow: true })),
+        ];
     return new Promise((resolve) => {
-      this.pending.set(approvalId, { input, suggestions, resolve });
-      this.emit({ kind: 'approval', approvalId, tool, arg: argOf(input) ?? title, choices });
+      this.pending.set(approvalId, { input, suggestions, asking: questions !== undefined, resolve });
+      this.emit(questions ? { kind: 'approval', approvalId, tool, choices, questions } : { kind: 'approval', approvalId, tool, arg: argOf(input) ?? title, choices });
     });
   }
 
@@ -375,6 +380,19 @@ const argOf = (input: unknown): string | undefined => {
   const fields = input as Record<string, unknown>;
   const main = [fields.command, fields.file_path, fields.path, fields.pattern, fields.url].find((v) => typeof v === 'string');
   return typeof main === 'string' ? main : JSON.stringify(input);
+};
+
+const questionSchema = z.object({
+  question: z.string().min(1),
+  header: z.string(),
+  options: z.array(z.object({ label: z.string(), description: z.string(), preview: z.string().optional() })),
+  multiSelect: z.boolean().default(false),
+});
+
+/** The questions of an `AskUserQuestion` call, or undefined when its input is not what the tool takes (the approval is then the generic one). */
+const questionsOf = (input: unknown): ChatQuestion[] | undefined => {
+  const parsed = z.array(questionSchema).min(1).safeParse((input as { questions?: unknown } | null)?.questions);
+  return parsed.success ? parsed.data : undefined;
 };
 
 const labelOf = (update: PermissionUpdate): string => {

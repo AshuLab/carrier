@@ -61,7 +61,7 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
         state = .idle
         afterInterrupt?()
     }
-    func answer(_ id: String, approval: String, choice: String) async throws {
+    func answer(_ id: String, approval: String, choice: String, answers: [String: String]?) async throws {
         calls.append("answer \(approval) \(choice)")
         if let error = refuse["answer"] { throw error }
         pending.remove(approval)
@@ -217,6 +217,22 @@ private final class FakeChat: ChatHost, @unchecked Sendable {
     #expect(host.calls == ["send first", "interrupt"] && chat.refusal == nil)
     await chat.poll()
     #expect(host.calls == ["send first", "interrupt", "send instead"])
+}
+
+@MainActor @Test func theQueuedMessageCanBeSentNowOrTakenBackIntoTheBox() async {
+    let host = FakeChat()
+    let chat = model(host)
+    chat.draft = "first"
+    await chat.submit()
+    chat.draft = "instead"
+    await chat.submit()
+    chat.draft = "typing"
+    chat.editQueued()
+    #expect(chat.queued == nil && chat.draft == "instead\ntyping")
+    chat.draft = "instead"
+    await chat.submit()
+    await chat.sendQueuedNow()
+    #expect(host.calls == ["send first", "interrupt", "send instead"] && chat.queued == nil)
 }
 
 // MARK: interrupt
@@ -404,8 +420,11 @@ private let asked = ChatEvent(
     try await host.resume(session)
     try await host.interrupt(session)
     try await host.answer(session, approval: "a\"1", choice: "allow\n")
+    try await host.answer(session, approval: "q1", choice: "allow", answers: ["Which \"one\"?": "A, B"])
     let all = lines.compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
-    #expect(all.map { $0["cmd"] as? String } == ["send", "resume", "interrupt", "answer"])
+    #expect(all.map { $0["cmd"] as? String } == ["send", "resume", "interrupt", "answer", "answer"])
     #expect(all[3]["sessionId"] as? String == session && all[3]["approvalId"] as? String == "a\"1" && all[3]["choiceId"] as? String == "allow\n")
+    // `answers` goes on the wire only when there are some
+    #expect(all[3]["answers"] == nil && all[4]["answers"] as? [String: String] == ["Which \"one\"?": "A, B"])
     await #expect(throws: ControlError.remote("not a valid session id")) { try await host.send("../x", "hi") }
 }

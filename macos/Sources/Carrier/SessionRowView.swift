@@ -53,10 +53,7 @@ struct SessionRowView: View {
         let content = content
         HStack(spacing: SidebarMetrics.inset) {
             if content.showsIcon {
-                ProjectIcon(
-                    name: row.workspace, colorKey: projectColorKey(row.base), halo: row.state == .working,
-                    mark: .session(row.state)
-                )
+                ProjectIcon(name: row.workspace, colorKey: projectColorKey(row.base), halo: row.state == .working)
             }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 Text(row.title).font(SidebarMetrics.item).fontWeight(row.state == .waiting ? .medium : .regular)
@@ -104,23 +101,13 @@ extension EnvironmentValues {
 }
 
 /// The project's icon: its initials in white on a colour that is the same every time (from its name, so a session's folder and an epic's
-/// repository that are one project look alike), in a rounded square of glass tinted with it. The state is on it: a halo that breathes around
-/// it while an agent works and a mark on its corner when there is something to say. In a sidebar row it is neutral until the row is
-/// selected or hovered (`rowActive`).
+/// repository that are one project look alike), in a rounded square of glass tinted with it. A halo breathes around it while an agent works.
+/// In a sidebar row it is neutral until the row is selected or hovered (`rowActive`).
 struct ProjectIcon: View {
-    /// A mark on the corner: a letter or symbol on a disc.
-    struct Mark: Equatable {
-        var text: String
-        var color: Color
-        var shape: StateShape?
-    }
-
     let name: String
     /// What the colour is made from: `projectColorKey` of the folder or the repository.
     let colorKey: String
     var halo = false
-    var mark: Mark?
-    @AppStorage(AppPreferences.statesByShapeKey) private var byShape = false
     @Environment(\.rowActive) private var active
     static let size: CGFloat = 32
     static let radius: CGFloat = 9
@@ -142,26 +129,6 @@ struct ProjectIcon: View {
             }
             .animation(.easeOut(duration: 0.15), value: active)
             .overlay { if halo { SessionHalo() } }
-            .overlay(alignment: .bottomTrailing) {
-                if let mark, byShape || mark.text.isEmpty == false {
-                    StateMark(text: mark.text, shape: mark.shape, size: 10).foregroundStyle(.white).frame(width: 15, height: 15)
-                        .background(Circle().fill(mark.color))
-                        .overlay(Circle().strokeBorder(Color(nsColor: .windowBackgroundColor), lineWidth: 1.5))
-                        .offset(x: 4, y: 4)
-                }
-            }
-    }
-}
-
-extension ProjectIcon.Mark {
-    /// What a session's state wears on its icon: a "!" while it waits for the person, and while it works a mark only when the states are told
-    /// apart by shape (the halo around the icon says it otherwise).
-    static func session(_ state: SessionState) -> ProjectIcon.Mark? {
-        switch state {
-        case .waiting: .init(text: "!", color: .orange, shape: .needsAttention)
-        case .working: .init(text: "", color: .blue, shape: .working)
-        case .idle, .done: nil
-        }
     }
 }
 

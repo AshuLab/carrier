@@ -725,8 +725,11 @@ public struct WatchNote: Equatable {
         }
     }
 
-    public var canSend: Bool {
-        guard folder != nil, hostOlder == false, agents.contains(where: { $0.name == agent && $0.available }), sending == false, text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else { return false }
+    public var canSend: Bool { canSendWithText && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
+
+    /// Whether everything but the text is ready: a long text pasted into the box is the message when there is none typed.
+    public var canSendWithText: Bool {
+        guard folder != nil, hostOlder == false, agents.contains(where: { $0.name == agent && $0.available }), sending == false else { return false }
         guard worktree else { return true }
         if case .problem = nameState { return false }
         return startBranch != nil && (worktreeName.isEmpty == false || toClone)

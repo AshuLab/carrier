@@ -14,7 +14,7 @@ export class FakeConversation implements ChatConversation {
   nativeId: string | undefined;
   process: ChatConversation['process'];
   sent: string[] = [];
-  answers: { approvalId: string; choiceId: string }[] = [];
+  answers: { approvalId: string; choiceId: string; answers?: Record<string, string> }[] = [];
   closed = false;
   /** Events to play when a message arrives. */
   reply: (text: string, conversation: FakeConversation) => void = () => {};
@@ -29,9 +29,9 @@ export class FakeConversation implements ChatConversation {
     this.sent.push(text);
     this.reply(text, this);
   }
-  answer(approvalId: string, choiceId: string) {
-    this.answers.push({ approvalId, choiceId });
-    this.emit({ kind: 'approval_answered', approvalId, choiceId });
+  answer(approvalId: string, choiceId: string, answers?: Record<string, string>) {
+    this.answers.push({ approvalId, choiceId, ...(answers && { answers }) });
+    this.emit({ kind: 'approval_answered', approvalId, choiceId, ...(answers && { answers }) });
   }
   interrupts = 0;
   /** Plays what the provider does on an interrupt; by default nothing, as an adapter that never says the turn ended. */

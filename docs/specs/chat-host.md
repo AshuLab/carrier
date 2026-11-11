@@ -47,7 +47,7 @@ Text is redacted first and then cut, as in [0006](../adr/0006-agent-events-store
 { cmd: 'open'; agent: string; folder: string; options?: Record<string, string> }
 { cmd: 'resume'; sessionId: string }
 { cmd: 'send'; sessionId: string; text: string; command?: string }   // `command` is the id of one the session lists; `text` is then what follows its name and may be empty
-{ cmd: 'answer'; sessionId: string; approvalId: string; choiceId: string }
+{ cmd: 'answer'; sessionId: string; approvalId: string; choiceId: string; answers?: Record<string, string> }   // `answers` (question text to answer, a multiple choice's picks joined with a comma, an own answer as typed; at most four) is required to `allow` an approval that has `questions`, and refused on any other approval
 { cmd: 'interrupt'; sessionId: string }
 { cmd: 'setOption'; sessionId: string; option: string; value: string }
 { cmd: 'agentOptions'; agent: string }   // what an agent offers before a session exists: it is started in a folder of nobody's, read and ended; kept ten minutes
@@ -112,13 +112,15 @@ type ChatCommand = { id: string; name: string; description: string; argumentHint
 type ChatChoice = { id: string; label: string; allow: boolean };
 type ChatUsage = Record<string, number>; // as the provider reports it
 
+type ChatQuestion = { question: string; header: string; options: { label: string; description: string; preview?: string }[]; multiSelect: boolean };
+
 type ChatEvent =
   | { kind: 'user'; text: string }
   | { kind: 'assistant'; text: string }                       // a finished message
   | { kind: 'delta'; text: string }                           // streaming, never stored
   | { kind: 'tool_start' | 'tool_end'; callId: string; tool: string; arg?: string; output?: string[]; status?: 'ok' | 'err' }
-  | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[] }
-  | { kind: 'approval_answered'; approvalId: string; choiceId: string }
+  | { kind: 'approval'; approvalId: string; tool: string; arg?: string; choices: ChatChoice[]; questions?: ChatQuestion[] }  // `questions` when the agent asks the person (Claude's AskUserQuestion): no `arg`, choices `allow` (send the answers) and `deny` (skip)
+  | { kind: 'approval_answered'; approvalId: string; choiceId: string; answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
   | { kind: 'error'; text: string };
@@ -129,7 +131,7 @@ interface ChatConversation {
   /** The provider's id for this conversation, once it has one. */
   readonly nativeId: string | undefined;
   send(text: string, command?: ChatCommand): void;
-  answer(approvalId: string, choiceId: string): void;
+  answer(approvalId: string, choiceId: string, answers?: Record<string, string>): void;
   interrupt(): Promise<void>;
   setOption(id: string, value: string): Promise<void>;
   close(): Promise<void>;

@@ -146,6 +146,35 @@ test('an approval is asked with the provider choices and an allow runs the tool'
   expect(seen.permissions[0]).toMatchObject({ behavior: 'allow', updatedInput: { command: 'touch allowed.txt' } });
 });
 
+test('AskUserQuestion is asked as questions, the answers go back in the tool input, a skip is a deny, and bad input is a generic approval', async () => {
+  const question = { question: 'Which one?', header: 'Pick', options: [{ label: 'A', description: 'a' }, { label: 'B', description: 'b' }], multiSelect: false };
+  const asking = (input: unknown): Segment => ({ ...main[0]!, lines: [{ host: 'canUseTool', toolName: 'AskUserQuestion', input, toolUseID: 'toolu_q', suggestions: [{ type: 'setMode', mode: 'plan', destination: 'session' }] } as Line, ...main[0]!.lines] });
+  const run = async (input: unknown, choice: string, answers?: Record<string, string>) => {
+    const { conversation, events, seen } = await openWith([asking(input)]);
+    conversation.onEvent((e) => e.kind === 'approval' && queueMicrotask(() => conversation.answer(e.approvalId, choice, answers)));
+    const played = await turn(conversation, events, main[0]!.text);
+    return { approval: played.find((e) => e.kind === 'approval'), answered: played.find((e) => e.kind === 'approval_answered'), permission: seen.permissions[0] };
+  };
+
+  const sent = await run({ questions: [question] }, 'allow', { 'Which one?': 'B' });
+  expect(sent.approval).toEqual({ kind: 'approval', approvalId: 'toolu_q', tool: 'AskUserQuestion', choices: [{ id: 'allow', label: 'Send answers', allow: true }, { id: 'deny', label: 'Skip', allow: false }], questions: [question] });
+  expect(sent.answered).toEqual({ kind: 'approval_answered', approvalId: 'toolu_q', choiceId: 'allow', answers: { 'Which one?': 'B' } });
+  expect(sent.permission).toEqual({ behavior: 'allow', updatedInput: { questions: [question], answers: { 'Which one?': 'B' } } });
+
+  expect((await run({ questions: [question] }, 'deny')).permission).toEqual({ behavior: 'deny', message: 'The user skipped the questions.' });
+  const generic = await run({ questions: 'none' }, 'deny');
+  expect(generic.approval).toMatchObject({ tool: 'AskUserQuestion', arg: expect.any(String), choices: [{ id: 'allow' }, { id: 'deny' }, { id: 'suggestion:0' }] });
+  expect(generic.approval).not.toHaveProperty('questions');
+
+  // allowing questions without their answers is refused and leaves them pending
+  const { conversation, events } = await openWith([asking({ questions: [question] })]);
+  conversation.send(main[0]!.text);
+  await vi.waitFor(() => expect(events.some((e) => e.kind === 'approval')).toBe(true));
+  expect(() => conversation.answer('toolu_q', 'allow')).toThrow(ChatRefused);
+  conversation.answer('toolu_q', 'deny');
+  await vi.waitFor(() => expect(events.some((e) => e.kind === 'turn_end')).toBe(true));
+});
+
 test('a decline is honoured: the tool is denied with a message and the next message goes on', async () => {
   const { conversation, events, seen } = await openWith(main);
   const choice = answering(conversation);

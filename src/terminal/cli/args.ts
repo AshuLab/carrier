@@ -28,10 +28,10 @@ of the config here, not the <harness>:<model> of init.
 
 init flags (each one skips its question; --yes never asks):
   --repo <owner/name>            repeat for several repos
-  --identities <separate|shared>  separate: a different identity per role (default); shared: your gh login for both
   --author-profile <forge:<agent>|gh>   --reviewer-profile <forge:<agent>|gh>   --lead-reviewer-profile <forge:<agent>|gh>
   --author <harness>:<model>            --reviewer <harness>:<model>            --lead-reviewer <harness>:<model>
   --author-provider <lmstudio|ollama>   --reviewer-provider <lmstudio|ollama>   --lead-reviewer-provider <lmstudio|ollama>
+  --author-effort <level>        --reviewer-effort <level>        --lead-reviewer-effort <level>     level: low, medium, high, xhigh or max
   --author-persona-name <text>   --reviewer-persona-name <text>   --lead-reviewer-persona-name <text>
   --author-persona-prompt <text> --reviewer-persona-prompt <text> --lead-reviewer-persona-prompt <text>
   --out <path>                   default is the --config default above
@@ -40,7 +40,6 @@ init flags (each one skips its question; --yes never asks):
 const options = {
   config: { type: 'string' },
   repo: { type: 'string', multiple: true },
-  identities: { type: 'string' },
   'author-profile': { type: 'string' },
   'reviewer-profile': { type: 'string' },
   'lead-reviewer-profile': { type: 'string' },
@@ -50,6 +49,9 @@ const options = {
   'author-provider': { type: 'string' },
   'reviewer-provider': { type: 'string' },
   'lead-reviewer-provider': { type: 'string' },
+  'author-effort': { type: 'string' },
+  'reviewer-effort': { type: 'string' },
+  'lead-reviewer-effort': { type: 'string' },
   'author-persona-name': { type: 'string' },
   'author-persona-prompt': { type: 'string' },
   'reviewer-persona-name': { type: 'string' },

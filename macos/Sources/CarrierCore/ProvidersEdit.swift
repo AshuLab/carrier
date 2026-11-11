@@ -175,7 +175,7 @@ public func applyingNewAccount(name: String, harness: String, configDir: String,
 }
 
 /// `json` with the editor's fields written to the account `name`: a filled field writes its key, an emptied one removes it, and every other key
-/// of the account (`provider`, `model`, `enabled`, the ones the app does not know) stays as it was.
+/// of the account (`provider`, `model`, the ones the app does not know) stays as it was.
 public func applyingEdit(name: String, draft: AccountDraft, to json: Data?) throws -> Data {
     var (file, providers) = try parsed(json)
     guard var account = providers[name] as? [String: Any], let harness = account["harness"] as? String else { throw ProvidersFileError.missing(name) }

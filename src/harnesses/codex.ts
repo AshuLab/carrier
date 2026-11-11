@@ -21,6 +21,7 @@ export function buildCodexCommand(task: AgentTask, ctx: CommandContext): AgentCo
       '--json',
       '--model',
       task.model,
+      ...(task.effort ? ['-c', `model_reasoning_effort=${task.effort}`] : []),
       // `--oss --local-provider` is refused by `exec resume`; the config key both of them set is accepted by every form.
       ...(task.provider ? ['-c', `model_provider="${task.provider}"`] : []),
       '--dangerously-bypass-approvals-and-sandbox',

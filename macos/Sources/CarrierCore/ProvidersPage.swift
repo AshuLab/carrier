@@ -12,7 +12,6 @@ public struct HostProviders: Decodable, Equatable {
         public let displayName: String?
         public let command: String?
         public let configDir: String?
-        public let enabled: Bool
         public let found: Bool
         public let path: String?
         public let version: String?
@@ -87,9 +86,8 @@ public enum AccountUse: Equatable {
 }
 
 /// Who uses each account, by account name. A missing `chat.json` (or one with no `agents`) is the chat's defaults: `claude` and `codex`, each
-/// on the account of the same name. The failover lists count only while failover is enabled, or always with `anyFailover` (the engine checks the
-/// names of a list that is off too, so removing an account such a list names would stop it). A file that does not read names nobody.
-public func accountUses(config: Data?, chat: Data?, anyFailover: Bool = false) -> [String: [AccountUse]] {
+/// on the account of the same name. A role's failover steps count too. A file that does not read names nobody.
+public func accountUses(config: Data?, chat: Data?) -> [String: [AccountUse]] {
     func object(_ data: Data?) -> [String: Any] {
         data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
     }
@@ -107,11 +105,10 @@ public func accountUses(config: Data?, chat: Data?, anyFailover: Bool = false) -
             if let name = provider(overrides[role.key], "provider") { uses[name, default: []].append(.repoOverride(repo: repoName, role: role)) }
         }
     }
-    if let failover = file["failover"] as? [String: Any], anyFailover || failover["enabled"] as? Bool == true {
-        for name in failover["default"] as? [String] ?? [] { uses[name, default: []].append(.failover(nil)) }
-        let lists = failover["roles"] as? [String: Any] ?? [:]
-        for role in ProviderRole.allCases {
-            for name in lists[role.key] as? [String] ?? [] { uses[name, default: []].append(.failover(role)) }
+    let lists = (file["failover"] as? [String: Any])?["roles"] as? [String: Any] ?? [:]
+    for role in ProviderRole.allCases {
+        for step in lists[role.key] as? [[String: Any]] ?? [] {
+            if let name = step["provider"] as? String { uses[name, default: []].append(.failover(role)) }
         }
     }
 
@@ -127,7 +124,6 @@ public struct ProviderAccount: Equatable, Identifiable {
     /// The name the person gave it, else the account's name.
     public let title: String
     public let state: ToolState
-    public let enabled: Bool
     public let configDir: String?
     /// The binary the account runs, when it sets one.
     public let command: String?
@@ -208,7 +204,7 @@ public func providersPage(_ reply: HostProviders, config: Data?, chat: Data?) ->
             id: harness.id, title: harness.title, icon: harness.icon, status: status,
             version: seen?.version ?? unadded?.version, path: seen?.path ?? unadded?.path, command: seen?.command,
             accounts: own.map {
-                ProviderAccount(name: $0.name, title: $0.displayName ?? $0.name, state: $0.state, enabled: $0.enabled, configDir: $0.configDir, command: $0.command, uses: uses[$0.name] ?? [])
+                ProviderAccount(name: $0.name, title: $0.displayName ?? $0.name, state: $0.state, configDir: $0.configDir, command: $0.command, uses: uses[$0.name] ?? [])
             }
         )
     }
@@ -259,7 +255,7 @@ public enum ProvidersOutcome: Equatable {
     /// `config.json` and `chat.json` when an account is removed; a `chat.json` that is there and cannot be read stops the removal.
     public init(
         host: ChatHost, file: @escaping () -> ProvidersFile = ProvidersFile.current,
-        uses: @escaping () throws -> [String: [AccountUse]] = { accountUses(config: currentConfig(), chat: try currentChatConfig(), anyFailover: true) },
+        uses: @escaping () throws -> [String: [AccountUse]] = { accountUses(config: currentConfig(), chat: try currentChatConfig()) },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }
     ) {
         self.host = host
@@ -268,8 +264,7 @@ public enum ProvidersOutcome: Equatable {
         self.log = log
     }
 
-    /// When the app opens: with no `providers.json`, writes one account per harness the host found, named after it and not offered for an
-    /// epic's choice (`enabled: false`). With a file there it writes nothing, so an account that was removed stays removed; with nothing found
+    /// When the app opens: with no `providers.json`, writes one account per harness the host found, named after it. With a file there it writes nothing, so an account that was removed stays removed; with nothing found
     /// it writes nothing either (an empty file would leave the roles' default accounts undeclared), and a host that cannot answer is not guessed at.
     public func createFileIfMissing() async {
         guard file().exists == false else { return }

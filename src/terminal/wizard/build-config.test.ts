@@ -20,12 +20,19 @@ test('buildConfig names a forge profile after its agent and the login "gh", and 
   expect(() => parseHarnessModel('gpt:4')).toThrow('invalid agent');
 });
 
-test('buildConfig writes identities only when shared, with one profile for both roles', () => {
-  const same = { ...answers, reviewer: { identity: parseIdentity('gh'), provider: 'codex', model: 'x:y' } };
-  expect(buildConfig({ ...same, identities: 'separate' })).not.toHaveProperty('identities');
-  const shared = buildConfig({ ...same, identities: 'shared' });
-  expect(shared).toMatchObject({ identities: 'shared', profiles: { gh: { kind: 'gh' } }, orchestratorProfile: 'gh' });
+test('buildConfig never writes identities, and a shared pair is one profile for both roles', () => {
+  const shared = buildConfig({ ...answers, reviewer: { identity: parseIdentity('gh'), provider: 'codex', model: 'x:y' } });
+  expect(shared).not.toHaveProperty('identities');
+  expect(shared).toMatchObject({ profiles: { gh: { kind: 'gh' } }, orchestratorProfile: 'gh' });
   expect(shared.agents.author.profile).toBe(shared.agents.reviewer.profile);
+});
+
+test('buildConfig writes an effort only when given, and the config loads with it', () => {
+  const config = buildConfig({ ...answers, reviewer: { ...answers.reviewer, effort: 'max' } });
+  expect(config.agents.author).not.toHaveProperty('effort');
+  expect(config.agents.reviewer).toMatchObject({ effort: 'max' });
+  const loaded = loadConfig(defaults, config, providers);
+  expect(loaded.ok && loaded.config.agents.reviewer.effort).toBe('max');
 });
 
 test('buildConfig writes a persona only when given, and the config loads', () => {
@@ -38,7 +45,7 @@ test('buildConfig writes a persona only when given, and the config loads', () =>
 
 test('buildConfig writes the failover block only when given, and a config with folders and a block loads', () => {
   expect(buildConfig(answers)).not.toHaveProperty('failover');
-  const config = buildConfig({ ...answers, failover: { enabled: true, default: ['personal', 'codex'] } });
-  expect(config.failover).toEqual({ enabled: true, default: ['personal', 'codex'] });
+  const config = buildConfig({ ...answers, failover: { roles: { author: [{ provider: 'personal' }, { provider: 'codex', model: 'gpt' }] } } });
+  expect(config.failover).toEqual({ roles: { author: [{ provider: 'personal' }, { provider: 'codex', model: 'gpt' }] } });
   expect(loadConfig(defaults, config, { ...providers, personal: { harness: 'claude', configDir: '/home/me/.claude-personal' } }).ok).toBe(true);
 });

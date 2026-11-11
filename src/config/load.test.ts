@@ -37,10 +37,11 @@ describe('merge', () => {
     expect(result).toMatchObject({ ok: true, config: { pollIntervalMinutes: 5, limits: defaults.limits } });
   });
 
-  test('limits.optionChoiceSeconds defaults to 60 and must be a positive whole number', () => {
-    expect(load({})).toMatchObject({ ok: true, config: { limits: { optionChoiceSeconds: 60 } } });
-    expect(load({ limits: { optionChoiceSeconds: 15 } })).toMatchObject({ ok: true, config: { limits: { optionChoiceSeconds: 15 } } });
-    for (const bad of [0, -1, 1.5, '60']) expect(errorsOf({ limits: { optionChoiceSeconds: bad } }).map((e) => e.path)).toEqual(['limits.optionChoiceSeconds']);
+  test('limits.optionChoiceSeconds is refused naming the key and saying an epic starts at once on its roles', () => {
+    const errors = errorsOf({ limits: { optionChoiceSeconds: 15 } });
+    expect(errors.map((e) => e.path)).toEqual(['limits']);
+    expect(errors[0]!.message).toContain('limits.optionChoiceSeconds is gone');
+    expect(errors[0]!.message).toContain('starts at once on its roles');
   });
 
   test('merges objects field by field', () => {
@@ -73,7 +74,7 @@ describe('merge', () => {
 describe('invalid config', () => {
   test('missing required fields are all listed at once', () => {
     const paths = loadConfig(defaults, {}) as { errors: { path: string }[] };
-    expect(paths.errors.map((e) => e.path).sort()).toEqual(['agents', 'orchestratorProfile', 'profiles', 'repos']);
+    expect(paths.errors.map((e) => e.path).sort()).toEqual(['agents', 'profiles', 'repos']);
   });
 
   test('empty repos', () => {
@@ -129,54 +130,60 @@ describe('maxExecutionHours', () => {
   });
 });
 
-describe('identities', () => {
+describe('sharing is derived', () => {
   const same = { profiles: { me: { kind: 'gh' }, bot: { kind: 'gh' } }, orchestratorProfile: 'me', providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' } }, agents: { author: { profile: 'me', provider: 'claude', model: 'm' }, reviewer: { profile: 'me', provider: 'codex', model: 'm' } } };
-  const perRepo = { ...valid, repos: [{ name: 'a/one' }, { name: 'a/two', agents: { reviewer: { profile: 'author-bot' } } }, { name: 'a/three', agents: { reviewer: { profile: 'author-bot' } } }] };
 
-  test('defaults to separate', () => {
-    expect(load({})).toMatchObject({ ok: true, config: { identities: 'separate' } });
+  test('the same profile for both roles, or for the author and the lead reviewer, loads: there is no key to say it', () => {
+    expect(load(same).ok).toBe(true);
+    expect(load({ agents: { ...valid.agents, leadReviewer: { profile: 'author-bot', provider: 'claude', model: 'm' } } }).ok).toBe(true);
+    const perRepo = { ...valid, repos: [{ name: 'a/one' }, { name: 'a/two', agents: { reviewer: { profile: 'author-bot' } } }] };
+    expect(loadWithProviders(perRepo).ok).toBe(true);
   });
 
-  test.each([{}, { identities: 'separate' }])('the same profile for both roles is refused when identities is absent or separate: %j', (identities) => {
-    expect(errorsOf({ ...same, ...identities }).map((e) => e.path)).toEqual(['agents']);
+  test.each(['separate', 'shared', 'both', '', true])('an identities key of %j is refused, naming the key and saying sharing is derived', (identities) => {
+    expect(errorsOf({ identities })).toEqual([{ path: 'identities', message: expect.stringContaining('shared when its author and reviewer resolve to the same account') }]);
   });
 
-  test('a per-repo override that makes the roles equal is refused once per repo under separate and accepted under shared', () => {
-    expect(loadWithProviders(perRepo).ok).toBe(false);
-    const errors = (loadWithProviders(perRepo) as { errors: { path: string }[] }).errors;
-    expect(errors.map((e) => e.path)).toEqual(['repos.1.agents', 'repos.2.agents']);
-    expect(loadWithProviders({ ...perRepo, identities: 'shared' }).ok).toBe(true);
+  test('profiles that are not declared are still refused', () => {
+    expect(errorsOf({ ...same, orchestratorProfile: 'ghost' }).map((e) => e.path)).toEqual(['orchestratorProfile']);
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'phantom', provider: 'claude', model: 'm' } } })).toEqual([{ path: 'agents.leadReviewer.profile', message: expect.stringContaining('phantom') }]);
+    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'reviewer-bot', provider: 'phantom', model: 'm' } } })).toEqual([{ path: 'agents.leadReviewer.provider', message: expect.stringContaining('phantom') }]);
+  });
+});
+
+describe('what a repo\'s page writes under repos[].agents', () => {
+  const inRepo = (agents: object) => ({ repos: [{ name: 'AshuLab/carrier', agents }] });
+
+  test.each([
+    ['only a persona', { reviewer: { persona: { name: 'Rex', prompt: 'Be strict.' } } }],
+    ['only a persona with a name', { reviewer: { persona: { name: 'Rex' } } }],
+    ['only a persona with a prompt', { reviewer: { persona: { prompt: 'Be strict.' } } }],
+    ['only a model', { reviewer: { model: 'qwen3-coder' } }],
+    ['only an account', { reviewer: { provider: 'claude' } }],
+    ['only an effort', { reviewer: { effort: 'xhigh' } }],
+    ['only a profile', { reviewer: { profile: 'author-bot' } }],
+    ['a role with no field', { reviewer: {} }],
+    ['no role at all', {}],
+    ['an identity equal to the other role\'s', { author: { profile: 'reviewer-bot' } }],
+  ])('%s loads', (_, agents) => {
+    expect(load(inRepo(agents)).ok).toBe(true);
   });
 
-  test('shared accepts the same profile for both roles and also two different ones', () => {
-    expect(load({ ...same, identities: 'shared' })).toMatchObject({ ok: true, config: { identities: 'shared' } });
-    expect(load({ identities: 'shared' })).toMatchObject({ ok: true, config: { identities: 'shared' } });
+  test('an unknown profile or account is refused naming the key', () => {
+    expect(errorsOf(inRepo({ reviewer: { profile: 'ghost' } }))).toEqual([{ path: 'repos.0.agents.reviewer.profile', message: expect.stringContaining('ghost') }]);
+    expect(errorsOf(inRepo({ author: { provider: 'ghost' } }))).toEqual([{ path: 'repos.0.agents.author.provider', message: expect.stringContaining('ghost') }]);
+  });
+});
+
+describe('orchestratorProfile', () => {
+  const { orchestratorProfile: _, ...withoutOrchestrator } = valid;
+
+  test('left out, it is the author\'s profile', () => {
+    expect(loadWithProviders(withoutOrchestrator)).toMatchObject({ ok: true, config: { orchestratorProfile: 'author-bot' } });
   });
 
-  test('shared still checks that the profiles exist', () => {
-    expect(errorsOf({ ...same, identities: 'shared', orchestratorProfile: 'ghost' }).map((e) => e.path)).toEqual(['orchestratorProfile']);
-  });
-
-  test('lead reviewer profile and provider validation', () => {
-    expect(load({ agents: { ...valid.agents, leadReviewer: { profile: 'reviewer-bot', provider: 'claude', model: 'm' } } })).toMatchObject({
-      ok: true,
-      config: { agents: { leadReviewer: { profile: 'reviewer-bot', provider: 'claude', model: 'm' } } },
-    });
-    // Under separate identities, lead reviewer cannot share profile with author
-    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'author-bot', provider: 'claude', model: 'm' } } })).toEqual([
-      { path: 'agents', message: expect.stringContaining('agents.author.profile and agents.leadReviewer.profile must differ') },
-    ]);
-    // Unknown profile or provider
-    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'phantom', provider: 'claude', model: 'm' } } })).toEqual([
-      { path: 'agents.leadReviewer.profile', message: expect.stringContaining('phantom') },
-    ]);
-    expect(errorsOf({ agents: { ...valid.agents, leadReviewer: { profile: 'reviewer-bot', provider: 'phantom', model: 'm' } } })).toEqual([
-      { path: 'agents.leadReviewer.provider', message: expect.stringContaining('phantom') },
-    ]);
-  });
-
-  test.each(['both', 'Shared', '', true])('rejects %j', (identities) => {
-    expect(errorsOf({ identities }).map((e) => e.path)).toEqual(['identities']);
+  test('given, it is kept', () => {
+    expect(load({ orchestratorProfile: 'reviewer-bot' })).toMatchObject({ ok: true, config: { orchestratorProfile: 'reviewer-bot' } });
   });
 });
 
@@ -272,12 +279,12 @@ describe('providers', () => {
     expect(loaded.ok === false && loaded.errors[0]!.message).toBe('provider "claude" is not declared in providers');
   });
 
-  test('with no providers.json the config has claude, codex and agy disabled, and a role that names claude loads', () => {
+  test('with no providers.json the config has claude, codex and agy, and a role that names claude loads', () => {
     const { providers: _, ...file } = valid;
     const accounts = loadProviders({});
     if (!accounts.ok) throw new Error('defaults');
     const loaded = loadConfig(defaults, file, accounts.providers);
-    expect(loaded).toMatchObject({ ok: true, config: { providers: { claude: { harness: 'claude', enabled: false }, codex: { harness: 'codex', enabled: false }, agy: { harness: 'agy', enabled: false } }, agents: { author: { provider: 'claude' } } } });
+    expect(loaded).toMatchObject({ ok: true, config: { providers: { claude: { harness: 'claude' }, codex: { harness: 'codex' }, agy: { harness: 'agy' } }, agents: { author: { provider: 'claude' } } } });
   });
 
   test('a config.json that still has `providers` is refused with a message that names providers.json', () => {
@@ -291,66 +298,40 @@ describe('providers', () => {
 });
 
 describe('failover', () => {
-  const failover = (defaultOrder: string[], enabled = true) => ({ failover: { enabled, default: defaultOrder } });
+  const roles = (author: unknown) => ({ failover: { roles: { author } } });
+  const used = 'a role has failover when its list of steps is not empty';
 
-  test('absent means off, and a declared default loads as written', () => {
+  test('absent, and an empty list, load: no failover for the role', () => {
     const absent = load({});
     expect(absent.ok && absent.config.failover).toBeUndefined();
-    expect(load(failover(['codex', 'claude']))).toMatchObject({ ok: true, config: { failover: { enabled: true, default: ['codex', 'claude'] } } });
-    expect(load(failover([], false)).ok).toBe(true);
+    expect(load(roles([]))).toMatchObject({ ok: true, config: { failover: { roles: { author: [] } } } });
   });
 
-  test('a name that is not declared in providers is refused, naming the field', () => {
-    expect(errorsOf(failover(['codex', 'ghost']))).toEqual([{ path: 'failover.default.1', message: 'failover.default: provider "ghost" is not declared in providers' }]);
-    expect(errorsOf(failover(['codex', 'constructor']))).toEqual([{ path: 'failover.default.1', message: 'failover.default: provider "constructor" is not declared in providers' }]);
+  test('steps with a provider and an optional model, and the triggers, load as written', () => {
+    const failover = { triggers: ['usage_limit', 'service_down'], roles: { author: [{ provider: 'codex', model: 'gpt-5' }, { provider: 'claude', model: 'haiku' }], leadReviewer: [{ provider: 'claude' }] } };
+    expect(load({ failover })).toMatchObject({ ok: true, config: { failover } });
   });
 
-  test('a duplicate name is refused, naming the field', () => {
-    expect(errorsOf(failover(['codex', 'claude', 'codex']))).toEqual([{ path: 'failover.default.2', message: 'failover.default: provider "codex" appears twice' }]);
+  // One row per refusal: the input, the path of the error and a part of its message.
+  test.each([
+    ['failover.enabled', { failover: { enabled: true, roles: { author: [{ provider: 'codex' }] } } }, 'failover', used],
+    ['failover.default', { failover: { default: ['codex'] } }, 'failover', used],
+    ['a step given as a string', roles(['codex']), 'failover.roles.author.0', 'a failover step is { "provider"'],
+    ['a step with an empty provider', roles([{ provider: '' }]), 'failover.roles.author.0.provider', ''],
+    ['a step with an empty model', roles([{ provider: 'codex', model: '' }]), 'failover.roles.author.0.model', ''],
+    ['a step repeated in its list', roles([{ provider: 'codex' }, { provider: 'claude', model: 'x' }, { provider: 'claude', model: 'x' }]), 'failover.roles.author.2', 'repeats another step'],
+    ['a step equal to the role\'s own provider and model', roles([{ provider: 'codex' }, { provider: 'claude', model: 'm' }]), 'failover.roles.author.1', "the role's own provider and model"],
+    ['a provider that is not declared', roles([{ provider: 'codex' }, { provider: 'ghost' }]), 'failover.roles.author.1.provider', '"ghost" is not declared in providers'],
+    ['a provider named like an Object property', roles([{ provider: 'constructor' }]), 'failover.roles.author.0.provider', '"constructor" is not declared in providers'],
+    ['an unknown field', { failover: { retries: 2 } }, 'failover', ''],
+  ])('%s is refused naming its place', (_, user, path, message) => {
+    const errors = errorsOf(user);
+    expect(errors.map((e) => e.path)).toEqual([path]);
+    expect(errors[0]!.message).toContain(message);
   });
 
-  test('default and role-specific failover chains with triggers load as written', () => {
-    const custom = {
-      failover: {
-        enabled: true,
-        triggers: ['usage_limit', 'service_down'] as const,
-        default: ['codex', 'claude'],
-        roles: {
-          leadReviewer: ['claude'],
-        },
-      },
-    };
-    expect(load(custom)).toMatchObject({
-      ok: true,
-      config: {
-        failover: {
-          enabled: true,
-          triggers: ['usage_limit', 'service_down'],
-          default: ['codex', 'claude'],
-          roles: { leadReviewer: ['claude'] },
-        },
-      },
-    });
-  });
-
-  test('a name in default or roles not declared in providers is refused', () => {
-    expect(errorsOf({ failover: { enabled: true, default: ['codex', 'ghost'] } })).toEqual([
-      { path: 'failover.default.1', message: 'failover.default: provider "ghost" is not declared in providers' },
-    ]);
-    expect(errorsOf({ failover: { enabled: true, roles: { author: ['ghost'] } } })).toEqual([
-      { path: 'failover.roles.author.0', message: 'failover.roles.author: provider "ghost" is not declared in providers' },
-    ]);
-  });
-
-  test('enabled failover with neither default nor roles is refused', () => {
-    expect(errorsOf({ failover: { enabled: true } })).toEqual([
-      { path: 'failover', message: expect.stringContaining('neither a default nor role-specific fallback order') },
-    ]);
-  });
-
-  test('`enabled` is required, and an unknown field is refused', () => {
-    expect(errorsOf({ failover: { default: ['codex'] } }).map((e) => e.path)).toEqual(['failover.enabled']);
-    expect(errorsOf({ failover: { enabled: true, default: ['codex'], retries: 2 } }).map((e) => e.path)).toEqual(['failover']);
+  test('the same provider on another model is a step of its own, and so is the role\'s provider on another model', () => {
+    expect(load(roles([{ provider: 'codex', model: 'a' }, { provider: 'codex', model: 'b' }, { provider: 'claude', model: 'other' }])).ok).toBe(true);
   });
 });
 
@@ -379,6 +360,26 @@ describe('persona', () => {
   test('a persona is an object with only name and prompt', () => {
     for (const persona of ['Ada', null, ['Ada']]) expect(errorsOf(withPersona(persona)).map((e) => e.path)).toEqual(['agents.author.persona']);
     expect(errorsOf(withPersona({ name: 'Ada', role: 'x' })).map((e) => e.path)).toEqual(['agents.author.persona']);
+  });
+});
+
+describe('effort', () => {
+  const withEffort = (effort: unknown) => ({ agents: { ...valid.agents, author: { ...valid.agents.author, effort } } });
+  const inRepo = (effort: unknown) => ({ repos: [{ name: 'AshuLab/carrier', agents: { reviewer: { effort } } }] });
+
+  test('a role takes one of the five levels or none, globally and in a repo', () => {
+    for (const effort of ['low', 'medium', 'high', 'xhigh', 'max']) {
+      expect(load(withEffort(effort))).toMatchObject({ ok: true, config: { agents: { author: { effort } } } });
+      expect(load(inRepo(effort))).toMatchObject({ ok: true });
+    }
+    expect(load({})).toMatchObject({ ok: true });
+  });
+
+  test('anything else is refused naming the key', () => {
+    for (const effort of ['Max', '', 'ultra', 3]) {
+      expect(errorsOf(withEffort(effort)).map((e) => e.path)).toEqual(['agents.author.effort']);
+      expect(errorsOf(inRepo(effort)).map((e) => e.path)).toEqual(['repos.0.agents.reviewer.effort']);
+    }
   });
 });
 

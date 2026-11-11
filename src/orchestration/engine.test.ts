@@ -57,10 +57,10 @@ function open() {
   dbs.push(db);
   return db;
 }
-async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4, maxExecutionRetries = 3, maxReviews = 5, optionChoiceSeconds = 60) {
+async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4, maxExecutionRetries = 3, maxReviews = 5) {
   const db = open();
   const engine = createEngine({
-    db, github, clock, repos: config, pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, optionChoiceSeconds,
+    db, github, clock, repos: config, pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews,
     runner, workspaces, places: enginePlacesOf(dir),
   });
   await engine.start();
@@ -729,16 +729,17 @@ test('a usage limit does not count in the retry streak', async () => {
 });
 
 // Failover: three options, the author on `claude` and the reviewer on `codex`; `spare` is the one only the list can name.
-const failoverRepos = (failover?: { enabled: boolean; default?: string[]; order?: string[] }): EffectiveRepoConfig[] =>
-  choosing({ claude: claudeOption, codex: codexOption, spare: { harness: 'agy', model: 'flash' } }).map((repo) => ({ ...repo, ...(failover && { failover: { enabled: failover.enabled, default: failover.default ?? failover.order } }) }));
-// Reserves the epic and starts it on the defaults, past its wait for a choice.
-async function startFailover(order: string[], enabled = true, slots = 1) {
-  return startWith(failoverRepos({ enabled, default: order }), slots);
+type Steps = { provider: string; model?: string }[];
+const failoverRepos = (roles?: { author?: Steps; reviewer?: Steps }): EffectiveRepoConfig[] =>
+  choosing({ claude: claudeOption, codex: codexOption, spare: { harness: 'agy', model: 'flash' } }).map((repo) => ({ ...repo, ...(roles && { failover: { roles } }) }));
+// Reserves the epic, which starts at once on the defaults.
+async function startFailover(order: string[], slots = 1) {
+  const steps = order.map((provider) => ({ provider }));
+  return startWith(failoverRepos({ author: steps, reviewer: steps }), slots);
 }
 async function startWith(config: EffectiveRepoConfig[], slots = 1) {
   const engine = await start(slots, config);
   await clock.advance(5 * MIN);
-  for (let issue = 1; issue <= slots; issue++) await engine.chooseOptions('AshuLab/a', issue, {});
   return engine;
 }
 const outOf = (...options: string[]) => (task: AgentTask, otherwise: Behavior): Behavior =>
@@ -754,10 +755,20 @@ test('with failover on, an author that runs out moves to the next option in orde
   expect(runner.tasks.map((t) => [t.stage, t.option])).toEqual([['ship', 'claude'], ['ship', 'spare'], ['review', 'codex']]);
   expect(runner.tasks[1]).toMatchObject({ harness: 'agy', workspace: runner.tasks[0]!.workspace, context: { verifyStateFirst: true, pr: { number: 50, headSha: SHA } } });
   expect(runner.tasks[1]!.resumeSession).toBeUndefined();
-  expect(eventsOf(engine.db)).toMatchObject([{ epicId: 1, at: 5 * MIN, type: 'option_switched', data: { role: 'author', from: 'claude', to: 'spare', stage: 'ship' } }]);
+  expect(eventsOf(engine.db)).toMatchObject([{ epicId: 1, at: 5 * MIN, type: 'option_switched', data: { role: 'author', from: 'claude', fromModel: 'opus', to: 'spare', toModel: 'flash', stage: 'ship' } }]);
   expect(executionsOf(engine.db).map((e) => [e.option, e.status])).toEqual([['claude', 'failed'], ['spare', 'finished'], ['codex', 'running']]);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', authorOption: 'spare', reviewerOption: 'codex', lastError: null });
   expect(rows(engine.db)[0]!.config!.agents.author).toMatchObject({ option: 'spare', harness: 'agy', model: 'flash', profile: 'a' });
+});
+
+test("a role's effort goes with it when it moves to the next step", async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => outOf('claude')(task, task.stage === 'ship' ? { sessionId: 's-spare', write: completed(task) } : { exit: 'hang' });
+  const config = failoverRepos({ author: [{ provider: 'spare' }] }).map((repo) => ({ ...repo, agents: { ...repo.agents, author: { ...repo.agents.author, effort: 'high' as const } } }));
+  await startWith(config);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+  expect(runner.tasks[1]).toMatchObject({ option: 'spare', effort: 'high' });
 });
 
 test('only the role that ran out moves: a reviewer that runs out leaves the author option as it is', async () => {
@@ -770,6 +781,28 @@ test('only the role that ran out moves: a reviewer that runs out leaves the auth
   expect(runner.tasks.map((t) => [t.stage, t.option])).toEqual([['ship', 'claude'], ['review', 'codex'], ['review', 'spare']]);
   expect(eventsOf(engine.db)).toMatchObject([{ type: 'option_switched', data: { role: 'reviewer', from: 'codex', to: 'spare', stage: 'review' } }]);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', authorOption: 'claude', reviewerOption: 'spare' });
+});
+
+test('a step names its own model, and the same provider on another model is a step of its own', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.model === 'opus' ? outOf('claude')(task, { exit: 'hang' }) : task.stage === 'ship' ? { sessionId: 's-1', write: completed(task) } : { exit: 'hang' });
+  const author = [{ provider: 'claude', model: 'haiku' }, { provider: 'spare', model: 'pro' }];
+  const engine = await startWith(failoverRepos({ author }));
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+
+  expect(runner.tasks.map((t) => [t.stage, t.option, t.model])).toEqual([['ship', 'claude', 'opus'], ['ship', 'claude', 'haiku'], ['review', 'codex', 'gpt']]);
+  expect(eventsOf(engine.db)).toMatchObject([{ type: 'option_switched', data: { role: 'author', from: 'claude', fromModel: 'opus', to: 'claude', toModel: 'haiku' } }]);
+});
+
+test('a step that ran out is not tried again, and when none is left the epic stops naming each step', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  runner.behavior = (task) => outOf('claude', 'spare')(task, { exit: 'hang' });
+  const engine = await startWith(failoverRepos({ author: [{ provider: 'claude', model: 'haiku' }, { provider: 'spare', model: 'pro' }] }));
+  await vi.waitFor(() => expect(rows(engine.db)[0]!.status).toBe('needs_human'));
+
+  expect(runner.tasks.map((t) => [t.option, t.model])).toEqual([['claude', 'opus'], ['claude', 'haiku'], ['spare', 'pro']]);
+  expect(rows(engine.db)[0]?.needsHumanReason).toContain('no step left in failover, ran out: claude opus, claude haiku, spare pro');
 });
 
 test('failover skips the options that already ran out in this epic, and the one that ran out last is not tried again', async () => {
@@ -788,7 +821,7 @@ test('failover across harnesses without a model on the provider uses that harnes
   runner.behavior = (task) => outOf('claude')(task, task.stage === 'ship' ? { sessionId: 's-codex', write: completed(task) } : { exit: 'hang' });
   const repos = choosing({ claude: claudeOption, codexBare: { harness: 'codex' as const } }).map((repo) => ({
     ...repo,
-    failover: { enabled: true, default: ['codexBare'] },
+    failover: { roles: { author: [{ provider: 'codexBare' }] } },
   }));
   const engine = await startWith(repos);
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
@@ -834,19 +867,19 @@ test('failover on rate_limit failure switches provider', async () => {
 test('when no option in the list is left the epic stops with usage_limit and names every option that ran out, and never uses one outside the list', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   runner.behavior = (task) => (task.epic === 1 ? outOf('claude', 'spare')(task, { exit: 'hang' }) : { exit: 'hang' });
-  const engine = await startFailover(['spare'], true, 2);
+  const engine = await startFailover(['spare'], 2);
   await vi.waitFor(() => expect(rows(engine.db)[0]!.status).toBe('needs_human'));
   await vi.waitFor(() => expect(runner.tasks.some((t) => t.epic === 2)).toBe(true));
 
   expect(runner.tasks.filter((t) => t.epic === 1).map((t) => t.option)).toEqual(['claude', 'spare']); // codex is the reviewer's default, not in the list
   expect(rows(engine.db)[0]).toMatchObject({ issue: 1, status: 'needs_human', needsHumanKind: 'usage_limit', finishedAt: 5 * MIN });
-  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option spare · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}; no provider left in failover, ran out: claude, spare`);
+  expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option spare · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}; no step left in failover, ran out: claude opus, spare flash`);
   expect(eventsOf(engine.db)).toMatchObject([{ type: 'option_switched', data: { from: 'claude', to: 'spare' } }]);
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
   expect(rows(engine.db)[1]).toMatchObject({ issue: 2, status: 'running' });
 });
 
-test.each([['off', { enabled: false, order: ['spare'] }], ['absent', undefined]])('with failover %s, a usage limit stops the epic on the first option as before', async (_, failover) => {
+test.each([['an empty list', { author: [], reviewer: [] }], ['absent', undefined]])('with failover %s, a usage limit stops the epic on the first option as before', async (_, failover) => {
   github.ready = { 'AshuLab/a': ready(1) };
   runner.behavior = (task) => outOf('claude')(task, { exit: 'hang' });
   const engine = await startWith(failoverRepos(failover));
@@ -858,10 +891,10 @@ test.each([['off', { enabled: false, order: ['spare'] }], ['absent', undefined]]
   expect(rows(engine.db)[0]?.needsHumanReason).toBe(`the ship execution ran out of usage on option claude · carrier restart AshuLab/a#1 --author <option> · ${outOfCredits.detail}`);
 });
 
-test('a later epic starts on its own choice, whatever ran out in an earlier one', async () => {
+test('a later epic starts on its own role, whatever ran out in an earlier one', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   runner.behavior = (task) => (task.epic === 1 ? outOf('claude')(task, { exit: 'hang' }) : { exit: 'hang' });
-  const engine = await startFailover(['spare'], true, 2);
+  const engine = await startFailover(['spare'], 2);
   await vi.waitFor(() => expect(runner.tasks.filter((t) => t.epic === 2)).toHaveLength(1));
 
   expect(runner.tasks.filter((t) => t.epic === 1).map((t) => t.option)).toEqual(['claude', 'spare']);
@@ -1811,7 +1844,7 @@ test('an epic whose last execution ended on a usage limit before it moved on is 
 
 test('an epic stopped after service_down failure with failover enabled recovers and failsover on start', async () => {
   const db = open();
-  const repoWithFailover = failoverRepos({ enabled: true, default: ['spare'] });
+  const repoWithFailover = failoverRepos({ author: [{ provider: 'spare' }] });
   seedEpic(db, 1, { config: repoWithFailover[0] });
   seedExecution(db, 'e0', 1, { status: 'failed', option: 'claude', failureKind: 'api_error', failureDetail: 'ECONNREFUSED' });
   pull(50);
@@ -2027,7 +2060,7 @@ test('purges expired logs and sessions when the engine starts and every 24 hours
   db.insert(executions).values({ executionId: 'x-old', epicId: old.id, stage: 'ship', sessionId: 's-old', resultPath: 'r', startedAt: 0 }).run();
   const logs = join(dir, 'engine', 'logs', 'executions', 'x-old');
   mkdirSync(logs, { recursive: true });
-  const engine = createEngine({ db, github, clock, repos, pollIntervalMs: 5 * MIN, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, optionChoiceSeconds: 60, runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, repos, pollIntervalMs: 5 * MIN, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, runner, workspaces, places: enginePlacesOf(dir) });
   await engine.start();
   expect(existsSync(logs)).toBe(false);
   mkdirSync(logs, { recursive: true });
@@ -2603,174 +2636,31 @@ const choosing = (options: NonNullable<EffectiveRepoConfig['options']> = { claud
 ];
 const choiceRefusal = (promise: Promise<void>) => promise.then(() => null, (e: ResumeRefused) => e.reason);
 
-test('with two options a reserved epic holds its slot and waits for its choice: no author, a deadline, the defaults stored', async () => {
+test('with two or more accounts a reserved epic starts its author at once, the account of each role recorded', async () => {
   github.ready = { 'AshuLab/a': ready(1, 2) };
   const engine = await start(1, choosing());
   await clock.advance(5 * MIN);
 
-  expect(runner.tasks).toEqual([]);
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: null, choiceDeadline: 5 * MIN + 60_000, authorOption: 'claude', reviewerOption: 'codex' });
+  expect(runner.tasks.map((t) => [t.stage, t.option])).toEqual([['ship', 'claude']]);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', authorOption: 'claude', reviewerOption: 'codex' });
   expect(labelsOf(1)).toEqual(['solve:epic:running']);
-  expect(ids(engine)).toEqual(['AshuLab/a#2']); // the slot is held
-
-  const { epics: shown } = buildSnapshot(engine.db, {
-    now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false,
-    slices: () => null, version: 'x', pollIntervalMs: 5 * MIN,
-  });
-  expect(shown[0]!.options).toEqual({ names: ['claude', 'codex'], author: 'claude', reviewer: 'codex', choiceDeadline: 5 * MIN + 60_000 });
-  expect(epicOf(engine.db, 'AshuLab/a', 1)!.options).toEqual(shown[0]!.options); // the epic's reply lists the same
-});
-
-test('the wait is the configured number of seconds', async () => {
-  github.ready = { 'AshuLab/a': ready(1) };
-  const engine = await start(1, choosing(), 4, 3, 5, 15);
-  await clock.advance(5 * MIN);
-  expect(rows(engine.db)[0]!.choiceDeadline).toBe(5 * MIN + 15_000);
-});
-
-test('chooseOptions starts the epic on the option chosen for a role; a role left out takes its default; the execution row records them', async () => {
-  github.ready = { 'AshuLab/a': ready(1) };
-  const engine = await start(1, choosing());
-  await clock.advance(5 * MIN);
-
-  await engine.chooseOptions('AshuLab/a', 1, { author: 'codex' });
-  expect(runner.tasks).toHaveLength(1);
-  expect(runner.tasks[0]).toMatchObject({ stage: 'ship', harness: 'codex', model: 'gpt', option: 'codex', configDir: '/cfg/codex' });
-  expect(runner.tasks[0]!.provider).toBeUndefined(); // nothing of the default option leaks into the chosen one
-  expect(rows(engine.db)[0]).toMatchObject({ stage: 'ship', choiceDeadline: null, authorOption: 'codex', reviewerOption: 'codex' });
-  expect(executionsOf(engine.db)[0]).toMatchObject({ option: 'codex', configDir: '/cfg/codex', harness: 'codex', provider: null });
-  expect(rows(engine.db)[0]!.config!.agents.reviewer).toMatchObject({ option: 'codex', harness: 'codex' });
-
-  await clock.advance(MIN); // the deadline passing later starts nothing more
+  expect(ids(engine)).toEqual(['AshuLab/a#2']);
+  await clock.advance(MIN); // no timer of a choice firing later
   expect(runner.tasks).toHaveLength(1);
 });
 
-test('the reviewer runs on the option chosen for it', async () => {
-  github.ready = { 'AshuLab/a': ready(1) };
-  pull(50, { headRef: 'feat/demo/epic' });
-  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'stopped' });
-  const engine = await start(1, choosing());
-  await clock.advance(5 * MIN);
-  await engine.chooseOptions('AshuLab/a', 1, { reviewer: 'claude' });
-  await engine.idle();
-  expect(runner.tasks.map((t) => [t.stage, t.option, t.harness])).toEqual([['ship', 'claude', 'claude'], ['review', 'claude', 'claude']]);
-  expect(executionsOf(engine.db).map((e) => [e.stage, e.option])).toEqual([['ship', 'claude'], ['review', 'claude']]);
-});
-
-test('chooseOptions is refused with a reason and changes nothing for an unknown epic, an option not declared and an epic that is not waiting', async () => {
-  github.ready = { 'AshuLab/a': ready(1, 2) };
-  const engine = await start(1, choosing());
-  await clock.advance(5 * MIN);
-  const before = rows(engine.db);
-
-  expect(await choiceRefusal(engine.chooseOptions('AshuLab/a', 9, {}))).toBe('unknown epic');
-  expect(await choiceRefusal(engine.chooseOptions('AshuLab/a', 2, {}))).toBe('not waiting'); // queued
-  expect(await choiceRefusal(engine.chooseOptions('AshuLab/a', 1, { author: 'nope' }))).toBe('unknown option');
-  expect(await choiceRefusal(engine.chooseOptions('AshuLab/a', 1, { author: 'codex', reviewer: 'nope' }))).toBe('unknown option');
-  expect(rows(engine.db)).toEqual(before);
-  expect(runner.tasks).toEqual([]);
-
-  await engine.chooseOptions('AshuLab/a', 1, {});
-  expect(runner.tasks).toHaveLength(1);
-  const started = rows(engine.db);
-  expect(await choiceRefusal(engine.chooseOptions('AshuLab/a', 1, { author: 'codex' }))).toBe('not waiting'); // already started
-  expect(rows(engine.db)).toEqual(started);
-  expect(runner.tasks).toHaveLength(1);
-});
-
-test('when the deadline passes the epic starts on the role defaults', async () => {
-  github.ready = { 'AshuLab/a': ready(1) };
-  const engine = await start(1, choosing());
-  await clock.advance(5 * MIN);
-  await clock.advance(59_999);
-  expect(runner.tasks).toEqual([]);
-
-  await clock.advance(1);
-  expect(runner.tasks).toHaveLength(1);
-  expect(runner.tasks[0]).toMatchObject({ stage: 'ship', harness: 'claude', option: 'claude', provider: 'ollama' });
-  expect(rows(engine.db)[0]).toMatchObject({ stage: 'ship', choiceDeadline: null, authorOption: 'claude', reviewerOption: 'codex' });
-});
-
-test('an engine that starts after the deadline passed starts the epic on the defaults; before it, the epic goes on waiting', async () => {
-  const db = open();
-  seedEpic(db, 1, { config: choosing()[0], stage: null, startedAt: 0, choiceDeadline: 0, authorOption: 'claude', reviewerOption: 'codex' });
-  seedEpic(db, 2, { config: choosing()[0], stage: null, startedAt: 0, choiceDeadline: 30_000, authorOption: 'claude', reviewerOption: 'codex' });
-  await start(2);
-  expect(runner.tasks.map((t) => [t.epic, t.option])).toEqual([[1, 'claude']]);
-
-  await clock.advance(30_000);
-  expect(runner.tasks.map((t) => [t.epic, t.option])).toEqual([[1, 'claude'], [2, 'claude']]);
-});
-
-test('with one option declared nothing waits and the epic starts as it does today', async () => {
-  github.ready = { 'AshuLab/a': ready(1) };
-  const engine = await start(1, choosing({ claude: claudeOption }));
-  await clock.advance(5 * MIN);
-  expect(runner.tasks).toHaveLength(1);
-  expect(rows(engine.db)[0]).toMatchObject({ stage: 'ship', choiceDeadline: null });
-});
-
-// An account is offered, and counted for the wait, only when enabled; one without the key is enabled.
-const accountsOf = (providers: Record<string, { enabled?: boolean }>) => choosing({ claude: claudeOption, codex: codexOption }).map((r) => ({ ...r, options: undefined, providers: Object.fromEntries(Object.entries(providers).map(([name, extra]) => [name, { ...(name === 'claude' ? claudeOption : codexOption), ...extra }])) }) as EffectiveRepoConfig);
-
-test('without providers.json the accounts are disabled: no choice wait, the epic starts on its role, and the config freezes them', async () => {
-  const defaults = loadProviders({});
-  if (!defaults.ok) throw new Error('defaults');
-  expect(Object.keys(defaults.providers)).toEqual(['claude', 'codex', 'agy']);
-  github.ready = { 'AshuLab/a': ready(1) };
-  const config = [{ ...choosing()[0]!, options: undefined, providers: defaults.providers }];
-  const engine = await start(1, config);
-  await clock.advance(5 * MIN);
-  expect(runner.tasks).toHaveLength(1);
-  expect(rows(engine.db)[0]).toMatchObject({ stage: 'ship', choiceDeadline: null });
-  expect(rows(engine.db)[0]!.config!.providers).toEqual(defaults.providers);
-});
-
-test('two enabled accounts make the epic wait, an account without enabled counts as enabled, and the snapshot lists them', async () => {
-  github.ready = { 'AshuLab/a': ready(1) };
-  const engine = await start(1, accountsOf({ claude: {}, codex: { enabled: true } }));
-  await clock.advance(5 * MIN);
-  expect(rows(engine.db)[0]).toMatchObject({ stage: null, choiceDeadline: 5 * MIN + 60_000 });
-  expect(rows(engine.db)[0]!.config!.providers).toMatchObject({ codex: { enabled: true } });
-});
-
-test('two accounts where one is disabled make no wait, and the snapshot offers only the enabled one', async () => {
-  github.ready = { 'AshuLab/a': ready(1) };
-  const engine = await start(1, accountsOf({ claude: { enabled: true }, codex: { enabled: false } }));
-  await clock.advance(5 * MIN);
-  expect(rows(engine.db)[0]).toMatchObject({ stage: 'ship', choiceDeadline: null });
-  expect(rows(engine.db)[0]!.config!.providers).toMatchObject({ codex: { enabled: false } });
-  const { epics: shown } = buildSnapshot(engine.db, {
-    now: clock.now(), maxConcurrentEpics: 1, maxReviews: 5, finishedWindowDays: 15, startedAt: 0, repos: 1, nextCheckAt: null, problem: null, paused: false,
-    slices: () => null, version: 'x', pollIntervalMs: 5 * MIN,
-  });
-  expect(shown[0]!.options!.names).toEqual(['claude']);
-});
-
-test('the option definitions are frozen when the epic is reserved: editing the config afterwards changes no waiting epic', async () => {
-  github.ready = { 'AshuLab/a': ready(1) };
-  const first = await start(1, choosing());
-  await clock.advance(5 * MIN);
-  first.stop();
-
-  const edited = choosing({ claude: claudeOption, codex: { ...codexOption, model: 'edited', configDir: '/cfg/elsewhere' } });
-  const second = await start(1, edited);
-  await second.chooseOptions('AshuLab/a', 1, { author: 'codex' });
-  expect(runner.tasks[0]).toMatchObject({ model: 'gpt', configDir: '/cfg/codex' });
-});
-
-test('an epic sent back to the queue forgets its choice and chooses again', async () => {
+test('an epic sent back to the queue starts again at once on its roles', async () => {
   github.ready = { 'AshuLab/a': ready(1) };
   runner.behavior = (task) => ({ write: result(task, { outcome: 'needs_human', reason: 'the CI is red' }) });
   const engine = await start(1, choosing());
   await clock.advance(5 * MIN);
-  await engine.chooseOptions('AshuLab/a', 1, { author: 'codex' });
   await engine.idle();
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', authorOption: 'codex' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', authorOption: 'claude' });
 
+  runner.behavior = () => ({ exit: 'hang' });
   github.issue('AshuLab/a', 1).labels = ['solve:epic:ready'];
   await clock.advance(5 * MIN);
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: null, authorOption: 'claude', choiceDeadline: 10 * MIN + 60_000 });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', authorOption: 'claude' });
 });
 
 // --- resumeEpic on the options chosen ---
@@ -2780,9 +2670,9 @@ async function stoppedOnCodex() {
   github.ready = { 'AshuLab/a': ready(1) };
   pull(50);
   runner.behavior = (task) => ({ sessionId: 's-1', write: result(task, { outcome: 'needs_human', reason: 'the CI is red' }) });
-  const engine = await start(1, choosing());
+  const [repo] = choosing();
+  const engine = await start(1, [{ ...repo!, agents: { ...repo!.agents, author: { profile: 'a', option: 'codex', ...codexOption } } }]);
   await clock.advance(5 * MIN);
-  await engine.chooseOptions('AshuLab/a', 1, { author: 'codex' });
   await engine.idle();
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', authorOption: 'codex', reviewerOption: 'codex' });
   runner.behavior = () => ({ exit: 'hang' });
@@ -2800,7 +2690,7 @@ test('resumeEpic without options keeps each role on its current option, asks not
   await restartWith(engine, {});
   expect(runner.tasks).toHaveLength(2);
   expect(runner.tasks[1]).toMatchObject({ stage: 'ship', option: 'codex', harness: 'codex', resumeSession: 's-1', workspace: runner.tasks[0]!.workspace });
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', choiceDeadline: null, authorOption: 'codex', reviewerOption: 'codex' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', authorOption: 'codex', reviewerOption: 'codex' });
   expect(eventTypes(engine.db)).not.toContain('session_rebuilt');
 });
 
@@ -2810,13 +2700,13 @@ test('resumeEpic with another author option launches it with no resumeSession, i
   expect(runner.tasks).toHaveLength(2);
   expect(runner.tasks[1]).toMatchObject({ stage: 'ship', option: 'claude', harness: 'claude', provider: 'ollama', workspace: runner.tasks[0]!.workspace, context: { pr: { number: 50, headSha: SHA } } });
   expect(runner.tasks[1]!.resumeSession).toBeUndefined();
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', choiceDeadline: null, authorOption: 'claude', reviewerOption: 'codex' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', authorOption: 'claude', reviewerOption: 'codex' });
   expect(rows(engine.db)[0]!.config!.agents.author).toMatchObject({ option: 'claude', harness: 'claude' });
   expect(executionsOf(engine.db).map((e) => e.option)).toEqual(['codex', 'claude']);
   expect(eventTypes(engine.db)).toEqual(['session_rebuilt']);
 });
 
-test('a GitHub error reading the pull request while restarting on another option leaves the wait, and the poll starts the epic on the chosen option once GitHub answers', async () => {
+test('a GitHub error reading the pull request while restarting on another option leaves the epic unstarted, and the poll starts the epic on the chosen option once GitHub answers', async () => {
   const engine = await stoppedOnCodex();
   const find = github.findPullRequest.bind(github);
   let failures = 1;
@@ -2827,17 +2717,16 @@ test('a GitHub error reading the pull request while restarting on another option
   await restartWith(engine, { author: 'claude' });
   expect(runner.tasks).toHaveLength(1);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: null, authorOption: 'claude' });
-  expect(rows(engine.db)[0]!.choiceDeadline).not.toBeNull();
 
   await clock.advance(5 * MIN);
   expect(runner.tasks).toHaveLength(2);
   expect(runner.tasks[1]).toMatchObject({ stage: 'ship', option: 'claude', context: { pr: { number: 50, headSha: SHA } } });
   expect(runner.tasks[1]!.resumeSession).toBeUndefined();
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', choiceDeadline: null, authorOption: 'claude' });
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', authorOption: 'claude' });
   expect(eventTypes(engine.db)).toEqual(['session_rebuilt']);
 });
 
-test('a resumeEpic that ends as did not restart forgets its choice: the epic restarted by a later check waits for a choice again', async () => {
+test('a resumeEpic that ends as did not restart forgets its choice: the epic restarted by a later check starts at once on its roles', async () => {
   const engine = await stoppedOnCodex();
   github.unavailable = new GitHubUnavailable('network', 'down'); // the label goes on, the check cannot read
   const resumed = refusal(engine.resumeEpic('AshuLab/a', 1, { author: 'claude' }));
@@ -2847,9 +2736,8 @@ test('a resumeEpic that ends as did not restart forgets its choice: the epic res
 
   github.unavailable = null;
   await clock.advance(5 * MIN);
-  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: null, authorOption: 'claude' });
-  expect(rows(engine.db)[0]!.choiceDeadline).not.toBeNull();
-  expect(runner.tasks).toHaveLength(1);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', authorOption: 'codex' });
+  expect(runner.tasks).toHaveLength(2);
 });
 
 test('resumeEpic with another reviewer option keeps the author on its session and stores the reviewer option', async () => {
@@ -2866,21 +2754,6 @@ test('resumeEpic accepts an option declared after the epic was frozen: the reque
   const { claude: _added, ...frozen } = row!.config!.options!;
   engine.db.update(epics).set({ config: { ...row!.config!, options: frozen } }).where(eq(epics.id, row!.id)).run();
   await restartWith(engine, { author: 'claude' });
-  expect(runner.tasks[1]).toMatchObject({ stage: 'ship', option: 'claude' });
-});
-
-test('resumeEpic accepts a declared account that is disabled: enabled decides what is offered, not what a restart may name', async () => {
-  github.ready = { 'AshuLab/a': ready(1) };
-  pull(50);
-  runner.behavior = (task) => ({ sessionId: 's-1', write: result(task, { outcome: 'needs_human', reason: 'the CI is red' }) });
-  const config = accountsOf({ claude: { enabled: true }, codex: { enabled: true } });
-  const engine = await start(1, config);
-  await clock.advance(5 * MIN);
-  await engine.chooseOptions('AshuLab/a', 1, { author: 'codex' });
-  await engine.idle();
-  runner.behavior = () => ({ exit: 'hang' });
-  (config[0]!.providers as Record<string, { enabled?: boolean }>).claude!.enabled = false;
-  await restartWith(engine as Awaited<ReturnType<typeof stoppedOnCodex>>, { author: 'claude' });
   expect(runner.tasks[1]).toMatchObject({ stage: 'ship', option: 'claude' });
 });
 

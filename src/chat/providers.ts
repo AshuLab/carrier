@@ -6,7 +6,7 @@ import type { Clock } from '../orchestration/clock.ts';
 import { PROBE_LIMIT_MS, type ToolState } from './health.ts';
 
 export type ProvidersReply = {
-  accounts: { name: string; harness: HarnessName; displayName?: string; command?: string; configDir?: string; enabled: boolean; found: boolean; path?: string; version?: string; state: ToolState }[];
+  accounts: { name: string; harness: HarnessName; displayName?: string; command?: string; configDir?: string; found: boolean; path?: string; version?: string; state: ToolState }[];
   /** A harness whose CLI is found and no account has. */
   unadded: { harness: HarnessName; path: string; version?: string }[];
   servers: { kind: LocalProvider; running: boolean; models: string[] }[];
@@ -65,7 +65,6 @@ export function createProviders({ clock, machine, binaryFound }: { clock: Clock;
           ...(account.displayName !== undefined && { displayName: account.displayName }),
           ...(account.command !== undefined && { command: account.command }),
           ...(account.configDir !== undefined && { configDir: account.configDir }),
-          enabled: account.enabled !== false,
           found,
           ...(found && path !== undefined && { path }),
           ...(version !== undefined && { version }),

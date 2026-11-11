@@ -234,3 +234,12 @@ test('an account\'s command, compaction and launch arguments reach the process; 
   expect(buildClaudeCommand({ ...task, idleCompaction: true }, ctx).args.slice(-2)).toEqual(['--settings', '{"idleCompaction":true}']);
   expect(buildClaudeCommand({ ...task, launchArgs: [] }, ctx)).toEqual(plain);
 });
+
+test('an effort is passed as --effort, and without one nothing is added', () => {
+  const plain = buildClaudeCommand(task, ctx);
+  expect(plain.args).not.toContain('--effort');
+  const args = buildClaudeCommand({ ...task, effort: 'xhigh' }, ctx).args;
+  expect(args.filter((_, i) => args[i] !== '--effort' && args[i - 1] !== '--effort')).toEqual(plain.args);
+  expect(args[args.indexOf('--effort') + 1]).toBe('xhigh');
+  expect(buildClaudeCommand({ ...task, effort: 'low', resumeSession: 's-1' }, ctx).args).toContain('--effort');
+});

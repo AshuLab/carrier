@@ -16,8 +16,7 @@ public enum ProvidersFileError: Error, Equatable {
     case invalid(String)
 }
 
-/// `json` with the accounts added, each `{ harness, enabled: false }` (found by detection, not offered for an epic's choice, as the ADR
-/// says); every other key of the file is left as it was. `json` nil is a file that is not there yet, which this makes.
+/// `json` with the accounts added, each `{ harness }` (found by detection); every other key of the file is left as it was. `json` nil is a file that is not there yet, which this makes.
 public func applyingAccounts(_ accounts: [(name: String, harness: String)], to json: Data?) throws -> Data {
     var file: [String: Any] = [:]
     if let json {
@@ -31,7 +30,7 @@ public func applyingAccounts(_ accounts: [(name: String, harness: String)], to j
     }
     for account in accounts {
         guard providers[account.name] == nil else { throw ProvidersFileError.taken(account.name) }
-        providers[account.name] = ["harness": account.harness, "enabled": false] as [String: Any]
+        providers[account.name] = ["harness": account.harness] as [String: Any]
     }
     file["providers"] = providers
     return try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])

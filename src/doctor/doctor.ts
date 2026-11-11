@@ -12,10 +12,14 @@ import { forgeCwd } from '../integrations/forge-cwd.ts';
 import { GhGitHub, type GitHubProfile } from '../integrations/github.ts';
 import { listLocalModels, localLabel, localUrl, type LocalProvider } from '../harnesses/local.ts';
 import { configDirVariable } from '../harnesses/names.ts';
+import { epicLabel, readyLabel } from '../orchestration/github.ts';
 import { fixes, installFix } from './fixes.ts';
 
-/** `fix` is one remedy line for the person at the terminal; only failures and warnings have one. */
-export type Check = { name: string; status: 'ok' | 'warn' | 'fail'; detail?: string; fix?: string };
+/**
+ * `fix` is one remedy line for the person at the terminal; only failures and warnings have one.
+ * `repo` and `profiles` are set together on the checks about one repo: the names under `config.profiles` the check stands for, never empty.
+ */
+export type Check = { name: string; status: 'ok' | 'warn' | 'fail'; detail?: string; fix?: string; repo?: string; profiles?: string[] };
 
 /** The part of the agy process the login check reads; the check kills it as soon as it knows. */
 export interface AgyProcess {
@@ -139,6 +143,7 @@ const realDeps: DoctorDeps = {
 };
 
 const identity = (profile: GitHubProfile) => (profile.kind === 'forge' ? `forge agent ${profile.agent}` : 'your gh login');
+const solveLabels = [epicLabel, readyLabel];
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /** What the machine has to be able to do, and whether each identity can act on each repo. Reads only; creates nothing on GitHub. */
@@ -231,48 +236,43 @@ export async function runDoctor(config: Config, folder: string, overrides: Parti
     }
   }
 
-  // The schema compares profile names; two names can still point at the same bot or the same login. A shared identity allows it.
-  if (config.identities === 'separate') {
-    onStart('author and reviewer are different identities');
-    const clashes = repos.flatMap((repo) => {
-      const author = config.profiles[repo.agents.author.profile]!;
-      const reviewer = config.profiles[repo.agents.reviewer.profile]!;
-      const lead = repo.agents.leadReviewer ? config.profiles[repo.agents.leadReviewer.profile] : undefined;
-      const issues: string[] = [];
-      if (sameAccount(author, reviewer)) issues.push(`${repo.name}: author and reviewer both use ${identity(author)}`);
-      if (lead && sameAccount(author, lead)) issues.push(`${repo.name}: author and lead reviewer both use ${identity(author)}`);
-      return issues;
-    });
-    report(clashes.length === 0 ? { name: 'author and reviewer are different identities', status: 'ok' } : { name: 'author and reviewer are different identities', status: 'fail', detail: clashes.join('; '), fix: fixes.clash });
-  }
-
   // Without gh, or without agent-forge for a forge profile, the checks below would only repeat the same failure.
   const usable = (profile: GitHubProfile) => hasGit && hasGh && (profile.kind === 'gh' || hasForge);
-  const minted = new Set<string>();
   for (const repo of repos) {
+    // One mint check per identity, standing for every profile name the roles of this repo use for it.
+    const minted = new Map<string, string[]>();
     for (const agent of rolesOf(repo)) {
-      const profile = config.profiles[agent.profile]!;
-      const key = `${identity(profile)}|${repo.name}`;
-      if (minted.has(key) || !usable(profile)) continue;
-      minted.add(key);
+      const key = identity(config.profiles[agent.profile]!);
+      minted.set(key, [...new Set([...(minted.get(key) ?? []), agent.profile])]);
+    }
+    for (const names of minted.values()) {
+      const profile = config.profiles[names[0]!]!;
+      if (!usable(profile)) continue;
       const name = `${identity(profile)} can mint a token for ${repo.name}`;
       onStart(name);
       try {
         await deps.mint(profile, repo.name);
-        report({ name, status: 'ok' });
+        report({ name, status: 'ok', repo: repo.name, profiles: names });
       } catch (error) {
-        report({ name, status: 'fail', detail: message(error), fix: fixes.mint(profile, repo.name, message(error)) });
+        report({ name, status: 'fail', detail: message(error), fix: fixes.mint(profile, repo.name, message(error)), repo: repo.name, profiles: names });
       }
     }
     if (!usable(orchestrator)) continue;
     const name = `${identity(orchestrator)} can read ${repo.name}`;
     onStart(name);
+    let labels: string[];
     try {
-      await deps.listLabels(config, repo.name, folder);
-      report({ name, status: 'ok' });
+      labels = await deps.listLabels(config, repo.name, folder);
     } catch (error) {
-      report({ name, status: 'fail', detail: message(error), fix: fixes.read(repo.name, message(error)) });
+      report({ name, status: 'fail', detail: message(error), fix: fixes.read(repo.name, message(error)), repo: repo.name, profiles: [config.orchestratorProfile] });
+      continue;
     }
+    report({ name, status: 'ok', repo: repo.name, profiles: [config.orchestratorProfile] });
+    // The labels the read check already fetched say whether Solve is set up: no second call.
+    const solveName = `${repo.name} has the Solve labels`;
+    onStart(solveName);
+    const missing = solveLabels.filter((label) => !labels.includes(label));
+    report(missing.length === 0 ? { name: solveName, status: 'ok', repo: repo.name, profiles: [config.orchestratorProfile] } : { name: solveName, status: 'fail', detail: `missing ${missing.join(', ')}`, fix: fixes.solve, repo: repo.name, profiles: [config.orchestratorProfile] });
   }
   return checks;
 }

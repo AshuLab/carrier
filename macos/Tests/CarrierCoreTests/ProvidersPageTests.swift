@@ -20,7 +20,7 @@ private let config = data("""
     { "name": "acme/web", "agents": { "reviewer": { "provider": "claude-work" } } },
     { "name": "acme/api" }
   ],
-  "failover": { "enabled": true, "default": ["claude"], "roles": { "author": ["claude-work"] } }
+  "failover": { "roles": { "author": [{ "provider": "claude-work" }] } }
 }
 """)
 
@@ -36,12 +36,10 @@ private let config = data("""
     #expect(AccountUse.repoOverride(repo: "acme/web", role: .reviewer).text == "Reviewer in acme/web")
 }
 
-@Test func anAccountInAFailoverListIsUsedOnlyWhileFailoverIsOn() {
+@Test func anAccountInARolesFailoverStepsIsUsedByThatRole() {
     let uses = accountUses(config: config, chat: data(#"{"agents":{}}"#))
-    #expect(uses["claude"] == [.role(.author), .failover(nil)])
+    #expect(uses["claude"] == [.role(.author)])
     #expect(uses["claude-work"] == [.repoOverride(repo: "acme/web", role: .reviewer), .failover(.author)])
-    let off = data(#"{"failover":{"enabled":false,"default":["claude"]}}"#)
-    #expect(accountUses(config: off, chat: data(#"{"agents":{}}"#))["claude"] == nil)
 }
 
 @Test func anAccountUsedByAChatAgentNamesTheAgent() {
@@ -74,7 +72,7 @@ private let config = data("""
     #expect(claude.title == "Claude Code" && claude.status == .ready && claude.status.text == "Signed in")
     #expect(claude.version == "2.1.3 (Claude Code)" && claude.path == "/opt/homebrew/bin/claude")
     #expect(claude.accounts.map(\.title) == ["claude", "Work"])
-    #expect(claude.accounts.map(\.state) == [.ready, .signedOut] && claude.accounts[1].enabled == false)
+    #expect(claude.accounts.map(\.state) == [.ready, .signedOut])
     #expect(claude.accounts[1].configDir == "/Users/demo/.claude-work")
     // codex answers no version, and its state is a probe that did not answer
     #expect(page.tools[1].status == .unknown && page.tools[1].version == nil && page.tools[1].path == "/opt/homebrew/bin/codex")
@@ -90,10 +88,10 @@ private let config = data("""
 }
 
 @Test func aToolWithNothingIsNotInstalledAndAToolOfOnlySignedOutAccountsIsSignedOut() throws {
-    let none = try reply(#"{"accounts":[{"name":"claude","harness":"claude","enabled":true,"found":false,"state":"missing"}],"unadded":[],"servers":[]}"#)
+    let none = try reply(#"{"accounts":[{"name":"claude","harness":"claude","found":false,"state":"missing"}],"unadded":[],"servers":[]}"#)
     let page = providersPage(none, config: nil, chat: nil)
     #expect(page.tools.map(\.status) == [.missing, .missing, .missing])
-    let out = try reply(#"{"accounts":[{"name":"claude","harness":"claude","enabled":true,"found":true,"path":"/bin/claude","state":"signedOut"}],"unadded":[],"servers":[]}"#)
+    let out = try reply(#"{"accounts":[{"name":"claude","harness":"claude","found":true,"path":"/bin/claude","state":"signedOut"}],"unadded":[],"servers":[]}"#)
     #expect(providersPage(out, config: nil, chat: nil).tools[0].status == .signedOut)
 }
 

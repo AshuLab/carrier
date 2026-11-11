@@ -771,8 +771,8 @@ test('the providers request answers over the socket the accounts with their stat
   writeFileSync(join(root, 'providers.json'), JSON.stringify({ providers: { claude: { harness: 'claude' }, 'claude-work': { harness: 'claude', configDir: '/logins/work' } } }));
   expect(await client.request('providers')).toEqual({
     accounts: [
-      { name: 'claude', harness: 'claude', enabled: true, found: true, path: '/opt/bin/claude', version: '1.0', state: 'ready' },
-      { name: 'claude-work', harness: 'claude', configDir: '/logins/work', enabled: true, found: true, path: '/opt/bin/claude', version: '1.0', state: 'signedOut' },
+      { name: 'claude', harness: 'claude', found: true, path: '/opt/bin/claude', version: '1.0', state: 'ready' },
+      { name: 'claude-work', harness: 'claude', configDir: '/logins/work', found: true, path: '/opt/bin/claude', version: '1.0', state: 'signedOut' },
     ],
     unadded: [{ harness: 'codex', path: '/opt/bin/codex', version: '1.0' }],
     servers: [{ kind: 'lmstudio', running: false, models: [] }, { kind: 'ollama', running: false, models: [] }],

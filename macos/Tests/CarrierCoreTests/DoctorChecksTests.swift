@@ -15,6 +15,16 @@ private let sample = #"[{"name":"config","status":"ok"},{"name":"gh","status":"w
     #expect(doctorState(from: ProcessOutcome(exitCode: 0, stdout: sample + "\n")) == expected)
 }
 
+@Test func theNewFieldsOfARepoCheckDecodeAndAnOutputWithoutThemStillDoes() {
+    let with = #"[{"name":"forge agent a can mint a token for o/r","status":"fail","detail":"x","repo":"o/r","profiles":["a","b"]}]"#
+    #expect(doctorState(from: ProcessOutcome(exitCode: 1, stdout: with)) == .checks([
+        .init(name: "forge agent a can mint a token for o/r", status: .fail, detail: "x", repo: "o/r", profiles: ["a", "b"]),
+    ]))
+    // `sample` is an older doctor's output: no `repo`, no `profiles`
+    guard case .checks(let old) = doctorState(from: ProcessOutcome(exitCode: 0, stdout: sample)) else { Issue.record("not checks"); return }
+    #expect(old.allSatisfy { $0.repo == nil && $0.profiles == nil })
+}
+
 @Test func aDoctorThatDoesNotAnswerIsUnknownWithTheReasonAndNeverAPass() {
     let outcomes = [
         ProcessOutcome(startError: "no such file"), ProcessOutcome(timedOut: true), ProcessOutcome(exitCode: 2, stdout: "Error: no config"),
@@ -26,6 +36,17 @@ private let sample = #"[{"name":"config","status":"ok"},{"name":"gh","status":"w
         #expect(reason.hasPrefix("carrier doctor"))
     }
     #expect(doctorState(from: ProcessOutcome(startError: "no such file")) == .unknown("carrier doctor could not start: no such file"))
+}
+
+@Test func aConfigTheEngineRefusesComesBackWithTheDoctorsReason() {
+    let stderr = "[12:00:00] info doctor starting\nInvalid config /tmp/config.json:\n  repos.0.agents.reviewer.effort: Invalid option: expected one of \"low\"\n"
+    #expect(doctorState(from: ProcessOutcome(exitCode: 1, stdout: "", stderr: stderr)) == .refused(
+        "Invalid config /tmp/config.json:\n  repos.0.agents.reviewer.effort: Invalid option: expected one of \"low\""
+    ))
+    // the checks win over the noise on stderr
+    #expect(doctorState(from: ProcessOutcome(exitCode: 1, stdout: sample, stderr: "Invalid x")) != .refused("Invalid x"))
+    let checks = repoChecks(repo: "o/r", roles: [], doctor: .refused("Invalid config: boom"))
+    #expect(checks.note == "Carrier refuses the config: Invalid config: boom")
 }
 
 @Test func theCommandRunsTheDoctorOnTheConfigOfTheCarrierFolder() throws {
@@ -80,4 +101,20 @@ private actor Runs {
     }
     await store.check(settings: SetupSettings(), carrier: nil, environment: [:], configExists: true)
     guard case .unknown = store.state else { Issue.record("not unknown"); return }
+}
+
+@MainActor @Test func theDoctorRunsOnlyWhenAskedForOnOpeningThePageAndOnCheckAgain() async {
+    let runs = Runs()
+    let store = DoctorStore { _ in
+        await runs.add()
+        return ProcessOutcome(exitCode: 0, stdout: sample)
+    }
+    try? await Task.sleep(for: .milliseconds(30))
+    #expect(await runs.count == 0 && store.state == .idle)
+    await store.check(settings: settings, carrier: carrier, environment: [:], configExists: true)
+    #expect(await runs.count == 1)
+    try? await Task.sleep(for: .milliseconds(30))
+    #expect(await runs.count == 1)
+    await store.check(settings: settings, carrier: carrier, environment: [:], configExists: true)
+    #expect(await runs.count == 2)
 }

@@ -32,14 +32,14 @@ const machine = (over: Partial<Machine> = {}): Machine => ({
 const providers = (over?: Partial<Machine>, clock = new FakeClock(), binaryFound = (command: string) => command !== '/opt/gone') => createProviders({ clock, machine: machine(over), binaryFound });
 
 test('each account has its state, found by its own binary and judged by its own login folder', async () => {
-  writeProviders({ claude: { harness: 'claude' }, 'claude-work': { harness: 'claude', configDir: '/logins/work', displayName: 'Work', enabled: false }, mine: { harness: 'codex', command: '/opt/mine/codex' }, gone: { harness: 'codex', command: '/opt/gone' } });
+  writeProviders({ claude: { harness: 'claude' }, 'claude-work': { harness: 'claude', configDir: '/logins/work', displayName: 'Work' }, mine: { harness: 'codex', command: '/opt/mine/codex' }, gone: { harness: 'codex', command: '/opt/gone' } });
   const asked: unknown[] = [];
   const reply = await providers({ login: async (harness, configDir) => (asked.push([harness, configDir]), configDir === '/logins/work' ? 'out' : 'in') })();
   expect(reply.accounts).toEqual([
-    { name: 'claude', harness: 'claude', enabled: true, found: true, path: '/opt/bin/claude', version: '/opt/bin/claude 1.0', state: 'ready' },
-    { name: 'claude-work', harness: 'claude', displayName: 'Work', configDir: '/logins/work', enabled: false, found: true, path: '/opt/bin/claude', version: '/opt/bin/claude 1.0', state: 'signedOut' },
-    { name: 'mine', harness: 'codex', command: '/opt/mine/codex', enabled: true, found: true, path: '/opt/mine/codex', version: '/opt/mine/codex 1.0', state: 'ready' },
-    { name: 'gone', harness: 'codex', command: '/opt/gone', enabled: true, found: false, state: 'missing' },
+    { name: 'claude', harness: 'claude', found: true, path: '/opt/bin/claude', version: '/opt/bin/claude 1.0', state: 'ready' },
+    { name: 'claude-work', harness: 'claude', displayName: 'Work', configDir: '/logins/work', found: true, path: '/opt/bin/claude', version: '/opt/bin/claude 1.0', state: 'signedOut' },
+    { name: 'mine', harness: 'codex', command: '/opt/mine/codex', found: true, path: '/opt/mine/codex', version: '/opt/mine/codex 1.0', state: 'ready' },
+    { name: 'gone', harness: 'codex', command: '/opt/gone', found: false, state: 'missing' },
   ]);
   expect(asked).toContainEqual(['claude', '/logins/work']);
   expect(asked).toContainEqual(['claude', undefined]);
@@ -55,7 +55,7 @@ test('a harness found with no account is unadded, and the servers say what answe
 
 test('without a providers.json the accounts are the default ones', async () => {
   const reply = await providers()();
-  expect(reply.accounts.map(({ name, enabled }) => [name, enabled])).toEqual([['claude', false], ['codex', false], ['agy', false]]);
+  expect(reply.accounts.map(({ name }) => name)).toEqual(['claude', 'codex', 'agy']);
   expect(reply.accounts.find((account) => account.name === 'agy')).toMatchObject({ found: false, state: 'missing' });
   expect(reply.unadded).toEqual([]);
 });

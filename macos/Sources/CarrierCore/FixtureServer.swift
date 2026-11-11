@@ -17,8 +17,33 @@ public enum FixtureError: Error, Equatable {
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; anything else is an error.
-/// It owns a temporary home (`home`) holding a `config.json` with the roles and a failover order (so the Providers page has accounts in use), a `chat.json` with two chat agents and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
+/// It owns a temporary home (`home`) holding a `config.json` (`fixtureConfig`: the watched repos, profiles and roles, which also give the Providers page accounts in use), a `chat.json` with two chat agents and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
+/// The `config.json` of the fixture home: the repos of the fixture snapshot, the profiles and the three global roles, and one repo that
+/// overrides the reviewer's model, so the Repos page shows an inherited role and a mixed one.
+public let fixtureConfig = """
+{
+  "repos": [
+    {"name": "acme/web"},
+    {"name": "acme/api", "agents": {"reviewer": {"model": "gpt-5-mini"}}},
+    {"name": "acme/a-really-long-repository-name-for-the-sidebar"}
+  ],
+  "profiles": {
+    "acme-author": {"kind": "forge", "agent": "acme-author"},
+    "acme-reviewer": {"kind": "forge", "agent": "acme-reviewer"},
+    "acme-lead": {"kind": "forge", "agent": "acme-lead"}
+  },
+  "agents": {
+    "author": {"profile": "acme-author", "provider": "claude", "model": "claude-sonnet-5-5", "effort": "high"},
+    "reviewer": {"profile": "acme-reviewer", "provider": "codex", "model": "gpt-5", "effort": "high"},
+    "leadReviewer": {"profile": "acme-lead", "provider": "claude", "model": "claude-opus-5"}
+  }
+}
+"""
+
+/// The golden doctor output the fixture home holds, for the app to answer its doctor run with in `--fixture` mode.
+public func doctorFixtureOutput(home: String) -> String? { try? String(contentsOfFile: home + "/doctor.json", encoding: .utf8) }
+
 public final class FixtureServer {
     public let home: String
     public var socketPath: String { home + "/engine/state/control.sock" }
@@ -139,13 +164,14 @@ public final class FixtureServer {
         do {
             let state = home + "/engine/state"
             try FileManager.default.createDirectory(atPath: state, withIntermediateDirectories: true)
-            let roles = #"{"agents":{"author":{"provider":"claude"},"reviewer":{"provider":"codex"}},"failover":{"enabled":true,"default":["claude","codex"]}}"#
-            try Data(roles.utf8).write(to: URL(fileURLWithPath: home + "/config.json"))
+            try Data(fixtureConfig.utf8).write(to: URL(fileURLWithPath: home + "/config.json"))
+            // what the app's doctor run answers in `--fixture` mode (`doctorFixtureOutput`)
+            try Data(contentsOf: URL(fileURLWithPath: fixtures + "/doctor.json")).write(to: URL(fileURLWithPath: home + "/doctor.json"))
             try FileManager.default.createDirectory(atPath: home + "/chat/state", withIntermediateDirectories: true)
             let chatConfig = #"{"agents":{"claude":{"account":"claude"},"codex":{"account":"codex"},"work":{"account":"claude-work"}}}"#
             try Data(chatConfig.utf8).write(to: URL(fileURLWithPath: home + "/chat/chat.json"))
             // the accounts of the golden reply, without Antigravity: it is found and has no account, so the page shows its Add row
-            let accounts = #"{"providers":{"claude":{"harness":"claude","enabled":true},"claude-work":{"harness":"claude","displayName":"Work","configDir":"/Users/demo/.claude-work","enabled":false},"codex":{"harness":"codex","command":"/opt/homebrew/bin/codex","enabled":true}}}"#
+            let accounts = #"{"providers":{"claude":{"harness":"claude"},"claude-work":{"harness":"claude","displayName":"Work","configDir":"/Users/demo/.claude-work"},"codex":{"harness":"codex","command":"/opt/homebrew/bin/codex"}}}"#
             try ProvidersFile(folder: home).write(Data(accounts.utf8))
             listener = try Self.listen(path: state + "/control.sock")
             do { chatListener = try Self.listen(path: home + "/chat/state/chat.sock") } catch {
@@ -414,7 +440,7 @@ public final class FixtureServer {
 
     /// The golden `providers` reply as `<home>/providers.json` leaves it, so an Add, an edit or a Remove made in the app shows in the page as it
     /// would against a real host: an account of the file is listed (what the golden reply knows of its name, else what this Mac has of its
-    /// harness) with the file's display name, binary, folder and `enabled`; a harness the file gives no account is "found, not added".
+    /// harness) with the file's display name, binary, folder; a harness the file gives no account is "found, not added".
     private func providersReply() -> [String: Any] {
         var reply = chatProviders
         let file = (try? ProvidersFile(folder: home).read()).flatMap { $0 }
@@ -435,7 +461,6 @@ public final class FixtureServer {
             var entry = golden.first { $0["name"] as? String == name }
                 ?? ["name": name, "harness": harness, "found": seen[harness] != nil, "path": seen[harness]?["path"] ?? "", "state": "unknown"]
             if entry["version"] == nil, let version = seen[harness]?["version"] as? String { entry["version"] = version }
-            entry["enabled"] = account["enabled"] ?? true
             for key in ["displayName", "command", "configDir"] { entry[key] = account[key] }
             return entry
         }

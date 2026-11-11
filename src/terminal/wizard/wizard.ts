@@ -7,21 +7,19 @@ import { installFix } from '../../doctor/fixes.ts';
 import type { LocalProvider } from '../../harnesses/local.ts';
 import { harnessNames } from '../../harnesses/names.ts';
 import { Cancelled, type Ui } from '../prompts/types.ts';
-import { buildConfig, identityText, parseIdentity, type AIProvider, type Role } from './build-config.ts';
+import { buildConfig, parseIdentity, type AIProvider, type Role } from './build-config.ts';
 import { realDeps, type InitDeps } from './deps.ts';
 import type { InitFlags } from './flags.ts';
 import type { ForgeAgent } from './forge-registry.ts';
 import { priorFrom, type Prior } from './prior.ts';
-import { askIdentities } from './questions/identities.ts';
 import { askIdentity } from './questions/identity.ts';
 import { askFailover, askProviders, askRoleProvider, declareFlaggedProvider } from './questions/options.ts';
 import { askModel } from './questions/agent.ts';
+import { askEffort } from './questions/effort.ts';
 import { askPersona } from './questions/persona.ts';
 import { askOut } from './questions/out.ts';
 import { askRepos } from './questions/repos.ts';
 import { foundLines, summary, tilde } from './summary.ts';
-
-const ghIdentity = { kind: 'gh' } as const;
 
 /** The setup flow: look at the machine, ask what is missing, recap, save, check, offer to start. */
 export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDeps, folder = carrierHome()) {
@@ -87,8 +85,8 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
   const repos = flags.repo ?? (await askRepos(ui, deps, prior?.repos));
 
   // 1. AI Providers: accounts and connections (pure setup, no models)
-  // What was found becomes the accounts, switched off for epics; an edit starts from the file's own accounts instead.
-  let providers: Record<string, AIProvider> = prior !== undefined && deps.exists(providersPath) ? { ...prior.providers } : Object.fromEntries(harnesses.map((harness) => [harness, { harness, enabled: false }]));
+  // What was found becomes the accounts; an edit starts from the file's own accounts instead.
+  let providers: Record<string, AIProvider> = prior !== undefined && deps.exists(providersPath) ? { ...prior.providers } : Object.fromEntries(harnesses.map((harness) => [harness, { harness }]));
   const flagged = (roleKey: 'author' | 'reviewer' | 'leadReviewer', roleName: 'author' | 'reviewer' | 'lead reviewer') => {
     const flag = flags[roleKey];
     if (flag === undefined) return undefined;
@@ -101,27 +99,25 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
 
   if (!unattended) providers = await askProviders(ui, providers, harnesses, locals, deps);
 
-  // 2. GitHub identities: shared vs separate, resolved together
-  const identities = await askIdentities(ui, flags, login, interactive, prior?.identities);
-  const shared = identities === 'shared';
-  if (!shared) readForge();
-
-  const authorIdentity = shared ? ghIdentity : flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, readForge, login, [], deps, interactive, prior?.author.identity);
-  const reviewerIdentity = shared ? ghIdentity : flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, readForge, login, [authorIdentity], deps, interactive, prior?.reviewer.identity);
-  if (!shared && identityText(authorIdentity) === identityText(reviewerIdentity)) throw new Error('Author and reviewer identities must differ');
+  // 2. GitHub identities: one per role; picking the same one twice shares it, and the recap says so
+  readForge();
+  const authorIdentity = flags.authorProfile ? parseIdentity(flags.authorProfile) : await askIdentity(ui, 'author', forge, readForge, login, undefined, deps, interactive, prior?.author.identity);
+  const reviewerIdentity = flags.reviewerProfile ? parseIdentity(flags.reviewerProfile) : await askIdentity(ui, 'reviewer', forge, readForge, login, authorIdentity, deps, interactive, prior?.reviewer.identity);
 
   // 3. Agents: Author and Reviewer (provider, model, persona)
   if (!(flags.authorProfile && flags.author)) ui.note('Implements the epic: runs ship, then answers the reviewer.\nOptionally it gets a persona at the end: a name and how it behaves.', 'Author');
   const authorProvider = flaggedAuthor?.provider ?? (await askRoleProvider(ui, 'author', providers, prior?.author.provider));
   const authorModel = flaggedAuthor?.model ?? (await askModel(ui, providers[authorProvider]!.harness, providers[authorProvider]!.provider, locals, deps, 'author', prior?.author.model));
+  const authorEffort = await askEffort(ui, 'author', flags.authorEffort, interactive, prior?.author.effort);
   const authorPersona = await askPersona(ui, 'author', { name: flags.authorPersonaName, prompt: flags.authorPersonaPrompt }, interactive, prior?.author.persona);
-  const author: Role = { identity: authorIdentity, provider: authorProvider, model: authorModel, ...(authorPersona && { persona: authorPersona }) };
+  const author: Role = { identity: authorIdentity, provider: authorProvider, model: authorModel, ...(authorEffort && { effort: authorEffort }), ...(authorPersona && { persona: authorPersona }) };
 
   if (!(flags.reviewerProfile && flags.reviewer)) ui.note('Reviews the final PR.\nOptionally it gets a persona at the end: a name and how it behaves.', 'Reviewer');
   const reviewerProvider = flaggedReviewer?.provider ?? (await askRoleProvider(ui, 'reviewer', providers, prior?.reviewer.provider, authorProvider));
   const reviewerModel = flaggedReviewer?.model ?? (await askModel(ui, providers[reviewerProvider]!.harness, providers[reviewerProvider]!.provider, locals, deps, 'reviewer', prior?.reviewer.model));
+  const reviewerEffort = await askEffort(ui, 'reviewer', flags.reviewerEffort, interactive, prior?.reviewer.effort);
   const reviewerPersona = await askPersona(ui, 'reviewer', { name: flags.reviewerPersonaName, prompt: flags.reviewerPersonaPrompt }, interactive, prior?.reviewer.persona);
-  const reviewer: Role = { identity: reviewerIdentity, provider: reviewerProvider, model: reviewerModel, ...(reviewerPersona && { persona: reviewerPersona }) };
+  const reviewer: Role = { identity: reviewerIdentity, provider: reviewerProvider, model: reviewerModel, ...(reviewerEffort && { effort: reviewerEffort }), ...(reviewerPersona && { persona: reviewerPersona }) };
 
   // 4. Optional Lead Reviewer (Tech Lead role setup)
   let leadReviewer: Role | undefined;
@@ -138,30 +134,40 @@ export async function runInit(flags: InitFlags, ui: Ui, deps: InitDeps = realDep
       : prior?.leadReviewer !== undefined;
 
   if (wantLead) {
-    const leadIdentity = shared
-      ? ghIdentity
-      : flags.leadReviewerProfile
-        ? parseIdentity(flags.leadReviewerProfile)
-        : await askIdentity(ui, 'lead reviewer', forge, readForge, login, [authorIdentity], deps, interactive, prior?.leadReviewer?.identity ?? reviewerIdentity);
-    if (!shared && identityText(authorIdentity) === identityText(leadIdentity)) {
-      throw new Error('Author and lead reviewer identities must differ');
-    }
+    const leadIdentity = flags.leadReviewerProfile
+      ? parseIdentity(flags.leadReviewerProfile)
+      : await askIdentity(ui, 'lead reviewer', forge, readForge, login, authorIdentity, deps, interactive, prior?.leadReviewer?.identity ?? reviewerIdentity);
 
     const leadProvider = flaggedLeadReviewer?.provider ?? (await askRoleProvider(ui, 'lead reviewer', providers, prior?.leadReviewer?.provider, reviewerProvider));
     const leadModel = flaggedLeadReviewer?.model ?? (await askModel(ui, providers[leadProvider]!.harness, providers[leadProvider]!.provider, locals, deps, 'lead reviewer', prior?.leadReviewer?.model));
+    const leadEffort = await askEffort(ui, 'lead reviewer', flags.leadReviewerEffort, interactive, prior?.leadReviewer?.effort);
     const leadPersona = await askPersona(ui, 'lead reviewer', { name: flags.leadReviewerPersonaName, prompt: flags.leadReviewerPersonaPrompt }, interactive, prior?.leadReviewer?.persona);
-    leadReviewer = { identity: leadIdentity, provider: leadProvider, model: leadModel, ...(leadPersona && { persona: leadPersona }) };
+    leadReviewer = { identity: leadIdentity, provider: leadProvider, model: leadModel, ...(leadEffort && { effort: leadEffort }), ...(leadPersona && { persona: leadPersona }) };
   }
 
-  const failover = prior?.failover ?? (unattended || Object.keys(providers).length < 2 ? undefined : await askFailover(ui, providers));
-  const user = buildConfig({ repos, author, reviewer, leadReviewer, failover, identities });
+  const failover =
+    prior?.failover ??
+    (unattended
+      ? undefined
+      : await askFailover(
+          ui,
+          providers,
+          [
+            { role: 'author', key: 'author', own: author },
+            { role: 'reviewer', key: 'reviewer', own: reviewer },
+            ...(leadReviewer ? [{ role: 'lead reviewer' as const, key: 'leadReviewer' as const, own: leadReviewer }] : []),
+          ],
+          locals,
+          deps,
+        ));
+  const user = buildConfig({ repos, author, reviewer, leadReviewer, failover });
   const loaded = loadConfig(defaults, user, providers);
   if (!loaded.ok) throw new Error(`the answers do not make a valid config:\n${loaded.errors.map((e) => `  ${e.path}: ${e.message}`).join('\n')}`);
 
   out ??= resolve(await askOut(ui, fallback));
   if (!settled && deps.exists(out) && !flags.yes && !(await ui.confirm(`${out} exists. Overwrite it?`))) throw new Error(`${out} already exists`);
   if (interactive) {
-    ui.note(summary(repos, author, reviewer, providers, failover, out, providersPath, identities, leadReviewer), 'This is what will be saved');
+    ui.note(summary(repos, author, reviewer, providers, failover, out, providersPath, leadReviewer), 'This is what will be saved');
     if (!(await ui.confirm('Save it?'))) throw new Cancelled();
   }
   deps.write(out, `${JSON.stringify(user, null, 2)}\n`);

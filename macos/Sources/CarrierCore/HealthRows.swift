@@ -123,6 +123,8 @@ private func setupSection(_ doctor: DoctorState, configExists: Bool) -> HealthSe
     case .running: return HealthSection(title: title, note: "Running carrier doctor…", rows: [])
     case .unknown(let reason):
         return HealthSection(title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: "Could not check: \(reason)")])
+    case .refused(let reason):
+        return HealthSection(title: title, note: nil, rows: [HealthRow(title: "carrier doctor", mark: .neutral, detail: "Carrier refuses the config: \(reason)")])
     case .checks(let checks):
         return HealthSection(title: title, note: nil, rows: groupedChecks(checks))
     }

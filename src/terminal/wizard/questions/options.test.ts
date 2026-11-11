@@ -33,7 +33,7 @@ test('the folder is chosen among the ones found, each with its login state, plus
     { value: '\0path', hint: undefined },
   ]);
   const config = load(written, out);
-  expect(config.providers).toEqual({ claude: { harness: 'claude', enabled: false }, codex: { harness: 'codex', enabled: false }, 'claude-ashu-lab': { harness: 'claude', configDir: '/h/.claude-ashu-lab' } }); // what was found, then the extra
+  expect(config.providers).toEqual({ claude: { harness: 'claude' }, codex: { harness: 'codex' }, 'claude-ashu-lab': { harness: 'claude', configDir: '/h/.claude-ashu-lab' } }); // what was found, then the extra
 });
 
 test('a typed path is validated, and a login that cannot be checked is said so', async () => {
@@ -100,20 +100,27 @@ test('with one option the roles are not asked, and neither is failover', async (
   expect(config).not.toHaveProperty('failover');
 });
 
-test('with two or more options failover is asked, and "yes" asks the order until the person is done', async () => {
+test('with two or more options failover is asked for each role: up to two steps, each a provider and a model, and a repeat is refused', async () => {
   const three = { 'Add another AI provider?': [true, false], 'Which agent CLI runs this provider?': 'claude', 'Config folder of this Claude Code provider': '/h/.claude-ashu-lab' }; // the found claude and codex, and the extra
   const { deps, written } = fakeDeps(folders);
-  const { ui } = quietUi({ ...three, 'Turn failover on? A role that runs out of credits then moves to the next provider you list, so its code can reach another provider.': true, 'Failover order: which provider goes first?': 'codex', 'Failover order: which provider goes next?': ['claude', '\0done'] });
+  const { ui, asked } = quietUi({
+    ...three,
+    'Turn failover on for the author? When it runs out of credits it moves to the steps you list, each a provider and a model.': true,
+    'Failover for the author: which provider goes first?': 'codex',
+    "Model for the author's first failover step": 'gpt-x',
+    'Failover for the author: which provider goes second?': ['claude', 'claude-ashu-lab'], // claude on sonnet is the author's own
+  });
   const picks: Record<string, string[]> = {};
   const spy: Ui = { ...ui, select: async (o) => ((picks[o.message] = o.options.map((x) => x.value)), ui.select(o)) };
   const out = join(dir, 'fo1.json');
   await runInit({ repo: ['A/b'], out }, spy, deps);
-  expect(picks['Failover order: which provider goes first?']).toEqual(['claude', 'codex', 'claude-ashu-lab']);
-  expect(picks['Failover order: which provider goes next?']).toEqual(['claude-ashu-lab', '\0done']); // codex and claude are already in; the person ends it here
+  expect(picks['Failover for the author: which provider goes first?']).toEqual(['claude', 'codex', 'claude-ashu-lab']);
+  expect(picks['Failover for the author: which provider goes second?']).toEqual(['claude', 'codex', 'claude-ashu-lab', '\0done']);
+  expect(asked.some((q) => q.startsWith('warn:claude · sonnet is already'))).toBe(true);
+  expect(asked.filter((q) => q.startsWith('Turn failover on for the'))).toHaveLength(2); // the author and the reviewer, no lead reviewer
   expect(load(written, out).failover).toEqual({
-    enabled: true,
-    default: ['codex', 'claude'],
     triggers: ['usage_limit', 'rate_limit', 'service_down'],
+    roles: { author: [{ provider: 'codex', model: 'gpt-x' }, { provider: 'claude-ashu-lab', model: 'sonnet' }] },
   });
 
   const off = fakeDeps();
@@ -130,7 +137,7 @@ test('running again on an existing config keeps its options and failover, adds m
     profiles: { 'tassadar-agent': { kind: 'forge', agent: 'tassadar-agent' }, gh: { kind: 'gh' } },
     orchestratorProfile: 'tassadar-agent',
     providers: { work: { harness: 'claude', configDir: '~/.claude-work' }, codex: { harness: 'codex' } },
-    failover: { enabled: true, default: ['codex'] },
+    failover: { roles: { author: [{ provider: 'codex', model: 'gpt-x' }] } },
     agents: { author: { profile: 'tassadar-agent', provider: 'codex', model: 'gpt-test' }, reviewer: { profile: 'gh', provider: 'work', model: 'opus' } },
   };
   const { deps, written } = fakeDeps({ exists: () => true, readConfig: asFiles(existing) });
@@ -160,7 +167,7 @@ test('the flags declare the options and skip the section, the failover question 
   await runInit({ repo: ['A/b'], authorProfile: 'forge:artanis-agent', reviewerProfile: 'gh', author: 'claude:m1', reviewer: 'claude:m2', out, yes: true }, ui, deps);
   expect(asked.filter((q) => !q.startsWith('outro') && !q.startsWith('checks:'))).toEqual([]);
   const config = load(written, out);
-  expect(config.providers).toEqual({ claude: { harness: 'claude', enabled: false }, codex: { harness: 'codex', enabled: false } }); // the flags name what was found
+  expect(config.providers).toEqual({ claude: { harness: 'claude' }, codex: { harness: 'codex' } }); // the flags name what was found
   expect(config.agents).toMatchObject({
     author: { provider: 'claude', model: 'm1' },
     reviewer: { provider: 'claude', model: 'm2' },

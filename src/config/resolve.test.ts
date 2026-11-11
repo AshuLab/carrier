@@ -66,7 +66,7 @@ describe('resolveRepoConfig', () => {
 });
 
 describe('sharedIdentity', () => {
-  const shared = (user: object) => resolveFirst({ identities: 'shared', ...user }).sharedIdentity;
+  const shared = (user: object) => resolveFirst(user).sharedIdentity;
   const same = { ...base.agents, reviewer: { ...base.agents.reviewer, profile: 'a' } };
 
   test('the same profile, or two names for the same gh login or the same bot, is shared', () => {
@@ -86,18 +86,10 @@ describe('sharedIdentity', () => {
 });
 
 describe('profile separation', () => {
-  test('same profile after a repo override names the repo and fields', () => {
-    expect(errorsOf({ repos: [{ name: 'x/y', agents: { reviewer: { profile: 'a' } } }] })).toEqual([
-      { path: 'repos.0.agents', message: expect.stringMatching(/repo "x\/y".*agents\.author\.profile.*agents\.reviewer\.profile/) },
-    ]);
-  });
-
-  test('an override can break the tie only if the global ones already differ', () => {
-    const same = { ...base.agents, reviewer: { ...base.agents.reviewer, profile: 'a' } };
-    expect(errorsOf({ agents: same })).toEqual([
-      { path: 'agents', message: expect.stringMatching(/agents\.author\.profile.*agents\.reviewer\.profile/) },
-    ]);
-    expect(errorsOf({ agents: same, repos: [{ name: 'x/y', agents: { reviewer: { profile: 'b' } } }] })).toHaveLength(1);
+  test('the same profile after a repo override is accepted: that repo runs as shared and another with none as separate', () => {
+    const result = load({ profiles: { a: { kind: 'forge', agent: 'x' }, b: { kind: 'forge', agent: 'y' } }, repos: [{ name: 'x/y', agents: { reviewer: { profile: 'a' } } }, { name: 'x/z' }] });
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    expect(result.config.repos.map((repo) => resolveRepoConfig(result.config, repo).sharedIdentity)).toEqual([true, false]);
   });
 });
 
@@ -119,4 +111,12 @@ test('a repo persona replaces the global one of that role whole', () => {
   expect(agents.author.persona).toEqual({ prompt: 'Be verbose.' });
   expect(agents.reviewer.persona).toEqual({ name: 'Rex' });
   expect(resolveFirst({ agents: global }).agents.author.persona).toEqual({ name: 'Ada', prompt: 'Be terse.' });
+});
+
+test('a repo that overrides only the effort gets it, with every other field inherited', () => {
+  const global = { author: { ...base.agents.author, effort: 'low' }, reviewer: base.agents.reviewer };
+  const { agents } = resolveFirst({ agents: global, repos: [{ name: 'x/y', agents: { author: { effort: 'max' } } }] });
+  expect(agents.author).toMatchObject({ ...resolvedAuthor, effort: 'max' });
+  expect(resolveFirst({ agents: global }).agents.author.effort).toBe('low');
+  expect(resolveFirst({}).agents.author).not.toHaveProperty('effort');
 });

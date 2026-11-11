@@ -149,10 +149,8 @@ body.light .apv{background:rgba(0,0,0,.05)}
     <li>No switches, no defaults</li>
   </ul></div>
   <div><h3>Carrier <small>engine only</small></h3><ul>
-    <li><b>Repos</b> and roles per repo</li>
-    <li><b>Identities</b> (mode, bots, own gh login)</li>
-    <li><b>Agents</b>: which providers on/off, model, reasoning, permission, binary</li>
-    <li><b>Roles</b> (author, reviewer, lead) and failover</li>
+    <li><b>Repos</b>: status, checks and the roles of each repo</li>
+    <li><b>Agents</b>: the three roles, each with identity, provider, model, effort and what to do when it runs out of tokens</li>
     <li><b>Behavior</b></li>
   </ul>
   <h3 style="margin-top:12px">Chat</h3><ul><li><b>Sessions</b></li><li><b>Agents</b>: which account, model, reasoning, permission</li><li><b>Projects</b></li></ul></div>
@@ -161,15 +159,17 @@ body.light .apv{background:rgba(0,0,0,.05)}
 <div class="sg-opts" id="opts"></div>
 
 <div class="sg-q"><b>Open:</b><ol>
-<li><b>Decided: Agents on/off</b> is an <code>enabled</code> key on each account: whether it is offered when an epic's agent option is chosen. Detection and the no-file defaults write <code>false</code>, a block written by hand without it counts as <code>true</code>. Roles, failover and chat agents can still name any account. The switch itself comes with the Agents page; meanwhile it is edited by hand.</li>
-<li><b>Carrier's Agents mirrors Chat's</b> (model, reasoning, permission). Today the engine takes only the model per role; the rest are new keys in <code>config.json</code>. Keep the mirror, or show only what exists?</li>
+<li><b>Repos</b>: a repo's page has Status, Ready for Carrier and Who works here. <b>Decided</b>: four checks. Three already exist in <code>carrier doctor</code> (Carrier can read it, author and reviewer can sign for that owner); <b>Solve is set up</b> (the <code>solve:epic</code> and <code>solve:epic:ready</code> labels; the file <code>docs/agents/solve.md</code> is not checked) is a new read of GitHub. Branch protection is out: it needs admin rights the orchestrator's token probably lacks, so it would say no when it could not look. A role you change opens the same form as Roles (identity, account, model, persona) inside the card, with Reset. No pause per repo. A failed "can sign here" check offers Use another identity (opens that role's form) and Open Identities (install or create the bot there; Create a bot belongs to the Identities page). <b>Defaults</b>: every repo inherits the global roles, which are the Roles page, so a new repo needs nothing; each role row here shows the inherited value and "Open Roles".  Try "Add a repo from GitHub".</li>
+<li><b>Agents is three fixed roles</b>: Author, Reviewer and Lead reviewer (optional). No more can be made. Each has Identity (an Agent Forge bot or your gh login, with Create a bot… next to it), Provider, Model, Effort, an optional Persona and, for when it runs out of tokens, a first and a second provider and model. Permissions are not a setting: runs are unattended and always automatic.</li>
+<li><b>New in the engine</b>: <code>effort</code> per role (Claude and Antigravity take <code>--effort</code>; Codex takes <code>model_reasoning_effort</code> through <code>-c</code>), and a model on each failover step (today a failover step names only a provider, and its model comes from the account's default or the harness's). Both also apply to a repo's override.</li>
+<li><b>Hidden, not removed</b>: the mode separate or shared (derived: the same identity on two roles means shared, and the page says the signature will show it), who moves the epic labels (the implementer's identity unless the file says otherwise), the failover triggers (all three) and <code>enabled</code> of the accounts (a key edited by hand; the per-epic choice of provider keeps working as today).</li>
 <li><b>Decided: accounts and their runtime are shared by Carrier and Chat</b> (Display name, Binary path, config dir, Auto-compact, Compact idle threads (Claude only), Launch arguments). They live in a new optional <code>&lt;Carrier folder&gt;/providers.json</code> (no file = one account per provider, this Mac's login), read by the engine and the chat host, edited by the app. <code>config.json</code> loses <code>providers</code> (roles keep naming the account), <code>chat.json</code> loses <code>harness</code> and <code>command</code> and its agents get an <code>account</code>. ADR 0016 needs to say this is the one shared level.</li>
 <li><b>Decided: no Shadow home.</b> A separate <code>CODEX_HOME</code> per account already separates the login.</li>
 <li><b>Launch arguments</b> are stored as a list. Carrier refuses the flags it sets itself (<code>--model</code>, <code>--permission-mode</code>, <code>--output-format</code>, <code>--resume</code>; for Codex the sandbox mode and the run marker), because repeating them would change the permission mode or break the event parsing. The chat of Claude passes them through the SDK's <code>extraArgs</code>; the chat of Codex needs its adapter to accept them (today it starts <code>app-server</code> alone).</li>
 <li><b>Sign in and state</b> use the account's own environment: the status check and the Terminal command carry its <code>CLAUDE_CONFIG_DIR</code> or <code>CODEX_HOME</code>, or <code>claude-work</code> would sign in to the wrong account.</li>
 <li><b>Detecting providers</b>: one detector (binary on the PATH, signed in or not) used by <code>carrier init</code> and by the app, through the chat host. No <code>providers.json</code> yet: it is created with one account per provider found. Later, a provider found but not added shows an "Add" row (try Antigravity); nothing is added or re-added silently. It must use the login shell's PATH (or the one set in Health), because an app opened from Finder does not see Homebrew. Extra accounts, like <code>claude-work</code>, are always added by hand.</li>
 <li><b>No API key or sign-in method</b>: Carrier keeps no secrets. Signing in is the CLI's job; the app shows the state and opens Terminal.</li>
-<li><b>Accounts</b> are added in Providers and each says which role or repo uses it. A role picks one in Roles › Provider; a repo can override it in Repos. Identities are GitHub bots, not AI accounts. Try "Add account".</li>
+<li><b>Accounts</b> are added in Providers and each says which role or repo uses it. A role picks one in Agents; a repo can override it in Repos. Identities are GitHub bots, not AI accounts. Try "Add account".</li>
 <li><b>Chat › Agents</b> can have more than one entry per provider (another model, another binary), like <code>chat.json</code> does today.</li>
 <li>Lead reviewer: the toggle in the list turns its form on and off (click it).</li>
 </ol></div>
@@ -301,7 +301,7 @@ Providers: { icon:'🧠', head:false, gap:true, pages:[
    accEditor('codex')]},
   {id:'agy', t:'Antigravity', ic:'▲', st:'ok', sub:'Signed in · Google account', ver:'agy 1.1.1', status:'/usr/local/bin/agy', btn:'Update', secs:()=>[
    {card:1, t:'Accounts', sub:'One login, the Google account of this Mac. It has no config folder, so no more accounts', rows:[
-    AGY.added?{t:'agy', d:'Google account · Not used yet', html:'<div style="display:flex;gap:8px;align-items:center"><button class="glass sm" onclick="nav(\'Carrier\',\'roles\')">Use in a role…</button><div class="sg-dot">✓</div></div>'}:{t:'agy', d:'Found at /usr/local/bin/agy by the scan · not added yet', html:'<button class="glass sm pri" onclick="AGY.added=1;draw(\'A\')">Add</button>'}]}]},
+    AGY.added?{t:'agy', d:'Google account · Not used yet', html:'<div style="display:flex;gap:8px;align-items:center"><button class="glass sm" onclick="nav(\'Carrier\',\'agents\')">Use in an agent…</button><div class="sg-dot">✓</div></div>'}:{t:'agy', d:'Found at /usr/local/bin/agy by the scan · not added yet', html:'<button class="glass sm pri" onclick="AGY.added=1;draw(\'A\')">Add</button>'}]}]},
   {id:'lms', t:'LM Studio', meta:'local', ic:'🖥', st:'ok', sub:'Running · 3 models', ver:'local server', status:'Running · localhost:1234', secs:[
    {card:1, t:'Models', sub:'What the server has loaded. Codex can use them as an account, like codex-local', rows:[{t:'qwen3-coder', d:'', c:''}, {t:'gpt-oss-20b', d:'', c:''}, {t:'llama-3.3-70b', d:'', c:''}]}]},
   {id:'oll', t:'Ollama', meta:'local', ic:'🦙', st:'no', sub:'Not running', ver:'local server', status:'Not running · nothing answers at localhost:11434', secs:[
@@ -309,62 +309,17 @@ Providers: { icon:'🧠', head:false, gap:true, pages:[
  ]}
 ]},
 Carrier: { icon:'📦', pages:[
- {id:'repos', t:'Repos', d:'What Carrier watches, and who works on each', ic:'🗂', add:'Add a repo from GitHub', list:[
-  {id:'carrier', t:'AshuLab/carrier', st:'ok', sub:'3 epics ready', secs:[
-   {t:'Epics', rows:[{t:'Ready', d:'3 marked solve:epic:ready', c:''}, {t:'Running', d:'None', c:''}]},
-   {t:'Roles here', rows:[{t:'Author', d:'Account and model', c:'val|Same as everywhere'}, {t:'Reviewer', d:'Account and model', c:'val|Same as everywhere'}, {t:'Lead reviewer', d:'Account and model', c:'val|Same as everywhere'}]},
-   {t:'Remove', rows:[{t:'Stop watching this repo', d:'Nothing on GitHub changes', c:'btn|Remove'}]}]},
-  {id:'skills', t:'AshuLab/skills', st:'ok', sub:'No epics ready', secs:[
-   {t:'Epics', rows:[{t:'Ready', d:'None', c:''}, {t:'Running', d:'None', c:''}]},
-   {t:'Roles here', rows:[{t:'Author', d:'', c:'val|Same as everywhere'}, {t:'Reviewer', d:'', c:'val|Same as everywhere'}, {t:'Lead reviewer', d:'', c:'val|Same as everywhere'}]},
-   {t:'Remove', rows:[{t:'Stop watching this repo', d:'Nothing on GitHub changes', c:'btn|Remove'}]}]},
-  {id:'encaja', t:'vemec/encaja', st:'ok', sub:'1 epic running · own reviewer', secs:[
-   {t:'Epics', rows:[{t:'Ready', d:'None', c:''}, {t:'Running', d:'1', c:''}]},
-   {t:'Roles here', rows:[{t:'Author', d:'', c:'val|Same as everywhere'}, {t:'Reviewer', d:'Account and model. Replaces the global one for this repo only', c:'val|codex-local · qwen3-coder'}, {t:'Lead reviewer', d:'', c:'val|Same as everywhere'}]},
-   {t:'Remove', rows:[{t:'Stop watching this repo', d:'Nothing on GitHub changes', c:'btn|Remove'}]}]}
+ {id:'repos', t:'Repos', d:'What Carrier watches, and who works on each', ic:'🗂', add:'Add a repo from GitHub', addFn:'repoAddOpen()', list:[
+  {id:'carrier', t:'AshuLab/carrier', st:'ok', sub:()=>repoSub('carrier'), secs:()=>repoSecs('carrier')},
+  {id:'skills', t:'AshuLab/skills', st:'ok', sub:()=>repoSub('skills'), secs:()=>repoSecs('skills')},
+  {id:'encaja', t:'vemec/encaja', st:'ok', sub:()=>repoSub('encaja'), secs:()=>repoSecs('encaja')},
+  {id:'web', t:'acme/web', st:'no', sub:()=>repoSub('web'), secs:()=>repoSecs('web')},
+  {id:'legacy', t:'AshuLab/legacy-api', st:'no', sub:()=>repoSub('legacy'), secs:()=>repoSecs('legacy')}
  ]},
- {id:'ident', t:'Identities', d:'Who Carrier signs as on GitHub', ic:'🪪', add:'Create a bot (guided)',
-  pre:[{t:'Mode', rows:[
-   {t:'Author and reviewer', d:'Separate bots, or one shared identity (visible signature)', c:'val|Separate bots'},
-   {t:'Labels and comments as', d:'Who moves the epic labels', c:'val|carrier-author'}]}],
-  list:[
-  {id:'a', t:'carrier-author', ic:'🤖', st:'ok', sub:'Bot · installed on 6 repos', secs:[
-   {t:'Status', rows:[{t:'GitHub App', d:'Installed on 6 repos', c:'dot|Manage on GitHub'}]},
-   {t:'Used as', rows:[{t:'Author', d:'In Roles', c:''}]},
-   {t:'Remove', rows:[{t:'Forget this bot', d:'The GitHub App stays on GitHub', c:'btn|Remove'}]}]},
-  {id:'r', t:'carrier-reviewer', ic:'🤖', st:'ok', sub:'Bot · installed on 6 repos', secs:[
-   {t:'Status', rows:[{t:'GitHub App', d:'Installed on 6 repos', c:'dot|Manage on GitHub'}]},
-   {t:'Used as', rows:[{t:'Reviewer', d:'In Roles', c:''}]},
-   {t:'Remove', rows:[{t:'Forget this bot', d:'The GitHub App stays on GitHub', c:'btn|Remove'}]}]},
-  {id:'me', t:'My own gh login', ic:'👤', st:'ok', sub:'vemec · for shared identities', secs:[
-   {t:'Status', rows:[{t:'Signed in as vemec', d:'From gh', c:'dot|Check again'}]},
-   {t:'Used as', rows:[{t:'Nothing now', d:'It signs everything when the mode is Shared', c:''}]}]}
- ]},
- {id:'agents', t:'Agents', d:'Which providers Carrier can use, and how each one starts', ic:'🤖', list:[
-  {id:'claude', t:'Claude Code', ic:'✳', tg:'claude.c', sub:()=>TG['claude.c']?'sonnet · Used by Author':'Off', note:'In use by Author, so it stays on. Change the role first to turn it off.', secs:()=>agentSecs('claude','sonnet','c')},
-  {id:'codex', t:'Codex', ic:'◍', tg:'codex.c', sub:()=>TG['codex.c']?'gpt-5.5 · Used by Reviewer':'Off', note:'In use by Reviewer, so it stays on. Change the role first to turn it off.', secs:()=>agentSecs('codex','gpt-5.5','c')},
-  {id:'agy', t:'Antigravity', ic:'▲', tg:'agy.c', sub:()=>TG['agy.c']?'gemini-3-pro · Not used yet':'Off', secs:()=>agentSecs('agy','gemini-3-pro','c')}
- ]},
- {id:'roles', t:'Roles', d:'Who does each job', ic:'🧩', 
-  pre:[{t:'If a provider runs out', rows:[
-   {t:'Move to the next one', d:'Instead of stopping the epic', c:'tg:fo'},
-   {t:'When', d:'Usage limit, rate limit, service down', c:'val|All three'},
-   {t:'Default order', d:'Each role can have its own below', c:'val m|claude → codex'}]}],
-  list:[
-  {id:'author', t:'Author', ic:'✍️', sub:'carrier-author · claude · sonnet', secs:[
-   {t:'Who', rows:[{t:'Identity', d:'Implements the epic, then answers the reviewer', c:'val|carrier-author'}, {t:'Provider', d:'An account from Providers', c:'val|claude'}, {t:'Model', d:'', c:'val m|sonnet'}]},
-   {t:'Persona', rows:[{t:'Name and instructions', d:'Optional', c:'btn|Edit…'}]},
-   {t:'If its provider runs out', rows:[{t:'Order', d:'', c:'val|Default'}]}]},
-  {id:'reviewer', t:'Reviewer', ic:'🔍', sub:'carrier-reviewer · codex · gpt-5.5', secs:[
-   {t:'Who', rows:[{t:'Identity', d:'Reviews the final PR', c:'val|carrier-reviewer'}, {t:'Provider', d:'An account from Providers', c:'val|codex'}, {t:'Model', d:'', c:'val m|gpt-5.5'}]},
-   {t:'Persona', rows:[{t:'Name and instructions', d:'Optional', c:'btn|Edit…'}]},
-   {t:'If its provider runs out', rows:[{t:'Order', d:'', c:'val|Default'}]}]},
-  {id:'lead', t:'Lead reviewer', ic:'🧭', tg:'role.lead', sub:()=>TG['role.lead']?'Choose an identity, provider and model':'Off', secs:()=>[
-   {t:'', rows:[{t:TG['role.lead']?'On':'Off', d:'Optional: architecture and production readiness, after the reviewer. Use the switch in the list.', c:''}]}
-  ].concat(TG['role.lead']?[
-   {t:'Who', rows:[{t:'Identity', d:'Needs its own identity when identities are separate', c:'val|Choose…'}, {t:'Provider', d:'', c:'val|Choose…'}, {t:'Model', d:'', c:'val m|Choose…'}]},
-   {t:'Persona', rows:[{t:'Name and instructions', d:'Optional', c:'btn|Edit…'}]},
-   {t:'If its provider runs out', rows:[{t:'Order', d:'', c:'val|Default'}]}]:[])}
+ {id:'agents', t:'Agents', d:'The three roles of every epic: who signs, which AI works and what happens when it runs out of tokens', ic:'🤖', list:[
+  {id:'author', t:'Author', ic:'✍️', sub:'carrier-author · claude · sonnet · high', secs:()=>roleSecs('author')},
+  {id:'reviewer', t:'Reviewer', ic:'🔍', sub:'carrier-reviewer · codex · gpt-5.5 · high', secs:()=>roleSecs('reviewer')},
+  {id:'lead', t:'Lead reviewer', ic:'🧭', sub:()=>TG['role.lead']?'Choose an identity, provider and model':'Off', secs:()=>roleSecs('lead')}
  ]},
  {id:'beh', t:'Behavior', d:'How epics run', ic:'🎚', secs:[
   {t:'Rhythm', rows:[
@@ -476,7 +431,7 @@ Object.assign(CT,{
  }
 });
 
-const TG={'claude.c':1,'claude.t':1,'codex.c':1,'codex.t':1,'agy.c':0,'lms.c':1,'oll.c':0,'role.lead':0,fo:1};
+const TG={'en.claude':1,'en.claude-work':0,'en.codex':1,'en.codex-local':0,'en.agy':0,'claude.c':1,'claude.t':1,'codex.c':1,'codex.t':1,'agy.c':0,'lms.c':1,'oll.c':0,'role.lead':0,fo:1};
 const LOCK={'claude.c':1,'codex.c':1};
 function tg(k){if(TG[k]&&LOCK[k])return;TG[k]=!TG[k];draw('A');}
 const swTG=k=>'<div class="sg-sw '+(TG[k]?'on':'')+'" style="cursor:pointer'+(LOCK[k]&&TG[k]?';opacity:.5':'')+'" onclick="event.stopPropagation();tg(\''+k+'\')"></div>';
@@ -486,13 +441,87 @@ function mdPage(p,s){
   const v=x=>typeof x==='function'?x():x;
   const it=p.list.find(i=>p.id+'/'+i.id===s.sel[p.id])||p.list[0];
   const L=p.list.map(i=>'<div class="md-i'+(i===it?' on':'')+'" data-sel="'+p.id+'/'+i.id+'">'+(i.ic?'<div class="ic">'+i.ic+'</div>':'')+'<div style="min-width:0;flex:1"><b>'+i.t+(i.meta?' <small>'+i.meta+'</small>':'')+'</b><span>'+v(i.sub)+'</span>'+(i.used?'<span>'+usedBy(i.used)+'</span>':'')+'</div>'+(i.tg?swTG(i.tg):(i.st?'<i class="st'+(i.st==='no'?' no':'')+'"></i>':''))+'</div>').join('');
-  const add=p.add?'<div class="md-add">＋ '+p.add+'</div>':'';
+  const add=p.add?'<div class="md-add"'+(p.addFn?' style="cursor:pointer" onclick="'+p.addFn+'"':'')+'>＋ '+p.add+'</div>':'';
   const blk=x=>'<div class="md-blk"><div class="md-bh"><div><b>'+x.t+'</b>'+(x.sub?'<span>'+x.sub+'</span>':'')+'</div>'+(x.tg?swTG(x.tg):x.act?x.act:'<small>'+(x.badge||'')+'</small>')+'</div>'+(x.rows.length?'<div class="md-bb'+((x.tg&&!TG[x.tg])||(x.gate&&!TG[x.gate])?' off':'')+'">'+x.rows.map(row).join('')+'</div>':'')+'</div>';
   const tiles=x=>'<div class="sg-sect">'+x.t+'</div><div class="md-tiles">'+x.tiles.map(t=>'<div class="md-tile"><div><b>'+t.t+'</b><span>'+t.sub+'</span></div>'+(t.tg?swTG(t.tg):'<small>'+t.badge+'</small>')+'</div>').join('')+'</div>';
   const note=it.note?'<div class="md-note">'+it.note+'</div>':'';
   const stl=it.status?'<div class="md-stl"><i class="st'+(it.st==='no'?' no':'')+'"></i>'+it.status+'<button class="glass sm">'+(it.btn||'Check again')+'</button></div>':'';
-  const det='<div class="md-d"><div class="md-dh"><b>'+it.t+'</b>'+(it.ver?'<small>'+it.ver+'</small>':'')+'</div>'+stl+note+v(it.secs).map(x=>x.tiles?tiles(x):x.card?blk(x):(x.t?'<div class="sg-sect">'+x.t+'</div>':'')+'<div>'+x.rows.map(row).join('')+'</div>').join('')+'</div>';
+  const det=(p.id==='repos'&&RPK.open)?repoPicker():'<div class="md-d"><div class="md-dh"><b>'+it.t+'</b>'+(it.ver?'<small>'+it.ver+'</small>':'')+'</div>'+stl+note+v(it.secs).map(x=>x.tiles?tiles(x):x.card?blk(x):(x.t?'<div class="sg-sect">'+x.t+'</div>':'')+'<div>'+x.rows.map(row).join('')+'</div>').join('')+'</div>';
   return (p.pre?secs({secs:p.pre}):'')+'<div class="md" style="margin-top:16px"><div class="md-l">'+L+add+'</div>'+det+'</div>';
+}
+
+
+// ---- Repos
+const RPK={open:0,q:'',last:null,role:null};
+const REPOD={
+ carrier:{owner:'AshuLab',epics:'3 marked solve:epic:ready · none running',last:'2 min ago · GitHub answered',sub:'3 epics ready',
+  checks:[['Carrier can read it','Through carrier-orchestrator',1],['Author can sign here','carrier-author is installed on AshuLab',1],['Reviewer can sign here','carrier-reviewer is installed on AshuLab',1],['Solve is set up','The solve:epic and solve:epic:ready labels exist',1]],
+  roles:[null,null,null]},
+ skills:{owner:'AshuLab',epics:'None ready · none running',last:'2 min ago · GitHub answered',sub:'No epics ready',
+  checks:[['Carrier can read it','Through carrier-orchestrator',1],['Author can sign here','carrier-author is installed on AshuLab',1],['Reviewer can sign here','carrier-reviewer is installed on AshuLab',1],['Solve is set up','The solve:epic and solve:epic:ready labels exist',1]],
+  roles:[null,null,null]},
+ encaja:{owner:'vemec',epics:'None ready · 1 running',last:'2 min ago · GitHub answered',sub:'1 epic running · own bots',
+  checks:[['Carrier can read it','Through your gh login',1],['Author can sign here','vemec-author is installed on vemec',1],['Reviewer can sign here','vemec-reviewer is installed on vemec',1],['Solve is set up','The solve:epic and solve:epic:ready labels exist',1]],
+  roles:[['vemec-author','claude','sonnet','High'],['vemec-reviewer','codex-local','qwen3-coder','High'],null]},
+ web:{owner:'acme',epics:'1 ready · none running',last:'2 min ago · GitHub answered',sub:'Author and reviewer cannot sign here',
+  checks:[['Carrier can read it','Through your gh login',1],['Author can sign here','carrier-author is not installed on acme',0,'sign'],['Reviewer can sign here','carrier-reviewer is not installed on acme',0,'sign'],['Solve is set up','The solve:epic and solve:epic:ready labels exist',1]],roles:[null,null,null]},
+ legacy:{owner:'AshuLab',err:1,epics:'Unknown',last:'GitHub answered "Not found". It was renamed or deleted, or Carrier has no access',sub:'GitHub says it is not found',
+  checks:[['Carrier can read it','GitHub answered "Not found"',0,'Check again']],roles:[null,null,null]}
+};
+function rsel(opts,cur){return '<select class="sg-sel">'+opts.map(o=>'<option'+(o===cur?' selected':'')+'>'+o+'</option>').join('')+'</select>';}
+function repoRole(k,i){const id=k+'/'+i;RPK.role=RPK.role===id?null:id;draw('A');}
+function repoReset(k,i){REPOD[k].roles[i]=null;RPK.role=null;draw('A');}
+function repoSub(k){return REPOD[k].sub;}
+function rchk(t,d,ok,fix){return {t:t,d:d,c:(ok?'dot':'dotno')+(fix?'|'+fix:'')};}
+function repoSecs(k){
+  const r=REPOD[k], name=(D.Carrier.pages[0].list.find(i=>i.id===k)||{}).t||k;
+  const roleNames=['Author','Reviewer','Lead reviewer'];
+  const status=[{t:'Epics',d:r.epics,c:''},{t:'Last check',d:r.last,c:''}];
+  if(!r.err) status.push({t:'Clone',d:'~/.carrier/engine/repos/'+name,c:'btn|Reveal'});
+  status.push({t:'On GitHub',d:'github.com/'+name,c:'btn|Open'});
+  const out=[{card:1,t:'Status',rows:status}];
+  out.push({card:1,t:'Ready for Carrier',sub:r.err?'Nothing else can be checked until GitHub answers':'The checks of carrier doctor, plus whether Solve is set up',rows:r.pending?r.checks.map(c=>({t:c[0],d:'Checking…',c:''})):r.checks.map((c,ci)=>c[3]==='sign'?{t:c[0],d:c[1],html:'<div style="display:flex;gap:8px;align-items:center"><button class="glass sm" onclick="repoRole(\''+k+'\','+(ci-1)+')">Use another identity</button><button class="glass sm" onclick="nav(\'Carrier\',\'agents\')">Open Agents</button><div class="sg-dot no">!</div></div>'}:rchk(c[0],c[1],c[2],c[3]))});
+  const DEFR=[['carrier-author','claude','sonnet','High'],['carrier-reviewer','codex','gpt-5.5','High'],null];
+  const txt=a=>a.join(' · '), roleRows=[];
+  r.roles.forEach((v,i)=>{
+    const def=DEFR[i], off=i===2&&!v&&!TG['role.lead'], open=RPK.role===k+'/'+i;
+    roleRows.push(off?{t:roleNames[i],d:'Off in Agents',c:''}:{t:roleNames[i],d:v?'Default: '+txt(def):txt(def||['Set in Agents']),on:"repoRole('"+k+"',"+i+")",sel:open,c:'val|'+(v?txt(v):'Same as everywhere')});
+    if(open){const cur=v||def||['','','',''];
+      roleRows.push(
+       {t:'Identity',d:'Who it signs as on GitHub',html:rsel(['carrier-author','carrier-reviewer','vemec-author','vemec-reviewer','My gh login'],cur[0])},
+       {t:'Provider',d:'An account from Providers',html:rsel(['claude','claude-work','codex','codex-local'],cur[1])},
+       {t:'Model',d:'',html:'<input class="sg-in" value="'+cur[2]+'">'},
+       {t:'Effort',d:'',html:rsel(['Default','Low','Medium','High','Extra high','Max'],cur[3]||'Default')},
+       {t:'Persona',d:'Optional name and instructions',c:'btn|Edit…'},
+       {t:'',d:v?'Back to the default of Agents':'Change a field to make it this repo\'s own',html:v?'<button class="glass sm" onclick="repoReset(\''+k+'\','+i+')">Reset</button>':''});}
+  });
+  if(!r.err) out.push({card:1,t:'Who works here',sub:'Every repo follows the defaults of Agents. Change a role here only when this repo needs something else',act:'<button class="glass sm" onclick="nav(\'Carrier\',\'agents\')">Open Agents</button>',rows:roleRows});
+  out.push({t:'Remove',rows:[{t:'Stop watching this repo',d:'Nothing on GitHub changes',c:'btn|Remove'}]});
+  return out;
+}
+const AVAIL=[
+ {o:'AshuLab',r:[['AshuLab/carrier',0,'2 h ago'],['AshuLab/skills',0,'1 d ago'],['AshuLab/agent-forge',1,'3 d ago'],['AshuLab/homebrew-tap',0,'1 w ago'],['AshuLab/legacy-api',1,'4 mo ago']]},
+ {o:'acme',r:[['acme/web',1,'1 d ago'],['acme/api',1,'3 d ago']]},
+ {o:'vemec',r:[['vemec/encaja',1,'5 h ago'],['vemec/dotfiles',1,'2 w ago'],['vemec/notes',1,'3 mo ago']]}
+];
+function repoWatched(){return D.Carrier.pages[0].list.map(i=>i.t);}
+function repoListHTML(){
+  const q=RPK.q.trim().toLowerCase(), w=repoWatched();
+  const groups=AVAIL.map(g=>({o:g.o,r:g.r.filter(x=>!q||x[0].toLowerCase().includes(q))})).filter(g=>g.r.length);
+  if(!groups.length) return '<div class="sg-row"><div class="t"><b>No repo matches</b><span>Only repos your gh login can push to are listed</span></div></div>';
+  return groups.map(g=>'<div class="sg-sect">'+g.o+'</div><div>'+g.r.map(x=>'<div class="sg-row"><div class="t"><b>'+x[0]+(x[1]?' <small class="faint">private</small>':'')+'</b><span>Pushed '+x[2]+'</span></div>'+(w.includes(x[0])?'<span class="sg-val">Watching</span>':'<button class="glass sm pri" onclick="repoAdd(\''+x[0]+'\')">Add</button>')+'</div>').join('')+'</div>').join('');
+}
+function repoPicker(){
+  return '<div class="md-d"><div class="md-dh"><b>Add a repo</b></div><div class="md-blk"><div class="md-bh"><div><b>Your GitHub repos</b><span>The ones the gh login of Carrier can push to, grouped by owner. A repo you add is saved at once and read when Carrier starts</span></div><button class="glass sm" onclick="repoAddClose()">Cancel</button></div><div class="md-bb"><div class="sg-row"><div class="t"><b>Search</b><span>Owner or name</span></div><input class="sg-in" id="repoQ" placeholder="owner/name" value="'+RPK.q+'" oninput="repoQuery(this.value)"></div></div></div><div id="repoList">'+repoListHTML()+'</div></div>';
+}
+function repoAddOpen(){RPK.open=1;RPK.q='';draw('A');}
+function repoAddClose(){RPK.open=0;draw('A');}
+function repoQuery(v){RPK.q=v;document.getElementById('repoList').innerHTML=repoListHTML();}
+function repoAdd(name){
+  const id=name.replace(/[^a-z0-9]+/gi,'-').toLowerCase();
+  REPOD[id]={owner:name.split('/')[0],pending:1,epics:'Carrier reads this repo when it starts',last:'Carrier reads this repo when it starts',sub:'Carrier reads it when it starts',checks:[['Carrier can read it'],['Author can sign here'],['Reviewer can sign here'],['Solve is set up']],roles:[null,null,null]};
+  D.Carrier.pages[0].list.push({id:id,t:name,st:'ok',sub:()=>repoSub(id),secs:()=>repoSecs(id)});
+  state.A.sel.repos='repos/'+id; RPK.open=0; draw('A');
 }
 
 const ACC={
@@ -514,12 +543,12 @@ function addAcc(k){
   ADD.open=null;ADD.last=n;ACCSEL[k]=n;draw('A');
 }
 function accCtl(a,k){
-  const b=!a.ok?'<button class="glass sm">Sign in in Terminal</button>':a.role?'<button class="glass sm" onclick="accSel(\''+k+'\',\''+a.n+'\')">Edit</button>':'<button class="glass sm" onclick="event.stopPropagation();nav(\'Carrier\',\'roles\')">Use in a role…</button>';
+  const b=!a.ok?'<button class="glass sm">Sign in in Terminal</button>':a.role?'<button class="glass sm" onclick="accSel(\''+k+'\',\''+a.n+'\')">Edit</button>':'<button class="glass sm" onclick="event.stopPropagation();nav(\'Carrier\',\'agents\')">Use in an agent…</button>';
   return '<div style="display:flex;gap:8px;align-items:center">'+b+'<div class="sg-dot'+(a.ok?'':' no')+'">'+(a.ok?'✓':'!')+'</div></div>';
 }
 function accRows(k){
   const rows=[].concat(ACC[k].map(a=>({t:a.n,d:a.d+' · '+(a.role?'Used by '+a.role:'Not used yet'),html:accCtl(a,k),on:"accSel('"+k+"','"+a.n+"')",sel:ACCSEL[k]===a.n})));
-  if(ADD.last&&ACC[k].some(a=>a.n===ADD.last)) rows.push({t:'✓ '+ADD.last+' added',d:"Set its runtime below, sign in, then pick it in Roles › Provider of the role that should use it",html:'<button class="glass sm" onclick="nav(\'Carrier\',\'roles\')">Open Roles</button>'});
+  if(ADD.last&&ACC[k].some(a=>a.n===ADD.last)) rows.push({t:'✓ '+ADD.last+' added',d:"Set its runtime below, sign in, then pick it in Agents, in the account of the role that should use it",html:'<button class="glass sm" onclick="nav(\'Carrier\',\'agents\')">Open Agents</button>'});
   if(ADD.open===k) rows.push(
    {t:'New account',d:'A name the roles can pick, and the folder that holds its login',html:''},
    {t:'Name',d:'',html:'<input class="sg-in" id="accName" value="'+k+'-2">'},
@@ -550,6 +579,32 @@ const AG={
  codex:{effort:1,perm:[{t:'Approvals',d:'When it asks before running something',c:'val|Ask unless known safe'},{t:'Sandbox',d:'Where it may write',c:'val|Write in the folder'}]},
  agy:{effort:0,perm:[]}};
 const openProviders='<button class="glass sm" onclick="nav(\'Providers\',\'providers\')">Open Providers</button>';
+
+// ---- Agents (the three roles)
+const ROLEDATA={
+ author:{what:'Writes the code of the epic and answers the reviewer',id:'carrier-author',prov:'claude',model:'sonnet',eff:'High',fb:['codex · gpt-5.5','None']},
+ reviewer:{what:'Reviews the final pull request',id:'carrier-reviewer',prov:'codex',model:'gpt-5.5',eff:'High',fb:['claude · opus','None']},
+ lead:{what:'Optional. Looks at architecture and production readiness after the reviewer',id:'Choose…',prov:'Choose…',model:'Choose…',eff:'Default',fb:['None','None']}
+};
+function roleSecs(k){
+  const r=ROLEDATA[k];
+  const leadSwitch={card:1,t:'',rows:[{t:'Use a lead reviewer',d:r.what,c:'tg:role.lead'}]};
+  const g=k==='lead'?{gate:'role.lead'}:{};
+  const idHint=k==='reviewer'?'Must differ from the author\'s, or both share one identity and the signature says so':'A bot from Agent Forge, or your gh login';
+  return (k==='lead'?[leadSwitch]:[]).concat([
+   Object.assign({card:1,t:'Who',sub:k==='lead'?'':r.what,rows:[
+    {t:'Identity',d:idHint,c:'val|'+r.id},
+    {t:'',d:'Not in the list? Opens Terminal on agent-forge add, and the list refreshes when it ends',c:'btn|Create a bot…'},
+    {t:'Provider',d:'An account from Providers',c:'val|'+r.prov},
+    {t:'Model',d:'',c:'val m|'+r.model},
+    {t:'Effort',d:'How hard it thinks. Permissions are always automatic: nobody is at the keyboard',c:'val|'+r.eff}]},g),
+   Object.assign({card:1,t:'Details',rows:[{t:'Persona',d:'Optional name and instructions',c:'btn|Edit…'}]},g),
+   Object.assign({card:1,t:'When it runs out of tokens',sub:'Usage limit, rate limit or service down. Without a next one the epic stops and asks for a person',rows:[
+    {t:'Switch automatically',d:'',c:'tg:fo'},
+    {t:'First',d:'Provider and model',c:'val|'+r.fb[0]},
+    {t:'Then',d:'Optional',c:'val|'+r.fb[1]}]},g)
+  ]);
+}
 function agentSecs(k,model,who){
   const rows=[{t:'Model',d:'',c:'val m|'+model}].concat(AG[k].effort?[{t:'Reasoning effort',d:'',c:'val|Default'}]:[],AG[k].perm);
   const out=[{card:1,t:'Defaults',sub:who==='c'?'For a role that does not choose its own':'How a new session starts. Each session can change them',gate:k+'.'+who,rows}];
@@ -648,7 +703,7 @@ function draw(mode){
   el.innerHTML='<div class="sg-body"><div class="sg-rail">'+rail+'</div><div class="sg-page">'+page+'</div></div><div class="sg-foot"><button class="glass pri">Done</button></div>';
   apply(el); el.querySelector('.sg-page').scrollTop=st0;
   el.querySelectorAll('[data-id]').forEach(n=>n.onclick=()=>{const [g,p]=n.dataset.id.split('/');s.g=g;s.p=p;draw(mode);});
-  el.querySelectorAll('[data-sel]').forEach(n=>n.onclick=()=>{s.sel[pg.id]=n.dataset.sel;ADD.open=null;ADD.last=null;draw(mode);});
+  el.querySelectorAll('[data-sel]').forEach(n=>n.onclick=()=>{s.sel[pg.id]=n.dataset.sel;ADD.open=null;ADD.last=null;RPK.open=0;draw(mode);});
   el.querySelectorAll('[data-g]').forEach(n=>n.onclick=()=>{s.g=n.dataset.g;s.p=D[s.g].pages[0].id;draw(mode);});
 }
 document.getElementById('opts').innerHTML=Object.entries(MODES).map(([m,o])=>{state[m]={g:'Providers',p:'providers',sel:{}};return '<div class="sg-opt"><h3>'+o.t+'</h3><p>'+o.p+'</p><div class="sg-sheet" id="sheet'+m+'"></div></div>';}).join('');

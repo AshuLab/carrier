@@ -25,7 +25,7 @@ private func providers(_ file: ProvidersFile) throws -> [String: [String: Any]] 
     #expect((json["future"] as? [String: Int]) == ["a": 1])
     let map = try #require(json["providers"] as? [String: [String: Any]])
     #expect(map["claude-work"]?["newKey"] as? Bool == true && map["claude-work"]?["launchArgs"] as? [String] == ["--chrome"])
-    #expect(map["codex"]?["harness"] as? String == "codex" && map["codex"]?["enabled"] as? Bool == false)
+    #expect(map["codex"]?["harness"] as? String == "codex" && map["codex"]?["enabled"] == nil)
     #expect(map.keys.sorted() == ["claude-work", "codex"])
 }
 
@@ -93,7 +93,7 @@ private final class ProvidersHost: ChatHost, @unchecked Sendable {
 }
 
 private func account(_ name: String, found: Bool) -> String {
-    #"{"name":"\#(name)","harness":"\#(name)","enabled":false,"found":\#(found),"state":"\#(found ? "ready" : "missing")"}"#
+    #"{"name":"\#(name)","harness":"\#(name)","found":\#(found),"state":"\#(found ? "ready" : "missing")"}"#
 }
 
 private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
@@ -110,7 +110,7 @@ private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
     await store.createFileIfMissing()
     let written = try providers(file)
     #expect(written.keys.sorted() == ["claude", "codex"])
-    #expect(written.values.allSatisfy { $0["enabled"] as? Bool == false })
+    #expect(written.values.allSatisfy { $0.keys.sorted() == ["harness"] })
     #expect(written["codex"]?["harness"] as? String == "codex")
     // and the page shows what the host says after it
     #expect(host.asked == 2)
@@ -153,11 +153,11 @@ private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
     let store = ProvidersStore(host: host, file: { file }, log: { _ in })
     await store.add(harness: "agy")
     let written = try providers(file)
-    #expect(written.keys.sorted() == ["agy", "claude"] && written["agy"]?["enabled"] as? Bool == false)
+    #expect(written.keys.sorted() == ["agy", "claude"] && written["agy"]?.keys.sorted() == ["harness"])
     #expect(written["claude"]?["command"] as? String == "/opt/claude" && store.addProblem == nil)
 
     // the person removes claude by hand; opening the app again does not add it back
-    try file.write(Data(#"{"providers":{"agy":{"harness":"agy","enabled":false}}}"#.utf8))
+    try file.write(Data(#"{"providers":{"agy":{"harness":"agy"}}}"#.utf8))
     let after = try text(file)
     await store.createFileIfMissing()
     #expect(try text(file) == after)
@@ -193,7 +193,7 @@ private func map(_ data: Data) throws -> [String: [String: Any]] {
     return try #require(json["providers"] as? [String: [String: Any]])
 }
 
-private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude","enabled":false,"model":"m","newKey":{"a":1}},"codex":{"harness":"codex"},"agy":{"harness":"agy"}}}"#.utf8)
+private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude","note":"keep","model":"m","newKey":{"a":1}},"codex":{"harness":"codex"},"agy":{"harness":"agy"}}}"#.utf8)
 
 @Test func addingAnAccountWritesItsNameHarnessAndFolderAndRefusesWhatTheEngineWouldRefuse() throws {
     let added = try map(applyingNewAccount(name: "claude-work", harness: "claude", configDir: "/h/.cw", to: base))
@@ -224,7 +224,7 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     #expect(written?["displayName"] as? String == "Work" && written?["command"] as? String == "/opt/bin/claude" && written?["configDir"] as? String == "~/.claude-work")
     #expect(written?["autoCompact"] as? Int == 300_000 && written?["launchArgs"] as? [String] == ["--chrome", "--verbose"] && written?["idleCompaction"] as? Bool == false)
     // the keys the editor does not own stay
-    #expect(written?["model"] as? String == "m" && written?["enabled"] as? Bool == false && written?["newKey"] != nil)
+    #expect(written?["model"] as? String == "m" && written?["note"] as? String == "keep" && written?["newKey"] != nil)
 
     // "auto" stays a string; Use default and every emptied field remove their keys
     draft.autoCompact = "auto"
@@ -234,7 +234,7 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     #expect(cleared.displayName == "Work" && cleared.launchArgs == "--chrome\n--verbose" && cleared.autoCompact == "auto" && cleared.idle == .never)
     cleared = AccountDraft()
     let emptied = try map(applyingEdit(name: "claude", draft: cleared, to: again))["claude"]
-    #expect(emptied?.keys.sorted() == ["enabled", "harness", "model", "newKey"])
+    #expect(emptied?.keys.sorted() == ["harness", "model", "newKey", "note"])
     let json = try #require(JSONSerialization.jsonObject(with: applyingEdit(name: "claude", draft: draft, to: base)) as? [String: Any])
     #expect(json["future"] as? Int == 1)
 
@@ -284,12 +284,11 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     #expect(throws: ProvidersFileError.missing("nope")) { try applyingRemoval(name: "nope", uses: [], to: base) }
 }
 
-@Test func aFailoverListThatIsOffStillStopsARemovalButNotThePageLine() {
-    let config = Data(#"{"failover":{"enabled":false,"default":["codex"]},"agents":{"author":{"provider":"claude"}}}"#.utf8)
+@Test func aFailoverStepStopsTheRemovalOfItsAccount() {
+    let config = Data(#"{"failover":{"roles":{"author":[{"provider":"codex"}]}},"agents":{"author":{"provider":"claude"}}}"#.utf8)
     let chat = Data(#"{"agents":{"x":{"account":"claude"}}}"#.utf8)
-    #expect(accountUses(config: config, chat: chat)["codex"] == nil)
-    #expect(accountUses(config: config, chat: chat, anyFailover: true)["codex"] == [.failover(nil)])
-    #expect(accountUses(config: config, chat: chat, anyFailover: true)["claude"] == [.role(.author), .chatAgent("x")])
+    #expect(accountUses(config: config, chat: chat)["codex"] == [.failover(.author)])
+    #expect(accountUses(config: config, chat: chat)["claude"] == [.role(.author), .chatAgent("x")])
 }
 
 @Test func theFooterTellsThatARunningEngineNeedsARestart() {

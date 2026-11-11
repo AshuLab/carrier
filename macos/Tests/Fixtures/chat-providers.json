@@ -1,8 +1,8 @@
 {
   "accounts": [
-    { "name": "claude", "harness": "claude", "enabled": true, "found": true, "path": "/opt/homebrew/bin/claude", "version": "2.1.3 (Claude Code)", "state": "ready" },
-    { "name": "claude-work", "harness": "claude", "displayName": "Work", "configDir": "/Users/demo/.claude-work", "enabled": false, "found": true, "path": "/opt/homebrew/bin/claude", "version": "2.1.3 (Claude Code)", "state": "signedOut" },
-    { "name": "codex", "harness": "codex", "command": "/opt/homebrew/bin/codex", "enabled": true, "found": true, "path": "/opt/homebrew/bin/codex", "state": "unknown" }
+    { "name": "claude", "harness": "claude", "found": true, "path": "/opt/homebrew/bin/claude", "version": "2.1.3 (Claude Code)", "state": "ready" },
+    { "name": "claude-work", "harness": "claude", "displayName": "Work", "configDir": "/Users/demo/.claude-work", "found": true, "path": "/opt/homebrew/bin/claude", "version": "2.1.3 (Claude Code)", "state": "signedOut" },
+    { "name": "codex", "harness": "codex", "command": "/opt/homebrew/bin/codex", "found": true, "path": "/opt/homebrew/bin/codex", "state": "unknown" }
   ],
   "unadded": [
     { "harness": "agy", "path": "/Users/demo/.local/bin/agy", "version": "1.4.0" }

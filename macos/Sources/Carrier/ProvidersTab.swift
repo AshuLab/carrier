@@ -168,7 +168,6 @@ struct ProvidersTabView: View {
     private func accountLine(_ account: ProviderAccount, harness: String) -> String {
         var parts = [account.usedBy]
         if harness != "agy" { parts.append(account.configDir ?? "This Mac's login") }
-        if account.enabled == false { parts.append("Not offered for epics") }
         return parts.joined(separator: " · ")
     }
 }

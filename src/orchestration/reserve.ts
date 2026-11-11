@@ -1,5 +1,4 @@
 import { and, asc, count, eq, inArray } from 'drizzle-orm';
-import { offeredNames } from '../config/providers.ts';
 import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import type { Db } from '../storage/db.ts';
 import { epics } from '../storage/schema.ts';
@@ -7,8 +6,8 @@ import { epics } from '../storage/schema.ts';
 // Atomic: the check of free slots, the pick of the oldest queued epic and the move to `running`
 // happen in one write transaction, so two connections to the same file can never reserve the
 // same epic or exceed the limit. Only queued epics are picked, so a running one is never reserved again.
-// With two or more enabled options the epic is also marked as waiting for its choice for `choiceMs`; each role starts on its configured option.
-export function reserve(db: Db, { maxConcurrent, now, repos, choiceMs }: { maxConcurrent: number; now: number; repos: EffectiveRepoConfig[]; choiceMs: number }) {
+// No wait for a choice: the epic starts at once, each role on its configured option.
+export function reserve(db: Db, { maxConcurrent, now, repos }: { maxConcurrent: number; now: number; repos: EffectiveRepoConfig[] }) {
   return db.transaction(
     (tx) => {
       const running = tx.select({ n: count() }).from(epics).where(eq(epics.status, 'running')).get()!.n;
@@ -26,7 +25,6 @@ export function reserve(db: Db, { maxConcurrent, now, repos, choiceMs }: { maxCo
         .set({
           status: 'running', startedAt: now, config, labelPending: true,
           authorOption: config.agents.author.option ?? null, reviewerOption: config.agents.reviewer.option ?? null,
-          choiceDeadline: offeredNames(config.providers ?? config.options).length >= 2 ? now + choiceMs : null,
         })
         .where(eq(epics.id, next.id))
         .returning()

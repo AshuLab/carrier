@@ -17,7 +17,7 @@ public enum FixtureError: Error, Equatable {
 /// which cycles through its suggestions, and `checkName`, free unless the file says otherwise); `open` makes a session in memory (in a
 /// worktree when asked, refused as the host does for a folder that is not a git repository, a branch it did not list and a bad name)
 /// and `send` adds the message to its events; anything else is an error.
-/// It owns a temporary home (`home`) holding a `config.json` with the roles and a failover order (so the Providers page has accounts in use) and a `chat.json` with two chat agents, and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
+/// It owns a temporary home (`home`) holding a `config.json` with the roles and a failover order (so the Providers page has accounts in use), a `chat.json` with two chat agents and a `providers.json` with the golden reply's accounts (`providers` follows it: Antigravity stays "found, not added" until an Add writes it), and the engine's socket in `engine/state/`, so pointing `CARRIER_HOME` at it
 /// makes `controlSocketPath()` find the socket. `stop()` removes the home and everything in it.
 public final class FixtureServer {
     public let home: String
@@ -144,6 +144,8 @@ public final class FixtureServer {
             try FileManager.default.createDirectory(atPath: home + "/chat/state", withIntermediateDirectories: true)
             let chatConfig = #"{"agents":{"claude":{"account":"claude"},"codex":{"account":"codex"},"work":{"account":"claude-work"}}}"#
             try Data(chatConfig.utf8).write(to: URL(fileURLWithPath: home + "/chat/chat.json"))
+            // the accounts of the golden reply, without Antigravity: it is found and has no account, so the page shows its Add row
+            try ProvidersFile(folder: home).write(applyingAccounts([("claude", "claude"), ("claude-work", "claude"), ("codex", "codex")], to: nil))
             listener = try Self.listen(path: state + "/control.sock")
             do { chatListener = try Self.listen(path: home + "/chat/state/chat.sock") } catch {
                 Darwin.close(listener)
@@ -275,7 +277,7 @@ public final class FixtureServer {
             guard let repo = request?["repo"] as? String else { break }
             return chatBranches[repo].map { Self.answer(id, $0) } ?? Self.refused(id, "\(repo) was not found, or your GitHub login cannot see it")
         case "providers":
-            return Self.answer(id, chatProviders)
+            return Self.answer(id, providersReply())
         case "suggestName":
             let names = chatNames["suggestions"] as? [String] ?? []
             guard request?["folder"] is String, names.isEmpty == false else { break }
@@ -396,6 +398,25 @@ public final class FixtureServer {
         }
         locked { chatSessions.insert(session, at: 0) }
         return Self.answer(id, ["session": session, "options": [Any]()])
+    }
+
+    /// The golden `providers` reply as `<home>/providers.json` leaves it: a harness the file gives an account stops being "found, not added" and
+    /// is listed as an account named in the file, so an Add made in the app shows in the page as it would against a real host.
+    private func providersReply() -> [String: Any] {
+        var reply = chatProviders
+        let file = (try? ProvidersFile(folder: home).read()).flatMap { $0 }
+            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }?["providers"] as? [String: [String: Any]] ?? [:]
+        let golden = reply["accounts"] as? [[String: Any]] ?? []
+        let known = Set(golden.compactMap { $0["name"] as? String })
+        let unadded = reply["unadded"] as? [[String: Any]] ?? []
+        let added = file.filter { known.contains($0.key) == false }.compactMap { name, account -> [String: Any]? in
+            guard let seen = unadded.first(where: { $0["harness"] as? String == account["harness"] as? String }) else { return nil }
+            return ["name": name, "harness": account["harness"] ?? "", "enabled": account["enabled"] ?? true, "found": true, "path": seen["path"] ?? "", "version": seen["version"] ?? "", "state": "unknown"]
+        }
+        reply["accounts"] = golden + added.sorted { ($0["name"] as? String ?? "") < ($1["name"] as? String ?? "") }
+        let taken = Set(file.values.compactMap { $0["harness"] as? String })
+        reply["unadded"] = unadded.filter { taken.contains($0["harness"] as? String ?? "") == false }
+        return reply
     }
 
     private static func answer(_ id: Int, _ data: Any) -> Data {

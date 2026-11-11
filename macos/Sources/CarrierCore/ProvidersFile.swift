@@ -8,6 +8,12 @@ public enum ProvidersFileError: Error, Equatable {
     case notAnObject
     /// An account of that name is already declared; the app never replaces one.
     case taken(String)
+    /// No account of that name is declared.
+    case missing(String)
+    /// The account is named by a role, a repo override, a failover list or a chat agent, so it stays.
+    case inUse(String, [AccountUse])
+    /// The engine would refuse what was asked, said in words naming the field; nothing was written.
+    case invalid(String)
 }
 
 /// `json` with the accounts added, each `{ harness, enabled: false }` (found by detection, not offered for an epic's choice, as the ADR

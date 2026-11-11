@@ -2,7 +2,7 @@ import Foundation
 import Observation
 
 // The Providers page of Settings (docs/specs/providers-in-settings.md): what the chat host says of the AI tools on this Mac (`providers`),
-// joined with who uses each account, read from `config.json` (roles, repo overrides, failover) and `chat.json` (chat agents). The page reads; the one write is the Add of a harness found with no account (`ProvidersStore`, `ProvidersFile`).
+// joined with who uses each account, read from `config.json` (roles, repo overrides, failover) and `chat.json` (chat agents). The page reads; it writes `providers.json` for the Add of a harness found with no account and for an account's Add, edit and Remove (`ProvidersStore`, `ProvidersFile`, `ProvidersEdit`).
 
 /// The reply of `providers`: the accounts of `providers.json` with their state, the harnesses found that no account has, and the local servers.
 public struct HostProviders: Decodable, Equatable {
@@ -35,6 +35,9 @@ public struct HostProviders: Decodable, Equatable {
     public struct Problem: Decodable, Equatable {
         public let path: String
         public let message: String
+
+        /// The message with the key it is about, unless the message already names it.
+        public var text: String { message.contains(path) ? message : "\(path): \(message)" }
     }
 
     public let accounts: [Account]
@@ -84,8 +87,9 @@ public enum AccountUse: Equatable {
 }
 
 /// Who uses each account, by account name. A missing `chat.json` (or one with no `agents`) is the chat's defaults: `claude` and `codex`, each
-/// on the account of the same name. The failover lists count only while failover is enabled. A file that does not read names nobody.
-public func accountUses(config: Data?, chat: Data?) -> [String: [AccountUse]] {
+/// on the account of the same name. The failover lists count only while failover is enabled, or always with `anyFailover` (the engine checks the
+/// names of a list that is off too, so removing an account such a list names would stop it). A file that does not read names nobody.
+public func accountUses(config: Data?, chat: Data?, anyFailover: Bool = false) -> [String: [AccountUse]] {
     func object(_ data: Data?) -> [String: Any] {
         data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
     }
@@ -103,7 +107,7 @@ public func accountUses(config: Data?, chat: Data?) -> [String: [AccountUse]] {
             if let name = provider(overrides[role.key], "provider") { uses[name, default: []].append(.repoOverride(repo: repoName, role: role)) }
         }
     }
-    if let failover = file["failover"] as? [String: Any], failover["enabled"] as? Bool == true {
+    if let failover = file["failover"] as? [String: Any], anyFailover || failover["enabled"] as? Bool == true {
         for name in failover["default"] as? [String] ?? [] { uses[name, default: []].append(.failover(nil)) }
         let lists = failover["roles"] as? [String: Any] ?? [:]
         for role in ProviderRole.allCases {
@@ -233,7 +237,7 @@ public enum ProvidersOutcome: Equatable {
         case .noHost: "The chat host is not running, so this Mac was not looked at. Open Health to see why."
         case .tooOld: "The chat host is too old to list the AI tools. Restart it to use the installed Carrier."
         case .failed(let reason): "The chat host could not list the AI tools: \(reason)"
-        case .reply(let reply): reply.problem.map { "providers.json does not match, so no accounts are shown. \($0.message)" }
+        case .reply(let reply): reply.problem.map { "providers.json does not match, so no accounts are shown. \($0.text)" }
         }
     }
 }
@@ -243,15 +247,24 @@ public enum ProvidersOutcome: Equatable {
     public private(set) var outcome = ProvidersOutcome.unasked
     /// Why the last Add did not write the account, in words; nil when it did or none was made.
     public private(set) var addProblem: String?
+    /// Why the last Add account, edit or Remove did not write the file, in words naming the field; nil when it did or none was made.
+    public private(set) var editProblem: String?
 
     @ObservationIgnored private let host: ChatHost
     @ObservationIgnored private let file: () -> ProvidersFile
+    @ObservationIgnored private let uses: () throws -> [String: [AccountUse]]
     @ObservationIgnored private let log: (String) -> Void
 
-    /// `file` is looked up at each use, so the Carrier folder is the one the app has then.
-    public init(host: ChatHost, file: @escaping () -> ProvidersFile = ProvidersFile.current, log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }) {
+    /// `file` is looked up at each use, so the Carrier folder is the one the app has then. `uses` is who names each account, read from
+    /// `config.json` and `chat.json` when an account is removed; a `chat.json` that is there and cannot be read stops the removal.
+    public init(
+        host: ChatHost, file: @escaping () -> ProvidersFile = ProvidersFile.current,
+        uses: @escaping () throws -> [String: [AccountUse]] = { accountUses(config: currentConfig(), chat: try currentChatConfig(), anyFailover: true) },
+        log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }
+    ) {
         self.host = host
         self.file = file
+        self.uses = uses
         self.log = log
     }
 
@@ -286,6 +299,50 @@ public enum ProvidersOutcome: Equatable {
             addProblem = "providers.json could not be written; the file stays as it was."
         }
         await load()
+    }
+
+    /// The person closed the form or editor that showed `editProblem`.
+    public func dismissProblem() { editProblem = nil }
+
+    /// The Add account of a tool: a new account with a name and, when given, a config folder.
+    @discardableResult public func addAccount(name: String, harness: String, configDir: String) async -> Bool {
+        await change("add \(name)") { try applyingNewAccount(name: name, harness: harness, configDir: configDir, to: $0) }
+    }
+
+    /// The editor's Save: the fields written to the account, an emptied one removing its key.
+    @discardableResult public func save(name: String, draft: AccountDraft) async -> Bool {
+        await change("save \(name)") { try applyingEdit(name: name, draft: draft, to: $0) }
+    }
+
+    /// Remove: refused, naming who, while a role, a repo override, a failover list or a chat agent names the account.
+    @discardableResult public func remove(name: String) async -> Bool {
+        await change("remove \(name)") { try applyingRemoval(name: name, uses: try self.uses()[name] ?? [], to: $0) }
+    }
+
+    /// Reads the file, writes what `make` returns and asks the host again, so a `problem` it answers is what the page shows; a refusal writes nothing.
+    private func change(_ what: String, _ make: (Data?) throws -> Data) async -> Bool {
+        editProblem = nil
+        var written = false
+        do {
+            let file = file()
+            try file.write(make(try file.read()))
+            written = true
+        } catch ProvidersFileError.notAnObject {
+            editProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
+        } catch ProvidersFileError.taken(let name) {
+            editProblem = "There is already an account named \(name)."
+        } catch ProvidersFileError.missing(let name) {
+            editProblem = "There is no account named \(name) in providers.json."
+        } catch ProvidersFileError.inUse(let name, let uses) {
+            editProblem = "\(name) is used by \(uses.map(\.text).joined(separator: ", ")), so it stays. Point those at another account first."
+        } catch ProvidersFileError.invalid(let reason) {
+            editProblem = reason
+        } catch {
+            log("providers: could not \(what): \(error)")
+            editProblem = "providers.json could not be written; the file stays as it was."
+        }
+        if written { await load() }
+        return written
     }
 
     public func load() async {

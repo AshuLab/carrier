@@ -4,7 +4,8 @@ import SwiftUI
 
 /// The Providers page of Settings (docs/specs/providers-in-settings.md): the AI tools of this Mac in a list, and for the chosen one its version
 /// and path with Update, its accounts with who uses each and Sign in for a signed-out one (`providersPage`) or, for a local server, its models.
-/// A tool found with no account has an Add (`ProvidersStore.add`). The page has no automated test; the rows are `providersPage`'s and the
+/// A tool found with no account has an Add (`ProvidersStore.add`); an account has Edit (`AccountEditor`, with Remove) and a tool Add account
+/// (`AddAccountForm`). The page has no automated test; the rows are `providersPage`'s and the
 /// commands `providerCommand`'s.
 struct ProvidersTabView: View {
     private let store = AppHealth.providers
@@ -13,6 +14,9 @@ struct ProvidersTabView: View {
     @State private var chat: Data?
     @State private var looking = false
     @State private var failure: String?
+    /// The account whose editor is open, or the tool whose Add account form is.
+    @State private var editing: String?
+    @State private var adding: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -33,6 +37,7 @@ struct ProvidersTabView: View {
                     list(page).frame(width: 210)
                     detail(page).frame(maxWidth: .infinity, alignment: .topLeading)
                 }
+                Text(providersFooter).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 14)
             }
         }
         .task { await look() }
@@ -99,9 +104,19 @@ struct ProvidersTabView: View {
                                         Button("Sign in") { open(.signIn, harness: tool.id, command: account.command, configDir: account.configDir) }
                                             .controlSize(.small).help("Opens Terminal and signs this account in")
                                     }
+                                    Button("Edit") { store.dismissProblem(); adding = nil; editing = account.name }
+                                        .controlSize(.small).disabled(editing == account.name).help("Edit \(account.name)")
                                 }
                             }
                         }
+                    }
+                    if let account = tool.accounts.first(where: { $0.name == editing }) {
+                        AccountEditor(account: account, harness: tool.id, store: store) { editing = nil }.id(account.name)
+                    } else if adding == tool.id {
+                        AddAccountForm(harness: tool.id, store: store) { adding = nil }
+                    } else if tool.id != "agy" {
+                        Button("Add account") { store.dismissProblem(); editing = nil; adding = tool.id }
+                            .buttonStyle(.glass).buttonBorderShape(.capsule).help("Another login of \(tool.title)")
                     }
                 }
             }

@@ -43,7 +43,7 @@ function fakeAgy({ stdout = '', stderr = '', end = false }: { stdout?: string; s
 const deps = (overrides: Partial<DoctorDeps> = {}): DoctorDeps => ({
   which: () => true,
   mint: async () => 'secret-token',
-  listLabels: async () => [],
+  listLabels: async () => ['solve:epic', 'solve:epic:ready'],
   localModels: async () => [],
   loggedIn: async () => true,
   startAgy: () => fakeAgy({ stdout: '{"status":"SUCCESS"}', end: true }),
@@ -67,6 +67,7 @@ test('everything in place: all checks pass and no token reaches the report', asy
     'forge agent artanis-agent can mint a token for AshuLab/carrier',
     'forge agent tassadar-agent can mint a token for AshuLab/carrier',
     'forge agent artanis-agent can read AshuLab/carrier',
+    'AshuLab/carrier has the Solve labels',
   ]);
   expect(JSON.stringify(checks)).not.toContain('secret-token');
 });
@@ -213,9 +214,11 @@ test('the checks about a repo carry it with their profiles, the others carry nei
     ['forge agent artanis-agent can mint a token for AshuLab/one', 'AshuLab/one', ['a']],
     ['forge agent tassadar-agent can mint a token for AshuLab/one', 'AshuLab/one', ['b']],
     ['forge agent artanis-agent can read AshuLab/one', 'AshuLab/one', ['a']],
+    ['AshuLab/one has the Solve labels', 'AshuLab/one', ['a']],
     ['forge agent tassadar-agent can mint a token for AshuLab/two', 'AshuLab/two', ['b']],
     ['forge agent artanis-agent can mint a token for AshuLab/two', 'AshuLab/two', ['a']],
     ['forge agent artanis-agent can read AshuLab/two', 'AshuLab/two', ['a']],
+    ['AshuLab/two has the Solve labels', 'AshuLab/two', ['a']],
   ]);
   for (const c of checks) expect('repo' in c).toBe('profiles' in c);
   expect(checks.filter((c) => c.repo === undefined).map((c) => c.name)).toContain('author and reviewer are different identities');
@@ -224,6 +227,32 @@ test('the checks about a repo carry it with their profiles, the others carry nei
 test('a failing read check carries the orchestrator profile', async () => {
   const checks = await doctor(config(), deps({ listLabels: async () => Promise.reject(new Error('boom')) }));
   expect(failed(checks)).toMatchObject([{ status: 'fail', repo: 'AshuLab/carrier', profiles: ['a'] }]);
+});
+
+test.each([
+  ['both labels present', ['solve:epic', 'solve:epic:ready', 'bug'], 'ok', undefined],
+  ['the ready label missing', ['solve:epic'], 'fail', 'missing solve:epic:ready'],
+  ['the epic label missing', ['solve:epic:ready'], 'fail', 'missing solve:epic'],
+  ['both missing', ['bug'], 'fail', 'missing solve:epic, solve:epic:ready'],
+])('the Solve check with %s', async (_, labels, status, detail) => {
+  const listLabels = vi.fn(async () => labels);
+  const checks = await doctor(config(), deps({ listLabels }));
+  expect(listLabels).toHaveBeenCalledTimes(1);
+  const solve = checks.find((c) => c.name === 'AshuLab/carrier has the Solve labels');
+  expect(solve).toMatchObject({ status, repo: 'AshuLab/carrier', profiles: ['a'] });
+  expect(solve?.detail).toBe(detail);
+  expect(solve?.fix).toBe(status === 'ok' ? undefined : 'run solve:setup in the repo, it creates them');
+});
+
+test('listLabels is called once per repo', async () => {
+  const listLabels = vi.fn(async () => ['solve:epic', 'solve:epic:ready']);
+  await doctor(config({ repos: [{ name: 'AshuLab/one' }, { name: 'AshuLab/two' }] }), deps({ listLabels }));
+  expect(listLabels).toHaveBeenCalledTimes(2);
+});
+
+test('when the read check fails there is no Solve check for that repo', async () => {
+  const checks = await doctor(config(), deps({ listLabels: async () => Promise.reject(new Error('boom')) }));
+  expect(checks.map((c) => c.name)).not.toContain('AshuLab/carrier has the Solve labels');
 });
 
 test('onCheck sees every check as it finishes, in the order of the result', async () => {

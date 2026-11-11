@@ -291,66 +291,40 @@ describe('providers', () => {
 });
 
 describe('failover', () => {
-  const failover = (defaultOrder: string[], enabled = true) => ({ failover: { enabled, default: defaultOrder } });
+  const roles = (author: unknown) => ({ failover: { roles: { author } } });
+  const used = 'a role has failover when its list of steps is not empty';
 
-  test('absent means off, and a declared default loads as written', () => {
+  test('absent, and an empty list, load: no failover for the role', () => {
     const absent = load({});
     expect(absent.ok && absent.config.failover).toBeUndefined();
-    expect(load(failover(['codex', 'claude']))).toMatchObject({ ok: true, config: { failover: { enabled: true, default: ['codex', 'claude'] } } });
-    expect(load(failover([], false)).ok).toBe(true);
+    expect(load(roles([]))).toMatchObject({ ok: true, config: { failover: { roles: { author: [] } } } });
   });
 
-  test('a name that is not declared in providers is refused, naming the field', () => {
-    expect(errorsOf(failover(['codex', 'ghost']))).toEqual([{ path: 'failover.default.1', message: 'failover.default: provider "ghost" is not declared in providers' }]);
-    expect(errorsOf(failover(['codex', 'constructor']))).toEqual([{ path: 'failover.default.1', message: 'failover.default: provider "constructor" is not declared in providers' }]);
+  test('steps with a provider and an optional model, and the triggers, load as written', () => {
+    const failover = { triggers: ['usage_limit', 'service_down'], roles: { author: [{ provider: 'codex', model: 'gpt-5' }, { provider: 'claude', model: 'haiku' }], leadReviewer: [{ provider: 'claude' }] } };
+    expect(load({ failover })).toMatchObject({ ok: true, config: { failover } });
   });
 
-  test('a duplicate name is refused, naming the field', () => {
-    expect(errorsOf(failover(['codex', 'claude', 'codex']))).toEqual([{ path: 'failover.default.2', message: 'failover.default: provider "codex" appears twice' }]);
+  // One row per refusal: the input, the path of the error and a part of its message.
+  test.each([
+    ['failover.enabled', { failover: { enabled: true, roles: { author: [{ provider: 'codex' }] } } }, 'failover', used],
+    ['failover.default', { failover: { default: ['codex'] } }, 'failover', used],
+    ['a step given as a string', roles(['codex']), 'failover.roles.author.0', 'a failover step is { "provider"'],
+    ['a step with an empty provider', roles([{ provider: '' }]), 'failover.roles.author.0.provider', ''],
+    ['a step with an empty model', roles([{ provider: 'codex', model: '' }]), 'failover.roles.author.0.model', ''],
+    ['a step repeated in its list', roles([{ provider: 'codex' }, { provider: 'claude', model: 'x' }, { provider: 'claude', model: 'x' }]), 'failover.roles.author.2', 'repeats another step'],
+    ['a step equal to the role\'s own provider and model', roles([{ provider: 'codex' }, { provider: 'claude', model: 'm' }]), 'failover.roles.author.1', "the role's own provider and model"],
+    ['a provider that is not declared', roles([{ provider: 'codex' }, { provider: 'ghost' }]), 'failover.roles.author.1.provider', '"ghost" is not declared in providers'],
+    ['a provider named like an Object property', roles([{ provider: 'constructor' }]), 'failover.roles.author.0.provider', '"constructor" is not declared in providers'],
+    ['an unknown field', { failover: { retries: 2 } }, 'failover', ''],
+  ])('%s is refused naming its place', (_, user, path, message) => {
+    const errors = errorsOf(user);
+    expect(errors.map((e) => e.path)).toEqual([path]);
+    expect(errors[0]!.message).toContain(message);
   });
 
-  test('default and role-specific failover chains with triggers load as written', () => {
-    const custom = {
-      failover: {
-        enabled: true,
-        triggers: ['usage_limit', 'service_down'] as const,
-        default: ['codex', 'claude'],
-        roles: {
-          leadReviewer: ['claude'],
-        },
-      },
-    };
-    expect(load(custom)).toMatchObject({
-      ok: true,
-      config: {
-        failover: {
-          enabled: true,
-          triggers: ['usage_limit', 'service_down'],
-          default: ['codex', 'claude'],
-          roles: { leadReviewer: ['claude'] },
-        },
-      },
-    });
-  });
-
-  test('a name in default or roles not declared in providers is refused', () => {
-    expect(errorsOf({ failover: { enabled: true, default: ['codex', 'ghost'] } })).toEqual([
-      { path: 'failover.default.1', message: 'failover.default: provider "ghost" is not declared in providers' },
-    ]);
-    expect(errorsOf({ failover: { enabled: true, roles: { author: ['ghost'] } } })).toEqual([
-      { path: 'failover.roles.author.0', message: 'failover.roles.author: provider "ghost" is not declared in providers' },
-    ]);
-  });
-
-  test('enabled failover with neither default nor roles is refused', () => {
-    expect(errorsOf({ failover: { enabled: true } })).toEqual([
-      { path: 'failover', message: expect.stringContaining('neither a default nor role-specific fallback order') },
-    ]);
-  });
-
-  test('`enabled` is required, and an unknown field is refused', () => {
-    expect(errorsOf({ failover: { default: ['codex'] } }).map((e) => e.path)).toEqual(['failover.enabled']);
-    expect(errorsOf({ failover: { enabled: true, default: ['codex'], retries: 2 } }).map((e) => e.path)).toEqual(['failover']);
+  test('the same provider on another model is a step of its own, and so is the role\'s provider on another model', () => {
+    expect(load(roles([{ provider: 'codex', model: 'a' }, { provider: 'codex', model: 'b' }, { provider: 'claude', model: 'other' }])).ok).toBe(true);
   });
 });
 

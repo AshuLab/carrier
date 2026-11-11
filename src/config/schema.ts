@@ -42,19 +42,21 @@ export function matchesFailoverTrigger(
   return false;
 }
 
-const failoverSchema = z.strictObject({
-  enabled: z.boolean(),
-  triggers: z.array(z.enum(failoverTriggers)).min(1).optional(),
-  default: z.array(z.string()).optional(),
-  roles: z
-    .strictObject({
-      author: z.array(z.string()).optional(),
-      reviewer: z.array(z.string()).optional(),
-      leadReviewer: z.array(z.string()).optional(),
-    })
-    .partial()
-    .optional(),
-});
+const newFailoverShape = 'a role has failover when its list of steps is not empty: "failover": { "roles": { "author": [{ "provider": "<account>", "model": "<optional>" }] } }';
+
+/** One place to move to: an account of `providers.json` and optionally the model to run there. */
+const step = z.strictObject(
+  { provider: z.string().min(1), model: z.string().min(1).optional() },
+  { error: (issue) => (issue.code === 'invalid_type' && issue.expected === 'object' ? `a failover step is { "provider": "<account>", "model": "<optional>" }, not a name` : undefined) },
+);
+
+const failoverSchema = z.strictObject(
+  {
+    triggers: z.array(z.enum(failoverTriggers)).min(1).optional(),
+    roles: z.strictObject({ author: z.array(step).optional(), reviewer: z.array(step).optional(), leadReviewer: z.array(step).optional() }).optional(),
+  },
+  { error: (issue) => (issue.code === 'unrecognized_keys' && issue.keys.some((key) => key === 'enabled' || key === 'default') ? `failover.enabled and failover.default are gone: ${newFailoverShape}` : undefined) },
+);
 
 export const configSchema = z
   .strictObject({
@@ -76,7 +78,7 @@ export const configSchema = z
     /** Not a key of `config.json`: the loader puts here what `providers.json` declares (ADR 0020). */
     providers: accounts,
     agents: z.strictObject({ author: agent, reviewer: agent, leadReviewer: agent.optional() }),
-    /** Off unless present and enabled. Moves a role to the next AI provider upon usage_limit, rate_limit, or service_down. */
+    /** A role with a non-empty list of steps moves to the next one upon usage_limit, rate_limit, or service_down. */
     failover: failoverSchema.optional(),
     limits: z.strictObject({
       maxConcurrentEpics: z.int().positive(),
@@ -124,36 +126,19 @@ export const configSchema = z
       }
     }
 
-    if (config.failover?.enabled) {
-      const hasDefault = config.failover.default && config.failover.default.length > 0;
-      const hasRoles = config.failover.roles && Object.values(config.failover.roles).some((r) => r && r.length > 0);
-      if (!hasDefault && !hasRoles) {
-        ctx.addIssue({ code: 'custom', path: ['failover'], message: 'failover is enabled but has neither a default nor role-specific fallback order' });
-      }
-    }
-
-    const checkFailoverList = (list: string[] | undefined, basePath: (string | number)[]) => {
-      if (!list) return;
-      const named = new Set<string>();
-      list.forEach((name, i) => {
-        const p = [...basePath, i];
-        const label = basePath.join('.');
-        if (!Object.hasOwn(config.providers, name)) {
-          ctx.addIssue({ code: 'custom', path: p, message: `${label}: provider "${name}" is not declared in providers` });
-        } else if (named.has(name)) {
-          ctx.addIssue({ code: 'custom', path: p, message: `${label}: provider "${name}" appears twice` });
-        }
-        named.add(name);
+    for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
+      const own = config.agents[role];
+      const label = `failover.roles.${role}`;
+      const seen = new Set<string>();
+      config.failover?.roles?.[role]?.forEach(({ provider, model }, i) => {
+        if (provider === '') return; // already refused by the step's own shape
+        const key = JSON.stringify([provider, model]);
+        const path = ['failover', 'roles', role, i];
+        if (!Object.hasOwn(config.providers, provider)) ctx.addIssue({ code: 'custom', path: [...path, 'provider'], message: `${label}.${i}.provider: "${provider}" is not declared in providers` });
+        else if (seen.has(key)) ctx.addIssue({ code: 'custom', path, message: `${label}.${i}: step repeats another step of the list` });
+        else if (own?.provider === provider && own.model === model) ctx.addIssue({ code: 'custom', path, message: `${label}.${i}: step is the role's own provider and model, so it would move nowhere` });
+        seen.add(key);
       });
-    };
-
-    if (config.failover) {
-      checkFailoverList(config.failover.default, ['failover', 'default']);
-      if (config.failover.roles) {
-        for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
-          checkFailoverList(config.failover.roles[role], ['failover', 'roles', role]);
-        }
-      }
     }
 
     // Solve's worktrees are `worktrees/<repo>/<feature>`, with no owner: same-name repos would share paths.

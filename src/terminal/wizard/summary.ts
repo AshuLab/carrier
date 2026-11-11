@@ -48,13 +48,8 @@ export const summary = (
     `Author      ${roleLine(author, providers)}`,
     `Reviewer    ${roleLine(reviewer, providers)}`,
     ...(leadReviewer ? [`Lead Rev    ${roleLine(leadReviewer, providers)}`] : []),
-    ...(failover?.enabled
-      ? [
-          `Failover    ${[
-            ...(failover.default?.length ? [failover.roles ? `default: ${failover.default.join(' → ')}` : failover.default.join(' → ')] : []),
-            ...(failover.roles ? Object.entries(failover.roles).filter(([_, list]) => list && list.length > 0).map(([role, list]) => `${role}: ${list!.join(' → ')}`) : []),
-          ].join(' · ')}`,
-        ]
+    ...(failover?.roles
+      ? [`Failover    ${Object.entries(failover.roles).filter(([_, steps]) => steps.length > 0).map(([role, steps]) => `${role}: ${steps.map((step) => (step.model ? `${step.provider} ${step.model}` : step.provider)).join(' → ')}`).join(' · ')}`]
       : []),
     `Saved to    ${tilde(out)}`,
     `Accounts in ${tilde(providersPath)} (the Carrier folder, wherever the config goes)`,

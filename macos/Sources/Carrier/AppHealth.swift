@@ -9,7 +9,7 @@ enum AppHealth {
 }
 
 /// Runs `command` (`carrier ...` with its environment) off the main thread and returns what it printed; ended after `doctorTimeout`
-/// (killed a second later). The output of the doctor is the JSON on stdout; stderr is dropped.
+/// (killed a second later). The output of the doctor is the JSON on stdout; stderr is kept for the reason it gives when it refuses the config.
 @Sendable func runProcess(_ command: StartCommand) async -> ProcessOutcome {
     // `--fixture` has no engine: the doctor answers with the golden output the fixture home holds
     if CommandLine.arguments.contains("--fixture") {
@@ -22,7 +22,11 @@ enum AppHealth {
         process.environment = command.environment
         let output = Pipe()
         process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
+        // stderr goes to a file, not a pipe: a doctor that logs a lot must not block on a pipe nobody reads yet
+        let errorURL = FileManager.default.temporaryDirectory.appendingPathComponent("carrier-doctor-\(UUID().uuidString).err")
+        FileManager.default.createFile(atPath: errorURL.path, contents: nil)
+        defer { try? FileManager.default.removeItem(at: errorURL) }
+        process.standardError = try? FileHandle(forWritingTo: errorURL)
         process.standardInput = FileHandle.nullDevice
         do { try process.run() } catch { return ProcessOutcome(startError: "\(error)") }
         // ponytail: a grandchild holding the pipe open could still block the read past the limit
@@ -35,7 +39,8 @@ enum AppHealth {
         }
         let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         process.waitUntilExit()
-        return ProcessOutcome(exitCode: process.terminationStatus, stdout: text, timedOut: timedOut.value)
+        let errors = (try? String(contentsOf: errorURL, encoding: .utf8)) ?? ""
+        return ProcessOutcome(exitCode: process.terminationStatus, stdout: text, stderr: errors, timedOut: timedOut.value)
     }.value
 }
 

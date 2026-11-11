@@ -1,7 +1,7 @@
 import Foundation
 
 // "Who works here" on a repo's page, as plain values: what each role of the repo resolves to, from the global `agents` and the repo's
-// own `agents` in `config.json`. This only reads; the file is never written from here, and keys the app does not know are not touched.
+// own `agents` in `config.json`. This only reads; writing is RepoRoleSave.swift.
 
 public enum AgentRole: String, CaseIterable, Equatable {
     case author, reviewer, leadReviewer
@@ -19,6 +19,11 @@ public enum AgentRole: String, CaseIterable, Equatable {
 public struct RolePersona: Equatable {
     public var name: String?
     public var prompt: String?
+
+    public init(name: String? = nil, prompt: String? = nil) {
+        self.name = name
+        self.prompt = prompt
+    }
 }
 
 /// The fields of a role, each one optional because a repo sets only some of them.
@@ -28,6 +33,14 @@ public struct RoleFields: Equatable {
     public var model: String?
     public var effort: String?
     public var persona: RolePersona?
+
+    public init(profile: String? = nil, provider: String? = nil, model: String? = nil, effort: String? = nil, persona: RolePersona? = nil) {
+        self.profile = profile
+        self.provider = provider
+        self.model = model
+        self.effort = effort
+        self.persona = persona
+    }
 
     public var isEmpty: Bool { self == RoleFields() }
 

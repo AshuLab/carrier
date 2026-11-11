@@ -121,12 +121,36 @@ struct ReposTabView: View {
                 RepoStatusCard(status: repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine))))
                 let roles = configData.flatMap { repoRoles(json: $0, repo: row.name) }
                 RepoChecksCard(checks: repoChecks(repo: row.name, roles: roles?.rows ?? [], doctor: doctor.state), checking: doctor.state == .running, again: runDoctor)
-                if let roles { RepoRolesCard(rows: roles.rows) }
+                if let roles {
+                    RepoRolesCard(
+                        rows: roles.rows, profiles: roles.profiles, accounts: declaredAccounts(providersJSON: providersData), refusal: refusal,
+                        save: { role, fields in saveRole(fields, role: role, repo: row.name) }
+                    )
+                }
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         } else {
             Text("Add a repo to see its page.").foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .topLeading)
         }
+    }
+
+    private var providersData: Data? {
+        try? Data(contentsOf: URL(fileURLWithPath: path).deletingLastPathComponent().appendingPathComponent("providers.json"))
+    }
+
+    private var refusal: String? {
+        if case .refused(let reason) = doctor.state { return "Carrier refuses the config: \(reason)" }
+        return nil
+    }
+
+    /// Writes the role, then reads the file back and asks the doctor, whose reason is shown when the engine refuses what was written.
+    private func saveRole(_ fields: RoleFields?, role: AgentRole, repo: String) -> RoleSave {
+        let result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: declaredAccounts(providersJSON: providersData))
+        if result == .saved {
+            load()
+            runDoctor()
+        }
+        return result
     }
 
     private func load() {
@@ -246,19 +270,99 @@ private struct RepoChecksCard: View {
     }
 }
 
-/// Who works here: each role with what it inherits from the global roles, or the repo's own. Read-only for now.
+/// Who works here: each role with what it inherits from the global roles, or the repo's own, and the form to change or reset it. Each field
+/// of the form is its own override: left on "Same as everywhere" it is not written.
 private struct RepoRolesCard: View {
     let rows: [RepoRoleRow]
+    let profiles: [String]
+    let accounts: [String]
+    /// why the doctor refused the config after the last save
+    let refusal: String?
+    let save: (AgentRole, RoleFields?) -> RoleSave
+    @State private var editing: AgentRole?
+    @State private var draft = RoleFields()
+    @State private var problem: String?
 
     var body: some View {
         SettingsGroup(title: "Who works here") {
             ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
                 SettingsTabRow(title: row.title, detail: row.isOwn ? "Default: \(row.inherited.text)" : row.value.text, first: index == 0) {
-                    Text(row.isOwn ? row.value.text : "Same as everywhere").font(.caption).foregroundStyle(.secondary)
-                        .lineLimit(2).multilineTextAlignment(.trailing)
+                    HStack(spacing: 8) {
+                        Text(row.isOwn ? row.value.text : "Same as everywhere").font(.caption).foregroundStyle(.secondary)
+                            .lineLimit(2).multilineTextAlignment(.trailing)
+                        Button("Change") { open(row) }.disabled(editing == row.role)
+                        if row.isOwn { Button("Reset") { finish(save(row.role, nil)) } }
+                    }
                 }
+                if editing == row.role { form(row) }
+            }
+            if let note = signatureNote(rows) { Text(note).font(.caption).foregroundStyle(.secondary).padding(.vertical, 8) }
+            if let refusal { Text(refusal).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.vertical, 8) }
+            if editing == nil, let problem { Text(problem).font(.caption).foregroundStyle(.orange).padding(.vertical, 8) }
+        }
+    }
+
+    private func open(_ row: RepoRoleRow) {
+        editing = row.role
+        draft = row.own
+        problem = nil
+    }
+
+    private func finish(_ result: RoleSave) {
+        switch result {
+        case .saved:
+            editing = nil
+            problem = nil
+        case .refused(let reason), .failed(let reason):
+            problem = reason
+        }
+    }
+
+    private func form(_ row: RepoRoleRow) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            choice("Identity", $draft.profile, options: profiles, inherited: row.inherited.profile)
+            choice("Provider", $draft.provider, options: accounts, inherited: row.inherited.provider)
+            LabeledContent("Model") {
+                TextField(row.inherited.model ?? "Model", text: Binding(get: { draft.model ?? "" }, set: { draft.model = $0 })).textFieldStyle(.roundedBorder)
+            }
+            choice("Effort", $draft.effort, options: roleEfforts, inherited: row.inherited.effort)
+            LabeledContent("Persona name") {
+                TextField(row.inherited.persona?.name ?? "Name", text: persona(\.name)).textFieldStyle(.roundedBorder)
+            }
+            LabeledContent("Persona prompt") {
+                TextField(row.inherited.persona?.prompt ?? "Prompt", text: persona(\.prompt), axis: .vertical).lineLimit(2...6).textFieldStyle(.roundedBorder)
+            }
+            if let problem { Text(problem).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true) }
+            HStack {
+                Spacer()
+                Button("Cancel") { editing = nil }
+                Button("Save") { finish(save(row.role, draft)) }.buttonStyle(PrimaryCapsuleButtonStyle())
             }
         }
+        .padding(.vertical, 10)
+    }
+
+    /// A name that is no longer declared stays in the list, marked, so it is seen and refused on saving and not dropped.
+    private func choice(_ title: String, _ value: Binding<String?>, options: [String], inherited: String?) -> some View {
+        LabeledContent(title) {
+            Picker(title, selection: value) {
+                Text("Same as everywhere" + (inherited.map { " (\($0))" } ?? "")).tag(String?.none)
+                ForEach(options, id: \.self) { Text($0).tag(String?.some($0)) }
+                if let own = value.wrappedValue, options.contains(own) == false { Text("\(own) (missing)").tag(String?.some(own)) }
+            }
+            .labelsHidden()
+        }
+    }
+
+    private func persona(_ field: WritableKeyPath<RolePersona, String?>) -> Binding<String> {
+        Binding(
+            get: { draft.persona?[keyPath: field] ?? "" },
+            set: {
+                var next = draft.persona ?? RolePersona()
+                next[keyPath: field] = $0
+                draft.persona = next
+            }
+        )
     }
 }
 

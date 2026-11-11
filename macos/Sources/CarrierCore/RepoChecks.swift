@@ -29,6 +29,7 @@ public func repoChecks(repo: String, roles: [RepoRoleRow], doctor: DoctorState) 
     case .checks(let all): checks = all.filter { $0.repo == repo }
     case .running: note = "Running carrier doctor…"
     case .unknown(let reason): note = "Could not check: \(reason)"
+    case .refused(let reason): note = "Carrier refuses the config: \(reason)"
     case .idle: break
     }
     func row(_ title: String, role: AgentRole? = nil, _ found: DoctorCheck?) -> RepoCheckRow {

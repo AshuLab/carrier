@@ -151,6 +151,30 @@ describe('sharing is derived', () => {
   });
 });
 
+describe('what a repo\'s page writes under repos[].agents', () => {
+  const inRepo = (agents: object) => ({ repos: [{ name: 'AshuLab/carrier', agents }] });
+
+  test.each([
+    ['only a persona', { reviewer: { persona: { name: 'Rex', prompt: 'Be strict.' } } }],
+    ['only a persona with a name', { reviewer: { persona: { name: 'Rex' } } }],
+    ['only a persona with a prompt', { reviewer: { persona: { prompt: 'Be strict.' } } }],
+    ['only a model', { reviewer: { model: 'qwen3-coder' } }],
+    ['only an account', { reviewer: { provider: 'claude' } }],
+    ['only an effort', { reviewer: { effort: 'xhigh' } }],
+    ['only a profile', { reviewer: { profile: 'author-bot' } }],
+    ['a role with no field', { reviewer: {} }],
+    ['no role at all', {}],
+    ['an identity equal to the other role\'s', { author: { profile: 'reviewer-bot' } }],
+  ])('%s loads', (_, agents) => {
+    expect(load(inRepo(agents)).ok).toBe(true);
+  });
+
+  test('an unknown profile or account is refused naming the key', () => {
+    expect(errorsOf(inRepo({ reviewer: { profile: 'ghost' } }))).toEqual([{ path: 'repos.0.agents.reviewer.profile', message: expect.stringContaining('ghost') }]);
+    expect(errorsOf(inRepo({ author: { provider: 'ghost' } }))).toEqual([{ path: 'repos.0.agents.author.provider', message: expect.stringContaining('ghost') }]);
+  });
+});
+
 describe('orchestratorProfile', () => {
   const { orchestratorProfile: _, ...withoutOrchestrator } = valid;
 

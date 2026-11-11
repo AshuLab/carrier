@@ -43,7 +43,7 @@ struct ChatToolGroupView: View {
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.primary.opacity(0.045)))
         .glassEffect(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), in: .rect(cornerRadius: 12))
         .overlay { if glowing { GlowEdge(color: group.erred ? .red : waiting ? .attention : .thought, waiting: waiting, moves: reduceMotion == false).opacity(live ? 1 : 0).allowsHitTesting(false) } }
-        .animation(.smooth(duration: 0.28), value: open)
+        .animation(.smooth(duration: 0.35), value: open)
         .animation(.easeOut(duration: 0.5), value: live)
         .onChange(of: live, initial: true) { was, now in finish(was: was, now: now) }
     }
@@ -157,8 +157,16 @@ struct ChatToolGroupView: View {
         .padding(.bottom, 8)
     }
 
-    private func toggle(_ key: String) {
-        if flipped.insert(key).inserted == false { flipped.remove(key) }
+    private func toggle(_ key: String) { flip(key, in: $flipped) }
+}
+
+/// Opens or folds a step. The change is animated here, where it is made, and not by an `.animation` on the card: the feed is a lazy stack,
+/// which only moves what is under a card smoothly when the whole update is in the transaction; with the animation on the card alone the
+/// card faded while everything under it jumped to its place in one frame.
+private func flip(_ key: String, in flipped: Binding<Set<String>>) {
+    let animation: Animation? = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : .smooth(duration: 0.35)
+    withAnimation(animation) {
+        if flipped.wrappedValue.insert(key).inserted == false { flipped.wrappedValue.remove(key) }
     }
 }
 
@@ -190,7 +198,9 @@ private struct Reveal: ViewModifier {
     let progress: CGFloat
 
     func body(content: Content) -> some View {
-        RevealLayout(progress: progress) { content }.clipped().opacity(progress)
+        // the steps fade ahead of the height (squared): folding, they are gone before the card closes over them, and opening, they come in
+        // once there is room for them, so a cut-off row is never seen
+        RevealLayout(progress: progress) { content }.clipped().opacity(progress * progress)
     }
 }
 
@@ -324,7 +334,7 @@ private struct ThoughtRowView: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
-        .onTapGesture { if flipped.insert(key).inserted == false { flipped.remove(key) } }
+        .onTapGesture { flip(key, in: $flipped) }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Thought: \(thought.text)")
     }
@@ -342,7 +352,7 @@ private struct CallRowView: View {
         let open = call.opensByDefault(mode, opensFailed: opensFailed) != flipped.contains(key)
         VStack(alignment: .leading, spacing: 0) {
             Button {
-                if flipped.insert(key).inserted == false { flipped.remove(key) }
+                flip(key, in: $flipped)
             } label: {
                 HStack(spacing: 9) {
                     node

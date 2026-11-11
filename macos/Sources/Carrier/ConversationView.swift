@@ -74,7 +74,7 @@ struct ConversationView: View {
                     let began = feed.last(where: { if case .user = $0 { true } else { false } }).flatMap { model.times[$0.id] }
                     ForEach(feed) { row in
                         FeedRowView(
-                            row: row, time: model.times[row.id], summary: closing[row.id], pinned: row.id == pinnedAnswer, flipped: $flipped, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open,
+                            row: row, time: model.times[row.id], summary: closing[row.id], pinned: row.id == pinnedAnswer, flipped: $flipped, agent: model.agent, commands: model.shownCommands, offersWayOut: row.id == open && model.refusedText == nil,
                             work: WorkState(live: row.id == working, waiting: waiting, since: began),
                             continueTurn: { Task { await model.continueTurn() } }, retry: { Task { await model.retry() } },
                             answer: { approval, choice in Task { await model.answer(approval, choice: choice) } }
@@ -174,15 +174,10 @@ struct ConversationView: View {
 
     /// An archived session is read only: a notice with Resume, which takes it out of the archive (the next poll gives the box back).
     private var archivedBox: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "archivebox").foregroundStyle(.secondary)
-            Text(archivedSessionNotice).font(.scaled(12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
+        NoticeCard(symbol: "archivebox.fill", tint: .gray, title: archivedSessionNotice.title, detail: archivedSessionNotice.detail) {
             Button("Resume") { Task { if let refusal = await actions.restore(model.sessionId) { tell(refusal) } } }
-                .buttonStyle(.glassProminent).buttonBorderShape(.capsule)
+                .buttonStyle(HoverTextButtonStyle(tint: .themeAccent))
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 18).fill(Color.secondary.opacity(0.10)))
         .padding(.horizontal, 40).padding(.vertical, 12)
         .frame(maxWidth: messageWidth.points).frame(maxWidth: .infinity)
     }
@@ -415,37 +410,34 @@ struct MessageTimeLabel: View {
     }
 }
 
-/// A banner of a failed turn or a refused send: red for a failure, orange when the provider is not signed in (chat-ui-conv.html, section 3).
+/// A failed turn or a refused send: a `NoticeCard` in red (orange when the provider is not signed in, chat-ui-conv.html, section 3), with
+/// the way out as text that lights a pill under the pointer.
 private struct BannerView: View {
     let banner: FailureBanner
     /// Copy details puts the provider's text on the pasteboard; a failed turn has it, a refusal says its reason in full already.
     let copyDetails: Bool
     /// Nil when the turn is no longer the last thing: the banner is then only a record.
     let retry: (() -> Void)?
+    @State private var copied = false
 
     private var tint: Color { banner.hint == nil ? .red : .orange }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 11) {
-            Image(systemName: "exclamationmark.circle.fill").foregroundStyle(tint)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(banner.title).fontWeight(.semibold)
-                Text(banner.detail).font(.scaled(12)).foregroundStyle(.secondary).textSelection(.enabled)
-                if let hint = banner.hint { Text(hint).font(.scaled(12)).foregroundStyle(.secondary) }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if let retry { Button("Try again", action: retry) }
+        NoticeCard(symbol: "exclamationmark", tint: tint, title: banner.title, detail: banner.detail, hint: banner.hint, edge: true) {
             if copyDetails {
-                Button("Copy details") {
+                Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(banner.detail, forType: .string)
-                }
+                    copied = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.3))
+                        copied = false
+                    }
+                } label: { Label(copied ? "Copied" : "Copy details", systemImage: copied ? "checkmark" : "doc.on.doc") }
+                    .buttonStyle(HoverTextButtonStyle(tint: copied ? .green : nil))
             }
+            if let retry { Button(action: retry) { Label("Try again", systemImage: "arrow.clockwise") }.buttonStyle(HoverTextButtonStyle(tint: tint)) }
         }
-        .font(.scaled(12))
-        .padding(.horizontal, 13).padding(.vertical, 10)
-        .background(RoundedRectangle(cornerRadius: 16).fill(tint.opacity(0.11)))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(tint.opacity(0.5), lineWidth: 1))
     }
 }
 
@@ -456,61 +448,28 @@ private struct WorkState {
     let since: Int?
 }
 
-/// The message held while the agent answers, over the message box in the same glass as the work card: what it says and when it goes.
-/// Clicking the message puts it back in the box to edit; Send now stops the turn and sends it (not offered when sending already stops
-/// the turn, which is what the setting says); the cross drops it.
+/// The message held while the agent answers: when it goes, and what it says under it. Clicking the message puts it back in the box to
+/// edit; Send now stops the turn and sends it (not offered when sending already stops the turn, which is what the setting says); the
+/// cross drops it.
 private struct QueuedMessageCard: View {
     let text: String
     let interrupts: Bool
     let edit: () -> Void
     let sendNow: () -> Void
     let cancel: () -> Void
-    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: "clock").font(.scaled(11, weight: .semibold)).foregroundStyle(.secondary)
-                .frame(width: 26, height: 26).background(Circle().fill(Color.primary.opacity(0.08)))
-                .accessibilityHidden(true)
-            Button(action: edit) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(interrupts ? "Queued · sends when the agent stops" : "Queued · sends when the agent finishes").font(.scaled(11)).foregroundStyle(.secondary)
-                    Text(text).font(.scaled(12.5)).lineLimit(2).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Click to edit").accessibilityHint("Puts it back in the box to edit")
+        NoticeCard(
+            symbol: "clock.fill", tint: .gray, title: interrupts ? "Sends when the agent stops" : "Sends when the agent finishes",
+            detail: text, detailLines: 2, onTap: edit
+        ) {
             if interrupts == false {
                 Button("Send now", action: sendNow).buttonStyle(HoverTextButtonStyle(tint: .themeAccent)).help("Stop the agent and send it now")
             }
             Button(action: cancel) { Image(systemName: "xmark").font(.scaled(10, weight: .bold)) }
                 .buttonStyle(HoverTextButtonStyle(tint: nil)).help("Cancel the queued message").accessibilityLabel("Cancel the queued message")
         }
-        .padding(.horizontal, 12).padding(.vertical, 9)
-        // the glass, tint and fill of the work card, so the cards over the box are one family
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.primary.opacity(0.045)))
-        .glassEffect(.regular.tint(scheme == .dark ? Color.black.opacity(0.3) : nil), in: .rect(cornerRadius: 14))
-        .accessibilityElement(children: .contain)
-    }
-}
-
-/// A button that is only its text (or icon) until the pointer is over it, when a pill lights behind it: light enough to sit beside a
-/// message without weighing as much as it.
-private struct HoverTextButtonStyle: ButtonStyle {
-    let tint: Color?
-    @State private var hovered = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.scaled(12, weight: .medium))
-            .foregroundStyle(tint ?? (hovered ? Color.primary : Color.secondary))
-            .padding(.horizontal, 10).frame(minWidth: 26, minHeight: 26)
-            .background(Capsule().fill(Color.primary.opacity(configuration.isPressed ? 0.16 : hovered ? 0.09 : 0)))
-            .contentShape(Capsule())
-            .onHover { hovered = $0 }
-            .animation(.easeOut(duration: 0.12), value: hovered)
+        .help("Click the message to edit it")
     }
 }
 
@@ -520,21 +479,6 @@ private struct ClosedSessionNotice: View {
     let chosen: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "moon.zzz.fill")
-                .font(.scaled(14, weight: .medium)).foregroundStyle(.white)
-                .frame(width: 30, height: 30)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.indigo.opacity(0.85)))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(closedSessionNotice.title).fontWeight(.semibold)
-                Text(chosen ? closedSessionNotice.chosen : closedSessionNotice.detail).font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 0)
-        }
-        .font(.scaled(12)).padding(12)
-        // glass, so the conversation that scrolls under it is blurred and not seen through it
-        .glassEffect(.regular.tint(Color.indigo.opacity(0.3)), in: .rect(cornerRadius: 12))
-        .accessibilityElement(children: .combine)
+        NoticeCard(symbol: "moon.zzz.fill", tint: .indigo, title: closedSessionNotice.title, detail: chosen ? closedSessionNotice.chosen : closedSessionNotice.detail, tinted: true) {}
     }
 }

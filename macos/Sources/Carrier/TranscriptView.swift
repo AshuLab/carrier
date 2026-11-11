@@ -294,9 +294,7 @@ struct MarkdownView: View {
         for run in line.runs {
             var piece = AttributedString(line[run.range])
             if let link = run.link {
-                // a link is the same chip as inline code, ending in an arrow that says it leaves the app; a bare address is cut to its host and tail
-                let shown = String(line[run.range].characters)
-                if shown == link.absoluteString { piece = AttributedString(linkLabel(link), attributes: piece.runs.first?.attributes ?? AttributeContainer()) }
+                // a link is the same chip as inline code, ending in an arrow that says it leaves the app; a bare address is shown whole
                 piece = AttributedString("\u{00A0}") + piece + AttributedString("\u{00A0}\u{2197}\u{FE0E}\u{00A0}")
                 piece.foregroundColor = ink
                 piece.backgroundColor = tint

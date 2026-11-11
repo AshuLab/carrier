@@ -30,7 +30,7 @@ afterEach(() => {
 const token = `ghp_${'a1B2'.repeat(9)}`;
 
 function setup(chat?: { agents: Record<string, Omit<ChatAgent, 'name'>> }, extra: Partial<Parameters<typeof createSessions>[0]> = {}) {
-  const agents = Object.entries(chat?.agents ?? { claude: { harness: 'claude' }, codex: { harness: 'codex' } }).map(([name, agent]) => ({ name, ...agent }) as ChatAgent);
+  const agents = Object.entries(chat?.agents ?? { claude: { account: 'claude' }, codex: { account: 'codex' } }).map(([name, agent]) => ({ name, ...agent }) as ChatAgent);
   const db = openChatDatabase(join(dir, 'chat.db'));
   const clock = new FakeClock();
   const claude = new FakeChatRunner();
@@ -59,13 +59,54 @@ test('a live session records its agent process and the record is cleared when it
   expect(rows('sessions')[0]).toMatchObject({ pid: null, pgid: null, command: null });
 });
 
+const writeProviders = (providers: object) => {
+  mkdirSync(join(dir, 'home'), { recursive: true });
+  writeFileSync(join(dir, 'home', 'providers.json'), JSON.stringify({ providers }));
+};
+
 test('agents lists the configured agents with whether the binary is found', () => {
   expect(setup().sessions.agents()).toEqual([
     { name: 'claude', harness: 'claude', found: true },
     { name: 'codex', harness: 'codex', found: false },
   ]);
-  const { sessions } = setup({ agents: { mine: { harness: 'claude', command: 'claude', model: 'haiku' } } });
+  const { sessions } = setup({ agents: { mine: { account: 'claude', model: 'haiku' } } });
   expect(sessions.agents()).toEqual([{ name: 'mine', harness: 'claude', model: 'haiku', found: true }]);
+});
+
+test('a chat agent runs on its account: that harness, that binary and that login in the environment, read at each open so an edit needs no restart', async () => {
+  const [claude, codex] = [new FakeChatRunner(), new FakeChatRunner()];
+  const { sessions } = setup({ agents: { work: { account: 'claude-work' }, other: { account: 'codex-two' } } }, { runners: { claude, codex }, binaryFound: (command) => command === '/opt/claude-work' });
+  writeProviders({ 'claude-work': { harness: 'claude', configDir: '/logins/work', command: '/opt/claude-work' }, 'codex-two': { harness: 'codex', configDir: '/logins/two', command: '/opt/codex-two' } });
+  expect(sessions.agents()).toEqual([{ name: 'work', harness: 'claude', model: undefined, found: true }, { name: 'other', harness: 'codex', model: undefined, found: false }]);
+  await sessions.open({ agent: 'work', folder: work });
+  expect(claude.opened[0]).toMatchObject({ command: '/opt/claude-work', env: { SOME: 'env', CLAUDE_CONFIG_DIR: '/logins/work' } });
+  await sessions.open({ agent: 'other', folder: work });
+  expect(codex.opened[0]).toMatchObject({ command: '/opt/codex-two', env: { SOME: 'env', CODEX_HOME: '/logins/two' } });
+  writeProviders({ 'claude-work': { harness: 'claude', configDir: '/logins/edited' }, 'codex-two': { harness: 'codex' } });
+  await sessions.open({ agent: 'work', folder: work });
+  expect(claude.opened[1]).toMatchObject({ command: undefined, env: { CLAUDE_CONFIG_DIR: '/logins/edited' } });
+});
+
+test('a chat agent on an account that is not in providers.json, or is Antigravity\'s, is refused naming the account, and a file that does not match names the key', async () => {
+  writeProviders({ claude: { harness: 'claude' }, agy: { harness: 'agy' } });
+  const { sessions, claude } = setup({ agents: { ghost: { account: 'ghost' }, anti: { account: 'agy' } } });
+  await expect(sessions.open({ agent: 'ghost', folder: work })).rejects.toThrow(/account "ghost".*not in providers\.json/);
+  await expect(sessions.open({ agent: 'anti', folder: work })).rejects.toThrow(/account "agy".*Antigravity/);
+  await expect(sessions.agentOptions({ agent: 'ghost' })).rejects.toThrow(/"ghost"/);
+  expect(sessions.agents()).toEqual([{ name: 'ghost', harness: 'unknown', model: undefined, found: false }, { name: 'anti', harness: 'agy', model: undefined, found: false }]);
+  expect(claude.opened).toEqual([]);
+  writeProviders({ claude: { harness: 'claude', colour: 'red' } });
+  await expect(sessions.open({ agent: 'ghost', folder: work })).rejects.toThrow(/providers\.claude/);
+  expect(() => sessions.agents()).toThrow(/providers\.claude/);
+});
+
+test('health judges each agent by its own account: its login folder and binary go to the probe', async () => {
+  writeProviders({ 'claude-work': { harness: 'claude', configDir: '/logins/work', command: '/opt/claude-work' } });
+  const asked: unknown[] = [];
+  const probes = probesOf({ loggedIn: async (harness, account) => (asked.push([harness, account]), true) });
+  const { sessions } = setup({ agents: { work: { account: 'claude-work' }, ghost: { account: 'ghost' } } }, { probes, ...allFound });
+  expect(await sessions.health({})).toMatchObject({ agents: [{ name: 'work', harness: 'claude', state: 'ready' }, { name: 'ghost', harness: 'unknown', state: 'unknown' }] });
+  expect(asked).toEqual([['claude', { configDir: '/logins/work', command: '/opt/claude-work' }]]);
 });
 
 const offering = (...options: [id: string, values: string[], current: string][]) => (conversation: FakeConversation) => {
@@ -73,7 +114,7 @@ const offering = (...options: [id: string, values: string[], current: string][])
 };
 
 test('open starts the agent in the real folder with the host environment and the chosen options, and lists the session', async () => {
-  const { sessions, claude, onLiveChange } = setup({ agents: { claude: { harness: 'claude', model: 'haiku', options: { mode: 'plan' } } } });
+  const { sessions, claude, onLiveChange } = setup({ agents: { claude: { account: 'claude', model: 'haiku', options: { mode: 'plan' } } } });
   claude.setup = offering(['model', ['haiku', 'sonnet'], 'haiku'], ['mode', ['plan', 'default'], 'plan']);
   const opened = await sessions.open({ agent: 'claude', folder: work, options: { mode: 'default' } });
   expect(claude.opened).toEqual([{ folder: expect.stringContaining('work'), options: { model: 'haiku', mode: 'default' }, env: { SOME: 'env' } }]);
@@ -84,7 +125,7 @@ test('open starts the agent in the real folder with the host environment and the
 });
 
 test('open applies the options in order: the agent model, the agent options, then those of the request', async () => {
-  const { sessions, claude } = setup({ agents: { claude: { harness: 'claude', model: 'haiku', options: { mode: 'plan', effort: 'low' } } } });
+  const { sessions, claude } = setup({ agents: { claude: { account: 'claude', model: 'haiku', options: { mode: 'plan', effort: 'low' } } } });
   claude.setup = offering(['model', ['haiku'], 'haiku'], ['mode', ['plan', 'default'], 'plan'], ['effort', ['low', 'high'], 'low']);
   const { session } = await sessions.open({ agent: 'claude', folder: work, options: { mode: 'default', effort: 'high' } });
   expect(Object.entries(claude.opened[0]!.options!)).toEqual([['model', 'haiku'], ['mode', 'default'], ['effort', 'high']]);
@@ -92,7 +133,7 @@ test('open applies the options in order: the agent model, the agent options, the
 });
 
 test('open refuses an option the adapter does not list and a value it does not offer, naming the option, and leaves nothing behind', async () => {
-  const { sessions, claude, onLiveChange } = setup({ agents: { claude: { harness: 'claude', options: { speed: 'fast' } } } });
+  const { sessions, claude, onLiveChange } = setup({ agents: { claude: { account: 'claude', options: { speed: 'fast' } } } });
   claude.setup = offering(['model', ['haiku'], 'haiku']);
   await expect(sessions.open({ agent: 'claude', folder: work })).rejects.toThrow('no option "speed"');
   await expect(sessions.open({ agent: 'claude', folder: work, options: { speed: 'fast', model: 'gpt-5' } })).rejects.toThrow('no option "speed"');
@@ -402,7 +443,7 @@ test('close keeps the row, ends the conversation once, and closeAll closes every
 });
 
 test('resume opens a closed session again from its native id, folder and options, keeps its title, and the context goes on', async () => {
-  const s = setup({ agents: { claude: { harness: 'claude', model: 'haiku' } } });
+  const s = setup({ agents: { claude: { account: 'claude', model: 'haiku' } } });
   s.claude.setup = offering(['model', ['haiku'], 'haiku']);
   const { sessions, claude, conversation, id, clock } = await openOne(s);
   conversation.reply = (_text, c) => {
@@ -856,9 +897,10 @@ const probesOf = (over: Partial<HealthProbes> = {}): HealthProbes & { calls: str
 };
 const allFound = { binaryFound: () => true };
 
-test('health says ready for everything that works, and missing for a binary that is not found, an agent by its own command', async () => {
+test('health says ready for everything that works, and missing for a binary that is not found, an agent by its account\'s command', async () => {
+  writeProviders({ claude: { harness: 'claude' }, mine: { harness: 'codex', command: '/opt/codex' } });
   const probes = probesOf();
-  const { sessions } = setup({ agents: { claude: { harness: 'claude' }, mine: { harness: 'codex', command: '/opt/codex' } } }, { probes, binaryFound: (command) => command !== 'gh' && command !== '/opt/codex' });
+  const { sessions } = setup({ agents: { claude: { account: 'claude' }, mine: { account: 'mine' } } }, { probes, binaryFound: (command) => command !== 'gh' && command !== '/opt/codex' });
   expect(await sessions.health({})).toEqual({ git: 'ready', gh: 'missing', agents: [{ name: 'claude', harness: 'claude', state: 'ready' }, { name: 'mine', harness: 'codex', state: 'missing' }] });
   expect(probes.calls).not.toContain('codex');
   const none = setup(undefined, { probes: probesOf(), binaryFound: () => false });
@@ -1007,7 +1049,7 @@ test('a session that was preparing when the host stopped comes back with the run
   const { session } = await first.sessions.openPlan({ plan: planFor() });
   expect(stepsOf(first, session.id)).toEqual(['agent:running']);
   first.db.$client.close();
-  const next = createSessions({ db: openChatDatabase(join(dir, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' } as ChatAgent], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+  const next = createSessions({ db: openChatDatabase(join(dir, 'chat.db')), agents: [{ name: 'claude', account: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
   expect(next.list({}).sessions[0]).toMatchObject({ id: session.id, state: 'idle', preparation: 'failed', live: false });
   expect((next.events({ sessionId: session.id, limit: 200 }).events as any[]).map((e) => `${e.step}:${e.status}:${e.detail}`)).toEqual(['agent:running:undefined', 'agent:failed:Carrier stopped while this step was running']);
 });
@@ -1296,7 +1338,7 @@ test('a failed preparation is still failed, with its failed step and plan, after
   const first = setup();
   const id = await failedAtAgent(first);
   first.db.$client.close();
-  const next = createSessions({ db: openChatDatabase(join(dir, 'chat.db')), agents: [{ name: 'claude', harness: 'claude' } as ChatAgent], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
+  const next = createSessions({ db: openChatDatabase(join(dir, 'chat.db')), agents: [{ name: 'claude', account: 'claude' }], clock: new FakeClock(), runners: { claude: new FakeChatRunner() }, env: {}, git: new FakeGit(), projects: fakeProjects(new FakeGit()), binaryFound: () => true, ages: () => ({ archiveAfterDays: 15, deleteAfterDays: 30 }), onLiveChange: () => {} });
   expect(next.list({}).sessions[0]).toMatchObject({ id, state: 'idle', preparation: 'failed', live: false });
   expect((next.events({ sessionId: id, limit: 200 }).events as any[]).map((e) => `${e.step}:${e.status}:${e.detail}`)).toEqual(['agent:running:undefined', 'agent:failed:claude is not logged in']);
   await next.retryPreparation({ sessionId: id });

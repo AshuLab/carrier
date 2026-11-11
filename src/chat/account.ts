@@ -1,0 +1,21 @@
+import { carrierHome } from '../config/default-path.ts';
+import { providersProblem, readProvidersFile, type Providers } from '../config/providers.ts';
+import { configDirVariable } from '../harnesses/names.ts';
+import type { ChatAgent } from './config.ts';
+import { ChatRefused } from './runner.ts';
+
+/** `providers.json` as it is now: the chat host reads it each time it needs an account, so an edit reaches it with no restart (ADR 0020). */
+export function readAccounts(folder = carrierHome()): Providers {
+  const read = readProvidersFile(folder);
+  if (read.ok === false) throw new ChatRefused(providersProblem(folder, read.errors));
+  return read.providers;
+}
+
+/** What a chat agent runs with: its account's harness, binary and login, the login as the environment the CLI reads it from. Refuses, naming the account, one that is missing or Antigravity's. */
+export function chatAccount(providers: Providers, agent: ChatAgent, env: NodeJS.ProcessEnv = {}) {
+  const found = providers[agent.account];
+  if (found === undefined) throw new ChatRefused(`The chat agent "${agent.name}" names the account "${agent.account}", which is not in providers.json`);
+  if (found.harness === 'agy') throw new ChatRefused(`The chat agent "${agent.name}" names the account "${agent.account}", which is Antigravity's: a chat does not offer it`);
+  const { harness, command, configDir } = found;
+  return { harness, command, configDir, env: configDir === undefined ? env : { ...env, [configDirVariable[harness]]: configDir } };
+}

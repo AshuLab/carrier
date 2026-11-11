@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { optionNamePattern } from '../../../config/schema.ts';
+import { optionNamePattern } from '../../../config/providers.ts';
 import type { LocalProvider } from '../../../harnesses/local.ts';
 import type { HarnessName } from '../../../harnesses/names.ts';
 import type { Ui } from '../../prompts/types.ts';

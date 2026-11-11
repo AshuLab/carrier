@@ -89,12 +89,12 @@ const isExecutable = (path: string) => {
 };
 
 /**
- * The real CLI binary, never a wrapper: Superset puts wrappers under ~/.superset/bin ahead of the real one
- * on PATH (they add flags and trap signals), see docs/research/headless-agents.md.
+ * The real CLI binary, never a wrapper: Superset (now Paradev) puts wrappers under ~/.superset/bin or ~/.paradev/bin
+ * ahead of the real one on PATH (they add flags and trap signals), see docs/research/headless-agents.md.
  */
 export function resolveBinary(name: string, path = process.env.PATH ?? '', executable = isExecutable): string {
   for (const dir of path.split(delimiter)) {
-    if (dir === '' || dir.includes('/.superset/')) continue;
+    if (dir === '' || /\/\.(superset|paradev)\//.test(`${dir}/`)) continue;
     if (executable(join(dir, name))) return join(dir, name);
   }
   throw new Error(`cannot find the real "${name}" binary on PATH`);

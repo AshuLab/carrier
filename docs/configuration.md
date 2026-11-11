@@ -37,16 +37,14 @@ The socket path has a length limit (about 100 bytes), so keep a `CARRIER_HOME` s
     "reviewer-bot": { "kind": "forge", "agent": "<forge-agent-2>" }
   },
   "orchestratorProfile": "author-bot",
-  "providers": {
-    "claude": { "harness": "claude" },
-    "codex": { "harness": "codex" }
-  },
   "agents": {
     "author": { "profile": "author-bot", "provider": "claude", "model": "<model>" },
     "reviewer": { "profile": "reviewer-bot", "provider": "codex", "model": "<model>" }
   }
 }
 ```
+
+The accounts the roles name (`claude` and `codex` here) are declared in `providers.json`, next to this file in the Carrier folder; see [AI providers](#ai-providers).
 
 ## Fields
 
@@ -55,7 +53,6 @@ The socket path has a length limit (about 100 bytes), so keep a `CARRIER_HOME` s
 | `repos` | yes, at least one | | Repos to watch. Each is `{ "name": "owner/name", "agents"?: ... }`. |
 | `profiles` | yes | | The GitHub identities you can use, by name (below). |
 | `orchestratorProfile` | yes | | Profile used to read issues and PRs and to change labels. It may be the author's. |
-| `providers` | yes | | Configured AI accounts/logins (`harness`, `configDir?`, `provider?`). See [AI providers](#ai-providers). |
 | `agents.author` / `agents.reviewer` | yes | | `{ profile, provider, model, persona? }` for each role: the GitHub identity it acts as, the AI provider it connects through, and the model it uses. |
 | `agents.leadReviewer` | no | none | Optional technical lead role `{ profile, provider, model, persona? }` (configuration setup; reserved for upcoming lead reviewer gating in the Carrier flow). |
 | `agents.<role>.persona` | no | none | `{ name?, prompt? }`: who the agent of that role is. `name` is one line of at most 40 characters; `prompt` is text of at most 4000 characters, given to the agent as you wrote it. See [Personas](#personas). |
@@ -69,30 +66,51 @@ The socket path has a length limit (about 100 bytes), so keep a `CARRIER_HOME` s
 | `limits.maxExecutionRetries` | no | `3` | Retries after a technical failure of an agent execution. |
 | `limits.maxExecutionHours` | no | `4` | Time limit of one agent execution, or `"unlimited"`. `0` does not mean infinite. |
 | `limits.githubCallTimeoutSeconds` | no | `30` | Limit for each short call to GitHub or Forge. |
-| `limits.optionChoiceSeconds` | no | `60` | With two or more `providers`, how long a reserved epic holds its slot waiting for the provider of each role to be chosen. When it passes, or nobody answers, the epic starts on the defaults of `agents`. With one provider nothing waits. |
+| `limits.optionChoiceSeconds` | no | `60` | With two or more enabled accounts, how long a reserved epic holds its slot waiting for the provider of each role to be chosen. When it passes, or nobody answers, the epic starts on the defaults of `agents`. With fewer than two enabled accounts nothing waits. |
 
 ## AI providers
 
 An AI provider represents an account/login setup for an AI harness (e.g. Claude Code with a specific `configDir`, Antigravity, or Codex). A provider defines the account and installation independently of the model.
 
+The accounts live in `providers.json` in the Carrier folder (`~/.carrier`, or `CARRIER_HOME`), next to `config.json` and wherever `--config` points: [ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md). It is optional (without it there is one account per harness, see below), it is read when the engine starts, and a file that does not match stops it with the key named. A `config.json` that still has `providers` is refused and told to move it here.
+
 ```json
-"providers": {
-  "claude-work": { "harness": "claude", "configDir": "~/.claude-work" },
-  "claude-personal": { "harness": "claude", "configDir": "~/.claude" },
-  "codex": { "harness": "codex" },
-  "agy": { "harness": "agy" }
+{
+  "providers": {
+    "claude-work": { "harness": "claude", "configDir": "~/.claude-work", "displayName": "Work" },
+    "claude-personal": { "harness": "claude", "configDir": "~/.claude" },
+    "codex": { "harness": "codex" },
+    "agy": { "harness": "agy" }
+  }
 }
 ```
+
+The file has one key, `providers`, and no other.
 
 | Field of a provider | Required | Meaning |
 |----------------------|----------|---------|
 | (the key) | | The provider's name: a lowercase word, with letters, digits and hyphens, starting with a letter, up to 40 characters. |
 | `harness` | yes | The agent CLI that runs it: `claude` (Claude Code), `codex` or `agy` (Antigravity). |
+| `displayName` | no | What an app shows instead of the key: one line, trimmed, 1 to 60 characters. |
 | `model` | no | Optional default model for this provider connection, used when failover moves to this provider or when inherited by a role. |
 | `provider` | no | Who serves the model: `lmstudio` or `ollama` for a local server; without it, the harness's own cloud. See [Local models](#local-models). Not for `agy`. |
+| `enabled` | no | Whether the account is offered when an epic's agent option is chosen, and counted for the wait of [Choosing the provider of an epic](#choosing-the-provider-of-an-epic). `true` when absent, so an account written by hand is offered. A role, a failover list, a repo override or a restart may name an account whether it is enabled or not. |
 | `configDir` | no | The harness's config folder, which holds its login: `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. It must be an absolute path once a leading `~` is expanded. Without it the agent inherits the environment of the process that started Carrier. Not for `agy`. |
+| `command` | no | The binary to run, instead of looking the harness's name up on the `PATH`. An absolute path, or one that starts with `~/`. `carrier doctor` fails the account when it does not exist or does not run (`--version`). |
+| `autoCompact` | no | When the CLI compacts the conversation. Claude: `"auto"` or a token count from 100000 to 1000000, passed as `--autocompact`. Codex: a positive token count, passed as `-c model_auto_compact_token_limit=N`. Not for `agy`. |
+| `idleCompaction` | no | Claude only: a boolean passed on every run as `--settings '{"idleCompaction":…}'`, so the `settings.json` of the person changes in nothing. Absent passes nothing. Not for Codex or `agy`. |
+| `launchArgs` | no | A list of strings appended to the arguments Carrier passes, for example `["--chrome"]`. An empty entry is refused, and so are the flags Carrier sets itself, below. Not for `agy`. |
 
-`carrier init` configures your AI providers upfront in Stage 2, before role assignment. When assigning roles in Stage 4, each role points at a declared provider and specifies its model.
+A flag in `launchArgs` is judged by its name, so `--model=x` and `--model x` are the same. These are refused when the file is read, naming the key, because repeating them would change the permission mode or break the parsing of events:
+
+- Claude: `-p`, `--model`, `--permission-mode`, `--output-format`, `--resume`, `--name`, `--add-dir`, `--settings`, `--autocompact`.
+- Codex: `--model`, `--json`, `--dangerously-bypass-approvals-and-sandbox`, `--sandbox`, and the key of a `-c` or `--config` pair, in each form the CLI takes (`-c k=v`, `-ck=v`, `--config k=v`, `--config=k=v`), when it is `model_provider`, `carrier_marker` or `model_auto_compact_token_limit`.
+
+The file holds no secret; a log names an account and a flag, never the value of an argument.
+
+Without `providers.json` there is one account per harness, named after it: `claude`, `codex` and `agy`, each with this Mac's own login (no `configDir`) and `enabled: false`. A role may name them, and since none is offered an epic never waits for a choice. A file that has a `providers` key replaces them: only the accounts it lists exist.
+
+`carrier init` does not ask which providers to use: it looks for the agent CLIs on the Mac (their real binary, never a wrapper under `~/.paradev` or `~/.superset`), shows where each is with its version and whether it is signed in, and writes one account per CLI it found, named after it, with `enabled: false`. It then asks only for extra accounts (another login of the same CLI, or one on a local server). The accounts go to `providers.json` in the Carrier folder, even when `--out` puts the config elsewhere, and the recap says so. The flags that declare an account (`--author-provider` and the like) add it to the file, and `--yes` writes it without asking. When it edits an existing setup it starts from the accounts already in that file instead. When assigning roles, each role points at a declared provider and specifies its model.
 
 ## Agents and roles
 
@@ -112,7 +130,7 @@ Each role in `agents` (`author`, `reviewer`, and optional `leadReviewer`) specif
 
 ### Choosing the provider of an epic
 
-With one provider nothing is asked. With two or more, a reserved epic does not start its author at once: it holds its slot for `limits.optionChoiceSeconds` (default 60) while the provider of each role can be chosen over the control socket (`chooseOptions`, listed in the hello's `capabilities` as `agentOptions`). `carrier status` shows the epic as waiting for its choice, with the seconds left. A role that is not chosen runs on the provider `agents.<role>.provider` names, and so does every role when the time passes, when nobody answers, or when Carrier starts again after the deadline.
+With fewer than two enabled providers nothing is asked. With two or more, a reserved epic does not start its author at once: it holds its slot for `limits.optionChoiceSeconds` (default 60) while the provider of each role can be chosen over the control socket (`chooseOptions`, listed in the hello's `capabilities` as `agentOptions`). `carrier status` shows the epic as waiting for its choice, with the seconds left, and lists only the enabled accounts as the ones to choose from; a restart may still name a disabled account that is declared. A role that is not chosen runs on the provider `agents.<role>.provider` names, and so does every role when the time passes, when nobody answers, or when Carrier starts again after the deadline.
 
 ### Failover
 
@@ -150,7 +168,7 @@ When a role experiences a failure matching `triggers`:
 3. The role moves to the next provider in the chain that has not already failed in this epic. The stage restarts as a fresh session in the epic's worktree with its context rebuilt from SQLite and GitHub (spending no retry and emitting an `option_switched` event).
 4. If no providers in the chain are left, the epic stops in `needs-human` detailing which providers failed.
 
-Every provider name in `default` or `roles.<role>` must be declared in `providers`, and none may appear twice within the same list.
+Every provider name in `default` or `roles.<role>` must be declared in `providers.json`, and none may appear twice within the same list.
 
 ## Personas
 
@@ -194,18 +212,18 @@ A repo inherits every value from the global `agents` and replaces only what it n
 }
 ```
 
-Profile names used in an override must exist in `profiles`, and provider names in `providers`. Under `identities: "separate"` the author and the reviewer must still differ after the override.
+Profile names used in an override must exist in `profiles`, and provider names in `providers.json`. Under `identities: "separate"` the author and the reviewer must still differ after the override.
 
 ## Chat configuration
 
-The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrier`, or `CARRIER_HOME`) and read no engine config. Everything the chat owns is in `<folder>/chat/` (`state/`, `logs/`, `projects/`, `worktrees/`), and its settings are in the optional `<folder>/chat/chat.json`. Every key is optional and so is the file; with neither, the chat uses the defaults below. Unknown keys are errors. A file that is not valid JSON or does not match makes `carrier chat-host` exit with a message that names the file and the key, and the host does not start.
+The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrier`, or `CARRIER_HOME`) and read no engine config. The chat reads `providers.json` in the same folder for its accounts, and nothing else of the engine's. Everything the chat owns is in `<folder>/chat/` (`state/`, `logs/`, `projects/`, `worktrees/`), and its settings are in the optional `<folder>/chat/chat.json`. Every key is optional and so is the file; with neither, the chat uses the defaults below. Unknown keys are errors. A file that is not valid JSON or does not match makes `carrier chat-host` exit with a message that names the file and the key, and the host does not start.
 
 ```json
 {
   "agents": {
-    "claude": { "harness": "claude" },
-    "claude-opus": { "harness": "claude", "model": "opus", "options": { "permissionMode": "plan" } },
-    "codex": { "harness": "codex", "command": "/opt/homebrew/bin/codex" }
+    "claude": { "account": "claude" },
+    "claude-opus": { "account": "claude-work", "model": "opus", "options": { "permissionMode": "plan" } },
+    "codex": { "account": "codex" }
   },
   "projectsFolder": "~/Projects/carrier",
   "githubCallTimeoutSeconds": 30,
@@ -217,7 +235,7 @@ The chat host and `carrier chat` start from the Carrier folder alone (`~/.carrie
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `agents` | `claude` and `codex` | The agents a chat can start with, by name, in the order written, and only those (`{}` means none). `carrier chat` without `--agent` uses the first. See [Chat agents](#chat-agents). Read when the host starts. |
+| `agents` | `claude` and `codex` | The agents a chat can start with, by name, in the order written, and only those (`{}` means none). `carrier chat` without `--agent` uses the first. See [Chat agents](#chat-agents). Read when the host starts (the accounts they name are read from `providers.json` at each request). |
 | `projectsFolder` | `<folder>/chat/projects` | Where the host puts the repositories it clones (`<owner>/<repo>` inside it). An absolute path, or one starting with `~/`. It may not lie inside `<folder>/engine/` or the chat's own `state/`, `logs/` or `worktrees/`. Read at each request, so a change applies to the next clone with no restart. See [Projects folder](#projects-folder). |
 | `githubCallTimeoutSeconds` | `30` | A positive whole number: how long a call to GitHub (the repository list, the login) may take. Read when the host starts. |
 | `logLevel` | `info` | `debug`, `info`, `warn` or `error`. Read when the host starts. |
@@ -241,13 +259,14 @@ The reasons are in [ADR 0019](adr/0019-sessions-age-by-the-clock-and-an-automati
 
 ## Chat agents
 
-A chat (`carrier chat`) starts with one of the agents in `agents`, each running its own harness with the binary on the path and the provider's defaults unless it says otherwise.
+A chat (`carrier chat`) starts with one of the agents in `agents`. Each names an [account](#ai-providers) of `providers.json`, and a chat on it runs that account's harness with its login (`configDir`) and its binary (`command`), with the provider's defaults unless the agent says otherwise. Without `chat.json` the agents are `claude` and `codex`, each on the account of the same name; those accounts exist even without `providers.json`.
+
+`providers.json` is read each time the host opens a session or answers the list of agents, so an edit reaches the next chat with no restart, and a file that does not match stops the request with the key named. A session on an account that is not in `providers.json`, or that is Antigravity's (a chat does not offer it), is refused naming the account. The list of agents says, for each one, whether its account's binary is found.
 
 | Field | Required | Meaning |
 |-------|----------|---------|
 | the key | yes | The agent's name: lowercase letters, digits and hyphens, starting with a letter. |
-| `harness` | yes | `claude` or `codex`. Antigravity is not offered in a chat. |
-| `command` | no | The binary, when it is not the one on the path. Not empty. |
+| `account` | yes | The name of an account in `providers.json`, which sets the harness, the login and the binary. A `claude` or `codex` account; Antigravity is not offered in a chat. `harness` and `command` are no longer keys of an agent: they are refused, naming the key. |
 | `model` | no | The model the provider starts with. Not empty. |
 | `options` | no | Default options of the provider, by the provider's own option id. An option the provider does not list is refused when the session opens. |
 
@@ -257,11 +276,12 @@ The chat host clones a GitHub repository for a session when the first message is
 
 ## Things that are checked
 
-- Every profile named anywhere is declared in `profiles`, and every provider named anywhere in `providers`.
-- Every name in `failover.default` or `failover.roles` is declared in `providers` and appears once per list.
+- Every profile named anywhere is declared in `profiles`, and every provider named anywhere in `providers.json`.
+- Every name in `failover.default` or `failover.roles` is declared in `providers.json` and appears once per list.
 - Provider names are lowercase words, a `configDir` is absolute after `~` is expanded, and a provider has no field this page does not list.
 - Repo names are `owner/name`, and no two repos share the same folder name (Solve's worktree paths have no owner).
 - A `provider` (local model server) is only accepted for a harness that can use it (Claude Code and Codex; not Antigravity), and so is a `configDir`.
+- A `command` is absolute after `~` is expanded; `autoCompact` and `idleCompaction` are accepted only where the table says, `autoCompact` in its range; `launchArgs` is a list of non-empty strings that repeats none of the flags above.
 - The effective configuration of an epic is saved, without credentials, when it starts and kept when it resumes, even if you change the file in between.
 
 ## Local models
@@ -269,9 +289,9 @@ The chat host clones a GitHub repository for a session when the first message is
 A provider defines the **harness** (the CLI that runs the loop and the tools) and where it connects. By default the connection is the harness's own cloud; it can also be a local model server. An agent can use a model served by [LM Studio](https://lmstudio.ai) or [Ollama](https://ollama.com) on this machine instead of a cloud model. The harness is still Claude Code or Codex, which talk to the local server:
 
 ```json
-"providers": {
-  "local": { "harness": "codex", "provider": "lmstudio" }
-},
+// providers.json
+{ "providers": { "local": { "harness": "codex", "provider": "lmstudio" } } }
+// config.json
 "agents": {
   "reviewer": { "profile": "reviewer-bot", "provider": "local", "model": "google/gemma-4-12b" }
 }

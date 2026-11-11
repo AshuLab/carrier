@@ -1,4 +1,5 @@
 import { defaults, loadConfig } from '../../config/load.ts';
+import { loadProviders } from '../../config/providers.ts';
 import type { Config } from '../../config/schema.ts';
 import type { AIProvider, Failover, Identities, Role } from './build-config.ts';
 import { tilde } from './summary.ts';
@@ -6,8 +7,11 @@ import { tilde } from './summary.ts';
 /** What an existing config already says, to start from when editing it. */
 export type Prior = { repos: string[]; identities: Identities; providers: Record<string, AIProvider>; failover?: Failover; author: Role; reviewer: Role; leadReviewer?: Role };
 
-export function priorFrom(raw: unknown): Prior | undefined {
-  const loaded = loadConfig(defaults, raw);
+/** `raw` is the parsed `config.json`, `rawProviders` the parsed `providers.json` (`{}` when there is none). */
+export function priorFrom(raw: unknown, rawProviders: unknown): Prior | undefined {
+  const accounts = loadProviders(rawProviders);
+  if (!accounts.ok) return undefined;
+  const loaded = loadConfig(defaults, raw, accounts.providers);
   if (!loaded.ok) return undefined;
   const { config } = loaded;
   const role = (r: Config['agents']['author']): Role => ({ identity: config.profiles[r.profile]!, provider: r.provider, model: r.model, ...(r.persona && { persona: r.persona }) });

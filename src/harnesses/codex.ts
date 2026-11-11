@@ -12,7 +12,7 @@ import { boundOutput, caps, clean, type AgentEvent, type EventState } from '../e
  */
 export function buildCodexCommand(task: AgentTask, ctx: CommandContext): AgentCommand {
   return {
-    bin: ctx.binary,
+    bin: task.command ?? ctx.binary,
     args: [
       'exec',
       ...(task.resumeSession ? ['resume', task.resumeSession] : []),
@@ -27,6 +27,8 @@ export function buildCodexCommand(task: AgentTask, ctx: CommandContext): AgentCo
       // Codex has no flag to name a run; a config key it ignores keeps the marker in argv for listActive/stop.
       '-c',
       `carrier_marker="${markerFor(task.executionId)}"`,
+      ...(task.autoCompact === undefined ? [] : ['-c', `model_auto_compact_token_limit=${task.autoCompact}`]),
+      ...(task.launchArgs ?? []),
     ],
     cwd: task.workspace,
     env: { ...childEnv(ctx), ...(task.configDir && { CODEX_HOME: task.configDir }), CARRIER_RESULT_PATH: task.resultPath },

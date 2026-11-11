@@ -159,10 +159,11 @@ test('git store and erase answer nothing and do not call agent-forge', () => {
   });
 });
 
-test('resolveBinary skips the Superset wrappers', () => {
+test('resolveBinary skips the Superset and Paradev wrappers', () => {
   const executable = (path: string) => path.endsWith('/claude');
   expect(resolveBinary('claude', '/Users/x/.superset/bin:/Users/x/.local/bin:/usr/bin', executable)).toBe('/Users/x/.local/bin/claude');
-  expect(() => resolveBinary('claude', '/Users/x/.superset/bin', executable)).toThrow(/real "claude"/);
+  expect(resolveBinary('claude', '/Users/x/.paradev/bin:/Users/x/.local/bin:/usr/bin', executable)).toBe('/Users/x/.local/bin/claude');
+  expect(() => resolveBinary('claude', '/Users/x/.superset/bin:/Users/x/.paradev/bin', executable)).toThrow(/real "claude"/);
 });
 
 // Lines as claude 2.1.301 printed them (trimmed).
@@ -221,4 +222,15 @@ test('the prompt carries the 401 rule only when the context has a forgeAgent', (
   expect(withAgent.args).toContain(buildPrompt(task, { forgeAgent: 'artanis-agent' }));
   expect(withAgent.args.join('\n')).toContain('agent-forge gh artanis-agent <the same arguments>');
   expect(buildClaudeCommand(task, ctx).args.join('\n')).not.toContain('agent-forge');
+});
+
+test('an account\'s command, compaction and launch arguments reach the process; without them the command is unchanged', () => {
+  const plain = buildClaudeCommand(task, ctx);
+  const command = buildClaudeCommand({ ...task, command: '/opt/claude/bin/claude', autoCompact: 300000, idleCompaction: false, launchArgs: ['--chrome', '--verbose'] }, ctx);
+  expect(command.bin).toBe('/opt/claude/bin/claude');
+  expect(command.args).toEqual([...plain.args, '--autocompact', '300000', '--settings', '{"idleCompaction":false}', '--chrome', '--verbose']);
+  expect(command.env).toEqual(plain.env);
+  expect(buildClaudeCommand({ ...task, autoCompact: 'auto' }, ctx).args.slice(-2)).toEqual(['--autocompact', 'auto']);
+  expect(buildClaudeCommand({ ...task, idleCompaction: true }, ctx).args.slice(-2)).toEqual(['--settings', '{"idleCompaction":true}']);
+  expect(buildClaudeCommand({ ...task, launchArgs: [] }, ctx)).toEqual(plain);
 });

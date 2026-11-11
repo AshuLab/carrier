@@ -40,10 +40,12 @@ describe.skipIf(!enabled)('the sweep of a dead chat host, with the real Claude',
   });
 
   test('the next host ends the group the dead one left and the session resumes', { timeout: 240_000 }, async () => {
-    const chat = { agents: { claude: { harness: 'claude', model: 'haiku', ...(process.env.CARRIER_IT_CLAUDE_COMMAND && { command: process.env.CARRIER_IT_CLAUDE_COMMAND }) } } };
+    const chat = { agents: { claude: { account: 'claude', model: 'haiku' } } };
+    const providers = { providers: { claude: { harness: 'claude', ...(process.env.CARRIER_IT_CLAUDE_COMMAND && { command: process.env.CARRIER_IT_CLAUDE_COMMAND }) } } };
     vi.stubEnv('CARRIER_HOME', root);
     mkdirSync(join(root, 'chat'), { recursive: true });
     writeFileSync(join(root, 'chat', 'chat.json'), JSON.stringify(chat));
+    writeFileSync(join(root, 'providers.json'), JSON.stringify(providers));
     const main = join(import.meta.dirname, '../terminal/cli/main.ts');
     const child = spawn(process.execPath, [main, 'chat-host'], { stdio: 'ignore', env: { ...process.env, CARRIER_HOME: root } });
     const socket = join(root, 'chat', 'state', 'chat.sock');

@@ -1,8 +1,6 @@
-import { isAbsolute } from 'node:path';
 import { LogLevel } from '@ashulab/universal-logger';
 import { z } from 'zod';
-import { harnessNames, localProvidersOf } from '../harnesses/names.ts';
-import { expandHome } from './default-path.ts';
+import { accounts } from './providers.ts';
 import { resolveRepoConfig } from './resolve.ts';
 
 /** `owner/name`, each part a plain folder name: the managed clone lives in `repos/<owner>/<name>`. */
@@ -13,20 +11,6 @@ export const persona = z.strictObject({
   name: z.string().trim().min(1).max(40).regex(/^[^\r\n]+$/).optional(),
   prompt: z.string().trim().min(1).max(4000).optional(),
 });
-
-/** An AI provider account / connection. */
-export const aiProvider = z.strictObject({
-  harness: z.enum(harnessNames),
-  /** Optional default model for this provider connection. */
-  model: z.string().min(1).optional(),
-  /** Run on a local server through the harness's CLI instead of the cloud. */
-  provider: z.enum(['lmstudio', 'ollama']).optional(),
-  /** `CLAUDE_CONFIG_DIR` for Claude, `CODEX_HOME` for Codex. Absolute once `~` is expanded. */
-  configDir: z.string().min(1).transform(expandHome).optional(),
-});
-
-/** The key of a provider or option: stored and shown as is. */
-export const optionNamePattern = /^[a-z][a-z0-9-]{0,39}$/;
 
 // A role keeps its GitHub identity and persona, and points at an AI provider and model.
 const agent = z.strictObject({
@@ -89,7 +73,8 @@ export const configSchema = z
       .min(1),
     profiles: z.record(z.string(), profile),
     orchestratorProfile: z.string().min(1),
-    providers: z.record(z.string(), aiProvider),
+    /** Not a key of `config.json`: the loader puts here what `providers.json` declares (ADR 0020). */
+    providers: accounts,
     agents: z.strictObject({ author: agent, reviewer: agent, leadReviewer: agent.optional() }),
     /** Off unless present and enabled. Moves a role to the next AI provider upon usage_limit, rate_limit, or service_down. */
     failover: failoverSchema.optional(),
@@ -168,21 +153,6 @@ export const configSchema = z
         for (const role of ['author', 'reviewer', 'leadReviewer'] as const) {
           checkFailoverList(config.failover.roles[role], ['failover', 'roles', role]);
         }
-      }
-    }
-
-    for (const [name, p] of Object.entries(config.providers)) {
-      const where = `providers.${name}`;
-      if (!optionNamePattern.test(name)) {
-        ctx.addIssue({ code: 'custom', path: ['providers', name], message: `${where}: a provider name is a lowercase word: letters, digits and hyphens, starting with a letter, up to 40 characters` });
-      }
-      if (p.provider !== undefined && !(localProvidersOf[p.harness] as readonly string[]).includes(p.provider)) {
-        ctx.addIssue({ code: 'custom', path: ['providers', name, 'provider'], message: `${where}: ${p.harness} cannot use the provider "${p.provider}"` });
-      }
-      if (p.configDir !== undefined && p.harness === 'agy') {
-        ctx.addIssue({ code: 'custom', path: ['providers', name, 'configDir'], message: `${where}: agy has no config folder setting, so it cannot have a configDir` });
-      } else if (p.configDir !== undefined && p.configDir !== '' && !isAbsolute(p.configDir)) {
-        ctx.addIssue({ code: 'custom', path: ['providers', name, 'configDir'], message: `${where}: configDir must be an absolute path, or start with ~/ (got "${p.configDir}")` });
       }
     }
 

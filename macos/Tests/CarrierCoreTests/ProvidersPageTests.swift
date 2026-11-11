@@ -78,6 +78,9 @@ private let config = data("""
     #expect(claude.accounts[1].configDir == "/Users/demo/.claude-work")
     // codex answers no version, and its state is a probe that did not answer
     #expect(page.tools[1].status == .unknown && page.tools[1].version == nil && page.tools[1].path == "/opt/homebrew/bin/codex")
+    // the account's own binary reaches Sign in and Update
+    #expect(claude.command == nil && claude.accounts[1].command == nil)
+    #expect(page.tools[1].command == "/opt/homebrew/bin/codex" && page.tools[1].accounts[0].command == "/opt/homebrew/bin/codex")
 }
 
 @Test func aHarnessFoundWithNoAccountIsFoundNotAdded() throws {

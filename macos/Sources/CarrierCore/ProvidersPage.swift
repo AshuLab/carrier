@@ -125,6 +125,8 @@ public struct ProviderAccount: Equatable, Identifiable {
     public let state: ToolState
     public let enabled: Bool
     public let configDir: String?
+    /// The binary the account runs, when it sets one.
+    public let command: String?
     public let uses: [AccountUse]
 
     public var id: String { name }
@@ -157,6 +159,8 @@ public struct ProviderTool: Equatable, Identifiable {
     public let status: Status
     public let version: String?
     public let path: String?
+    /// The binary of the account the version and path come from, when it sets one.
+    public let command: String?
     public let accounts: [ProviderAccount]
 }
 
@@ -198,9 +202,9 @@ public func providersPage(_ reply: HostProviders, config: Data?, chat: Data?) ->
         }
         return ProviderTool(
             id: harness.id, title: harness.title, icon: harness.icon, status: status,
-            version: seen?.version ?? unadded?.version, path: seen?.path ?? unadded?.path,
+            version: seen?.version ?? unadded?.version, path: seen?.path ?? unadded?.path, command: seen?.command,
             accounts: own.map {
-                ProviderAccount(name: $0.name, title: $0.displayName ?? $0.name, state: $0.state, enabled: $0.enabled, configDir: $0.configDir, uses: uses[$0.name] ?? [])
+                ProviderAccount(name: $0.name, title: $0.displayName ?? $0.name, state: $0.state, enabled: $0.enabled, configDir: $0.configDir, command: $0.command, uses: uses[$0.name] ?? [])
             }
         )
     }

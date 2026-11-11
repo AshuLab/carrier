@@ -3,14 +3,15 @@ import CarrierCore
 import SwiftUI
 
 /// The Providers page of Settings (docs/specs/providers-in-settings.md): the AI tools of this Mac in a list, and for the chosen one its version
-/// and path, its accounts with who uses each (`providersPage`) or, for a local server, its models. Read only. The page has no automated test;
-/// the rows are `providersPage`'s.
+/// and path with Update, its accounts with who uses each and Sign in for a signed-out one (`providersPage`) or, for a local server, its models.
+/// The page has no automated test; the rows are `providersPage`'s and the commands `providerCommand`'s.
 struct ProvidersTabView: View {
     @State private var store = ProvidersStore(host: SocketChatHost())
     @State private var selected = "claude"
     @State private var config: Data?
     @State private var chat: Data?
     @State private var looking = false
+    @State private var failure: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -67,9 +68,16 @@ struct ProvidersTabView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(tool.title).font(.title3.weight(.semibold))
                 if let line = versionLine(tool.version, tool.path) {
-                    Text(line).font(.scaled(11.5, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
-                        .lineLimit(2).truncationMode(.middle)
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text(line).font(.scaled(11.5, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+                            .lineLimit(2).truncationMode(.middle)
+                        Spacer(minLength: 8)
+                        // none of the three can only check: Update installs, so it opens Terminal on the command
+                        Button("Update") { open(.update, harness: tool.id, command: tool.command, configDir: nil) }
+                            .controlSize(.small).help("Opens Terminal and runs \(tool.id) update")
+                    }
                 }
+                if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
                 switch tool.status {
                 case .missing: note("Not installed on this Mac.")
                 case .foundNotAdded: note("Found on this Mac and not added as an account yet.")
@@ -77,7 +85,13 @@ struct ProvidersTabView: View {
                     SettingsGroup(title: "Accounts") {
                         ForEach(Array(tool.accounts.enumerated()), id: \.element.id) { index, account in
                             SettingsTabRow(title: account.title, detail: accountLine(account, harness: tool.id), first: index == 0) {
-                                Text(account.state.words).font(.callout).foregroundStyle(.secondary)
+                                HStack(spacing: 10) {
+                                    Text(account.state.words).font(.callout).foregroundStyle(.secondary)
+                                    if account.state == .signedOut {
+                                        Button("Sign in") { open(.signIn, harness: tool.id, command: account.command, configDir: account.configDir) }
+                                            .controlSize(.small).help("Opens Terminal and signs this account in")
+                                    }
+                                }
                             }
                         }
                     }
@@ -98,6 +112,21 @@ struct ProvidersTabView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Terminal's script and opener are Continue in Terminal's; under `--fixture` the opener only says what it would have run.
+    private func open(_ action: ProviderAction, harness: String, command: String?, configDir: String?) {
+        let fixture = CommandLine.arguments.contains("--fixture")
+        do {
+            try providerInTerminal(
+                action, harness: harness, command: command, configDir: configDir,
+                opener: fixture ? FixtureTerminalOpener() : WorkspaceTerminalOpener()
+            )
+            failure = nil
+        } catch {
+            NSLog("Carrier: provider \(action.rawValue) in Terminal failed: %@", String(describing: error))
+            failure = error is ProviderCommandError ? "This account's folder or binary is not an absolute path, so nothing was opened." : "Could not open Terminal."
         }
     }
 

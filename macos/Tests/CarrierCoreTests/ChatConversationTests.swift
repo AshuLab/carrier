@@ -970,3 +970,9 @@ private func answered(_ json: String) throws -> ChatEvent { try JSONDecoder().de
     // answers that did not come with an allowing choice are not shown as given
     #expect(line("deny", ["Which auth approach?": "JWT"]) == "declined: Skipped the questions · by you")
 }
+
+@Test func aRequestThatTimedOutIsNotSaidToBeSomethingTheHostSentThatWasNotUnderstood() {
+    #expect(ConversationModel.words(ControlError.timeout) == "The chat host took too long to answer")
+    #expect(ConversationModel.words(ControlError.badLine) == "The chat host sent something that was not understood")
+    #expect(ConversationModel.words(ControlError.closed) == "The chat host is not answering")
+}

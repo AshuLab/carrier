@@ -830,6 +830,7 @@ public func foldingClosingLines(_ rows: [FeedRow]) -> (rows: [FeedRow], lines: [
         switch error {
         case ControlError.closed: "The chat host is not answering"
         case ControlError.remote(let reason): reason
+        case ControlError.timeout: "The chat host took too long to answer"
         default: "The chat host sent something that was not understood"
         }
     }

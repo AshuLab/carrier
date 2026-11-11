@@ -391,7 +391,8 @@ public struct SocketChatHost: ChatHost {
     public func resume(_ id: String) async throws {
         let fields = ",\"sessionId\":\"\(try wireId(id))\""
         let path = socketPath()
-        let _: AnyReply = try await Task.detached { try chatRequest(path, "resume", requires: .resume, fields: fields) }.value
+        // resuming starts the agent again and reads its whole history: a long session takes far more than the 5 seconds of a request that only asks
+        let _: AnyReply = try await Task.detached { try chatRequest(path, "resume", requires: .resume, fields: fields, timeout: 60) }.value
     }
 
     /// The text goes on the wire JSON-encoded, so quotes, newlines and anything else in it stay inside the string.

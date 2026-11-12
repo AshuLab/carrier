@@ -21,8 +21,8 @@ enum SidebarMetrics {
     static let groupTop: CGFloat = 10
 }
 
-/// The sidebar: the Home row, Sessions, then Carrier with the epics in groups under it, in a scroll area; Archive and Settings are fixed
-/// in the foot. The rows draw their own fill, selected or hovered, so what is under a section is plain rows and not a `List`.
+/// The sidebar: the Home row and Sessions in a scroll area, and Carrier with its epics in groups under them while it is the open section;
+/// the foot is fixed: Archive (only while Sessions or Archive is open), Carrier as a row (while it is not open) and Settings. The rows draw their own fill, selected or hovered, so what is under a section is plain rows and not a `List`.
 struct SidebarView: View {
     private let timeChanges = TimeFormatChanges()
     let snapshot: PanelSnapshot?
@@ -46,62 +46,77 @@ struct SidebarView: View {
     @State private var searching = false
     @State private var query = ""
     @FocusState private var searchFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var sidebarEpicCount: Int { snapshot.map { sidebarGroups($0, by: groupBy).reduce(0) { $0 + $1.count } } ?? 0 }
+
+    private func carrierRow(epicCount: Int) -> some View {
+        CarrierRow(
+            state: state, selected: selection == .carrier, unfolded: open == .carrier, hasEpics: epicCount > 0,
+            select: { selection = .carrier }, groupBy: $groupBy, searching: $searching
+        )
+    }
 
     var body: some View {
-        let epicCount = snapshot.map { sidebarGroups($0, by: groupBy).reduce(0) { $0 + $1.count } } ?? 0
+        let epicCount = sidebarEpicCount
         ScrollView {
             LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
                 SidebarSectionRow(title: "Home", icon: "house", selected: selection == .home, action: { selection = .home }).help("Home (⌘1)")
                 SessionsRows(
                     sessions: sessions, sort: $sessionSort, selection: $selection, selected: selection == .sessions,
-                    select: { selection = .sessions }, open: Binding(get: { open == .sessions }, set: { open = $0 ? .sessions : nil }),
+                    select: { selection = .sessions },
+                    // Archive is a panel under the list, not a replacement for it: the sessions stay unfolded while it is open
+                    open: Binding(get: { open == .sessions || open == .archive }, set: { open = $0 ? .sessions : nil }),
                     searchRequest: searchRequest, newSession: { selection = .newSession }, newSessionIn: newSessionIn
                 )
-                CarrierRow(
-                    state: state, selected: selection == .carrier, unfolded: open == .carrier, hasEpics: epicCount > 0,
-                    select: { selection = .carrier }, groupBy: $groupBy, searching: $searching
-                )
+                // Carrier is under Sessions while it is the open section, with its epics; otherwise it is a row in the foot
+                if open == .carrier { carrierRow(epicCount: epicCount) }
                 if let snapshot, open == .carrier {
-                    if searching {
-                        SidebarSearchField(placeholder: "Search epics", text: $query, focus: $searchFocused, close: { searching = false })
-                    }
-                    let queried = query.trimmingCharacters(in: .whitespaces).isEmpty == false
-                    let groups = sidebarGroups(snapshot, by: groupBy, query: query)
-                    switch SidebarListState(shown: groups.reduce(0) { $0 + $1.count }, of: epicCount, query: query) {
-                    case .empty: SidebarEmptyBlock(state: .noEpics)
-                    case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
-                    case .rows: EmptyView()
-                    }
-                    ForEach(groups.indices, id: \.self) { index in
-                        let group = groups[index]
-                        // while a query is typed every group is open, so there is nothing to toggle
-                        let expanded = queried || !collapse.isCollapsed(group, by: groupBy, query: query)
-                        Button {
-                            if queried == false { collapse.toggle(group, by: groupBy) }
-                        } label: {
-                            HStack {
-                                Text(group.title)
-                                Spacer(minLength: 0)
-                                Text("\(group.count)").monospacedDigit()
-                                Image(systemName: "chevron.right").imageScale(.small).rotationEffect(.degrees(expanded ? 90 : 0))
-                                    .opacity(queried ? 0 : 1)
-                            }
-                            .font(SidebarMetrics.group).foregroundStyle(.secondary)
-                            .frame(height: 22).padding(.horizontal, SidebarMetrics.inset)
-                            .contentShape(Rectangle())
+                    LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
+                        if searching {
+                            SidebarSearchField(placeholder: "Search epics", text: $query, focus: $searchFocused, close: { searching = false })
                         }
-                        .buttonStyle(HoverFillButtonStyle())
-                        .padding(.top, SidebarMetrics.groupTop)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityHint(expanded ? "Folds the group" : "Unfolds the group")
-                        if expanded {
-                            ForEach(group.rows, id: \.selection) { row in
-                                SidebarRowView(row: row).selectableSidebarRow(selected: selection == row.selection) { selection = row.selection }
+                        let queried = query.trimmingCharacters(in: .whitespaces).isEmpty == false
+                        let groups = sidebarGroups(snapshot, by: groupBy, query: query)
+                        switch SidebarListState(shown: groups.reduce(0) { $0 + $1.count }, of: epicCount, query: query) {
+                        case .empty: SidebarEmptyBlock(state: .noEpics)
+                        case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
+                        case .rows: EmptyView()
+                        }
+                        ForEach(groups.indices, id: \.self) { index in
+                            let group = groups[index]
+                            // while a query is typed every group is open, so there is nothing to toggle
+                            let expanded = queried || !collapse.isCollapsed(group, by: groupBy, query: query)
+                            Button {
+                                if queried == false { collapse.toggle(group, by: groupBy) }
+                            } label: {
+                                HStack {
+                                    Text(group.title)
+                                    Spacer(minLength: 0)
+                                    Text("\(group.count)").monospacedDigit()
+                                    Image(systemName: "chevron.right").imageScale(.small).rotationEffect(.degrees(expanded ? 90 : 0))
+                                        .opacity(queried ? 0 : 1)
+                                }
+                                .font(SidebarMetrics.group).foregroundStyle(.secondary)
+                                .frame(height: 22).padding(.horizontal, SidebarMetrics.inset)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(HoverFillButtonStyle())
+                            .padding(.top, SidebarMetrics.groupTop)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityHint(expanded ? "Folds the group" : "Unfolds the group")
+                            if expanded {
+                                ForEach(group.rows, id: \.selection) { row in
+                                    SidebarRowView(row: row).selectableSidebarRow(selected: selection == row.selection) { selection = row.selection }
+                                }
                             }
                         }
                     }
+                    .transition(reduceMotion ? .opacity : .reveal)
                 }
             }
+            // the open section's list slides open and shut, and Carrier's row moves between the list and the foot with it
+            .animation(.smooth(duration: 0.25), value: open)
             .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
         }
         .onChange(of: searching) { if searching { searchFocused = true } else { query = "" } }
@@ -116,14 +131,23 @@ struct SidebarView: View {
         .safeAreaBar(edge: .bottom, spacing: 0) {
             // Archive above the divider and Settings alone under it; both stay while the list above scrolls, over the system's scroll pocket
             VStack(spacing: 0) {
-                ArchiveSection(
-                    sessions: sessions, selection: $selection, open: open == .archive, choose: chooseArchived, searchRequest: searchRequest
-                )
-                .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
+                // Archive is only there while Sessions (or Archive itself) is the open section: archived sessions are noise otherwise
+                if open == .sessions || open == .archive {
+                    ArchiveSection(
+                        sessions: sessions, selection: $selection, open: open == .archive, toggle: { open = open == .archive ? .sessions : .archive },
+                        choose: chooseArchived, searchRequest: searchRequest
+                    )
+                    .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
+                }
+                if open != .carrier {
+                    carrierRow(epicCount: sidebarEpicCount)
+                        .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
+                }
                 Divider()
                 SidebarSectionRow(title: "Settings", icon: "gearshape", selected: false, action: openSettings)
                     .padding(.horizontal, SidebarMetrics.edge).padding(.vertical, 8)
             }
+            .animation(.smooth(duration: 0.25), value: open)
         }
     }
 }
@@ -150,12 +174,13 @@ private struct CarrierRow: View {
         let snapshot: PanelSnapshot? = if case .running(let snapshot)? = state { snapshot } else { nil }
         // the hover: running says when the next check is, uptime and rate limit; an incompatible engine says why
         let detail: String? = if let snapshot { Self.hover(snapshot) } else if case .incompatible(let update)? = state { update ?? state?.menuLine } else { nil }
-        SidebarSectionRow(title: "Carrier", icon: "paperplane", selected: selected, action: select, actions: {
+        SidebarSectionRow(title: "Carrier", icon: "paperplane", selected: selected, keepActions: groupMenu || searching, action: select, actions: {
             Text(card.title)
                 .font(SidebarMetrics.detail.weight(.semibold))
                 .foregroundStyle(Self.tint(card.kind))
                 .padding(.horizontal, 8).padding(.vertical, 2)
                 .background(Capsule().fill(Self.tint(card.kind).opacity(0.28)))
+        }, hoverActions: {
             // the epics exist only while Carrier answers, so there is nothing to search or group before
             if snapshot != nil && unfolded {
                 IconButton(
@@ -307,25 +332,32 @@ extension View {
 /// A sidebar section ([glossary](../../docs/glossary.md)): an icon of 15 points, a title and its actions, and under them whatever the
 /// section shows of itself (Carrier's slots). No fill at rest, a faint grey on hover and a light neutral grey when selected, drawn here
 /// and not by the list, so it covers this row and never what unfolds under it. A click anywhere on it, but on its actions, runs `action`.
-struct SidebarSectionRow<Actions: View, Below: View>: View {
+/// `actions` are what the row says (a count, a state) and are always there; `hoverActions` are its buttons, which fade in while the pointer
+/// is over the row and stay while `keepActions` (a menu they opened is open, a search they started is on), left of `actions`.
+struct SidebarSectionRow<Actions: View, HoverActions: View, Below: View>: View {
     let title: String
     let icon: String
     let selected: Bool
+    var keepActions = false
     let action: () -> Void
     @ViewBuilder let actions: Actions
+    @ViewBuilder let hoverActions: HoverActions
     @ViewBuilder let below: Below
     @State private var hovered = false
     @Environment(\.colorScheme) private var scheme
 
     init(
-        title: String, icon: String, selected: Bool, action: @escaping () -> Void, @ViewBuilder actions: () -> Actions = { EmptyView() },
+        title: String, icon: String, selected: Bool, keepActions: Bool = false, action: @escaping () -> Void,
+        @ViewBuilder actions: () -> Actions = { EmptyView() }, @ViewBuilder hoverActions: () -> HoverActions = { EmptyView() },
         @ViewBuilder below: () -> Below = { EmptyView() }
     ) {
         self.title = title
         self.icon = icon
         self.selected = selected
+        self.keepActions = keepActions
         self.action = action
         self.actions = actions()
+        self.hoverActions = hoverActions()
         self.below = below()
     }
 
@@ -348,6 +380,11 @@ struct SidebarSectionRow<Actions: View, Below: View>: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(title)
                 .accessibilityAddTraits(selected ? .isSelected : [])
+                // the buttons take their room even while hidden, so the row does not move when the pointer comes in
+                let shown = hovered || keepActions
+                HStack(spacing: 0) { hoverActions }
+                    .opacity(shown ? 1 : 0).allowsHitTesting(shown)
+                    .animation(.easeOut(duration: 0.15), value: shown)
                 actions
             }
             .frame(minHeight: 24)
@@ -375,7 +412,7 @@ struct SidebarRowView: View {
 
     var body: some View {
         HStack(spacing: SidebarMetrics.inset) {
-            ProjectIcon(name: row.name, colorKey: projectColorKey(row.repo), halo: row.state == .running)
+            ProjectIcon(name: row.name, colorKey: projectColorKey(row.repo), working: row.state == .running)
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 // two lines before the ellipsis: a title is a sentence, and the number no longer takes room from it
                 Text(row.title ?? row.name).font(SidebarMetrics.item).lineLimit(2)

@@ -11,12 +11,36 @@ import SwiftUI
     /// Archive, restore and delete; `startMonitor` makes the lists read again after each.
     let actions = SessionActions(host: SocketChatHost())
     var collapse = SidebarCollapse()
-    /// The chat host's sessions (`ChatSessionsPoller`).
+    /// The chat host's sessions (`ChatSessionsPoller`), with which of them are unread.
     var sessions = Sessions()
+    /// When the person last saw each session (`SessionSeen`), and the list as the host gave it, before `unread`.
+    @ObservationIgnored private var seen = SessionSeen.stored()
+    @ObservationIgnored private var hostRows: [SessionRow] = []
+
+    /// A new list from the host, on the main thread.
+    func adopt(_ rows: [SessionRow]) {
+        hostRows = rows
+        refreshUnread()
+    }
+
+    /// Sets `unread` again: when the list changes and when the open session does. The session on screen is seen as it moves.
+    func refreshUnread() {
+        var rows = hostRows
+        var viewing: String?
+        if case .session(let id) = shell.selection { viewing = id }
+        if seen.apply(to: &rows, viewing: viewing) { seen.store() }
+        if sessions.rows != rows { sessions.rows = rows }
+    }
+
+    /// The person leaves a session: what it did up to now is seen.
+    func leave(_ id: String) {
+        seen.markSeen(id, in: hostRows)
+        refreshUnread()
+    }
     /// The draft of a new session; it starts the chat host when it is not running (#503) before it opens the session.
     // built on the main thread, where the app creates its window
     let newSession = MainActor.assumeIsolated {
-        NewSessionModel(host: SocketChatHost(), health: AppHealth.store) {
+        NewSessionModel(host: SocketChatHost(), health: AppHealth.store, offers: .shared) {
             await withCheckedContinuation { continuation in ChatHostStarter.shared.ensureRunning { continuation.resume(returning: $0) } }
         }
     }
@@ -152,6 +176,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
+        refreshPace()
     }
 
     func open(session id: String) {
@@ -356,6 +381,9 @@ final class WindowController: NSObject, NSWindowDelegate {
             window.center()
         }
         NotificationCenter.default.addObserver(self, selector: #selector(windowClosed), name: NSWindow.willCloseNotification, object: window)
+        for name in [NSWindow.didChangeOcclusionStateNotification, NSWindow.didMiniaturizeNotification, NSWindow.didDeminiaturizeNotification] {
+            NotificationCenter.default.addObserver(self, selector: #selector(windowShownOrHidden), name: name, object: window)
+        }
         return window
     }
 
@@ -364,11 +392,21 @@ final class WindowController: NSObject, NSWindowDelegate {
         return NSSize(width: max(frameSize.width, least.width), height: max(frameSize.height, least.height))
     }
 
+    /// Someone is looking when the app is active and the window is on screen: then the host and the engine are asked often.
+    func refreshPace() {
+        let shown = window.map { $0.isVisible && $0.isMiniaturized == false && $0.occlusionState.contains(.visible) } ?? false
+        PollPace.shared.set(attentive: NSApp.isActive && shown)
+    }
+
+    @objc private func windowShownOrHidden() { refreshPace() }
+
     @objc private func windowClosed() {
+        PollPace.shared.set(attentive: false)
         // the app stays in the Dock and the menu bar: a closed window is a closed window, and the Dock icon opens it again
         stop?.set()
         stop = nil
         model.state = nil
+        if case .session(let id) = model.shell.selection { model.leave(id) }
         model.sessions = Sessions()
         model.shell.reset(open: SidebarStore().open)
     }
@@ -386,6 +424,7 @@ final class WindowController: NSObject, NSWindowDelegate {
         }
         let monitor = ControlMonitor(
             socketPath: { controlSocketPath() },
+            pollEvery: { PollPace.shared.seconds },
             wait: sleep,
             tick: { try poller.poll($0) },
             onChange: { state in
@@ -394,14 +433,14 @@ final class WindowController: NSObject, NSWindowDelegate {
         )
         Thread.detachNewThread { monitor.run() }
         let sessions = ChatSessionsPoller(host: SocketChatHost()) { rows in
-            // only a change is published: an equal list every second would rebuild an open context menu under the pointer
-            DispatchQueue.main.async { if stop.isSet == false, model.sessions.rows != rows { model.sessions.rows = rows } }
+            // only a change is published: an equal list at every poll would rebuild an open context menu under the pointer
+            DispatchQueue.main.async { if stop.isSet == false { model.adopt(rows) } }
         }
         DispatchQueue.main.async { model.actions.changed = { sessions.invalidateArchived() } }
         Task.detached {
             repeat {
                 await sessions.poll()
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .seconds(PollPace.shared.seconds))
             } while stop.isSet == false
         }
     }

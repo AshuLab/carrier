@@ -23,6 +23,7 @@ struct SessionsRows: View {
     /// The search field's text while it is open, nil while it is closed; not remembered between launches.
     @State private var query: String?
     @FocusState private var searching: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// What the pointer is over, by group: the header and each row of it. A group's + shows while the pointer is anywhere in the group; a set
     /// and not a flag, because leaving one row and entering the next arrive in either order.
     @State private var hovering: [String: Set<String>] = [:]
@@ -42,13 +43,14 @@ struct SessionsRows: View {
     }
 
     var body: some View {
-        SidebarSectionRow(title: "Sessions", icon: "bubble.left.and.bubble.right", selected: selected, action: select, actions: {
+        SidebarSectionRow(title: "Sessions", icon: "bubble.left.and.bubble.right", selected: selected, keepActions: sortOpen || query != nil, action: select, actions: {
             if sessions.open > 0 {
                 Text("\(sessions.open)").font(SidebarMetrics.detail.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
                     .padding(.horizontal, 6).padding(.vertical, 1)
                     .background(Capsule().fill(Color.secondary.opacity(0.15)))
                     .accessibilityLabel(sessions.openLabel)
             }
+        }, hoverActions: {
             IconButton(
                 icon: "magnifyingglass", name: "Search sessions", enabled: sessions.open > 0, why: "No sessions to search", shortcut: "⌘F",
                 pressed: query != nil
@@ -69,48 +71,71 @@ struct SessionsRows: View {
         .onChange(of: open) { if open == false { query = nil } }
         .onChange(of: searchRequest) { if searchRequest?.section == .sessions { openSearch() } }
         if open {
-            if query != nil {
-                // not `Binding($query)`: its getter force-unwraps, and the field reads it once more after the query is nil
-                SidebarSearchField(
-                    placeholder: "Search sessions", text: Binding(get: { query ?? "" }, set: { query = $0 }), focus: $searching,
-                    close: { query = nil }
-                )
-            }
             let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", pinned: pinnedIds(pinnedStored), now: Date(), calendar: .current)
-            if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
-                SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
-            }
-            if ChatHostStarter.shared.restartAdvised {
-                SidebarEmptyBlock(icon: "arrow.clockwise", title: chatHostRestartNotice.title, line: chatHostRestartNotice.line) { EmptyView() }
-            }
-            if let notice = ChatHostStarter.shared.upgradeNotice {
-                SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
-            }
-            switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
-            case .empty where ChatHostStarter.shared.missing.isEmpty:
-                let empty = EmptyState.noSessions
-                SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
-                    Button("New session", action: newSession).help("New session")
+            let items = groups.flatMap { group in [ListItem.header(group)] + group.rows.map { ListItem.row($0, group: group.title) } }
+            // one block, so the list slides open and shut (the animation is the sidebar's, on `open`)
+            LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
+                if query != nil {
+                    // not `Binding($query)`: its getter force-unwraps, and the field reads it once more after the query is nil
+                    SidebarSearchField(
+                        placeholder: "Search sessions", text: Binding(get: { query ?? "" }, set: { query = $0 }), focus: $searching,
+                        close: { query = nil }
+                    )
                 }
-            case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
-            case .rows, .empty: EmptyView()
-            }
-            ForEach(groups, id: \.title) { group in
-                GroupHeader(
-                    title: group.title, over: hovering[group.title]?.isEmpty == false, hover: track(group.title, "header"),
-                    add: sort == .workspace && group.title != "Pinned" ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil
-                )
-                ForEach(group.rows, id: \.id) { row in
-                    SessionRowView(row: row, showsWorkspace: sort != .workspace)
-                        .selectableSidebarRow(selected: selection == .session(id: row.id)) { selection = .session(id: row.id) }
-                        .onHover(perform: track(group.title, row.id))
+                if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
+                    SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
+                }
+                if ChatHostStarter.shared.restartAdvised {
+                    SidebarEmptyBlock(icon: "arrow.clockwise", title: chatHostRestartNotice.title, line: chatHostRestartNotice.line) { EmptyView() }
+                }
+                if let notice = ChatHostStarter.shared.upgradeNotice {
+                    SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
+                }
+                switch SidebarListState(shown: groups.count, of: sessions.open, query: query ?? "") {
+                case .empty where ChatHostStarter.shared.missing.isEmpty:
+                    let empty = EmptyState.noSessions
+                    SidebarEmptyBlock(icon: empty.icon, title: empty.title, line: empty.line) {
+                        Button("New session", action: newSession).help("New session")
+                    }
+                case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
+                case .rows, .empty: EmptyView()
+                }
+                // one flat list, so a session that changes group (working to needs you, an answer to unread) or moves up as it gets newer keeps its
+                // identity and slides to its place, where nested lists would take it out of one group and put it into the other
+                ForEach(items) { item in
+                    switch item {
+                    case .header(let group):
+                        GroupHeader(
+                            title: group.title, over: hovering[group.title]?.isEmpty == false, hover: track(group.title, "header"),
+                            add: sort == .workspace && group.title != "Pinned" ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil
+                        )
+                    case .row(let row, let group):
+                        SessionRowView(row: row, showsWorkspace: sort != .workspace)
+                            .selectableSidebarRow(selected: selection == .session(id: row.id)) { selection = .session(id: row.id) }
+                            .onHover(perform: track(group, row.id))
+                    }
                 }
             }
+            .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: items.map(\.id))
+            .transition(reduceMotion ? .opacity : .reveal)
         }
     }
 }
 
-private extension SessionSort {
+/// A line of the sessions list: a group's title or one of its sessions, with an id of its own so each keeps its place in the animation.
+private enum ListItem: Identifiable {
+    case header(SessionGroup)
+    case row(SessionRow, group: String)
+
+    var id: String {
+        switch self {
+        case .header(let group): "header:\(group.title)"
+        case .row(let row, _): "session:\(row.id)"
+        }
+    }
+}
+
+extension SessionSort {
     var menuTitle: String {
         switch self {
         case .workspace: "By workspace"

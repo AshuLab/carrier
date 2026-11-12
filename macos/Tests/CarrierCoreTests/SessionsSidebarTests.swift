@@ -69,8 +69,9 @@ private func byAge(_ rows: [SessionRow]) -> [SessionGroup] { sessionGroups(rows,
         at("waiting", noon, state: .waiting), at("gone", noon, state: .working, archived: true),
     ]
     let groups = sessionGroups(rows, by: .status, now: noon, calendar: utc)
-    #expect(groups.map(\.title) == ["Needs attention", "Active", "Done"])
-    #expect(groups[1].rows.map(\.id) == ["idleNew", "idleOld"])
+    // `done` is in the type but nothing produces it: it reads as idle
+    #expect(groups.map(\.title) == ["Needs you", "Idle"])
+    #expect(groups[1].rows.map(\.id) == ["done", "idleNew", "idleOld"])
     #expect(sessionGroups([], by: .status, now: noon, calendar: utc).isEmpty)
     #expect(sessionGroups([], by: .age, now: noon, calendar: utc).isEmpty)
 }
@@ -207,6 +208,15 @@ private func archivedByAge(_ rows: [SessionRow], _ query: String = "") -> [Sessi
     #expect(groups.map(\.title) == ["Today", "Older"])
     #expect(groups.map { $0.rows.map(\.id) } == [["today2", "today"], ["old", "older2"]])
     #expect(groups.map(\.rows.count) == [2, 2])
+}
+
+@Test func archivedGroupsByWorkspaceHoldOnlyArchivedRowsOneGroupPerWorkspaceNewestFirst() {
+    let groups = archivedGroups([
+        row("a1", "web", minutesAgo: 30, archived: true), row("a2", "web", minutesAgo: 5, archived: true),
+        row("b1", "api", minutesAgo: 10, archived: true), row("open", "web", archived: false),
+    ], by: .workspace, now: now, calendar: utc)
+    #expect(groups.map(\.title) == ["api", "web"])
+    #expect(groups.map { $0.rows.map(\.id) } == [["b1"], ["a2", "a1"]])
 }
 
 @Test func archivedGroupsWithAQueryKeepTheBucketsWithAMatchOnTitleWorkspaceOrAgent() {

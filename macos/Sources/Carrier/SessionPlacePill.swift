@@ -22,6 +22,8 @@ struct SessionPlacePill: View {
         .padding(.horizontal, 9).frame(height: 24)
         .background(Capsule().fill(Color.themeAccent.opacity(0.12)))
         .frame(maxWidth: 300)
+        // the toolbar item has no glass of its own, so nothing insets it from the window's rounded corner: match the gap above it
+        .padding(.trailing, 6)
         .help(row.branch == nil ? "Works in \(row.folder) itself" : "Works in a worktree of \(row.workspace): \(row.folder)")
         .contextMenu {
             ForEach(openMenuItems(row), id: \.title) { item in Button(item.title) { run(item) } }

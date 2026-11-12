@@ -27,7 +27,8 @@ public func sessionRows(_ sessions: [ChatSession]) -> [SessionRow] {
             updatedAt: Date(timeIntervalSince1970: Double(session.lastActiveAt) / 1000), archived: session.archived,
             branch: session.workspace?.branch, folder: session.folder, base: base(session), providers: [session.harness], titled: session.title != nil,
             kept: session.kept, deleteAt: session.deleteAt.map { Date(timeIntervalSince1970: Double($0) / 1000) },
-            lastMessage: session.lastMessage, turns: session.turns, model: session.model, reportsActivity: session.reportsActivity
+            lastMessage: session.lastMessage, turns: session.turns, model: session.model, reportsActivity: session.reportsActivity,
+            asleep: session.live == false && session.state != .preparing
         )
     }
 }
@@ -56,7 +57,7 @@ public func openMenuItems(_ row: SessionRow) -> [OpenItem] {
     return items
 }
 
-/// Asks the host for the sessions: `poll()` is called once a second and lists the active ones every time and the archived ones
+/// Asks the host for the sessions: `poll()` is called at the pace of `PollPace` and lists the active ones every time and the archived ones
 /// when `archivedEvery` seconds have passed since they were last read. A host that does not answer the list gives no rows; one that
 /// fails only on the archived list keeps the last archived rows it had.
 public final class ChatSessionsPoller {

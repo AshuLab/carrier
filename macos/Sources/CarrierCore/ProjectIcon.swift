@@ -1,12 +1,13 @@
 import Foundation
 
-/// The letters of a project's icon, always capitals: the first letters of its first two words (`ashu-lab` is AL), or the first two
-/// letters of a one-word name (`carrier` is CA). A name with a parent folder in front (`dev/carrier`) is the last part.
+/// The letters of a project's icon, always capitals: the first letters of its first three words (`fury-invest-returns` is FIR), or the
+/// first two letters of a one-word name (`carrier` is CA). Three letters tell apart projects that share their first two words. A name
+/// with a parent folder in front (`dev/carrier`) is the last part.
 public func projectInitials(_ name: String) -> String {
     let last = name.split(separator: "/").last.map(String.init) ?? name
     let words = last.split(whereSeparator: { "-_ .".contains($0) })
     guard let first = words.first else { return "?" }
-    let letters = words.count > 1 ? [first.first, words[1].first].compactMap { $0 }.map(String.init).joined() : String(first.prefix(2))
+    let letters = words.count > 1 ? words.prefix(3).compactMap { $0.first }.map(String.init).joined() : String(first.prefix(2))
     return letters.uppercased()
 }
 

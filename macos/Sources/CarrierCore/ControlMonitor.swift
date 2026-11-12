@@ -40,6 +40,8 @@ public enum ConnectionState: Equatable {
 public final class ControlMonitor {
     private let socketPath: () -> String
     private let pollInterval: TimeInterval
+    /// When set, how long to wait before the next snapshot, asked each time (the app's `PollPace`); `pollInterval` otherwise.
+    private let pollEvery: (() -> TimeInterval)?
     private let retryInterval: TimeInterval
     private let wait: (TimeInterval) -> Bool
     private let onChange: (ConnectionState) -> Void
@@ -49,6 +51,7 @@ public final class ControlMonitor {
     public init(
         socketPath: @escaping () -> String,
         pollInterval: TimeInterval = 1,
+        pollEvery: (() -> TimeInterval)? = nil,
         retryInterval: TimeInterval = 3,
         wait: @escaping (TimeInterval) -> Bool = { Thread.sleep(forTimeInterval: $0); return true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
@@ -57,6 +60,7 @@ public final class ControlMonitor {
     ) {
         self.socketPath = socketPath
         self.pollInterval = pollInterval
+        self.pollEvery = pollEvery
         self.retryInterval = retryInterval
         self.wait = wait
         self.log = log
@@ -87,7 +91,7 @@ public final class ControlMonitor {
             while true {
                 onChange(.running(try decodeSnapshot(client.request("snapshot"))))
                 try tick(client)
-                if wait(pollInterval) == false { return false }
+                if wait(pollEvery?() ?? pollInterval) == false { return false }
             }
         } catch let error as SnapshotError {
             log("snapshot does not match this app: \(error)")

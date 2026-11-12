@@ -82,7 +82,7 @@ The account names keep the pattern the engine already enforces (`optionNamePatte
 
 `enabled` is read in two places only: where the engine counts accounts for the choice wait and where it lists them for the person to choose. Everything that validates a name does not look at it. The config an epic freezes carries the accounts as they were, `enabled` included.
 
-The chat host reads the file per session and per health check instead of keeping it, so an edit reaches the chat with no restart; the engine does restart, and the app's Save footer says so, as it does for `config.json`.
+The chat host reads the file per session and per health check instead of keeping it, so an edit reaches the chat with no restart; the engine does restart. The Providers page no longer says so under the accounts. The editor takes any text for the config folder: one that is not absolute and does not start with `~/` is written from the home folder (`work` as `~/work`), so the file stays one the engine reads.
 
 The detector takes its machine as a port, like the wizard's `deps`: `resolveBinary`, a version probe, the doctor's login check and the local servers' listing. Nothing in it touches the real machine in a unit test.
 

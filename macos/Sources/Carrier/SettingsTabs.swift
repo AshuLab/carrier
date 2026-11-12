@@ -11,14 +11,21 @@ struct SettingsTabRow<Control: View>: View {
     let detail: String
     var first = false
     var mono = false
+    /// A third line for what the row is and not what it says (a path, a login): monospaced and quieter than the detail.
+    var note: String?
     @ViewBuilder var control: Control
 
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).fontWeight(.medium)
-                Text(detail).font(mono ? .scaled(11.5, design: .monospaced) : .caption).foregroundStyle(.secondary)
-                    .lineLimit(2).truncationMode(.middle)
+                if detail.isEmpty == false {
+                    Text(detail).font(mono ? .scaled(11.5, design: .monospaced) : .caption).foregroundStyle(.secondary)
+                        .lineLimit(2).truncationMode(.middle)
+                }
+                if let note {
+                    Text(note).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).padding(.top, 1)
+                }
             }
             Spacer(minLength: 8)
             control
@@ -26,6 +33,80 @@ struct SettingsTabRow<Control: View>: View {
         .padding(.vertical, 10).frame(minHeight: 46)
         .overlay(alignment: .top) { Divider().opacity(first ? 0 : 1) }
     }
+}
+
+/// The system's pop-up button, as the Mac draws it, for a choice among a few words. SwiftUI's menu picker takes the theme's accent for its
+/// fill and its text, which reads as a main action; this one is neutral and fills the width it is given.
+struct NativePopUp: NSViewRepresentable {
+    let items: [String]
+    @Binding var selection: Int
+
+    func makeNSView(context: Context) -> NSPopUpButton {
+        let button = NSPopUpButton(frame: .zero, pullsDown: false)
+        button.target = context.coordinator
+        button.action = #selector(Coordinator.changed(_:))
+        button.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        return button
+    }
+
+    func updateNSView(_ button: NSPopUpButton, context: Context) {
+        context.coordinator.parent = self
+        if button.itemTitles != items {
+            button.removeAllItems()
+            button.addItems(withTitles: items)
+        }
+        if button.indexOfSelectedItem != selection, items.indices.contains(selection) { button.selectItem(at: selection) }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSPopUpButton, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? nsView.intrinsicContentSize.width, height: nsView.intrinsicContentSize.height)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject {
+        var parent: NativePopUp
+        init(_ parent: NativePopUp) { self.parent = parent }
+        @objc func changed(_ sender: NSPopUpButton) { parent.selection = sender.indexOfSelectedItem }
+    }
+}
+
+/// A copy button after whatever it modifies, which fades in while the pointer is over the pair and shows a check for a moment once it has
+/// copied. The room is kept while it is hidden, so the text does not move when it appears.
+private struct CopyOnHover: ViewModifier {
+    let text: String
+    @State private var hovered = false
+    @State private var copied = false
+
+    func body(content: Content) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            content
+            Button(action: copy) {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.scaled(10.5, weight: .medium))
+                    .foregroundStyle(copied ? Color.green : Color.secondary).frame(width: 20, height: 20)
+                    .background(Circle().fill(Color.primary.opacity(0.1))).contentShape(Circle())
+            }
+            .buttonStyle(.plain).help("Copy").accessibilityLabel("Copy")
+            .opacity(hovered || copied ? 1 : 0).allowsHitTesting(hovered || copied)
+            .animation(.easeOut(duration: 0.15), value: hovered)
+        }
+        .onHover { hovered = $0 }
+    }
+
+    private func copy() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        copied = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.2))
+            copied = false
+        }
+    }
+}
+
+extension View {
+    /// A copy button for `text` after this view, shown while the pointer is over it: for a path, a URL or an error a person may want to paste.
+    func copyOnHover(_ text: String) -> some View { modifier(CopyOnHover(text: text)) }
 }
 
 struct SettingsTabCard<Content: View>: View {
@@ -45,7 +126,7 @@ struct SettingsGroup<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary).padding(.leading, 14).padding(.top, 8)
+            Text(title.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary).padding(.leading, 14).padding(.top, 8)
             SettingsTabCard { content }
         }
     }
@@ -81,7 +162,7 @@ struct SettingsPageBody<Content: View>: View {
             if let reset {
                 SettingsTabCard {
                     SettingsTabRow(title: "Reset", detail: "Puts this page back to how it came", first: true) {
-                        Button("Reset", action: reset).buttonStyle(.glass).buttonBorderShape(.capsule)
+                        Button("Reset", action: reset).buttonStyle(SecondaryCapsuleButtonStyle())
                     }
                 }
             }
@@ -672,7 +753,7 @@ struct NotificationsTabView: View {
                 Label(testAdvice, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange).padding(.horizontal, 14)
             }
         }
-        .buttonStyle(.glass).buttonBorderShape(.capsule)
+        .buttonStyle(SecondaryCapsuleButtonStyle())
         .task { refresh() }
         // back from System Settings, where the person may have changed the answer
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }

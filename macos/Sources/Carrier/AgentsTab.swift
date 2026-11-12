@@ -19,15 +19,14 @@ struct AgentsTabView: View {
     @State private var leadDraft = LeadReviewerDraft()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             if let page {
-                HStack(alignment: .top, spacing: 16) {
-                    list(page).frame(width: 300)
+                HStack(alignment: .top, spacing: 14) {
+                    list(page).frame(width: 280)
                     if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page).frame(maxWidth: .infinity, alignment: .topLeading) }
                 }
                 if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
                 if let note = page.bots.note { Text(note).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
-                Text("Carrier reads this when it starts.").font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4)
             } else {
                 Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange)
@@ -95,27 +94,29 @@ struct AgentsTabView: View {
         }
     }
 
+    /// The roles as the Providers list has its tools: a card of rounded rows, neutral when chosen.
     private func list(_ page: AgentsPage) -> some View {
-        SettingsTabCard {
-            ForEach(Array(page.rows.enumerated()), id: \.element.id) { index, row in
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(page.rows) { row in
                 Button { selection = row.role } label: {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(row.title).fontWeight(.medium)
                         Text(row.summary).font(.caption).foregroundStyle(.secondary).lineLimit(2).truncationMode(.middle)
                     }
-                    .padding(.vertical, 10).frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
-                    .background(row.role == selection ? Color.themeAccent.opacity(0.1) : Color.clear)
+                    .padding(.horizontal, 8).padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 9).fill(row.role == selection ? Color.secondary.opacity(0.18) : .clear))
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .overlay(alignment: .top) { Divider().opacity(index == 0 ? 0 : 1) }
                 .accessibilityAddTraits(row.role == selection ? .isSelected : [])
             }
         }
+        .padding(8).background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
     }
 
     private func detail(_ row: RoleRow, page: AgentsPage) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(row.title).font(.title3.weight(.semibold))
             if row.hasSwitch {
                 SettingsTabCard {
                     SettingsTabRow(title: "Use a lead reviewer", detail: row.switchDetail, first: true) {
@@ -125,7 +126,7 @@ struct AgentsTabView: View {
                 }
                 if turningOnLead, let hint = leadDraft.hint { Text(hint).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
             }
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 SettingsGroup(title: "Who") {
                     SettingsTabRow(title: "Identity", detail: row.identityDetail, first: true) { identityPicker(row, page: page) }
                     CreateBotRow()
@@ -147,13 +148,13 @@ struct AgentsTabView: View {
                 }
                 SettingsGroup(title: "Details") {
                     SettingsTabRow(title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
-                        CommitField(label: "Persona name", text: row.fields.persona?.name ?? "", width: 220, mono: false) {
+                        CommitField(label: "Persona name", text: row.fields.persona?.name ?? "", width: 220, mono: false, prompt: "None") {
                             saveDetails(saveGlobalPersona(name: blankIsNil($0), prompt: row.fields.persona?.prompt, role: row.role, path: configFilePath()))
                         }
                         .id(row.role)
                     }
                     SettingsTabRow(title: "Persona prompt", detail: "Optional instructions") {
-                        CommitField(label: "Persona prompt", text: row.fields.persona?.prompt ?? "", width: 220, mono: false) {
+                        CommitField(label: "Persona prompt", text: row.fields.persona?.prompt ?? "", width: 220, mono: false, prompt: "None") {
                             saveDetails(saveGlobalPersona(name: row.fields.persona?.name, prompt: blankIsNil($0), role: row.role, path: configFilePath()))
                         }
                         .id(row.role)
@@ -197,11 +198,11 @@ struct AgentsTabView: View {
         }
         return SettingsTabRow(title: title, detail: detail) {
             HStack(spacing: 8) {
-                picker(title, selection: step?.provider ?? "", options: page.accounts, none: index == 0 ? "Choose…" : "None") { provider in
+                picker(title, selection: step?.provider ?? "", options: page.accounts, none: index == 0 ? "Choose…" : "None", width: 150) { provider in
                     _ = write(provider.isEmpty ? nil : FailoverStep(provider: provider, model: step?.model))
                 }
                 if let step {
-                    CommitField(label: "\(title) model", text: step.model ?? "", width: 160, mono: true, prompt: "Account’s model") {
+                    CommitField(label: "\(title) model", text: step.model ?? "", width: 162, mono: true, prompt: "Account’s model") {
                         write(FailoverStep(provider: step.provider, model: $0))
                     }
                     .id(row.role.rawValue + title + step.provider)
@@ -218,25 +219,52 @@ struct AgentsTabView: View {
         case .gh: current = "gh"
         case .missing, .unset: current = "keep"
         }
-        return Picker("Identity", selection: Binding(get: { current }, set: { choice in
-            if choice == "gh" { _ = save(.gh, role: row.role, page: page) }
-            else if choice.hasPrefix("bot:") { _ = save(.bot(String(choice.dropFirst(4))), role: row.role, page: page) }
-        })) {
-            if current == "keep" { Text(row.fields.profile.map { "\($0) (missing)" } ?? "Not set").tag("keep") }
-            ForEach(page.bots.names, id: \.self) { Text($0).tag("bot:" + $0) }
-            Text("Your gh login").tag("gh")
+        var values: [String] = [], items: [String] = []
+        if current == "keep" {
+            values.append("keep")
+            items.append(row.fields.profile.map { "\($0) (missing)" } ?? "Not set")
         }
-        .labelsHidden().fixedSize()
+        values += page.bots.names.map { "bot:" + $0 }
+        items += page.bots.names
+        values.append("gh")
+        items.append("Your gh login")
+        let index = Binding<Int>(
+            get: { values.firstIndex(of: current) ?? 0 },
+            set: { next in
+                let choice = values[next]
+                if choice == "gh" { _ = save(.gh, role: row.role, page: page) }
+                else if choice.hasPrefix("bot:") { _ = save(.bot(String(choice.dropFirst(4))), role: row.role, page: page) }
+            }
+        )
+        return NativePopUp(items: items, selection: index).accessibilityLabel("Identity").frame(width: 220)
     }
 
-    /// A name that is no longer declared stays in the list, marked, so it is seen and refused when chosen again, not dropped.
-    private func picker(_ title: String, selection: String, options: [String], none: String? = nil, set: @escaping (String) -> Void) -> some View {
-        Picker(title, selection: Binding(get: { selection }, set: set)) {
-            if let none { Text(none).tag("") }
-            if selection.isEmpty == false, options.contains(selection) == false { Text("\(selection) (missing)").tag(selection) }
-            ForEach(options, id: \.self) { Text($0).tag($0) }
+    /// The system's pop-up of the choices. A name that is no longer declared stays in the list, marked, so it is seen and refused when chosen
+    /// again, not dropped; a role with nothing chosen shows "Choose…" and not the first option it does not have.
+    private func picker(_ title: String, selection: String, options: [String], none: String? = nil, width: CGFloat = 220, set: @escaping (String) -> Void) -> some View {
+        var values: [String] = [], items: [String] = []
+        if let none {
+            values.append("")
+            items.append(none)
+        } else if selection.isEmpty {
+            values.append("")
+            items.append("Choose…")
         }
-        .labelsHidden().fixedSize()
+        if selection.isEmpty == false, options.contains(selection) == false {
+            values.append(selection)
+            items.append("\(selection) (missing)")
+        }
+        values += options
+        items += options
+        let index = Binding<Int>(
+            get: { values.firstIndex(of: selection) ?? 0 },
+            set: { next in
+                // "Choose…" is where an empty choice stands, not something to write
+                if values[next].isEmpty, none == nil { return }
+                set(values[next])
+            }
+        )
+        return NativePopUp(items: items, selection: index).accessibilityLabel(title).frame(width: width)
     }
 }
 

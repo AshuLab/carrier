@@ -5,14 +5,22 @@ import Foundation
 
 public enum SessionState: Hashable {
     case working, waiting, idle, done
+}
 
-    /// The group's title by state and the filter's wording.
+/// What a session is for the person, in the groups of "By state" and in the filter: the five ways of being in their hands or out of them.
+/// A session that asks for a permission or an answer is blocked (`needsYou`); one that answered and has not been opened since is `unread`;
+/// one that was seen and is open in the host is `idle`; one whose agent the host closed (the app was closed for a while, or the host
+/// restarted) is `asleep` and wakes where it left off when a message is sent.
+public enum SessionStatus: CaseIterable, Hashable {
+    case needsYou, working, unread, idle, asleep
+
     public var title: String {
         switch self {
-        case .waiting: "Needs attention"
+        case .needsYou: "Needs you"
         case .working: "Working"
-        case .idle: "Active"
-        case .done: "Done"
+        case .unread: "Unread"
+        case .idle: "Idle"
+        case .asleep: "Asleep"
         }
     }
 }
@@ -47,11 +55,24 @@ public struct SessionRow: Equatable {
     public var model: String?
     /// Whether the host said anything of how the session went; one that does not leaves all three empty.
     public var reportsActivity: Bool
+    /// Whether the host closed the session's agent: it is idle and wakes when a message is sent.
+    public var asleep: Bool
+    /// Whether it answered and the person has not opened it since; the app sets it (`SessionSeen`), the host does not know.
+    public var unread: Bool
+
+    /// What it is for the person; see `SessionStatus`.
+    public var status: SessionStatus {
+        switch state {
+        case .waiting: .needsYou
+        case .working: .working
+        case .idle, .done: unread ? .unread : asleep ? .asleep : .idle
+        }
+    }
 
     public init(
         id: String, title: String, workspace: String, agent: String, state: SessionState, updatedAt: Date, archived: Bool = false, branch: String? = nil,
         folder: String = "", base: String? = nil, providers: [String] = [], titled: Bool = true, kept: Bool = false, deleteAt: Date? = nil,
-        lastMessage: String? = nil, turns: Int = 0, model: String? = nil, reportsActivity: Bool = false
+        lastMessage: String? = nil, turns: Int = 0, model: String? = nil, reportsActivity: Bool = false, asleep: Bool = false, unread: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -68,6 +89,7 @@ public struct SessionRow: Equatable {
         self.kept = kept
         self.deleteAt = deleteAt
         (self.lastMessage, self.turns, self.model, self.reportsActivity) = (lastMessage, turns, model, reportsActivity)
+        (self.asleep, self.unread) = (asleep, unread)
     }
 }
 
@@ -120,15 +142,17 @@ private func ordered(_ listed: [SessionRow], by sort: SessionSort, now: Date, ca
     case .age:
         return ageGroups(listed, now: now, calendar: calendar)
     case .status:
-        return [SessionState.waiting, .working, .idle, .done].compactMap { state in newestFirst(state.title, listed.filter { $0.state == state }) }
+        return SessionStatus.allCases.compactMap { status in newestFirst(status.title, listed.filter { $0.status == status }) }
     }
 }
 
-/// The archived sessions, and only those, in the age buckets of the Sessions list (Today, Yesterday, Last 7 days, Older), newest
-/// first, empty buckets left out. A non-empty `query` keeps the buckets, filtered to the rows whose title, workspace or agent contain
-/// it ignoring case.
-public func archivedGroups(_ rows: [SessionRow], query: String = "", now: Date = Date(), calendar: Calendar = .current) -> [SessionGroup] {
-    ageGroups(matching(rows.filter(\.archived), query), now: now, calendar: calendar)
+/// The archived sessions, and only those, in the age buckets of the Sessions list (Today, Yesterday, Last 7 days, Older) or, by workspace,
+/// one group per workspace, newest first, empty groups left out. A non-empty `query` keeps the groups, filtered to the rows whose
+/// title, workspace or agent contain it ignoring case.
+public func archivedGroups(
+    _ rows: [SessionRow], by sort: SessionSort = .age, query: String = "", now: Date = Date(), calendar: Calendar = .current
+) -> [SessionGroup] {
+    ordered(matching(rows.filter(\.archived), query), by: sort, now: now, calendar: calendar)
 }
 
 func matching(_ rows: [SessionRow], _ query: String) -> [SessionRow] {

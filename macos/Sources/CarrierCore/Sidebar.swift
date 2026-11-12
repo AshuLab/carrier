@@ -18,6 +18,8 @@ public struct SidebarStore {
     public static let groupByKey = "sidebar.groupBy"
     public static let sessionSortKey = "sidebar.sessionSort"
     public static let archiveSortKey = "sidebar.archiveSort"
+    /// How the Archive list under the sidebar groups its sessions (By workspace or By age); the Archive page has its own, `archiveSortKey`.
+    public static let archiveListSortKey = "sidebar.archiveListSort"
     /// The pinned sessions' ids, comma-separated (an `@AppStorage` string; read it with `pinnedIds`).
     public static let pinnedKey = "sidebar.pinned"
     public static let showsIconKey = "sidebar.row.icon"

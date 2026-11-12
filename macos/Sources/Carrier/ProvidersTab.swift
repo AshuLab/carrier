@@ -21,25 +21,17 @@ struct ProvidersTabView: View {
     @State private var adding: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("What this Mac has, as the chat host sees it.").font(.callout).foregroundStyle(.secondary)
-                Spacer(minLength: 8)
-                if looking { ProgressView().controlSize(.small) }
-                Button("Check again") { Task { await look() } }.buttonStyle(.glass).buttonBorderShape(.capsule).disabled(looking)
-            }
-            .padding(.horizontal, 14)
+        let page: ProvidersPage? = if case .reply(let reply) = store.outcome, reply.problem == nil { providersPage(reply, config: config, chat: chat) } else { nil }
+        VStack(alignment: .leading, spacing: 14) {
             if let note = store.outcome.note {
                 Text(note).font(.callout).foregroundStyle(.secondary).padding(14).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
             }
-            if case .reply(let reply) = store.outcome, reply.problem == nil {
-                let page = providersPage(reply, config: config, chat: chat)
+            if let page {
                 HStack(alignment: .top, spacing: 14) {
                     list(page).frame(width: 210)
                     detail(page).frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-                Text(providersFooter).font(.caption).foregroundStyle(.secondary).padding(.horizontal, 14)
             }
         }
         .task { await look() }
@@ -57,10 +49,11 @@ struct ProvidersTabView: View {
 
     private func list(_ page: ProvidersPage) -> some View {
         VStack(alignment: .leading, spacing: 2) {
+            listLabel("AI tools")
             ForEach(page.tools) { tool in
                 ProviderListRow(icon: tool.icon, symbol: nil, title: tool.title, line: tool.status.text, mark: tool.status.mark, selected: selected == tool.id) { selected = tool.id }
             }
-            Divider().padding(.vertical, 4)
+            listLabel("Local servers").padding(.top, 8)
             ForEach(page.servers) { server in
                 ProviderListRow(
                     icon: nil, symbol: server.id == "ollama" ? "server.rack" : "desktopcomputer", title: server.title, line: server.status,
@@ -71,18 +64,36 @@ struct ProvidersTabView: View {
         .padding(8).background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
     }
 
+    /// The name of what is chosen with its actions on the same line, as text: Update acts on this tool and Check again on all of them. The pill
+    /// of a button shows while the pointer is over it.
+    private func titleRow(_ title: String, update tool: ProviderTool?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text(title).font(.title3.weight(.semibold))
+            Spacer(minLength: 8)
+            if let tool {
+                // none of the three can only check: Update installs, so it opens Terminal on the command
+                Button("Update") { open(.update, harness: tool.id, command: tool.command, configDir: nil) }
+                    .buttonStyle(HoverTextButtonStyle(tint: nil)).help("Opens Terminal and runs \(tool.id) update")
+            }
+            Button(looking ? "Checking…" : "Check again") { Task { await look() } }
+                .buttonStyle(HoverTextButtonStyle(tint: nil)).disabled(looking).help("Look at this Mac again")
+        }
+    }
+
+    /// A small uppercase label over a group of the list, as the groups of a page have.
+    private func listLabel(_ title: String) -> some View {
+        Text(title.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.top, 4).padding(.bottom, 2)
+    }
+
     @ViewBuilder private func detail(_ page: ProvidersPage) -> some View {
         if let tool = page.tools.first(where: { $0.id == selected }) {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(tool.title).font(.title3.weight(.semibold))
-                if let line = versionLine(tool.version, tool.path) {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text(line).font(.scaled(11.5, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
-                            .lineLimit(2).truncationMode(.middle)
-                        Spacer(minLength: 8)
-                        // none of the three can only check: Update installs, so it opens Terminal on the command
-                        Button("Update") { open(.update, harness: tool.id, command: tool.command, configDir: nil) }
-                            .controlSize(.small).help("Opens Terminal and runs \(tool.id) update")
+            // two distances: 4 inside a block (the name and its version) and 14 between blocks
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    titleRow(tool.title, update: versionLine(tool.version, tool.path) == nil ? nil : tool)
+                    if let line = versionLine(tool.version, tool.path) {
+                        Text(line).font(.scaled(11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+                            .lineLimit(2).truncationMode(.middle).copyOnHover(tool.path ?? line)
                     }
                 }
                 if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
@@ -92,25 +103,27 @@ struct ProvidersTabView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         note("Found on this Mac and not added as an account yet.")
                         HStack(spacing: 10) {
-                            Button("Add") { Task { await store.add(harness: tool.id) } }.buttonStyle(.glass).buttonBorderShape(.capsule)
+                            Button("Add") { Task { await store.add(harness: tool.id) } }.buttonStyle(SecondaryCapsuleButtonStyle())
                             if let problem = store.addProblem { Text(problem).font(.callout).foregroundStyle(.red) }
                         }
                     }
                 default:
                     SettingsGroup(title: "Accounts") {
                         ForEach(Array(tool.accounts.enumerated()), id: \.element.id) { index, account in
-                            SettingsTabRow(title: account.title, detail: accountLine(account, harness: tool.id), first: index == 0) {
+                            SettingsTabRow(
+                                title: account.title, detail: account.usedBy, first: index == 0, note: tool.id == "agy" ? nil : account.configDir ?? "This Mac's login"
+                            ) {
                                 HStack(spacing: 10) {
-                                    Text(account.state.words).font(.callout).foregroundStyle(.secondary)
+                                    AccountStateLabel(state: account.state)
                                     if account.state == .signedOut {
                                         Button("Sign in") { open(.signIn, harness: tool.id, command: account.command, configDir: account.configDir) }
-                                            .controlSize(.small).help("Opens Terminal and signs this account in")
+                                            .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and signs this account in")
                                     }
                                     if account.state == .ready, account.uses.isEmpty {
-                                        Button("Use in an agent…", action: openAgents).controlSize(.small).help("Opens Agents to pick \(account.name) for a role")
+                                        Button("Use in an agent…", action: openAgents).buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Agents to pick \(account.name) for a role")
                                     }
                                     Button("Edit") { store.dismissProblem(); adding = nil; editing = account.name }
-                                        .controlSize(.small).disabled(editing == account.name).help("Edit \(account.name)")
+                                        .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).disabled(editing == account.name).help("Edit \(account.name)")
                                 }
                             }
                         }
@@ -121,13 +134,13 @@ struct ProvidersTabView: View {
                         AddAccountForm(harness: tool.id, store: store) { adding = nil }
                     } else if tool.id != "agy" {
                         Button("Add account") { store.dismissProblem(); editing = nil; adding = tool.id }
-                            .buttonStyle(.glass).buttonBorderShape(.capsule).help("Another login of \(tool.title)")
+                            .buttonStyle(SecondaryCapsuleButtonStyle()).help("Another login of \(tool.title)")
                     }
                 }
             }
         } else if let server = page.servers.first(where: { $0.id == selected }) {
             VStack(alignment: .leading, spacing: 10) {
-                Text(server.title).font(.title3.weight(.semibold))
+                titleRow(server.title, update: nil)
                 if server.running == false {
                     note("Not running: nothing answers. Start \(server.title) to see its models.")
                 } else if server.models.isEmpty {
@@ -169,11 +182,26 @@ struct ProvidersTabView: View {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
-    /// What the row says under the account: its config folder (none for the Mac's own login), whether it is off, and who uses it.
-    private func accountLine(_ account: ProviderAccount, harness: String) -> String {
-        var parts = [account.usedBy]
-        if harness != "agy" { parts.append(account.configDir ?? "This Mac's login") }
-        return parts.joined(separator: " · ")
+}
+
+/// An account's state as the list shows a tool's: a dot of its colour and the words, orange for what asks for an action.
+private struct AccountStateLabel: View {
+    let state: ToolState
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 7, height: 7).accessibilityHidden(true)
+            Text(state.words).font(.callout).foregroundStyle(state == .signedOut || state == .missing ? SessionRowView.attention : Color.secondary)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var color: Color {
+        switch state {
+        case .ready: .green
+        case .signedOut, .missing: .orange
+        case .unknown: .gray
+        }
     }
 }
 

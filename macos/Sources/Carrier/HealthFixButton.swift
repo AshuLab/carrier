@@ -14,7 +14,7 @@ struct HealthFixButton: View {
         case .command(let words):
             VStack(alignment: .leading, spacing: 2) {
                 Button { open() } label: { Label(words.joined(separator: " "), systemImage: "apple.terminal").font(.system(.callout, design: .monospaced)) }
-                    .controlSize(.small).help("Opens Terminal and runs this command")
+                    .buttonStyle(SecondaryCapsuleButtonStyle()).controlSize(.small).help("Opens Terminal and runs this command")
                 if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
             }
         case .install(let url):

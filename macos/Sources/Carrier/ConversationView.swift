@@ -175,7 +175,8 @@ struct ConversationView: View {
 
     /// An archived session is read only: a notice with Resume, which takes it out of the archive (the next poll gives the box back).
     private var archivedBox: some View {
-        NoticeCard(symbol: "archivebox.fill", tint: .gray, title: archivedSessionNotice.title, detail: archivedSessionNotice.detail) {
+        // two lines at most: with no limit this detail made the whole window lay out taller than it is, the notice below its edge
+        NoticeCard(symbol: "archivebox.fill", tint: .gray, title: archivedSessionNotice.title, detail: archivedSessionNotice.detail, detailLines: 2) {
             Button("Resume") { Task { if let refusal = await actions.restore(model.sessionId) { tell(refusal) } } }
                 .buttonStyle(HoverTextButtonStyle(tint: .themeAccent))
         }

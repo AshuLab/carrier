@@ -1,10 +1,12 @@
 import Testing
 @testable import CarrierCore
 
-@Test func theInitialsAreCapitalsOfTheFirstTwoWordsOrTheFirstTwoLetters() {
+@Test func theInitialsAreCapitalsOfTheFirstThreeWordsOrTheFirstTwoLetters() {
     #expect(projectInitials("carrier") == "CA")
     #expect(projectInitials("ashu-lab") == "AL")
-    #expect(projectInitials("my_cool project") == "MC")
+    #expect(projectInitials("my_cool project") == "MCP")
+    #expect(projectInitials("fury_invest-returns-cross") == "FIR")
+    #expect(projectInitials("fury_investment-news") == "FIN")
     #expect(projectInitials("web") == "WE")
     #expect(projectInitials("x") == "X")
     #expect(projectInitials("dev/carrier") == "CA")

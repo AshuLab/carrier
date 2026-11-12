@@ -36,9 +36,13 @@ struct SessionRowView: View {
         }
     }
 
+    /// While the session waits for the person, the word takes the place of the time at the top right (`ageOrStopwatch`); with the time
+    /// switched off it is the second line's, where it has always been.
+    private func waitsAtTop(_ content: SessionRowContent) -> Bool { row.state == .waiting && content.age != nil }
+
     @ViewBuilder private func detail(_ content: SessionRowContent) -> some View {
-        if row.state == .waiting {
-            Text("Waiting for you").fontWeight(.medium).foregroundStyle(Self.attention)
+        if row.state == .waiting && waitsAtTop(content) == false {
+            Text("Needs you").fontWeight(.medium).foregroundStyle(Self.attention)
         } else {
             switch (content.workspace, content.place) {
             case (let workspace?, let placed?): Text("\(workspace) · \(place(placed))").foregroundStyle(.secondary)
@@ -49,11 +53,25 @@ struct SessionRowView: View {
         }
     }
 
+    /// The time at the top right: the age of the last activity, "Needs you" while the session waits for a permission or an answer, or how
+    /// long the turn has run while the session works (a stopwatch that ticks each second, in the colour of the ring).
+    @ViewBuilder private func ageOrStopwatch(_ content: SessionRowContent) -> some View {
+        if waitsAtTop(content) {
+            Text("Needs you").fontWeight(.medium).foregroundStyle(Self.attention)
+        } else if content.age != nil, let since = WorkingClock.shared.since(row) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(workingElapsed(Int(context.date.timeIntervalSince(since)))).foregroundStyle(Color.thought)
+            }
+        } else {
+            Text(content.age ?? "").foregroundStyle(.tertiary)
+        }
+    }
+
     var body: some View {
         let content = content
         HStack(spacing: SidebarMetrics.inset) {
             if content.showsIcon {
-                ProjectIcon(name: row.workspace, colorKey: projectColorKey(row.base), halo: row.state == .working)
+                ProjectIcon(name: row.workspace, colorKey: projectColorKey(row.base), working: row.state == .working)
             }
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 Text(row.title).font(SidebarMetrics.item).fontWeight(row.state == .waiting ? .medium : .regular)
@@ -63,15 +81,15 @@ struct SessionRowView: View {
             Spacer(minLength: 4)
             if content.age != nil || content.providers.isEmpty == false {
                 VStack(alignment: .trailing, spacing: SidebarMetrics.lineGap) {
-                    Text(content.age ?? "").font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary)
-                        .lineLimit(1).frame(height: Self.titleLine)
+                    ageOrStopwatch(content)
+                        .font(SidebarMetrics.detail.monospacedDigit()).lineLimit(1).frame(height: Self.titleLine)
                     ProviderMarks(names: content.providers).frame(height: Self.detailLine)
                 }
             }
         }
         .padding(.horizontal, content.showsIcon ? density.rowPadding : SidebarMetrics.inset).padding(.vertical, density.rowPadding)
         .sessionContextMenu(row)
-        .help(row.title)
+        .hoverCard { SessionPeekView(card: sessionPeek(row, now: Date())) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label(content))
     }
@@ -101,13 +119,13 @@ extension EnvironmentValues {
 }
 
 /// The project's icon: its initials in white on a colour that is the same every time (from its name, so a session's folder and an epic's
-/// repository that are one project look alike), in a rounded square of glass tinted with it. A halo breathes around it while an agent works.
+/// repository that are one project look alike), in a rounded square of glass tinted with it. A bright arc goes round its edge while an agent works (`WorkingRing`).
 /// In a sidebar row it is neutral until the row is selected or hovered (`rowActive`).
 struct ProjectIcon: View {
     let name: String
     /// What the colour is made from: `projectColorKey` of the folder or the repository.
     let colorKey: String
-    var halo = false
+    var working = false
     @Environment(\.rowActive) private var active
     static let size: CGFloat = 32
     static let radius: CGFloat = 9
@@ -124,11 +142,12 @@ struct ProjectIcon: View {
             .frame(width: Self.size, height: Self.size)
             .glassEffect(active ? .regular.tint(Self.palette[projectColorIndex(colorKey, count: Self.palette.count)]) : .regular, in: .rect(cornerRadius: Self.radius))
             .overlay {
-                Text(projectInitials(name)).font(.scaled(12, weight: .semibold)).tracking(0.3)
+                let initials = projectInitials(name)
+                Text(initials).font(.scaled(initials.count > 2 ? 10.5 : 12, weight: .semibold)).tracking(initials.count > 2 ? 0 : 0.3)
                     .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             }
             .animation(.easeOut(duration: 0.15), value: active)
-            .overlay { if halo { SessionHalo() } }
+            .overlay { if working { WorkingRing() } }
     }
 }
 
@@ -152,28 +171,37 @@ struct ProviderMarks: View {
     }
 }
 
-/// A ring that swells around the project's icon and fades, again and again, while the agent works. One Core Animation animation capped
-/// at 20 fps, which the render server runs, and stopped under the rule of the rings (a hidden window, Reduce Motion): then the ring stays
-/// still and faint, so a working session is told from an idle one without motion.
-struct SessionHalo: NSViewRepresentable {
+/// A bright arc that goes round the project icon's edge while the agent works, the one on a run's card in the chat (`GlowEdge`): it fades
+/// in along its way and goes once round every few seconds. One Core Animation animation capped at 20 fps, which the render server runs,
+/// and stopped under the rule of the rings (a hidden window, Reduce Motion): then the arc stays still, so a working session is told from
+/// an idle one without motion.
+struct WorkingRing: NSViewRepresentable {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    func makeNSView(context: Context) -> HaloHostView {
-        let view = HaloHostView(size: ProjectIcon.size, radius: ProjectIcon.radius)
+    func makeNSView(context: Context) -> WorkingRingHostView {
+        let view = WorkingRingHostView(size: ProjectIcon.size, radius: ProjectIcon.radius)
         view.reduceMotion = reduceMotion
         return view
     }
 
-    func updateNSView(_ view: HaloHostView, context: Context) { view.reduceMotion = reduceMotion }
+    func updateNSView(_ view: WorkingRingHostView, context: Context) { view.reduceMotion = reduceMotion }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: HaloHostView, context: Context) -> CGSize? {
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: WorkingRingHostView, context: Context) -> CGSize? {
         CGSize(width: ProjectIcon.size, height: ProjectIcon.size)
     }
 }
 
-final class HaloHostView: NSView {
-    private static let key = "halo"
-    private let ring = CAShapeLayer()
+final class WorkingRingHostView: NSView {
+    private static let key = "turn"
+    private static let lineWidth: CGFloat = 2
+    /// The arc's tail, head and fade, as the chat draws them, over a clear rest of the circle.
+    private static let stops: [(alpha: CGFloat, at: NSNumber)] = [(0, 0), (0, 0.62), (0.95, 0.82), (0.4, 0.92), (0, 1)]
+    /// A turn of the arc, in seconds.
+    private static let period: CFTimeInterval = 3.4
+
+    /// Clips the turning gradient to the icon's edge.
+    private let edge = CALayer()
+    private let gradient = CAGradientLayer()
     private var observers: [NSObjectProtocol] = []
 
     var windowVisible = false { didSet { refresh() } }
@@ -182,15 +210,27 @@ final class HaloHostView: NSView {
     init(size: CGFloat, radius: CGFloat) {
         super.init(frame: NSRect(x: 0, y: 0, width: size, height: size))
         wantsLayer = true
-        ring.bounds = CGRect(x: 0, y: 0, width: size, height: size)
-        ring.path = CGPath(roundedRect: ring.bounds, cornerWidth: radius, cornerHeight: radius, transform: nil)
-        ring.fillColor = nil
-        ring.lineWidth = 2
-        ring.position = CGPoint(x: size / 2, y: size / 2)
-        // what shows while it does not move
-        ring.opacity = 0.55
-        ring.transform = CATransform3DMakeScale(1.12, 1.12, 1)
-        layer?.addSublayer(ring)
+        edge.bounds = CGRect(x: 0, y: 0, width: size, height: size)
+        let stroke = CAShapeLayer()
+        stroke.frame = edge.bounds
+        stroke.path = CGPath(
+            roundedRect: edge.bounds.insetBy(dx: Self.lineWidth / 2, dy: Self.lineWidth / 2), cornerWidth: radius - Self.lineWidth / 2,
+            cornerHeight: radius - Self.lineWidth / 2, transform: nil
+        )
+        stroke.fillColor = nil
+        stroke.strokeColor = NSColor.white.cgColor
+        stroke.lineWidth = Self.lineWidth
+        edge.mask = stroke
+        // a square bigger than the icon, so its corners never turn into view
+        let reach = size * 1.5
+        gradient.bounds = CGRect(x: 0, y: 0, width: reach, height: reach)
+        gradient.type = .conic
+        gradient.startPoint = CGPoint(x: 0.5, y: 0.5)
+        gradient.endPoint = CGPoint(x: 0.5, y: 1)
+        gradient.locations = Self.stops.map(\.at)
+        edge.addSublayer(gradient)
+        layer?.addSublayer(edge)
+        place()
         setColor()
     }
 
@@ -198,11 +238,16 @@ final class HaloHostView: NSView {
 
     deinit { observers.forEach(NotificationCenter.default.removeObserver) }
 
+    private func place() {
+        edge.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        gradient.position = CGPoint(x: edge.bounds.midX, y: edge.bounds.midY)
+    }
+
     override func layout() {
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        ring.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        place()
         CATransaction.commit()
     }
 
@@ -223,35 +268,26 @@ final class HaloHostView: NSView {
         windowVisible = window.occlusionState.contains(.visible)
     }
 
-    override func viewDidChangeEffectiveAppearance() {
-        super.viewDidChangeEffectiveAppearance()
-        setColor()
-    }
-
-    /// A layer gets no tint from the system, so the colour is resolved for the appearance.
+    /// The violet of the chat's glow (`Color.thought`), the same in both appearances.
     private func setColor() {
-        var resolved = NSColor.systemBlue.cgColor
-        effectiveAppearance.performAsCurrentDrawingAppearance { resolved = NSColor.systemBlue.cgColor }
-        ring.strokeColor = resolved
+        let violet = NSColor(Color.thought).cgColor
+        gradient.colors = Self.stops.map { violet.copy(alpha: $0.alpha) as Any }
+        // what shows while it does not move: the arc a little past its start, as the chat's does
+        gradient.transform = CATransform3DMakeRotation(-.pi * 200 / 180, 0, 0, 1)
     }
 
     private func refresh() {
-        guard ringAnimates(windowVisible: windowVisible, reduceMotion: reduceMotion) else { return ring.removeAnimation(forKey: Self.key) }
+        guard ringAnimates(windowVisible: windowVisible, reduceMotion: reduceMotion) else { return gradient.removeAnimation(forKey: Self.key) }
         // idempotent: an animation already attached is left alone, or it would restart each time the view updates
-        guard ring.animation(forKey: Self.key) == nil else { return }
-        let swell = CABasicAnimation(keyPath: "transform.scale")
-        swell.fromValue = 1
-        swell.toValue = 1.32
-        let fade = CABasicAnimation(keyPath: "opacity")
-        fade.fromValue = 0.7
-        fade.toValue = 0
-        let breath = CAAnimationGroup()
-        breath.animations = [swell, fade]
-        breath.duration = 1.8
-        breath.repeatCount = .infinity
-        breath.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        guard gradient.animation(forKey: Self.key) == nil else { return }
+        let turn = CABasicAnimation(keyPath: "transform.rotation.z")
+        turn.fromValue = 0
+        turn.toValue = -2 * Double.pi
+        turn.duration = Self.period
+        turn.repeatCount = .infinity
+        turn.timingFunction = CAMediaTimingFunction(name: .linear)
         // uncapped, the render server recomposes at the display rate (see IconController.bounce)
-        breath.preferredFrameRateRange = CAFrameRateRange(minimum: 20, maximum: 20, preferred: 20)
-        ring.add(breath, forKey: Self.key)
+        turn.preferredFrameRateRange = CAFrameRateRange(minimum: 20, maximum: 20, preferred: 20)
+        gradient.add(turn, forKey: Self.key)
     }
 }

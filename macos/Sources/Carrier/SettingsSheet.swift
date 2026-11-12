@@ -86,7 +86,7 @@ struct SettingsSheet: View {
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 8)
-                Button("Detect again") { setup.detect(); start.refreshConfig() }.buttonStyle(.glass).buttonBorderShape(.capsule)
+                Button("Detect again") { setup.detect(); start.refreshConfig() }.buttonStyle(SecondaryCapsuleButtonStyle())
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
             .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
@@ -115,8 +115,6 @@ struct SettingsRail: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(Self.sections, id: \.group) { section in
-                        // Providers has no heading and is set apart from the App group by a gap
-                        if section.group == .providers { Color.clear.frame(height: 6) }
                         if let heading = section.group.heading {
                             Text(heading.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary)
                                 .padding(.leading, 8).padding(.top, 10).accessibilityAddTraits(.isHeader)

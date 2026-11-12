@@ -97,6 +97,10 @@ struct PanelView: View {
                 shell.selection = .newSession
             })
                 .onChange(of: shell.open) { SidebarStore().open = shell.open }
+                // leaving a session takes what it did as seen; opening one is seen at once, not at the next poll
+                .onChange(of: shell.selection) { old, _ in
+                    if case .session(let id) = old { model.leave(id) } else { model.refreshUnread() }
+                }
                 // the menu or the + while the draft is open: it starts blank again
                 .onChange(of: shell.newSessionOpened) { model.newSession.blank() }
         } detail: {

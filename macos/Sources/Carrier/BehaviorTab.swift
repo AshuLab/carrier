@@ -74,7 +74,7 @@ struct BehaviorTabView: View {
             }
             .padding(.horizontal, 4)
         }
-        .buttonStyle(.glass).buttonBorderShape(.capsule)
+        .buttonStyle(SecondaryCapsuleButtonStyle())
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
         .disabled(unreadable)
         .onAppear(perform: load)
@@ -175,7 +175,7 @@ struct ConfirmationCard: View {
                 Button("Cancel", action: cancel)
                 Button(confirm, role: .destructive, action: action)
             }
-            .buttonStyle(.glass).buttonBorderShape(.capsule)
+            .buttonStyle(SecondaryCapsuleButtonStyle())
         }
         .padding(14).frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.12)))
@@ -234,6 +234,32 @@ struct NumberField<Value: Equatable>: View {
     }
 }
 
+/// Every other button of Settings: a quiet capsule in the neutral, so the one in the accent (`PrimaryCapsuleButtonStyle`: Done, Save) is
+/// the only one that reads as the screen's main action. Smaller under `.controlSize(.small)`, for the buttons that sit in a row.
+struct SecondaryCapsuleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration) }
+
+    private struct Face: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isEnabled) private var enabled
+        @Environment(\.controlSize) private var size
+        @State private var hovered = false
+
+        var body: some View {
+            let small = size == .small || size == .mini
+            configuration.label.font(small ? .callout.weight(.medium) : .body.weight(.medium))
+                .foregroundStyle(enabled ? Color.primary : Color.secondary)
+                .padding(.horizontal, small ? 11 : 16).padding(.vertical, small ? 3 : 6)
+                .background(Capsule().fill(Color.primary.opacity(configuration.isPressed ? 0.2 : hovered ? 0.15 : 0.09)))
+                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
+                .opacity(enabled ? 1 : 0.5)
+                .contentShape(Capsule())
+                .onHover { hovered = $0 }
+                .animation(.easeOut(duration: 0.12), value: hovered)
+        }
+    }
+}
+
 /// The main button of a tab's footer: a flat accent capsule, grey when it cannot be pressed.
 struct PrimaryCapsuleButtonStyle: ButtonStyle {
     /// The one button a screen is about (Start Carrier), bigger than a footer's.
@@ -250,7 +276,8 @@ struct PrimaryCapsuleButtonStyle: ButtonStyle {
             configuration.label.fontWeight(.semibold).font(large ? .title3.weight(.semibold) : .body.weight(.semibold))
                 .foregroundStyle(enabled ? Color.white : Color.secondary)
                 .padding(.horizontal, large ? 24 : 16).padding(.vertical, large ? 9 : 6)
-                .background(Capsule().fill(enabled ? Color.themeAccent : Color.secondary.opacity(0.18)))
+                // the accent is a light pastel on the dark themes: darkened for the fill so the white label reads over any theme
+                .background(Capsule().fill(enabled ? Color.themeAccent.mix(with: .black, by: 0.4) : Color.secondary.opacity(0.18)))
                 .shadow(color: .black.opacity(enabled ? 0.3 : 0), radius: 1, y: 1)
                 .opacity(configuration.isPressed ? 0.8 : 1)
         }

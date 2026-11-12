@@ -18,7 +18,7 @@ private let parakeet = model("parakeet-tdt-v3")
 }
 
 @Test func eachEntryIsListedWithWhatItsCardSays() {
-    #expect(parakeet.licence == "CC-BY-4.0" && parakeet.languages.count == 25 && parakeet.detectsLanguage && parakeet.partial == .atTheEnd)
+    #expect(parakeet.licence == "CC-BY-4.0" && parakeet.languages.count == 25 && parakeet.detectsLanguage && parakeet.partial == .chunked)
     #expect(parakeet.card.absoluteString == "https://huggingface.co/FluidInference/parakeet-tdt-0.6b-v3-coreml")
     let ultra = model("parakeet-ultra")
     #expect(ultra.licence == "CC-BY-4.0" && ultra.languages == parakeet.languages && ultra.detectsLanguage && ultra.partial == .atTheEnd)
@@ -31,6 +31,11 @@ private let parakeet = model("parakeet-tdt-v3")
     #expect(multilingual.languages == ["de", "en", "es", "fr", "it", "ja", "pt", "zh"])
     let unified = model("parakeet-unified-0.6b")
     #expect(unified.licence == "NVIDIA Open Model License" && unified.languages == ["en"] && unified.partial == .native)
+}
+
+@Test func parakeetTDTv3TakesThePartialTextOfTheCoreAndTheTableSaysLiveWhileUltraIsNotMeasuredAndSaysWhenYouStop() {
+    let rows = speechModelRows(models: [parakeet, model("parakeet-ultra")], filter: nil, state: { _ in .downloaded }, inUse: nil)
+    #expect(rows.map(\.text) == ["Live", "When you stop"])
 }
 
 @Test func anEnglishOnlyModelOffersEnglishAndTheMultilingualOneOffersAutomaticAndItsEightLanguages() {
@@ -64,13 +69,19 @@ private func modelsRoot(for model: SpeechModel) throws -> URL {
     return root
 }
 
-private func hear(_ clip: [CarrierCore.AudioBuffer], with recognizer: FluidAudioRecognizer, _ model: SpeechModel) async throws -> [DictationEvent] {
+/// A clip given at the pace of a person speaking when `paced`, since the core's chunking works on the audio's own timeline.
+private func hear(
+    _ clip: [CarrierCore.AudioBuffer], with recognizer: FluidAudioRecognizer, _ model: SpeechModel, paced: Bool = false
+) async throws -> [DictationEvent] {
     let started = ContinuousClock.now
     try await recognizer.prepare(model)
     print("\(model.name) prepare took \(ContinuousClock.now - started)")
     let (audio, input) = AsyncStream<CarrierCore.AudioBuffer>.makeStream()
     let events = recognizer.recognize(audio)
-    for buffer in clip { input.yield(buffer) }
+    for buffer in clip {
+        input.yield(buffer)
+        if paced { try await Task.sleep(for: .seconds(Double(buffer.samples.count) / buffer.sampleRate)) }
+    }
     input.finish()
     var seen: [DictationEvent] = []
     for await event in events { seen.append(event) }
@@ -83,7 +94,7 @@ private func hear(_ clip: [CarrierCore.AudioBuffer], with recognizer: FluidAudio
 func eachModelLoadsAndGivesTextForTheClip(model: SpeechModel) async throws {
     let clip = model.languages.contains("es") ? try spanishClip() : try englishClip()
     let loaded = recognizer(in: try modelsRoot(for: model))
-    let seen = try await hear(clip, with: loaded, model)
+    let seen = try await hear(clip, with: loaded, model, paced: model.partial == .chunked)
     guard case .final(let heard)? = seen.last else {
         Issue.record("expected a final at the end, got \(seen)")
         return
@@ -91,7 +102,11 @@ func eachModelLoadsAndGivesTextForTheClip(model: SpeechModel) async throws {
     #expect(heard.isEmpty == false)
     let partials = seen.dropLast()
     #expect(partials.allSatisfy { if case .partial = $0 { true } else { false } })
-    if model.partial == .native { #expect(partials.isEmpty == false, "a native model shows words before the final") } else { #expect(partials.isEmpty) }
+    switch model.partial {
+    case .native: #expect(partials.isEmpty == false, "a native model shows words before the final")
+    case .chunked: #expect(partials.isEmpty == false, "a model with the core's chunking shows words before the final")
+    case .atTheEnd: #expect(partials.isEmpty)
+    }
     // the loaded model serves the next dictation as the first: nothing of the one before is left in it
     #expect(try await hear(clip, with: loaded, model).last == .final(heard))
 }

@@ -86,7 +86,7 @@ struct SettingsSheet: View {
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 8)
-                Button("Detect again") { setup.detect(); start.refreshConfig() }.buttonStyle(.glass).buttonBorderShape(.capsule)
+                Button("Detect again") { setup.detect(); start.refreshConfig() }.buttonStyle(SecondaryCapsuleButtonStyle())
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
             .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))

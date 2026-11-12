@@ -78,7 +78,7 @@ struct ReposTabView: View {
             }
             .padding(.horizontal, 4)
         }
-        .buttonStyle(.glass).buttonBorderShape(.capsule)
+        .buttonStyle(SecondaryCapsuleButtonStyle())
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
         .disabled(unreadable)
         .onAppear(perform: load)
@@ -524,7 +524,7 @@ private struct AddReposSheet: View {
             HStack {
                 Text(selected.isEmpty ? "" : "\(selected.count) selected").font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Button("Cancel") { dismiss() }.buttonStyle(.glass).keyboardShortcut(.cancelAction)
+                Button("Cancel") { dismiss() }.buttonStyle(SecondaryCapsuleButtonStyle()).keyboardShortcut(.cancelAction)
                 Button(selected.count > 1 ? "Add \(selected.count) repos" : "Add repo") { add(chosen) }
                     .buttonStyle(PrimaryCapsuleButtonStyle()).disabled(selected.isEmpty).keyboardShortcut(.defaultAction)
             }
@@ -559,7 +559,7 @@ private struct AddReposSheet: View {
             if let problem = list.problem, let text = availableReposMessage(problem) {
                 Text("\(text.title). \(text.detail)").font(.caption).foregroundStyle(.red)
             }
-            Button(loadingMore ? "Loading…" : "Load more") { loadNextPage() }.buttonStyle(.glass).disabled(loadingMore)
+            Button(loadingMore ? "Loading…" : "Load more") { loadNextPage() }.buttonStyle(SecondaryCapsuleButtonStyle()).disabled(loadingMore)
         }
     }
 

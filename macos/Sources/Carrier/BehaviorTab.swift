@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The Behavior tab: the values of `config.json` the engine reads when it starts (CarrierCore/EngineConfig.swift), in the three
 /// groups of `behaviorGroups` (CarrierCore/BehaviorPage.swift). Every change that the engine would accept is written to the file as it is made, in place; nothing restarts Carrier,
-/// which reads the file when it starts. "Reset to defaults" is the one button.
+/// which reads the file when it starts. The note about saving, or why it cannot, is in the page's header (`SettingsHeaderNoteKey`).
 struct BehaviorTabView: View {
     @ObservedObject private var start = StartController.shared
     @State private var saved = EngineConfig()
@@ -17,16 +17,21 @@ struct BehaviorTabView: View {
 
     private var path: String { configFilePath() }
 
+    private var headerNote: SettingsHeaderNote {
+        if unreadable {
+            return SettingsHeaderNote(text: "The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", tone: .problem)
+        }
+        if let failure { return SettingsHeaderNote(text: failure, tone: .problem) }
+        if let note { return SettingsHeaderNote(text: note, tone: .saved) }
+        return SettingsHeaderNote(text: behaviorSavingNote, tone: .plain)
+    }
+
     private var problems: [String: String] {
         draft.problems.merging(unparsable.map { ($0, "Must be a number") }) { _, text in text }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if unreadable {
-                Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout).foregroundStyle(.orange)
-            }
             ForEach(behaviorGroups, id: \.title) { page in
                 SettingsGroup(title: page.title) {
                     ForEach(Array(page.rows.enumerated()), id: \.element.key) { index, item in
@@ -34,22 +39,16 @@ struct BehaviorTabView: View {
                     }
                 }
             }
-            HStack(spacing: 8) {
-                if let failure {
-                    Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
-                } else if let note {
-                    Label(note, systemImage: "checkmark.circle.fill").font(.callout).foregroundStyle(.green)
-                } else {
-                    Text("Saved as you change them. Carrier reads these when it starts.").font(.callout).foregroundStyle(.secondary)
+            SettingsGroup(title: behaviorReset.group) {
+                SettingsTabRow(title: behaviorReset.title, detail: behaviorReset.detail, first: true) {
+                    Button(behaviorReset.button) { draft = EngineConfig(); unparsable = [] }.disabled(draft == EngineConfig() && unparsable.isEmpty)
                 }
-                Spacer(minLength: 8)
-                Button("Reset to defaults") { draft = EngineConfig(); unparsable = [] }.disabled(draft == EngineConfig() && unparsable.isEmpty)
             }
-            .padding(.horizontal, 4)
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
         .disabled(unreadable)
+        .preference(key: SettingsHeaderNoteKey.self, value: headerNote)
         .onAppear(perform: load)
         .onChange(of: start.configExists) { load() }
         // a file that is there but unreadable may be fixed in another app: look again when Carrier is back in front (only then, so no edit is lost)

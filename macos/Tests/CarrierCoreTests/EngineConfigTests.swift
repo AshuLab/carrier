@@ -103,3 +103,13 @@ private let file = Data(#"{"keep":"~/work","repos":[{"name":"a/b"}],"limits":{"m
     #expect((object(config.applied(to: file))["limits"] as? [String: Any])?["maxExecutionHours"] as? Int == 8)
     #expect(EngineConfig(json: try #require(config.applied(to: file))) == config)
 }
+
+@Test func resettingWritesTheDefaultsOfTheEightValuesAndKeepsTheRestOfTheFile() throws {
+    let changed = Data(#"{"keep":"~/work","repos":[{"name":"a/b"}],"logLevel":"debug","pollIntervalMinutes":0.5,"finishedWindowDays":3,"limits":{"maxConcurrentEpics":6,"maxReviews":7,"maxExecutionRetries":0,"maxExecutionHours":"unlimited","githubCallTimeoutSeconds":90,"other":1}}"#.utf8)
+    let reset = try #require(EngineConfig().applied(to: changed))
+    #expect(EngineConfig(json: reset) == EngineConfig())
+    let written = object(reset)
+    #expect(written["keep"] as? String == "~/work" && (written["repos"] as? [Any])?.count == 1)
+    #expect(written["logLevel"] == nil && written["pollIntervalMinutes"] == nil && written["finishedWindowDays"] == nil)
+    #expect((written["limits"] as? [String: Any])?.keys.sorted() == ["other"])
+}

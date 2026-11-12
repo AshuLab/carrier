@@ -58,10 +58,12 @@ struct AccountEditor: View {
                     }
                     if harness == "claude" {
                         field("Compact idle threads", "idleCompaction", "Use default passes nothing") {
-                            Picker("Compact idle threads", selection: $draft.idle) {
-                                ForEach(IdleCompaction.allCases.filter { $0 != .always || draft.idle == .always }, id: \.self) { Text($0.title) }
-                            }
-                            .labelsHidden().frame(width: 140)
+                            let cases = IdleCompaction.allCases.filter { $0 != .always || draft.idle == .always }
+                            NativePopUp(
+                                items: cases.map(\.title),
+                                selection: Binding(get: { cases.firstIndex(of: draft.idle) ?? 0 }, set: { draft.idle = cases[$0] })
+                            )
+                            .accessibilityLabel("Compact idle threads").frame(width: 160)
                         }
                     }
                 }

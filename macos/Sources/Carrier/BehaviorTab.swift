@@ -276,7 +276,8 @@ struct PrimaryCapsuleButtonStyle: ButtonStyle {
             configuration.label.fontWeight(.semibold).font(large ? .title3.weight(.semibold) : .body.weight(.semibold))
                 .foregroundStyle(enabled ? Color.white : Color.secondary)
                 .padding(.horizontal, large ? 24 : 16).padding(.vertical, large ? 9 : 6)
-                .background(Capsule().fill(enabled ? Color.themeAccent : Color.secondary.opacity(0.18)))
+                // the accent is a light pastel on the dark themes: darkened for the fill so the white label reads over any theme
+                .background(Capsule().fill(enabled ? Color.themeAccent.mix(with: .black, by: 0.4) : Color.secondary.opacity(0.18)))
                 .shadow(color: .black.opacity(enabled ? 0.3 : 0), radius: 1, y: 1)
                 .opacity(configuration.isPressed ? 0.8 : 1)
         }

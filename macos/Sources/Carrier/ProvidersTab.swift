@@ -82,7 +82,7 @@ struct ProvidersTabView: View {
 
     /// A small uppercase label over a group of the list, as the groups of a page have.
     private func listLabel(_ title: String) -> some View {
-        Text(title.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary).padding(.horizontal, 8).padding(.top, 4).padding(.bottom, 2)
+        Text(title.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary).padding(.horizontal, 8).padding(.top, 4).padding(.bottom, 2)
     }
 
     @ViewBuilder private func detail(_ page: ProvidersPage) -> some View {
@@ -92,8 +92,8 @@ struct ProvidersTabView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     titleRow(tool.title, update: versionLine(tool.version, tool.path) == nil ? nil : tool)
                     if let line = versionLine(tool.version, tool.path) {
-                        Text(line).font(.scaled(11, design: .monospaced)).foregroundStyle(.tertiary).textSelection(.enabled)
-                            .lineLimit(2).truncationMode(.middle)
+                        Text(line).font(.scaled(11, design: .monospaced)).foregroundStyle(.secondary).textSelection(.enabled)
+                            .lineLimit(2).truncationMode(.middle).copyOnHover(tool.path ?? line)
                     }
                 }
                 if let failure { Text(failure).font(.caption).foregroundStyle(.red) }

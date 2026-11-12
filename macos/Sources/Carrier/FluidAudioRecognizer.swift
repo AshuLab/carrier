@@ -3,8 +3,9 @@ import CarrierCore
 import FluidAudio
 import Foundation
 
-/// FluidAudio's recognizer, on Core ML. The batch models (Parakeet TDT v3 and Ultra) keep the audio in memory while the person speaks and give
-/// the text when they stop (`partial: .atTheEnd`; the core's chunking is another slice). The streaming ones (Parakeet EOU, Nemotron, Parakeet
+/// FluidAudio's recognizer, on Core ML. The batch models (Parakeet TDT v3 and Ultra) keep the audio in memory while the person speaks and go
+/// through the core's chunking (`ChunkedRecognizer`): Parakeet TDT v3 passes the rule of the spike and shows partial text (`.chunked`), Ultra
+/// has not been measured and gives its text when they stop (`.atTheEnd`). The streaming ones (Parakeet EOU, Nemotron, Parakeet
 /// Unified) decode as the audio arrives and give partial text natively. A model is loaded from `<root>/fluidaudio/<model>/` and never fetched:
 /// the loaders used here do not touch FluidAudio's downloader, and its offline mode is on besides, so a damaged folder fails with its cause
 /// instead of being deleted and downloaded again. Only `FluidAudioDownloader`, on the person's explicit action, goes online.
@@ -41,7 +42,7 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
 
     /// The list, from FluidAudio's `Models.md` at 0.18.3 and the models' cards; the sizes are those of the files each download brings.
     static let entries: [(model: SpeechModel, engine: Engine)] = [
-        (entry("parakeet-tdt-v3", "Parakeet TDT v3", 483_000_000, parakeetLanguages, true, .atTheEnd, "CC-BY-4.0", "parakeet-tdt-0.6b-v3-coreml"), .batch(.v3, .parakeetV3)),
+        (entry("parakeet-tdt-v3", "Parakeet TDT v3", 483_000_000, parakeetLanguages, true, .chunked, "CC-BY-4.0", "parakeet-tdt-0.6b-v3-coreml"), .batch(.v3, .parakeetV3)),
         (entry("parakeet-ultra", "Parakeet Ultra", 632_000_000, parakeetLanguages, true, .atTheEnd, "CC-BY-4.0", "parakeet-ultra-coreml"), .batch(.ultra, .parakeetUltra)),
         (entry("parakeet-eou-120m", "Parakeet EOU 120M", 224_000_000, ["en"], false, .native, "NVIDIA Open Model License", "parakeet-realtime-eou-120m-coreml"), .eou),
         (entry("nemotron-streaming-en", "Nemotron Streaming EN", 627_000_000, ["en"], false, .native, "NVIDIA Open Model License", "nemotron-speech-streaming-en-0.6b-coreml"), .nemotron),
@@ -153,40 +154,18 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
 
     func recognize(_ audio: AsyncStream<CarrierCore.AudioBuffer>) -> AsyncStream<DictationEvent> {
         let (events, out) = AsyncStream<DictationEvent>.makeStream()
-        let (taken, language) = lock.withLock { (loaded?.model, chosenLanguage) }
+        let (taken, language, partial) = lock.withLock { (loaded?.model, chosenLanguage, Self.entries.first { $0.model.id == loaded?.id }?.model.partial) }
         Task {
             switch taken {
-            case .batch(let manager): await Self.recognize(audio, with: manager, language: language, into: out)
+            case .batch(let manager):
+                let batch = ChunkedRecognizer(ParakeetTranscriber(manager: manager, language: language), partials: partial == .chunked)
+                for await event in batch.recognize(audio) { out.yield(event) }
             case .streaming(let streamer): await Self.recognize(audio, with: streamer, language: language, into: out)
             case nil: out.yield(.failed(DictationFailure("The speech model was not prepared.")))
             }
             out.finish()
         }
         return events
-    }
-
-    private static func recognize(
-        _ audio: AsyncStream<CarrierCore.AudioBuffer>, with manager: AsrManager, language: String, into out: AsyncStream<DictationEvent>.Continuation
-    ) async {
-        var samples: [Float] = []
-        var sampleRate = 0.0
-        for await buffer in audio {
-            samples += buffer.samples
-            sampleRate = buffer.sampleRate
-        }
-        do {
-            let heard = sampleRate > 0 ? try AudioConverter().resample(samples, from: sampleRate) : []
-            // less than 300 ms is silence to the model, which refuses it: no speech ends in an empty final, never in a failure
-            if heard.count < 4_800 {
-                out.yield(.final(""))
-            } else {
-                var state = try TdtDecoderState(decoderLayers: await manager.decoderLayerCount)
-                let result = try await manager.transcribe(heard, decoderState: &state, language: Language(rawValue: language))  // nil for Automatic
-                out.yield(.final(result.text.trimmingCharacters(in: .whitespacesAndNewlines)))
-            }
-        } catch {
-            out.yield(.failed(DictationFailure("The speech model stopped: \(error.localizedDescription)")))
-        }
     }
 
     private static func recognize(
@@ -210,6 +189,22 @@ final class FluidAudioRecognizer: Recognizer, @unchecked Sendable {
         } catch {
             out.yield(.failed(DictationFailure("The speech model stopped: \(error.localizedDescription)")))
         }
+    }
+}
+
+/// One pass of a Parakeet model over the audio so far, as the words the core's chunking works with.
+private struct ParakeetTranscriber: BatchTranscriber {
+    let manager: AsrManager
+    let language: String
+
+    func transcribe(_ samples: [Float], sampleRate: Double) async throws -> [TimedWord] {
+        let heard = try AudioConverter().resample(samples, from: sampleRate)
+        var state = try TdtDecoderState(decoderLayers: await manager.decoderLayerCount)
+        let result = try await manager.transcribe(heard, decoderState: &state, language: Language(rawValue: language))  // nil for Automatic
+        if let timings = result.tokenTimings, timings.isEmpty == false {
+            return buildWordTimings(from: timings).map { TimedWord($0.word, start: $0.startTime, end: $0.endTime) }
+        }
+        return result.text.split(whereSeparator: \.isWhitespace).map { TimedWord(String($0), start: 0, end: 0) }
     }
 }
 

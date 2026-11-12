@@ -11,10 +11,9 @@ import SwiftUI
         // a fixture build hears nothing and asks macOS for nothing: its recognizer is a canned phrase
         guard CommandLine.arguments.contains("--fixture") == false else { return DictationController(registry: .shared) }
         let capture = MicrophoneCapture()
-        let folder = currentCarrierFolder()
         let controller = DictationController(
-            registry: .shared, capture: capture, microphone: .system, log: DictationLog(carrierFolder: folder),
-            modelsRoot: URL(fileURLWithPath: folder + "/app/models"), downloader: NoDownloads()
+            registry: .shared, capture: capture, microphone: .system, log: DictationLog(carrierFolder: currentCarrierFolder()),
+            modelsRoot: dictationModelsRoot(), downloader: RealDownloads()
         )
         capture.onLevel = { level in Task { @MainActor in controller.level = level } }
         return controller
@@ -138,9 +137,15 @@ import SwiftUI
     }
 }
 
-/// The downloader of a real build, which lists only Apple's model: nothing there can be downloaded yet, and the real downloaders arrive with their recognizers.
-private struct NoDownloads: ModelDownloader {
+/// Where the speech models live: `<Carrier folder>/app/models`.
+func dictationModelsRoot() -> URL { URL(fileURLWithPath: currentCarrierFolder() + "/app/models") }
+
+/// The downloader of a real build: each recognizer's own, FluidAudio's so far. The others arrive with their recognizers.
+private struct RealDownloads: ModelDownloader {
     func download(_ model: SpeechModel, into folder: URL, progress: @MainActor @Sendable (Double) -> Void) async throws {
-        throw DictationFailure("This build cannot download \(model.name).")
+        switch model.recognizer {
+        case .fluidAudio: try await FluidAudioDownloader().download(model, into: folder, progress: progress)
+        case .apple, .whisper: throw DictationFailure("This build cannot download \(model.name).")
+        }
     }
 }

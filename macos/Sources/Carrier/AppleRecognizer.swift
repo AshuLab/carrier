@@ -4,8 +4,8 @@ import Foundation
 import Speech
 
 /// Apple's recognizer, over SpeechAnalyzer: the system keeps its models and fetches the assets of a language by itself, so there is
-/// nothing to download here, and it gives its volatile results as native partial text. It takes one language: the first language of
-/// macOS that it supports, until the Dictation page lets a person choose.
+/// nothing to download here, and it gives its volatile results as native partial text. It takes one language: the one chosen on the Dictation
+/// page, which starts on the first language of macOS that it supports.
 final class AppleRecognizer: Recognizer, @unchecked Sendable {
     static let modelID = "apple.speech-analyzer"
 
@@ -33,8 +33,10 @@ final class AppleRecognizer: Recognizer, @unchecked Sendable {
     }
 
     func prepare(_ model: SpeechModel) async throws {
+        // the language the page chose, or the first of macOS that Apple's supports; a regional variant of macOS's own is tried first
+        let chosen = languageChoices(for: model, macOSLanguages: preferredLanguages, saved: AppPreferences().dictationLanguage).selected
         var locale: Locale?
-        for language in preferredLanguages where locale == nil {
+        for language in preferredLanguages.filter({ baseLanguage($0) == chosen }) + [chosen] where locale == nil && chosen.isEmpty == false {
             locale = await SpeechTranscriber.supportedLocale(equivalentTo: Locale(identifier: language))
         }
         guard let locale else { throw DictationFailure("Apple's speech recognition does not support any language of this Mac.") }

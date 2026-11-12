@@ -406,3 +406,61 @@ private let idle = PanelSnapshot(
     #expect(keys.allSatisfy { defaults.object(forKey: $0) == nil })
     #expect(store.confirmStop == false)
 }
+
+private func dictationDefaults() -> (name: String, defaults: UserDefaults) {
+    let name = "dictation-\(UUID().uuidString)"
+    return (name, UserDefaults(suiteName: name)!)
+}
+
+private func speechModel(_ id: String, _ recognizer: RecognizerID) -> SpeechModel {
+    SpeechModel(
+        id: id, recognizer: recognizer, name: id, bytes: nil, languages: ["en"], detectsLanguage: false, partial: .native,
+        licence: "None", card: URL(string: "https://github.com/AshuLab/carrier")!
+    )
+}
+
+@Test func dictationStartsOnAndWithNoChoiceMade() {
+    let store = AppPreferences(defaults: dictationDefaults().defaults)
+    #expect(store.dictationEnabled)
+    #expect(store.dictationModelID == nil && store.dictationLanguage == nil)
+}
+
+@Test func theDictationChoicesSurviveARelaunch() {
+    let (name, defaults) = dictationDefaults()
+    let store = AppPreferences(defaults: defaults)
+    store.dictationEnabled = false
+    store.dictationModelID = "fluidaudio.parakeet-tdt-v3"
+    store.dictationLanguage = automaticLanguage
+    let relaunched = AppPreferences(defaults: UserDefaults(suiteName: name)!)
+    #expect(relaunched.dictationEnabled == false)
+    #expect(relaunched.dictationModelID == "fluidaudio.parakeet-tdt-v3")
+    #expect(relaunched.dictationLanguage == automaticLanguage)
+}
+
+@Test func anUnknownSavedSpeechModelFallsBackToApples() {
+    let apple = speechModel("apple.speech-analyzer", .apple)
+    let parakeet = speechModel("fluidaudio.parakeet-tdt-v3", .fluidAudio)
+    let store = AppPreferences(defaults: dictationDefaults().defaults)
+    #expect(store.dictationModel(among: [apple, parakeet]) == apple)
+    store.dictationModelID = "fluidaudio.parakeet-tdt-v3"
+    #expect(store.dictationModel(among: [apple, parakeet]) == parakeet)
+    store.dictationModelID = "whisper.gone"
+    #expect(store.dictationModel(among: [apple, parakeet]) == apple)
+}
+
+@Test func resettingDictationPutsItsDefaultsBackAndLeavesTheModelFilesAndOtherPagesAlone() throws {
+    let store = AppPreferences(defaults: dictationDefaults().defaults)
+    let models = FileManager.default.temporaryDirectory.appendingPathComponent("models-\(UUID().uuidString)/fluidaudio/parakeet")
+    try FileManager.default.createDirectory(at: models, withIntermediateDirectories: true)
+    let weights = models.appendingPathComponent("weights.bin")
+    try Data("weights".utf8).write(to: weights)
+    store.dictationEnabled = false
+    store.dictationModelID = "fluidaudio.parakeet-tdt-v3"
+    store.dictationLanguage = "es"
+    store.sendKey = .commandReturn
+    store.reset(.dictation)
+    #expect(store.dictationEnabled)
+    #expect(store.dictationModelID == nil && store.dictationLanguage == nil)
+    #expect(store.sendKey == .commandReturn)
+    #expect(try Data(contentsOf: weights) == Data("weights".utf8))
+}

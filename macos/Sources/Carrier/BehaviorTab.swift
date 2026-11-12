@@ -2,8 +2,8 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The Behavior tab: the values of `config.json` the engine reads when it starts (CarrierCore/EngineConfig.swift), in four
-/// groups. Every change that the engine would accept is written to the file as it is made, in place; nothing restarts Carrier,
+/// The Behavior tab: the values of `config.json` the engine reads when it starts (CarrierCore/EngineConfig.swift), in the three
+/// groups of `behaviorGroups` (CarrierCore/BehaviorPage.swift). Every change that the engine would accept is written to the file as it is made, in place; nothing restarts Carrier,
 /// which reads the file when it starts. "Reset to defaults" is the one button.
 struct BehaviorTabView: View {
     @ObservedObject private var start = StartController.shared
@@ -27,39 +27,12 @@ struct BehaviorTabView: View {
                 Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange)
             }
-            group("Rhythm") {
-                row("Check GitHub every", "Minutes between looks for ready epics", "pollIntervalMinutes", first: true) {
-                    field("pollIntervalMinutes", $draft.pollIntervalMinutes, unit: "min", parse: { Double($0.replacingOccurrences(of: ",", with: ".")) }, format: shownNumber, step: { $0 + Double($1) > 0 ? $0 + Double($1) : nil })
-                }
-                row("Log level", "How much Carrier writes to its log", "logLevel") {
-                    Picker("Log level", selection: $draft.logLevel) { ForEach(EngineConfig.logLevels, id: \.self) { Text($0) } }
-                        .labelsHidden().frame(width: 90)
-                }
-            }
-            group("Finished epics") {
-                row("Keep in view for", "Days a merged or cancelled epic stays listed, 1 to 30", "finishedWindowDays", first: true) { integer("finishedWindowDays", $draft.finishedWindowDays, min: 1, unit: "days") }
-            }
-            group("Capacity") {
-                row("Epics at once", "Epics running at the same time", "maxConcurrentEpics", first: true) { integer("maxConcurrentEpics", $draft.maxConcurrentEpics, min: 1) }
-                row("Review rounds", "Rounds before the epic goes to needs-human", "maxReviews") { integer("maxReviews", $draft.maxReviews, min: 1) }
-            }
-            group("Agent runs") {
-                row("Retries", "After a technical failure of an agent run", "maxExecutionRetries", first: true) { integer("maxExecutionRetries", $draft.maxExecutionRetries, min: 0) }
-                row("Time per agent run", "Limit of one agent run", "maxExecutionHours") {
-                    HStack(spacing: 10) {
-                        if draft.maxExecutionHours != nil {
-                            integer("maxExecutionHours", Binding(get: { draft.maxExecutionHours ?? 4 }, set: { draft.maxExecutionHours = $0 }), min: 1, unit: "h")
-                        }
-                        Picker("Time per agent run", selection: Binding(get: { draft.maxExecutionHours == nil }, set: { unlimited in
-                            unparsable.remove("maxExecutionHours")
-                            draft.maxExecutionHours = unlimited ? nil : 4
-                        })) {
-                            Text("Limit").tag(false)
-                            Text("Unlimited").tag(true)
-                        }.pickerStyle(.segmented).labelsHidden().fixedSize()
+            ForEach(behaviorGroups, id: \.title) { page in
+                SettingsGroup(title: page.title) {
+                    ForEach(Array(page.rows.enumerated()), id: \.element.key) { index, item in
+                        row(item, first: index == 0)
                     }
                 }
-                row("GitHub call timeout", "Each short call to GitHub", "githubCallTimeoutSeconds") { integer("githubCallTimeoutSeconds", $draft.githubCallTimeoutSeconds, min: 1, unit: "s") }
             }
             HStack(spacing: 8) {
                 if let failure {
@@ -87,13 +60,45 @@ struct BehaviorTabView: View {
         }
     }
 
-    private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        SettingsGroup(title: title) { content() }
+    private func row(_ item: BehaviorRow, first: Bool) -> some View {
+        SettingsTabRow(title: item.title, detail: problems[item.key] ?? item.detail, first: first) { control(item) }
+            .foregroundStyle(problems[item.key] == nil ? Color.primary : Color.orange)
     }
 
-    private func row<Control: View>(_ title: String, _ detail: String, _ key: String, first: Bool = false, @ViewBuilder control: () -> Control) -> some View {
-        SettingsTabRow(title: title, detail: problems[key] ?? detail, first: first) { control() }
-            .foregroundStyle(problems[key] == nil ? Color.primary : Color.orange)
+    @ViewBuilder private func control(_ item: BehaviorRow) -> some View {
+        switch item.control {
+        case .minutes:
+            field(item.key, $draft.pollIntervalMinutes, unit: "min", parse: { Double($0.replacingOccurrences(of: ",", with: ".")) }, format: shownNumber, step: { $0 + Double($1) > 0 ? $0 + Double($1) : nil })
+        case .number(let minimum, let unit):
+            integer(item.key, intBinding(item.key), min: minimum, unit: unit)
+        case .runTime:
+            HStack(spacing: 10) {
+                if draft.maxExecutionHours != nil {
+                    integer(item.key, Binding(get: { draft.maxExecutionHours ?? 4 }, set: { draft.maxExecutionHours = $0 }), min: 1, unit: "h")
+                }
+                Picker(item.title, selection: Binding(get: { draft.maxExecutionHours == nil }, set: { unlimited in
+                    unparsable.remove(item.key)
+                    draft.maxExecutionHours = unlimited ? nil : 4
+                })) {
+                    Text("Limit").tag(false)
+                    Text("Unlimited").tag(true)
+                }.pickerStyle(.segmented).labelsHidden().fixedSize()
+            }
+        case .logLevel:
+            Picker(item.title, selection: $draft.logLevel) { ForEach(EngineConfig.logLevels, id: \.self) { Text($0) } }
+                .labelsHidden().frame(width: 90)
+        }
+    }
+
+    /// The whole-number value of `EngineConfig` that a row of `behaviorGroups` names.
+    private func intBinding(_ key: String) -> Binding<Int> {
+        switch key {
+        case "maxConcurrentEpics": return $draft.maxConcurrentEpics
+        case "maxReviews": return $draft.maxReviews
+        case "maxExecutionRetries": return $draft.maxExecutionRetries
+        case "githubCallTimeoutSeconds": return $draft.githubCallTimeoutSeconds
+        default: return $draft.finishedWindowDays
+        }
     }
 
     private func integer(_ key: String, _ value: Binding<Int>, min: Int, unit: String? = nil) -> some View {

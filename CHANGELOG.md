@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Settings' Behavior page moves from the Legacy group to the Carrier group, after Agents, and its line under the title reads "How Carrier runs epics"; Legacy keeps Engine, Sessions and Health.
+- Settings' Behavior page regroups its eight values by the question each answers: Pace, When something goes wrong and Housekeeping, with new titles and descriptions; the values, their rules and what is written to `config.json` do not change.
 
 ## [0.3.0] - 2026-11-12
 

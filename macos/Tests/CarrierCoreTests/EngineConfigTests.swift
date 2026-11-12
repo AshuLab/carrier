@@ -92,3 +92,14 @@ private let file = Data(#"{"keep":"~/work","repos":[{"name":"a/b"}],"limits":{"m
     config.finishedWindowDays = 15  // back to the default: leaves the file
     #expect(object(config.applied(to: file))["finishedWindowDays"] == nil)
 }
+
+@Test func theRunTimeTakesUnlimitedOrANumberOfHours() throws {
+    #expect(EngineConfig(json: Data(#"{"limits":{"maxExecutionHours":"unlimited"}}"#.utf8)).maxExecutionHours == nil)
+    #expect(EngineConfig(json: Data(#"{"limits":{"maxExecutionHours":8}}"#.utf8)).maxExecutionHours == 8)
+    var config = EngineConfig()
+    config.maxExecutionHours = nil
+    #expect((object(config.applied(to: file))["limits"] as? [String: Any])?["maxExecutionHours"] as? String == "unlimited")
+    config.maxExecutionHours = 8
+    #expect((object(config.applied(to: file))["limits"] as? [String: Any])?["maxExecutionHours"] as? Int == 8)
+    #expect(EngineConfig(json: try #require(config.applied(to: file))) == config)
+}

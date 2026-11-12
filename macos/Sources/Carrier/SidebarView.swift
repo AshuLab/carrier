@@ -375,7 +375,7 @@ struct SidebarRowView: View {
 
     var body: some View {
         HStack(spacing: SidebarMetrics.inset) {
-            ProjectIcon(name: row.name, colorKey: projectColorKey(row.repo), halo: row.state == .running)
+            ProjectIcon(name: row.name, colorKey: projectColorKey(row.repo), working: row.state == .running)
             VStack(alignment: .leading, spacing: SidebarMetrics.lineGap) {
                 // two lines before the ellipsis: a title is a sentence, and the number no longer takes room from it
                 Text(row.title ?? row.name).font(SidebarMetrics.item).lineLimit(2)

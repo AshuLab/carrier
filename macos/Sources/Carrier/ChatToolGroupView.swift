@@ -217,8 +217,8 @@ private extension AnyTransition {
     static var reveal: AnyTransition { .modifier(active: Reveal(progress: 0), identity: Reveal(progress: 1)) }
 }
 
-private extension Color {
-    /// The violet of the agent's thinking.
+extension Color {
+    /// The violet of the agent's thinking, and of the ring that goes round a working session's icon.
     static let thought = Color(red: 0.79, green: 0.63, blue: 1.0)
 }
 

@@ -4,10 +4,11 @@ import SwiftUI
 
 /// The Repos page: which repos Carrier watches (the `repos` of `config.json`, CarrierCore/RepoList.swift), each with how its last
 /// check went. Add from the gh login's list, stop watching with a question first. Saved like the Behavior tab: every change is written
-/// as it is made, and nothing restarts Carrier, which reads the file when it starts.
+/// as it is made, and nothing restarts Carrier.
 struct ReposTabView: View {
     private let timeChanges = TimeFormatChanges()
     let state: ConnectionState?
+    let canReload: Bool
     /// Open Agents: the page of the global roles, which every repo inherits.
     let openAgents: () -> Void
     @ObservedObject private var start = StartController.shared
@@ -117,7 +118,7 @@ struct ReposTabView: View {
     /// The chosen repo's page.
     @ViewBuilder private func detail(_ row: RepoRow?) -> some View {
         if let row {
-            let status = repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine)))
+            let status = repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine)), notLoaded: settingsNote(.repo, state: state, canReload: canReload))
             // two distances, as the Providers page has: 4 inside a block and 14 between blocks
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .center, spacing: 4) {
@@ -205,7 +206,7 @@ struct ReposTabView: View {
     }
 }
 
-/// Status: the epics and the last check (or that Carrier reads the repo when it starts), the clone and the repo on GitHub, as a label and its
+/// Status: the epics and the last check (or when Carrier uses the repo), the clone and the repo on GitHub, as a label and its
 /// value; Open on GitHub and Reveal clone are on the title's line.
 private struct RepoStatusCard: View {
     let row: RepoRow

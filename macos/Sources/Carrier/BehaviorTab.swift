@@ -2,10 +2,11 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The Behavior tab: the values of `config.json` the engine reads when it starts (CarrierCore/EngineConfig.swift), in four
-/// groups. Every change that the engine would accept is written to the file as it is made, in place; nothing restarts Carrier,
-/// which reads the file when it starts. "Reset to defaults" is the one button.
+/// The Behavior tab: the values of `config.json` (CarrierCore/EngineConfig.swift), in four groups. Every change that the engine would accept is
+/// written to the file as it is made, in place; nothing restarts Carrier. "Reset to defaults" is the one button.
 struct BehaviorTabView: View {
+    let state: ConnectionState?
+    let canReload: Bool
     @ObservedObject private var start = StartController.shared
     @State private var saved = EngineConfig()
     @State private var draft = EngineConfig()
@@ -67,7 +68,7 @@ struct BehaviorTabView: View {
                 } else if let note {
                     Label(note, systemImage: "checkmark.circle.fill").font(.callout).foregroundStyle(.green)
                 } else {
-                    Text("Saved as you change them. Carrier reads these when it starts.").font(.callout).foregroundStyle(.secondary)
+                    Text("Saved as you change them. \(settingsNote(.values, state: state, canReload: canReload))").font(.callout).foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
                 Button("Reset to defaults") { draft = EngineConfig(); unparsable = [] }.disabled(draft == EngineConfig() && unparsable.isEmpty)
@@ -147,28 +148,6 @@ struct SavedNote: View {
         Label(text, systemImage: "checkmark.circle.fill").fontWeight(.medium).foregroundStyle(.green)
             .padding(.horizontal, 14).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
             .background(RoundedRectangle(cornerRadius: 14).fill(Color.green.opacity(0.13)))
-    }
-}
-
-/// A question under the tab's content with a way out and a red button: the restart that interrupts epics.
-struct ConfirmationCard: View {
-    let text: String
-    let confirm: String
-    let cancel: () -> Void
-    let action: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(text)
-            HStack {
-                Spacer()
-                Button("Cancel", action: cancel)
-                Button(confirm, role: .destructive, action: action)
-            }
-            .buttonStyle(SecondaryCapsuleButtonStyle())
-        }
-        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.12)))
     }
 }
 

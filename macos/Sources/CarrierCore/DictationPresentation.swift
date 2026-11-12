@@ -31,3 +31,18 @@ public func dictationPresentation(_ state: DictationSession.State, registered: B
         return DictationPresentation(icon: .spinner, inAccent: false, pressable: false, caption: "Transcribing…", sendEnabled: false, label: "Transcribing", help: "Transcribing…")
     }
 }
+
+/// What VoiceOver is told about a dictation. Partial text is never one of them: it would speak over the person.
+public enum DictationNotice: Equatable, Sendable {
+    case listening
+    case stopped(words: Int)
+    case failed(DictationFailure)
+}
+
+public func dictationAnnouncement(_ notice: DictationNotice) -> String {
+    switch notice {
+    case .listening: "Listening"
+    case .stopped(let words): "Dictation stopped, \(words == 0 ? "no words" : words == 1 ? "1 word" : "\(words) words") added"
+    case .failed(let failure): "Dictation failed: \(failure.cause)"
+    }
+}

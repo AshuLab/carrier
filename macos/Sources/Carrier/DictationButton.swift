@@ -40,6 +40,8 @@ private struct DictationButtonStyle: ButtonStyle {
             .frame(width: 36, height: 36)
             .background(Circle().fill(Color.secondary.opacity(pressed ? 0.2 : hovering ? 0.14 : 0)))
             .contentShape(Circle())
+            // the focus ring the other buttons have, round like the hover
+            .contentShape(.focusEffect, Circle())
             .onHover { hovering = $0 }
         }
     }

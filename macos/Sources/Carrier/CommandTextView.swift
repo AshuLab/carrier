@@ -21,6 +21,8 @@ struct CommandTextView: NSViewRepresentable {
     var commands: [ChatCommand]
     /// What a key does for the box; true when the box took it.
     var onKey: (Key) -> Bool
+    /// The person changed the text (a key, a paste, a deletion): not a write of the box itself.
+    var onTyped: () -> Void = {}
     /// Files dropped on the text: the box attaches them (true when it did).
     var onFiles: (([URL]) -> Bool)?
     var onFileDrag: ((Bool) -> Void)?
@@ -216,6 +218,7 @@ struct CommandTextView: NSViewRepresentable {
             reportedCommands = parent.commands
             parent.text = text
             parent.cursor = cursor
+            parent.onTyped()
         }
 
         func textViewDidChangeSelection(_ notification: Notification) {

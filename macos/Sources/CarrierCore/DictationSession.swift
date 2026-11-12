@@ -32,6 +32,7 @@ public struct DictationField {
 
     @ObservationIgnored private let capture: AudioCapture
     @ObservationIgnored private let sleep: (Duration) async throws -> Void
+    @ObservationIgnored private let announce: (String) -> Void
     @ObservationIgnored private var field: DictationField?
     @ObservationIgnored private var model: SpeechModel?
     @ObservationIgnored private var tentative = TentativeText(caret: 0)
@@ -40,19 +41,34 @@ public struct DictationField {
     @ObservationIgnored private var stopped = false
     /// Counts the dictations, so one that already ended cannot touch the next.
     @ObservationIgnored private var generation = 0
+    /// The words the final texts of this dictation added to the box.
+    @ObservationIgnored private var words = 0
+    /// A dictation asked for while another one stops: it starts when that one is idle.
+    @ObservationIgnored private var queued: (recognizer: any Recognizer, model: SpeechModel, field: DictationField)?
 
-    public init(capture: AudioCapture, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
+    /// `announce` is told what VoiceOver should say (`dictationAnnouncement`): the start, the stop and a failure, never partial text.
+    public init(
+        capture: AudioCapture, sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        announce: @escaping (String) -> Void = { _ in }
+    ) {
         self.capture = capture
         self.sleep = sleep
+        self.announce = announce
     }
 
     /// Why the last dictation of `owner` could not start or go on, until it starts another.
     public func failure(for owner: String) -> DictationFailure? { failure?.owner == owner ? failure?.cause : nil }
 
-    /// Starts a dictation at the field's caret. Only one runs at a time: this does nothing while another does.
+    /// Starts a dictation at the field's caret. Only one runs at a time: while another does, it stops (keeping its text) and this one
+    /// starts when it is idle.
     public func start(recognizer: any Recognizer, model: SpeechModel, into field: DictationField) {
-        guard state == .idle else { return }
+        guard state == .idle else {
+            queued = (recognizer, model, field)
+            halt()
+            return
+        }
         failure = nil
+        words = 0
         self.field = field
         self.model = model
         owner = field.owner
@@ -64,8 +80,14 @@ public struct DictationField {
         running = Task { await run(recognizer, model, mine) }
     }
 
-    /// The second click: stops listening and keeps what was heard. The recognizer gives its last text and the dictation ends.
+    /// Stops listening and keeps what was heard, for whatever reason: a click, a typed key, Enter, leaving. The recognizer gives its last
+    /// text and the dictation ends. A dictation waiting for this one to end is dropped.
     public func stop() {
+        queued = nil
+        halt()
+    }
+
+    private func halt() {
         switch state {
         case .idle, .transcribing: return
         case .gettingReady:
@@ -99,12 +121,14 @@ public struct DictationField {
             return
         }
         state = .listening
+        announce(dictationAnnouncement(.listening))
         for await event in recognizer.recognize(audio) {
             guard generation == mine else { return }
             if case .failed(let failure) = event {
                 fail(failure)
                 return
             }
+            if case .final(let heard) = event { words += heard.split(whereSeparator: \.isWhitespace).count }
             if let field, let edit = tentative.apply(event, to: field.text()) { field.put(edit.text, edit.caret, tentative.range) }
         }
         if generation == mine { end() }
@@ -113,11 +137,13 @@ public struct DictationField {
     private func fail(_ error: Error) {
         let cause = error as? DictationFailure ?? DictationFailure(error.localizedDescription)
         if let owner { failure = (owner, cause) }
-        end()
+        announce(dictationAnnouncement(.failed(cause)))
+        end(announcing: false)
     }
 
     /// Back to idle: the audio is dropped, and a partial text on the screen is kept as final.
-    private func end() {
+    private func end(announcing: Bool = true) {
+        if announcing, state == .listening || state == .transcribing { announce(dictationAnnouncement(.stopped(words: words))) }
         capture.stop()
         if let field, tentative.range != nil {
             tentative.close()
@@ -131,5 +157,9 @@ public struct DictationField {
         owner = nil
         generation += 1
         state = .idle
+        if let next = queued {
+            queued = nil
+            start(recognizer: next.recognizer, model: next.model, into: next.field)
+        }
     }
 }

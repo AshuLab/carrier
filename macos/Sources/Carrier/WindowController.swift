@@ -402,6 +402,7 @@ final class WindowController: NSObject, NSWindowDelegate {
 
     @objc private func windowClosed() {
         PollPace.shared.set(attentive: false)
+        MainActor.assumeIsolated { DictationController.shared.stop() }
         // the app stays in the Dock and the menu bar: a closed window is a closed window, and the Dock icon opens it again
         stop?.set()
         stop = nil

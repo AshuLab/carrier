@@ -71,6 +71,8 @@ struct SessionsRows: View {
         .onChange(of: open) { if open == false { query = nil } }
         .onChange(of: searchRequest) { if searchRequest?.section == .sessions { openSearch() } }
         if open {
+            let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", pinned: pinnedIds(pinnedStored), now: Date(), calendar: .current)
+            let items = groups.flatMap { group in [ListItem.header(group)] + group.rows.map { ListItem.row($0, group: group.title) } }
             // one block, so the list slides open and shut (the animation is the sidebar's, on `open`)
             LazyVStack(alignment: .leading, spacing: SidebarMetrics.rowGap) {
                 if query != nil {
@@ -80,7 +82,6 @@ struct SessionsRows: View {
                         close: { query = nil }
                     )
                 }
-                let groups = sessionGroups(sessions.rows, by: sort, query: query ?? "", pinned: pinnedIds(pinnedStored), now: Date(), calendar: .current)
                 if let notice = chatHostNotice(missing: ChatHostStarter.shared.missing) {
                     SidebarEmptyBlock(icon: "exclamationmark.triangle", title: notice.title, line: notice.line) { EmptyView() }
                 }
@@ -99,19 +100,37 @@ struct SessionsRows: View {
                 case .noMatch(let typed): SidebarNoResults(query: typed, clear: { query = "" })
                 case .rows, .empty: EmptyView()
                 }
-                ForEach(groups, id: \.title) { group in
-                    GroupHeader(
-                        title: group.title, over: hovering[group.title]?.isEmpty == false, hover: track(group.title, "header"),
-                        add: sort == .workspace && group.title != "Pinned" ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil
-                    )
-                    ForEach(group.rows, id: \.id) { row in
+                // one flat list, so a session that changes group (working to needs you, an answer to unread) or moves up as it gets newer keeps its
+                // identity and slides to its place, where nested lists would take it out of one group and put it into the other
+                ForEach(items) { item in
+                    switch item {
+                    case .header(let group):
+                        GroupHeader(
+                            title: group.title, over: hovering[group.title]?.isEmpty == false, hover: track(group.title, "header"),
+                            add: sort == .workspace && group.title != "Pinned" ? group.rows.first.map { row in { newSessionIn(row.base) } } : nil
+                        )
+                    case .row(let row, let group):
                         SessionRowView(row: row, showsWorkspace: sort != .workspace)
                             .selectableSidebarRow(selected: selection == .session(id: row.id)) { selection = .session(id: row.id) }
-                            .onHover(perform: track(group.title, row.id))
+                            .onHover(perform: track(group, row.id))
                     }
                 }
             }
+            .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: items.map(\.id))
             .transition(reduceMotion ? .opacity : .reveal)
+        }
+    }
+}
+
+/// A line of the sessions list: a group's title or one of its sessions, with an id of its own so each keeps its place in the animation.
+private enum ListItem: Identifiable {
+    case header(SessionGroup)
+    case row(SessionRow, group: String)
+
+    var id: String {
+        switch self {
+        case .header(let group): "header:\(group.title)"
+        case .row(let row, _): "session:\(row.id)"
         }
     }
 }

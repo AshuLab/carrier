@@ -21,7 +21,7 @@ We keep the accounts in one optional file, `providers.json` in the Carrier folde
 
 `enabled` says only whether the account is offered when an epic's agent option is chosen. It does not stop a role, a failover list or a chat agent from naming the account. An account written by hand without it is offered, as every declared provider is today; the ones that detection writes are not, so finding a CLI never changes how an epic starts.
 
-The engine reads the file when it starts, as it reads `config.json`; the chat host reads it each time it opens a session or checks health, so a change reaches the chat without a restart. A file that does not match stops the process that reads it, with the key named.
+The engine reads the file when it starts and again when it is asked to reload, as it reads `config.json` ([ADR 0023](0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)); the chat host reads it each time it opens a session or checks health, so a change reaches the chat without a restart. A file that does not match stops the process that reads it, with the key named.
 
 One detector, in the core, tells which agent CLIs are on the Mac and whether each account is signed in. The app asks the chat host for it, and `carrier init` calls it directly.
 

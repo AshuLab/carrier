@@ -291,6 +291,29 @@ test('a reload through the control socket applies the loader\'s next config, and
   expect(await snapshot()).toEqual({ pollIntervalMs: 3 * MIN, slots: 1, maxReviews: 8, finished: 0 });
 });
 
+test('a log level that cannot be applied makes the reload change nothing and say so, instead of leaving half of it applied', async () => {
+  const { seen, deps } = fakes();
+  let next = sameConfig;
+  let failLevel = false;
+  deps.setLogLevel = (level) => {
+    if (failLevel) throw new Error('the log sink is gone');
+    seen.levels.push(level);
+  };
+  const app = await startCarrier(config(), root, () => next(), deps);
+  closers.push(async () => (await app.engine.shutdown(), app.close()));
+  const client = await connectControl(join(root, 'engine', 'state', 'control.sock'));
+  closers.push(async () => client.close());
+  const before = ((await client.request('snapshot')) as ControlSnapshot).engine.pollIntervalMs;
+
+  failLevel = true;
+  next = () => config({ pollIntervalMinutes: 9, logLevel: 'warn', repos: [{ name: 'AshuLab/b' }] });
+  await expect(client.request('reload')).rejects.toThrow();
+  const shown = (await client.request('snapshot')) as ControlSnapshot;
+  expect(shown.engine.pollIntervalMs).toBe(before); // neither the interval nor the repos moved
+  expect(shown.watched.map((w) => w.repo)).toEqual(['AshuLab/a', 'AshuLab/b']);
+  expect(seen.levels).toEqual([]);
+});
+
 test('a reload through the control socket changes the repos the engine watches: the one removed has its epic parked, and the workspaces mint the new author profile', async () => {
   const { seen, github, runner, clock, deps } = fakes();
   github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }], 'AshuLab/b': [{ issue: 2, title: '' }] };

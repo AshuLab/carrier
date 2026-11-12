@@ -41,6 +41,6 @@ Disk use grows with what the person brings in, in a folder they can see and clea
 
 The chat can open a repository the person can only read: an agent can change the local clone and the person cannot push it. That is the person's call, as it is with any folder.
 
-Choosing to watch a repository changes the engine's config file and takes effect at the engine's next start; the app says so and does not restart anything on its own.
+Choosing to watch a repository changes the engine's config file and takes effect when the engine next reads its config: at once if it lists `reload`, else at its next start ([ADR 0023](0023-the-engine-reloads-its-configuration-on-request-and-running-work-keeps-what-it-started-with.md)); the app says which and does not restart anything on its own.
 
 The chat needs `gh` on the machine and signed in for anything from GitHub; a folder the person picks does not.

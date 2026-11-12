@@ -189,13 +189,14 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
       engine.reload(() => {
         try {
           const next = loadConfig();
-          repos = next.repos.map((repo) => resolveRepoConfig(next, repo));
+          const nextRepos = next.repos.map((repo) => resolveRepoConfig(next, repo));
+          deps.setLogLevel(next.logLevel); // before anything is swapped: if it throws, the reload changes nothing and says so
+          repos = nextRepos;
           config = next;
         } catch (error) {
           if (error instanceof CliError) throw new ReloadRefused(error.lines.join('\n')); // what a start prints for the file
           throw error;
         }
-        deps.setLogLevel(config.logLevel);
       }),
   };
   stopControl = (await startControlServer({ stateDir: places.state, snapshot, startedAt, controls, stop: shutdown })).close;

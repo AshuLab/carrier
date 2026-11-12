@@ -285,3 +285,23 @@ test('a reload through the control socket applies the loader\'s next config, and
   expect(seen.levels).toEqual(['warn']);
   expect(await snapshot()).toEqual({ pollIntervalMs: 3 * MIN, slots: 1, maxReviews: 8, finished: 0 });
 });
+
+test('a reload through the control socket changes the repos the engine watches: the one removed has its epic parked, and the workspaces mint the new author profile', async () => {
+  const { seen, github, runner, clock, deps } = fakes();
+  github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }], 'AshuLab/b': [{ issue: 2, title: '' }] };
+  let next = sameConfig;
+  const app = await startCarrier(config(), root, () => next(), deps);
+  closers.push(async () => (await app.engine.shutdown(), app.close()));
+  const client = await connectControl(join(root, 'engine', 'state', 'control.sock'));
+  closers.push(async () => client.close());
+  await clock.advance(MIN);
+  expect(runner.tasks.map((t) => t.repo)).toEqual(['AshuLab/a', 'AshuLab/b']);
+
+  next = () => config({ repos: [{ name: 'AshuLab/b', agents: { author: { profile: 'reviewer-bot' } } }] });
+  await client.request('reload');
+  const shown = (await client.request('snapshot')) as ControlSnapshot;
+  expect(shown.watched.map((w) => w.repo)).toEqual(['AshuLab/b']);
+  expect(app.db.$client.prepare("select repo, status from epics order by id").all()).toEqual([{ repo: 'AshuLab/a', status: 'repo_removed' }, { repo: 'AshuLab/b', status: 'running' }]);
+  await seen.workspaces!.token!('AshuLab/b');
+  expect(seen.minted).toEqual(['tassadar-agent@AshuLab/b']);
+});

@@ -101,7 +101,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
 
   const startedAt = deps.clock.now();
   const db = openDatabase(places.db);
-  const repos = config.repos.map((repo) => resolveRepoConfig(config, repo));
+  let repos = config.repos.map((repo) => resolveRepoConfig(config, repo)); // replaced with the config by a reload
   // Profiles are looked up by name when used, so a reload reaches the next token, clone and GitHub call; one removed while an epic names it fails that run naming it.
   const declared = (name: string) => {
     const profile = config.profiles[name];
@@ -126,7 +126,7 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
     github,
     workspaces: deps.makeWorkspaces({ places, token: async (repo) => deps.mint(authorProfile(repo), repo) }),
     runner: deps.makeRunner({ credentials: profileCredentials({ profiles: () => config.profiles, mint: deps.mint, botId: deps.botId }) }),
-    repos,
+    repos: () => repos,
     settings: () => ({
       pollIntervalMs: config.pollIntervalMinutes * 60_000,
       maxConcurrentEpics: config.limits.maxConcurrentEpics,
@@ -193,7 +193,9 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
     reload: () =>
       engine.reload(() => {
         try {
-          config = loadConfig();
+          const next = loadConfig();
+          repos = next.repos.map((repo) => resolveRepoConfig(next, repo));
+          config = next;
         } catch (error) {
           if (error instanceof CliError) throw new ReloadRefused(error.lines.join('\n')); // what a start prints for the file
           throw error;

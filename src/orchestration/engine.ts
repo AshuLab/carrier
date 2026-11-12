@@ -45,7 +45,8 @@ export type EngineOptions = {
   db: Db;
   github: GitHub;
   clock: Clock;
-  repos: EffectiveRepoConfig[];
+  /** The repos the engine watches now, read where each is used: a reload changes what this returns. */
+  repos: () => EffectiveRepoConfig[];
   /** The settings the engine runs on now, read where each is used: a reload changes what this returns. */
   settings: () => EngineSettings;
   runner: AgentRunner;
@@ -108,7 +109,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // Creates the owned labels a repo lacks, with their colour and description; never touches existing ones nor creates `ready` (Solve's).
   async function ensureLabels() {
-    for (const { name } of repos) {
+    for (const { name } of repos()) {
       if (stopping) return;
       if (labelledRepos.has(name)) continue;
       const existing = await github.listLabels(name);
@@ -584,7 +585,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   // executions too. Sessions and history stay; the label follows (labelPending) and the slot is free.
   // Parked epics (needs_human, ready_for_test) end the same way: a person merges or closes outside Carrier.
   async function stopEnded() {
-    for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, repos.map((r) => r.name)))).orderBy(asc(epics.id)).all()) {
+    for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, repos().map((r) => r.name)))).orderBy(asc(epics.id)).all()) {
       const end = await endOf(github, epic);
       if (!end) continue;
       db.update(epics)
@@ -624,7 +625,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   async function fillSlots() {
     for (;;) {
       if (stopping || suspended || paused) return;
-      const epic = reserve(db, { maxConcurrent: settings().maxConcurrentEpics, now: clock.now(), repos });
+      const epic = reserve(db, { maxConcurrent: settings().maxConcurrentEpics, now: clock.now(), repos: repos() });
       if (!epic) return;
       const cancelWith = (cancelReason: string) =>
         db.update(epics).set({ status: 'cancelled', cancelReason, finishedAt: clock.now(), labelPending: false }).where(eq(epics.id, epic.id)).run();
@@ -646,6 +647,29 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     }
   }
 
+  // A repo missing from the config stops its pending epics, untouched, with where they were, and the agent runs active on them (their executions
+  // end `interrupted`); a repo back resumes them there (a `needs_human` one stays stopped). No GitHub call, label change, execution or retry for either.
+  // The parking is synchronous, so a reload has parked a removed repo's epics by the time it answers; only the stops are waited for, by whoever wants to.
+  function reconcileRepos() {
+    const configured = repos().map((r) => r.name);
+    const now = clock.now();
+    const stops: Promise<void>[] = [];
+    for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['queued', 'running', 'needs_human']), notInArray(epics.repo, configured))).all()) {
+      const reason = 'the repo is no longer in the configuration';
+      db.update(epics).set({ status: 'repo_removed', removedFrom: epic.status, removedReason: reason }).where(eq(epics.id, epic.id)).run();
+      db.insert(epicEvents).values({ epicId: epic.id, at: now, type: 'repo_removed', data: { from: epic.status, reason } }).run();
+      for (const { executionId } of db.select().from(executions).where(and(eq(executions.epicId, epic.id), eq(executions.status, 'running'))).all()) {
+        const run = active.get(executionId);
+        if (run) stops.push(run.stop());
+      }
+    }
+    for (const epic of db.select().from(epics).where(and(eq(epics.status, 'repo_removed'), inArray(epics.repo, configured))).all()) {
+      db.update(epics).set({ status: epic.removedFrom!, removedFrom: null, removedReason: null }).where(eq(epics.id, epic.id)).run();
+      db.insert(epicEvents).values({ epicId: epic.id, at: now, type: 'repo_restored', data: { to: epic.removedFrom } }).run();
+    }
+    return Promise.all(stops);
+  }
+
   // Restart, before anything is reserved: stop what the previous process left alive, then continue each running
   // epic from where it was. Safe to repeat (GitHub may be down halfway): what it relaunched is `active` or running.
   let recovered = false;
@@ -661,19 +685,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       if (active.has(executionId)) continue;
       db.update(executions).set({ status: 'interrupted', finishedAt: clock.now() }).where(eq(executions.executionId, executionId)).run();
     }
-    // A repo missing from the config stops its pending epics, untouched, with where they were; a repo back resumes them
-    // there (a `needs_human` one stays stopped). No GitHub call, label change, execution or retry for either.
-    const configured = repos.map((r) => r.name);
-    const now = clock.now();
-    for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['queued', 'running', 'needs_human']), notInArray(epics.repo, configured))).all()) {
-      const reason = 'the repo is no longer in the configuration';
-      db.update(epics).set({ status: 'repo_removed', removedFrom: epic.status, removedReason: reason }).where(eq(epics.id, epic.id)).run();
-      db.insert(epicEvents).values({ epicId: epic.id, at: now, type: 'repo_removed', data: { from: epic.status, reason } }).run();
-    }
-    for (const epic of db.select().from(epics).where(and(eq(epics.status, 'repo_removed'), inArray(epics.repo, configured))).all()) {
-      db.update(epics).set({ status: epic.removedFrom!, removedFrom: null, removedReason: null }).where(eq(epics.id, epic.id)).run();
-      db.insert(epicEvents).values({ epicId: epic.id, at: now, type: 'repo_restored', data: { to: epic.removedFrom } }).run();
-    }
+    reconcileRepos();
     for (const { id } of db.select({ id: epics.id }).from(epics).where(eq(epics.status, 'running')).orderBy(asc(epics.id)).all()) {
       const epic = fresh(id);
       const last = db.select().from(executions).where(eq(executions.epicId, id)).orderBy(desc(sql`rowid`)).get();
@@ -702,7 +714,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       }
     }
     // SQLite is the authority: labels that differ on GitHub are put back.
-    for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, configured))).orderBy(asc(epics.id)).all()) {
+    for (const epic of db.select().from(epics).where(and(inArray(epics.status, ['running', 'needs_human', 'ready_for_test']), inArray(epics.repo, repos().map((r) => r.name)))).orderBy(asc(epics.id)).all()) {
       const { labels } = await github.getIssue(epic.repo, epic.issue);
       const wanted = labelOf(epic.status);
       if (ownedLabels.some((l) => labels.includes(l) !== (l === wanted)) || (epic.status === 'running' && labels.includes(readyLabel))) await applyLabels(epic);
@@ -784,7 +796,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
   const sliceTimer = () => {
     if (stopping) return;
     cancelSliceTimer = clock.after(sliceTimerMs, async () => {
-      const configured = repos.map((r) => r.name);
+      const configured = repos().map((r) => r.name);
       for (const { id, repo, issue } of db.select().from(epics).where(and(inArray(epics.status, liveStatuses), inArray(epics.repo, configured))).orderBy(asc(epics.id)).all()) readSlicesSoon(id, repo, issue);
       sliceTimer();
     });
@@ -830,7 +842,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       const found: { repo: string; issue: number; title: string; labels: string[] }[] = [];
       await ensureLabels();
       if (!recovered) await recover();
-      for (const { name: repo } of repos) {
+      for (const { name: repo } of repos()) {
         for (const { issue, title, labels } of await github.listReadyEpics(repo)) found.push({ repo, issue, title, labels });
         await refreshProgress(repo);
         await refreshSlices(repo);
@@ -861,7 +873,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       failed(e);
       // Only an expected failure gets here (`failed` rethrows the rest): the repos not read this cycle share it.
       const reason = e instanceof AuthError ? `authentication error for profile ${e.profile}` : (e as Error).message;
-      for (const { name } of repos) if (!read.has(name)) checks.set(name, { at: clock.now(), ok: false, error: reason });
+      for (const { name } of repos()) if (!read.has(name)) checks.set(name, { at: clock.now(), ok: false, error: reason });
       return Math.max(settings().pollIntervalMs, (e instanceof GitHubUnavailable && e.retryAfterMs) || 0);
     }
   }
@@ -927,6 +939,9 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
      */
     reload(swap: () => void) {
       swap();
+      // Repos that left are parked and their runs stopped now, and the check that follows resumes what a repo that came back had running.
+      void reconcileRepos().catch((e) => log.error('stopping the runs of a removed repo failed', e));
+      recovered = false;
       void this.pollNow().catch((e) => log.error('check after a reload failed', e));
     },
     /** Polls now instead of waiting for the interval, then goes on from there. */
@@ -945,7 +960,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
       if (!epic) throw new ResumeRefused('unknown epic');
       if (epic.status !== 'needs_human') throw new ResumeRefused('not stopped');
       // The requeue freezes the epic's options again from the configuration the engine runs with, so that is what the names are checked against.
-      const repoConfig = repos.find((r) => r.name === repo);
+      const repoConfig = repos().find((r) => r.name === repo);
       const declared = (repoConfig?.providers ?? repoConfig?.options) ?? {};
       if ([chosen.author, chosen.reviewer].some((name) => name !== undefined && !Object.hasOwn(declared, name))) throw new ResumeRefused('unknown option');
       // A role left out keeps the option it has: the epic is not asked again.

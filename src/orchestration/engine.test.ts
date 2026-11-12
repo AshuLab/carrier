@@ -40,6 +40,7 @@ let clock: FakeClock;
 let runner: FakeAgentRunner;
 let workspaces: FakeWorkspaces;
 let settings: EngineSettings; // what the engine reads: a test changes it the way a reload does
+let watched: EffectiveRepoConfig[]; // the repos the engine reads, changed the same way
 beforeEach(() => {
   runner = new FakeAgentRunner();
   workspaces = new FakeWorkspaces();
@@ -62,7 +63,8 @@ function open() {
 async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4, maxExecutionRetries = 3, maxReviews = 5) {
   const db = open();
   settings = { pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews };
-  const engine = createEngine({ db, github, clock, repos: config, settings: () => settings, runner, workspaces, places: enginePlacesOf(dir) });
+  watched = config;
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, runner, workspaces, places: enginePlacesOf(dir) });
   await engine.start();
   return Object.assign(engine, { db });
 }
@@ -2060,7 +2062,7 @@ test('purges expired logs and sessions when the engine starts and every 24 hours
   db.insert(executions).values({ executionId: 'x-old', epicId: old.id, stage: 'ship', sessionId: 's-old', resultPath: 'r', startedAt: 0 }).run();
   const logs = join(dir, 'engine', 'logs', 'executions', 'x-old');
   mkdirSync(logs, { recursive: true });
-  const engine = createEngine({ db, github, clock, repos, settings: () => ({ pollIntervalMs: 5 * MIN, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 }), runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, repos: () => repos, settings: () => ({ pollIntervalMs: 5 * MIN, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 }), runner, workspaces, places: enginePlacesOf(dir) });
   await engine.start();
   expect(existsSync(logs)).toBe(false);
   mkdirSync(logs, { recursive: true });
@@ -2769,7 +2771,11 @@ test('resumeEpic with an option that is not declared is refused and changes noth
 
 // --- Reload ---
 
-const reload = (engine: { reload: (swap: () => void) => void }, change: Partial<EngineSettings>) => engine.reload(() => void (settings = { ...settings, ...change }));
+const reload = (engine: { reload: (swap: () => void) => void }, { repos: next, ...change }: Partial<EngineSettings> & { repos?: EffectiveRepoConfig[] }) =>
+  engine.reload(() => {
+    settings = { ...settings, ...change };
+    if (next) watched = next;
+  });
 
 test('a reload re-arms the next poll from now with the new interval, and checks GitHub at once', async () => {
   const engine = await start();
@@ -2889,4 +2895,66 @@ test('a profile removed while a running epic names it fails the next run naming 
   await resumed;
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', needsHumanReason: null });
   expect(runner.tasks).toHaveLength(3);
+});
+
+// --- Repos, roles and accounts that a reload changes ---
+
+test('a repo removed by a reload parks its epics and stops its run without touching GitHub for it; added back, they resume where they were', async () => {
+  github.ready = { 'AshuLab/a': ready(1), 'AshuLab/b': ready(2) };
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  github.ready = { 'AshuLab/a': ready(1, 4), 'AshuLab/b': ready(2) };
+  await clock.advance(5 * MIN); // the slots are full: a#4 waits
+  expect(byStatus(engine.db, 'running').sort()).toEqual([1, 2]);
+  expect(ids(engine)).toEqual(['AshuLab/a#4']);
+  const stopRun = executionsOf(engine.db).find((e) => e.epicId === rows(engine.db).find((r) => r.repo === 'AshuLab/a' && r.issue === 1)!.id)!.executionId;
+  const touched = githubRepoCalls();
+
+  reload(engine, { repos: [repos[1]!] });
+  await vi.waitFor(() => expect(touched).toContain('listReadyEpics AshuLab/b')); // the check the reload asked for
+  await vi.waitFor(() => expect(statusOf(engine.db, stopRun)).toBe('interrupted'));
+  await settle();
+
+  expect(rows(engine.db).map((e) => [e.repo, e.issue, e.status, e.removedFrom])).toEqual([
+    ['AshuLab/a', 1, 'repo_removed', 'running'],
+    ['AshuLab/b', 2, 'running', null],
+    ['AshuLab/a', 4, 'repo_removed', 'queued'],
+  ]);
+  expect(runner.stopped).toEqual([stopRun]); // only the run of the removed repo
+  expect(touched.filter((c) => c.endsWith('AshuLab/a'))).toEqual([]);
+  expect(runner.tasks).toHaveLength(2);
+
+  reload(engine, { repos });
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
+  expect(byStatus(engine.db, 'running').sort()).toEqual([1, 2]); // a#1 resumed on its stage, a#4 queued again behind the limit
+  expect(ids(engine)).toEqual(['AshuLab/a#4']);
+  expect(runner.tasks[2]).toMatchObject({ repo: 'AshuLab/a', epic: 1, stage: 'ship', context: { verifyStateFirst: true } });
+  expect(eventTypes(engine.db).filter((t) => t === 'repo_restored')).toHaveLength(2);
+});
+
+test('a repo added by a reload gets its owned labels and is polled by the check the reload asks for', async () => {
+  github.ready = { 'AshuLab/b': ready(7) };
+  const engine = await start(0, [repos[0]!]);
+  reload(engine, { repos });
+  await vi.waitFor(() => expect(ids(engine)).toEqual(['AshuLab/b#7']));
+  expect(github.created.length).toBeGreaterThan(0);
+  expect(Object.keys(github.repoLabels)).toContain('AshuLab/b');
+});
+
+test('an epic that starts after a reload gets the new roles, and the running one keeps the ones it stored', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const engine = await start(1, [repos[0]!]);
+  await clock.advance(5 * MIN);
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  reload(engine, { maxConcurrentEpics: 2, repos: [{ name: 'AshuLab/a', agents: { ...agents, author: { ...agents.author, model: 'new-model' } } }] });
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  expect(runner.tasks.map((t) => [t.epic, t.model])).toEqual([[1, 'm'], [2, 'new-model']]);
+  expect(rows(engine.db).map((e) => e.config!.agents.author.model)).toEqual(['m', 'new-model']);
+});
+
+test('a restart checks the account names against the accounts of the reload, not the ones the engine started with', async () => {
+  const engine = await stoppedOnCodex();
+  const [repo] = choosing();
+  reload(engine, { repos: [{ ...repo!, options: { codex: codexOption }, providers: { codex: codexOption } as any }] });
+  expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { author: 'claude' }))).toBe('unknown option');
 });

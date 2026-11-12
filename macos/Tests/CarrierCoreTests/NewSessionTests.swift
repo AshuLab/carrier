@@ -129,7 +129,7 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
 }
 
 @MainActor private func draft(
-    _ host: FakeChat, hostStarts: Bool = true, offers: AgentOfferStore = AgentOfferStore(), log: @escaping (String) -> Void = { _ in }
+    _ host: FakeChat, hostStarts: Bool = true, offers: AgentOfferStore? = nil, log: @escaping (String) -> Void = { _ in }
 ) async -> NewSessionModel {
     let model = NewSessionModel(host: host, offers: offers, ensureHost: { hostStarts }, log: log, sleep: { _ in })
     await model.load()

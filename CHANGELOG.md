@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `carrier reload` (and a `reload` request on the control socket) makes a running Carrier read `config.json` and `providers.json` again and run on them without a restart: the poll interval, the finished window, the limits, the log level and the numbers the panel and `carrier watch` show change at once, and a run already going keeps what it started with. It prints "Reloaded", or the problem with the key named and exit 1 when a file is wrong, and then changes nothing. Repos, roles, profiles and the GitHub timeout still need a restart for now.
+
 ### Changed
 
 - The Mac app builds with no compiler warnings: the models store, the chat host starter and the joined texts of a lane and of a new session no longer use what Swift 6 will refuse; nothing looks or works differently.

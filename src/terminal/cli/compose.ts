@@ -1,6 +1,6 @@
 import { chmodSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { createScopedLogger, type LogLevel } from '@ashulab/universal-logger';
+import { configureUniversalLogger, createScopedLogger, type LogLevel } from '@ashulab/universal-logger';
 import { enginePlacesOf } from '../../config/engine-places.ts';
 import type { Config } from '../../config/schema.ts';
 import { resolveRepoConfig } from '../../config/resolve.ts';
@@ -19,6 +19,7 @@ import { installFileLogging } from '../../logging/logger.ts';
 import { realClock, type Clock } from '../../orchestration/clock.ts';
 import { createEngine } from '../../orchestration/engine.ts';
 import { AuthError, type GitHub } from '../../orchestration/github.ts';
+import { ReloadRefused } from '../../orchestration/reload-refused.ts';
 import { sessionDirsFrom, type SessionDirs } from '../../orchestration/retention.ts';
 import { renderDashboard } from '../dashboard/dashboard.ts';
 import { startInteractivePanel } from '../dashboard/interactive.ts';
@@ -29,6 +30,7 @@ import { profileCredentials, type CredentialsOptions } from '../../harnesses/cre
 import { HostAgentRunner, type HostRunnerOptions } from '../../harnesses/host-runner.ts';
 import { openDatabase } from '../../storage/db.ts';
 import { acquireLock } from '../../storage/lock.ts';
+import { CliError } from './cli-error.ts';
 import { stopOnSigint } from './interrupt.ts';
 import { openUrl } from './open-url.ts';
 
@@ -37,6 +39,8 @@ export class InstanceBusy extends Error {}
 /** Everything that touches the outside world, replaceable so a test runs the whole startup without GitHub or agents. */
 export interface CarrierDeps {
   installLogging: (file: string, level: LogLevel) => void;
+  /** Applies the log level of a reloaded config to the logging `installLogging` set up. */
+  setLogLevel: (level: LogLevel) => void;
   clock: Clock;
   makeGitHub: (options: GhGitHubOptions) => GitHub;
   makeWorkspaces: (options: GitWorkspacesOptions) => Workspaces;
@@ -61,6 +65,7 @@ export interface CarrierDeps {
 
 const realDeps = (): CarrierDeps => ({
   installLogging: installFileLogging,
+  setLogLevel: (minLevel) => configureUniversalLogger({ minLevel }),
   clock: realClock,
   makeGitHub: (options) => new GhGitHub(options),
   makeWorkspaces: (options) => new GitWorkspaces(options),
@@ -78,9 +83,11 @@ const realDeps = (): CarrierDeps => ({
 /**
  * Starts carrier on a validated config and the Carrier folder it keeps its files in: the instance lock, file logging, the engine with the real GitHub (the
  * orchestrator's profile, through Forge), workspaces and the runner of each harness, the panel, and Ctrl+C.
+ * `loadConfig` produces the next config from the same config path and Carrier folder it started with (`loadConfigFile` in production): a reload calls it.
  * Throws InstanceBusy when another carrier holds the folder's `engine/state/`.
  */
-export async function startCarrier(config: Config, folder: string, overrides: Partial<CarrierDeps> = {}) {
+export async function startCarrier(started: Config, folder: string, loadConfig: () => Config, overrides: Partial<CarrierDeps> = {}) {
+  let config = started; // replaced by a reload; everything that follows the settings reads it where it is used
   const deps = { ...realDeps(), ...overrides };
   const places = enginePlacesOf(folder);
   // First side effect of startup: one instance per Carrier folder.
@@ -95,7 +102,7 @@ export async function startCarrier(config: Config, folder: string, overrides: Pa
   const startedAt = deps.clock.now();
   const db = openDatabase(places.db);
   const repos = config.repos.map((repo) => resolveRepoConfig(config, repo));
-  const { limits } = config;
+  const { limits } = started; // the GitHub timeout is read once; reloading it comes with the profiles
   // Git over the network (clone, fetch) runs as the repo's author profile.
   const authorProfile = (repo: string) => config.profiles[repos.find((r) => r.name === repo)!.agents.author.profile]!;
   const github = deps.makeGitHub({
@@ -110,11 +117,13 @@ export async function startCarrier(config: Config, folder: string, overrides: Pa
     workspaces: deps.makeWorkspaces({ places, token: (repo) => deps.mint(authorProfile(repo), repo) }),
     runner: deps.makeRunner({ credentials: profileCredentials({ profiles: config.profiles, mint: deps.mint, botId: deps.botId }) }),
     repos,
-    pollIntervalMs: config.pollIntervalMinutes * 60_000,
-    maxConcurrentEpics: limits.maxConcurrentEpics,
-    maxReviews: limits.maxReviews,
-    maxExecutionRetries: limits.maxExecutionRetries,
-    maxExecutionHours: limits.maxExecutionHours,
+    settings: () => ({
+      pollIntervalMs: config.pollIntervalMinutes * 60_000,
+      maxConcurrentEpics: config.limits.maxConcurrentEpics,
+      maxReviews: config.limits.maxReviews,
+      maxExecutionRetries: config.limits.maxExecutionRetries,
+      maxExecutionHours: config.limits.maxExecutionHours,
+    }),
     places,
     sessionDirs: deps.sessionDirs,
   });
@@ -142,11 +151,11 @@ export async function startCarrier(config: Config, folder: string, overrides: Pa
     const limit = github.rateLimit();
     return buildSnapshot(db, {
       now: deps.clock.now(),
-      maxConcurrentEpics: limits.maxConcurrentEpics,
-      maxReviews: limits.maxReviews,
+      maxConcurrentEpics: config.limits.maxConcurrentEpics,
+      maxReviews: config.limits.maxReviews,
       finishedWindowDays: config.finishedWindowDays,
       startedAt,
-      repos: config.repos.length,
+      repos: repos.length,
       nextCheckAt: engine.nextPollAt,
       problem: engine.error instanceof AuthError ? `authentication error for profile ${engine.error.profile}` : engine.error ? 'GitHub is unavailable: it will be tried again' : null,
       paused: engine.paused,
@@ -171,6 +180,16 @@ export async function startCarrier(config: Config, folder: string, overrides: Pa
     fileDiff: (repo: string, issue: number, section: string, path: string) => fileDiff(db, places.repos, repo, issue, section, path),
     availableRepos: (page: number) => deps.listRepos(page, limits.githubCallTimeoutSeconds * 1000),
     resumeEpic: (repo: string, issue: number, chosen: { author?: string; reviewer?: string }) => engine.resumeEpic(repo, issue, chosen),
+    reload: () =>
+      engine.reload(() => {
+        try {
+          config = loadConfig();
+        } catch (error) {
+          if (error instanceof CliError) throw new ReloadRefused(error.lines.join('\n')); // what a start prints for the file
+          throw error;
+        }
+        deps.setLogLevel(config.logLevel);
+      }),
   };
   stopControl = (await startControlServer({ stateDir: places.state, snapshot, startedAt, controls, stop: shutdown })).close;
   const detail = (repo: string, issue: number) => controls.sessions(repo, issue)?.sessions ?? null;

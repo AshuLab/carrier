@@ -31,11 +31,7 @@ import { reserve } from './reserve.ts';
 import { startRetention, type SessionDirs } from './retention.ts';
 import { failureStreak } from './retry.ts';
 
-export type EngineOptions = {
-  db: Db;
-  github: GitHub;
-  clock: Clock;
-  repos: EffectiveRepoConfig[];
+export type EngineSettings = {
   pollIntervalMs: number;
   maxConcurrentEpics: number;
   maxExecutionHours: number | 'unlimited';
@@ -43,6 +39,15 @@ export type EngineOptions = {
   maxExecutionRetries: number;
   /** Reviews of the final PR before the epic goes to a person; fix turns do not count. */
   maxReviews: number;
+};
+
+export type EngineOptions = {
+  db: Db;
+  github: GitHub;
+  clock: Clock;
+  repos: EffectiveRepoConfig[];
+  /** The settings the engine runs on now, read where each is used: a reload changes what this returns. */
+  settings: () => EngineSettings;
   runner: AgentRunner;
   workspaces: Workspaces;
   /** The engine's places: execution results go under `<state>/results/`, their output under `<logs>/executions/`. */
@@ -82,7 +87,7 @@ const executionStatus: Record<AgentExit, (typeof executionStates)[number]> = {
   session_unavailable: 'failed',
 };
 
-export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews, runner, workspaces, places, sessionDirs }: EngineOptions) {
+export function createEngine({ db, github, clock, repos, settings, runner, workspaces, places, sessionDirs }: EngineOptions) {
   let error: GitHubUnavailable | AuthError | null = null;
   let nextPollAt: number | null = null;
   let paused = false; // intake only: nothing new is reserved, what is running goes on
@@ -309,6 +314,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     }
     const executionId = randomUUID();
     const resultPath = join(places.state, 'results', `${executionId}.json`);
+    const hoursLimit = settings().maxExecutionHours; // read once: the run keeps the timeout it launches with
     // A fix right after a review that completed is the observations pass; after one that asked for changes, it answers the blockers.
     const observations = stage === 'fix' ? latestObservations(db, epic.id) : null;
     const task: AgentTask = {
@@ -320,7 +326,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       sharedIdentity: epic.config!.sharedIdentity === true,
       workspace,
       resultPath,
-      timeoutMs: maxExecutionHours === 'unlimited' ? null : maxExecutionHours * 3_600_000,
+      timeoutMs: hoursLimit === 'unlimited' ? null : hoursLimit * 3_600_000,
       ...(resumeSession && { resumeSession }),
       context: {
         previousSummaries: reviewing || rebuild ? previousSummaries(epic.id) : [],
@@ -379,7 +385,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
           failed: { kind: 'unknown', detail: '' },
           auth_failed: { kind: 'auth', detail: `profile ${task.profile}` },
           session_unavailable: { kind: 'session_lost', detail: sessionLost },
-          timed_out: { kind: 'timeout', detail: `exceeded ${maxExecutionHours} h` },
+          timed_out: { kind: 'timeout', detail: `exceeded ${task.timeoutMs! / 3_600_000} h` },
         };
         db.update(executions)
           .set({ status: executionStatus[exit], finishedAt: clock.now(), ...(sessionId && { sessionId }), ...(failure && { error: failure }), ...failureColumns(processFailure ?? (endFailure[exit] && { ...noExit, ...endFailure[exit] })) })
@@ -424,7 +430,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       const epic = fresh(epicId);
       const [last, ...earlier] = failureStreak(db, epicId);
       if (epic.status !== 'running' || !last) return;
-      if (earlier.length >= maxExecutionRetries) {
+      if (earlier.length >= settings().maxExecutionRetries) {
         toNeedsHuman(db, epicId, 'retries_exhausted', `ran out of ${last.stage} retries (${earlier.length + 1} attempts): ${last.error}`);
         return await freeSlot();
       }
@@ -551,11 +557,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       else if (execution.stage === 'fix') update({ stage: 'review', stageStartedAt: clock.now(), round: (epic.round ?? 0) + 1, prHeadSha: result.pr.headSha });
       // The round stays: the fix turn answers it, and the next review numbers the following one.
       else if (result.outcome === 'changes_requested') {
-        if ((epic.round ?? 0) >= maxReviews) toNeedsHuman(tx, epic.id, 'review_limit', `review limit: round ${epic.round} of ${maxReviews} still has requested changes`);
+        if ((epic.round ?? 0) >= settings().maxReviews) toNeedsHuman(tx, epic.id, 'review_limit', `review limit: round ${epic.round} of ${settings().maxReviews} still has requested changes`);
         else update({ stage: 'fix', stageStartedAt: clock.now() });
       }
       // The one observations pass: the author answers them on the same round, and the reviewed head and verification wait for how it ends.
-      else if (result.outcome === 'completed' && result.observations?.length && epic.observationsPassAt === null && (epic.round ?? 0) < maxReviews) {
+      else if (result.outcome === 'completed' && result.observations?.length && epic.observationsPassAt === null && (epic.round ?? 0) < settings().maxReviews) {
         update({ stage: 'fix', stageStartedAt: clock.now(), observationsPassAt: clock.now(), reviewedSha: result.pr.headSha, verification: result.verification });
       }
       else update({ status: 'ready_for_test', reviewedSha: result.pr.headSha, verification: result.verification, finishedAt: clock.now(), labelPending: true });
@@ -618,7 +624,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   async function fillSlots() {
     for (;;) {
       if (stopping || suspended || paused) return;
-      const epic = reserve(db, { maxConcurrent: maxConcurrentEpics, now: clock.now(), repos });
+      const epic = reserve(db, { maxConcurrent: settings().maxConcurrentEpics, now: clock.now(), repos });
       if (!epic) return;
       const cancelWith = (cancelReason: string) =>
         db.update(epics).set({ status: 'cancelled', cancelReason, finishedAt: clock.now(), labelPending: false }).where(eq(epics.id, epic.id)).run();
@@ -817,7 +823,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   // Returns the wait until the next poll.
   async function poll(): Promise<number> {
-    if (stopping) return pollIntervalMs;
+    if (stopping) return settings().pollIntervalMs;
     const read = new Set<string>();
     try {
       // Fetch every repo before writing: a failure on any of them leaves the queue untouched.
@@ -849,14 +855,14 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
       await reconcileLabels();
       await fillSlots();
       error = null;
-      return pollIntervalMs;
+      return settings().pollIntervalMs;
     } catch (e) {
       log.error('poll failed', e);
       failed(e);
       // Only an expected failure gets here (`failed` rethrows the rest): the repos not read this cycle share it.
       const reason = e instanceof AuthError ? `authentication error for profile ${e.profile}` : (e as Error).message;
       for (const { name } of repos) if (!read.has(name)) checks.set(name, { at: clock.now(), ok: false, error: reason });
-      return Math.max(pollIntervalMs, (e instanceof GitHubUnavailable && e.retryAfterMs) || 0);
+      return Math.max(settings().pollIntervalMs, (e instanceof GitHubUnavailable && e.retryAfterMs) || 0);
     }
   }
 
@@ -890,7 +896,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
           failed(err);
         }
       }
-      schedule(pollIntervalMs);
+      schedule(settings().pollIntervalMs);
       sliceTimer();
     },
     stop() {
@@ -914,6 +920,14 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     /** Resolves when no execution is being followed any more. */
     async idle() {
       while (inflight.size > 0) await Promise.all([...inflight]);
+    },
+    /**
+     * Runs `swap`, which replaces what `settings()` returns (and throws ReloadRefused, changing nothing, when the next ones are not valid), then
+     * polls now: the next poll is armed from then with the interval now in force, and a poll already running is that one.
+     */
+    reload(swap: () => void) {
+      swap();
+      void this.pollNow().catch((e) => log.error('check after a reload failed', e));
     },
     /** Polls now instead of waiting for the interval, then goes on from there. */
     pollNow() {

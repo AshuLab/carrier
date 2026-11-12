@@ -11,6 +11,10 @@ import type { GhGitHubOptions } from '../../integrations/github.ts';
 import { FakeClock, FakeGitHub } from '../../orchestration/fake.ts';
 import type { HostRunnerOptions } from '../../harnesses/host-runner.ts';
 import { acquireLock } from '../../storage/lock.ts';
+import { CliError } from './cli-error.ts';
+import { connectControl } from './control-client.ts';
+import type { ControlSnapshot } from '../../status/types.ts';
+import { epics } from '../../storage/schema.ts';
 import { InstanceBusy, startCarrier, type CarrierDeps } from './compose.ts';
 
 const MIN = 60_000;
@@ -44,14 +48,17 @@ const config = (user: object = {}): Config => {
   return result.config;
 };
 
+const sameConfig = () => config();
+
 // Fakes in every seam: nothing here reaches GitHub, Forge or a real agent.
 function fakes() {
-  const seen = { logging: [] as [string, string][], github: undefined as GhGitHubOptions | undefined, workspaces: undefined as GitWorkspacesOptions | undefined, runner: undefined as HostRunnerOptions | undefined, minted: [] as string[], sigint: 0, panel: [] as string[] };
+  const seen = { logging: [] as [string, string][], levels: [] as string[], github: undefined as GhGitHubOptions | undefined, workspaces: undefined as GitWorkspacesOptions | undefined, runner: undefined as HostRunnerOptions | undefined, minted: [] as string[], sigint: 0, panel: [] as string[] };
   const github = new FakeGitHub();
   const runner = new FakeAgentRunner();
   const clock = new FakeClock();
   const deps: Partial<CarrierDeps> = {
     installLogging: (file, level) => seen.logging.push([file, level]),
+    setLogLevel: (level) => seen.levels.push(level),
     clock,
     makeGitHub: (options) => ((seen.github = options), github),
     makeWorkspaces: (options) => ((seen.workspaces = options), new FakeWorkspaces()),
@@ -69,7 +76,7 @@ function fakes() {
 test('builds the engine with the config\'s limits, effective repos and the real seams, and starts it', async () => {
   const { seen, github, runner, clock, deps } = fakes();
   github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }, { issue: 2, title: '' }, { issue: 3, title: '' }] };
-  const app = await startCarrier(config(), root, deps);
+  const app = await startCarrier(config(), root, sameConfig, deps);
   closers.push(async () => (await app.engine.shutdown(), app.close()));
 
   // Logging goes to the orchestrator log at the configured level, and the instance lock is held.
@@ -88,7 +95,7 @@ test('builds the engine with the config\'s limits, effective repos and the real 
 
 test('GitHub acts as the orchestrator\'s profile from inside a clone-shaped folder under the Carrier folder, with the configured timeout', async () => {
   const { seen, deps } = fakes();
-  const app = await startCarrier(config(), root, deps);
+  const app = await startCarrier(config(), root, sameConfig, deps);
   closers.push(async () => (await app.engine.shutdown(), app.close()));
 
   expect(seen.github).toMatchObject({ profile: { kind: 'gh' }, timeoutMs: 7000 });
@@ -104,7 +111,7 @@ test('GitHub acts as the orchestrator\'s profile from inside a clone-shaped fold
 
 test('workspaces use the engine\'s repos and reviews folders and mint the repo\'s author profile; the runner mints the execution\'s own profile', async () => {
   const { seen, deps } = fakes();
-  const app = await startCarrier(config({ repos: [{ name: 'AshuLab/a', agents: { author: { profile: 'reviewer-bot' }, reviewer: { profile: 'author-bot' } } }, { name: 'AshuLab/b' }] }), root, deps);
+  const app = await startCarrier(config({ repos: [{ name: 'AshuLab/a', agents: { author: { profile: 'reviewer-bot' }, reviewer: { profile: 'author-bot' } } }, { name: 'AshuLab/b' }] }), root, sameConfig, deps);
   closers.push(async () => (await app.engine.shutdown(), app.close()));
 
   expect(seen.workspaces!.places).toMatchObject({ repos: join(root, 'engine', 'repos'), reviews: join(root, 'engine', 'reviews') });
@@ -119,7 +126,7 @@ test('workspaces use the engine\'s repos and reviews folders and mint the repo\'
 test('the panel is drawn from SQLite: slots and the running epic show up', async () => {
   const { seen, github, clock, deps } = fakes();
   github.ready = { 'AshuLab/a': [{ issue: 5, title: '' }] };
-  const app = await startCarrier(config(), root, deps);
+  const app = await startCarrier(config(), root, sameConfig, deps);
   closers.push(async () => (await app.engine.shutdown(), app.close()));
 
   expect(seen.panel.join('')).toContain('slots 0/2');
@@ -131,7 +138,7 @@ test('the panel is drawn from SQLite: slots and the running epic show up', async
 test('the foreground panel is fed the control snapshot: an epic shows its title', async () => {
   const { seen, github, clock, deps } = fakes();
   github.ready = { 'AshuLab/a': [{ issue: 5, title: 'Menu bar' }] };
-  const app = await startCarrier(config(), root, { ...deps, panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 10 });
+  const app = await startCarrier(config(), root, sameConfig, { ...deps, panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 10 });
   closers.push(async () => (await app.engine.shutdown(), app.close()));
   await clock.advance(MIN);
   await vi.waitFor(() => expect(seen.panel.join('').replace(/\x1b\[[0-9;]*m/g, '')).toContain('AshuLab/a #5  Menu bar'));
@@ -140,7 +147,7 @@ test('the foreground panel is fed the control snapshot: an epic shows its title'
 test('the foreground panel is given the in-process provider: a running epic lists its stages', async () => {
   const { seen, github, clock, deps } = fakes();
   github.ready = { 'AshuLab/a': [{ issue: 5, title: 'Menu bar' }] };
-  const app = await startCarrier(config(), root, { ...deps, panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 10 });
+  const app = await startCarrier(config(), root, sameConfig, { ...deps, panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 10 });
   closers.push(async () => (await app.engine.shutdown(), app.close()));
   await clock.advance(MIN + 1000);
   await vi.waitFor(() => expect(seen.panel.join('').replace(/\x1b\[[0-9;]*m/g, '')).toMatch(/┃ \[ship\] \d+s\n/));
@@ -150,7 +157,7 @@ test('a second instance on the same Carrier folder gets InstanceBusy before anyt
   const { seen, deps } = fakes();
   const lock = acquireLock(join(root, 'engine', 'state'));
   expect(lock.ok).toBe(true);
-  await expect(startCarrier(config(), root, deps)).rejects.toThrow(InstanceBusy);
+  await expect(startCarrier(config(), root, sameConfig, deps)).rejects.toThrow(InstanceBusy);
   expect(seen.logging).toEqual([]);
   expect(existsSync(join(root, 'engine', 'state', 'carrier.db'))).toBe(false);
   if (lock.ok) lock.release();
@@ -161,7 +168,7 @@ test('a startup failure releases the lock', async () => {
   github.listLabels = async () => {
     throw new Error('boom');
   };
-  await expect(startCarrier(config(), root, deps)).rejects.toThrow('boom');
+  await expect(startCarrier(config(), root, sameConfig, deps)).rejects.toThrow('boom');
   const again = acquireLock(join(root, 'engine', 'state'));
   expect(again.ok).toBe(true);
   if (again.ok) again.release();
@@ -170,7 +177,7 @@ test('a startup failure releases the lock', async () => {
 test('onArrived fires once the engine is up and before the panel draws; a startup failure never announces it', async () => {
   const order: string[] = [];
   const { seen, deps } = fakes();
-  const app = await startCarrier(config(), root, { ...deps, onArrived: () => order.push(`arrived (panel drawn: ${seen.panel.length > 0})`) });
+  const app = await startCarrier(config(), root, sameConfig, { ...deps, onArrived: () => order.push(`arrived (panel drawn: ${seen.panel.length > 0})`) });
   closers.push(async () => (await app.engine.shutdown(), app.close()));
   expect(order).toEqual(['arrived (panel drawn: false)']);
   await vi.waitFor(() => expect(seen.panel.length).toBeGreaterThan(0)); // and the panel does start
@@ -180,7 +187,7 @@ test('onArrived fires once the engine is up and before the panel draws; a startu
     throw new Error('boom');
   };
   const announced = vi.fn();
-  await expect(startCarrier(config(), mkdtempSync(join(tmpdir(), 'carrier-compose2-')), { ...failing.deps, onArrived: announced })).rejects.toThrow('boom');
+  await expect(startCarrier(config(), mkdtempSync(join(tmpdir(), 'carrier-compose2-')), sameConfig, { ...failing.deps, onArrived: announced })).rejects.toThrow('boom');
   expect(announced).not.toHaveBeenCalled();
 });
 
@@ -189,7 +196,7 @@ test('with a terminal on both sides the panel takes keys: r polls now, p pauses 
   const { EventEmitter } = await import('node:events');
   const stdin = Object.assign(new EventEmitter(), { isTTY: true, setRawMode: vi.fn(), resume: vi.fn(), pause: vi.fn() });
   const quit = vi.fn();
-  const app = await startCarrier(config(), root, { ...deps, stdin: stdin as never, quit, openUrl: vi.fn(), panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 3_600_000 });
+  const app = await startCarrier(config(), root, sameConfig, { ...deps, stdin: stdin as never, quit, openUrl: vi.fn(), panelOut: { write: (t) => seen.panel.push(String(t)), isTTY: true }, panelIntervalMs: 3_600_000 });
   closers.push(async () => (await app.engine.shutdown(), app.close()));
   expect(stdin.setRawMode).toHaveBeenLastCalledWith(true);
 
@@ -207,7 +214,42 @@ test('with a terminal on both sides the panel takes keys: r polls now, p pauses 
 
   const plain = fakes();
   const stdin2 = Object.assign(new EventEmitter(), { isTTY: true, setRawMode: vi.fn(), resume: vi.fn(), pause: vi.fn() });
-  const app2 = await startCarrier(config(), mkdtempSync(join(tmpdir(), 'carrier-compose3-')), { ...plain.deps, stdin: stdin2 as never }); // its panel output is not a terminal
+  const app2 = await startCarrier(config(), mkdtempSync(join(tmpdir(), 'carrier-compose3-')), sameConfig, { ...plain.deps, stdin: stdin2 as never }); // its panel output is not a terminal
   closers.push(async () => (await app2.engine.shutdown(), app2.close()));
   expect(stdin2.setRawMode).not.toHaveBeenCalled();
+});
+
+test('a reload through the control socket applies the loader\'s next config, and a refused one leaves every setting as it was and carries the problem', async () => {
+  const { seen, github, runner, clock, deps } = fakes();
+  github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }, { issue: 2, title: '' }, { issue: 3, title: '' }] };
+  let next: () => Config = () => config({ pollIntervalMinutes: 3, logLevel: 'warn', finishedWindowDays: 9, limits: { maxConcurrentEpics: 1, maxReviews: 8, maxExecutionRetries: 1, maxExecutionHours: 6, githubCallTimeoutSeconds: 7 } });
+  const app = await startCarrier(config(), root, () => next(), deps);
+  closers.push(async () => (await app.engine.shutdown(), app.close()));
+  const client = await connectControl(join(root, 'engine', 'state', 'control.sock'));
+  closers.push(async () => client.close());
+  expect(client.hello.capabilities).toContain('reload');
+  // what the panel and `carrier watch` show: the numbers, and the finished window (an epic merged 12 days ago, inside 15 and outside 9)
+  app.db.insert(epics).values({ repo: 'AshuLab/b', issue: 99, status: 'merged', finishedAt: -12 * 86_400_000 }).run();
+  const snapshot = async () => {
+    const shown = (await client.request('snapshot')) as ControlSnapshot;
+    return { pollIntervalMs: shown.engine.pollIntervalMs, slots: shown.slots.total, maxReviews: shown.epics[0]?.maxReviews, finished: shown.finished?.length };
+  };
+
+  // a first poll takes two epics at once, with the run limit it started with
+  await clock.advance(MIN);
+  expect(runner.tasks.map((t) => t.timeoutMs)).toEqual([2 * 3_600_000, 2 * 3_600_000]);
+  expect(await snapshot()).toEqual({ pollIntervalMs: MIN, slots: 2, maxReviews: 4, finished: 1 });
+
+  await client.request('reload');
+  expect(seen.levels).toEqual(['warn']);
+  expect(await snapshot()).toEqual({ pollIntervalMs: 3 * MIN, slots: 1, maxReviews: 8, finished: 0 });
+  expect(runner.tasks).toHaveLength(2); // the runs launched keep their timeout, and the lowered limit starts no new epic
+
+  // an invalid one: nothing changes, and the reply is the lines a start prints
+  next = () => {
+    throw new CliError(1, 'Invalid config /c/config.json:', '  limits.maxReviews: Too small');
+  };
+  await expect(client.request('reload')).rejects.toThrow('Invalid config /c/config.json:\n  limits.maxReviews: Too small');
+  expect(seen.levels).toEqual(['warn']);
+  expect(await snapshot()).toEqual({ pollIntervalMs: 3 * MIN, slots: 1, maxReviews: 8, finished: 0 });
 });

@@ -26,7 +26,6 @@ import Testing
     #expect(behaviorGroups.flatMap(\.rows).map(\.key).sorted() == keys.sorted())
 }
 
-@Test func theResetCardAndTheSavingNoteSayWhatTheyAlwaysSaid() {
+@Test func theResetCardSaysWhatItAlwaysSaid() {
     #expect(behaviorReset == (group: "Reset", title: "Restore the defaults", detail: "Everything on this page goes back to how it came", button: "Reset"))
-    #expect(behaviorSavingNote(state: nil, canReload: false) == "Saved as you change them · Carrier reads these when it starts")
 }

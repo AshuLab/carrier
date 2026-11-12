@@ -47,7 +47,3 @@ public let behaviorGroups: [BehaviorGroup] = [
 /// The last group of the page: one card that puts the eight values back to the engine's defaults (`EngineConfig()`).
 public let behaviorReset = (group: "Reset", title: "Restore the defaults", detail: "Everything on this page goes back to how it came", button: "Reset")
 
-/// The note under the title when nothing went wrong; when Carrier uses a saved value is `settingsNote`'s to say.
-public func behaviorSavingNote(state: ConnectionState?, canReload: Bool) -> String {
-    "Saved as you change them · " + settingsNote(.values, state: state, canReload: canReload)
-}

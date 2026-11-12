@@ -47,7 +47,11 @@ public func saveGlobalFailover(first: FailoverStep?, second: FailoverStep?, role
     if first == nil, second != nil { return .refused("Then needs a First step.") }
     func clean(_ step: FailoverStep) -> FailoverStep {
         let model = step.model?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return FailoverStep(provider: step.provider.trimmingCharacters(in: .whitespacesAndNewlines), model: model?.isEmpty == true ? nil : model)
+        let effort = step.effort?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return FailoverStep(
+            provider: step.provider.trimmingCharacters(in: .whitespacesAndNewlines), model: model?.isEmpty == true ? nil : model,
+            effort: effort?.isEmpty == true ? nil : effort
+        )
     }
     let edited = [first, second].compactMap { $0.map(clean) }
     for (index, step) in edited.enumerated() where accounts.contains(step.provider) == false {
@@ -63,7 +67,9 @@ public func saveGlobalFailover(first: FailoverStep?, second: FailoverStep?, role
             roles.removeValue(forKey: role.rawValue)
         } else {
             let kept = Array((roles[role.rawValue] as? [[String: Any]] ?? []).dropFirst(2))
-            var steps: [[String: Any]] = edited.map { step in ["provider": step.provider].merging(step.model.map { ["model": $0] } ?? [:]) { $1 } }
+            var steps: [[String: Any]] = edited.map { step in
+                ["provider": step.provider].merging(step.model.map { ["model": $0] } ?? [:]) { $1 }.merging(step.effort.map { ["effort": $0] } ?? [:]) { $1 }
+            }
             steps.append(contentsOf: kept)
             var seen: [[String: String]] = []
             for (index, step) in steps.enumerated() {

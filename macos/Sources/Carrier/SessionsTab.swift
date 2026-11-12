@@ -29,19 +29,20 @@ struct SessionsTabView: View {
     private func row(_ title: String, _ detail: String, _ field: SessionAgeField, off: String?, first: Bool = false, age: Binding<SessionAge>, fallback: Int) -> some View {
         let key = field == .archive ? "archive" : "delete"
         let days = Binding(get: { if case .days(let days) = age.wrappedValue { days } else { fallback } }, set: { age.wrappedValue = .days($0) })
-        return SettingsTabRow(title: title, detail: off ?? problems[field] ?? detail, first: first) {
+        return SettingsTabRow(title: title, detail: off ?? detail, first: first, problem: off == nil ? problems[field] : nil) {
             HStack(spacing: 10) {
                 if age.wrappedValue != .never {
-                    NumberField(key: key, value: days, unparsable: $unparsable, invalid: problems[field] != nil, parse: { Int($0) }, format: { String($0) }, step: { $0 + $1 >= 1 ? $0 + $1 : nil })
+                    NumberField(key: key, value: days, unparsable: $unparsable, parse: { Int($0) }, format: { String($0) }, step: { $0 + $1 >= 1 ? $0 + $1 : nil })
                     Text("days").font(.caption).foregroundStyle(.secondary)
                 }
-                Picker(title, selection: Binding(get: { age.wrappedValue == .never }, set: { never in
-                    unparsable.remove(key)
-                    age.wrappedValue = never ? .never : .days(fallback)
-                })) {
-                    Text("Days").tag(false)
-                    Text("Never").tag(true)
-                }.pickerStyle(.segmented).labelsHidden().fixedSize()
+                ChoicePopUp(
+                    label: title, options: [(value: false, title: "Days"), (value: true, title: "Never")],
+                    selection: Binding(get: { age.wrappedValue == .never }, set: { never in
+                        unparsable.remove(key)
+                        age.wrappedValue = never ? .never : .days(fallback)
+                    }),
+                    width: 110
+                )
             }
             .disabled(off != nil)
         }

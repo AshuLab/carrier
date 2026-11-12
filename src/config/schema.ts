@@ -46,10 +46,10 @@ export function matchesFailoverTrigger(
 
 const newFailoverShape = 'a role has failover when its list of steps is not empty: "failover": { "roles": { "author": [{ "provider": "<account>", "model": "<optional>" }] } }';
 
-/** One place to move to: an account of `providers.json` and optionally the model to run there. */
+/** One place to move to: an account of `providers.json` and optionally the model to run there and how hard it thinks (left out, the effort the role was running with). */
 const step = z.strictObject(
-  { provider: z.string().min(1), model: z.string().min(1).optional() },
-  { error: (issue) => (issue.code === 'invalid_type' && issue.expected === 'object' ? `a failover step is { "provider": "<account>", "model": "<optional>" }, not a name` : undefined) },
+  { provider: z.string().min(1), model: z.string().min(1).optional(), effort: z.enum(efforts).optional() },
+  { error: (issue) => (issue.code === 'invalid_type' && issue.expected === 'object' ? `a failover step is { "provider": "<account>", "model": "<optional>", "effort": "<optional>" }, not a name` : undefined) },
 );
 
 const failoverSchema = z.strictObject(

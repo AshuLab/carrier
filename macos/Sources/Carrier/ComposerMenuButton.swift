@@ -191,7 +191,7 @@ struct ComposerMenuButton: View {
 }
 
 private let panelWidth: CGFloat = 380
-private let panelMargin: CGFloat = 18
+let panelMargin: CGFloat = 18
 
 /// Green for the careful end of a scale, orange in the middle, red for the free end.
 private func riskColor(_ index: Int, _ count: Int) -> Color {
@@ -218,7 +218,7 @@ private struct Pending: ViewModifier {
 
 /// A titled slider: the current value above it in the scale's colour, the two ends below it and a line on the current value. A nil
 /// `scale` is the greyed row of a model with nothing to choose, with its reason.
-private struct ScaleRow: View {
+struct ScaleRow: View {
     let scale: OptionScale?
     var title = ""
     var note: String?

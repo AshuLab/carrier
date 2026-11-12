@@ -150,3 +150,9 @@ private func entry(_ path: String, repo: Int = 0, role: String = "reviewer") thr
     #expect(result == .notApplied("Saved, but Carrier kept its settings: repos.0.agents.reviewer: bad") && result.isWritten)
     #expect(try entry(path)?["model"] as? String == "a")
 }
+
+@Test func eachAccountGetsTheIconOfTheHarnessItRuns() {
+    let json = #"{"providers":{"pro":{"harness":"claude"},"codex":{"harness":"codex"},"agy":{"harness":"agy"},"teams":{"harness":"claude"},"bare":{}}}"#
+    #expect(accountIcons(providersJSON: Data(json.utf8)) == ["pro": "claude", "codex": "codex", "agy": "antigravity", "teams": "claude", "bare": "bare"])
+    #expect(accountIcons(providersJSON: nil) == ["claude": "claude", "codex": "codex", "agy": "antigravity"])
+}

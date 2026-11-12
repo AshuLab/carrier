@@ -13,6 +13,17 @@ public func declaredAccounts(providersJSON: Data?) -> [String] {
     return declared.keys.sorted()
 }
 
+/// The icon of each account of `providers.json`, by the harness it runs (the three default accounts when the file is not there). An account with
+/// no `harness` key is taken for the harness it is named after.
+public func accountIcons(providersJSON: Data?) -> [String: String] {
+    guard let providersJSON, let file = (try? JSONSerialization.jsonObject(with: providersJSON)) as? [String: Any],
+          let declared = file["providers"] as? [String: Any]
+    else { return ["claude": "claude", "codex": "codex", "agy": "antigravity"] }
+    return declared.reduce(into: [:]) { icons, entry in
+        icons[entry.key] = providerIconName(harness: (entry.value as? [String: Any])?["harness"] as? String ?? entry.key)
+    }
+}
+
 extension RoleFields {
     /// What the engine reads: every text trimmed, an empty one left out (a model of only spaces is none), a persona with neither name nor prompt none.
     public func normalized() -> RoleFields {

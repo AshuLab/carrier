@@ -39,11 +39,13 @@ struct KeybindingsTabView: View {
                     Label("Also \(clash.title)", systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
                 }
                 if table.isDefault(command) == false {
-                    Button("Default") { table.set(command.defaultCombo, for: command); revision += 1 }
-                        .buttonStyle(.borderless).accessibilityLabel("Back to the default for \(command.title)")
+                    Button { table.set(command.defaultCombo, for: command); revision += 1 } label: {
+                        Label("Default", systemImage: "arrow.counterclockwise").labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(HoverTextButtonStyle(tint: nil)).accessibilityLabel("Back to the default for \(command.title)")
                 }
                 Button(text) { startRecording(command) }
-                    .monospacedDigit().frame(minWidth: 96)
+                    .buttonStyle(KeyCapButtonStyle(recording: recording == command, empty: combo == nil))
                     .accessibilityLabel("Shortcut for \(command.title)").accessibilityValue(combo?.text ?? "None")
             }
         }
@@ -82,5 +84,35 @@ struct KeybindingsTabView: View {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
         recording = nil
+    }
+}
+
+/// The button that shows a shortcut: a key cap, the keys in a monospaced face on a quiet fill; the theme's accent ring and words while it waits for the
+/// keys, and the words quieter when there is no shortcut.
+private struct KeyCapButtonStyle: ButtonStyle {
+    let recording: Bool
+    let empty: Bool
+
+    func makeBody(configuration: Configuration) -> some View { Face(configuration: configuration, recording: recording, empty: empty) }
+
+    private struct Face: View {
+        let configuration: ButtonStyleConfiguration
+        let recording: Bool
+        let empty: Bool
+        @State private var hovered = false
+
+        var body: some View {
+            let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+            configuration.label
+                .font(.scaled(12, weight: .semibold, design: .monospaced))
+                .foregroundStyle(recording ? Color.themeAccent : empty ? Color.secondary : Color.primary)
+                .frame(minWidth: 96).padding(.horizontal, 10).padding(.vertical, 5)
+                .background(shape.fill(Color.primary.opacity(configuration.isPressed ? 0.16 : hovered || recording ? 0.12 : 0.08)))
+                .overlay { if recording { shape.strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
+                .contentShape(shape)
+                .onHover { hovered = $0 }
+                .animation(.easeOut(duration: 0.12), value: hovered)
+                .animation(.easeOut(duration: 0.12), value: recording)
+        }
     }
 }

@@ -17,14 +17,16 @@ struct AgentsTabView: View {
     /// the Lead reviewer's switch is on in the page and the file has no role yet: what is chosen waits here until the role is whole
     @State private var turningOnLead = false
     @State private var leadDraft = LeadReviewerDraft()
+    /// the icon of each account by the harness it runs
+    @State private var icons: [String: String] = [:]
+    private let catalog = ModelCatalog.shared
+    private let providers = AppHealth.providers
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let page {
-                HStack(alignment: .top, spacing: 14) {
-                    list(page).frame(width: 280)
-                    if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page).frame(maxWidth: .infinity, alignment: .topLeading) }
-                }
+                flow(page)
+                if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page).frame(maxWidth: .infinity, alignment: .topLeading) }
                 if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
                 if let note = page.bots.note { Text(note).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
             } else {
@@ -32,7 +34,10 @@ struct AgentsTabView: View {
                     .font(.callout).foregroundStyle(.orange)
             }
         }
+        .writingToolsBehavior(.disabled)
         .onAppear(perform: load)
+        // which accounts can work now is the Providers page's answer, asked again here so the picker does not offer one that was signed out
+        .task { await providers.load() }
         .onChange(of: start.configExists) { load() }
         // back from Terminal or an editor, where the config or the registry may have changed
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in load() }
@@ -41,6 +46,7 @@ struct AgentsTabView: View {
     private func load() {
         let providers = try? Data(contentsOf: URL(fileURLWithPath: currentCarrierFolder() + "/providers.json"))
         problem = nil
+        icons = accountIcons(providersJSON: providers)
         page = currentConfig().flatMap { agentsPage(config: $0, providers: providers, bots: forgeBots(registry: currentForgeRegistry())) }
     }
 
@@ -89,29 +95,58 @@ struct AgentsTabView: View {
         }
     }
 
-    /// The roles as the Providers list has its tools: a card of rounded rows, neutral when chosen.
-    private func list(_ page: AgentsPage) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(page.rows) { row in
-                Button { selection = row.role } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(row.title).fontWeight(.medium)
-                        Text(row.summary).font(.caption).foregroundStyle(.secondary).lineLimit(2).truncationMode(.middle)
-                    }
-                    .padding(.horizontal, 8).padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 9).fill(row.role == selection ? Color.secondary.opacity(0.18) : .clear))
-                    .contentShape(Rectangle())
+    /// The three roles side by side in the order an epic goes through them, an arrow between each pair, and the chosen one is the page below.
+    private func flow(_ page: AgentsPage) -> some View {
+        HStack(spacing: 8) {
+            ForEach(Array(page.rows.enumerated()), id: \.element.id) { index, row in
+                // the author and the reviewer go back and forth until the review passes: a double arrow; the lead reviewer comes after them
+                if index > 0 {
+                    Image(systemName: index == 1 ? "arrow.left.arrow.right" : "arrow.right").font(.scaled(12, weight: .semibold)).foregroundStyle(.tertiary).accessibilityHidden(true)
                 }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(row.role == selection ? .isSelected : [])
+                roleCard(row)
             }
         }
-        .padding(8).background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+    }
+
+    private func roleCard(_ row: RoleRow) -> some View {
+        let chosen = row.role == selection
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return Button { selection = row.role } label: {
+            HStack(spacing: 10) {
+                RoleTile(provider: row.fields.provider, icons: icons, off: row.off)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(row.title).fontWeight(.medium)
+                    listLines(row)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+            .background(shape.fill(Color.secondary.opacity(chosen ? 0.18 : 0.07)))
+            .overlay { if chosen { shape.strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(chosen ? .isSelected : [])
+    }
+
+    /// Under a role's name in the list, what answers the question the list is for: the model and how hard it thinks, in the text colour, and under it
+    /// the account and the identity it works as.
+    @ViewBuilder private func listLines(_ row: RoleRow) -> some View {
+        if row.off {
+            Text("Off").font(.caption).foregroundStyle(.secondary)
+        } else {
+            let model = row.fields.model.flatMap { $0.isEmpty ? nil : $0 }
+            let effort = row.fields.effort.flatMap { $0.isEmpty ? nil : $0 }
+            (Text(model ?? "No model").fontWeight(.medium).foregroundStyle(model == nil ? Color.secondary : Color.primary)
+                + Text(effort.map { "  \u{00b7}  \($0)" } ?? "").foregroundStyle(.secondary))
+                .font(.caption).lineLimit(1)
+            Text([row.fields.provider, row.fields.profile].compactMap { $0 }.filter { $0.isEmpty == false }.joined(separator: "  \u{00b7}  "))
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+        }
     }
 
     private func detail(_ row: RoleRow, page: AgentsPage) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(row.title).font(.title3.weight(.semibold))
             if row.hasSwitch {
                 SettingsTabCard {
                     SettingsTabRow(title: "Use a lead reviewer", detail: row.switchDetail, first: true) {
@@ -125,18 +160,19 @@ struct AgentsTabView: View {
                 SettingsGroup(title: "Who") {
                     SettingsTabRow(title: "Identity", detail: row.identityDetail, first: true) { identityPicker(row, page: page) }
                     CreateBotRow()
-                    SettingsTabRow(title: "Provider", detail: row.providerMissing ? "Not an account of providers.json" : "An account from Providers") {
-                        picker("Provider", selection: row.fields.provider ?? "", options: page.accounts) {
-                            _ = save(.provider($0), role: row.role, page: page)
-                        }
-                    }
-                    SettingsTabRow(title: "Model", detail: "") {
-                        ModelField(model: row.fields.model ?? "") { save(.model($0), role: row.role, page: page).isWritten }
-                            .id(row.role)
-                    }
-                    SettingsTabRow(title: "Effort", detail: "How hard it thinks") {
-                        picker("Effort", selection: row.fields.effort ?? "", options: roleEfforts, none: "Default") {
-                            _ = save(.effort($0.isEmpty ? nil : $0), role: row.role, page: page)
+                    SettingsTabRow(title: "Model", detail: row.providerMissing ? "Not an account of providers.json" : "Provider, model and how hard it thinks") {
+                        ModelPickerButton(
+                            provider: row.fields.provider, model: row.fields.model, effort: row.fields.effort,
+                            accounts: pickerAccounts(page: page, current: [row.fields.provider]), catalog: catalog
+                        ) { pick in
+                            switch pick {
+                            case .account(let account, let model):
+                                // the model belongs to the account's provider: they are written one after the other, the provider first
+                                if account != row.fields.provider { _ = save(.provider(account), role: row.role, page: page) }
+                                if let model { _ = save(.model(model), role: row.role, page: page) }
+                            case .effort(let level): _ = save(.effort(level.isEmpty ? nil : level), role: row.role, page: page)
+                            case .none, .inherit: break
+                            }
                         }
                     }
                     if let problem { Text(problem).font(.caption).foregroundStyle(.orange).textSelection(.enabled).padding(.vertical, 8) }
@@ -148,8 +184,8 @@ struct AgentsTabView: View {
                         }
                         .id(row.role)
                     }
-                    SettingsTabRow(title: "Persona prompt", detail: "Optional instructions") {
-                        CommitField(label: "Persona prompt", text: row.fields.persona?.prompt ?? "", width: 220, mono: false, prompt: "None") {
+                    SettingsStackedRow(title: "Persona prompt", detail: "Optional instructions") {
+                        CommitEditor(label: "Persona prompt", text: row.fields.persona?.prompt ?? "", prompt: "None") {
                             saveDetails(saveGlobalPersona(name: row.fields.persona?.name, prompt: blankIsNil($0), role: row.role, path: configFilePath(), reload: { reloadEngine() }))
                         }
                         .id(row.role)
@@ -166,7 +202,7 @@ struct AgentsTabView: View {
                         })).labelsHidden().toggleStyle(.switch)
                     }
                     if on {
-                        stepRow("First", detail: "Provider and model", step: row.steps.first, row: row, page: page, index: 0)
+                        stepRow("First", detail: "Provider, model and reasoning", step: row.steps.first, row: row, page: page, index: 0)
                         stepRow("Then", detail: "Optional", step: row.steps.dropFirst().first, row: row, page: page, index: 1)
                     }
                     if row.steps.count > 2 {
@@ -192,18 +228,26 @@ struct AgentsTabView: View {
             return saveDetails(saveGlobalFailover(first: first, second: second, role: row.role, path: configFilePath(), accounts: page.accounts, reload: { reloadEngine() }))
         }
         return SettingsTabRow(title: title, detail: detail) {
-            HStack(spacing: 8) {
-                picker(title, selection: step?.provider ?? "", options: page.accounts, none: index == 0 ? "Choose…" : "None", width: 150) { provider in
-                    _ = write(provider.isEmpty ? nil : FailoverStep(provider: provider, model: step?.model))
-                }
-                if let step {
-                    CommitField(label: "\(title) model", text: step.model ?? "", width: 162, mono: true, prompt: "Account’s model") {
-                        write(FailoverStep(provider: step.provider, model: $0))
-                    }
-                    .id(row.role.rawValue + title + step.provider)
+            ModelPickerButton(
+                provider: step?.provider, model: step?.model, effort: step?.effort, accounts: pickerAccounts(page: page, current: [step?.provider]), catalog: catalog,
+                effortFallback: (label: "As the role", detail: "Keeps the reasoning the role was running with."), allowsDefaultModel: true, noneTitle: index == 1 ? "No second step" : nil, placeholder: index == 0 ? "Choose…" : "None"
+            ) { pick in
+                switch pick {
+                case .account(let account, let model): _ = write(FailoverStep(provider: account, model: model, effort: step?.effort))
+                case .none: _ = write(nil)
+                case .inherit: break
+                case .effort(let level):
+                    // a level goes with a provider: with none yet there is nothing to write it on
+                    if let step { _ = write(FailoverStep(provider: step.provider, model: step.model, effort: level.isEmpty ? nil : level)) }
                 }
             }
         }
+    }
+
+    /// The accounts the picker offers: the ones that can work now, and the one the role already names.
+    private func pickerAccounts(page: AgentsPage, current: [String?]) -> [PickerAccount] {
+        let reply: HostProviders? = if case .reply(let reply) = providers.outcome { reply } else { nil }
+        return CarrierCore.pickerAccounts(reply, declared: page.accounts, icons: icons, current: current.compactMap { $0 })
     }
 
     /// The bots of the registry and the person's own login; a profile that is no longer there stays, marked, and picking it again is a no-op.
@@ -233,34 +277,6 @@ struct AgentsTabView: View {
         )
         return NativePopUp(items: items, selection: index).accessibilityLabel("Identity").frame(width: 220)
     }
-
-    /// The system's pop-up of the choices. A name that is no longer declared stays in the list, marked, so it is seen and refused when chosen
-    /// again, not dropped; a role with nothing chosen shows "Choose…" and not the first option it does not have.
-    private func picker(_ title: String, selection: String, options: [String], none: String? = nil, width: CGFloat = 220, set: @escaping (String) -> Void) -> some View {
-        var values: [String] = [], items: [String] = []
-        if let none {
-            values.append("")
-            items.append(none)
-        } else if selection.isEmpty {
-            values.append("")
-            items.append("Choose…")
-        }
-        if selection.isEmpty == false, options.contains(selection) == false {
-            values.append(selection)
-            items.append("\(selection) (missing)")
-        }
-        values += options
-        items += options
-        let index = Binding<Int>(
-            get: { values.firstIndex(of: selection) ?? 0 },
-            set: { next in
-                // "Choose…" is where an empty choice stands, not something to write
-                if values[next].isEmpty, none == nil { return }
-                set(values[next])
-            }
-        )
-        return NativePopUp(items: items, selection: index).accessibilityLabel(title).frame(width: width)
-    }
 }
 
 /// A text saved when the person presses Return or leaves the field; what the file refuses is put back.
@@ -285,9 +301,8 @@ private struct CommitField: View {
     }
 
     var body: some View {
-        TextField(label, text: $draft, prompt: Text(prompt)).textFieldStyle(.roundedBorder)
-            .font(mono ? .scaled(11.5, design: .monospaced) : .body).frame(width: width)
-            .focused($focused)
+        TextField(label, text: $draft, prompt: Text(prompt))
+            .font(mono ? .scaled(11.5, design: .monospaced) : .body).settingsField(width: width, focused: $focused)
             .onSubmit(save)
             .onChange(of: focused) { _, now in if now == false { save() } }
             .accessibilityLabel(label)
@@ -299,29 +314,38 @@ private struct CommitField: View {
     }
 }
 
-/// The model, saved when the person presses Return or leaves the field; what the file refuses is put back.
-private struct ModelField: View {
-    let model: String
+/// A text of several lines saved when the person leaves it (a return is a new line here, so there is no key that saves); what the file refuses is
+/// put back. In the box of `settingsField`, with the prompt shown while it is empty.
+private struct CommitEditor: View {
+    let label: String
+    let text: String
+    var prompt = ""
     let commit: (String) -> Bool
-    @State private var text: String
+    @State private var draft: String
     @FocusState private var focused: Bool
 
-    init(model: String, commit: @escaping (String) -> Bool) {
-        self.model = model
+    init(label: String, text: String, prompt: String = "", commit: @escaping (String) -> Bool) {
+        self.label = label
+        self.text = text
+        self.prompt = prompt
         self.commit = commit
-        _text = State(initialValue: model)
+        _draft = State(initialValue: text)
     }
 
     var body: some View {
-        TextField("Model", text: $text).textFieldStyle(.roundedBorder).font(.scaled(11.5, design: .monospaced)).frame(width: 220)
-            .focused($focused)
-            .onSubmit(save)
+        TextEditor(text: $draft).font(.body).scrollContentBackground(.hidden).frame(height: 96)
+            .overlay(alignment: .topLeading) {
+                if draft.isEmpty { Text(prompt).foregroundStyle(.tertiary).padding(.leading, 5).allowsHitTesting(false) }
+            }
+            .settingsField(focused: $focused)
+            // the system's writing tools (and its "Write with Siri" button, which sits on the box) have nothing to do with an instruction for an agent
+            .writingToolsBehavior(.disabled)
             .onChange(of: focused) { _, now in if now == false { save() } }
-            .accessibilityLabel("Model")
+            .accessibilityLabel(label)
     }
 
     private func save() {
-        guard text != model else { return }
-        if commit(text) == false { text = model }
+        guard draft != text else { return }
+        if commit(draft) == false { draft = text }
     }
 }

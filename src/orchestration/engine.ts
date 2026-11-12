@@ -207,9 +207,11 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
 
   // The role of the epic's saved config pointed at another of its saved options or providers: same profile and persona.
   // `stepModel` is the model a failover step settled on; without it, the account's, then the role's own on the same harness, else the harness's default.
-  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string, stepModel?: string): Agent => {
+  // `stepEffort` is the step's own effort; without it the role's.
+  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string, stepModel?: string, stepEffort?: Agent['effort']): Agent => {
     const roleAgent = config.agents[role];
-    const { profile, persona, model, effort } = roleAgent;
+    const { profile, persona, model } = roleAgent;
+    const effort = stepEffort ?? roleAgent.effort;
     const provider = (config.providers ?? config.options)?.[name];
     if (!provider) throw new Error(`provider "${name}" is not declared in config.providers`);
     const modelStr: string = stepModel ?? provider.model ?? (provider.harness === roleAgent.harness ? model : defaultHarnessModels[provider.harness] ?? model);
@@ -254,7 +256,7 @@ export function createEngine({ db, github, clock, repos, settings, runner, works
     // Read only; GitHub being down is not a reason to stop: the agent verifies the state first anyway.
     const found = await github.findPullRequest(epic.repo, epic.issue).catch((e) => (failed(e), null));
     db.transaction((tx) => {
-      tx.update(epics).set({ config: { ...config, agents: { ...config.agents, [role]: onOption(config, role, next.provider, modelOf(next)) } }, ...(role === 'author' ? { authorOption: next.provider } : { reviewerOption: next.provider }) }).where(eq(epics.id, epicId)).run();
+      tx.update(epics).set({ config: { ...config, agents: { ...config.agents, [role]: onOption(config, role, next.provider, modelOf(next), next.effort) } }, ...(role === 'author' ? { authorOption: next.provider } : { reviewerOption: next.provider }) }).where(eq(epics.id, epicId)).run();
       tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'option_switched', data: { role, from: config.agents[role].option ?? null, fromModel: config.agents[role].model, to: next.provider, toModel: modelOf(next), stage } }).run();
     });
     await execute(fresh(epicId), stage, failedExecution, { pr: found && { number: found.number, headSha: found.headSha } });

@@ -29,6 +29,15 @@ private let fixtures = URL(fileURLWithPath: #filePath)
         try #require(menu.item(withTitle: menuTitle)?.submenu?.item(withTitle: title))
     }
 
+    /// The updater is not started in a test, so nothing answers the item: it is there under About and stays dimmed, as in a fixture.
+    @Test func theAppMenuHasCheckForUpdatesUnderAboutAndDimmedWithNoUpdater() throws {
+        let menu = AppDelegate().makeMainMenu(shortcuts: table())
+        let app = try #require(menu.item(withTitle: "Carrier")?.submenu)
+        #expect(app.items.prefix(2).map(\.title) == ["About Carrier", "Check for Updates…"])
+        let check = try item(menu, "Carrier", "Check for Updates…")
+        #expect(check.target == nil && NSApp.target(forAction: check.action!, to: nil, from: check) == nil)
+    }
+
     @Test func theItemsCarryTheTablesKeys() throws {
         let table = table()
         let menu = AppDelegate().makeMainMenu(shortcuts: table)

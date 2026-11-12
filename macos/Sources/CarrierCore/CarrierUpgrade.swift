@@ -50,3 +50,23 @@ public func upgradeCarrier(installed: String, app: String, brew: (BrewCommand) -
     }
     return .upgraded
 }
+
+/// Where the engine's own update stands, for the Updates page: only a Homebrew `carrier` older than the app is upgraded, so anything else
+/// stays `unknown`. A failure carries the notice the Sessions pages show; the page also lets a person try again.
+public enum EngineUpdateState: Equatable {
+    case unknown, running, upToDate, updated
+    case failed(ChatHostNotice)
+
+    public var line: String {
+        switch self {
+        case .unknown: "Looked at when the app opens, for a Carrier installed with Homebrew"
+        case .running: "Updating Carrier…"
+        case .upToDate: "Up to date"
+        case .updated: "Updated"
+        case .failed: "Could not be updated"
+        }
+    }
+
+    public var notice: ChatHostNotice? { if case .failed(let notice) = self { notice } else { nil } }
+    public var canRetry: Bool { notice != nil }
+}

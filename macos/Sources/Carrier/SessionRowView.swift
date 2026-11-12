@@ -71,7 +71,7 @@ struct SessionRowView: View {
         }
         .padding(.horizontal, content.showsIcon ? density.rowPadding : SidebarMetrics.inset).padding(.vertical, density.rowPadding)
         .sessionContextMenu(row)
-        .help(row.title)
+        .hoverCard { SessionPeekView(card: sessionPeek(row, now: Date())) }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label(content))
     }

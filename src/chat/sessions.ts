@@ -613,7 +613,12 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         throw new ChatRefused('This session is being deleted');
       }
       attach(sessionId, conversation);
-      if (conversation.startedOver) store(sessionId, { kind: 'error', text: 'The agent lost this conversation: its provider no longer has it. This is a new one in the same folder, and it does not remember what was said above.' });
+      if (conversation.startedOver) {
+        // The dead id goes: with it kept, every wake that closes before a first message would try it again and say this again. The notice keeps it.
+        store(sessionId, { kind: 'notice', text: 'The agent could not find this conversation, so this is a new one in the same folder: it does not remember what is above.', ...(current.nativeId !== null && { lostNativeId: current.nativeId }) });
+        db.update(sessions).set({ nativeId: null }).where(eq(sessions.id, sessionId)).run();
+        return { session: summary(row(sessionId)), options: conversation.options };
+      }
       return { session: summary(current), options: conversation.options };
     },
 

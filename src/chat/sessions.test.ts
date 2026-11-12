@@ -505,15 +505,31 @@ test('resume opens a closed session again from its native id, folder and options
   expect(sessions.events({ sessionId: id, limit: 50 }).events.map((e) => e.kind)).toEqual(['user', 'assistant', 'turn_end', 'user']); // the transcript goes on from where it was
 });
 
-test('a resume that began a new conversation says so in the history', async () => {
+test('a resume that began a new conversation says so once, in a notice that keeps the lost id, and the session drops it', async () => {
   const s = setup({ agents: { claude: { account: 'claude', model: 'haiku' } } });
   s.claude.setup = offering(['model', ['haiku'], 'haiku']);
-  const { sessions, claude, id } = await openOne(s);
+  const { sessions, claude, conversation, id } = await openOne(s);
+  conversation.reply = (_text, c) => {
+    c.nativeId = 'native-1';
+    c.emit({ kind: 'assistant', text: 'ok' }, { kind: 'turn_end', outcome: 'ok' });
+  };
+  sessions.send({ sessionId: id, text: 'hello' });
   await sessions.close({ sessionId: id });
   const original = claude.open.bind(claude);
-  claude.open = async (args) => Object.assign(await original(args), { startedOver: true });
+  claude.open = async (args) => {
+    const opened = await original(args);
+    if (args.resume !== undefined) opened.startedOver = true; // the provider had lost it
+    return opened;
+  };
+  const resumed = await sessions.resume({ sessionId: id });
+  expect(resumed.session.nativeId).toBeNull();
+  const notices = () => sessions.events({ sessionId: id, limit: 50 }).events.filter((e) => e.kind === 'notice');
+  expect(notices()).toEqual([expect.objectContaining({ kind: 'notice', lostNativeId: 'native-1', text: expect.stringContaining('new one in the same folder') })]);
+  // woken and closed with nothing said: the next wake does not try the dead id again, nor say it again
+  await sessions.close({ sessionId: id });
   await sessions.resume({ sessionId: id });
-  expect(sessions.events({ sessionId: id, limit: 50 }).events.at(-1)).toMatchObject({ kind: 'error', text: expect.stringContaining('new one in the same folder') });
+  expect(claude.opened.at(-1)!.resume).toBeUndefined();
+  expect(notices()).toHaveLength(1);
 });
 
 test('a resume that comes while a session is being deleted is refused, and the session is gone after', async () => {

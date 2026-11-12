@@ -273,7 +273,7 @@ test('open rejects with a reason when Claude is not installed or not logged in, 
   await expect(claudeChatRunner(deps(broken)).open({ folder: '/work', resume: 'x', env: {} })).rejects.toThrow(/could not resume/);
 });
 
-test('a resume whose transcript is gone starts a new conversation in the same folder; any other failure still refuses', async () => {
+test('a resume whose transcript is gone starts a new conversation in the same folder', async () => {
   const replayed = replay(main);
   const starts: unknown[] = [];
   const missing = ((args: Parameters<typeof sdkQuery>[0]) => {
@@ -285,6 +285,12 @@ test('a resume whose transcript is gone starts a new conversation in the same fo
   expect(starts).toEqual(['x', undefined]);
   expect(conversation.startedOver).toBe(true);
   expect(conversation.nativeId).toBeUndefined();
+});
+
+test('a resume that fails for another reason refuses, and so does one whose new conversation cannot start either', async () => {
+  const failing = (message: string) => (() => ({ initializationResult: async () => Promise.reject(new Error(message)), close() {}, [Symbol.asyncIterator]: () => ({ next: () => new Promise(() => {}) }) })) as unknown as typeof sdkQuery;
+  await expect(claudeChatRunner(deps(failing('boom'))).open({ folder: '/work', resume: 'x', env: {} })).rejects.toThrow(/could not resume/);
+  await expect(claudeChatRunner(deps(failing('No conversation found with session ID: x'))).open({ folder: '/work', resume: 'x', env: {} })).rejects.toThrow(/could not resume/);
 });
 
 test('an account\'s binary and login folder are what the login check and the SDK start with', async () => {

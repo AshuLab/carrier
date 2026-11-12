@@ -79,3 +79,10 @@ private func text(_ date: Date, _ style: TimeStyle, _ hours: ClockHours = .h24, 
     let relaunched = TimeFormat.stored(in: UserDefaults(suiteName: name)!)
     #expect(relaunched.style == .clock && relaunched.hours == .h12)
 }
+
+@Test func theLastUpdateCheckReadsNeverUntilTheUpdaterHasChecked() {
+    let format = TimeFormat(style: .relative, hours: .h24, locale: en, timeZone: utc)
+    #expect(updateCheckedText(nil, now: now, format: format) == "Never")
+    #expect(updateCheckedText(today, now: now, format: format) == "14:32")
+    #expect(updateCheckedText(yesterday, now: now, format: format) == "Yesterday 14:32")
+}

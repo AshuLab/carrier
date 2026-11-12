@@ -7,7 +7,8 @@ public enum SettingsPage: String, CaseIterable {
     case providers = "Providers"
     case repos = "Repos"
     case agents = "Agents"
-    case engine = "Engine", behavior = "Behavior", sessions = "Sessions", health = "Health"
+    case behavior = "Behavior"
+    case engine = "Engine", sessions = "Sessions", health = "Health"
 
     /// A group of the rail: the App one has no heading, Carrier and Legacy have their own.
     public enum Group: CaseIterable {
@@ -25,8 +26,8 @@ public enum SettingsPage: String, CaseIterable {
     public var group: Group {
         switch self {
         case .general, .notifications, .appearance, .sidebar, .chat, .keybindings, .updates: .app
-        case .providers, .repos, .agents: .carrier
-        case .engine, .behavior, .sessions, .health: .legacy
+        case .providers, .repos, .agents, .behavior: .carrier
+        case .engine, .sessions, .health: .legacy
         }
     }
 
@@ -62,7 +63,7 @@ public enum SettingsPage: String, CaseIterable {
         case .updates: "This version, and whether Carrier looks for a newer one by itself"
         case .providers: "The AI tools on this Mac and their accounts"
         case .engine: "How the app starts Carrier"
-        case .behavior: "How epics run"
+        case .behavior: "How Carrier runs epics"
         case .repos: "What Carrier watches"
         case .agents: "Who works on an epic and where it goes when its tokens run out"
         case .sessions: "When sessions age out"

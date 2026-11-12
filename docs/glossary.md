@@ -220,5 +220,5 @@ _Avoid_: expiry, retention, auto-clean.
 **Settings group** - One heading of the Settings rail, by what its pages configure: App (how the app looks and behaves on this Mac: the app's preferences, a config level), Carrier (the engine, its `config.json`) and Chat (the chat host, its `chat.json`). App has no heading in the rail and comes first; Carrier and Chat have theirs. A page belongs to one group, and the group says where its settings live without the page naming a file.
 _Avoid_: tab (a page is a row of the rail, not a tab), section (that is a part of a page, or a sidebar section), category.
 
-**Legacy group** - The Settings group that holds the pages that existed before the groups (Engine, Behavior, Sessions, Health) as they were, until each one is redesigned into the App, Carrier or Chat group. It is meant to empty out, not to grow.
+**Legacy group** - The Settings group that holds the pages that existed before the groups (Engine, Sessions, Health; Behavior has moved to the Carrier group) as they were, until each one is redesigned into the App, Carrier or Chat group. It is meant to empty out, not to grow.
 _Avoid_: old settings, misc, other.

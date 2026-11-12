@@ -9,16 +9,24 @@ import SwiftUI
     private(set) var agents: [ChatAgent] = []
     private(set) var offers: [String: [ModelOption]] = [:]
     private(set) var loading = false
+    /// The models of a harness the chat host does not serve, read from its own CLI (Antigravity's `agy models`).
+    private(set) var cliModels: [String: [ModelOption]] = [:]
 
     /// What the provider with this harness offers; nil while nothing says (no host, or none asked yet).
     func models(forHarness harness: String) -> [ModelOption]? {
-        chatAgent(forHarness: harness, among: agents).flatMap { offers[$0] }
+        if harness == "agy" {
+            return cliModels["agy"].map { models in
+                agyFamilies(models).map { ModelOption(id: $0.id, label: $0.label, detail: $0.levels.isEmpty ? nil : "Levels: " + $0.levels.map(levelLabel).joined(separator: ", ")) }
+            }
+        }
+        return chatAgent(forHarness: harness, among: agents).flatMap { offers[$0] }
     }
 
     func load() async {
         guard loading == false else { return }
         loading = true
         defer { loading = false }
+        await loadAgyModels()
         let host = SocketChatHost()
         guard let found = try? await host.agents() else { return }
         agents = found
@@ -30,6 +38,38 @@ import SwiftUI
         }
     }
 }
+
+extension ModelCatalog {
+    /// Antigravity's families with their levels, for the slider.
+    var agyFamilyList: [AgyFamily] { agyFamilies(cliModels["agy"] ?? []) }
+
+    /// Antigravity's models: the chat host has no adapter for it, so its own CLI is asked, once, with the binary the Providers page found.
+    fileprivate func loadAgyModels() async {
+        guard cliModels["agy"] == nil else { return }
+        if case .reply = AppHealth.providers.outcome {} else { await AppHealth.providers.load() }
+        guard case .reply(let reply) = AppHealth.providers.outcome,
+              let path = reply.accounts.first(where: { $0.harness == "agy" && $0.found })?.path else { return }
+        let output = await Task.detached { () -> String? in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: path)
+            process.arguments = ["models"]
+            process.standardInput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            do { try process.run() } catch { return nil }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 20) { if process.isRunning { process.terminate() } }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            return process.terminationStatus == 0 ? String(decoding: data, as: UTF8.self) : nil
+        }.value
+        let models = output.map(parseAgyModels) ?? []
+        if models.isEmpty == false { cliModels["agy"] = models }
+    }
+}
+
+/// A level of reasoning in words ("xhigh" is "Extra high").
+private func levelLabel(_ id: String) -> String { effortSteps.first { $0.id == id }?.label ?? id }
 
 /// What a choice in the picker asks for.
 enum ModelPick {
@@ -87,6 +127,8 @@ struct ModelPickerButton: View {
     private var ownAccount: String? { provider ?? (model != nil ? inherited?.provider : nil) }
 
     private var current: PickerAccount? { accounts.first { $0.name == shownProvider } }
+    /// Antigravity names the level of reasoning in the model's id: the list is of families and the slider picks the level.
+    private var currentIsAgy: Bool { current?.harness == "agy" }
     /// The tab shown: the one the person went to, else the role's own account, else the first.
     private var shownName: String? { viewing ?? shownProvider ?? accounts.first?.name }
 
@@ -107,11 +149,14 @@ struct ModelPickerButton: View {
     private var modelText: String? {
         guard shownProvider != nil else { return nil }
         guard let model = shownModel else { return allowsDefaultModel ? "Default model" : nil }
+        if currentIsAgy { return catalog.agyFamilyList.first { $0.id == splitAgyID(model).family }?.label ?? model }
         return current.flatMap { catalog.models(forHarness: $0.harness) }?.first { $0.id == model }.map { $0.label.replacingOccurrences(of: " (recommended)", with: "") } ?? model
     }
 
     private var effortText: String? {
         guard showsEffort, shownProvider != nil else { return nil }
+        // for Antigravity the level is part of the model's id
+        if currentIsAgy { return shownModel.flatMap { splitAgyID($0).level }.map(levelLabel) }
         if effortFallback != nil, (shownEffort ?? "").isEmpty { return nil }
         return effortSteps.first { $0.id == (shownEffort ?? "") }?.label
     }
@@ -151,14 +196,14 @@ struct ModelPickerButton: View {
             search
             list
             if showsEffort {
-                ScaleRow(
+                if currentIsAgy { agyReasoning } else { ScaleRow(
                     scale: OptionScale(id: "effort", title: "Reasoning", steps: effortSteps.map {
                         let fallback = $0.id.isEmpty ? effortFallback : nil
                         return OptionRow.Choice(id: $0.id, label: fallback?.label ?? $0.label, ticked: $0.id == (effort ?? ""), detail: fallback?.detail ?? $0.detail)
                     }),
                     color: { _, _ in Color.themeAccent },
                     commit: { index in if effortSteps.indices.contains(index) { pick(.effort(effortSteps[index].id)) } }
-                )
+                ) }
                 accessNote
             }
             if let noneTitle, shownProvider != nil {
@@ -170,6 +215,24 @@ struct ModelPickerButton: View {
         .frame(width: 380, height: showsEffort ? 580 : 440)
         .writingToolsBehavior(.disabled)
         .task { await catalog.load() }
+    }
+
+    /// Antigravity's slider: the levels the family of the chosen model has, and moving it writes that family at the new level.
+    @ViewBuilder private var agyReasoning: some View {
+        let split = shownModel.map(splitAgyID)
+        let family = catalog.agyFamilyList.first { $0.id == split?.family }
+        let levels = family?.levels ?? []
+        ScaleRow(
+            scale: OptionScale(id: "effort", title: "Reasoning", steps: levels.map { level in
+                OptionRow.Choice(id: level, label: levelLabel(level), ticked: level == split?.level, detail: effortSteps.first { $0.id == level }?.detail)
+            }),
+            note: levels.isEmpty ? "This model has no reasoning levels." : nil,
+            color: { _, _ in Color.themeAccent },
+            commit: { index in
+                guard let family, let account = shownProvider, levels.indices.contains(index) else { return }
+                pick(.account(account, model: family.id + "-" + levels[index]))
+            }
+        )
     }
 
     /// Only the providers that can work, one tab each; the tab is the account (two logins of one provider are two tabs, told apart by their
@@ -215,7 +278,10 @@ struct ModelPickerButton: View {
             let shown = (options ?? []).filter { needle.isEmpty || $0.label.localizedCaseInsensitiveContains(needle) || $0.id.localizedCaseInsensitiveContains(needle) }
             let isCurrent = viewed.name == ownAccount
             // a model the file names that the provider does not list stays, so what is written is seen
-            let custom = isCurrent ? model.flatMap { model in (options ?? []).contains { $0.id == model } ? nil : model } : nil
+            let viewedIsAgy = viewed.harness == "agy"
+            // for Antigravity the list is of families: the model's id is the family and a level
+            let chosenId = model.map { viewedIsAgy ? splitAgyID($0).family : $0 }
+            let custom = isCurrent ? model.flatMap { model in (options ?? []).contains { $0.id == (viewedIsAgy ? splitAgyID(model).family : model) } ? nil : model } : nil
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
                     if let inherited, needle.isEmpty {
@@ -228,14 +294,20 @@ struct ModelPickerButton: View {
                         row(title: custom, detail: "Named in the file; not in the provider's list", ticked: true) { pick(.account(viewed.name, model: custom)) }
                     }
                     ForEach(shown) { option in
-                        row(title: option.label, detail: option.detail, ticked: isCurrent && option.id == model) { pick(.account(viewed.name, model: option.id)) }
+                        row(title: option.label, detail: option.detail, ticked: isCurrent && option.id == chosenId) {
+                            if viewedIsAgy, let family = catalog.agyFamilyList.first(where: { $0.id == option.id }) {
+                                pick(.account(viewed.name, model: agyModelID(family, keeping: model.flatMap { splitAgyID($0).level })))
+                            } else {
+                                pick(.account(viewed.name, model: option.id))
+                            }
+                        }
                     }
                     // a model the list does not have can still be used: the search words are taken as its name
                     if needle.isEmpty == false, (options ?? []).contains(where: { $0.id.lowercased() == needle.lowercased() }) == false, needle != custom {
                         row(title: "Use “\(needle)”", detail: "Take what you typed as the exact model name", ticked: false) { pick(.account(viewed.name, model: needle)) }
                     }
                     if options == nil {
-                        Text(catalog.loading ? "Looking for models…" : "The chat host did not list this provider's models. Type the model's name in the search to use it.")
+                        Text(catalog.loading ? "Looking for models…" : "No list of this provider's models is available. Type the model's name in the search to use it.")
                             .font(.scaled(12)).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(16)
                     } else if shown.isEmpty && needle.isEmpty && allowsDefaultModel == false && custom == nil {
                         Text("No models listed").font(.scaled(12)).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(16)

@@ -25,10 +25,8 @@ struct AgentsTabView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let page {
-                HStack(alignment: .top, spacing: 14) {
-                    list(page).frame(width: 280)
-                    if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page).frame(maxWidth: .infinity, alignment: .topLeading) }
-                }
+                flow(page)
+                if let row = page.rows.first(where: { $0.role == selection }) { detail(turningOnLead && row.role == .leadReviewer ? leadDraft.shown(in: row) : row, page: page).frame(maxWidth: .infinity, alignment: .topLeading) }
                 if let note = page.sharedNote { Label(note, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
                 if let note = page.bots.note { Text(note).font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4) }
             } else {
@@ -102,28 +100,38 @@ struct AgentsTabView: View {
         }
     }
 
-    /// The roles as the Providers list has its tools: a card of rounded rows, neutral when chosen.
-    private func list(_ page: AgentsPage) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(page.rows) { row in
-                Button { selection = row.role } label: {
-                    HStack(spacing: 10) {
-                        RoleTile(provider: row.fields.provider, icons: icons, off: row.off)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(row.title).fontWeight(.medium)
-                            listLines(row)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, 8).padding(.vertical, 6).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 9).fill(row.role == selection ? Color.secondary.opacity(0.18) : .clear))
-                    .contentShape(Rectangle())
+    /// The three roles side by side in the order an epic goes through them, an arrow between each pair, and the chosen one is the page below.
+    private func flow(_ page: AgentsPage) -> some View {
+        HStack(spacing: 8) {
+            ForEach(Array(page.rows.enumerated()), id: \.element.id) { index, row in
+                // the author and the reviewer go back and forth until the review passes: a double arrow; the lead reviewer comes after them
+                if index > 0 {
+                    Image(systemName: index == 1 ? "arrow.left.arrow.right" : "arrow.right").font(.scaled(12, weight: .semibold)).foregroundStyle(.tertiary).accessibilityHidden(true)
                 }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(row.role == selection ? .isSelected : [])
+                roleCard(row)
             }
         }
-        .padding(8).settingsCard()
+    }
+
+    private func roleCard(_ row: RoleRow) -> some View {
+        let chosen = row.role == selection
+        let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+        return Button { selection = row.role } label: {
+            HStack(spacing: 10) {
+                RoleTile(provider: row.fields.provider, icons: icons, off: row.off)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(row.title).fontWeight(.medium)
+                    listLines(row)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+            .background(shape.fill(Color.secondary.opacity(chosen ? 0.18 : 0.07)))
+            .overlay { if chosen { shape.strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
+            .contentShape(shape)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(chosen ? .isSelected : [])
     }
 
     /// Under a role's name in the list, what answers the question the list is for: the model and how hard it thinks, in the text colour, and under it
@@ -144,13 +152,6 @@ struct AgentsTabView: View {
 
     private func detail(_ row: RoleRow, page: AgentsPage) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                RoleTile(provider: row.fields.provider, icons: icons, off: row.off)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(row.title).font(.title3.weight(.semibold))
-                    if row.off { Text("Off").font(.caption).foregroundStyle(.secondary) } else { roleSummary(row.fields).font(.caption) }
-                }
-            }
             if row.hasSwitch {
                 SettingsTabCard {
                     SettingsTabRow(title: "Use a lead reviewer", detail: row.switchDetail, first: true) {

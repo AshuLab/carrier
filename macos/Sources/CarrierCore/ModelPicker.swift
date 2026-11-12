@@ -42,6 +42,12 @@ public struct ModelOption: Equatable, Identifiable {
     public var label: String
     /// what the provider says about it, else its exact name when that says more than the label
     public var detail: String?
+
+    public init(id: String, label: String, detail: String? = nil) {
+        self.id = id
+        self.label = label
+        self.detail = detail
+    }
 }
 
 /// The models of an offer. "Default" is left out: a role runs on a named model, and what the default is changes with the CLI.
@@ -51,6 +57,56 @@ public func modelOptions(_ offer: AgentOffer?) -> [ModelOption] {
         let version = choice.version.flatMap { $0.lowercased() == choice.label.lowercased() ? nil : $0 }
         return ModelOption(id: choice.id, label: choice.label, detail: choice.detail ?? version)
     }
+}
+
+/// The models `agy models` prints (the chat host has no adapter for Antigravity, so it lists none): a first line "Fetching available models...", then
+/// `id<TAB>label` for each. A line with no tab is not a model.
+public func parseAgyModels(_ output: String) -> [ModelOption] {
+    output.split(separator: "\n").compactMap { line in
+        let parts = line.split(separator: "\t", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+        guard parts.count == 2, parts[0].isEmpty == false, parts[0].contains(" ") == false else { return nil }
+        return ModelOption(id: parts[0], label: parts[1], detail: nil)
+    }
+}
+
+/// An Antigravity model family: `agy models` lists each family once per level of reasoning (`gemini-4-argon-low`, `-medium`, `-high`), and the level is
+/// part of the model's id. The picker lists the family and lets the slider choose the level, so what is written is still the full id.
+public struct AgyFamily: Equatable, Identifiable {
+    public var id: String
+    public var label: String
+    /// the levels the family has, in the order `agy models` printed them
+    public var levels: [String]
+}
+
+/// `gemini-4-argon-high` is the family `gemini-4-argon` at `high`; an id that does not end in a level is a family with none.
+public func splitAgyID(_ id: String) -> (family: String, level: String?) {
+    for level in roleEfforts where id.hasSuffix("-" + level) { return (String(id.dropLast(level.count + 1)), level) }
+    return (id, nil)
+}
+
+/// The families of the models `parseAgyModels` read, in the order they first appear.
+public func agyFamilies(_ models: [ModelOption]) -> [AgyFamily] {
+    var families: [AgyFamily] = []
+    for model in models {
+        let (family, level) = splitAgyID(model.id)
+        var label = model.label
+        // "Gemini 4 Argon (High)": the level is the slider's, not the family's name
+        if level != nil, label.hasSuffix(")"), let open = label.range(of: " (", options: .backwards) { label = String(label[..<open.lowerBound]) }
+        if let index = families.firstIndex(where: { $0.id == family }) {
+            if let level, families[index].levels.contains(level) == false { families[index].levels.append(level) }
+        } else {
+            families.append(AgyFamily(id: family, label: label, levels: level.map { [$0] } ?? []))
+        }
+    }
+    return families
+}
+
+/// The id to write for a family: at the level the role had when the family has it, else the middle one, else the first; a family with no levels is
+/// its own id.
+public func agyModelID(_ family: AgyFamily, keeping level: String?) -> String {
+    guard family.levels.isEmpty == false else { return family.id }
+    let chosen = level.flatMap { family.levels.contains($0) ? $0 : nil } ?? (family.levels.contains("medium") ? "medium" : family.levels[0])
+    return family.id + "-" + chosen
 }
 
 /// The chat agent whose offer lists a harness's models: the first one of that harness whose binary was found.

@@ -341,7 +341,7 @@ struct WorkspaceSheet: View {
 
     // MARK: Pieces
 
-    /// The watch box, with what watching means: it is a choice made now and acted on once the agent has answered the first message, and the engine hears of it at its next start.
+    /// The watch box, with what watching means: it is a choice made now and acted on once the agent has answered the first message, and the engine is then asked to reload.
     private func watchCard(for what: String, on: Binding<Bool>, reason: String?) -> some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: on.wrappedValue && reason == nil ? "eye.fill" : "eye.slash")

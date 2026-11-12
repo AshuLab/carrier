@@ -30,7 +30,7 @@ private func role(_ path: String, _ name: String) throws -> [String: Any] {
 }
 
 private func save(_ change: RoleChange, _ role: AgentRole = .author, path: String) -> RoleSave {
-    saveGlobalRole(change, role: role, path: path, accounts: accounts, bots: bots, reload: { nil })
+    saveGlobalRole(change, role: role, path: path, accounts: accounts, bots: bots, reload: { .applied })
 }
 
 @Test func changingOneFieldWritesOnlyThatRolesKeyAndKeepsEverythingElse() throws {

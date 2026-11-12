@@ -150,19 +150,28 @@ func aRepoThatIsNotOwnerSlashNameIsRefusedBeforeItIsSent(repo: String) throws {
     #expect(client.capabilities == [.reload])
 }
 
-@Test func theOneFunctionReturnsNothingWhenTheEngineReloadedAndItsProblemWhenItDidNot() {
+@Test func theOneFunctionSaysAppliedWhenTheEngineReloadedAndItsProblemWhenItDidNot() {
     let engine = FixtureEngine(capabilities: ["reload"], replies: ["reload": "null"])
     defer { engine.stop() }
-    #expect(reloadEngine(socketPath: engine.path) == nil && engine.commands == ["reload"])
+    #expect(reloadEngine(socketPath: engine.path) == .applied && engine.commands == ["reload"])
 
     let refusing = FixtureEngine(capabilities: ["reload"], fail: ["reload"])
     defer { refusing.stop() }
-    #expect(reloadEngine(socketPath: refusing.path) == "internal error")
+    #expect(reloadEngine(socketPath: refusing.path) == .refused("internal error"))
+}
+
+@Test func anEngineThatSaysHelloAndThenLeavesIsOneThatDidNotAnswerAndIsNotTakenForOneThatApplied() {
+    let hello = "{\"event\":\"hello\",\"protocol\":1,\"pid\":42,\"startedAt\":1000,\"version\":\"0.2.0\",\"capabilities\":[\"reload\"]}\n"
+    let leaving = TestServer { $0.send(hello) }
+    defer { leaving.stop() }
+    #expect(reloadEngine(socketPath: leaving.path) == .noAnswer)
+    #expect(reloadWords(.noAnswer) != nil && reloadWords(.refused("x")) == "Saved, but Carrier kept its settings: x")
+    #expect(reloadWords(.applied) == nil && reloadWords(.nobody) == nil)
 }
 
 @Test func withNoEngineOrOneThatDoesNotListReloadTheFunctionSendsNothingAndIsNotAnError() {
-    #expect(reloadEngine(socketPath: "/tmp/carrier-no-such-engine.sock") == nil)
+    #expect(reloadEngine(socketPath: "/tmp/carrier-no-such-engine.sock") == .nobody)
     let older = FixtureEngine(capabilities: all)
     defer { older.stop() }
-    #expect(reloadEngine(socketPath: older.path) == nil && older.commands.isEmpty)
+    #expect(reloadEngine(socketPath: older.path) == .nobody && older.commands.isEmpty)
 }

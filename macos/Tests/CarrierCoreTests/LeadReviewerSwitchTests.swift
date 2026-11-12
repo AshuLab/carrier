@@ -41,7 +41,7 @@ private func complete() -> LeadReviewerDraft {
 @Test func turningItOffRemovesTheRoleAndItsFailoverStepsAndKeepsEveryOtherKey() throws {
     let path = try temporaryConfig(withLead)
     var expected = try file(path)
-    #expect(turnLeadReviewerOff(path: path, reload: { nil }) == .saved)
+    #expect(turnLeadReviewerOff(path: path, reload: { .applied }) == .saved)
     var agents = try #require(expected["agents"] as? [String: Any])
     agents["leadReviewer"] = nil
     expected["agents"] = agents
@@ -56,9 +56,9 @@ private func complete() -> LeadReviewerDraft {
 @Test func turningItOffWhenTheFileHasNoRoleLeavesTheFileAsItIs() throws {
     let path = try temporaryConfig(withoutLead)
     let before = try Data(contentsOf: URL(fileURLWithPath: path))
-    #expect(turnLeadReviewerOff(path: path, reload: { nil }) == .saved)
+    #expect(turnLeadReviewerOff(path: path, reload: { .applied }) == .saved)
     #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == before)
-    #expect(turnLeadReviewerOff(path: path + ".missing", reload: { nil }) != .saved)
+    #expect(turnLeadReviewerOff(path: path + ".missing", reload: { .applied }) != .saved)
 }
 
 @Test func turningItOnWritesNothingUntilIdentityProviderAndModelAreChosen() throws {
@@ -72,7 +72,7 @@ private func complete() -> LeadReviewerDraft {
     draft.apply(.model("   "))
     #expect(draft.missing == ["a provider", "a model"])
     // the page never calls with an incomplete draft, and if it did the file stays as it is
-    guard case .refused = turnLeadReviewerOn(draft, path: path, accounts: accounts, bots: bots, reload: { nil }) else { Issue.record("expected a refusal"); return }
+    guard case .refused = turnLeadReviewerOn(draft, path: path, accounts: accounts, bots: bots, reload: { .applied }) else { Issue.record("expected a refusal"); return }
     #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == before)
 }
 
@@ -81,7 +81,7 @@ private func complete() -> LeadReviewerDraft {
     var draft = complete()
     draft.apply(.effort("high"))
     #expect(draft.isComplete && draft.hint == nil)
-    #expect(turnLeadReviewerOn(draft, path: path, accounts: accounts, bots: bots, reload: { nil }) == .saved)
+    #expect(turnLeadReviewerOn(draft, path: path, accounts: accounts, bots: bots, reload: { .applied }) == .saved)
     let saved = try file(path)
     let lead = try #require((saved["agents"] as? [String: Any])?["leadReviewer"] as? [String: Any])
     #expect(NSDictionary(dictionary: lead).isEqual(to: ["profile": "acme-lead", "provider": "codex", "model": "gpt-5", "effort": "high"]))
@@ -97,7 +97,7 @@ private func complete() -> LeadReviewerDraft {
     var unknownProvider = complete()
     unknownProvider.apply(.provider("nope"))
     for draft in [unknownBot, unknownProvider] {
-        guard case .refused = turnLeadReviewerOn(draft, path: path, accounts: accounts, bots: bots, reload: { nil }) else { Issue.record("expected a refusal"); return }
+        guard case .refused = turnLeadReviewerOn(draft, path: path, accounts: accounts, bots: bots, reload: { .applied }) else { Issue.record("expected a refusal"); return }
     }
     #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == before)
 }

@@ -18,6 +18,8 @@ struct ReposTabView: View {
     /// the file as `load` read it, for the roles on a repo's page
     @State private var configData: Data?
     @State private var failure: String?
+    /// the last save was written and the engine did not apply it: a repo of the list is not in use, whatever the engine can do
+    @State private var kept = false
     /// the repo whose ✕ was pressed
     @State private var removing: String?
     @State private var adding = false
@@ -116,7 +118,7 @@ struct ReposTabView: View {
     /// The chosen repo's page.
     @ViewBuilder private func detail(_ row: RepoRow?) -> some View {
         if let row {
-            let status = repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine)), notLoaded: settingsNote(state: state, canReload: canReload))
+            let status = repoStatus(row, engine: engine, cloneExists: FileManager.default.fileExists(atPath: row.clonePath(engine: engine)), notLoaded: settingsNote(state: state, canReload: canReload, kept: kept))
             // two distances, as the Providers page has: 4 inside a block and 14 between blocks
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .center, spacing: 4) {
@@ -167,11 +169,16 @@ struct ReposTabView: View {
     /// Writes the role, then reads the file back and asks the doctor, whose reason is shown when the engine refuses what was written.
     private func saveRole(_ fields: RoleFields?, role: AgentRole, repo: String) -> RoleSave {
         let result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: declaredAccounts(providersJSON: providersData), reload: { reloadEngine() })
+        keep(result)
         if result.isWritten {
             load()
             runDoctor()
         }
         return result
+    }
+
+    private func keep(_ result: RoleSave) {
+        if case .notApplied = result { kept = true } else if result.isWritten { kept = false }
     }
 
     private func load() {
@@ -194,6 +201,7 @@ struct ReposTabView: View {
     private func write() -> Bool {
         let result = saveConfig(path: path, unusable: "The config file could not be read or the list is not valid.", edit: { applyingRepos(draft, to: $0) }, reload: { reloadEngine() })
         failure = result.problem
+        keep(result)
         if result.isWritten { saved = draft }
         return result == .saved
     }
@@ -385,8 +393,8 @@ private struct RepoRolesCard: View {
     }
 
     private func finish(_ result: RoleSave) {
-        // a role the engine did not apply is saved: the form closes and the page says what the engine answered
-        if result.isWritten { editing = nil }
+        // a role the engine did not apply is saved, but the form stays open with what was typed and says what the engine answered: Save asks again
+        if result == .saved { editing = nil }
         problem = result.problem
     }
 

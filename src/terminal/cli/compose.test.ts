@@ -100,7 +100,7 @@ test('GitHub acts as the orchestrator\'s profile from inside a clone-shaped fold
   const app = await startCarrier(config(), root, sameConfig, deps);
   closers.push(async () => (await app.engine.shutdown(), app.close()));
 
-  expect(seen.github).toMatchObject({ profile: { kind: 'gh' }, timeoutMs: 7000 });
+  expect({ profile: seen.github!.profile(), timeoutMs: seen.github!.timeoutMs() }).toMatchObject({ profile: { kind: 'gh' }, timeoutMs: 7000 });
   // Before the clone exists: a stub whose origin is the repo (what Forge reads). Once cloned: the clone.
   const stub = seen.github!.cwd('AshuLab/a');
   expect(stub).toBe(join(root, 'engine', 'state', 'forge-cwd', 'AshuLab', 'a'));
@@ -134,7 +134,7 @@ test('a reload reaches the GitHub client and its timeout, the repo listing, the 
   closers.push(async () => (await app.engine.shutdown(), app.close()));
   const client = await connectControl(join(root, 'engine', 'state', 'control.sock'));
   closers.push(async () => client.close());
-  expect(seen.github).toMatchObject({ profile: { kind: 'gh' }, timeoutMs: 7000 });
+  expect({ profile: seen.github!.profile(), timeoutMs: seen.github!.timeoutMs() }).toMatchObject({ profile: { kind: 'gh' }, timeoutMs: 7000 });
   await client.request('availableRepos');
 
   next = config({
@@ -143,7 +143,7 @@ test('a reload reaches the GitHub client and its timeout, the repo listing, the 
     limits: { maxConcurrentEpics: 2, maxReviews: 4, maxExecutionRetries: 1, maxExecutionHours: 2, githubCallTimeoutSeconds: 30 },
   });
   await client.request('reload');
-  expect(seen.github).toMatchObject({ profile: { kind: 'forge', agent: 'fenix-agent' }, timeoutMs: 30_000 });
+  expect({ profile: seen.github!.profile(), timeoutMs: seen.github!.timeoutMs() }).toMatchObject({ profile: { kind: 'forge', agent: 'fenix-agent' }, timeoutMs: 30_000 });
   await client.request('availableRepos');
   expect(listed).toEqual([7000, 30_000]);
   await seen.workspaces!.token!('AshuLab/b');
@@ -155,6 +155,8 @@ test('a reload reaches the GitHub client and its timeout, the repo listing, the 
   await client.request('reload');
   await expect(seen.workspaces!.token!('AshuLab/b')).rejects.toThrow('profile "author-bot" is not declared');
   await expect(seen.runner!.credentials({ profile: 'reviewer-bot', repo: 'AshuLab/b' } as never)).rejects.toThrow('profile "reviewer-bot" is not declared');
+  // a repo the file no longer has: its clone or fetch fails with a message, not a TypeError on a missing entry
+  await expect(seen.workspaces!.token!('AshuLab/gone')).rejects.toThrow('repo "AshuLab/gone" is not in the configuration');
 });
 
 test('the panel is drawn from SQLite: slots and the running epic show up', async () => {

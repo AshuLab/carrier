@@ -545,7 +545,7 @@ public struct WatchNote: Equatable {
         return steps
     }
 
-    /// Adds `repo` to the config's `repos`, the file read again just now; the engine reads it when it starts, so nothing is restarted. What it
+    /// Adds `repo` to the config's `repos`, the file read again just now; the engine is then asked to reload, so nothing is restarted. What it
     /// came to is the session's `watchNotes`.
     private func addToWatched(_ repo: String, session id: String) {
         func failed(_ reason: String) { watchNotes[id] = WatchNote(text: "\(repo) could not be added to Carrier's list: \(reason).", failed: true) }
@@ -558,10 +558,11 @@ public struct WatchNote: Equatable {
         do {
             try writeConfig(updated)
             watched = names + [repo]
-            if let problem = reload() {
-                watchNotes[id] = WatchNote(text: "\(repo) was added to Carrier's list, but Carrier kept its settings: \(problem)", failed: true)
-            } else {
-                watchNotes[id] = WatchNote(text: "Carrier will listen to \(repo) from its next start.", failed: false)
+            switch reload() {
+            case .applied: watchNotes[id] = WatchNote(text: "Carrier will listen to \(repo) from its next check.", failed: false)
+            case .nobody: watchNotes[id] = WatchNote(text: "Carrier will listen to \(repo) from its next start.", failed: false)
+            case .refused(let problem): watchNotes[id] = WatchNote(text: "\(repo) was added to Carrier's list, but Carrier kept its settings: \(problem)", failed: true)
+            case .noAnswer: watchNotes[id] = WatchNote(text: "\(repo) was added to Carrier's list, but Carrier did not answer: it will listen to it from its next start.", failed: true)
             }
         } catch {
             log("new session: could not write the config: \(error)")

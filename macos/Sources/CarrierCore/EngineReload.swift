@@ -2,30 +2,58 @@ import Foundation
 
 // Every save of `config.json` or `providers.json` ends by asking the running engine to apply it (docs/specs/settings-apply-without-restart.md).
 
-/// What a writer calls after its own successful write, and only then: asks the engine to read its settings again. nil when it did, or when
-/// there was no one to ask (Carrier stopped, an engine that does not list `reload`); else the engine's problem, the key named.
-public typealias Reload = () -> String?
+/// What came of asking the engine to read its settings again.
+public enum ReloadOutcome: Equatable, Sendable {
+    /// the engine read the files and runs on them
+    case applied
+    /// there was no one to ask (Carrier stopped, or an engine that does not list `reload`): it reads the files when it starts
+    case nobody
+    /// the engine kept its settings; its problem, the key named
+    case refused(String)
+    /// an engine that was there did not answer (a timeout, a socket error): the file is written, and it reads it when it starts
+    case noAnswer
+}
 
-/// `Reload` for the engine at `socketPath`. Blocks until the engine has answered, which is quick: call it as the saves already do.
-public func reloadEngine(socketPath: String = controlSocketPath()) -> String? {
-    guard let client = ControlClient.connect(path: socketPath, timeout: 3) else { return nil }
+/// What a writer calls after its own successful write, and only then: asks the engine to read its settings again.
+public typealias Reload = () -> ReloadOutcome
+
+/// `Reload` for the engine at `socketPath`. Blocks until the engine has answered, which is quick: a saver that runs for every edit
+/// calls `reloadEngineInBackground` instead.
+public func reloadEngine(socketPath: String = controlSocketPath()) -> ReloadOutcome {
+    guard let client = ControlClient.connect(path: socketPath, timeout: 3) else { return .nobody }
     defer { client.close() }
     do {
         _ = try client.hello()
-        _ = try client.reload()
-        return nil
+        return try client.reload() ? .applied : .nobody
     } catch ControlError.remote(let problem) {
-        return problem
+        return .refused(problem)
     } catch {
-        // an engine that quit or stopped answering is one that is not there: the file is written and it reads it when it starts
         FileHandle.standardError.write(Data("carrier: reload: \(error)\n".utf8))
-        return nil
+        return .noAnswer
+    }
+}
+
+/// `reloadEngine` off the main thread, for a page that saves at every edit: `done` gets the words to show when the engine did not apply
+/// the file (`reloadWords`), on the main actor, once it has answered.
+public func reloadEngineInBackground(socketPath: String = controlSocketPath(), done: @escaping @MainActor (String?) -> Void) {
+    Task.detached {
+        let outcome = reloadEngine(socketPath: socketPath)
+        await MainActor.run { done(reloadWords(outcome)) }
     }
 }
 
 /// What the page says when the file is saved and the engine did not apply it.
 public func reloadRefusedWords(_ problem: String) -> String {
     "Saved, but Carrier kept its settings: \(problem)"
+}
+
+/// What the page says for an outcome that needs saying: nil when the engine applied the file or there was no one to ask.
+public func reloadWords(_ outcome: ReloadOutcome) -> String? {
+    switch outcome {
+    case .applied, .nobody: nil
+    case .refused(let problem): reloadRefusedWords(problem)
+    case .noAnswer: "Saved, but Carrier did not answer: it will read the file when it starts."
+    }
 }
 
 /// What the Behavior and Repos tabs save with: `edit` rewrites the file at `path`, read just now so a save of another tab in between is not

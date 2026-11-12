@@ -41,6 +41,7 @@ let runner: FakeAgentRunner;
 let workspaces: FakeWorkspaces;
 let settings: EngineSettings; // what the engine reads: a test changes it the way a reload does
 let watched: EffectiveRepoConfig[]; // the repos the engine reads, changed the same way
+let declaredProfile: (name: string) => boolean; // whether the configuration declares a profile, changed the same way
 beforeEach(() => {
   runner = new FakeAgentRunner();
   workspaces = new FakeWorkspaces();
@@ -48,6 +49,7 @@ beforeEach(() => {
   dbs = [];
   github = new FakeGitHub();
   clock = new FakeClock();
+  declaredProfile = () => true;
 });
 afterEach(() => {
   for (const db of dbs) db.$client.close();
@@ -64,7 +66,7 @@ async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: 
   const db = open();
   settings = { pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews };
   watched = config;
-  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, repos: () => watched, settings: () => settings, profileDeclared: (name) => declaredProfile(name), runner, workspaces, places: enginePlacesOf(dir) });
   await engine.start();
   return Object.assign(engine, { db });
 }
@@ -2094,6 +2096,75 @@ test('a repo configured again resumes its epics where they were, except the ones
   expect(labelsOf(3)).toEqual(['solve:epic:needs-human']);
 });
 
+test('a reload while the reviewer\'s workspace is being prepared does not launch the reviewer twice', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => (open = resolve));
+  workspaces.prepareReviewer = async (repo, epic, pr) => (await gate, `/work/${repo}/${epic}/reviewer-${pr}`);
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'hang' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ stage: 'review' })); // the author is done and the reviewer waits for its workspace
+  const checks = github.calls;
+
+  reload(engine, { pollIntervalMs: MIN });
+  await vi.waitFor(() => expect(github.calls).toBeGreaterThan(checks)); // the check the reload asked for ran
+  open();
+  await vi.waitFor(() => expect(runner.tasks.filter((t) => t.stage === 'review')).toHaveLength(1));
+  await settle();
+
+  expect(runner.tasks.filter((t) => t.stage === 'review')).toHaveLength(1);
+  expect(executionsOf(engine.db).filter((e) => e.stage === 'review')).toHaveLength(1);
+});
+
+test('a repo removed while the author\'s workspace is prepared keeps its epic parked: no execution, no run, no label written after', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => (open = resolve));
+  workspaces.prepareAuthor = async (repo, epic) => (await gate, `/work/${repo}/${epic}/author`);
+  const engine = await start(1);
+  void clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship' })); // claimed, waiting for the workspace
+  const touched = githubRepoCalls();
+
+  reload(engine, { repos: [repos[1]!] });
+  open();
+  await settle();
+  await engine.idle();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'repo_removed', removedFrom: 'running' });
+  expect(runner.tasks).toEqual([]);
+  expect(executionsOf(engine.db)).toEqual([]);
+  expect(touched.filter((c) => c.endsWith('AshuLab/a'))).toEqual([]);
+});
+
+test('a repo removed while a finished run\'s result is being imported keeps its epic where it was, and adding it back imports the result', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => (open = resolve));
+  const found = github.getPullRequest.bind(github);
+  let asked = 0;
+  github.getPullRequest = async (repo, number) => (asked++, await gate, found(repo, number));
+  runner.behavior = (task) => (task.stage === 'ship' ? { write: completed(task) } : { exit: 'hang' });
+  const engine = await start(1);
+  void clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(asked).toBe(1)); // the ship run is done and GitHub is being asked about its PR
+
+  reload(engine, { repos: [repos[1]!] });
+  open();
+  await settle();
+  await engine.idle();
+
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'repo_removed', removedFrom: 'running', stage: 'ship', prNumber: null });
+  expect(runner.tasks.map((t) => t.stage)).toEqual(['ship']); // no reviewer for a parked epic
+
+  reload(engine, { repos });
+  await vi.waitFor(() => expect(runner.tasks.map((t) => t.stage)).toEqual(['ship', 'review'])); // back: the result is imported once and the reviewer starts
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'review', prNumber: 50 });
+});
+
 test('purges expired logs and sessions when the engine starts and every 24 hours after', async () => {
   const db = open();
   const old = db.insert(epics).values({ repo: 'AshuLab/a', issue: 1, status: 'merged', finishedAt: -30 * 24 * 60 * MIN }).returning().get();
@@ -2827,7 +2898,7 @@ test('a reload re-arms the next poll from now with the new interval, and checks 
   expect(github.calls).toBe(4); // the new interval, not the 5 minutes the old timer had left
 });
 
-test('a reload asked while a poll runs does not start a second one, and the poll that follows waits the new interval', async () => {
+test('a reload asked while a poll runs does not double it: one more poll follows it, and the wait after is the new interval', async () => {
   let open!: () => void;
   const gate = new Promise<void>((resolve) => (open = resolve));
   const listed = github.listReadyEpics.bind(github);
@@ -2839,8 +2910,26 @@ test('a reload asked while a poll runs does not start a second one, and the poll
   reload(engine, { pollIntervalMs: 2 * MIN });
   reload(engine, { pollIntervalMs: 2 * MIN });
   open();
-  await vi.waitFor(() => expect(engine.nextPollAt).toBe(7 * MIN)); // one poll ran, and the next is armed once with the interval now in force
-  expect(lists).toBe(2); // one list per repo: the poll that was running, no second one
+  await vi.waitFor(() => expect(lists).toBe(4)); // two repos for the poll that was running, two for the one that follows it, once for two reloads
+  await vi.waitFor(() => expect(engine.nextPollAt).toBe(7 * MIN)); // armed once, with the interval now in force
+  await settle();
+  expect(lists).toBe(4);
+});
+
+test('a repo a reload adds while a poll runs is read by the poll that follows it, not an interval later', async () => {
+  github.ready = { 'AshuLab/b': ready(7) };
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => (open = resolve));
+  const listed = github.listReadyEpics.bind(github);
+  let lists = 0;
+  github.listReadyEpics = async (repo) => (lists++, await gate, listed(repo));
+  const engine = await start(0, [repos[0]!]);
+  void clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(lists).toBe(1)); // the poll lists the old repos
+  reload(engine, { repos });
+  open();
+  await vi.waitFor(() => expect(ids(engine)).toEqual(['AshuLab/b#7']));
+  expect(clock.now()).toBe(5 * MIN);
 });
 
 test('a reload that is refused leaves every setting as it was, rethrows the problem and checks nothing', async () => {
@@ -2915,6 +3004,7 @@ test('a profile removed while a running epic names it fails the next run naming 
   const declared = new Set(['a', 'b']); // what the credentials of the real runner look up: a missing profile is auth_failed
   let release!: () => void;
   const firstRunEnds = new Promise<void>((resolve) => (release = resolve));
+  declaredProfile = (name) => declared.has(name);
   runner.behavior = (task) => (declared.has(task.profile) ? (runner.tasks.length === 1 ? { exit: 'failed', when: firstRunEnds } : { exit: 'hang' }) : { exit: 'auth_failed' });
   const engine = await start(1);
   await clock.advance(5 * MIN);
@@ -2922,7 +3012,7 @@ test('a profile removed while a running epic names it fails the next run naming 
 
   declared.delete('a'); // the reload
   release();
-  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'auth', needsHumanReason: 'authentication error for profile a' }));
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'auth', needsHumanReason: 'profile a was removed from the configuration: put it back, then restart the epic' }));
   expect(runner.tasks.map((t) => t.profile)).toEqual(['a', 'a']); // the retry was the run that failed, not another profile
   expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
 
@@ -2933,6 +3023,29 @@ test('a profile removed while a running epic names it fails the next run naming 
   await resumed;
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', needsHumanReason: null });
   expect(runner.tasks).toHaveLength(3);
+});
+
+test('a profile removed by a reload stops the epic whose run fails for it and not the other epics of that profile, whose runs go on', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  const declared = new Set(['a', 'b']);
+  declaredProfile = (name) => declared.has(name);
+  let release!: () => void;
+  const firstRunEnds = new Promise<void>((resolve) => (release = resolve));
+  runner.behavior = (task) => {
+    if (!declared.has(task.profile)) return { exit: 'auth_failed' };
+    return task.epic === 1 && runner.tasks.filter((t) => t.epic === 1).length === 1 ? { exit: 'failed', when: firstRunEnds } : { exit: 'hang' };
+  };
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+
+  declared.delete('a'); // the reload
+  release();
+  await vi.waitFor(() => expect(byStatus(engine.db, 'needs_human')).toEqual([1]));
+  await settle();
+  expect(rows(engine.db).find((e) => e.issue === 1)).toMatchObject({ needsHumanKind: 'auth', needsHumanReason: 'profile a was removed from the configuration: put it back, then restart the epic' });
+  expect(byStatus(engine.db, 'running')).toEqual([2]); // its run has the token it started with
+  expect(runner.stopped).toEqual([]);
 });
 
 // --- Repos, roles and accounts that a reload changes ---

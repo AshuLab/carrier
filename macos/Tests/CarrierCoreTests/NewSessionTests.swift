@@ -655,7 +655,7 @@ private func projectsRoot(_ names: [String]) throws -> String {
     }
 }
 
-@MainActor private func popover(_ host: FakeChat, projects: String = "/nowhere", config: FakeConfig? = nil, reload: @escaping Reload = { nil }) async -> NewSessionModel {
+@MainActor private func popover(_ host: FakeChat, projects: String = "/nowhere", config: FakeConfig? = nil, reload: @escaping Reload = { .applied }) async -> NewSessionModel {
     let config = config ?? FakeConfig()
     let model = NewSessionModel(
         host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, watchEvery: .milliseconds(5), projectsFolder: { projects },
@@ -988,7 +988,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
 }
 
 /// A draft that chose `repo`, wrote its first message and sent it: the session `opened` exists and the repository waits for its `message` step.
-@MainActor private func sentForRepo(_ host: FakeChat, config: FakeConfig, repo: String = "AshuLab/carrier", reload: @escaping Reload = { nil }) async -> NewSessionModel {
+@MainActor private func sentForRepo(_ host: FakeChat, config: FakeConfig, repo: String = "AshuLab/carrier", reload: @escaping Reload = { .applied }) async -> NewSessionModel {
     host.branchesOf[repo] = RepoBranches(defaultBranch: "main", branches: ["main"])
     host.active = [listed(opened, "running")]
     let model = await popover(host, config: config, reload: reload)
@@ -998,7 +998,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     return model
 }
 
-@MainActor @Test func theRepositoryIsAddedToTheConfigOnlyOnceTheMessageStepIsDoneKeepingEverythingElseAndSaysItListensFromTheNextStart() async throws {
+@MainActor @Test func theRepositoryIsAddedToTheConfigOnlyOnceTheMessageStepIsDoneKeepingEverythingElseAndSaysItListensFromTheNextCheck() async throws {
     let config = FakeConfig("""
     {"note": "kept", "limits": {"maxReviews": 7}, "repos": [{"name": "acme/web", "agents": {"author": {"profile": "p"}}}]}
     """)
@@ -1018,7 +1018,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     let repos = try #require(file["repos"] as? [[String: Any]])
     #expect(repos.map { $0["name"] as? String } == ["acme/web", "AshuLab/carrier"] && repos[0]["agents"] != nil && repos[1].keys.sorted() == ["name"])
     #expect(file["note"] as? String == "kept" && (file["limits"] as? [String: Any])?["maxReviews"] as? Int == 7)
-    #expect(model.watchNotes[opened] == WatchNote(text: "Carrier will listen to AshuLab/carrier from its next start.", failed: false))
+    #expect(model.watchNotes[opened] == WatchNote(text: "Carrier will listen to AshuLab/carrier from its next check.", failed: false))
     // once: looking again changes nothing
     await model.settleWatches()
     try await Task.sleep(for: .milliseconds(30))
@@ -1029,7 +1029,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     let config = FakeConfig()
     var asked: [Data?] = []
     let host = FakeChat()
-    let model = await sentForRepo(host, config: config, reload: { asked.append(config.json); return nil })
+    let model = await sentForRepo(host, config: config, reload: { asked.append(config.json); return .applied })
     host.active = [listed(opened, "failed")]
     await model.settleWatches()
     #expect(asked.isEmpty)
@@ -1041,7 +1041,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     stuck.unwritable = true
     var askedAgain = 0
     let other = FakeChat()
-    let blocked = await sentForRepo(other, config: stuck, reload: { askedAgain += 1; return nil })
+    let blocked = await sentForRepo(other, config: stuck, reload: { askedAgain += 1; return .applied })
     other.active = [listed(opened, "answered")]
     await settle { blocked.watchNotes[opened] != nil }
     #expect(blocked.watchNotes[opened]?.failed == true && askedAgain == 0)
@@ -1050,11 +1050,25 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
 @MainActor @Test func aRepositoryTheEngineRefusedToApplyIsInTheListAndTheNoteSaysWhatTheEngineAnswered() async {
     let config = FakeConfig()
     let host = FakeChat()
-    let model = await sentForRepo(host, config: config, reload: { "repos.1.name: bad" })
+    let model = await sentForRepo(host, config: config, reload: { .refused("repos.1.name: bad") })
     host.active = [listed(opened, "answered")]
     await settle { model.watchNotes[opened] != nil }
     #expect(configRepoNames(json: config.json ?? Data()) == ["acme/web", "AshuLab/carrier"])
     #expect(model.watchNotes[opened] == WatchNote(text: "AshuLab/carrier was added to Carrier's list, but Carrier kept its settings: repos.1.name: bad", failed: true))
+}
+
+@MainActor @Test func withNoEngineToAskTheNoteSaysNextStartAndWithOneThatDidNotAnswerItSaysSo() async {
+    for (outcome, note) in [
+        (ReloadOutcome.nobody, WatchNote(text: "Carrier will listen to AshuLab/carrier from its next start.", failed: false)),
+        (.noAnswer, WatchNote(text: "AshuLab/carrier was added to Carrier's list, but Carrier did not answer: it will listen to it from its next start.", failed: true)),
+    ] {
+        let config = FakeConfig()
+        let host = FakeChat()
+        let model = await sentForRepo(host, config: config, reload: { outcome })
+        host.active = [listed(opened, "answered")]
+        await settle { model.watchNotes[opened] != nil }
+        #expect(configRepoNames(json: config.json ?? Data()) == ["acme/web", "AshuLab/carrier"] && model.watchNotes[opened] == note)
+    }
 }
 
 @MainActor @Test func aPreparationThatFailedAndThenWorksAfterTryAgainAddsTheRepositoryThen() async {
@@ -1141,7 +1155,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     host.projects = { projectsFolder(chatJSON: chat.json, carrierFolder: "/Users/x/.carrier", home: NSHomeDirectory()) }
     let model = NewSessionModel(
         host: host, ensureHost: { true }, log: { _ in }, sleep: { _ in }, projectsFolder: host.projects,
-        readConfig: { engine.json }, writeConfig: { try engine.write($0) }, reload: { nil },
+        readConfig: { engine.json }, writeConfig: { try engine.write($0) }, reload: { .applied },
         readChatConfig: { chat.json }, writeChatConfig: { try chat.write($0) }, carrierFolder: "/Users/x/.carrier"
     )
     await model.load()
@@ -1166,7 +1180,7 @@ private func listed(_ id: String, _ stage: String) -> ChatSession {
     return NewSessionModel(
         host: FakeChat(), ensureHost: { true }, log: { _ in }, sleep: { _ in },
         projectsFolder: { projectsFolder(chatJSON: chat.json, carrierFolder: folder, home: NSHomeDirectory()) },
-        readConfig: { engine.json }, writeConfig: { try engine.write($0) }, reload: { nil },
+        readConfig: { engine.json }, writeConfig: { try engine.write($0) }, reload: { .applied },
         readChatConfig: { chat.json }, writeChatConfig: { try chat.write($0) }, carrierFolder: folder
     )
 }

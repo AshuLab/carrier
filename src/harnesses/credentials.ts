@@ -12,6 +12,13 @@ export interface CredentialsOptions {
   botId?: (agent: string, token: string) => Promise<number>;
 }
 
+/** The profile of that name; a reload may have removed it from under a running epic, and then the run fails naming it. */
+export function declaredProfile(profiles: Record<string, GitHubProfile>, name: string): GitHubProfile {
+  const profile = profiles[name];
+  if (!profile) throw new Error(`profile "${name}" is not declared`);
+  return profile;
+}
+
 const botUser = z.object({ id: z.int().positive() });
 
 /** The id of a bot account from GitHub's public users endpoint (as Forge computes it), asked once per agent. */
@@ -39,8 +46,7 @@ export function botIdFromGitHub(fetchImpl: typeof fetch = fetch): (agent: string
  */
 export function profileCredentials({ profiles, mint, botId = botIdFromGitHub() }: CredentialsOptions): HostRunnerOptions['credentials'] {
   return async (task: AgentTask) => {
-    const profile = profiles()[task.profile];
-    if (!profile) throw new Error(`profile "${task.profile}" is not declared`);
+    const profile = declaredProfile(profiles(), task.profile);
     const githubToken = await mint(profile, task.repo);
     if (profile.kind === 'gh') return { githubToken };
     const name = `${profile.agent}[bot]`;

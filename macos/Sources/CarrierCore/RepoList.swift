@@ -122,7 +122,7 @@ public func repoRows(draft: [String], saved: [String], snapshot: PanelSnapshot?)
         }
         guard let snapshot else { return RepoRow(name: name, health: .unknown, line: "Carrier is stopped", epics: nil, isNew: false) }
         guard let watched = snapshot.watched?.first(where: { $0.repo == name }) else {
-            return RepoRow(name: name, health: .unknown, line: "Carrier has not loaded it yet · it does after a restart", epics: epics, isNew: false)
+            return RepoRow(name: name, health: .unknown, line: "Carrier has not loaded it yet · it does at its next reload or start", epics: epics, isNew: false)
         }
         if watched.ok == false {
             return RepoRow(name: name, health: .error, line: watched.error ?? "GitHub refused it", epics: epics, isNew: false, isLoaded: true)

@@ -17,7 +17,7 @@ Settings are read where they are used, so a change takes effect at the next deci
 
 A reload re-arms the next poll from now with the interval then in force and asks for one at once, so a shortened interval does not wait out the old one and a repo just added is seen. The reconciliation of `repo_removed` and `repo_restored` runs again on every reload, and a repo that leaves the configuration also stops the agent runs that are active on it, which are marked interrupted as recovery marks them. The epic is parked where it was and goes on from there if the repo comes back.
 
-A profile is looked up by name each time an execution needs a token. A profile removed while a running epic still names it fails the epic's next run with the profile's name, and the epic stops in `needs-human`; putting the profile back and restarting the epic is the way out.
+A profile is looked up by name each time an execution needs a token. A profile removed while a running epic still names it fails the epic's next run with the profile's name, and the epic stops in `needs-human`; putting the profile back and restarting the epic is the way out. The clone and fetch of a running epic sign as the repo's current author profile, not the one the epic stored.
 
 ## Alternatives considered
 
@@ -37,7 +37,7 @@ A change made in the app reaches Carrier in about the time of a poll, with no re
 
 The engine's constants become settings that are read when used: `createEngine` and `startCarrier` take a way to read them instead of the values, and the pieces built once at start from them, the GitHub client with its profile and timeout, the runner's credentials and the workspaces' token, read the current profiles and the current orchestrator.
 
-A reload is applied between the engine's own awaits, so a poll already running finishes with the repos it began with and the next one sees the new ones. A reload asked while a poll runs does not start a second one, and the settings are seen by the one after it.
+A reload is applied between the engine's own awaits, so a poll already running finishes with the repos it began with and the next one sees the new ones. A reload asked while a poll runs does not start a second one beside it; one more follows it when it ends, with the new repos and the new interval. A reload runs the rule for parked repos and recovers only the epics it brings back: the recovery of a start would take an epic with a launch in flight for one that was cut. The paths that wait on an `await` (a workspace being prepared, a result being imported) read the epic's status again afterwards and leave it alone when its repo was parked meanwhile.
 
 The app saves `config.json` and `providers.json` as separate files, so a reload sent between the two can see an account named by a role that is not in the file yet. It is refused with the problem and the engine goes on as it was, and the reload that follows the second save succeeds.
 

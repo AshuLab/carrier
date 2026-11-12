@@ -26,7 +26,7 @@ import { startInteractivePanel } from '../dashboard/interactive.ts';
 import { tailExecution } from '../dashboard/logs.ts';
 import { startPanel, type PanelOutput } from '../dashboard/panel.ts';
 import { buildSnapshot, watchedOf } from '../../status/snapshot.ts';
-import { profileCredentials, type CredentialsOptions } from '../../harnesses/credentials.ts';
+import { declaredProfile, profileCredentials, type CredentialsOptions } from '../../harnesses/credentials.ts';
 import { HostAgentRunner, type HostRunnerOptions } from '../../harnesses/host-runner.ts';
 import { openDatabase } from '../../storage/db.ts';
 import { acquireLock } from '../../storage/lock.ts';
@@ -103,30 +103,25 @@ export async function startCarrier(started: Config, folder: string, loadConfig: 
   const db = openDatabase(places.db);
   let repos = config.repos.map((repo) => resolveRepoConfig(config, repo)); // replaced with the config by a reload
   // Profiles are looked up by name when used, so a reload reaches the next token, clone and GitHub call; one removed while an epic names it fails that run naming it.
-  const declared = (name: string) => {
-    const profile = config.profiles[name];
-    if (!profile) throw new Error(`profile "${name}" is not declared`);
-    return profile;
+  const declared = (name: string) => declaredProfile(config.profiles, name);
+  // Git over the network (clone, fetch) runs as the repo's current author profile (a reload that changes it reaches the next clone or fetch of a running epic too).
+  // A repo a reload has just removed has none: its epic is parked, and this run fails cleanly instead of reading a missing entry.
+  const authorProfile = (repo: string) => {
+    const found = repos.find((r) => r.name === repo);
+    if (!found) throw new Error(`repo "${repo}" is not in the configuration`);
+    return declared(found.agents.author.profile);
   };
-  // Git over the network (clone, fetch) runs as the repo's author profile.
-  const authorProfile = (repo: string) => declared(repos.find((r) => r.name === repo)!.agents.author.profile);
   const timeoutMs = () => config.limits.githubCallTimeoutSeconds * 1000;
-  const github = deps.makeGitHub({
-    get profile() {
-      return declared(config.orchestratorProfile);
-    },
-    cwd: forgeCwd(places),
-    get timeoutMs() {
-      return timeoutMs();
-    },
-  });
+  const github = deps.makeGitHub({ profile: () => declared(config.orchestratorProfile), cwd: forgeCwd(places), timeoutMs });
   const engine = createEngine({
     db,
     clock: deps.clock,
     github,
+    // async: a profile or repo that is gone throws inside authorProfile, and the caller must get a rejection, not a synchronous throw
     workspaces: deps.makeWorkspaces({ places, token: async (repo) => deps.mint(authorProfile(repo), repo) }),
     runner: deps.makeRunner({ credentials: profileCredentials({ profiles: () => config.profiles, mint: deps.mint, botId: deps.botId }) }),
     repos: () => repos,
+    profileDeclared: (name) => Object.hasOwn(config.profiles, name),
     settings: () => ({
       pollIntervalMs: config.pollIntervalMinutes * 60_000,
       maxConcurrentEpics: config.limits.maxConcurrentEpics,

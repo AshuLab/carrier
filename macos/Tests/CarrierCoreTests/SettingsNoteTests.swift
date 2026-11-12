@@ -8,15 +8,21 @@ private func running() throws -> ConnectionState {
 }
 
 @Test func anEngineThatListsReloadAppliesTheSettingsToTheNextEpic() throws {
-    #expect(settingsNote(state: try running(), canReload: true) == "Carrier applies it to the next epic")
+    #expect(settingsNote(state: try running(), canReload: true) == "Carrier applies this repo to the next epic")
 }
 
 @Test func anEngineThatDoesNotListReloadKeepsTheOldText() throws {
-    #expect(settingsNote(state: try running(), canReload: false) == "Carrier reads it when it starts")
+    #expect(settingsNote(state: try running(), canReload: false) == "Carrier reads this repo when it starts")
 }
 
 @Test func withNoEngineTheOldTextStaysWhateverTheLastHelloListed() {
     for state in [ConnectionState.stopped, .incompatible(update: nil), nil] {
-            #expect(settingsNote(state: state, canReload: true) == "Carrier reads it when it starts")
+            #expect(settingsNote(state: state, canReload: true) == "Carrier reads this repo when it starts")
     }
+}
+
+@Test func aSaveTheEngineDidNotApplyMakesTheRepoNotInUseWhateverTheEngineCanDo() throws {
+    let words = "Not in use: Carrier kept its previous settings"
+    #expect(settingsNote(state: try running(), canReload: true, kept: true) == words)
+    #expect(settingsNote(state: .stopped, canReload: false, kept: true) == words)
 }

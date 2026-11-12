@@ -80,9 +80,9 @@ extension RoleSave {
     }
 }
 
-/// `.saved` after a write, or `.notApplied` when the engine, asked to `reload`, refused what was written. Call it only after the write worked.
+/// `.saved` after a write, or `.notApplied` when the engine, asked to `reload`, refused what was written or did not answer. Call it only after the write worked.
 func written(_ reload: Reload) -> RoleSave {
-    reload().map { .notApplied(reloadRefusedWords($0)) } ?? .saved
+    reloadWords(reload()).map { .notApplied($0) } ?? .saved
 }
 
 /// `json` with `repo`'s `role` set to the `fields` that are set, other keys of the entry kept; the entry goes when nothing is left. With `fields`

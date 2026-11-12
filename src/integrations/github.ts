@@ -9,13 +9,13 @@ const execFileAsync = promisify(execFile);
 
 export type GitHubProfile = { kind: 'forge'; agent: string } | { kind: 'gh' };
 
-/** `profile` and `timeoutMs` are read at each call, so a caller may pass getters to follow a reload. */
+/** `profile` and `timeoutMs` are functions read at each call, so a reload reaches the next GitHub call. */
 export interface GhGitHubOptions {
-  profile: GitHubProfile;
+  profile: () => GitHubProfile;
   /** Where to run `gh`. Forge picks the App installation from this directory's `origin`, so it must be a clone under the repo's owner. */
   cwd: (repo: string) => string;
   /** Per call; the process is killed when it passes. */
-  timeoutMs: number;
+  timeoutMs: () => number;
   /** Replaces `agent-forge` (forge profiles) or `gh` (gh profiles); for tests. */
   executable?: string;
 }
@@ -110,13 +110,15 @@ export class GhGitHub implements GitHub {
   /** One `gh api` call: argv separated, no shell. Returns the body of a 2xx answer, throws for anything else. */
   private async api(repo: string, args: string[]): Promise<string> {
     if (!repoPattern.test(repo)) throw new Error(`invalid repo "${repo}"`);
-    const { profile, executable } = this.options;
+    const profile = this.options.profile();
+    const { executable } = this.options;
+    const timeout = this.options.timeoutMs();
     const profileName = profile.kind === 'forge' ? profile.agent : 'gh';
     const [command, ...prefix] = profile.kind === 'forge' ? [executable ?? 'agent-forge', 'gh', profile.agent] : [executable ?? 'gh'];
     try {
       const { stdout } = await execFileAsync(command!, [...prefix, 'api', '-i', ...args], {
         cwd: this.options.cwd(repo),
-        timeout: this.options.timeoutMs,
+        timeout,
         maxBuffer: 64 * 1024 * 1024,
         encoding: 'utf8',
       });
@@ -129,7 +131,7 @@ export class GhGitHub implements GitHub {
       if (error instanceof GitHubUnavailable || error instanceof AuthError || error instanceof HttpError) throw error;
       const failed = error as { killed?: boolean; code?: unknown; stdout?: string; stderr?: string; message: string };
       // Exceeding maxBuffer also kills the child, but that is not a timeout.
-      if (failed.killed && failed.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') throw new GitHubUnavailable('timeout', `timed out after ${this.options.timeoutMs} ms`);
+      if (failed.killed && failed.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') throw new GitHubUnavailable('timeout', `timed out after ${timeout} ms`);
       const response = parseResponse(failed.stdout ?? '');
       if (response) {
         this.track(response.headers);

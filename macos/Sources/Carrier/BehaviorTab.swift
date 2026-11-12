@@ -57,6 +57,7 @@ struct BehaviorTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in if unreadable { load() } }
         .onChange(of: draft) {
             note = nil
+            failure = nil  // it spoke of an earlier edit
             autosave()
         }
     }
@@ -130,11 +131,15 @@ struct BehaviorTabView: View {
     }
 
     /// Writes the file and asks Carrier to apply it; false (with the reason shown) when it could not write. A write the engine did not apply
-    /// is shown the same way, with the file saved.
+    /// is shown the same way when it answers, with the file saved.
     private func write() -> Bool {
-        let result = saveConfig(path: path, unusable: "The config file could not be read or the values are not valid.", edit: { draft.applied(to: $0) }, reload: { reloadEngine() })
+        // the engine is asked after the write and off the main thread: this runs at every edit, and one that hangs must not hold the page
+        let result = saveConfig(path: path, unusable: "The config file could not be read or the values are not valid.", edit: { draft.applied(to: $0) }, reload: { .nobody })
         failure = result.problem
-        if result.isWritten { saved = draft }
+        if result.isWritten {
+            saved = draft
+            reloadEngineInBackground { if let words = $0 { failure = words } }
+        }
         return result == .saved
     }
 

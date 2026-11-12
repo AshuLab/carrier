@@ -280,17 +280,19 @@ public enum ProvidersOutcome: Equatable {
             return
         }
         // no page is asking for this file, so the engine's refusal goes to the log
-        if let problem = reload() { log("providers: the engine did not apply the new providers.json: \(problem)") }
+        if let problem = reloadWords(reload()) { log("providers: the engine did not apply the new providers.json: \(problem)") }
         await load()
     }
 
     /// The Add of a "Found, not added" row: the account named after the harness, then the host is asked again so the row goes away.
     public func add(harness: String) async {
         addProblem = nil
+        editProblem = nil
         do {
             let current = try file().read()
             try file().write(applyingAccounts([(name: harness, harness: harness)], to: current))
-            addProblem = reload().map(reloadRefusedWords)
+            // the row leaves "Found, not added" once the host is asked again, so the engine's words go where the accounts show them
+            editProblem = reloadWords(reload())
         } catch ProvidersFileError.notAnObject {
             addProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
         } catch ProvidersFileError.taken(let name) {
@@ -328,7 +330,7 @@ public enum ProvidersOutcome: Equatable {
             let file = file()
             try file.write(make(try file.read()))
             written = true
-            editProblem = reload().map(reloadRefusedWords)
+            editProblem = reloadWords(reload())
         } catch ProvidersFileError.notAnObject {
             editProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
         } catch ProvidersFileError.taken(let name) {

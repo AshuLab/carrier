@@ -34,11 +34,11 @@ private func value(_ path: String, _ keys: String...) throws -> Any? {
 private func step(_ provider: String, _ model: String? = nil) -> FailoverStep { FailoverStep(provider: provider, model: model) }
 
 private func persona(name: String?, prompt: String?, role: AgentRole = .author, path: String) -> RoleSave {
-    saveGlobalPersona(name: name, prompt: prompt, role: role, path: path, reload: { nil })
+    saveGlobalPersona(name: name, prompt: prompt, role: role, path: path, reload: { .applied })
 }
 
 private func failover(_ first: FailoverStep?, _ second: FailoverStep? = nil, role: AgentRole = .author, path: String) -> RoleSave {
-    saveGlobalFailover(first: first, second: second, role: role, path: path, accounts: accounts, reload: { nil })
+    saveGlobalFailover(first: first, second: second, role: role, path: path, accounts: accounts, reload: { .applied })
 }
 
 @Test func aRolesPersonaWithOnlyANameOrOnlyAPromptIsWrittenAsSuch() throws {

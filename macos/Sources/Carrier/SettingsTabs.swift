@@ -322,11 +322,20 @@ struct SettingsPageHeader: View {
             }
             if let note {
                 Spacer(minLength: 16)
-                switch note.tone {
-                case .saved: Label(note.text, systemImage: "checkmark.circle.fill").font(.callout).foregroundStyle(.green)
-                case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+                Group {
+                    switch note.tone {
+                    case .saved: Label(note.text, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                    }
                 }
+                // an engine's message can be long: it wraps instead of being cut
+                .font(.callout).multilineTextAlignment(.trailing).fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 420, alignment: .trailing).textSelection(.enabled)
             }
+        }
+        // a problem appears while the person looks elsewhere: say it to VoiceOver too
+        .onChange(of: note) { _, note in
+            if let note, note.tone == .problem { AccessibilityNotification.Announcement(note.text).post() }
         }
         // room for the close button, which sits over the corner of the header
         .padding(.trailing, 32)

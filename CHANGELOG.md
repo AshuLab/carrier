@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - The place pill in a session's toolbar ("In the folder", "Worktree") has room on its right, so it lines up with the window's corner.
+- A project's icon in the sidebar shows up to three letters (the first letters of its first three words), so projects that share their first two words are easier to tell apart.
 
 ## [0.2.0] - 2026-11-11
 

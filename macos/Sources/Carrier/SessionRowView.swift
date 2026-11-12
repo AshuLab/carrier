@@ -124,7 +124,8 @@ struct ProjectIcon: View {
             .frame(width: Self.size, height: Self.size)
             .glassEffect(active ? .regular.tint(Self.palette[projectColorIndex(colorKey, count: Self.palette.count)]) : .regular, in: .rect(cornerRadius: Self.radius))
             .overlay {
-                Text(projectInitials(name)).font(.scaled(12, weight: .semibold)).tracking(0.3)
+                let initials = projectInitials(name)
+                Text(initials).font(.scaled(initials.count > 2 ? 10.5 : 12, weight: .semibold)).tracking(initials.count > 2 ? 0 : 0.3)
                     .foregroundStyle(active ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
             }
             .animation(.easeOut(duration: 0.15), value: active)

@@ -39,3 +39,39 @@ public struct LevelMeter: Sendable {
         return level
     }
 }
+
+/// A color by hue (`0..<1`), saturation and brightness, for the edge and the light of a dictation.
+public struct HSB: Equatable, Sendable {
+    public var hue: Double
+    public var saturation: Double
+    public var brightness: Double
+
+    public init(hue: Double, saturation: Double, brightness: Double) {
+        self.hue = hue
+        self.saturation = saturation
+        self.brightness = brightness
+    }
+}
+
+/// The three colors of the edge, derived from the person's accent: the accent and its hue turned 40 degrees each way, with the same saturation
+/// and brightness. A gray or nearly gray accent (saturation under 15%) keeps its hue and only the brightness varies.
+public func dictationColors(accent: HSB) -> [HSB] {
+    guard accent.saturation >= 0.15 else {
+        return [accent, HSB(hue: accent.hue, saturation: accent.saturation, brightness: min(1, accent.brightness + 0.2)),
+                HSB(hue: accent.hue, saturation: accent.saturation, brightness: max(0, accent.brightness - 0.2))]
+    }
+    func turned(_ degrees: Double) -> HSB {
+        let hue = (accent.hue + degrees / 360).truncatingRemainder(dividingBy: 1)
+        return HSB(hue: hue < 0 ? hue + 1 : hue, saturation: accent.saturation, brightness: accent.brightness)
+    }
+    return [accent, turned(40), turned(-40)]
+}
+
+/// Whether the box draws the dictation's edge, halo and light: only while it listens, and a file dragged over the box wins (its veil is the
+/// one that asks for an action) so the edge waits.
+public func dictationEdgeShown(_ presentation: DictationPresentation?, dropping: Bool) -> Bool {
+    presentation?.inAccent == true && dropping == false
+}
+
+/// How much light the box has at `level`: about 60% at full voice and 35% of that in silence.
+public func dictationLightOpacity(level: Float) -> Double { 0.6 * (0.35 + 0.65 * Double(min(1, max(0, level)))) }

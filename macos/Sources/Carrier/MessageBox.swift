@@ -123,13 +123,20 @@ struct MessageBox<Selects: View>: View {
                             }
                             .layoutPriority(-1)
                         }
-                        DictationButton(presentation: presentation, action: dictate)
+                        DictationButton(presentation: presentation, level: dictation.level, action: dictate)
                             .popover(isPresented: $microphoneBlocked, arrowEdge: .top) { blockedPopover }
                     }
                     button
                 }
             }
             .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 12)
+            // while it listens: the edge, halo and light of the voice, over the glass and under the text; a drop's veil makes the edge wait
+            .background {
+                if dictationEdgeShown(dictationPresentation, dropping: dropping) {
+                    DictationIndicator(level: dictation.level).transition(.opacity)
+                }
+            }
+            .animation(.smooth(duration: 0.2), value: dictationEdgeShown(dictationPresentation, dropping: dropping))
             // glass: the conversation that scrolls under the box is blurred, not seen through it
             .glassEffect(.regular, in: .rect(cornerRadius: 16))
             .overlay { if dropping { dropVeil } }

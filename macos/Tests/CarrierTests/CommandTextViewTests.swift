@@ -1,8 +1,24 @@
 import AppKit
 import CarrierCore
+import Observation
 import SwiftUI
 import XCTest
 @testable import Carrier
+
+@Observable @MainActor fileprivate final class Probe {
+    var text = ""
+    var cursor = 0
+    var tentative: Range<Int>?
+}
+
+fileprivate struct ProbeBox: View {
+    @Bindable var probe: Probe
+    var body: some View {
+        CommandTextView(text: $probe.text, cursor: $probe.cursor, tentative: probe.tentative, focus: .constant(false), placeholder: "", minLines: 3, commands: [], onKey: { _ in false })
+            .frame(width: 600)
+    }
+}
+
 
 @MainActor
 final class CommandTextViewTests: XCTestCase {
@@ -132,5 +148,33 @@ final class CommandTextViewTests: XCTestCase {
         let view = try XCTUnwrap(textView(in: host))
         try await Task.sleep(for: .milliseconds(300))
         XCTAssertTrue(window.firstResponder === view)
+    }
+
+    /// A dictation writes where the caret was and not at the end, the partial text is secondary and turns normal when it is final.
+    func testADictationWritesInPlaceInSecondaryAndTurnsNormalWhenFinal() throws {
+        let probe = Probe()
+        probe.text = "uno dos"
+        probe.cursor = 4
+        let host = NSHostingView(rootView: ProbeBox(probe: probe))
+        host.frame = NSRect(x: 0, y: 0, width: 600, height: 200)
+        let window = NSWindow(contentRect: host.frame, styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        let view = try XCTUnwrap(textView(in: host))
+        func colour(at index: Int) -> NSColor? { view.textStorage?.attribute(.foregroundColor, at: index, effectiveRange: nil) as? NSColor }
+
+        var tentative = TentativeText(caret: 4)
+        for (event, secondary) in [(DictationEvent.partial("hola mun"), true), (.final("hola mundo "), false)] {
+            let edit = try XCTUnwrap(tentative.apply(event, to: probe.text))
+            (probe.text, probe.cursor, probe.tentative) = (edit.text, edit.caret, tentative.range)
+            host.layoutSubtreeIfNeeded()
+            XCTAssertEqual(view.string, edit.text)
+            XCTAssertEqual(view.selectedRange().location, edit.caret)
+            XCTAssertEqual(colour(at: 0), .labelColor)
+            XCTAssertEqual(colour(at: 4), secondary ? .secondaryLabelColor : .labelColor)
+            XCTAssertEqual(colour(at: view.string.utf16.count - 1), .labelColor)
+        }
+        XCTAssertEqual(view.string, "uno hola mundo dos")
+        XCTAssertEqual(view.selectedRange().location, 15)
     }
 }

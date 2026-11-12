@@ -11,6 +11,8 @@ struct CommandTextView: NSViewRepresentable {
     @Binding var text: String
     /// Where the caret is, in UTF-16 units of `text`.
     @Binding var cursor: Int
+    /// The range of `text` (plain UTF-16 units) a dictation is still hearing: drawn secondary, and the caret is where the box says, not at the end.
+    var tentative: Range<Int>?
     /// Set to true to put the caret in the text; the text resets it once it has.
     @Binding var focus: Bool
     var placeholder: String
@@ -97,21 +99,25 @@ struct CommandTextView: NSViewRepresentable {
         let rescaled = coordinator.textSize != textSize
         coordinator.textSize = textSize
         // what the box itself reported is already in the text view: only a text or a command list that came from outside needs the work
-        let settled = rescaled == false && text == coordinator.reported && commands == coordinator.reportedCommands
+        let settled = rescaled == false && text == coordinator.reported && commands == coordinator.reportedCommands && tentative == coordinator.reportedTentative
         if view.hasMarkedText() == false, settled == false {
             let rendered = render(text, commands: commands)
             let length = (text as NSString).length
             if rescaled || view.plain != text || view.string != rendered.string {
                 // a text put in from outside (a refused message that came back, a queued one taken back to edit) is written for the person
                 // to go on at its end; the caret the box knew was the one of the text it replaced
-                let outside = view.plain != text
+                // a dictation writes in place: the caret is the one the box set
+                let dictating = tentative != nil || coordinator.reportedTentative != nil
+                let outside = view.plain != text && dictating == false
                 view.replace(with: rendered, plainCursor: outside ? length : min(cursor, length))
                 if outside { DispatchQueue.main.async { if cursor != length { cursor = length } } }
             } else if view.plainOffset(of: view.selectedRange().location) != cursor {
                 view.setSelectedRange(NSRange(location: view.location(ofPlainOffset: cursor), length: 0))
             }
+            view.drawTentative(tentative)
             coordinator.reported = text
             coordinator.reportedCommands = commands
+            coordinator.reportedTentative = tentative
         }
         if focus {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -182,6 +188,7 @@ struct CommandTextView: NSViewRepresentable {
         /// The text and the commands the box last put in the text view or took from it: what is already there.
         var reported = ""
         var reportedCommands: [ChatCommand] = []
+        var reportedTentative: Range<Int>?
         /// The height the last layout measured, and what it was measured for.
         var measured: (key: Int, height: CGFloat)?
 
@@ -368,6 +375,16 @@ final class PillTextView: NSTextView {
         typingAttributes = CommandTextView.attributes
         setSelectedRange(NSRange(location: location(ofPlainOffset: plainCursor), length: 0))
         scrollRangeToVisible(selectedRange())
+    }
+
+    /// Draws the text of `range` (plain offsets) secondary and the rest in the normal colour.
+    func drawTentative(_ range: Range<Int>?) {
+        guard let storage = textStorage else { return }
+        let whole = NSRange(location: 0, length: storage.length)
+        storage.addAttribute(.foregroundColor, value: NSColor.labelColor, range: whole)
+        guard let range else { return }
+        let from = location(ofPlainOffset: range.lowerBound), to = location(ofPlainOffset: range.upperBound)
+        storage.addAttribute(.foregroundColor, value: NSColor.secondaryLabelColor, range: NSRange(location: from, length: max(0, to - from)))
     }
 
     /// The position in the plain text of a position in the text.

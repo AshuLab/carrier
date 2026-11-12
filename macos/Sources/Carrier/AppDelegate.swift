@@ -185,6 +185,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return (Bundle.main.resourcePath ?? ".") + "/Fixtures"
     }
 
+    /// How the fixture's recognizer behaves: `--fixture-dictation-at-the-end` gives its text only when the person stops, and
+    /// `--fixture-dictation-fails` fails to start with a cause, so every state of the box can be seen.
+    private static var fixtureDictationMode: FixtureRecognizer.Mode {
+        let args = CommandLine.arguments
+        if args.contains("--fixture-dictation-at-the-end") { return .atTheEnd }
+        if args.contains("--fixture-dictation-fails") { return .failsToStart }
+        return .live
+    }
+
     /// Starts the fake engine and points the app at it; with no fixtures to serve the app exits rather than show a stopped Carrier.
     private func startFixtureMode(_ fixtures: String) {
         do {
@@ -193,6 +202,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // the Agents page lists the bots of this registry, names only
             setenv("AGENT_FORGE_CONFIG", server.home + "/agent-forge.json", 1)
             fixtureServer = server
+            let recognizer = FixtureRecognizer(mode: Self.fixtureDictationMode)
+            MainActor.assumeIsolated { RecognizerRegistry.shared.register(recognizer) }
         } catch {
             FileHandle.standardError.write(Data("carrier: --fixture failed: \(error)\n".utf8))
             exit(1)

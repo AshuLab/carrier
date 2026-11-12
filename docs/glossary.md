@@ -222,3 +222,15 @@ _Avoid_: tab (a page is a row of the rail, not a tab), section (that is a part o
 
 **Legacy group** - The Settings group that holds the pages that existed before the groups (Engine, Sessions, Health; Behavior has moved to the Carrier group) as they were, until each one is redesigned into the App, Carrier or Chat group. It is meant to empty out, not to grow.
 _Avoid_: old settings, misc, other.
+
+**Chat MCP** - The MCP server the chat host runs for the agents of its sessions: loopback only, on by default, injected into one session when it opens and never into the agents of an epic or the user's own CLI configuration ([0023](adr/0023-the-chat-mcp-lives-in-the-chat-host-and-is-injected-per-session.md)). Its tools are pre-approved in the harness; what each may do is its access level.
+_Avoid_: Carrier MCP (the engine has none), orchestrator MCP, the app's MCP.
+
+**Toolkit** - A group of tools of the chat MCP kept together, with their schemas, handlers and tests, and added as one. The first is `capabilities`; each later capability is a toolkit of its own.
+_Avoid_: plugin, module, skill (a skill is the person's or a plugin's).
+
+**Tool access level** - What a tool of the chat MCP declares when it is defined: it reads, it reads as a session (it needs to know which session is calling) or it acts as a session (it changes something and needs a live session that holds the capability to act). The server checks it before the handler runs, and a tool that declares none does not register.
+_Avoid_: permission (that is the harness's own, asked of the person), scope, role.
+
+**MCP token** - The random secret that identifies one session to the chat MCP and carries its capabilities. It is kept hashed and only in memory, and ends when the session closes or sits idle.
+_Avoid_: session id (that is the session's own), API key, login.

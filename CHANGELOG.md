@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Settings' Behavior page moves from the Legacy group to the Carrier group, after Agents, and its line under the title reads "How Carrier runs epics"; Legacy keeps Engine, Sessions and Health.
+- Settings' Behavior page regroups its eight values by the question each answers: Pace, When something goes wrong and Housekeeping, with new titles and descriptions; the values, their rules and what is written to `config.json` do not change.
+- Settings' Behavior page ends with a Reset group, a card "Restore the defaults" with a Reset button that puts the eight values back to the engine's defaults, in place of the "Reset to defaults" button of its footer; the note "Saved as you change them · Carrier reads these when it starts" moves from the bottom of the page to its header, beside the title, and a failed save or an unreadable file shows its message there, in orange, in its place.
+
 ### Fixed
 
 - The release waits about 8 minutes (it waited 1) for npm to serve a version it has just been given before it takes the formula's checksum, so it no longer stops at that step while npm is still validating.

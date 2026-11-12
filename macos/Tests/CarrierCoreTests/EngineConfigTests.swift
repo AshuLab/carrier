@@ -92,3 +92,24 @@ private let file = Data(#"{"keep":"~/work","repos":[{"name":"a/b"}],"limits":{"m
     config.finishedWindowDays = 15  // back to the default: leaves the file
     #expect(object(config.applied(to: file))["finishedWindowDays"] == nil)
 }
+
+@Test func theRunTimeTakesUnlimitedOrANumberOfHours() throws {
+    #expect(EngineConfig(json: Data(#"{"limits":{"maxExecutionHours":"unlimited"}}"#.utf8)).maxExecutionHours == nil)
+    #expect(EngineConfig(json: Data(#"{"limits":{"maxExecutionHours":8}}"#.utf8)).maxExecutionHours == 8)
+    var config = EngineConfig()
+    config.maxExecutionHours = nil
+    #expect((object(config.applied(to: file))["limits"] as? [String: Any])?["maxExecutionHours"] as? String == "unlimited")
+    config.maxExecutionHours = 8
+    #expect((object(config.applied(to: file))["limits"] as? [String: Any])?["maxExecutionHours"] as? Int == 8)
+    #expect(EngineConfig(json: try #require(config.applied(to: file))) == config)
+}
+
+@Test func resettingWritesTheDefaultsOfTheEightValuesAndKeepsTheRestOfTheFile() throws {
+    let changed = Data(#"{"keep":"~/work","repos":[{"name":"a/b"}],"logLevel":"debug","pollIntervalMinutes":0.5,"finishedWindowDays":3,"limits":{"maxConcurrentEpics":6,"maxReviews":7,"maxExecutionRetries":0,"maxExecutionHours":"unlimited","githubCallTimeoutSeconds":90,"other":1}}"#.utf8)
+    let reset = try #require(EngineConfig().applied(to: changed))
+    #expect(EngineConfig(json: reset) == EngineConfig())
+    let written = object(reset)
+    #expect(written["keep"] as? String == "~/work" && (written["repos"] as? [Any])?.count == 1)
+    #expect(written["logLevel"] == nil && written["pollIntervalMinutes"] == nil && written["finishedWindowDays"] == nil)
+    #expect((written["limits"] as? [String: Any])?.keys.sorted() == ["other"])
+}

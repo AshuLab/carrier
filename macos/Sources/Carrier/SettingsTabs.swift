@@ -132,9 +132,22 @@ struct SettingsGroup<Content: View>: View {
     }
 }
 
-/// The top of a page: an icon, the title and a line.
+/// A line a page puts at the right of its own header (the Behavior page's note about saving, or why it cannot save).
+struct SettingsHeaderNote: Equatable {
+    enum Tone { case plain, saved, problem }
+    let text: String
+    let tone: Tone
+}
+
+struct SettingsHeaderNoteKey: PreferenceKey {
+    static let defaultValue: SettingsHeaderNote? = nil
+    static func reduce(value: inout SettingsHeaderNote?, nextValue: () -> SettingsHeaderNote?) { value = nextValue() ?? value }
+}
+
+/// The top of a page: an icon, the title and a line, and the page's note at the right when it has one.
 struct SettingsPageHeader: View {
     let page: SettingsPage
+    var note: SettingsHeaderNote?
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
@@ -146,6 +159,14 @@ struct SettingsPageHeader: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(page.rawValue).font(.title3.weight(.semibold))
                 Text(page.detail).font(.callout).foregroundStyle(.secondary)
+            }
+            if let note {
+                Spacer(minLength: 16)
+                switch note.tone {
+                case .plain: Text(note.text).font(.callout).foregroundStyle(.secondary)
+                case .saved: Label(note.text, systemImage: "checkmark.circle.fill").font(.callout).foregroundStyle(.green)
+                case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+                }
             }
         }
     }

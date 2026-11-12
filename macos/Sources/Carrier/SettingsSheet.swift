@@ -10,6 +10,7 @@ struct SettingsSheet: View {
     @ObservedObject private var start = StartController.shared
     @Binding var tab: SettingsPage
     @AppStorage(startOnOpenKey) private var startOnOpen = false
+    @State private var headerNote: SettingsHeaderNote?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -37,8 +38,9 @@ struct SettingsSheet: View {
         ScrollView {
             section.padding(.horizontal, 24).padding(.bottom, 24).padding(.top, 8).frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .onPreferenceChange(SettingsHeaderNoteKey.self) { headerNote = $0 }
         .safeAreaBar(edge: .top, spacing: 0) {
-            SettingsPageHeader(page: tab).padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 12)
+            SettingsPageHeader(page: tab, note: headerNote).padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }

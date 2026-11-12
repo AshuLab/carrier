@@ -17,10 +17,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         followColorScheme()
         // before anything reads the socket path: the fake engine's home becomes CARRIER_HOME
         if let fixtures = Self.fixturesPath() { startFixtureMode(fixtures) } else {
-            // Apple's recognizer, which the box's microphone needs: it appears once the system has said which languages it supports; FluidAudio's follows
+            // Apple's recognizer, which the box's microphone needs: it appears once the system has said which languages it supports; FluidAudio's and Whisper's follow
             Task {
                 if let apple = await AppleRecognizer.make() { RecognizerRegistry.shared.register(apple) }
                 RecognizerRegistry.shared.register(FluidAudioRecognizer(modelsRoot: dictationModelsRoot()))
+                RecognizerRegistry.shared.register(WhisperKitRecognizer(modelsRoot: dictationModelsRoot()))
             }
         }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)

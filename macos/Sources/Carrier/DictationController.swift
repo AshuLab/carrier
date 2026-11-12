@@ -140,12 +140,13 @@ import SwiftUI
 /// Where the speech models live: `<Carrier folder>/app/models`.
 func dictationModelsRoot() -> URL { URL(fileURLWithPath: currentCarrierFolder() + "/app/models") }
 
-/// The downloader of a real build: each recognizer's own, FluidAudio's so far. The others arrive with their recognizers.
+/// The downloader of a real build: each recognizer's own.
 private struct RealDownloads: ModelDownloader {
     func download(_ model: SpeechModel, into folder: URL, progress: @MainActor @Sendable (Double) -> Void) async throws {
         switch model.recognizer {
         case .fluidAudio: try await FluidAudioDownloader().download(model, into: folder, progress: progress)
-        case .apple, .whisper: throw DictationFailure("This build cannot download \(model.name).")
+        case .whisper: try await WhisperKitDownloader().download(model, into: folder, progress: progress)
+        case .apple: throw DictationFailure("This build cannot download \(model.name).")
         }
     }
 }

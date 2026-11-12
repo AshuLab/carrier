@@ -278,8 +278,8 @@ public struct AppPreferences {
                 notifyDockBadgeKey, notifySoundKey, notifyReminderKey, notifyQuietKey, notifyQuietStartKey, notifyQuietEndKey,
             ]
         case .keybindings: [ShortcutTable.key]
-        // the Providers page only reads, and the Legacy pages keep their own settings and have no Reset
-        case .providers, .engine, .behavior, .repos, .agents, .sessions, .health: []
+        // the Providers page only reads, the Updates page writes Sparkle's own preferences, and the Legacy pages keep their own settings and have no Reset
+        case .providers, .updates, .engine, .behavior, .repos, .agents, .sessions, .health: []
         }
     }
 }

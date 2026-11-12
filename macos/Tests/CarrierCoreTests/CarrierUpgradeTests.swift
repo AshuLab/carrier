@@ -70,3 +70,15 @@ private final class FakeBrew {
     #expect(brew.ran.count == 1)
     #expect(notice.line.contains("/opt/homebrew/bin/brew"))
 }
+
+@Test func onlyAFailedEngineUpdateCanBeTriedAgainAndItCarriesItsNotice() {
+    let notice = ChatHostNotice(title: carrierUpgradeFailedTitle, line: "`brew update` failed")
+    #expect(EngineUpdateState.failed(notice).canRetry && EngineUpdateState.failed(notice).notice == notice)
+    for state in [EngineUpdateState.unknown, .running, .upToDate, .updated] { #expect(state.canRetry == false && state.notice == nil) }
+}
+
+@Test func eachStateOfTheEngineUpdateHasItsOwnLine() {
+    let lines = [EngineUpdateState.unknown, .running, .upToDate, .updated, .failed(ChatHostNotice(title: "t", line: "l"))].map(\.line)
+    #expect(Set(lines).count == 5)
+    #expect(EngineUpdateState.running.line == "Updating Carrier…")
+}

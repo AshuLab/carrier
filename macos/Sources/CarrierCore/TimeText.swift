@@ -103,3 +103,9 @@ private let spokenAges: RelativeDateTimeFormatter = {
 
 /// What a screen reader says for an age, "5 minutes ago"; it is for the ear, so it does not follow Time format.
 public func spokenAge(_ date: Date, now: Date) -> String { spokenAges.localizedString(for: min(date, now), relativeTo: now) }
+
+/// The Updates page's "Last checked" line: the clock time of the last check, or "Never" when the updater has not checked yet.
+public func updateCheckedText(_ date: Date?, now: Date, format: TimeFormat = .stored()) -> String {
+    guard let date else { return "Never" }
+    return timeText(date, now: now, style: .clock, hours: format.hours, locale: format.locale, timeZone: format.timeZone)
+}

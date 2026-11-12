@@ -1,5 +1,6 @@
 import AppKit
 import CarrierCore
+import Sparkle
 
 // The menu bar of the app: what a Mac app has (its own menu, File, Edit, View, Window, Help), so the keys every text field expects work
 // (the Edit menu is what makes ⌘C and ⌘V reach a field) and the window is driven from the top of the screen as well as from its sidebar.
@@ -27,6 +28,8 @@ extension AppDelegate {
         // Carrier
         let app = submenu(of: main, title: "Carrier")
         item(app, "About Carrier", #selector(showAbout), target: self)
+        // the controller validates the item itself; with no updater (a fixture, `swift run`) nothing answers it and it stays dimmed
+        item(app, "Check for Updates…", #selector(SPUStandardUpdaterController.checkForUpdates(_:)), target: MainActor.assumeIsolated { AppUpdater.menuTarget })
         app.addItem(.separator())
         item(app, "Settings…", #selector(openSettings), key: ",", target: self)
         app.addItem(.separator())

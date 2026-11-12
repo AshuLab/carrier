@@ -1,9 +1,9 @@
 import Testing
 @testable import CarrierCore
 
-@Test func theAppGroupHasNoHeadingAndHoldsGeneralThenNotifications() {
+@Test func theAppGroupHasNoHeadingAndHoldsGeneralThenNotificationsAndEndsWithUpdates() {
     #expect(SettingsPage.Group.app.heading == nil)
-    #expect(SettingsPage.pages(in: .app) == [.general, .notifications, .appearance, .sidebar, .chat, .keybindings])
+    #expect(SettingsPage.pages(in: .app) == [.general, .notifications, .appearance, .sidebar, .chat, .keybindings, .updates])
 }
 
 @Test func legacyHasItsHeadingAndNoLongerHoldsRepos() {

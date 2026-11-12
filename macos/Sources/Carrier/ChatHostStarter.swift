@@ -12,8 +12,12 @@ import Observation
     private(set) var missing: [String] = []
     /// An older host is left running because a session is working: the Sessions section and the Sessions home say to restart it.
     private(set) var restartAdvised = false
-    /// Why the installed `carrier` older than the app could not be upgraded with Homebrew; nothing was changed and it is not retried.
-    private(set) var upgradeNotice: ChatHostNotice?
+    /// Where the upgrade of the installed `carrier` stands. A failure changed nothing and is not retried by itself: the Updates page has a button.
+    private(set) var engineUpdate = EngineUpdateState.unknown
+    /// Why the installed `carrier` older than the app could not be upgraded with Homebrew.
+    var upgradeNotice: ChatHostNotice? { engineUpdate.notice }
+    /// What the last version check used, so the button can look again.
+    private var lastCheck: (command: StartCommand, homebrews: Bool)?
     /// The installed `carrier` is asked its version once per launch.
     private var versionChecked = false
 
@@ -79,25 +83,39 @@ import Observation
     /// left running with a notice. Anything that cannot be read leaves it alone, and says so in the log. Before that, a Homebrew
     /// `carrier` older than the app is upgraded and its version read again. After the host, the engine gets the same comparison.
     private func replaceIfOlder(_ command: StartCommand, homebrews: Bool) {
+        lastCheck = (command, homebrews)
         Task.detached {
             guard var installed = Self.installedVersion(command) else { return }
             let app = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-            if homebrews, carrierIsOlder(installed: installed, app: app), CommandLine.arguments.contains("--selftest") == false {
-                BrewRunner.startLog()
-                switch upgradeCarrier(installed: installed, app: app, brew: BrewRunner.run) {
-                case .notNeeded: break
-                case .upgraded:
-                    guard let again = Self.installedVersion(command) else { return }
-                    installed = again
-                case .failed(let notice):
-                    FileHandle.standardError.write(Data("carrier: the installed carrier was not upgraded, see \(BrewRunner.logPath)\n".utf8))
-                    await MainActor.run { self.upgradeNotice = notice }
-                    return
+            if homebrews, CommandLine.arguments.contains("--selftest") == false {
+                if carrierIsOlder(installed: installed, app: app) {
+                    await MainActor.run { self.engineUpdate = .running }
+                    BrewRunner.startLog()
+                    switch upgradeCarrier(installed: installed, app: app, brew: BrewRunner.run) {
+                    case .notNeeded: await MainActor.run { self.engineUpdate = .upToDate }
+                    case .upgraded:
+                        guard let again = Self.installedVersion(command) else { return }
+                        installed = again
+                        await MainActor.run { self.engineUpdate = .updated }
+                    case .failed(let notice):
+                        FileHandle.standardError.write(Data("carrier: the installed carrier was not upgraded, see \(BrewRunner.logPath)\n".utf8))
+                        await MainActor.run { self.engineUpdate = .failed(notice) }
+                        return
+                    }
+                } else {
+                    await MainActor.run { self.engineUpdate = .upToDate }
                 }
             }
             await self.replaceHostIfOlder(command, installed: installed)
             await self.replaceEngineIfOlder(installed: installed)
         }
+    }
+
+    /// The Updates page's button after a failure: looks at the installed `carrier` again and upgrades it if it is still older.
+    /// Nothing happens while an upgrade runs.
+    func retryUpgrade() {
+        guard engineUpdate.canRetry, let lastCheck else { return }
+        replaceIfOlder(lastCheck.command, homebrews: lastCheck.homebrews)
     }
 
     private func replaceHostIfOlder(_ command: StartCommand, installed: String) async {

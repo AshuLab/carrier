@@ -60,6 +60,7 @@ struct SettingsSheet: View {
             case .sidebar: SidebarTabView()
             case .chat: ChatTabView()
             case .keybindings: KeybindingsTabView()
+            case .updates: UpdatesTabView()
             case .providers: ProvidersTabView(openAgents: { tab = .agents })
             case .engine: engine(banner, notConfigured: notConfigured)
             case .behavior: BehaviorTabView(state: state, canReload: canReload)

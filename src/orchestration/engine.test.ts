@@ -2863,3 +2863,30 @@ test('the retry limit is the one in force when the failure is decided', async ()
   expect(runner.tasks).toHaveLength(1); // no retry: the lowered limit was read at the failure
   expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'retries_exhausted' });
 });
+
+// --- Profiles that a reload removes ---
+
+test('a profile removed while a running epic names it fails the next run naming it and stops the epic in needs_human; putting it back and restarting runs it', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  const declared = new Set(['a', 'b']); // what the credentials of the real runner look up: a missing profile is auth_failed
+  let release!: () => void;
+  const firstRunEnds = new Promise<void>((resolve) => (release = resolve));
+  runner.behavior = (task) => (declared.has(task.profile) ? (runner.tasks.length === 1 ? { exit: 'failed', when: firstRunEnds } : { exit: 'hang' }) : { exit: 'auth_failed' });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(1));
+
+  declared.delete('a'); // the reload
+  release();
+  await vi.waitFor(() => expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'auth', needsHumanReason: 'authentication error for profile a' }));
+  expect(runner.tasks.map((t) => t.profile)).toEqual(['a', 'a']); // the retry was the run that failed, not another profile
+  expect(labelsOf(1)).toEqual(['solve:epic:needs-human']);
+
+  declared.add('a');
+  const resumed = engine.resumeEpic('AshuLab/a', 1);
+  await flush();
+  await clock.advance(1000);
+  await resumed;
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', needsHumanReason: null });
+  expect(runner.tasks).toHaveLength(3);
+});

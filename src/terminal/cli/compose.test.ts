@@ -123,6 +123,38 @@ test('workspaces use the engine\'s repos and reviews folders and mint the repo\'
   expect(credentials).toEqual({ githubToken: 'ghs_fake', forgeAgent: 'artanis-agent', gitIdentity: { name: 'artanis-agent[bot]', email: '99+artanis-agent[bot]@users.noreply.github.com' } });
 });
 
+test('a reload reaches the GitHub client and its timeout, the repo listing, the workspaces\' token and the runner\'s credentials; a removed profile is refused naming it', async () => {
+  const { seen, deps } = fakes();
+  const listed: number[] = [];
+  deps.listRepos = async (_page, timeoutMs) => (listed.push(timeoutMs), { repos: [], hasMore: false });
+  let next = config();
+  const app = await startCarrier(config(), root, () => next, deps);
+  closers.push(async () => (await app.engine.shutdown(), app.close()));
+  const client = await connectControl(join(root, 'engine', 'state', 'control.sock'));
+  closers.push(async () => client.close());
+  expect(seen.github).toMatchObject({ profile: { kind: 'gh' }, timeoutMs: 7000 });
+  await client.request('availableRepos');
+
+  next = config({
+    profiles: { 'new-orchestrator': { kind: 'forge', agent: 'fenix-agent' }, 'author-bot': { kind: 'forge', agent: 'zeratul-agent' }, 'reviewer-bot': { kind: 'forge', agent: 'tassadar-agent' } },
+    orchestratorProfile: 'new-orchestrator',
+    limits: { maxConcurrentEpics: 2, maxReviews: 4, maxExecutionRetries: 1, maxExecutionHours: 2, githubCallTimeoutSeconds: 30 },
+  });
+  await client.request('reload');
+  expect(seen.github).toMatchObject({ profile: { kind: 'forge', agent: 'fenix-agent' }, timeoutMs: 30_000 });
+  await client.request('availableRepos');
+  expect(listed).toEqual([7000, 30_000]);
+  await seen.workspaces!.token!('AshuLab/b');
+  expect(seen.minted).toEqual(['zeratul-agent@AshuLab/b']);
+  expect(await seen.runner!.credentials({ profile: 'author-bot', repo: 'AshuLab/b' } as never)).toMatchObject({ forgeAgent: 'zeratul-agent' });
+
+  // a profile that a stored epic still names but the file no longer has: the token for the run is refused naming it
+  next = { ...next, profiles: { 'new-orchestrator': { kind: 'gh' } } };
+  await client.request('reload');
+  await expect(seen.workspaces!.token!('AshuLab/b')).rejects.toThrow('profile "author-bot" is not declared');
+  await expect(seen.runner!.credentials({ profile: 'reviewer-bot', repo: 'AshuLab/b' } as never)).rejects.toThrow('profile "reviewer-bot" is not declared');
+});
+
 test('the panel is drawn from SQLite: slots and the running epic show up', async () => {
   const { seen, github, clock, deps } = fakes();
   github.ready = { 'AshuLab/a': [{ issue: 5, title: '' }] };

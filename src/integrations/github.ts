@@ -9,6 +9,7 @@ const execFileAsync = promisify(execFile);
 
 export type GitHubProfile = { kind: 'forge'; agent: string } | { kind: 'gh' };
 
+/** `profile` and `timeoutMs` are read at each call, so a caller may pass getters to follow a reload. */
 export interface GhGitHubOptions {
   profile: GitHubProfile;
   /** Where to run `gh`. Forge picks the App installation from this directory's `origin`, so it must be a clone under the repo's owner. */

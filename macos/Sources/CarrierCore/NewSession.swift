@@ -89,6 +89,8 @@ public struct WatchNote: Equatable {
     /// What the person changed from the agent's own values: an option and a value each, sent when the session opens.
     public private(set) var chosenOptions: [String: String] = [:]
     @ObservationIgnored private var optionsAgent: String?
+    /// What each agent offered when last asked, kept between drafts and launches.
+    @ObservationIgnored private let offers: AgentOfferStore
     public var text = ""
     public private(set) var sending = false
     /// Why `open` was refused (or the host would not start), said in words in the draft; nil when it worked.
@@ -190,7 +192,7 @@ public struct WatchNote: Equatable {
     /// `readChatConfig` and `writeChatConfig` are that file inside `carrierFolder`; `readConfig` and `writeConfig` are the engine's
     /// config file, which holds the watched repositories.
     public init(
-        host: ChatHost, health: HealthStore? = nil, ensureHost: @escaping @MainActor () async -> Bool = { true },
+        host: ChatHost, health: HealthStore? = nil, offers: AgentOfferStore = AgentOfferStore(), ensureHost: @escaping @MainActor () async -> Bool = { true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, watchEvery: Duration = .seconds(2),
         projectsFolder: @escaping () -> String = currentProjectsFolder,
@@ -200,6 +202,7 @@ public struct WatchNote: Equatable {
     ) {
         self.host = host
         self.health = health
+        self.offers = offers
         self.projectsFolder = projectsFolder
         projectsPath = projectsFolder()
         self.readConfig = readConfig
@@ -299,18 +302,21 @@ public struct WatchNote: Equatable {
         hostLists = capabilities.contains(.githubRepos)
     }
 
-    /// Asks the host what the chosen agent offers. A new agent starts from its own values: what was chosen for the other is dropped. A host
-    /// that cannot list them, or fails, leaves the list empty and the draft goes on without options.
+    /// Lists what the chosen agent offers: what was kept for it shows at once and the host is asked again in the background, so the list
+    /// follows any change; with nothing kept the selects say they are reading until it answers. A new agent starts from its own values: what
+    /// was chosen for the other is dropped. A host that cannot list them, or fails, leaves the kept list (or none) and the draft goes on.
     public func loadOptions() async {
         defer { takeRestoredOptions() }
         guard let name = agent, optionsAgent != name else { return }
         optionsAgent = name
-        agentOptions = []
-        agentCommands = []
         chosenOptions = [:]
-        loadingOptions = true
+        let known = offers.offer(name)
+        agentOptions = known?.options ?? []
+        agentCommands = known?.commands ?? []
+        loadingOptions = known == nil
+        takeRestoredOptions()
         do {
-            let listed = try await host.agentOptions(name)
+            let listed = try await offers.refresh(name, host: host)
             guard optionsAgent == name else { return }
             agentOptions = listed.options
             agentCommands = listed.commands

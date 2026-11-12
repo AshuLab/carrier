@@ -549,7 +549,7 @@ public struct SessionPlan: Equatable {
 }
 
 /// What an agent offers before a session exists.
-public struct AgentOffer: Decodable, Equatable {
+public struct AgentOffer: Codable, Equatable {
     public let options: [ChatOption]
     public let commands: [ChatCommand]
 
@@ -564,6 +564,12 @@ public struct AgentOffer: Decodable, Equatable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         options = try values.decodeIfPresent([ChatOption].self, forKey: .options) ?? []
         commands = try values.decodeIfPresent([ChatCommand].self, forKey: .commands) ?? []
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(options, forKey: .options)
+        try values.encode(commands, forKey: .commands)
     }
 }
 

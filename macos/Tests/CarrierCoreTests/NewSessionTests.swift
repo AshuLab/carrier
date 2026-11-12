@@ -126,8 +126,10 @@ private func cleanRepo(_ folder: String) -> WorkspaceInfo {
     )
 }
 
-@MainActor private func draft(_ host: FakeChat, hostStarts: Bool = true, log: @escaping (String) -> Void = { _ in }) async -> NewSessionModel {
-    let model = NewSessionModel(host: host, ensureHost: { hostStarts }, log: log, sleep: { _ in })
+@MainActor private func draft(
+    _ host: FakeChat, hostStarts: Bool = true, offers: AgentOfferStore = AgentOfferStore(), log: @escaping (String) -> Void = { _ in }
+) async -> NewSessionModel {
+    let model = NewSessionModel(host: host, offers: offers, ensureHost: { hostStarts }, log: log, sleep: { _ in })
     await model.load()
     return model
 }
@@ -1278,6 +1280,27 @@ private let claudeOptions = [
     #expect(host.optionAsks.count == 2)
 }
 
+@MainActor @Test func aDraftShowsWhatWasKeptForAnAgentAndKeepsItWhenTheHostFailsToAnswerAgain() async {
+    let host = FakeChat()
+    host.offered["claude"] = claudeOptions
+    let offers = AgentOfferStore()
+    let first = await draft(host, offers: offers)
+    await first.loadOptions()
+    #expect(host.optionAsks == ["claude"])
+    // the next draft has the list before the host answers, and a host that then fails leaves it
+    host.offered = [:]
+    var logged: [String] = []
+    let second = await draft(host, offers: offers, log: { logged.append($0) })
+    await second.loadOptions()
+    #expect(host.optionAsks == ["claude", "claude"] && second.loadingOptions == false)
+    #expect(optionsPill(second.shownOptions) == "Default · high" && logged.count == 1)
+    // and what the host lists now replaces it
+    host.offered["claude"] = [ChatOption(id: "model", label: "Model", values: [.init(id: "new", label: "New")], current: "new")]
+    let third = await draft(host, offers: offers)
+    await third.loadOptions()
+    #expect(optionsPill(third.shownOptions) == "New")
+}
+
 @MainActor @Test func aFirstMessageThatNamesACommandTravelsInThePlanAsTyped() async {
     let host = FakeChat()
     host.offered["claude"] = claudeOptions
@@ -1523,3 +1546,57 @@ private func gitHealth(_ git: ToolState) -> HostHealth { HostHealth(git: git, gh
     await model.load()
     #expect(model.folder == "/w/api" && model.text == "hello" && model.agent == "claude")
 }
+
+// MARK: what each agent offers, kept
+
+private func offer(_ model: String) -> AgentOffer {
+    AgentOffer(options: [ChatOption(id: "model", label: "Model", values: [.init(id: model, label: model)], current: model)], commands: [])
+}
+
+private func tempFile() -> URL { FileManager.default.temporaryDirectory.appendingPathComponent("offers-\(UUID().uuidString)/agent-offers.json") }
+
+@MainActor @Test func anAnswerIsKeptOnDiskAndTheNextLaunchHasItBeforeAskingAnyone() async throws {
+    let file = tempFile()
+    let host = FakeChat()
+    host.offered["claude"] = offer("sonnet").options
+    let first = AgentOfferStore(file: file, fingerprint: { "a" })
+    #expect(first.offer("claude") == nil)
+    try await first.refresh("claude", host: host)
+    // a new store, as after a launch: no request was made and the file has it
+    let second = AgentOfferStore(file: file, fingerprint: { "a" })
+    #expect(second.offer("claude") == offer("sonnet") && host.optionAsks == ["claude"])
+}
+
+@MainActor @Test func whatWasKeptIsDroppedWhenTheAccountsChange() async throws {
+    let file = tempFile()
+    let host = FakeChat()
+    host.offered["claude"] = offer("sonnet").options
+    var fingerprint = "a"
+    let store = AgentOfferStore(file: file, fingerprint: { fingerprint })
+    try await store.refresh("claude", host: host)
+    #expect(store.offer("claude") != nil)
+    fingerprint = "b"
+    #expect(store.offer("claude") == nil)
+    // and so does a store opened after the change
+    #expect(AgentOfferStore(file: file, fingerprint: { "b" }).offer("claude") == nil)
+}
+
+@MainActor @Test func aFailedAskLeavesWhatWasKept() async throws {
+    let host = FakeChat()
+    host.offered["claude"] = offer("sonnet").options
+    let store = AgentOfferStore()
+    try await store.refresh("claude", host: host)
+    host.offered = [:]
+    await #expect(throws: (any Error).self) { try await store.refresh("claude", host: host) }
+    #expect(store.offer("claude") == offer("sonnet"))
+}
+
+@MainActor @Test func warmingAsksEveryAgentWithABinaryAndSkipsTheOthers() async {
+    let host = FakeChat()
+    host.offered = ["claude": offer("sonnet").options, "codex": offer("gpt").options]
+    host.agents = [ChatAgent(name: "claude", harness: "claude", found: true), ChatAgent(name: "codex", harness: "codex", found: true), ChatAgent(name: "gone", harness: "x", found: false)]
+    let store = AgentOfferStore()
+    await store.warm(host: host)
+    #expect(Set(host.optionAsks) == ["claude", "codex"] && store.offer("codex") == offer("gpt") && store.offer("gone") == nil)
+}
+

@@ -51,7 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SetupController.shared.detectIfFirstLaunch {
             guard underSelfTest == false else { return }
             // once the host answers (or was just started), ask how the machine is
-            ChatHostStarter.shared.checkAtOpen { _ in
+            ChatHostStarter.shared.checkAtOpen { answers in
+                // what each provider offers is read and kept now, so the first draft lists it at once
+                if answers { Task { @MainActor in await AgentOfferStore.shared.warm(host: SocketChatHost()) } }
                 Task { @MainActor in
                     await AppHealth.store.check(.open)
                     await AppHealth.providers.createFileIfMissing()

@@ -48,7 +48,7 @@ That deletes everything in it, for good: `config.json`; `providers.json`; `engin
 
 ## Where it keeps things
 
-Carrier's folder is `~/.carrier/` (override it with `CARRIER_HOME`). The engine's config is `~/.carrier/config.json`. The accounts, one per login of an agent CLI, are in `~/.carrier/providers.json` ([ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md)): the one file besides `config.json` that both the engine and the chat host read (the engine when it starts, the chat host at each request), and the app writes it. The engine's schema is `src/config/schema.ts`, the accounts' is `src/config/providers.ts` and the chat's is `src/chat/config.ts`. The chat keeps everything else it owns in `~/.carrier/chat/`:
+Carrier's folder is `~/.carrier/` (override it with `CARRIER_HOME`). The engine's config is `~/.carrier/config.json`. The accounts, one per login of an agent CLI, are in `~/.carrier/providers.json` ([ADR 0020](adr/0020-accounts-live-in-a-file-both-processes-read.md)): the one file besides `config.json` that both the engine and the chat host read (the engine when it starts and on each reload, the chat host at each request), and the app writes it. The engine's schema is `src/config/schema.ts`, the accounts' is `src/config/providers.ts` and the chat's is `src/chat/config.ts`. The chat keeps everything else it owns in `~/.carrier/chat/`:
 
 - `chat/state/` — the chat host's `chat.db`, `chat.sock` and lock; `chat/logs/` — its logs; `chat/projects/` — the repositories it clones; `chat/worktrees/` — the worktrees of the sessions that ask for one; `chat/chat.json` — its optional settings ([configuration](configuration.md#chat-configuration)).
 

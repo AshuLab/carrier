@@ -22,11 +22,15 @@ import Testing
     }
 }
 
+/// What the session told VoiceOver, in order.
+private final class Said: @unchecked Sendable { var lines: [String] = [] }
+
 /// A box with a text and a caret, a scripted capture and recognizer, and a clock that stands still.
 @MainActor private final class Rig {
     let capture: ScriptedCapture
     let clock = FakeClock()
     let session: DictationSession
+    let said = Said()
     var text: String
     var caret: Int
     var tentative: Range<Int>?
@@ -35,14 +39,14 @@ import Testing
         self.capture = capture
         self.text = text
         self.caret = caret
-        let clock = clock
-        session = DictationSession(capture: capture, sleep: { try await clock.sleep($0) })
+        let clock = clock, said = said
+        session = DictationSession(capture: capture, sleep: { try await clock.sleep($0) }, announce: { said.lines.append($0) })
     }
 
-    func dictate(with recognizer: ScriptedRecognizer) {
+    func dictate(with recognizer: ScriptedRecognizer, owner: String = "box") {
         session.start(
             recognizer: recognizer, model: recognizer.models[0],
-            into: DictationField(owner: "box", text: { self.text }, caret: { self.caret }, put: { self.text = $0; self.caret = $1; self.tentative = $2 })
+            into: DictationField(owner: owner, text: { self.text }, caret: { self.caret }, put: { self.text = $0; self.caret = $1; self.tentative = $2 })
         )
     }
 
@@ -163,13 +167,88 @@ private func aFailureAtAnyPointReturnsToIdleWithItsCauseAndKeepsWhatWasHeard(poi
     #expect(rig.session.failure(for: "box") == DictationFailure("The recognizer did not answer."))
 }
 
-@MainActor @Test func aSecondDictationWhileOneRunsDoesNothing() async {
+@MainActor private enum Reason: CaseIterable { case aClickATypedKeyOrLeaving, anotherDictation }
+
+@MainActor @Test(arguments: Reason.allCases, [PartialText.native, .atTheEnd])
+private func everyReasonToStopKeepsWhatWasHeard(reason: Reason, partial: PartialText) async {
+    let rig = Rig(text: "uno dos", caret: 4)
+    let first = ScriptedRecognizer(partial: partial)
+    rig.dictate(with: first)
+    await rig.reaches(.listening)
+    first.say(.partial("hola"))
+    if partial == .native { await rig.until { rig.text == "uno holados" } }
+    switch reason {
+    case .aClickATypedKeyOrLeaving: rig.session.stop()
+    case .anotherDictation: rig.dictate(with: ScriptedRecognizer(), owner: "another")
+    }
+    first.say(.final("hola mundo"))
+    first.finish()
+    await rig.until { rig.text == "uno hola mundodos" && rig.session.owner != "box" }
+    #expect(rig.tentative == nil)
+    #expect(rig.session.failure(for: "box") == nil)
+}
+
+@MainActor @Test func aSecondDictationStopsTheFirstAndStartsWhenItIsIdle() async {
     let rig = Rig()
     let first = ScriptedRecognizer()
     rig.dictate(with: first)
     await rig.reaches(.listening)
-    rig.dictate(with: ScriptedRecognizer(prepareError: DictationFailure("never")))
     first.say(.partial("hola"))
     await rig.until { rig.text == "hola" }
-    #expect(rig.session.state == .listening && rig.session.failure(for: "box") == nil)
+    let second = ScriptedRecognizer()
+    rig.dictate(with: second, owner: "another")
+    #expect(rig.session.owner == "box")
+    first.finish()
+    await rig.until { rig.session.owner == "another" && rig.session.state == .listening }
+    #expect(rig.text == "hola" && rig.tentative == nil)
+    #expect(rig.capture.startCount == 2)
+    second.say(.partial("mundo"))
+    await rig.until { rig.text == "holamundo" }
+}
+
+@MainActor @Test func stoppingDropsTheDictationThatWasWaitingForTheFirstToEnd() async {
+    let rig = Rig()
+    let first = ScriptedRecognizer()
+    rig.dictate(with: first)
+    await rig.reaches(.listening)
+    rig.dictate(with: ScriptedRecognizer(), owner: "another")
+    rig.session.stop()
+    first.finish()
+    await rig.reaches(.idle)
+    try? await Task.sleep(for: .milliseconds(20))
+    #expect(rig.session.state == .idle && rig.capture.startCount == 1)
+}
+
+@MainActor @Test func aDictationTellsVoiceOverTheStartAndTheStopWithItsWordsAndNeverThePartialText() async {
+    let rig = Rig()
+    let recognizer = ScriptedRecognizer(atAudioEnd: [.final("hola mundo")])
+    rig.dictate(with: recognizer)
+    await rig.reaches(.listening)
+    recognizer.say(.partial("hola"))
+    await rig.until { rig.text == "hola" }
+    #expect(rig.said.lines == ["Listening"])
+    rig.session.stop()
+    await rig.reaches(.idle)
+    #expect(rig.said.lines == ["Listening", "Dictation stopped, 2 words added"])
+}
+
+@MainActor @Test func aFailureIsToldWithItsCauseAndNotAsAStop() async {
+    let rig = Rig()
+    let recognizer = ScriptedRecognizer()
+    rig.dictate(with: recognizer)
+    await rig.reaches(.listening)
+    recognizer.say(.failed(DictationFailure("No input device")))
+    await rig.reaches(.idle)
+    #expect(rig.said.lines == ["Listening", "Dictation failed: No input device"])
+}
+
+@Test(arguments: [
+    (DictationNotice.listening, "Listening"),
+    (.stopped(words: 0), "Dictation stopped, no words added"),
+    (.stopped(words: 1), "Dictation stopped, 1 word added"),
+    (.stopped(words: 12), "Dictation stopped, 12 words added"),
+    (.failed(DictationFailure("Another app holds the microphone")), "Dictation failed: Another app holds the microphone"),
+])
+func theAnnouncementsOfADictation(notice: DictationNotice, says: String) {
+    #expect(dictationAnnouncement(notice) == says)
 }

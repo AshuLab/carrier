@@ -97,7 +97,7 @@ struct MessageBox<Selects: View>: View {
                     .animation(.smooth(duration: 0.2), value: attachments)
                 }
                 CommandTextView(
-                    text: $text, cursor: $cursor, tentative: tentative, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onFiles: attach, onFileDrag: { dropping = $0 }, onLargePaste: keep,
+                    text: $text, cursor: $cursor, tentative: tentative, focus: focus, placeholder: placeholder, minLines: minLines, commands: commands, onKey: handle, onTyped: { dictation.stop(ownedBy: dictationOwner) }, onFiles: attach, onFileDrag: { dropping = $0 }, onLargePaste: keep,
                     sendKey: sendKey, writingTools: writingTools, checksSpelling: checksSpelling, correctsSpelling: correctsSpelling
                 )
                 .onChange(of: text) { _, now in
@@ -137,6 +137,8 @@ struct MessageBox<Selects: View>: View {
                 Text(failure.cause).font(.scaled(12)).foregroundStyle(.red).textSelection(.enabled)
             }
         }
+        // switching session: the box of the one left stops listening and keeps what it heard
+        .onDisappear { dictation.stop(ownedBy: dictationOwner) }
     }
 
     /// The click on the microphone: starts a dictation at the caret, or stops the one that listens.
@@ -187,7 +189,8 @@ struct MessageBox<Selects: View>: View {
         let marked = matches.isEmpty ? nil : matches[min(highlighted, matches.count - 1)]
         switch key {
         case .send:
-            if let marked { take(marked) } else { fire() }
+            // Enter ends a dictation and does not send; the next one sends
+            if dictationPresentation?.sendEnabled == false { dictation.stop(ownedBy: dictationOwner) } else if let marked { take(marked) } else { fire() }
         case .tab:
             guard let marked else { return false }
             take(marked)

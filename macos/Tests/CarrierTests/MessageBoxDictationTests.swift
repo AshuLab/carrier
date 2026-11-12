@@ -64,3 +64,21 @@ func theMessageBoxBuildsInEveryStateOfADictationAtWideAndNarrowWidths(state: Dic
     #expect(dictation.presentation(for: "box")?.label == "Stop dictation")
     #expect(dictation.presentation(for: "another")?.label == "Dictate")
 }
+
+@MainActor @Test func aTypedKeyOrLeavingStopsOnlyTheDictationOfThatBoxAndAClickInAnotherBoxStopsItToo() async {
+    let registry = RecognizerRegistry()
+    let dictation = DictationController(registry: registry, capture: ScriptedCapture())
+    registry.register(ScriptedRecognizer(atAudioEnd: [.final("")]))
+    func field(_ owner: String) -> DictationField { DictationField(owner: owner, text: { "" }, caret: { 0 }, put: { _, _, _ in }) }
+    func until(_ condition: () -> Bool) async { for _ in 0..<2000 where condition() == false { try? await Task.sleep(for: .milliseconds(1)) } }
+    dictation.toggle(into: field("box"))
+    await until { dictation.session.state == .listening }
+    dictation.stop(ownedBy: "another")
+    #expect(dictation.session.state == .listening)
+    dictation.toggle(into: field("another"))
+    await until { dictation.session.owner == "another" && dictation.session.state == .listening }
+    #expect(dictation.session.owner == "another" && dictation.session.state == .listening)
+    dictation.stop(ownedBy: "another")
+    await until { dictation.session.state == .idle }
+    #expect(dictation.session.state == .idle)
+}

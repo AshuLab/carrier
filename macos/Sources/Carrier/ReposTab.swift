@@ -338,6 +338,8 @@ private struct RepoRolesCard: View {
     let openAgents: () -> Void
     @State private var draft = RoleFields()
     @State private var problem: String?
+    private let catalog = ModelCatalog.shared
+    private let providers = AppHealth.providers
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -409,11 +411,7 @@ private struct RepoRolesCard: View {
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
                 choice("Identity", $draft.profile, options: profiles, inherited: row.inherited.profile)
                 spacer
-                choice("Provider", $draft.provider, options: accounts, inherited: row.inherited.provider)
-                field("Model") {
-                    TextField(row.inherited.model ?? "Model", text: Binding(get: { draft.model ?? "" }, set: { draft.model = $0 })).settingsField()
-                }
-                choice("Effort", $draft.effort, options: roleEfforts, inherited: row.inherited.effort)
+                field("Model") { modelPicker(row) }
                 spacer
                 field("Persona name") { TextField(row.inherited.persona?.name ?? "Name", text: persona(\.name)).settingsField() }
                 field("Persona prompt", top: true) {
@@ -430,6 +428,33 @@ private struct RepoRolesCard: View {
         }
         .padding(.vertical, 14)
         .writingToolsBehavior(.disabled)
+    }
+
+    /// The provider, the model and the reasoning of the role, from the one panel the Agents page has; what is left alone follows the global role.
+    private func modelPicker(_ row: RepoRoleRow) -> some View {
+        let reply: HostProviders? = if case .reply(let reply) = providers.outcome { reply } else { nil }
+        let followed = row.inherited
+        return ModelPickerButton(
+            provider: draft.provider, model: draft.model, effort: draft.effort,
+            accounts: pickerAccounts(reply, declared: accounts, icons: icons, current: [draft.provider ?? followed.provider].compactMap { $0 }), catalog: catalog,
+            effortFallback: (
+                label: "Same as everywhere",
+                detail: followed.effort.map { "Follows the global role: \($0)." } ?? "Follows the global role, which names none: the CLI's own."
+            ),
+            inherited: PickerInherited(provider: followed.provider, model: followed.model, effort: followed.effort), fill: true
+        ) { pick in
+            switch pick {
+            case .account(let account, let model):
+                draft.provider = account
+                draft.model = model
+            case .effort(let level): draft.effort = level.isEmpty ? nil : level
+            case .inherit:
+                draft.provider = nil
+                draft.model = nil
+            case .none: break
+            }
+        }
+        .task { await providers.load() }
     }
 
     /// More room between the blocks of the form than between its rows.

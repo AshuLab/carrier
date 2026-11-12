@@ -37,7 +37,18 @@ enum ModelPick {
     case account(String, model: String?)
     /// a level of reasoning; "" is the CLI's own
     case effort(String)
+    /// Follow what the role is everywhere else: no provider and no model of its own
+    case inherit
     case none
+}
+
+/// What a role follows when it names nothing of its own (a repo's role follows the global one).
+struct PickerInherited {
+    var provider: String?
+    var model: String?
+    var effort: String?
+
+    var text: String { [provider, model, effort].compactMap { $0 }.filter { $0.isEmpty == false }.joined(separator: " · ") }
 }
 
 /// The model of a role, or of a step of its failover, as a pill with the provider's mark, the model and the reasoning; it opens the panel the
@@ -50,8 +61,12 @@ struct ModelPickerButton: View {
     let accounts: [PickerAccount]
     let catalog: ModelCatalog
     var showsEffort = true
-    /// A failover step may name no effort: it then keeps the one the role was running with, which the first level of the slider says.
-    var inheritsEffort = false
+    /// A role that may name no effort (a failover step, a repo's role): the first level of the slider says what it then does.
+    var effortFallback: (label: String, detail: String)?
+    /// Set for a repo's role: the first row of the list is "Same as everywhere", and the pill shows what that is.
+    var inherited: PickerInherited?
+    /// The pill takes the width it is given (a form), where in a row it has a width of its own.
+    var fill = false
     /// A step may name no model and take the account's own: the first row of the list says so, and so does the pill.
     var allowsDefaultModel = false
     /// Set for a step that may be taken away (the second): the row at the foot that does it.
@@ -63,9 +78,17 @@ struct ModelPickerButton: View {
     @State private var viewing: String?
     @State private var query = ""
 
-    private var current: PickerAccount? { accounts.first { $0.name == provider } }
+    /// What the role is now: its own value, else what it follows.
+    private var shownProvider: String? { provider ?? inherited?.provider }
+    private var shownModel: String? { model ?? (provider == nil ? inherited?.model : nil) }
+    private var shownEffort: String? { effort ?? inherited?.effort }
+    private var followsAll: Bool { inherited != nil && provider == nil && model == nil }
+    /// The account whose models are ticked: the role's own (a model of its own on the followed account counts for it).
+    private var ownAccount: String? { provider ?? (model != nil ? inherited?.provider : nil) }
+
+    private var current: PickerAccount? { accounts.first { $0.name == shownProvider } }
     /// The tab shown: the one the person went to, else the role's own account, else the first.
-    private var shownName: String? { viewing ?? provider ?? accounts.first?.name }
+    private var shownName: String? { viewing ?? shownProvider ?? accounts.first?.name }
 
     var body: some View {
         Button {
@@ -76,33 +99,37 @@ struct ModelPickerButton: View {
             .buttonStyle(PopUpButtonStyle())
             .popover(isPresented: $open, arrowEdge: .bottom) { panel }
             .help("Provider, model and reasoning").accessibilityLabel("Provider, model and reasoning")
-            .accessibilityValue([provider, modelText, effortText].compactMap { $0 }.joined(separator: ", "))
+            .accessibilityValue([shownProvider, modelText, effortText].compactMap { $0 }.joined(separator: ", "))
     }
 
     // MARK: the pill
 
     private var modelText: String? {
-        guard provider != nil else { return nil }
-        guard let model else { return allowsDefaultModel ? "Default model" : nil }
+        guard shownProvider != nil else { return nil }
+        guard let model = shownModel else { return allowsDefaultModel ? "Default model" : nil }
         return current.flatMap { catalog.models(forHarness: $0.harness) }?.first { $0.id == model }.map { $0.label.replacingOccurrences(of: " (recommended)", with: "") } ?? model
     }
 
     private var effortText: String? {
-        guard showsEffort, provider != nil else { return nil }
-        if inheritsEffort, (effort ?? "").isEmpty { return nil }
-        return effortSteps.first { $0.id == (effort ?? "") }?.label
+        guard showsEffort, shownProvider != nil else { return nil }
+        if effortFallback != nil, (shownEffort ?? "").isEmpty { return nil }
+        return effortSteps.first { $0.id == (shownEffort ?? "") }?.label
     }
 
     private var pill: some View {
         HStack(spacing: 8) {
             if let current { ProviderMark(name: current.icon, size: 14) }
             HStack(spacing: 5) {
-                // whose model it is first (two logins of one provider have one mark), then the model, then how hard it thinks
-                if let provider {
-                    Text(provider).foregroundStyle(.secondary).lineLimit(1)
+                if followsAll {
+                    Text("Same as everywhere").lineLimit(1)
                     Text("·").foregroundStyle(.secondary)
                 }
-                Text(modelText ?? (provider == nil ? placeholder : "No model")).lineLimit(1)
+                // whose model it is first (two logins of one provider have one mark), then the model, then how hard it thinks
+                if let shownProvider {
+                    Text(shownProvider).foregroundStyle(.secondary).lineLimit(1)
+                    Text("·").foregroundStyle(.secondary)
+                }
+                Text(modelText ?? (shownProvider == nil ? placeholder : "No model")).lineLimit(1)
                 if let effortText {
                     Text("·").foregroundStyle(.secondary)
                     Text(effortText).foregroundStyle(.secondary).lineLimit(1)
@@ -112,8 +139,8 @@ struct ModelPickerButton: View {
             Spacer(minLength: 6)
             Image(systemName: "chevron.up.chevron.down").font(.scaled(9, weight: .semibold)).foregroundStyle(.secondary)
         }
-        // a width of its own, as the pop-ups of the other rows have, and long words are cut
-        .frame(width: 210, alignment: .leading)
+        // a width of its own, as the pop-ups of the other rows have, and long words are cut; in a form it takes the room it is given
+        .frame(width: fill ? nil : 210, alignment: .leading).frame(maxWidth: fill ? .infinity : nil, alignment: .leading)
     }
 
     // MARK: the panel
@@ -126,18 +153,15 @@ struct ModelPickerButton: View {
             if showsEffort {
                 ScaleRow(
                     scale: OptionScale(id: "effort", title: "Reasoning", steps: effortSteps.map {
-                        let same = inheritsEffort && $0.id.isEmpty
-                        return OptionRow.Choice(
-                            id: $0.id, label: same ? "As the role" : $0.label, ticked: $0.id == (effort ?? ""),
-                            detail: same ? "Keeps the reasoning the role was running with." : $0.detail
-                        )
+                        let fallback = $0.id.isEmpty ? effortFallback : nil
+                        return OptionRow.Choice(id: $0.id, label: fallback?.label ?? $0.label, ticked: $0.id == (effort ?? ""), detail: fallback?.detail ?? $0.detail)
                     }),
                     color: { _, _ in Color.themeAccent },
                     commit: { index in if effortSteps.indices.contains(index) { pick(.effort(effortSteps[index].id)) } }
                 )
                 accessNote
             }
-            if let noneTitle, provider != nil {
+            if let noneTitle, shownProvider != nil {
                 Button { pick(.none); open = false } label: { Label(noneTitle, systemImage: "xmark").labelStyle(.titleAndIcon).frame(maxWidth: .infinity, alignment: .leading) }
                     .buttonStyle(HoverTextButtonStyle(tint: nil)).padding(.horizontal, 12).padding(.vertical, 10)
                     .overlay(alignment: .top) { Divider() }
@@ -163,7 +187,7 @@ struct ModelPickerButton: View {
                         .frame(minWidth: 54).padding(.horizontal, 6).padding(.vertical, 6)
                         .overlay(alignment: .bottom) { if on { Capsule().fill(.primary).frame(height: 2).padding(.horizontal, 8) } }
                         .overlay(alignment: .topTrailing) {
-                            if account.name == provider { Circle().fill(Color.themeAccent).frame(width: 6, height: 6).padding(.top, 5).padding(.trailing, 7) }
+                            if account.name == shownProvider { Circle().fill(Color.themeAccent).frame(width: 6, height: 6).padding(.top, 5).padding(.trailing, 7) }
                         }
                         .contentShape(Rectangle())
                     }
@@ -189,11 +213,14 @@ struct ModelPickerButton: View {
             let options = catalog.models(forHarness: viewed.harness)
             let needle = query.trimmingCharacters(in: .whitespaces)
             let shown = (options ?? []).filter { needle.isEmpty || $0.label.localizedCaseInsensitiveContains(needle) || $0.id.localizedCaseInsensitiveContains(needle) }
-            let isCurrent = viewed.name == provider
+            let isCurrent = viewed.name == ownAccount
             // a model the file names that the provider does not list stays, so what is written is seen
             let custom = isCurrent ? model.flatMap { model in (options ?? []).contains { $0.id == model } ? nil : model } : nil
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
+                    if let inherited, needle.isEmpty {
+                        row(title: "Same as everywhere", detail: inherited.text.isEmpty ? "Follows the global role." : "Follows the global role: \(inherited.text)", ticked: followsAll) { pick(.inherit) }
+                    }
                     if allowsDefaultModel, needle.isEmpty {
                         row(title: "Default model", detail: "No model is named: \(viewed.name) runs the one it uses by default.", ticked: isCurrent && model == nil) { pick(.account(viewed.name, model: nil)) }
                     }

@@ -175,7 +175,7 @@ struct AgentsTabView: View {
                                 if account != row.fields.provider { _ = save(.provider(account), role: row.role, page: page) }
                                 if let model { _ = save(.model(model), role: row.role, page: page) }
                             case .effort(let level): _ = save(.effort(level.isEmpty ? nil : level), role: row.role, page: page)
-                            case .none: break
+                            case .none, .inherit: break
                             }
                         }
                     }
@@ -234,11 +234,12 @@ struct AgentsTabView: View {
         return SettingsTabRow(title: title, detail: detail) {
             ModelPickerButton(
                 provider: step?.provider, model: step?.model, effort: step?.effort, accounts: pickerAccounts(page: page, current: [step?.provider]), catalog: catalog,
-                inheritsEffort: true, allowsDefaultModel: true, noneTitle: index == 1 ? "No second step" : nil, placeholder: index == 0 ? "Choose…" : "None"
+                effortFallback: (label: "As the role", detail: "Keeps the reasoning the role was running with."), allowsDefaultModel: true, noneTitle: index == 1 ? "No second step" : nil, placeholder: index == 0 ? "Choose…" : "None"
             ) { pick in
                 switch pick {
                 case .account(let account, let model): _ = write(FailoverStep(provider: account, model: model, effort: step?.effort))
                 case .none: _ = write(nil)
+                case .inherit: break
                 case .effort(let level):
                     // a level goes with a provider: with none yet there is nothing to write it on
                     if let step { _ = write(FailoverStep(provider: step.provider, model: step.model, effort: level.isEmpty ? nil : level)) }

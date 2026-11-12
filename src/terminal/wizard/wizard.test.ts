@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { stripVTControlCharacters } from 'node:util';
 import { expect, test } from 'vitest';
 import { defaults, loadConfig } from '../../config/load.ts';
 import { Cancelled, type Ui } from '../prompts/types.ts';
@@ -6,6 +7,7 @@ import { asFiles, fakeDeps, fakeMachine, okCheck, providersWritten, quietUi, use
 import { runInit } from './wizard.ts';
 
 const dir = useTempDir();
+const notNow = 'Start Carrier now? (Ctrl+C stops it)'; // Enter would start it
 
 const withHome = async <T>(run: () => Promise<T>) => {
   process.env.CARRIER_HOME = join(dir, 'home');
@@ -32,7 +34,7 @@ const existing = {
 test('the questions fill a config that has only what defaults lack, and the doctor runs on it', async () => {
   let doctored: unknown;
   const { deps, written } = fakeDeps({ doctor: async (config) => ((doctored = config), [okCheck]) });
-  const { ui, asked } = quietUi({ 'Repos to watch (owner/name, comma separated)': 'AshuLab/a, AshuLab/b' });
+  const { ui, asked } = quietUi({ 'Repos to watch (owner/name, comma separated, or none for now)': 'AshuLab/a, AshuLab/b', [notNow]: false });
   const out = join(dir, 'a.json');
   const result = await runInit({ out }, ui, deps);
 
@@ -66,16 +68,17 @@ test('every flag skips its question', async () => {
 
 test('providers are not asked: what the detector found is shown and written switched off, with the extras asked for, and the recap says where the file goes', async () => {
   const { deps, written } = fakeDeps({ machine: fakeMachine({ version: async (command) => (command.endsWith('claude') ? '2.1.3' : '0.5.0'), login: async (harness) => (harness === 'codex' ? 'out' : 'in'), localModels: async (kind) => (kind === 'ollama' ? ['qwen3:8b'] : Promise.reject(new Error('down'))) }) });
-  const { ui, asked, notes } = quietUi({ 'Add another AI provider?': [true, false], 'Which agent CLI runs this provider?': 'claude', 'Where does this provider run?': 'ollama' });
+  const { ui, asked, notes } = quietUi({ 'Add another account?': [true, false], 'Which agent CLI runs this account?': 'claude', 'Where does this account run?': 'ollama' });
   const out = join(dir, 'd.json');
   const folder = join(dir, 'carrier-home');
   await runInit({ repo: ['A/b'], out }, ui, deps, folder);
-  expect(asked.indexOf('Which agent CLI runs this provider?')).toBeGreaterThan(asked.indexOf('Add another AI provider?')); // only the extras are asked, after the gate
+  expect(asked.indexOf('Which agent CLI runs this account?')).toBeGreaterThan(asked.indexOf('Add another account?')); // only the extras are asked, after the gate
   expect(notes.find((n) => n.title === 'Found on this Mac')!.message).toBe(
     ['Claude Code  /opt/bin/claude · 2.1.3 · signed in', 'Codex        /opt/bin/codex · 0.5.0 · signed out', 'Antigravity  not found', 'LM Studio    not running', 'Ollama       running · 1 models'].join('\n'),
   );
   expect(providersWritten(written, folder)).toEqual({ claude: { harness: 'claude' }, codex: { harness: 'codex' }, 'claude-2': { harness: 'claude', provider: 'ollama' } });
-  expect(notes.find((n) => n.title === 'This is what will be saved')!.message).toContain(`Accounts in ${join(folder, 'providers.json')}`); // not next to --out
+  expect(stripVTControlCharacters(notes.find((n) => n.title === 'AI accounts')!.message)).toContain('2 accounts were added for you, one per agent CLI found on this Mac'); // what was found is said to be already there
+  expect(notes.find((n) => n.title === 'This is what will be saved')!.message).toContain(`Accounts file ${join(folder, 'providers.json')}`); // not next to --out
 });
 
 test('a flag adds its account to the file, and an unattended run asks nothing', async () => {
@@ -110,11 +113,11 @@ test('each role gets its own box, and the author is fully asked before the revie
   expect(order.filter((m) => /author|reviewer/i.test(m))).toEqual([
     'GitHub identity for the author',
     'GitHub identity for the reviewer',
-    'Which AI provider runs the author?',
+    'Which account runs the author?',
     'Model for the author',
     'Effort for the author',
     'Author persona',
-    'Which AI provider runs the reviewer?',
+    'Which account runs the reviewer?',
     'Model for the reviewer',
     'Effort for the reviewer',
     'Reviewer persona',
@@ -124,11 +127,11 @@ test('each role gets its own box, and the author is fully asked before the revie
 test('the recap lists what will be saved, and declining it writes nothing', async () => {
   const { deps, written } = fakeDeps();
   const notes: Record<string, string> = {};
-  const { ui } = quietUi({ 'Save it?': false });
+  const { ui } = quietUi({ 'Save it?': 'cancel' });
   const spy: Ui = { ...ui, note: (m, title) => void (notes[title] = m) };
   await expect(runInit({ repo: ['A/b'], out: join(dir, 'u.json') }, spy, deps)).rejects.toBeInstanceOf(Cancelled);
   expect(written).toEqual({});
-  expect(notes['This is what will be saved']).toMatch(/Repos {7}A\/b\nProviders {3}claude, codex\nAuthor {6}artanis-agent · claude \(Claude Code\) · sonnet\nReviewer {4}tassadar-agent · codex \(Codex\) · gpt-test\nSaved to {4}/);
+  expect(notes['This is what will be saved']).toMatch(/Repos {9}A\/b\nAccounts {6}claude, codex\nAuthor {8}artanis-agent · claude \(Claude Code\) · sonnet\nReviewer {6}tassadar-agent · codex \(Codex\) · gpt-test\nConfig {8}/);
 });
 
 test('--yes skips the recap and the start question', async () => {
@@ -248,7 +251,7 @@ test('editing a config starts from its efforts and its failover steps, and the r
   await withHome(() => runInit({}, { ...ui, select: async (o) => ((initial[o.message] = o.initialValue), ui.select(o)), note: (m, t) => void (notes[t] = m) }, deps));
   expect(initial['Effort for the author']).toBe('high');
   expect(initial['GitHub identity for the author']).toBe('gh');
-  expect(notes['This is what will be saved']).toContain('Identity    shared: author and reviewer are the same account, and the signature in what they publish will show it');
+  expect(notes['This is what will be saved']).toContain('Identity      shared: author and reviewer are the same account, and the signature in what they publish will show it');
   const { providers, ...config } = shared;
   expect(JSON.parse(written[join(dir, 'home', 'config.json')]!)).toEqual(config);
   expect(providersWritten(written, join(dir, 'home'))).toEqual(providers);
@@ -265,10 +268,10 @@ test('each role is asked for a persona after its agent, the author first; Defaul
   const { ui, asked } = quietUi({ [gateOf('reviewer')]: 'set', [nameOf('reviewer')]: ' Rex ', [promptOf('reviewer')]: 'Be strict about migrations.' });
   const out = join(dir, 'p1.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  const order = [gateOf('author'), nameOf('author'), promptOf('author'), 'Which AI provider runs the reviewer?', gateOf('reviewer'), nameOf('reviewer'), promptOf('reviewer')];
-  expect(asked.filter((q) => order.includes(q))).toEqual([gateOf('author'), 'Which AI provider runs the reviewer?', gateOf('reviewer'), nameOf('reviewer'), promptOf('reviewer')]);
-  expect(asked.indexOf('Which AI provider runs the author?')).toBeLessThan(asked.indexOf(gateOf('author')));
-  expect(asked.indexOf(gateOf('author'))).toBeLessThan(asked.indexOf('Which AI provider runs the reviewer?'));
+  const order = [gateOf('author'), nameOf('author'), promptOf('author'), 'Which account runs the reviewer?', gateOf('reviewer'), nameOf('reviewer'), promptOf('reviewer')];
+  expect(asked.filter((q) => order.includes(q))).toEqual([gateOf('author'), 'Which account runs the reviewer?', gateOf('reviewer'), nameOf('reviewer'), promptOf('reviewer')]);
+  expect(asked.indexOf('Which account runs the author?')).toBeLessThan(asked.indexOf(gateOf('author')));
+  expect(asked.indexOf(gateOf('author'))).toBeLessThan(asked.indexOf('Which account runs the reviewer?'));
   const agents = JSON.parse(written[out]!).agents;
   expect(agents.author).not.toHaveProperty('persona');
   expect(agents.reviewer.persona).toEqual({ name: 'Rex', prompt: 'Be strict about migrations.' });
@@ -358,18 +361,18 @@ test('editing a persona: Keep leaves it as it was without asking its fields, Rem
 test('adding a lead reviewer asks its identity, provider, model and persona, and writes it to agents', async () => {
   const { deps, written } = fakeDeps();
   const { ui, asked } = quietUi({
-    'Add a Lead Reviewer to the workflow?': true,
+    'Add a lead reviewer?': true,
     'GitHub identity for the lead reviewer': 'forge:tassadar-agent',
-    'Which AI provider runs the lead reviewer?': 'claude',
+    'Which account runs the lead reviewer?': 'claude',
     'Model for the lead reviewer': 'opus',
     [gateOf('lead reviewer')]: 'set',
     [nameOf('lead reviewer')]: 'Architect',
   });
   const out = join(dir, 'lead.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  expect(asked).toContain('Add a Lead Reviewer to the workflow?');
+  expect(asked).toContain('Add a lead reviewer?');
   expect(asked).toContain('GitHub identity for the lead reviewer');
-  expect(asked).toContain('Which AI provider runs the lead reviewer?');
+  expect(asked).toContain('Which account runs the lead reviewer?');
   expect(asked).toContain('Model for the lead reviewer');
 
   const config = JSON.parse(written[out]!);
@@ -404,4 +407,62 @@ test('lead reviewer flag configures lead reviewer in unattended runs', async () 
     model: 'opus',
   });
   expect(loadConfig(defaults, config, providersWritten(written) as never).ok).toBe(true);
+});
+
+test('Enter says No to every optional extra and Yes to going on', async () => {
+  const { deps } = fakeDeps();
+  const { ui, asked } = quietUi();
+  const initial: Record<string, boolean | undefined> = {};
+  const spy: Ui = { ...ui, confirm: async (message, initialValue) => ((initial[message] = initialValue), ui.confirm(message, initialValue)) };
+  await runInit({ repo: ['A/b'], out: join(dir, 'enter.json') }, spy, deps);
+  expect(initial['Add another account?']).toBe(false);
+  expect(initial['Add a lead reviewer?']).toBe(false);
+  expect(initial['Start Carrier now? (Ctrl+C stops it)']).toBe(true);
+  expect(asked).not.toContain('Which agent CLI runs this account?'); // Enter on the first one added nothing
+});
+
+test('"Change an answer" at the recap asks again from the same answers, and the second recap is what is written', async () => {
+  const { deps, written } = fakeDeps();
+  const base = quietUi({ 'Save it?': ['change', 'save'], 'Model for the author': ['opus', 'sonnet'], [notNow]: false });
+  const modelDefaults: (string | undefined)[] = [];
+  const spy: Ui = { ...base.ui, select: async (o) => (o.message === 'Model for the author' && modelDefaults.push(o.initialValue), base.ui.select(o)) };
+  const out = join(dir, 'change.json');
+  await runInit({ repo: ['A/b'], out }, spy, deps);
+  expect(modelDefaults).toEqual(['sonnet', 'opus']); // the second time it starts from the first answer
+  expect(base.asked.filter((q) => q === 'Save it?')).toHaveLength(2);
+  expect(JSON.parse(written[out]!).agents.author.model).toBe('sonnet');
+});
+
+test('an existing failover is kept only when the person says so; saying no asks for it again', async () => {
+  const withFailover = { ...existing, failover: { triggers: ['usage_limit'], roles: { author: [{ provider: 'codex', model: 'gpt-test' }] } } };
+  const keep = 'Keep the failover you have? author: codex gpt-test';
+  const kept = fakeDeps({ exists: () => true, readConfig: asFiles(withFailover) });
+  await withHome(() => runInit({}, quietUi({ [notNow]: false }).ui, kept.deps));
+  expect(JSON.parse(kept.written[join(dir, 'home', 'config.json')]!).failover.roles.author).toEqual([{ provider: 'codex', model: 'gpt-test' }]);
+  const redone = fakeDeps({ exists: () => true, readConfig: asFiles(withFailover) });
+  const { ui, asked } = quietUi({ [keep]: false, [notNow]: false });
+  await withHome(() => runInit({}, ui, redone.deps));
+  expect(asked.some((q) => q.startsWith('Turn failover on for the author'))).toBe(true);
+  expect(JSON.parse(redone.written[join(dir, 'home', 'config.json')]!)).not.toHaveProperty('failover'); // asked again and declined
+});
+
+test('every wait on the machine or GitHub shows a loading line', async () => {
+  const waits: string[] = [];
+  const { ui } = quietUi({ [notNow]: false });
+  const spy: Ui = { ...ui, busy: (message, work) => (waits.push(message), work()) };
+  const { deps } = fakeDeps({ listRepos: () => ({ names: ['AshuLab/carrier'], hasMore: false }) });
+  await runInit({ out: join(dir, 'busy.json') }, spy, deps);
+  expect(waits).toEqual(['Looking at this Mac…', 'Reading your GitHub repos…', 'Asking GitHub which epics are ready…']);
+});
+
+test('the identity step is explained before it is asked, unless both profiles came as flags', async () => {
+  const noteFor = async (flags: Parameters<typeof runInit>[0]) => {
+    const { ui, notes } = quietUi({ [notNow]: false });
+    await runInit({ repo: ['A/b'], ...flags }, ui, fakeDeps().deps);
+    return notes.find((n) => n.title === 'GitHub identities')?.message;
+  };
+  const note = await noteFor({ out: join(dir, 'ident-1.json') });
+  expect(note).toContain('Agent Forge bot');
+  expect(note).toContain('(diego)'); // the gh login shown is the one found
+  expect(await noteFor({ out: join(dir, 'ident-2.json'), authorProfile: 'gh', reviewerProfile: 'forge:artanis-agent' })).toBeUndefined();
 });

@@ -19,10 +19,10 @@ const typedPath = '\0path';
 /** The config folder of a Claude or Codex option: one it found, the environment, or a path. It holds the login, so each is shown with its state. Undefined inherits the environment. */
 export async function askConfigDir(ui: Ui, harness: 'claude' | 'codex', deps: InitDeps, noun = 'option'): Promise<string | undefined> {
   const state = (dir?: string) => deps.loggedIn(harness, dir).then((ok) => (ok ? 'logged in' : 'not logged in'), () => 'could not check the login');
-  const found = await Promise.all(deps.configFolders(harness).map(async (dir) => ({ value: dir, label: tilde(dir), hint: await state(dir) })));
+  const [found, current] = await ui.busy('Checking which logins are signed in…', () => Promise.all([Promise.all(deps.configFolders(harness).map(async (dir) => ({ value: dir, label: tilde(dir), hint: await state(dir) }))), state()]));
   const choice = await ui.select({
     message: `Config folder of this ${harnessLabel[harness]} ${noun}`,
-    options: [...found, { value: inherit, label: 'Inherit the environment', hint: `the login Carrier runs in: ${await state()}` }, { value: typedPath, label: 'Type a path…' }],
+    options: [...found, { value: inherit, label: 'Inherit the environment', hint: `the login Carrier runs in: ${current}` }, { value: typedPath, label: 'Type a path…' }],
     initialValue: inherit,
   });
   if (choice === inherit) return undefined;
@@ -42,7 +42,7 @@ export async function askModel(
   current?: string,
 ): Promise<string> {
   const typed = async (suggestion?: string) => (await ui.text({ message: `Model for the ${role}`, placeholder: suggestion ?? 'model name', defaultValue: suggestion, validate: (v) => (v.trim() ? undefined : 'Required') })).trim();
-  const known: Option<string>[] = provider ? (locals[provider] ?? []).map((value) => ({ value, label: value })) : harness === 'claude' ? claudeModels : harness === 'codex' ? deps.codexModels() : deps.agyModels();
+  const known: Option<string>[] = provider ? (locals[provider] ?? []).map((value) => ({ value, label: value })) : harness === 'claude' ? claudeModels : harness === 'codex' ? deps.codexModels() : await ui.busy('Asking Antigravity which models it has…', async () => deps.agyModels());
   const configured = !provider && harness === 'codex' ? deps.codexModel() : undefined;
   if (known.length === 0) return typed(current ?? configured);
   const initial = [current, configured, 'sonnet'].find((m) => m !== undefined && known.some((k) => k.value === m)) ?? known[0]!.value;
@@ -58,13 +58,13 @@ export async function askAIProvider(
   locals: Partial<Record<LocalProvider, string[]>>,
   deps: InitDeps,
 ): Promise<{ harness: HarnessName; provider?: LocalProvider; configDir?: string }> {
-  const harness: HarnessName = installed.length === 1 ? installed[0]! : await ui.select<HarnessName>({ message: 'Which agent CLI runs this provider?', options: installed.map((p) => ({ value: p, label: harnessLabel[p] })), initialValue: installed.find((h) => !used.includes(h)) ?? installed[0]! });
+  const harness: HarnessName = installed.length === 1 ? installed[0]! : await ui.select<HarnessName>({ message: 'Which agent CLI runs this account?', options: installed.map((p) => ({ value: p, label: harnessLabel[p] })), initialValue: installed.find((h) => !used.includes(h)) ?? installed[0]! });
 
   let provider: LocalProvider | undefined;
   const servers = localKinds.filter((kind) => localProvidersOf[harness].includes(kind));
   if (servers.some((kind) => locals[kind])) {
     const choice = await ui.select({
-      message: 'Where does this provider run?',
+      message: 'Where does this account run?',
       options: [
         { value: native, label: nativeProvider[harness], hint: 'cloud' },
         ...servers.map((kind) => ({ value: kind as string, label: `${localLabel[kind]} (local)`, hint: locals[kind] ? `${locals[kind].length} models, runs on this machine` : 'not running: start its server to use it', disabled: !locals[kind] })),
@@ -74,6 +74,6 @@ export async function askAIProvider(
     if (choice !== native) provider = servers.find((kind) => kind === choice);
   }
 
-  const configDir = harness === 'agy' ? undefined : await askConfigDir(ui, harness, deps, 'provider');
+  const configDir = harness === 'agy' ? undefined : await askConfigDir(ui, harness, deps, 'account');
   return { harness, ...(provider && { provider }), ...(configDir && { configDir }) };
 }

@@ -30,14 +30,14 @@ test('"Other…" in the model list asks for the id', async () => {
 test('each question has one meaning: harness, then provider (only when there is a choice), then that provider\'s models, then the folder', async () => {
   const { deps, written } = fakeDeps({ ...running, configFolders: (h) => (h === 'codex' ? ['/home/d/.codex'] : []) });
   const selects: Record<string, string[]> = {};
-  const { ui } = quietUi({ 'Add another AI provider?': [true, false], 'Which agent CLI runs this provider?': 'codex', 'Where does this provider run?': 'lmstudio', 'Which AI provider runs the reviewer?': 'codex-2' });
+  const { ui } = quietUi({ 'Add another account?': [true, false], 'Which agent CLI runs this account?': 'codex', 'Where does this account run?': 'lmstudio', 'Which account runs the reviewer?': 'codex-2' });
   const spy: Ui = { ...ui, select: async (o) => ((selects[o.message] = o.options.map((x) => `${x.value}${x.disabled ? ' (disabled)' : ''}`)), ui.select(o)) };
   const out = join(dir, 'p.json');
   await runInit({ repo: ['A/b'], out }, spy, deps);
-  expect(selects['Which agent CLI runs this provider?']).toEqual(['claude', 'codex']); // only the harnesses found, and only harnesses
-  expect(selects['Where does this provider run?']).toEqual(['\0native', 'lmstudio', 'ollama (disabled)']); // Ollama is there, not running
+  expect(selects['Which agent CLI runs this account?']).toEqual(['claude', 'codex']); // only the harnesses found, and only harnesses
+  expect(selects['Where does this account run?']).toEqual(['\0native', 'lmstudio', 'ollama (disabled)']); // Ollama is there, not running
   expect(selects['Model for the reviewer']).toEqual(['google/gemma-4-12b', 'qwen/qwen3.8-27b', '\0other']); // only LM Studio's models, no cloud ones (the last one asked)
-  expect(selects['Config folder of this Codex provider']).toEqual(['/home/d/.codex', '\0inherit', '\0path']);
+  expect(selects['Config folder of this Codex account']).toEqual(['/home/d/.codex', '\0inherit', '\0path']);
   expect(roleOf(written, out, 'reviewer')).toEqual({ profile: 'tassadar-agent', harness: 'codex', model: 'google/gemma-4-12b', provider: 'lmstudio' });
   expect(roleOf(written, out, 'author')).not.toHaveProperty('provider');
 });
@@ -51,7 +51,7 @@ test('with no local server running there is no provider question', async () => {
 
 test('a local model id with a colon (Ollama) keeps it whole', async () => {
   const { deps, written } = fakeDeps({ machine: fakeMachine({ localModels: async (local) => (local === 'ollama' ? ['qwen3:8b'] : Promise.reject(new Error('down'))) }) });
-  const { ui } = quietUi({ 'Add another AI provider?': [true, false], 'Where does this provider run?': 'ollama', 'Which AI provider runs the author?': 'claude-2', 'Model for the author': 'qwen3:8b' });
+  const { ui } = quietUi({ 'Add another account?': [true, false], 'Where does this account run?': 'ollama', 'Which account runs the author?': 'claude-2', 'Model for the author': 'qwen3:8b' });
   const out = join(dir, 'r.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
   expect(roleOf(written, out, 'author')).toMatchObject({ model: 'qwen3:8b', provider: 'ollama' });
@@ -67,10 +67,10 @@ test('--author-provider goes with the flag form and an unknown server is refused
 
 test('Antigravity: its own models, no provider question even with a local server running, and never a folder', async () => {
   const { deps, written } = fakeDeps({ machine: { ...running.machine, resolveBinary: (name) => `/opt/bin/${name}` }, agyModels: () => [{ value: 'gemini-3.8-flash-low', label: 'gemini-3.8-flash-low', hint: 'Gemini 3.8 Flash (Low)' }] });
-  const { ui, asked } = quietUi({ 'Add another AI provider?': [true, false], 'Which agent CLI runs this provider?': 'agy', 'Which AI provider runs the author?': 'agy-2' });
+  const { ui, asked } = quietUi({ 'Add another account?': [true, false], 'Which agent CLI runs this account?': 'agy', 'Which account runs the author?': 'agy-2' });
   const out = join(dir, 's.json');
   await runInit({ repo: ['A/b'], out }, ui, deps);
-  expect(asked).not.toContain('Where does this provider run?');
+  expect(asked).not.toContain('Where does this account run?');
   expect(asked.some((q) => q.startsWith('Config folder'))).toBe(false);
   expect(roleOf(written, out, 'author')).toEqual({ profile: 'artanis-agent', harness: 'agy', model: 'gemini-3.8-flash-low' });
 });

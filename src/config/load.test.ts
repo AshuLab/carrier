@@ -77,8 +77,8 @@ describe('invalid config', () => {
     expect(paths.errors.map((e) => e.path).sort()).toEqual(['agents', 'profiles', 'repos']);
   });
 
-  test('empty repos', () => {
-    expect(errorsOf({ repos: [] }).map((e) => e.path)).toEqual(['repos']);
+  test('no repos yet is allowed', () => {
+    expect(load({ repos: [] }).ok).toBe(true);
   });
 
   test('wrong type', () => {

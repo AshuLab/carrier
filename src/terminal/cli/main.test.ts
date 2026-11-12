@@ -148,7 +148,7 @@ test('schema prints the JSON Schema of the config as the user writes it', () => 
   const result = run('schema');
   expect(result.status).toBe(0);
   const schema = JSON.parse(result.stdout);
-  expect(schema.properties.repos.minItems).toBe(1);
+  expect(schema.properties.repos).not.toHaveProperty('minItems'); // none yet is allowed: repos are added later, in the file or in the app
   expect(schema.required).toEqual(expect.arrayContaining(['repos', 'profiles', 'agents']));
   expect(schema.properties).not.toHaveProperty('root');
   expect(schema.properties.limits.required ?? []).toEqual([]);

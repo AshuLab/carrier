@@ -27,9 +27,8 @@ public func repoProblem(_ name: String, joining others: [String]) -> String? {
     return nil
 }
 
-/// What the engine would refuse in the whole list; nil when it is fine. The first problem, in list order.
+/// What the engine would refuse in the whole list; nil when it is fine (an empty list is fine: nothing is watched yet). The first problem, in list order.
 public func reposProblem(_ names: [String]) -> String? {
-    if names.isEmpty { return "The config needs at least one repo." }
     for (index, name) in names.enumerated() {
         if let problem = repoProblem(name, joining: Array(names[..<index])) { return problem }
     }

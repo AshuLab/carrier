@@ -1,32 +1,38 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFile, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { promisify } from 'node:util';
 import { enginePlacesOf } from '../../config/engine-places.ts';
 import type { Config } from '../../config/schema.ts';
 import { repoNamePattern } from '../../config/schema.ts';
 import { defaults } from '../../config/load.ts';
 import { realMachine, type Machine } from '../../doctor/detect.ts';
 import { cliLoggedIn, runDoctor } from '../../doctor/doctor.ts';
-import { ghReposArgs, parseRepos } from '../../integrations/available-repos.ts';
+import { listAvailableRepos } from '../../integrations/available-repos.ts';
 import { forgeCwd } from '../../integrations/forge-cwd.ts';
 import { GhGitHub } from '../../integrations/github.ts';
 import type { Option } from '../prompts/types.ts';
 import { readForgeAgents, type ForgeAgent } from './forge-registry.ts';
 
+const execFileAsync = promisify(execFile);
+
+/** A value or a promise of it: tests answer at once, the real machine takes its time. */
+type Maybe<T> = T | Promise<T>;
+
 /** Everything that touches the machine, replaceable for tests. */
 export interface InitDeps {
   which: (command: string) => boolean;
   forgeAgents: () => ForgeAgent[];
-  ghLogin: () => string | undefined;
+  ghLogin: () => Maybe<string | undefined>;
   /** `owner/name` of the repos the gh login can push to on that page (1 is the first), most recently pushed first, and whether GitHub has more pages. Throws when it cannot list. */
-  listRepos: (page: number) => { names: string[]; hasMore: boolean };
+  listRepos: (page: number) => Maybe<{ names: string[]; hasMore: boolean }>;
   originRepo: () => string | undefined;
   codexModel: () => string | undefined;
   /** The models Codex itself lists as available (its local cache); empty when it has none. */
   codexModels: () => Option<string>[];
   /** The models `agy models` lists; empty when it cannot. */
-  agyModels: () => Option<string>[];
+  agyModels: () => Maybe<Option<string>[]>;
   /** What the detector asks of the Mac: the agent CLIs, their logins and the local model servers. */
   machine: Machine;
   /** The config folders of that harness found in the home folder (`~/.claude`, `~/.claude-*`, `~/.codex`), absolute. */
@@ -48,16 +54,18 @@ export interface InitDeps {
 export const realDeps: InitDeps = {
   which: (command) => spawnSync('which', [command], { stdio: 'ignore' }).status === 0,
   forgeAgents: () => readForgeAgents(),
-  ghLogin: () => {
+  // The slow ones below are asynchronous: a synchronous call would freeze the spinner that tells the person it is working.
+  ghLogin: async () => {
     try {
-      return execFileSync('gh', ['api', 'user', '--jq', '.login'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || undefined;
+      const { stdout } = await execFileAsync('gh', ['api', 'user', '--jq', '.login'], { encoding: 'utf8', timeout: defaults.limits.githubCallTimeoutSeconds * 1000 });
+      return stdout.trim() || undefined;
     } catch {
       return undefined; // not logged in or no gh: the doctor reports it, here it only means no hint
     }
   },
-  listRepos: (page) => {
+  listRepos: async (page) => {
     // no config yet at init: the default bounds the call
-    const { repos, hasMore } = parseRepos(execFileSync('gh', ghReposArgs(page), { encoding: 'utf8', timeout: defaults.limits.githubCallTimeoutSeconds * 1000, stdio: ['ignore', 'pipe', 'pipe'] }));
+    const { repos, hasMore } = await listAvailableRepos(page, defaults.limits.githubCallTimeoutSeconds * 1000);
     return { names: repos.map((repo) => repo.name), hasMore };
   },
   originRepo: () => {
@@ -80,10 +88,10 @@ export const realDeps: InitDeps = {
       return []; // no cache yet: the model is typed
     }
   },
-  agyModels: () => {
+  agyModels: async () => {
     try {
       // "Fetching available models..." then `id<TAB>label` per line.
-      const out = execFileSync('agy', ['models'], { encoding: 'utf8', timeout: 20_000, stdio: ['ignore', 'pipe', 'ignore'] });
+      const { stdout: out } = await execFileAsync('agy', ['models'], { encoding: 'utf8', timeout: 20_000 });
       return out.split('\n').flatMap((line) => {
         const [id, label] = line.split('\t');
         return id && label ? [{ value: id, label: id, hint: label }] : [];

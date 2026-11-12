@@ -29,13 +29,13 @@ private func freeProfileName(_ name: String, in profiles: [String: Any]) -> Stri
 
 /// Applies `change` to the global `role` in the file at `path`, read just now. A bot the registry (`bots`) does not list, a provider that is not
 /// an account, an empty model, or a role left without profile, provider or model is refused before anything is written.
-public func saveGlobalRole(_ change: RoleChange, role: AgentRole, path: String, accounts: [String], bots: [String]) -> RoleSave {
-    saveGlobalRole([change], role: role, path: path, accounts: accounts, bots: bots)
+public func saveGlobalRole(_ change: RoleChange, role: AgentRole, path: String, accounts: [String], bots: [String], reload: Reload) -> RoleSave {
+    saveGlobalRole([change], role: role, path: path, accounts: accounts, bots: bots, reload: reload)
 }
 
 /// Applies `changes` together: one write, or none. With `creating` the role may not be in the file yet (turning the Lead reviewer on), and then
 /// the changes have to make the whole role, identity, provider and model, or nothing is written.
-public func saveGlobalRole(_ changes: [RoleChange], role: AgentRole, path: String, accounts: [String], bots: [String], creating: Bool = false) -> RoleSave {
+public func saveGlobalRole(_ changes: [RoleChange], role: AgentRole, path: String, accounts: [String], bots: [String], creating: Bool = false, reload: Reload) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), var file = (try? JSONSerialization.jsonObject(with: current)) as? [String: Any] else {
         return .failed("The config file could not be read.")
@@ -84,7 +84,7 @@ public func saveGlobalRole(_ changes: [RoleChange], role: AgentRole, path: Strin
     do {
         let updated = try JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         try updated.write(to: url, options: .atomic)
-        return .saved
+        return written(reload)
     } catch {
         FileHandle.standardError.write(Data("carrier: saving \(path) failed: \(error)\n".utf8))
         return .failed("Could not save the config file: \(error.localizedDescription)")

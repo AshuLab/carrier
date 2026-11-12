@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - `carrier reload` (and a `reload` request on the control socket) makes a running Carrier read `config.json` and `providers.json` again and run on them without a restart: the poll interval, the finished window, the limits, the log level, the GitHub timeout, the profiles and the orchestrator's profile, and the numbers the panel and `carrier watch` show change at once (the next token, commit identity, clone and GitHub call use the current profile; a profile removed while a running epic names it stops that epic's next run in needs-human, naming it), and a run already going keeps what it started with. It prints "Reloaded", or the problem with the key named and exit 1 when a file is wrong, and then changes nothing. Repos and roles still need a restart for now.
+- The Mac app asks a running Carrier to reload after every save of `config.json` or `providers.json`, from every page that writes them (Behavior, Repos, Agents, Providers and a repo added from a new session), and shows what Carrier answers where the page shows a failure to save. With Carrier stopped, or an older one that does not list `reload`, a save sends nothing and shows no error.
 
 ### Changed
 

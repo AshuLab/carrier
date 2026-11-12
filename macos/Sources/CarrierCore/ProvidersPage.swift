@@ -250,18 +250,21 @@ public enum ProvidersOutcome: Equatable {
     @ObservationIgnored private let file: () -> ProvidersFile
     @ObservationIgnored private let uses: () throws -> [String: [AccountUse]]
     @ObservationIgnored private let log: (String) -> Void
+    @ObservationIgnored private let reload: Reload
 
     /// `file` is looked up at each use, so the Carrier folder is the one the app has then. `uses` is who names each account, read from
     /// `config.json` and `chat.json` when an account is removed; a `chat.json` that is there and cannot be read stops the removal.
     public init(
         host: ChatHost, file: @escaping () -> ProvidersFile = ProvidersFile.current,
         uses: @escaping () throws -> [String: [AccountUse]] = { accountUses(config: currentConfig(), chat: try currentChatConfig()) },
-        log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) }
+        log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
+        reload: @escaping Reload = { reloadEngine() }
     ) {
         self.host = host
         self.file = file
         self.uses = uses
         self.log = log
+        self.reload = reload
     }
 
     /// When the app opens: with no `providers.json`, writes one account per harness the host found, named after it. With a file there it writes nothing, so an account that was removed stays removed; with nothing found
@@ -276,6 +279,8 @@ public enum ProvidersOutcome: Equatable {
             log("providers: could not create providers.json: \(error)")
             return
         }
+        // no page is asking for this file, so the engine's refusal goes to the log
+        if let problem = reload() { log("providers: the engine did not apply the new providers.json: \(problem)") }
         await load()
     }
 
@@ -285,6 +290,7 @@ public enum ProvidersOutcome: Equatable {
         do {
             let current = try file().read()
             try file().write(applyingAccounts([(name: harness, harness: harness)], to: current))
+            addProblem = reload().map(reloadRefusedWords)
         } catch ProvidersFileError.notAnObject {
             addProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
         } catch ProvidersFileError.taken(let name) {
@@ -322,6 +328,7 @@ public enum ProvidersOutcome: Equatable {
             let file = file()
             try file.write(make(try file.read()))
             written = true
+            editProblem = reload().map(reloadRefusedWords)
         } catch ProvidersFileError.notAnObject {
             editProblem = "providers.json is not a JSON object with a providers map, so Carrier left it as it is."
         } catch ProvidersFileError.taken(let name) {

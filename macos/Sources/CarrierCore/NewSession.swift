@@ -163,6 +163,7 @@ public struct WatchNote: Equatable {
     @ObservationIgnored private let projectsFolder: () -> String
     @ObservationIgnored private let readConfig: () -> Data?
     @ObservationIgnored private let writeConfig: (Data) throws -> Void
+    @ObservationIgnored private let reload: Reload
     @ObservationIgnored private let readChatConfig: () throws -> Data?
     @ObservationIgnored private let writeChatConfig: (Data) throws -> Void
     @ObservationIgnored private let carrierFolder: String
@@ -197,6 +198,7 @@ public struct WatchNote: Equatable {
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, watchEvery: Duration = .seconds(2),
         projectsFolder: @escaping () -> String = currentProjectsFolder,
         readConfig: @escaping () -> Data? = currentConfig, writeConfig: @escaping (Data) throws -> Void = writeCurrentConfig,
+        reload: @escaping Reload = { reloadEngine() },
         readChatConfig: @escaping () throws -> Data? = currentChatConfig, writeChatConfig: @escaping (Data) throws -> Void = writeCurrentChatConfig,
         carrierFolder: String = currentCarrierFolder()
     ) {
@@ -207,6 +209,7 @@ public struct WatchNote: Equatable {
         projectsPath = projectsFolder()
         self.readConfig = readConfig
         self.writeConfig = writeConfig
+        self.reload = reload
         self.readChatConfig = readChatConfig
         self.writeChatConfig = writeChatConfig
         self.carrierFolder = carrierFolder
@@ -555,7 +558,11 @@ public struct WatchNote: Equatable {
         do {
             try writeConfig(updated)
             watched = names + [repo]
-            watchNotes[id] = WatchNote(text: "Carrier will listen to \(repo) from its next start.", failed: false)
+            if let problem = reload() {
+                watchNotes[id] = WatchNote(text: "\(repo) was added to Carrier's list, but Carrier kept its settings: \(problem)", failed: true)
+            } else {
+                watchNotes[id] = WatchNote(text: "Carrier will listen to \(repo) from its next start.", failed: false)
+            }
         } catch {
             log("new session: could not write the config: \(error)")
             failed("the config file is not writable")

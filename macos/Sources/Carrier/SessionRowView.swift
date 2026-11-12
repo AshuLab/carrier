@@ -49,6 +49,18 @@ struct SessionRowView: View {
         }
     }
 
+    /// The time at the top right: the age of the last activity, or how long the turn has run while the session works (a stopwatch that
+    /// ticks each second, in the colour of the halo).
+    @ViewBuilder private func ageOrStopwatch(_ content: SessionRowContent) -> some View {
+        if content.age != nil, let since = WorkingClock.shared.since(row) {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(workingElapsed(Int(context.date.timeIntervalSince(since)))).foregroundStyle(Color.themeAccent)
+            }
+        } else {
+            Text(content.age ?? "").foregroundStyle(.tertiary)
+        }
+    }
+
     var body: some View {
         let content = content
         HStack(spacing: SidebarMetrics.inset) {
@@ -63,8 +75,8 @@ struct SessionRowView: View {
             Spacer(minLength: 4)
             if content.age != nil || content.providers.isEmpty == false {
                 VStack(alignment: .trailing, spacing: SidebarMetrics.lineGap) {
-                    Text(content.age ?? "").font(SidebarMetrics.detail.monospacedDigit()).foregroundStyle(.tertiary)
-                        .lineLimit(1).frame(height: Self.titleLine)
+                    ageOrStopwatch(content)
+                        .font(SidebarMetrics.detail.monospacedDigit()).lineLimit(1).frame(height: Self.titleLine)
                     ProviderMarks(names: content.providers).frame(height: Self.detailLine)
                 }
             }

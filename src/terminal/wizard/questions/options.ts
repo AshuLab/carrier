@@ -1,4 +1,5 @@
 import { basename } from 'node:path';
+import { styleText } from 'node:util';
 import { optionNamePattern } from '../../../config/providers.ts';
 import type { LocalProvider } from '../../../harnesses/local.ts';
 import type { HarnessName } from '../../../harnesses/names.ts';
@@ -36,15 +37,17 @@ export function suggestProviderName(providers: Providers, provider: AIProvider) 
   return uniqueName(providers, optionNamePattern.test(slug) ? slug : provider.harness);
 }
 
-/** Pure AI providers section: CLI, config folder, and local provider. No models. */
-export async function askProviders(ui: Ui, start: Providers, installed: readonly HarnessName[], locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps): Promise<Providers> {
+/** The accounts section: CLI, config folder, and local provider. No models. */
+export async function askProviders(ui: Ui, start: Providers, installed: readonly HarnessName[], locals: Partial<Record<LocalProvider, string[]>>, deps: InitDeps, from: 'found' | 'file'): Promise<Providers> {
   const there = Object.entries(start).map(([name, provider]) => `${name}: ${providerLine(provider)}`);
-  ui.note(['Your AI accounts and local model servers (Claude Code, Codex, Antigravity). Each role will pick one.', ...(there.length > 0 ? ['', 'Already there:', ...there] : [])].join('\n'), 'AI Providers');
+  const count = Object.keys(start).length;
+  const intro = from === 'file' ? 'The accounts of your config:' : `${styleText('bold', count === 1 ? '1 account was added' : `${count} accounts were added`)} for you, one per agent CLI found on this Mac, using the login each CLI already has:`;
+  ui.note([intro, '', ...there, '', 'Next you choose which account the author uses and which the reviewer uses; both can use the same one.', 'Add another account only if you want a different login (a second Claude account, say) or a local model server.'].join('\n'), 'AI accounts');
   let providers = start;
-  while (Object.keys(providers).length === 0 || (await ui.confirm('Add another AI provider?'))) {
+  while (Object.keys(providers).length === 0 || (await ui.confirm('Add another account?', false))) {
     const provider = await askAIProvider(ui, installed, Object.values(providers).map((p) => p.harness), locals, deps);
     const raw = await ui.text({
-      message: 'Name of this provider',
+      message: 'Name of this account',
       defaultValue: suggestProviderName(providers, provider),
       validate: (v) => {
         const slug = normalizeOptionName(v);
@@ -63,7 +66,7 @@ export async function askRoleProvider(ui: Ui, role: RoleName, providers: Provide
   const names = Object.keys(providers);
   if (names.length === 1) return names[0]!;
   return ui.select({
-    message: `Which AI provider runs the ${role}?`,
+    message: `Which account runs the ${role}?`,
     options: names.map((name) => ({ value: name, label: name, hint: providerLine(providers[name]!) })),
     initialValue: [current, names.find((name) => name !== other)].find((name) => name !== undefined && name in providers) ?? names[0]!,
   });
@@ -88,11 +91,11 @@ export async function askFailover(ui: Ui, providers: Providers, roles: { role: R
   if (names.length < 2) return undefined;
   const chosen: NonNullable<Failover['roles']> = {};
   for (const { role, key, own } of roles) {
-    if (!(await ui.confirm(`Turn failover on for the ${role}? When it runs out of credits it moves to the steps you list, each a provider and a model.`))) continue;
+    if (!(await ui.confirm(`Turn failover on for the ${role}? When it runs out of credits it moves to the steps you list, each an account and a model.`, false))) continue;
     const steps: { provider: string; model: string }[] = [];
     while (steps.length < ordinal.length) {
       const pick = await ui.select({
-        message: `Failover for the ${role}: which provider goes ${ordinal[steps.length]}?`,
+        message: `Failover for the ${role}: which account goes ${ordinal[steps.length]}?`,
         options: [
           ...names.map((name) => ({ value: name, label: name, hint: providerLine(providers[name]!) })),
           ...(steps.length > 0 ? [{ value: done, label: 'That is all' }] : []),

@@ -18,9 +18,12 @@ export interface Ui {
   check(check: Check): void;
   /** All the checks ran: `total` of them, `failed` of which failed. */
   checksEnd(total: number, failed: number): void;
+  /** A wait of seconds (GitHub, a CLI): the UI shows something moving while `work` runs and leaves nothing behind, so it never looks hung. */
+  busy<T>(message: string, work: () => Promise<T>): Promise<T>;
   text(options: { message: string; placeholder?: string; defaultValue?: string; validate?: (value: string) => string | undefined }): Promise<string>;
   select<T extends string>(options: { message: string; options: Option<T>[]; initialValue?: T }): Promise<T>;
-  confirm(message: string): Promise<boolean>;
+  /** `initialValue` is what Enter answers: an optional extra says No, the question that moves on says Yes. */
+  confirm(message: string, initialValue?: boolean): Promise<boolean>;
   /** At least one. Several groups are shown as sections; a single group is a plain list to filter by typing. */
   multiselect(options: { message: string; options: Record<string, Option<string>[]>; initialValues?: string[] }): Promise<string[]>;
 }

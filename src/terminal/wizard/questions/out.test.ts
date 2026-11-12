@@ -9,7 +9,7 @@ const dir = useTempDir();
 
 test('the default place is the global ~/.carrier/config.json, and the closing line then needs no --config', async () => {
   const { deps, written } = fakeDeps();
-  const { ui, asked } = quietUi();
+  const { ui, asked } = quietUi({ 'Start Carrier now? (Ctrl+C stops it)': false });
   process.env.CARRIER_HOME = join(dir, 'home');
   try {
     await runInit({ repo: ['A/b'] }, ui, deps); // the scripted ui takes the default for "Where to write the config"
@@ -22,7 +22,7 @@ test('the default place is the global ~/.carrier/config.json, and the closing li
 
 test('"Somewhere else…" asks for the path, and the closing line then points at it with --config', async () => {
   const { deps, written } = fakeDeps();
-  const { ui, asked } = quietUi({ 'Where should the config be saved?': '\0path', 'Path of the config file': join(dir, 'elsewhere.json') });
+  const { ui, asked } = quietUi({ 'Where should the config be saved?': '\0path', 'Path of the config file': join(dir, 'elsewhere.json'), 'Start Carrier now? (Ctrl+C stops it)': false });
   await runInit({ repo: ['A/b'] }, ui, deps);
   expect(Object.keys(written)).toEqual([join(dir, 'elsewhere.json'), providersPathOf(carrierHome())]); // the accounts stay in the Carrier folder
   expect(asked.at(-1)).toContain(`carrier --config ${join(dir, 'elsewhere.json')}`);

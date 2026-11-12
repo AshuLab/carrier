@@ -56,13 +56,22 @@ export function makeClackUi({ compact = false } = {}): Ui {
       spin.stop(failed === 0 ? `${total} checks passed` : `${total - failed} of ${total} checks passed`);
       spin = undefined;
     },
+    busy: async (message, work) => {
+      const spin = spinner();
+      spin.start(message);
+      try {
+        return await work();
+      } finally {
+        spin.clear(); // the answer is what the next prompt or note shows
+      }
+    },
     text: async ({ validate, ...options }) =>
       (keep(await text({ ...options, validate: validate && ((value) => validate(value ?? options.defaultValue ?? '')) })) as string) || options.defaultValue || '',
     select: async (options) => {
       if (options.options.length > longList) return keep(await autocomplete({ message: options.message, options: options.options, initialValue: options.initialValue, placeholder: 'Type to filter…', maxItems: 8 } as Parameters<typeof autocomplete>[0])) as never;
       return keep(await select(options as Parameters<typeof select>[0])) as never;
     },
-    confirm: async (message) => keep<boolean>(await confirm({ message })),
+    confirm: async (message, initialValue) => keep<boolean>(await confirm({ message, initialValue })),
     multiselect: async ({ message, options, initialValues }) => {
       const groups = Object.values(options);
       if (groups.length === 1) return keep<string[]>(await autocompleteMultiselect({ message, options: groups[0]!, initialValues, required: true, placeholder: 'Type to filter…', maxItems: 8 }));
@@ -80,6 +89,7 @@ export const noPromptUi: Ui = {
   checksEnd: (total, failed) => {
     if (failed === 0) log.success(`${total} checks passed`);
   },
+  busy: (_message, work) => work(), // no terminal to animate
   text: async ({ message, defaultValue }) => {
     if (defaultValue !== undefined) return defaultValue;
     throw new Error(`"${message}" needs an answer and there is no terminal to ask: pass it as a flag (carrier init --help)`);

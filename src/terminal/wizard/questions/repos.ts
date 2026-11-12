@@ -4,15 +4,17 @@ import type { InitDeps } from '../deps.ts';
 
 const otherRepo = '\0other';
 const loadMore = '\0more';
+const none = '\0none';
+const noneWord = 'none';
 
-/** The repos to watch: picked from the ones the gh login can push to (grouped by owner), or typed. */
+/** The repos to watch: picked from the ones the gh login can push to (grouped by owner), or typed. "None for now" (or typing `none`) is an answer: the list is empty and repos are added later. */
 export async function askRepos(ui: Ui, deps: InitDeps, current: string[] | undefined) {
   const origin = deps.originRepo();
-  const suggested = current?.join(', ') ?? origin;
+  const suggested = current === undefined ? origin : current.join(', ') || undefined;
   let listed: string[] = [];
   let hasMore = false;
   try {
-    ({ names: listed, hasMore } = deps.listRepos(1));
+    ({ names: listed, hasMore } = await ui.busy('Reading your GitHub repos…', async () => deps.listRepos(1)));
   } catch (error) {
     ui.warn(`Could not list your repos (${error instanceof Error ? error.message.split('\n')[0] : String(error)}); type them instead.`);
   }
@@ -21,12 +23,12 @@ export async function askRepos(ui: Ui, deps: InitDeps, current: string[] | undef
       message,
       placeholder: suggested ?? 'AshuLab/my-repo',
       defaultValue: suggested,
-      validate: (value) => (value.split(',').every((n) => repoNamePattern.test(n.trim())) ? undefined : 'Each repo must be owner/name'),
+      validate: (value) => (value.trim().toLowerCase() === noneWord || value.split(',').every((n) => repoNamePattern.test(n.trim())) ? undefined : 'Each repo must be owner/name, or type none'),
     });
-    return answer.split(',').map((s) => s.trim());
+    return answer.trim().toLowerCase() === noneWord ? [] : answer.split(',').map((s) => s.trim());
   };
   // a first page emptied by the filter still has later pages while hasMore holds
-  if (listed.length === 0 && !hasMore) return typed('Repos to watch (owner/name, comma separated)');
+  if (listed.length === 0 && !hasMore) return typed('Repos to watch (owner/name, comma separated, or none for now)');
 
   // What the config already has, or else the folder you are in, goes first and marked, even when it is not among the recent ones; one section per owner.
   const first = current ?? (origin === undefined ? [] : [origin]);
@@ -37,7 +39,7 @@ export async function askRepos(ui: Ui, deps: InitDeps, current: string[] | undef
   for (;;) {
     const names = [...first, ...listed.filter((n) => !first.includes(n))];
     const owners = [...new Set(names.map((n) => n.split('/')[0]!))];
-    const tail = hasMore ? [{ value: loadMore, label: 'Load more…', hint: 'the next repos' }, other] : [other];
+    const tail = [...(hasMore ? [{ value: loadMore, label: 'Load more…', hint: 'the next repos' }] : []), other, { value: none, label: 'None for now', hint: 'add repos later' }];
     const groups: Record<string, Option<string>[]> = Object.fromEntries(
       owners.map((owner) => [owner, names.filter((n) => n.startsWith(`${owner}/`)).map((value) => ({ value, label: owners.length > 1 ? value.slice(owner.length + 1) : value }))]),
     );
@@ -47,7 +49,7 @@ export async function askRepos(ui: Ui, deps: InitDeps, current: string[] | undef
     if (!picked.includes(loadMore)) break;
     ticked = picked.filter((n) => n !== loadMore);
     try {
-      const next = deps.listRepos(page + 1);
+      const next = await ui.busy('Loading more repos…', async () => deps.listRepos(page + 1));
       page += 1;
       hasMore = next.hasMore;
       listed = [...listed, ...next.names.filter((n) => !listed.includes(n))];
@@ -56,7 +58,8 @@ export async function askRepos(ui: Ui, deps: InitDeps, current: string[] | undef
       hasMore = false;
     }
   }
-  const chosen = picked.filter((n) => n !== otherRepo);
+  const chosen = picked.filter((n) => n !== otherRepo && n !== none);
   const extra = picked.includes(otherRepo) ? await typed('Other repos (owner/name, comma separated)') : [];
-  return [...new Set([...chosen, ...extra])];
+  return [...new Set([...chosen, ...extra])]; // "None for now" only counts when nothing else is picked
+
 }

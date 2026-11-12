@@ -147,9 +147,10 @@ import Observation
         } catch {
             FileHandle.standardError.write(Data("carrier: the older chat host was not replaced: \(error)\n".utf8))
         }
+        let failed = failure
         await MainActor.run {
             self.starting = false
-            if let failure { StartController.showAlert(title: "The chat host did not start", reason: failure.reason, tail: failure.tail) }
+            if let failure = failed { StartController.showAlert(title: "The chat host did not start", reason: failure.reason, tail: failure.tail) }
         }
     }
 

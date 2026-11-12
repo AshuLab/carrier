@@ -192,7 +192,7 @@ public struct WatchNote: Equatable {
     /// `readChatConfig` and `writeChatConfig` are that file inside `carrierFolder`; `readConfig` and `writeConfig` are the engine's
     /// config file, which holds the watched repositories.
     public init(
-        host: ChatHost, health: HealthStore? = nil, offers: AgentOfferStore = AgentOfferStore(), ensureHost: @escaping @MainActor () async -> Bool = { true },
+        host: ChatHost, health: HealthStore? = nil, offers: AgentOfferStore? = nil, ensureHost: @escaping @MainActor () async -> Bool = { true },
         log: @escaping (String) -> Void = { FileHandle.standardError.write(Data("carrier: \($0)\n".utf8)) },
         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) }, watchEvery: Duration = .seconds(2),
         projectsFolder: @escaping () -> String = currentProjectsFolder,
@@ -202,7 +202,7 @@ public struct WatchNote: Equatable {
     ) {
         self.host = host
         self.health = health
-        self.offers = offers
+        self.offers = offers ?? AgentOfferStore()
         self.projectsFolder = projectsFolder
         projectsPath = projectsFolder()
         self.readConfig = readConfig

@@ -26,7 +26,7 @@ import Foundation
     private var asking: [String: Task<AgentOffer, Error>] = [:]
 
     /// A store with no file keeps its offers in memory only.
-    nonisolated public init(file: URL? = nil, fingerprint: @escaping () -> String = { "" }) {
+    public init(file: URL? = nil, fingerprint: @escaping () -> String = { "" }) {
         self.file = file
         self.fingerprint = fingerprint
         let saved = file.flatMap { try? Data(contentsOf: $0) }.flatMap { try? JSONDecoder().decode(Saved.self, from: $0) }

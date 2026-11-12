@@ -81,12 +81,12 @@ struct LaneHeaderView: View {
             if let timeLabel = lane.timeLabel { items.append(Text(timeLabel)) }
             if let resumed = lane.resumedLabel { items.append(Text(resumed)) }
         }
-        return items.dropFirst().reduce(items[0]) { $0 + Text(" · ") + $1 }
+        return items.dropFirst().reduce(items[0]) { Text("\($0) · \($1)") }
     }
 
     private var pullRequest: Text {
         guard lane.pullRequest.hasSuffix(" merged") else { return Text(lane.pullRequest) }
-        return Text(lane.pullRequest.dropLast(" merged".count)) + Text(" merged").foregroundStyle(.green)
+        return Text("\(Text(lane.pullRequest.dropLast(" merged".count)))\(Text(" merged").foregroundStyle(.green))")
     }
 
     @ViewBuilder private var state: some View {

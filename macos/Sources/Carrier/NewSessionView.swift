@@ -169,8 +169,8 @@ struct NewSessionView: View {
                         Text(step.title).fontWeight(.semibold)
                         step.parts.reduce(Text("")) { text, part in
                             switch part {
-                            case .text(let words): text + Text(words)
-                            case .code(let name): text + Text(name).font(.scaled(11).monospaced().weight(.medium)).foregroundStyle(.primary)
+                            case .text(let words): Text("\(text)\(Text(words))")
+                            case .code(let name): Text("\(text)\(Text(name).font(.scaled(11).monospaced().weight(.medium)).foregroundStyle(.primary))")
                             }
                         }
                         .font(.scaled(11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)

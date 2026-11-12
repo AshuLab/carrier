@@ -15,7 +15,7 @@ pnpm only (never npm or yarn). Node 26 runs the TypeScript directly.
 
 ## Layout
 
-Everything a terminal user sees lives under `src/terminal`, so a future web UI is a sibling folder and not a rename. What any front-end would need stays outside it. Each folder has one job (details in the README):
+Everything a terminal user sees lives under `src/terminal`, so a future web UI is a sibling folder and not a rename. What any front-end would need stays outside it. Each folder has one job (the folder tree is in [CONTRIBUTING.md](CONTRIBUTING.md#repository-structure)):
 
 - `terminal/cli`: only the command line. `main.ts` parses and dispatches, `args.ts` is the option table, `commands/` one file per command (`control.ts` serves stop, pause, resume and check), `control-client.ts` the client of the control socket that `status`, `watch`, `start` and the control commands use, `config-file.ts` reads the config, `compose.ts` wires the real engine. A failure to report is a `CliError`; only `main.ts` turns it into an exit code.
 - `terminal/prompts`: the terminal contract (`Ui`, `Cancelled`) and its clack implementation. Commands depend on the contract, tests script it.

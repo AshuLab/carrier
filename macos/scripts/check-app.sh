@@ -13,6 +13,7 @@ expect SUPublicEDKey "$(plist SUPublicEDKey)" "$(cat update-key.pub)"
 expect SUEnableAutomaticChecks "$(plist SUEnableAutomaticChecks)" true
 expect CFBundleShortVersionString "$(plist CFBundleShortVersionString)" 1.2.3
 expect "CFBundleVersion for 1.2.3" "$(plist CFBundleVersion)" 10203
+[ -n "$(plutil -extract NSMicrophoneUsageDescription raw "$PLIST")" ] || fail "NSMicrophoneUsageDescription is missing or empty"
 otool -l Carrier.app/Contents/MacOS/Carrier | grep -A2 LC_RPATH | grep -q "path @executable_path/../Frameworks " || fail "no rpath @executable_path/../Frameworks"
 F=Carrier.app/Contents/Frameworks/Sparkle.framework
 [ -f "$F/Versions/B/Sparkle" ] || fail "Sparkle.framework is not in the app"
@@ -30,4 +31,6 @@ for v in 1.100.0 1.0.100; do
   if OUT="$(./build-app.sh "$v" 2>&1)"; then fail "build-app.sh accepted $v"; fi
   [[ "$OUT" == *"100 or more"* ]] || fail "build-app.sh refused $v for another reason: $OUT"
 done
+if OUT="$(CARRIER_MIC_USAGE= ./build-app.sh 2>&1)"; then fail "build-app.sh accepted an empty NSMicrophoneUsageDescription"; fi
+[[ "$OUT" == *NSMicrophoneUsageDescription* ]] || fail "build-app.sh refused an empty microphone description for another reason: $OUT"
 echo "check-app: ok"

@@ -45,6 +45,12 @@ extension ControlClient {
         try request("resumeEpic", requires: .resumeEpic, fields: try epicFields(repo, issue)) != nil
     }
 
+    /// Asks the engine to read `config.json` and `providers.json` again; it answers when it runs on them. false, with nothing sent, when this
+    /// engine cannot be asked. A refusal throws `.remote(problem)`, the engine's words naming the key, and leaves the capability alone.
+    public func reload() throws -> Bool {
+        try request("reload", requires: .reload) != nil
+    }
+
     private func ask<T: Decodable>(_ capability: Capability, _ command: String, keepOnRefusal: Bool = false, _ fields: String) throws -> T? {
         guard capabilities.contains(capability) else { return nil }
         do {

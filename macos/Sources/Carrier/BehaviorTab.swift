@@ -123,23 +123,13 @@ struct BehaviorTabView: View {
         draft = saved
     }
 
-    /// Writes the file; false (with the reason shown) when it could not.
+    /// Writes the file and asks Carrier to apply it; false (with the reason shown) when it could not write. A write the engine did not apply
+    /// is shown the same way, with the file saved.
     private func write() -> Bool {
-        let url = URL(fileURLWithPath: path)
-        guard let data = try? Data(contentsOf: url), let updated = draft.applied(to: data) else {
-            failure = "The config file could not be read or the values are not valid."
-            return false
-        }
-        do {
-            try updated.write(to: url, options: .atomic)
-            failure = nil
-            saved = draft
-            return true
-        } catch {
-            FileHandle.standardError.write(Data("carrier: saving \(url.path) failed: \(error)\n".utf8))
-            failure = "Could not save the config file: \(error.localizedDescription)"
-            return false
-        }
+        let result = saveConfig(path: path, unusable: "The config file could not be read or the values are not valid.", edit: { draft.applied(to: $0) }, reload: { reloadEngine() })
+        failure = result.problem
+        if result.isWritten { saved = draft }
+        return result == .saved
     }
 
     /// Writes what the person just changed, when the engine would accept it; a value that is still being typed waits.

@@ -166,8 +166,8 @@ struct ReposTabView: View {
 
     /// Writes the role, then reads the file back and asks the doctor, whose reason is shown when the engine refuses what was written.
     private func saveRole(_ fields: RoleFields?, role: AgentRole, repo: String) -> RoleSave {
-        let result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: declaredAccounts(providersJSON: providersData))
-        if result == .saved {
+        let result = saveRepoRole(fields, role: role, repo: repo, path: path, accounts: declaredAccounts(providersJSON: providersData), reload: { reloadEngine() })
+        if result.isWritten {
             load()
             runDoctor()
         }
@@ -192,21 +192,10 @@ struct ReposTabView: View {
     /// Writes the file, read again just now so a save from the Behavior tab in between is not lost; false (with the reason shown)
     /// when it could not.
     private func write() -> Bool {
-        let url = URL(fileURLWithPath: path)
-        guard let data = try? Data(contentsOf: url), let updated = applyingRepos(draft, to: data) else {
-            failure = "The config file could not be read or the list is not valid."
-            return false
-        }
-        do {
-            try updated.write(to: url, options: .atomic)
-            failure = nil
-            saved = draft
-            return true
-        } catch {
-            FileHandle.standardError.write(Data("carrier: saving \(url.path) failed: \(error)\n".utf8))
-            failure = "Could not save the config file: \(error.localizedDescription)"
-            return false
-        }
+        let result = saveConfig(path: path, unusable: "The config file could not be read or the list is not valid.", edit: { applyingRepos(draft, to: $0) }, reload: { reloadEngine() })
+        failure = result.problem
+        if result.isWritten { saved = draft }
+        return result == .saved
     }
 
     /// Writes the list as soon as it changes, when the engine would accept it.
@@ -365,13 +354,9 @@ private struct RepoRolesCard: View {
     }
 
     private func finish(_ result: RoleSave) {
-        switch result {
-        case .saved:
-            editing = nil
-            problem = nil
-        case .refused(let reason), .failed(let reason):
-            problem = reason
-        }
+        // a role the engine did not apply is saved: the form closes and the page says what the engine answered
+        if result.isWritten { editing = nil }
+        problem = result.problem
     }
 
     /// The role's own fields as a grid of a label and its control, the same edges all the way down, in three blocks with more room between them

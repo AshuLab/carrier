@@ -97,6 +97,8 @@ struct ProvidersTabView: View {
                     }
                 }
                 if let failure { Text(failure).font(.caption).foregroundStyle(.red) }
+                // an editor that closed after a save the engine did not apply leaves its words here
+                if editing == nil, adding == nil, let problem = store.editProblem { Text(problem).font(.caption).foregroundStyle(.red) }
                 switch tool.status {
                 case .missing: note("Not installed on this Mac.")
                 case .foundNotAdded:

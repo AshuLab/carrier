@@ -47,6 +47,31 @@ public enum RoleSave: Equatable {
     case refused(String)
     /// the file could not be read or written
     case failed(String)
+    /// written, and the engine, asked to apply it, kept its settings: what the page says (`reloadRefusedWords`)
+    case notApplied(String)
+}
+
+extension RoleSave {
+    /// The file has what was asked, whether or not the engine applied it.
+    public var isWritten: Bool {
+        switch self {
+        case .saved, .notApplied: true
+        case .refused, .failed: false
+        }
+    }
+
+    /// What the page shows where it shows a save that did not work; nil when all went through.
+    public var problem: String? {
+        switch self {
+        case .saved: nil
+        case .refused(let words), .failed(let words), .notApplied(let words): words
+        }
+    }
+}
+
+/// `.saved` after a write, or `.notApplied` when the engine, asked to `reload`, refused what was written. Call it only after the write worked.
+func written(_ reload: Reload) -> RoleSave {
+    reload().map { .notApplied(reloadRefusedWords($0)) } ?? .saved
 }
 
 /// `json` with `repo`'s `role` set to the `fields` that are set, other keys of the entry kept; the entry goes when nothing is left. With `fields`
@@ -73,7 +98,7 @@ func applyingRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, to j
 
 /// Saves `fields` as the repo's own `role` (nil resets it) in the file at `path`, read just now. A profile or account that is not declared
 /// is refused before anything is written.
-public func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String]) -> RoleSave {
+public func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, path: String, accounts: [String], reload: Reload) -> RoleSave {
     let url = URL(fileURLWithPath: path)
     guard let current = try? Data(contentsOf: url), let roles = repoRoles(json: current, repo: repo) else {
         return .failed("The config file could not be read.")
@@ -83,7 +108,7 @@ public func saveRepoRole(_ fields: RoleFields?, role: AgentRole, repo: String, p
     guard let updated = applyingRepoRole(fields, role: role, repo: repo, to: current) else { return .failed("\(repo) is no longer in the config file.") }
     do {
         try updated.write(to: url, options: .atomic)
-        return .saved
+        return written(reload)
     } catch {
         FileHandle.standardError.write(Data("carrier: saving \(path) failed: \(error)\n".utf8))
         return .failed("Could not save the config file: \(error.localizedDescription)")

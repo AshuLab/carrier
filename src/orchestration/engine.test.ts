@@ -7,7 +7,8 @@ import type { EffectiveRepoConfig } from '../config/resolve.ts';
 import { openDatabase, type Db } from '../storage/db.ts';
 import { eq } from 'drizzle-orm';
 import { epics } from '../storage/schema.ts';
-import { createEngine } from './engine.ts';
+import { createEngine, type EngineSettings } from './engine.ts';
+import { ReloadRefused } from './reload-refused.ts';
 import type { ResumeRefused } from './resume-refused.ts';
 import { reserve } from './reserve.ts';
 import { FakeAgentRunner, FakeWorkspaces, type Behavior } from '../execution/fake.ts';
@@ -38,6 +39,7 @@ let github: FakeGitHub;
 let clock: FakeClock;
 let runner: FakeAgentRunner;
 let workspaces: FakeWorkspaces;
+let settings: EngineSettings; // what the engine reads: a test changes it the way a reload does
 beforeEach(() => {
   runner = new FakeAgentRunner();
   workspaces = new FakeWorkspaces();
@@ -59,10 +61,8 @@ function open() {
 }
 async function start(maxConcurrentEpics = 0, config = repos, maxExecutionHours: number | 'unlimited' = 4, maxExecutionRetries = 3, maxReviews = 5) {
   const db = open();
-  const engine = createEngine({
-    db, github, clock, repos: config, pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews,
-    runner, workspaces, places: enginePlacesOf(dir),
-  });
+  settings = { pollIntervalMs: 5 * MIN, maxConcurrentEpics, maxExecutionHours, maxExecutionRetries, maxReviews };
+  const engine = createEngine({ db, github, clock, repos: config, settings: () => settings, runner, workspaces, places: enginePlacesOf(dir) });
   await engine.start();
   return Object.assign(engine, { db });
 }
@@ -2060,7 +2060,7 @@ test('purges expired logs and sessions when the engine starts and every 24 hours
   db.insert(executions).values({ executionId: 'x-old', epicId: old.id, stage: 'ship', sessionId: 's-old', resultPath: 'r', startedAt: 0 }).run();
   const logs = join(dir, 'engine', 'logs', 'executions', 'x-old');
   mkdirSync(logs, { recursive: true });
-  const engine = createEngine({ db, github, clock, repos, pollIntervalMs: 5 * MIN, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5, runner, workspaces, places: enginePlacesOf(dir) });
+  const engine = createEngine({ db, github, clock, repos, settings: () => ({ pollIntervalMs: 5 * MIN, maxConcurrentEpics: 0, maxExecutionHours: 4, maxExecutionRetries: 3, maxReviews: 5 }), runner, workspaces, places: enginePlacesOf(dir) });
   await engine.start();
   expect(existsSync(logs)).toBe(false);
   mkdirSync(logs, { recursive: true });
@@ -2765,4 +2765,101 @@ test('resumeEpic with an option that is not declared is refused and changes noth
   expect(await refusal(engine.resumeEpic('AshuLab/a', 1, { author: 'claude', reviewer: 'nope' }))).toBe('unknown option');
   expect(rows(engine.db)).toEqual(before);
   expect(labelsOf(1)).toEqual(labels);
+});
+
+// --- Reload ---
+
+const reload = (engine: { reload: (swap: () => void) => void }, change: Partial<EngineSettings>) => engine.reload(() => void (settings = { ...settings, ...change }));
+
+test('a reload re-arms the next poll from now with the new interval, and checks GitHub at once', async () => {
+  const engine = await start();
+  await clock.advance(2 * MIN);
+  reload(engine, { pollIntervalMs: MIN });
+  await vi.waitFor(() => expect(github.calls).toBe(2)); // both repos, now and not at 5 minutes
+  await vi.waitFor(() => expect(engine.nextPollAt).toBe(3 * MIN));
+  await clock.advance(MIN - 1);
+  expect(github.calls).toBe(2);
+  await clock.advance(1);
+  expect(github.calls).toBe(4); // the new interval, not the 5 minutes the old timer had left
+});
+
+test('a reload asked while a poll runs does not start a second one, and the poll that follows waits the new interval', async () => {
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => (open = resolve));
+  const listed = github.listReadyEpics.bind(github);
+  let lists = 0;
+  github.listReadyEpics = async (repo) => (lists++, await gate, listed(repo));
+  const engine = await start();
+  void clock.advance(5 * MIN); // the poll starts and waits on its first list
+  await vi.waitFor(() => expect(lists).toBe(1));
+  reload(engine, { pollIntervalMs: 2 * MIN });
+  reload(engine, { pollIntervalMs: 2 * MIN });
+  open();
+  await vi.waitFor(() => expect(engine.nextPollAt).toBe(7 * MIN)); // one poll ran, and the next is armed once with the interval now in force
+  expect(lists).toBe(2); // one list per repo: the poll that was running, no second one
+});
+
+test('a reload that is refused leaves every setting as it was, rethrows the problem and checks nothing', async () => {
+  const engine = await start(2);
+  const before = settings;
+  expect(() => engine.reload(() => { throw new ReloadRefused('Invalid config /c.json:\n  limits.maxReviews: Too small'); })).toThrow('limits.maxReviews');
+  expect(settings).toBe(before);
+  await clock.advance(5 * MIN - 1);
+  expect(github.calls).toBe(0); // no check was asked for, and the timer is the one it was
+});
+
+test('a concurrency limit lowered below the epics running starts no new epic and stops none; raised, the next poll takes them', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2, 3) };
+  const engine = await start(2);
+  await clock.advance(5 * MIN);
+  expect(byStatus(engine.db, 'running')).toEqual([1, 2]);
+
+  reload(engine, { maxConcurrentEpics: 1 });
+  await settle();
+  expect(byStatus(engine.db, 'running')).toEqual([1, 2]);
+  expect(runner.stopped).toEqual([]);
+
+  engine.db.update(epics).set({ status: 'merged' }).where(eq(epics.issue, 1)).run();
+  await clock.advance(5 * MIN);
+  expect(byStatus(engine.db, 'running')).toEqual([2]); // one running, limit one: epic 3 waits
+
+  reload(engine, { maxConcurrentEpics: 2 });
+  await vi.waitFor(() => expect(byStatus(engine.db, 'running')).toEqual([2, 3]));
+});
+
+test('a run already launched keeps its timeout, and the next one launched has the new limit', async () => {
+  github.ready = { 'AshuLab/a': ready(1, 2) };
+  const engine = await start(1); // the fake runner's runs hang by default
+  await clock.advance(5 * MIN);
+  reload(engine, { maxExecutionHours: 9, maxConcurrentEpics: 2 });
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
+  expect(runner.tasks.map((t) => [t.epic, t.timeoutMs])).toEqual([[1, 4 * 3_600_000], [2, 9 * 3_600_000]]);
+  expect(engine.db.select().from(executions).all().map((e) => e.status)).toEqual(['running', 'running']); // epic 1's run was not touched
+});
+
+test('a timeout names the limit the run started with, not the one in force when it ended', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  let end!: () => void;
+  runner.behavior = () => ({ sessionId: 's-1', exit: 'timed_out', when: new Promise<void>((resolve) => (end = resolve)) });
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(1));
+  reload(engine, { maxExecutionHours: 9 });
+  end();
+  await engine.idle();
+  expect(executionsOf(engine.db)[0]).toMatchObject({ status: 'timed_out', failureDetail: 'exceeded 4 h' });
+});
+
+test('the retry limit is the one in force when the failure is decided', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  let fail!: () => void;
+  runner.behavior = () => ({ sessionId: 's', exit: 'failed', failure: killedBy, when: new Promise<void>((resolve) => (fail = resolve)) });
+  const engine = await start(1, repos, 4, 5);
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(1));
+  reload(engine, { maxExecutionRetries: 0 });
+  fail();
+  await engine.idle();
+  expect(runner.tasks).toHaveLength(1); // no retry: the lowered limit was read at the failure
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'needs_human', needsHumanKind: 'retries_exhausted' });
 });

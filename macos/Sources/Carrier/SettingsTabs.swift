@@ -11,27 +11,130 @@ struct SettingsTabRow<Control: View>: View {
     let detail: String
     var first = false
     var mono = false
+    /// More room above and below, for a form with many fields stacked; the line between rows stays halfway.
+    var roomy = false
     /// A third line for what the row is and not what it says (a path, a login): monospaced and quieter than the detail.
     var note: String?
+    /// What is wrong with the value, in words: it takes the place of the detail, in orange and with a warning mark, the title keeps its colour, and
+    /// every `settingsField` and `NumberField` inside the row draws itself as invalid (`\.settingsInvalid`). One argument; nothing else to pass.
+    var problem: String?
     @ViewBuilder var control: Control
 
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 1) {
                 Text(title).fontWeight(.medium)
-                if detail.isEmpty == false {
-                    Text(detail).font(mono ? .scaled(11.5, design: .monospaced) : .caption).foregroundStyle(.secondary)
-                        .lineLimit(2).truncationMode(.middle)
+                if detail.isEmpty == false || problem != nil {
+                    Group {
+                        if let problem { Text("\(Image(systemName: "exclamationmark.triangle.fill")) \(problem)").foregroundStyle(.orange) } else { Text(detail).foregroundStyle(.secondary) }
+                    }
+                    .font(mono ? .scaled(11.5, design: .monospaced) : .caption).lineLimit(2).truncationMode(.middle)
                 }
                 if let note {
                     Text(note).font(.scaled(10.5, design: .monospaced)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle).padding(.top, 1)
                 }
             }
             Spacer(minLength: 8)
+            control.environment(\.settingsInvalid, problem != nil)
+        }
+        .padding(.vertical, roomy ? 14 : 10).frame(minHeight: 46)
+        .overlay(alignment: .top) { if first == false { SettingsDivider() } }
+    }
+}
+
+extension EnvironmentValues {
+    /// Whether the row the control sits in says its value is not valid.
+    @Entry var settingsInvalid = false
+}
+
+/// The line between two rows of a card: a whole point tall and quiet, where the system's Divider is a grey hairline that stands out on the dark themes.
+struct SettingsDivider: View {
+    var body: some View { Rectangle().fill(Color.primary.opacity(0.07)).frame(height: 1).accessibilityHidden(true) }
+}
+
+/// A text field of a settings form, drawn as the capsule buttons are (the same quiet fill) with the theme's accent as its ring
+/// while it has the focus. Put it on a `TextField`; a click anywhere in the box, padding included, puts the cursor in it.
+private struct SettingsFieldModifier: ViewModifier {
+    let width: CGFloat?
+    let icon: String?
+    @Environment(\.settingsInvalid) private var invalid
+    /// The caller's own focus state, when it needs to know about the focus (to save as the person leaves the field); else the field keeps its own.
+    let external: FocusState<Bool>.Binding?
+    @FocusState private var own: Bool
+
+    private var focus: FocusState<Bool>.Binding { external ?? $own }
+    private var focused: Bool { focus.wrappedValue }
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+        HStack(spacing: 7) {
+            if let icon { Image(systemName: icon).font(.scaled(12, weight: .medium)).foregroundStyle(.secondary).accessibilityHidden(true) }
+            content.textFieldStyle(.plain).focused(focus).focusEffectDisabled()
+            if invalid { Image(systemName: "exclamationmark.triangle.fill").font(.scaled(11)).foregroundStyle(.orange).accessibilityHidden(true) }
+        }
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            // a fixed width, or the whole width it is given
+            .frame(minWidth: width, maxWidth: width ?? .infinity)
+            // a fill only while idle: a half-point hairline over a translucent fill drew uneven edges
+            .background(shape.fill(Color.primary.opacity(focused ? 0.09 : 0.07)))
+            .overlay { if invalid { shape.strokeBorder(Color.orange, lineWidth: 1.5) } else if focused { shape.strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
+            .contentShape(shape)
+            .onTapGesture { focus.wrappedValue = true }
+            .animation(.easeOut(duration: 0.12), value: focused)
+    }
+}
+
+extension View {
+    /// `icon` is an SF Symbol drawn inside the box before the text (a magnifying glass for a search).
+    /// Inside a row with a `problem` the ring is orange and a warning mark sits in the box, the same size as without them: nothing moves.
+    func settingsField(width: CGFloat? = nil, icon: String? = nil, focused: FocusState<Bool>.Binding? = nil) -> some View {
+        modifier(SettingsFieldModifier(width: width, icon: icon, external: focused))
+    }
+}
+
+/// A filter as a small capsule that is on or off: a quiet fill when off, the theme's accent when on. A row of them narrows a list; the first of
+/// a set that excludes each other is "All".
+struct FilterChip: View {
+    let title: String
+    var icon: String?
+    let on: Bool
+    let action: () -> Void
+    @State private var hovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                if let icon { Image(systemName: icon).font(.scaled(10, weight: .semibold)) }
+                Text(title).font(.scaled(12, weight: .medium))
+            }
+            .foregroundStyle(on ? Color.themeAccent : hovered ? Color.primary : Color.secondary)
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(Capsule().fill(on ? Color.themeAccent.opacity(0.18) : Color.primary.opacity(hovered ? 0.12 : 0.07)))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain).onHover { hovered = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovered)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// A row whose control is wide (a text of several lines): the title and the detail on top and the control under them, the whole width of the card.
+struct SettingsStackedRow<Control: View>: View {
+    let title: String
+    let detail: String
+    var first = false
+    @ViewBuilder var control: Control
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).fontWeight(.medium)
+                if detail.isEmpty == false { Text(detail).font(.caption).foregroundStyle(.secondary) }
+            }
             control
         }
-        .padding(.vertical, 10).frame(minHeight: 46)
-        .overlay(alignment: .top) { Divider().opacity(first ? 0 : 1) }
+        .padding(.vertical, 12).frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .top) { if first == false { SettingsDivider() } }
     }
 }
 
@@ -51,6 +154,8 @@ struct NativePopUp: NSViewRepresentable {
 
     func updateNSView(_ button: NSPopUpButton, context: Context) {
         context.coordinator.parent = self
+        // a row switched off (`.disabled`) dims its pop-up too
+        button.isEnabled = context.environment.isEnabled
         if button.itemTitles != items {
             button.removeAllItems()
             button.addItems(withTitles: items)
@@ -115,7 +220,61 @@ struct SettingsTabCard<Content: View>: View {
     var body: some View {
         VStack(spacing: 0) { content }
             .padding(.horizontal, 14)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+            .settingsCard()
+    }
+}
+
+extension View {
+    /// The card every group of rows, list and note of Settings sits on: rounded 14, `secondary` at 7 %.
+    func settingsCard() -> some View { background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07))) }
+
+    /// The small uppercase title over a group or a list: the type and the colour; the caller adds the padding its place needs.
+    func sectionLabel() -> some View { font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary).textCase(.uppercase) }
+}
+
+/// A state as a 16 pt round mark with a white symbol: `checkmark` green for ready, `exclamationmark` yellow for a warning, `xmark` orange for a
+/// failure. Next to a spinner (`ProgressView().controlSize(.mini)` in the same 16 pt) for what is still being looked at.
+struct StatusMark: View {
+    let symbol: String
+    let color: Color
+    let label: String
+
+    var body: some View {
+        Image(systemName: symbol).font(.scaled(9, weight: .heavy)).foregroundStyle(.white)
+            .frame(width: 16, height: 16).background(Circle().fill(color)).accessibilityLabel(label)
+    }
+}
+
+/// The tile of an agent role: the mark of the provider it runs on in a rounded square, so which model is working is seen before it is read. `off`
+/// (a role that is not in use) shows a quiet power symbol; a provider with no icon shows a question mark.
+struct RoleTile: View {
+    let provider: String?
+    let icons: [String: String]
+    var off = false
+
+    var body: some View {
+        Group {
+            if off {
+                Image(systemName: "power").font(.scaled(14, weight: .medium)).foregroundStyle(.tertiary)
+            } else if let provider, let icon = icons[provider] {
+                ProviderMark(name: icon, size: 17)
+            } else {
+                Image(systemName: "questionmark.circle").font(.scaled(15)).foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 34, height: 34).background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.07)))
+        .accessibilityHidden(true)
+    }
+}
+
+/// `Identity gh · Account pro · Model sonnet · Effort high`: a label quiet and its value in the text colour; what is not set is left out.
+func roleSummary(_ fields: RoleFields) -> Text {
+    let parts: [(String, String?)] = [("Identity", fields.profile), ("Account", fields.provider), ("Model", fields.model), ("Effort", fields.effort)]
+    let set = parts.compactMap { label, value in value.flatMap { $0.isEmpty ? nil : (label, $0) } }
+    guard set.isEmpty == false else { return Text("Not set").foregroundStyle(.secondary) }
+    return set.enumerated().reduce(Text("")) { text, item in
+        let (index, part) = item
+        return text + Text(index == 0 ? "" : "  \u{00b7}  ").foregroundStyle(.tertiary) + Text("\(part.0) ").foregroundStyle(.secondary) + Text(part.1).foregroundStyle(.primary)
     }
 }
 
@@ -128,7 +287,7 @@ struct SettingsGroup<Content: View, Accessory: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(title.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.secondary)
+                Text(title).sectionLabel()
                 Spacer(minLength: 8)
                 accessory
             }
@@ -144,22 +303,65 @@ extension SettingsGroup where Accessory == EmptyView {
     }
 }
 
-/// The top of a page: an icon, the title and a line.
+/// A line a page puts at the right of its own header, only when there is something to say (the Behavior page's "Saved", or why it cannot save).
+struct SettingsHeaderNote: Equatable {
+    enum Tone { case saved, problem }
+    let text: String
+    let tone: Tone
+}
+
+struct SettingsHeaderNoteKey: PreferenceKey {
+    static let defaultValue: SettingsHeaderNote? = nil
+    static func reduce(value: inout SettingsHeaderNote?, nextValue: () -> SettingsHeaderNote?) { value = nextValue() ?? value }
+}
+
+/// The top of a page: an icon, the title and a line, and the page's note at the right when it has one.
 struct SettingsPageHeader: View {
     let page: SettingsPage
+    var note: SettingsHeaderNote?
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: page.icon)
                 .font(.scaled(16, weight: .medium)).foregroundStyle(Color.themeAccent)
-                .frame(width: 36, height: 36)
+                .frame(width: 38, height: 38)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.themeAccent.opacity(0.16)))
                 .accessibilityHidden(true)
+            // the two lines are about as tall as the tile (a Spacer here would take the whole height the page's bar offers)
             VStack(alignment: .leading, spacing: 2) {
                 Text(page.rawValue).font(.title3.weight(.semibold))
                 Text(page.detail).font(.callout).foregroundStyle(.secondary)
             }
+            if let note {
+                Spacer(minLength: 16)
+                switch note.tone {
+                case .saved: Label(note.text, systemImage: "checkmark.circle.fill").font(.callout).foregroundStyle(.green)
+                case .problem: Label(note.text, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
+                }
+            }
         }
+        // room for the close button, which sits over the corner of the header
+        .padding(.trailing, 32)
+    }
+}
+
+/// `NativePopUp` over a value: the choices as (value, title) pairs, the one chosen bound as the value itself. A stored value that is not on the
+/// list shows the first choice, as the pages already read an unknown value as their default.
+struct ChoicePopUp<Value: Hashable>: View {
+    let label: String
+    let options: [(value: Value, title: String)]
+    @Binding var selection: Value
+    var width: CGFloat = 160
+
+    var body: some View {
+        NativePopUp(
+            items: options.map(\.title),
+            selection: Binding(
+                get: { options.firstIndex { $0.value == selection } ?? 0 },
+                set: { selection = options[$0].value }
+            )
+        )
+        .accessibilityLabel(label).frame(width: width)
     }
 }
 
@@ -174,7 +376,7 @@ struct SettingsPageBody<Content: View>: View {
             if let reset {
                 SettingsTabCard {
                     SettingsTabRow(title: "Reset", detail: "Puts this page back to how it came", first: true) {
-                        Button("Reset", action: reset).buttonStyle(SecondaryCapsuleButtonStyle())
+                        Button(action: reset) { Label("Reset", systemImage: "arrow.counterclockwise") }.buttonStyle(SecondaryCapsuleButtonStyle())
                     }
                 }
             }
@@ -188,11 +390,11 @@ struct SettingsPreview<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("PREVIEW").font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary)
+            Text("Preview").sectionLabel()
             content.frame(maxWidth: .infinity)
         }
         .padding(.vertical, 12)
-        .overlay(alignment: .top) { Divider() }
+        .overlay(alignment: .top) { SettingsDivider() }
     }
 }
 
@@ -227,13 +429,10 @@ struct GeneralTabView: View {
             SettingsGroup(title: "Menu bar") {
                 SettingsTabRow(title: "Icon style", detail: "What the icon in the menu bar shows", first: true) {
                     // a saved value that is not a style reads as the default, as the icon does
-                    Picker("Icon style", selection: Binding(
-                        get: { IconStyle(rawValue: style) ?? AppPreferences.defaultStyle },
-                        set: { style = $0.rawValue }
-                    )) {
-                        ForEach(IconStyle.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(
+                        label: "Icon style", options: IconStyle.allCases.map { (value: $0, title: $0.title) },
+                        selection: Binding(get: { IconStyle(rawValue: style) ?? AppPreferences.defaultStyle }, set: { style = $0.rawValue })
+                    )
                 }
                 SettingsTabRow(title: "Animate the icon", detail: "A segment moves over the bar while epics run") {
                     Toggle("Animate the icon", isOn: $animates).labelsHidden().toggleStyle(.switch)
@@ -245,23 +444,16 @@ struct GeneralTabView: View {
             SettingsGroup(title: "Display") {
                 SettingsTabRow(title: "Time format", detail: "Ages read \"11m\", or as the time of the event, \"14:32\"", first: true) {
                     // a saved value that is not a choice reads as the default, as the formatter does
-                    Picker("Time format", selection: Binding(
-                        get: { TimeStyle(rawValue: timeStyle) ?? .relative }, set: { timeStyle = $0.rawValue }
-                    )) {
-                        Text("Relative").tag(TimeStyle.relative)
-                        Text("Clock").tag(TimeStyle.clock)
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(
+                        label: "Time format", options: [(value: TimeStyle.relative, title: "Relative"), (value: .clock, title: "Clock")],
+                        selection: Binding(get: { TimeStyle(rawValue: timeStyle) ?? .relative }, set: { timeStyle = $0.rawValue })
+                    )
                 }
                 SettingsTabRow(title: "Clock", detail: "How clock times count the hours") {
-                    Picker("Clock", selection: Binding(
-                        get: { ClockHours(rawValue: clockHours) ?? .system }, set: { clockHours = $0.rawValue }
-                    )) {
-                        Text("System").tag(ClockHours.system)
-                        Text("12 hours").tag(ClockHours.h12)
-                        Text("24 hours").tag(ClockHours.h24)
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(
+                        label: "Clock", options: [(value: ClockHours.system, title: "System"), (value: .h12, title: "12 hours"), (value: .h24, title: "24 hours")],
+                        selection: Binding(get: { ClockHours(rawValue: clockHours) ?? .system }, set: { clockHours = $0.rawValue })
+                    )
                 }
                 displayPreview()
             }
@@ -356,10 +548,7 @@ struct AppearanceTabView: View {
             }
             SettingsGroup(title: "Look") {
                 SettingsTabRow(title: "Color scheme", detail: "System follows the Mac; light and dark stay as chosen", first: true) {
-                    Picker("Color scheme", selection: $colorScheme) {
-                        ForEach(ColorSchemeChoice.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(label: "Color scheme", options: ColorSchemeChoice.allCases.map { (value: $0, title: $0.title) }, selection: $colorScheme)
                 }
                 SettingsTabRow(title: "Text size", detail: "The size of the text of the whole app, \(textSize)%") {
                     Slider(
@@ -369,16 +558,13 @@ struct AppearanceTabView: View {
                     .frame(width: 160).accessibilityLabel("Text size").accessibilityValue("\(textSize) percent")
                 }
                 SettingsTabRow(title: "Density", detail: "The space in the sidebar rows and between the messages") {
-                    Picker("Density", selection: $density) {
-                        ForEach(Density.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(label: "Density", options: Density.allCases.map { (value: $0, title: $0.title) }, selection: $density)
                 }
                 SettingsTabRow(title: "Message width", detail: "How wide a message gets before it wraps") {
-                    Picker("Message width", selection: $messageWidth) {
-                        ForEach(MessageWidth.allCases, id: \.self) { Text("\($0.title) · \(Int($0.points)) pt").tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(
+                        label: "Message width", options: MessageWidth.allCases.map { (value: $0, title: "\($0.title) · \(Int($0.points)) pt") },
+                        selection: $messageWidth, width: 180
+                    )
                 }
                 messagePreview
                 SettingsTabRow(title: "Tell states apart by shape", detail: "A symbol in each state, so that color is not the only clue") {
@@ -389,23 +575,21 @@ struct AppearanceTabView: View {
             SettingsGroup(title: "Code and output") {
                 SettingsTabRow(title: "Font", detail: "The monospaced fonts installed on this Mac", first: true) {
                     // a family that is no longer installed shows as the system's, as the views draw it
-                    Picker("Font", selection: Binding(
-                        get: { MonospaceStyle.installedFamilies.contains(family) ? family : MonospaceSettings.systemFamily },
-                        set: { family = $0 }
-                    )) {
-                        ForEach([MonospaceSettings.systemFamily] + MonospaceStyle.installedFamilies, id: \.self) { Text($0).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(
+                        label: "Font", options: ([MonospaceSettings.systemFamily] + MonospaceStyle.installedFamilies).map { (value: $0, title: $0) },
+                        selection: Binding(
+                            get: { MonospaceStyle.installedFamilies.contains(family) ? family : MonospaceSettings.systemFamily },
+                            set: { family = $0 }
+                        ),
+                        width: 200
+                    )
                 }
                 SettingsTabRow(title: "Size", detail: "\(Int(codeSize)) pt, before the text size of the whole app") {
                     Slider(value: $codeSize, in: Double(MonospaceSettings.sizeRange.lowerBound)...Double(MonospaceSettings.sizeRange.upperBound), step: 1)
                         .frame(width: 160).accessibilityLabel("Code size").accessibilityValue("\(Int(codeSize)) points")
                 }
                 SettingsTabRow(title: "Line height", detail: "The room between the lines of code and output") {
-                    Picker("Line height", selection: $lineHeight) {
-                        ForEach(LineHeight.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(label: "Line height", options: LineHeight.allCases.map { (value: $0, title: $0.title) }, selection: $lineHeight)
                 }
                 SettingsTabRow(title: "Ligatures", detail: "Joins pairs such as != and >= where the font has them") {
                     Toggle("Ligatures", isOn: $ligatures).labelsHidden().toggleStyle(.switch)
@@ -423,10 +607,7 @@ struct AppearanceTabView: View {
                     AccentSwatches(theme: theme, scheme: scheme == .dark ? .dark : .light, accent: $accent)
                 }
                 SettingsTabRow(title: "Tint the windows", detail: "A touch of the accent on the backgrounds") {
-                    Picker("Tint the windows", selection: $tint) {
-                        ForEach(Tint.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(label: "Tint the windows", options: Tint.allCases.map { (value: $0, title: $0.title) }, selection: $tint)
                 }
                 SettingsTabRow(title: "Translucent windows", detail: "Off draws solid backgrounds; it follows the Mac's Reduce transparency until you choose") {
                     Toggle("Translucent windows", isOn: Binding(
@@ -581,7 +762,7 @@ struct SidebarTabView: View {
     }
 
     private func picker<Value: Hashable>(_ name: String, selection: Binding<Value>, options: [Value], title: @escaping (Value) -> String) -> some View {
-        Picker(name, selection: selection) { ForEach(options, id: \.self) { Text(title($0)).tag($0) } }.labelsHidden().fixedSize()
+        ChoicePopUp(label: name, options: options.map { (value: $0, title: title($0)) }, selection: selection)
     }
 }
 
@@ -605,18 +786,10 @@ struct ChatTabView: View {
         SettingsPageBody(reset: { AppPreferences().reset(.chat) }) {
             SettingsGroup(title: "Message box") {
                 SettingsTabRow(title: "Send with", detail: "The other key makes a new line", first: true) {
-                    Picker("Send with", selection: $sendKey) {
-                        Text("Return").tag(SendKey.return)
-                        Text("\u{2318}Return").tag(SendKey.commandReturn)
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(label: "Send with", options: [(value: SendKey.return, title: "Return"), (value: .commandReturn, title: "\u{2318}Return")], selection: $sendKey)
                 }
                 SettingsTabRow(title: "While the agent works", detail: "What sending does while it answers: hold the message until the turn ends, or stop the turn and send it") {
-                    Picker("While the agent works", selection: $whileWorking) {
-                        Text("Queue it").tag(WhileWorking.queue)
-                        Text("Interrupt").tag(WhileWorking.interrupt)
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(label: "While the agent works", options: [(value: WhileWorking.queue, title: "Queue it"), (value: .interrupt, title: "Interrupt")], selection: $whileWorking)
                 }
                 SettingsTabRow(title: "Writing Tools", detail: "The system's offer to rewrite or proofread what you select") {
                     Toggle("Writing Tools", isOn: $writingTools).labelsHidden().toggleStyle(.switch)
@@ -633,31 +806,19 @@ struct ChatTabView: View {
                     Toggle("Follow new output", isOn: $followsOutput).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(title: "Message times", detail: "When a message shows the time it was written, as in General") {
-                    Picker("Message times", selection: $messageTimes) {
-                        ForEach(MessageTimes.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(label: "Message times", options: MessageTimes.allCases.map { (value: $0, title: $0.title) }, selection: $messageTimes)
                 }
-                SettingsTabRow(title: "Tool output", detail: "What the agent's tools show: nothing, each run folded, or every call open", first: true) {
-                    Picker("Tool output", selection: $toolOutput) {
-                        ForEach(ToolOutputMode.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+                SettingsTabRow(title: "Tool output", detail: "What the agent's tools show: nothing, each run folded, or every call open") {
+                    ChoicePopUp(label: "Tool output", options: ToolOutputMode.allCases.map { (value: $0, title: $0.title) }, selection: $toolOutput)
                 }
                 SettingsTabRow(title: "Open the calls that failed", detail: "A call that failed opens by itself, even when the rest are folded") {
                     Toggle("Open the calls that failed", isOn: $opensFailedCalls).labelsHidden().toggleStyle(.switch)
                 }
                 SettingsTabRow(title: "Diff style", detail: "How an edit reads: its lines one under the other, or removed and added side by side") {
-                    Picker("Diff style", selection: $diffStyle) {
-                        ForEach(DiffStyle.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(label: "Diff style", options: DiffStyle.allCases.map { (value: $0, title: $0.title) }, selection: $diffStyle)
                 }
                 SettingsTabRow(title: "Output length", detail: "How many lines of an output show before Show more") {
-                    Picker("Output length", selection: $outputLength) {
-                        ForEach(OutputLength.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(label: "Output length", options: OutputLength.allCases.map { (value: $0, title: $0.title) }, selection: $outputLength)
                 }
                 SettingsTabRow(title: "Show reasoning", detail: "The agent's reasoning, folded under its message, when its host sends it") {
                     Toggle("Show reasoning", isOn: $showsReasoning).labelsHidden().toggleStyle(.switch)
@@ -727,12 +888,10 @@ struct NotificationsTabView: View {
             SettingsGroup(title: "Reminders") {
                 SettingsTabRow(title: "Remind me again", detail: "While an epic or a session still needs attention. Ready for test and Done never remind", first: true) {
                     // a saved value that is not a choice reads as Never, as the watcher does
-                    Picker("Remind me again", selection: Binding(
-                        get: { ReminderInterval(rawValue: reminder) ?? .never }, set: { reminder = $0.rawValue }
-                    )) {
-                        ForEach(ReminderInterval.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                    .labelsHidden().fixedSize()
+                    ChoicePopUp(
+                        label: "Remind me again", options: ReminderInterval.allCases.map { (value: $0, title: $0.title) },
+                        selection: Binding(get: { ReminderInterval(rawValue: reminder) ?? .never }, set: { reminder = $0.rawValue })
+                    )
                 }
             }
             SettingsGroup(title: "Quiet hours") {
@@ -752,12 +911,12 @@ struct NotificationsTabView: View {
                 SettingsTabRow(title: "System permission", detail: permission?.text ?? "Checking…", first: true) {
                     HStack {
                         if permission != .noBundle {
-                            Button("Open System Settings") { NSWorkspace.shared.open(Self.systemSettingsURL) }
+                            Button { NSWorkspace.shared.open(Self.systemSettingsURL) } label: { Label("Open System Settings", systemImage: "gearshape") }
                         }
                         if permission == .notAsked {
-                            Button("Allow") { send() }.buttonStyle(PrimaryCapsuleButtonStyle())
+                            Button { send() } label: { Label("Allow", systemImage: "checkmark") }.buttonStyle(PrimaryCapsuleButtonStyle())
                         }
-                        Button("Send a test") { send() }.disabled(permission == .noBundle)
+                        Button { send() } label: { Label("Send a test", systemImage: "paperplane") }.disabled(permission == .noBundle)
                     }
                 }
             }
@@ -780,8 +939,7 @@ struct NotificationsTabView: View {
             let date = Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date()
             return clockTime(date, hours: hours, locale: .current)
         }
-        return Picker(name, selection: minutes) { ForEach(options, id: \.self) { Text(label($0)).tag($0) } }
-            .labelsHidden().fixedSize()
+        return ChoicePopUp(label: name, options: options.map { (value: $0, title: label($0)) }, selection: minutes)
     }
 
     private static let systemSettingsURL = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!

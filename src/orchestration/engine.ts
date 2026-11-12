@@ -102,14 +102,12 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   let stopping = false;
 
   // Creates the owned labels a repo lacks, with their colour and description; never touches existing ones nor creates `ready` (Solve's).
-  async function ensureLabels() {
-    for (const { name } of repos) {
-      if (stopping) return;
-      if (labelledRepos.has(name)) continue;
-      const existing = await github.listLabels(name);
-      for (const label of ownedLabels) if (!existing.includes(label)) await github.createLabel(name, label, labelStyles[label]);
-      labelledRepos.add(name);
-    }
+  // Runs right before the first label write on a repo; the repo is remembered only once every label exists, so a failure is retried by the next write.
+  async function ensureLabels(repo: string) {
+    if (labelledRepos.has(repo)) return;
+    const existing = await github.listLabels(repo);
+    for (const label of ownedLabels) if (!existing.includes(label)) await github.createLabel(repo, label, labelStyles[label]);
+    labelledRepos.add(repo);
   }
 
   // The one owned label each status shows; merged and cancelled (stopped from outside) show none.
@@ -126,6 +124,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
   // Mirrors the epic's status on its issue: its label, none of the other owned ones, and no `ready` while running.
   const applyLabels = async ({ id, repo, issue, status }: Epic) => {
     if (stopping || suspended) return; // labelPending stays true: the next run reflects it
+    await ensureLabels(repo);
     const wanted = labelOf(status);
     await github.setLabels(repo, issue, {
       add: wanted ? [wanted] : [],
@@ -202,9 +201,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
 
   // The role of the epic's saved config pointed at another of its saved options or providers: same profile and persona.
   // `stepModel` is the model a failover step settled on; without it, the account's, then the role's own on the same harness, else the harness's default.
-  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string, stepModel?: string): Agent => {
+  // `stepEffort` is the step's own effort; without it the role's.
+  const onOption = (config: NonNullable<Epic['config']>, role: 'author' | 'reviewer', name: string, stepModel?: string, stepEffort?: Agent['effort']): Agent => {
     const roleAgent = config.agents[role];
-    const { profile, persona, model, effort } = roleAgent;
+    const { profile, persona, model } = roleAgent;
+    const effort = stepEffort ?? roleAgent.effort;
     const provider = (config.providers ?? config.options)?.[name];
     if (!provider) throw new Error(`provider "${name}" is not declared in config.providers`);
     const modelStr: string = stepModel ?? provider.model ?? (provider.harness === roleAgent.harness ? model : defaultHarnessModels[provider.harness] ?? model);
@@ -249,7 +250,7 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     // Read only; GitHub being down is not a reason to stop: the agent verifies the state first anyway.
     const found = await github.findPullRequest(epic.repo, epic.issue).catch((e) => (failed(e), null));
     db.transaction((tx) => {
-      tx.update(epics).set({ config: { ...config, agents: { ...config.agents, [role]: onOption(config, role, next.provider, modelOf(next)) } }, ...(role === 'author' ? { authorOption: next.provider } : { reviewerOption: next.provider }) }).where(eq(epics.id, epicId)).run();
+      tx.update(epics).set({ config: { ...config, agents: { ...config.agents, [role]: onOption(config, role, next.provider, modelOf(next), next.effort) } }, ...(role === 'author' ? { authorOption: next.provider } : { reviewerOption: next.provider }) }).where(eq(epics.id, epicId)).run();
       tx.insert(epicEvents).values({ epicId, at: clock.now(), type: 'option_switched', data: { role, from: config.agents[role].option ?? null, fromModel: config.agents[role].model, to: next.provider, toModel: modelOf(next), stage } }).run();
     });
     await execute(fresh(epicId), stage, failedExecution, { pr: found && { number: found.number, headSha: found.headSha } });
@@ -822,7 +823,6 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     try {
       // Fetch every repo before writing: a failure on any of them leaves the queue untouched.
       const found: { repo: string; issue: number; title: string; labels: string[] }[] = [];
-      await ensureLabels();
       if (!recovered) await recover();
       for (const { name: repo } of repos) {
         for (const { issue, title, labels } of await github.listReadyEpics(repo)) found.push({ repo, issue, title, labels });
@@ -882,13 +882,11 @@ export function createEngine({ db, github, clock, repos, pollIntervalMs, maxConc
     async start() {
       stopRetention = startRetention(db, places.logs, clock, sessionDirs);
       // GitHub down: retried every cycle until it works.
-      for (const step of [ensureLabels, recover]) {
-        try {
-          await step();
-        } catch (err) {
-          log.error('startup step failed', err);
-          failed(err);
-        }
+      try {
+        await recover();
+      } catch (err) {
+        log.error('startup step failed', err);
+        failed(err);
       }
       schedule(pollIntervalMs);
       sliceTimer();

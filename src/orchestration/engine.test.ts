@@ -346,20 +346,48 @@ test('an issue that cannot be checked goes back to the queue in its place', asyn
   expect(rows(engine.db)[0]).toMatchObject({ startedAt: null, config: null });
 });
 
-test('startup creates only the missing owned labels, never ready, and repeating changes nothing', async () => {
+test('labels: start asks for none; the first epic taken in a repo creates that repo\'s missing owned labels, never ready, and the second asks nothing more', async () => {
   github.repoLabels = { 'AshuLab/a': ['solve:epic:running', 'bug'] };
-  await start();
-  expect(github.created).toEqual([
-    'AshuLab/a:solve:epic:ready-for-test',
-    'AshuLab/a:solve:epic:needs-human',
-    'AshuLab/b:solve:epic:running',
-    'AshuLab/b:solve:epic:ready-for-test',
-    'AshuLab/b:solve:epic:needs-human',
-  ]);
+  github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }, { issue: 2, title: '' }] };
+  const calls = vi.spyOn(github, 'listLabels');
+  const engine = await start(1);
+  expect(calls).not.toHaveBeenCalled();
+  expect(github.created).toEqual([]);
+
+  await clock.advance(5 * MIN); // takes the first epic
+  expect(github.created).toEqual(['AshuLab/a:solve:epic:ready-for-test', 'AshuLab/a:solve:epic:needs-human']);
   expect(github.styles['solve:epic:needs-human']).toEqual({ color: 'd93f0b', description: expect.stringContaining('person') }); // created with a colour and a description
-  await start();
-  expect(github.created).toHaveLength(5);
   expect(github.repoLabels['AshuLab/a']).toEqual(['solve:epic:running', 'bug', 'solve:epic:ready-for-test', 'solve:epic:needs-human']);
+  expect(github.repoLabels['AshuLab/b']).toBeUndefined(); // no epic there: never asked
+  expect(calls).toHaveBeenCalledTimes(1);
+
+  // The first epic ends; the second one is taken on the same repo.
+  github.ready = { 'AshuLab/a': [{ issue: 2, title: '' }] };
+  github.issue('AshuLab/a', 1).state = 'closed';
+  await clock.advance(5 * MIN);
+  await clock.advance(5 * MIN);
+  expect(byStatus(engine.db, 'running')).toEqual([2]);
+  expect(github.created).toHaveLength(2);
+  expect(calls).toHaveBeenCalledTimes(1);
+});
+
+test('labels: when creating them fails with GitHubUnavailable the epic keeps labelPending and is not launched; the next poll with GitHub back creates them and launches', async () => {
+  github.ready = { 'AshuLab/a': [{ issue: 1, title: '' }] };
+  const createLabel = github.createLabel.bind(github);
+  github.createLabel = async () => {
+    throw new GitHubUnavailable('network', 'down');
+  };
+  const engine = await start(1);
+  await clock.advance(5 * MIN);
+  expect(rows(engine.db)[0]).toMatchObject({ status: 'running', labelPending: true });
+  expect(runner.tasks).toHaveLength(0);
+  expect(github.repoLabels['AshuLab/a'] ?? []).toEqual([]);
+
+  github.createLabel = createLabel;
+  await clock.advance(5 * MIN);
+  await vi.waitFor(() => expect(runner.tasks).toHaveLength(1));
+  expect(github.repoLabels['AshuLab/a']).toEqual(['solve:epic:running', 'solve:epic:ready-for-test', 'solve:epic:needs-human']);
+  expect(rows(engine.db)[0]).toMatchObject({ labelPending: false });
 });
 
 // --- ship stage ---
@@ -633,7 +661,6 @@ test.each([
   pull(50, { state: 'open' });
   runner.behavior = (task) => (task.resumeSession ? { exit: 'hang' } : first);
   const engine = await start(1);
-  const created = github.created.length;
   await clock.advance(5 * MIN);
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(2));
 
@@ -648,7 +675,7 @@ test.each([
     { epicId: 1, at: 5 * MIN, type: 'execution_retried', data: { stage: 'ship', failed: initial.executionId, attempt: 2, pr: { number: 50, state: 'open', headSha: SHA } } },
   ]);
   // Read only, and the epic did not move: same stage, no review round.
-  expect(github.created).toHaveLength(created);
+  expect(github.created).toHaveLength(3); // the owned labels of the first label write, nothing from the retry
   expect(labelsOf(1)).toEqual(['solve:epic:running']);
   expect(rows(engine.db)[0]).toMatchObject({ status: 'running', stage: 'ship', round: null, prNumber: null });
 });
@@ -729,7 +756,7 @@ test('a usage limit does not count in the retry streak', async () => {
 });
 
 // Failover: three options, the author on `claude` and the reviewer on `codex`; `spare` is the one only the list can name.
-type Steps = { provider: string; model?: string }[];
+type Steps = { provider: string; model?: string; effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max' }[];
 const failoverRepos = (roles?: { author?: Steps; reviewer?: Steps }): EffectiveRepoConfig[] =>
   choosing({ claude: claudeOption, codex: codexOption, spare: { harness: 'agy', model: 'flash' } }).map((repo) => ({ ...repo, ...(roles && { failover: { roles } }) }));
 // Reserves the epic, which starts at once on the defaults.
@@ -769,6 +796,17 @@ test("a role's effort goes with it when it moves to the next step", async () => 
   await startWith(config);
   await vi.waitFor(() => expect(runner.tasks).toHaveLength(3));
   expect(runner.tasks[1]).toMatchObject({ option: 'spare', effort: 'high' });
+});
+
+test('a failover step with its own effort runs on it, and one without keeps the effort the role was running with', async () => {
+  github.ready = { 'AshuLab/a': ready(1) };
+  pull(50);
+  runner.behavior = (task) => (task.option === 'codex' ? { sessionId: 's-3', write: completed(task) } : outOf(task.option === 'claude' ? 'claude' : 'spare')(task, { exit: 'hang' }));
+  const config = failoverRepos({ author: [{ provider: 'spare', effort: 'low' }, { provider: 'codex' }] }).map((repo) => ({ ...repo, agents: { ...repo.agents, author: { ...repo.agents.author, effort: 'high' as const } } }));
+  await startWith(config);
+  await vi.waitFor(() => expect(runner.tasks.length).toBeGreaterThanOrEqual(3));
+  expect(runner.tasks[1]).toMatchObject({ option: 'spare', effort: 'low' });
+  expect(runner.tasks[2]).toMatchObject({ option: 'codex', effort: 'low' });
 });
 
 test('only the role that ran out moves: a reviewer that runs out leaves the author option as it is', async () => {

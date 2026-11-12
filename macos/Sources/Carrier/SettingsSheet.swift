@@ -3,13 +3,14 @@ import CarrierCore
 import SwiftUI
 
 /// Settings as a sheet over the main window, in the shape of the workspace chooser: a rail with the sections on the left, the chosen one on the
-/// right and Done in the foot. The readiness banner shows over every section while something is missing or being looked for.
+/// right, closed by the corner button or Esc. The readiness banner shows over every section while something is missing or being looked for.
 struct SettingsSheet: View {
     let state: ConnectionState?
     @ObservedObject var setup: SetupController = .shared
     @ObservedObject private var start = StartController.shared
     @Binding var tab: SettingsPage
     @AppStorage(startOnOpenKey) private var startOnOpen = false
+    @State private var headerNote: SettingsHeaderNote?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -19,12 +20,6 @@ struct SettingsSheet: View {
                 Divider()
                 page.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            Divider()
-            HStack {
-                Spacer(minLength: 0)
-                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
-            }
-            .padding(.horizontal, 20).padding(.vertical, 12)
         }
         .windowSheetSize()
         // what the person fixed here is what the chat host needs: look again when they are done
@@ -37,9 +32,12 @@ struct SettingsSheet: View {
         ScrollView {
             section.padding(.horizontal, 24).padding(.bottom, 24).padding(.top, 8).frame(maxWidth: .infinity, alignment: .topLeading)
         }
+        .onPreferenceChange(SettingsHeaderNoteKey.self) { headerNote = $0 }
         .safeAreaBar(edge: .top, spacing: 0) {
-            SettingsPageHeader(page: tab).padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 12)
+            SettingsPageHeader(page: tab, note: headerNote).padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // closing is a corner button (Esc closes a sheet as well), not a footer
+                .overlay(alignment: .topTrailing) { IconButton(icon: "xmark", name: "Close", shortcut: "Esc") { dismiss() }.padding(.top, 24).padding(.trailing, 16) }
         }
     }
 
@@ -91,12 +89,12 @@ struct SettingsSheet: View {
                 Button("Detect again") { setup.detect(); start.refreshConfig() }.buttonStyle(SecondaryCapsuleButtonStyle())
             }
             .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+            .settingsCard()
             SettingsTabRow(title: "Start Carrier when the app opens", detail: notConfigured == nil ? "Carrier starts working on ready epics as soon as the app opens" : "Does nothing until the engine is configured", first: true) {
                 Toggle("Start Carrier when the app opens", isOn: $startOnOpen).labelsHidden().toggleStyle(.switch).disabled(notConfigured != nil)
             }
             .padding(.horizontal, 14)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.07)))
+            .settingsCard()
         }
         Text("Advanced").font(.headline).padding(.top, 6).accessibilityAddTraits(.isHeader)
         UseThisCarrierField(setup: setup)
@@ -118,7 +116,7 @@ struct SettingsRail: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(Self.sections, id: \.group) { section in
                         if let heading = section.group.heading {
-                            Text(heading.uppercased()).font(.caption2).fontWeight(.semibold).foregroundStyle(.tertiary)
+                            Text(heading).sectionLabel()
                                 .padding(.leading, 8).padding(.top, 10).accessibilityAddTraits(.isHeader)
                         }
                         ForEach(section.pages, id: \.self) { row in

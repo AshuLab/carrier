@@ -142,3 +142,15 @@ private func failover(_ first: FailoverStep?, _ second: FailoverStep? = nil, rol
     // the same provider on another model, or on the account's own model, is a different step
     #expect(failover(step("claude"), step("claude", "other"), path: path) == .saved)
 }
+
+@Test func aStepKeepsItsOwnEffortAndAReadStepSaysIt() throws {
+    let path = try temporaryConfig()
+    defer { try? FileManager.default.removeItem(atPath: path) }
+    #expect(failover(FailoverStep(provider: "codex", model: "g", effort: "low"), FailoverStep(provider: "agy"), path: path) == .saved)
+    let steps = try #require(try value(path, "failover", "roles", "author") as? [[String: Any]])
+    #expect(steps.map { $0["effort"] as? String } == ["low", nil])
+    // an effort does not make a step another one: the engine tells them apart by provider and model
+    #expect(failover(FailoverStep(provider: "codex", model: "g", effort: "low"), FailoverStep(provider: "codex", model: "g", effort: "high"), path: path) == .refused("Then repeats another step of the list."))
+    let page = try #require(agentsPage(config: Data(contentsOf: URL(fileURLWithPath: path)), providers: nil, bots: ForgeBots(names: [], note: nil)))
+    #expect(page.rows.first { $0.role == .author }?.steps.first == FailoverStep(provider: "codex", model: "g", effort: "low"))
+}

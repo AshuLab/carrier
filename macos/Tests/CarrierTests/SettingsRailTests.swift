@@ -11,8 +11,8 @@ import Testing
     let app = sections[0].pages
     #expect(app.first == .general && app.last == .updates)
     #expect(app.firstIndex(of: .dictation) == app.firstIndex(of: .chat).map { $0 + 1 })
-    #expect(sections[1].pages == [.providers, .repos, .agents])
-    #expect(sections[2].pages == [.engine, .behavior, .sessions, .health])
+    #expect(sections[1].pages == [.providers, .repos, .agents, .behavior])
+    #expect(sections[2].pages == [.engine, .sessions, .health])
     // and the view is built from them
     let renderer = ImageRenderer(content: SettingsRail(page: .constant(.general)).frame(height: 700))
     #expect(renderer.cgImage != nil)

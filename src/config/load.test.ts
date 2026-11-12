@@ -337,7 +337,7 @@ describe('failover', () => {
   });
 
   test('steps with a provider and an optional model, and the triggers, load as written', () => {
-    const failover = { triggers: ['usage_limit', 'service_down'], roles: { author: [{ provider: 'codex', model: 'gpt-5' }, { provider: 'claude', model: 'haiku' }], leadReviewer: [{ provider: 'claude' }] } };
+    const failover = { triggers: ['usage_limit', 'service_down'], roles: { author: [{ provider: 'codex', model: 'gpt-5', effort: 'low' }, { provider: 'claude', model: 'haiku' }], leadReviewer: [{ provider: 'claude' }] } };
     expect(load({ failover })).toMatchObject({ ok: true, config: { failover } });
   });
 

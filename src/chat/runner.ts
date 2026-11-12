@@ -39,7 +39,8 @@ export type ChatEvent =
   | { kind: 'approval_answered'; approvalId: string; choiceId: string; /** Question text to the answer; a multiple choice joins its picks with a comma. */ answers?: Record<string, string> }
   | { kind: 'option'; id: string; value: string }
   | { kind: 'turn_end'; outcome: 'ok' | 'interrupted' | 'error'; model?: string; usage?: ChatUsage }
-  | { kind: 'error'; text: string };
+  | { kind: 'error'; text: string }
+  | { kind: 'notice'; text: string; /** The id the provider no longer had, kept so the cause can be looked for. */ lostNativeId?: string }; // said by the host, never by an adapter: a plain line, not a failure
 
 export interface ChatConversation {
   readonly options: ChatOption[];
@@ -47,6 +48,8 @@ export interface ChatConversation {
   readonly commands: ChatCommand[];
   /** The provider's id for this conversation, once it has one. */
   readonly nativeId: string | undefined;
+  /** Set when a resume found nothing to resume and the provider began a new conversation instead: the agent remembers nothing of the earlier ones. */
+  readonly startedOver?: boolean;
   /** The agent's process, when it leads a group of its own: what the next host needs to sweep it if this one dies. `command` is what it was started with. */
   readonly process?: { pid: number; pgid: number; command: string };
   /** `text` is the message, or what follows the command's name when one is invoked (the provider's own way of invoking it is the adapter's). */

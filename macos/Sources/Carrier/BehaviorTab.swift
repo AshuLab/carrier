@@ -2,9 +2,9 @@ import AppKit
 import CarrierCore
 import SwiftUI
 
-/// The Behavior tab: the values of `config.json` the engine reads when it starts (CarrierCore/EngineConfig.swift), in four
-/// groups. Every change that the engine would accept is written to the file as it is made, in place; nothing restarts Carrier,
-/// which reads the file when it starts. "Reset to defaults" is the one button.
+/// The Behavior tab: the values of `config.json` the engine reads when it starts (CarrierCore/EngineConfig.swift), in the three
+/// groups of `behaviorGroups` (CarrierCore/BehaviorPage.swift). Every change that the engine would accept is written to the file as it is made, in place; nothing restarts Carrier,
+/// which reads the file when it starts. The note about saving, or why it cannot, is in the page's header (`SettingsHeaderNoteKey`).
 struct BehaviorTabView: View {
     @ObservedObject private var start = StartController.shared
     @State private var saved = EngineConfig()
@@ -17,66 +17,40 @@ struct BehaviorTabView: View {
 
     private var path: String { configFilePath() }
 
+    /// Said at the right of the header only when there is something to say: that it saved, or why it could not.
+    private var headerNote: SettingsHeaderNote? {
+        if unreadable {
+            return SettingsHeaderNote(text: "The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", tone: .problem)
+        }
+        if let failure { return SettingsHeaderNote(text: failure, tone: .problem) }
+        if let note { return SettingsHeaderNote(text: note, tone: .saved) }
+        return nil
+    }
+
     private var problems: [String: String] {
         draft.problems.merging(unparsable.map { ($0, "Must be a number") }) { _, text in text }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if unreadable {
-                Label("The engine is not configured: config.json in the Carrier folder is missing or is not a JSON object.", systemImage: "exclamationmark.triangle.fill")
-                    .font(.callout).foregroundStyle(.orange)
-            }
-            group("Rhythm") {
-                row("Check GitHub every", "Minutes between looks for ready epics", "pollIntervalMinutes", first: true) {
-                    field("pollIntervalMinutes", $draft.pollIntervalMinutes, unit: "min", parse: { Double($0.replacingOccurrences(of: ",", with: ".")) }, format: shownNumber, step: { $0 + Double($1) > 0 ? $0 + Double($1) : nil })
-                }
-                row("Log level", "How much Carrier writes to its log", "logLevel") {
-                    Picker("Log level", selection: $draft.logLevel) { ForEach(EngineConfig.logLevels, id: \.self) { Text($0) } }
-                        .labelsHidden().frame(width: 90)
-                }
-            }
-            group("Finished epics") {
-                row("Keep in view for", "Days a merged or cancelled epic stays listed, 1 to 30", "finishedWindowDays", first: true) { integer("finishedWindowDays", $draft.finishedWindowDays, min: 1, unit: "days") }
-            }
-            group("Capacity") {
-                row("Epics at once", "Epics running at the same time", "maxConcurrentEpics", first: true) { integer("maxConcurrentEpics", $draft.maxConcurrentEpics, min: 1) }
-                row("Review rounds", "Rounds before the epic goes to needs-human", "maxReviews") { integer("maxReviews", $draft.maxReviews, min: 1) }
-            }
-            group("Agent runs") {
-                row("Retries", "After a technical failure of an agent run", "maxExecutionRetries", first: true) { integer("maxExecutionRetries", $draft.maxExecutionRetries, min: 0) }
-                row("Time per agent run", "Limit of one agent run", "maxExecutionHours") {
-                    HStack(spacing: 10) {
-                        if draft.maxExecutionHours != nil {
-                            integer("maxExecutionHours", Binding(get: { draft.maxExecutionHours ?? 4 }, set: { draft.maxExecutionHours = $0 }), min: 1, unit: "h")
-                        }
-                        Picker("Time per agent run", selection: Binding(get: { draft.maxExecutionHours == nil }, set: { unlimited in
-                            unparsable.remove("maxExecutionHours")
-                            draft.maxExecutionHours = unlimited ? nil : 4
-                        })) {
-                            Text("Limit").tag(false)
-                            Text("Unlimited").tag(true)
-                        }.pickerStyle(.segmented).labelsHidden().fixedSize()
+            ForEach(behaviorGroups, id: \.title) { page in
+                SettingsGroup(title: page.title) {
+                    ForEach(Array(page.rows.enumerated()), id: \.element.key) { index, item in
+                        row(item, first: index == 0)
                     }
                 }
-                row("GitHub call timeout", "Each short call to GitHub", "githubCallTimeoutSeconds") { integer("githubCallTimeoutSeconds", $draft.githubCallTimeoutSeconds, min: 1, unit: "s") }
             }
-            HStack(spacing: 8) {
-                if let failure {
-                    Label(failure, systemImage: "exclamationmark.triangle.fill").font(.callout).foregroundStyle(.orange)
-                } else if let note {
-                    Label(note, systemImage: "checkmark.circle.fill").font(.callout).foregroundStyle(.green)
-                } else {
-                    Text("Saved as you change them. Carrier reads these when it starts.").font(.callout).foregroundStyle(.secondary)
+            SettingsGroup(title: behaviorReset.group) {
+                SettingsTabRow(title: behaviorReset.title, detail: behaviorReset.detail, first: true) {
+                    Button { draft = EngineConfig(); unparsable = [] } label: { Label(behaviorReset.button, systemImage: "arrow.counterclockwise") }
+                        .disabled(draft == EngineConfig() && unparsable.isEmpty)
                 }
-                Spacer(minLength: 8)
-                Button("Reset to defaults") { draft = EngineConfig(); unparsable = [] }.disabled(draft == EngineConfig() && unparsable.isEmpty)
             }
-            .padding(.horizontal, 4)
         }
         .buttonStyle(SecondaryCapsuleButtonStyle())
         // nothing to edit until the file reads; it is read again when it appears or goes (`StartController` checks every 3 seconds)
         .disabled(unreadable)
+        .preference(key: SettingsHeaderNoteKey.self, value: headerNote)
         .onAppear(perform: load)
         .onChange(of: start.configExists) { load() }
         // a file that is there but unreadable may be fixed in another app: look again when Carrier is back in front (only then, so no edit is lost)
@@ -87,13 +61,45 @@ struct BehaviorTabView: View {
         }
     }
 
-    private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        SettingsGroup(title: title) { content() }
+    private func row(_ item: BehaviorRow, first: Bool) -> some View {
+        SettingsTabRow(title: item.title, detail: item.detail, first: first, problem: problems[item.key]) { control(item) }
     }
 
-    private func row<Control: View>(_ title: String, _ detail: String, _ key: String, first: Bool = false, @ViewBuilder control: () -> Control) -> some View {
-        SettingsTabRow(title: title, detail: problems[key] ?? detail, first: first) { control() }
-            .foregroundStyle(problems[key] == nil ? Color.primary : Color.orange)
+    @ViewBuilder private func control(_ item: BehaviorRow) -> some View {
+        switch item.control {
+        case .minutes:
+            field(item.key, $draft.pollIntervalMinutes, unit: "min", parse: { Double($0.replacingOccurrences(of: ",", with: ".")) }, format: shownNumber, step: { $0 + Double($1) > 0 ? $0 + Double($1) : nil })
+        case .number(let minimum, let unit):
+            integer(item.key, intBinding(item.key), min: minimum, unit: unit)
+        case .runTime:
+            HStack(spacing: 10) {
+                if draft.maxExecutionHours != nil {
+                    integer(item.key, Binding(get: { draft.maxExecutionHours ?? 4 }, set: { draft.maxExecutionHours = $0 }), min: 1, unit: "h")
+                }
+                ChoicePopUp(
+                    label: item.title, options: [(value: false, title: "Limit"), (value: true, title: "Unlimited")],
+                    selection: Binding(get: { draft.maxExecutionHours == nil }, set: { unlimited in
+                        unparsable.remove(item.key)
+                        draft.maxExecutionHours = unlimited ? nil : 4
+                    }),
+                    width: 120
+                )
+            }
+        case .logLevel:
+            ChoicePopUp(label: item.title, options: EngineConfig.logLevels.map { (value: $0, title: $0) }, selection: $draft.logLevel, width: 100)
+        }
+    }
+
+    /// The whole-number value of `EngineConfig` that a row of `behaviorGroups` names.
+    private func intBinding(_ key: String) -> Binding<Int> {
+        switch key {
+        case "maxConcurrentEpics": return $draft.maxConcurrentEpics
+        case "maxReviews": return $draft.maxReviews
+        case "maxExecutionRetries": return $draft.maxExecutionRetries
+        case "githubCallTimeoutSeconds": return $draft.githubCallTimeoutSeconds
+        case "finishedWindowDays": return $draft.finishedWindowDays
+        default: preconditionFailure("no whole-number value named \(key)")
+        }
     }
 
     private func integer(_ key: String, _ value: Binding<Int>, min: Int, unit: String? = nil) -> some View {
@@ -102,7 +108,7 @@ struct BehaviorTabView: View {
 
     private func field<Value: Equatable>(_ key: String, _ value: Binding<Value>, unit: String?, parse: @escaping (String) -> Value?, format: @escaping (Value) -> String, step: @escaping (Value, Int) -> Value?) -> some View {
         HStack(spacing: 6) {
-            NumberField(key: key, value: value, unparsable: $unparsable, invalid: problems[key] != nil, parse: parse, format: format, step: step)
+            NumberField(key: key, value: value, unparsable: $unparsable, parse: parse, format: format, step: step)
             if let unit { Text(unit).font(.caption).foregroundStyle(.secondary) }
         }
     }
@@ -149,46 +155,13 @@ struct BehaviorTabView: View {
     }
 }
 
-/// The green line after a save.
-struct SavedNote: View {
-    let text: String
-
-    var body: some View {
-        Label(text, systemImage: "checkmark.circle.fill").fontWeight(.medium).foregroundStyle(.green)
-            .padding(.horizontal, 14).padding(.vertical, 10).frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 14).fill(Color.green.opacity(0.13)))
-    }
-}
-
-/// A question under the tab's content with a way out and a red button: the restart that interrupts epics.
-struct ConfirmationCard: View {
-    let text: String
-    let confirm: String
-    let cancel: () -> Void
-    let action: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(text)
-            HStack {
-                Spacer()
-                Button("Cancel", action: cancel)
-                Button(confirm, role: .destructive, action: action)
-            }
-            .buttonStyle(SecondaryCapsuleButtonStyle())
-        }
-        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 14).fill(Color.secondary.opacity(0.12)))
-    }
-}
-
 /// A text field that hands its number to `value` as it is typed, so Save is on at once; text that is not a number yet is
 /// reported through `unparsable` and the value keeps its last good number.
 struct NumberField<Value: Equatable>: View {
     let key: String
     @Binding var value: Value
     @Binding var unparsable: Set<String>
-    let invalid: Bool
+    @Environment(\.settingsInvalid) private var invalid
     let parse: (String) -> Value?
     let format: (Value) -> String
     /// The value one click of − (-1) or + (1) moves to; nil when it would go below the least the engine takes.
@@ -203,8 +176,8 @@ struct NumberField<Value: Equatable>: View {
             stepButton("plus", 1)
         }
         .padding(2)
-        .background(RoundedRectangle(cornerRadius: 9).fill(Color.secondary.opacity(0.12)))
-        .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(invalid ? Color.red : focused ? Color.themeAccent : Color.clear, lineWidth: 1.5))
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.primary.opacity(focused ? 0.09 : 0.07)))
+        .overlay { if invalid { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.orange, lineWidth: 1.5) } else if focused { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.themeAccent, lineWidth: 1.5) } }
             .onAppear { text = format(value) }
             .onChange(of: text) {
                 if let parsed = parse(text) {

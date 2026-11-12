@@ -65,6 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Task { @MainActor in
                     await AppHealth.store.check(.open)
                     await AppHealth.providers.createFileIfMissing()
+                    // with a file there it did not ask: ask now, so the Providers page opens with its tools already listed
+                    if case .unasked = AppHealth.providers.outcome { await AppHealth.providers.load() }
                 }
             }
         }

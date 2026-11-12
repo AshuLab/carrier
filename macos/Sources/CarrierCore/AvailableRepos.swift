@@ -110,14 +110,30 @@ public struct RepoGroup: Equatable, Identifiable {
     public var id: String { owner }
 }
 
+/// Which repos the picker lists by visibility.
+public enum RepoVisibility: CaseIterable {
+    case all, onlyPrivate, onlyPublic
+}
+
 /// The list as the picker shows it: owners in the order the engine's list first reaches them, repos in its order, filtered by
-/// `query`. A repo is off when it is watched (`watched`: the tab's draft) or shares a folder name with a watched or selected one.
-public func repoGroups(_ available: [AvailableRepo], watched: [String], selected: Set<String>, query: String, now: Date = Date()) -> [RepoGroup] {
+/// `query`, `visibility`, one `owner` and `hideWatched`. A repo is off when it is watched (`watched`: the tab's draft) or shares a folder name
+/// with a watched or selected one.
+public func repoGroups(
+    _ available: [AvailableRepo], watched: [String], selected: Set<String>, query: String, visibility: RepoVisibility = .all, owner onlyOwner: String? = nil,
+    hideWatched: Bool = false, now: Date = Date()
+) -> [RepoGroup] {
     let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
     var order: [String] = []
     var byOwner: [String: [RepoChoice]] = [:]
     for repo in available where needle.isEmpty || repo.name.lowercased().contains(needle) {
+        switch visibility {
+        case .all: break
+        case .onlyPrivate: if repo.isPrivate == false { continue }
+        case .onlyPublic: if repo.isPrivate { continue }
+        }
+        if let onlyOwner, repo.name.split(separator: "/").first.map(String.init) != onlyOwner { continue }
         let isWatched = watched.contains { $0.lowercased() == repo.name.lowercased() }
+        if hideWatched && isWatched { continue }
         let taken = selected.contains(repo.name) ? nil : (watched + selected).first { $0.lowercased() != repo.name.lowercased() && repoFolder($0) == repoFolder(repo.name) }
         let detail = isWatched ? "already watched" : taken.map { "same folder name as \($0)" } ?? pushedLine(repo.pushedAt, now: now)
         let owner = String(repo.name.split(separator: "/").first ?? "")

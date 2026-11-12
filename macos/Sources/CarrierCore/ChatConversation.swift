@@ -325,6 +325,10 @@ public func chatFeed(_ events: [ChatEvent], streaming: String = "", pending: Set
         case "error":
             release()
             rows.append(.error(id: id, text: event.text ?? "Something went wrong"))
+        case "notice":
+            // said by the host (a resume that began a new conversation): a plain line, never the banner of a failed turn
+            release()
+            if let text = event.text { rows.append(.line(id: id, text: text)) }
         default:
             continue
         }

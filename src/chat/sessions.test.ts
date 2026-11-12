@@ -505,6 +505,17 @@ test('resume opens a closed session again from its native id, folder and options
   expect(sessions.events({ sessionId: id, limit: 50 }).events.map((e) => e.kind)).toEqual(['user', 'assistant', 'turn_end', 'user']); // the transcript goes on from where it was
 });
 
+test('a resume that began a new conversation says so in the history', async () => {
+  const s = setup({ agents: { claude: { account: 'claude', model: 'haiku' } } });
+  s.claude.setup = offering(['model', ['haiku'], 'haiku']);
+  const { sessions, claude, id } = await openOne(s);
+  await sessions.close({ sessionId: id });
+  const original = claude.open.bind(claude);
+  claude.open = async (args) => Object.assign(await original(args), { startedOver: true });
+  await sessions.resume({ sessionId: id });
+  expect(sessions.events({ sessionId: id, limit: 50 }).events.at(-1)).toMatchObject({ kind: 'error', text: expect.stringContaining('new one in the same folder') });
+});
+
 test('a resume that comes while a session is being deleted is refused, and the session is gone after', async () => {
   const s = setup();
   const { sessions, claude, id } = await openOne(s);

@@ -613,6 +613,7 @@ export function createSessions({ db, agents, clock, runners, env, git, projects,
         throw new ChatRefused('This session is being deleted');
       }
       attach(sessionId, conversation);
+      if (conversation.startedOver) store(sessionId, { kind: 'error', text: 'The agent lost this conversation: its provider no longer has it. This is a new one in the same folder, and it does not remember what was said above.' });
       return { session: summary(current), options: conversation.options };
     },
 

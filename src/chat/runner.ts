@@ -47,6 +47,8 @@ export interface ChatConversation {
   readonly commands: ChatCommand[];
   /** The provider's id for this conversation, once it has one. */
   readonly nativeId: string | undefined;
+  /** Set when a resume found nothing to resume and the provider began a new conversation instead: the agent remembers nothing of the earlier ones. */
+  readonly startedOver?: boolean;
   /** The agent's process, when it leads a group of its own: what the next host needs to sweep it if this one dies. `command` is what it was started with. */
   readonly process?: { pid: number; pgid: number; command: string };
   /** `text` is the message, or what follows the command's name when one is invoked (the provider's own way of invoking it is the adapter's). */

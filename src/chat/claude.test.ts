@@ -273,6 +273,20 @@ test('open rejects with a reason when Claude is not installed or not logged in, 
   await expect(claudeChatRunner(deps(broken)).open({ folder: '/work', resume: 'x', env: {} })).rejects.toThrow(/could not resume/);
 });
 
+test('a resume whose transcript is gone starts a new conversation in the same folder; any other failure still refuses', async () => {
+  const replayed = replay(main);
+  const starts: unknown[] = [];
+  const missing = ((args: Parameters<typeof sdkQuery>[0]) => {
+    starts.push(args.options!.resume);
+    if (args.options!.resume === undefined) return replayed.query(args);
+    return { initializationResult: async () => Promise.reject(new Error('Claude Code returned an error result: No conversation found with session ID: x')), close() {}, [Symbol.asyncIterator]: () => ({ next: () => new Promise(() => {}) }) };
+  }) as unknown as typeof sdkQuery;
+  const conversation = await claudeChatRunner(deps(missing)).open({ folder: '/work', resume: 'x', env: {} });
+  expect(starts).toEqual(['x', undefined]);
+  expect(conversation.startedOver).toBe(true);
+  expect(conversation.nativeId).toBeUndefined();
+});
+
 test('an account\'s binary and login folder are what the login check and the SDK start with', async () => {
   const { query, seen } = replay([]);
   const checked: unknown[] = [];

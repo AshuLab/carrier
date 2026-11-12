@@ -106,7 +106,7 @@ private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
     let file = ProvidersFile(folder: folder)
     // with no file the host answers the default accounts, one per harness, whether found or not
     let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true), account("codex", found: true), account("agy", found: false)]))
-    let store = ProvidersStore(host: host, file: { file }, log: { _ in })
+    let store = ProvidersStore(host: host, file: { file }, log: { _ in }, reload: { nil })
     await store.createFileIfMissing()
     let written = try providers(file)
     #expect(written.keys.sorted() == ["claude", "codex"])
@@ -125,7 +125,7 @@ private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
     let mine = #"{"providers":{"codex":{"harness":"codex"}},"extra":1}"#
     try file.write(Data(mine.utf8))
     let host = try ProvidersHost(replyJSON(accounts: [account("codex", found: true)], unadded: ["claude"]))
-    let store = ProvidersStore(host: host, file: { file }, log: { _ in })
+    let store = ProvidersStore(host: host, file: { file }, log: { _ in }, reload: { nil })
     await store.createFileIfMissing()
     #expect(try text(file) == mine && host.asked == 0)
 }
@@ -135,12 +135,12 @@ private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
     let none = try ProvidersHost(replyJSON(accounts: [account("claude", found: false)]))
-    await ProvidersStore(host: none, file: { file }, log: { _ in }).createFileIfMissing()
+    await ProvidersStore(host: none, file: { file }, log: { _ in }, reload: { nil }).createFileIfMissing()
     let old = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
     old.capabilitiesAnswer = []
-    await ProvidersStore(host: old, file: { file }, log: { _ in }).createFileIfMissing()
+    await ProvidersStore(host: old, file: { file }, log: { _ in }, reload: { nil }).createFileIfMissing()
     let problem = try ProvidersHost(#"{"accounts":[],"unadded":[],"servers":[],"problem":{"path":"(file)","message":"bad"}}"#)
-    await ProvidersStore(host: problem, file: { file }, log: { _ in }).createFileIfMissing()
+    await ProvidersStore(host: problem, file: { file }, log: { _ in }, reload: { nil }).createFileIfMissing()
     #expect(file.exists == false)
 }
 
@@ -150,7 +150,7 @@ private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
     let file = ProvidersFile(folder: folder)
     try file.write(Data(#"{"providers":{"claude":{"harness":"claude","command":"/opt/claude"}}}"#.utf8))
     let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)], unadded: ["agy"]))
-    let store = ProvidersStore(host: host, file: { file }, log: { _ in })
+    let store = ProvidersStore(host: host, file: { file }, log: { _ in }, reload: { nil })
     await store.add(harness: "agy")
     let written = try providers(file)
     #expect(written.keys.sorted() == ["agy", "claude"] && written["agy"]?.keys.sorted() == ["harness"])
@@ -168,7 +168,7 @@ private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
     let host = try ProvidersHost(replyJSON(accounts: [], unadded: ["codex"]))
-    let store = ProvidersStore(host: host, file: { file }, log: { _ in })
+    let store = ProvidersStore(host: host, file: { file }, log: { _ in }, reload: { nil })
 
     try file.write(Data("[1]".utf8))
     await store.add(harness: "codex")
@@ -180,7 +180,7 @@ private func replyJSON(accounts: [String], unadded: [String] = []) -> String {
     #expect(store.addProblem == "There is already an account named codex.")
 
     let failing = ProvidersFile(folder: folder, save: { _, _ in throw CocoaError(.fileWriteNoPermission) })
-    let stuck = ProvidersStore(host: host, file: { failing }, log: { _ in })
+    let stuck = ProvidersStore(host: host, file: { failing }, log: { _ in }, reload: { nil })
     await stuck.add(harness: "agy")
     #expect(stuck.addProblem?.contains("could not be written") == true)
     #expect(try text(file) == #"{"providers":{"codex":{"harness":"claude"}}}"#)
@@ -316,7 +316,7 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     try file.write(base)
     let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
     var uses: [String: [AccountUse]] = ["claude": [.role(.author), .chatAgent("claude")]]
-    let store = ProvidersStore(host: host, file: { file }, uses: { uses }, log: { _ in })
+    let store = ProvidersStore(host: host, file: { file }, uses: { uses }, log: { _ in }, reload: { nil })
 
     // add: written, and the host asked again
     #expect(await store.addAccount(name: "claude-work", harness: "claude", configDir: "/h/.cw"))
@@ -361,7 +361,7 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     try file.write(base)
     let host = try ProvidersHost(replyJSON(accounts: []))
     host.reply = try JSONDecoder().decode(HostProviders.self, from: Data(#"{"accounts":[],"unadded":[],"servers":[],"problem":{"path":"providers.codex.model","message":"Invalid input"}}"#.utf8))
-    let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { _ in })
+    let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { _ in }, reload: { nil })
     var draft = AccountDraft()
     draft.displayName = "Mine"
     #expect(await store.save(name: "codex", draft: draft))
@@ -375,8 +375,70 @@ private let base = Data(#"{"future":1,"providers":{"claude":{"harness":"claude",
     defer { try? FileManager.default.removeItem(atPath: folder) }
     let file = ProvidersFile(folder: folder)
     try file.write(base)
-    let store = ProvidersStore(host: try ProvidersHost(replyJSON(accounts: [])), file: { file }, uses: { throw Unreadable() }, log: { _ in })
+    let store = ProvidersStore(host: try ProvidersHost(replyJSON(accounts: [])), file: { file }, uses: { throw Unreadable() }, log: { _ in }, reload: { nil })
     #expect(await store.remove(name: "codex") == false)
     #expect(try providers(file).keys.contains("codex"))
     #expect(store.editProblem == "providers.json could not be written; the file stays as it was.")
+}
+
+// MARK: the engine is asked to reload
+
+private var work: AccountDraft {
+    var draft = AccountDraft()
+    draft.displayName = "Work"
+    return draft
+}
+
+@MainActor @Test func everyWriteOfProvidersJsonAsksTheEngineToReloadAfterItAndAFailedOneAsksNothing() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProvidersFile(folder: folder)
+    let engine = FakeReload(file: file.url.path)
+    let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)], unadded: ["agy"]))
+    let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { _ in }, reload: engine.reload)
+
+    // the first open makes the file, one account per harness found
+    let first = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)]))
+    await ProvidersStore(host: first, file: { file }, log: { _ in }, reload: engine.reload).createFileIfMissing()
+    #expect(engine.calls == 1 && engine.seen[0] == engine.now)
+    // a file there already: the first open writes nothing and asks nothing
+    await store.createFileIfMissing()
+    #expect(engine.calls == 1)
+
+    await store.add(harness: "agy")
+    #expect(engine.calls == 2 && engine.seen[1] == engine.now && store.addProblem == nil)
+    #expect(await store.addAccount(name: "claude-work", harness: "claude", configDir: "/h/.cw") && engine.calls == 3)
+    #expect(await store.save(name: "claude-work", draft: work) && engine.calls == 4)
+    #expect(await store.remove(name: "claude-work") && engine.calls == 5 && store.editProblem == nil)
+    // an account that is taken, one that is missing: nothing was written
+    #expect(await store.addAccount(name: "agy", harness: "claude", configDir: "") == false)
+    #expect(await store.remove(name: "ghost") == false)
+    await store.add(harness: "agy")
+    #expect(engine.calls == 5)
+    // a write that failed
+    let failing = ProvidersFile(folder: folder, save: { _, _ in throw CocoaError(.fileWriteNoPermission) })
+    let stuck = ProvidersStore(host: host, file: { failing }, log: { _ in }, reload: engine.reload)
+    await stuck.add(harness: "codex")
+    #expect(engine.calls == 5)
+}
+
+@MainActor @Test func anEngineThatRefusesWhatWasWrittenIsShownWhereTheFailureToSaveIsShownAndTheLastSaveDecides() async throws {
+    let folder = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(atPath: folder) }
+    let file = ProvidersFile(folder: folder)
+    try file.write(Data(#"{"providers":{"claude":{"harness":"claude"}}}"#.utf8))
+    let engine = FakeReload(file: file.url.path, problem: "agents.author.provider: bad")
+    let host = try ProvidersHost(replyJSON(accounts: [account("claude", found: true)], unadded: ["agy"]))
+    let store = ProvidersStore(host: host, file: { file }, uses: { [:] }, log: { _ in }, reload: engine.reload)
+
+    await store.add(harness: "agy")
+    #expect(store.addProblem == "Saved, but Carrier kept its settings: agents.author.provider: bad")
+    #expect(try providers(file).keys.sorted() == ["agy", "claude"])
+    // the editor closes on a save that was written; its words are left for the page
+    #expect(await store.addAccount(name: "claude-work", harness: "claude", configDir: ""))
+    #expect(store.editProblem == "Saved, but Carrier kept its settings: agents.author.provider: bad")
+    // a later save the engine applied clears it
+    engine.problem = nil
+    #expect(await store.save(name: "claude-work", draft: work))
+    #expect(store.editProblem == nil)
 }

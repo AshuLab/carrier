@@ -47,35 +47,30 @@ struct AgentsTabView: View {
     /// Writes the change, then reads the file back so the page shows what is there, whether it was saved or refused.
     private func save(_ change: RoleChange, role: AgentRole, page: AgentsPage) -> RoleSave {
         if role == .leadReviewer, turningOnLead { return fillLead(change, page: page) }
-        let result = saveGlobalRole(change, role: role, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
-        let reason: String?
-        switch result {
-        case .saved: reason = nil
-        case .refused(let why), .failed(let why): reason = why
-        }
+        let result = saveGlobalRole(change, role: role, path: configFilePath(), accounts: page.accounts, bots: page.bots.names, reload: { reloadEngine() })
         load()
-        problem = reason
+        problem = result.problem
         return result
     }
 
     /// The Details and failover cards write through here (`saveGlobalPersona`, `saveGlobalFailover`; tested in `RoleDetailsSaveTests`), then read the file back.
     private func saveDetails(_ result: RoleSave) -> Bool {
         load()
-        if case .refused(let why) = result { problem = why } else if case .failed(let why) = result { problem = why }
-        return result == .saved
+        problem = result.problem
+        return result.isWritten
     }
 
     /// A choice for the role being turned on: kept in the draft, and written only when identity, provider and model are all there.
     private func fillLead(_ change: RoleChange, page: AgentsPage) -> RoleSave {
         leadDraft.apply(change)
         guard leadDraft.isComplete else { return .saved }
-        let result = turnLeadReviewerOn(leadDraft, path: configFilePath(), accounts: page.accounts, bots: page.bots.names)
-        if result == .saved {
+        let result = turnLeadReviewerOn(leadDraft, path: configFilePath(), accounts: page.accounts, bots: page.bots.names, reload: { reloadEngine() })
+        if result.isWritten {
             turningOnLead = false
             leadDraft = LeadReviewerDraft()
         }
         load()
-        if case .refused(let why) = result { problem = why } else if case .failed(let why) = result { problem = why }
+        problem = result.problem
         return result
     }
 
@@ -88,9 +83,9 @@ struct AgentsTabView: View {
             turningOnLead = false
         } else {
             turningOnLead = false
-            let result = turnLeadReviewerOff(path: configFilePath())
+            let result = turnLeadReviewerOff(path: configFilePath(), reload: { reloadEngine() })
             load()
-            if case .refused(let why) = result { problem = why } else if case .failed(let why) = result { problem = why }
+            problem = result.problem
         }
     }
 
@@ -136,7 +131,7 @@ struct AgentsTabView: View {
                         }
                     }
                     SettingsTabRow(title: "Model", detail: "") {
-                        ModelField(model: row.fields.model ?? "") { save(.model($0), role: row.role, page: page) == .saved }
+                        ModelField(model: row.fields.model ?? "") { save(.model($0), role: row.role, page: page).isWritten }
                             .id(row.role)
                     }
                     SettingsTabRow(title: "Effort", detail: "How hard it thinks") {
@@ -149,13 +144,13 @@ struct AgentsTabView: View {
                 SettingsGroup(title: "Details") {
                     SettingsTabRow(title: "Persona name", detail: "Optional, one line up to 40 characters", first: true) {
                         CommitField(label: "Persona name", text: row.fields.persona?.name ?? "", width: 220, mono: false, prompt: "None") {
-                            saveDetails(saveGlobalPersona(name: blankIsNil($0), prompt: row.fields.persona?.prompt, role: row.role, path: configFilePath()))
+                            saveDetails(saveGlobalPersona(name: blankIsNil($0), prompt: row.fields.persona?.prompt, role: row.role, path: configFilePath(), reload: { reloadEngine() }))
                         }
                         .id(row.role)
                     }
                     SettingsTabRow(title: "Persona prompt", detail: "Optional instructions") {
                         CommitField(label: "Persona prompt", text: row.fields.persona?.prompt ?? "", width: 220, mono: false, prompt: "None") {
-                            saveDetails(saveGlobalPersona(name: row.fields.persona?.name, prompt: blankIsNil($0), role: row.role, path: configFilePath()))
+                            saveDetails(saveGlobalPersona(name: row.fields.persona?.name, prompt: blankIsNil($0), role: row.role, path: configFilePath(), reload: { reloadEngine() }))
                         }
                         .id(row.role)
                     }
@@ -166,7 +161,7 @@ struct AgentsTabView: View {
                         Toggle("Switch automatically", isOn: Binding(get: { on }, set: { now in
                             if now { switchedOn.insert(row.role) } else {
                                 switchedOn.remove(row.role)
-                                _ = saveDetails(saveGlobalFailover(first: nil, second: nil, role: row.role, path: configFilePath(), accounts: page.accounts))
+                                _ = saveDetails(saveGlobalFailover(first: nil, second: nil, role: row.role, path: configFilePath(), accounts: page.accounts, reload: { reloadEngine() }))
                             }
                         })).labelsHidden().toggleStyle(.switch)
                     }
@@ -194,7 +189,7 @@ struct AgentsTabView: View {
         func write(_ own: FailoverStep?) -> Bool {
             let first = index == 0 ? own : row.steps.first
             let second = index == 1 ? own : row.steps.dropFirst().first
-            return saveDetails(saveGlobalFailover(first: first, second: second, role: row.role, path: configFilePath(), accounts: page.accounts))
+            return saveDetails(saveGlobalFailover(first: first, second: second, role: row.role, path: configFilePath(), accounts: page.accounts, reload: { reloadEngine() }))
         }
         return SettingsTabRow(title: title, detail: detail) {
             HStack(spacing: 8) {

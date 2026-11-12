@@ -30,7 +30,7 @@ private func role(_ path: String, _ name: String) throws -> [String: Any] {
 }
 
 private func save(_ change: RoleChange, _ role: AgentRole = .author, path: String) -> RoleSave {
-    saveGlobalRole(change, role: role, path: path, accounts: accounts, bots: bots)
+    saveGlobalRole(change, role: role, path: path, accounts: accounts, bots: bots, reload: { nil })
 }
 
 @Test func changingOneFieldWritesOnlyThatRolesKeyAndKeepsEverythingElse() throws {
@@ -133,4 +133,27 @@ private func save(_ change: RoleChange, _ role: AgentRole = .author, path: Strin
     let data = try JSONSerialization.data(withJSONObject: written)
     let page = try #require(agentsPage(config: data, providers: nil, bots: names))
     #expect(page.sharedNote?.contains("are one account") == true)
+}
+
+// MARK: the engine is asked to reload
+
+@Test func aSavedRoleAsksTheEngineToReloadAfterTheWriteAndNeverAfterAFailedOne() throws {
+    let path = try temporaryConfig()
+    let engine = FakeReload(file: path)
+    #expect(saveGlobalRole(.model("gpt-5"), role: .author, path: path, accounts: accounts, bots: bots, reload: engine.reload) == .saved)
+    #expect(engine.calls == 1 && engine.seen[0] == engine.now)
+    #expect(try role(path, "author")["model"] as? String == "gpt-5")
+    // refused before writing, or a file that is not there: nothing is asked
+    #expect(saveGlobalRole(.provider("nope"), role: .author, path: path, accounts: accounts, bots: bots, reload: engine.reload) != .saved)
+    #expect(saveGlobalRole(.model("m"), role: .author, path: path + ".missing", accounts: accounts, bots: bots, reload: engine.reload) != .saved)
+    #expect(engine.calls == 1)
+}
+
+@Test func aRoleTheEngineRefusedToApplyIsSavedAndSaysWhatTheEngineAnswered() throws {
+    let path = try temporaryConfig()
+    let engine = FakeReload(file: path, problem: "agents.author.model: must not be empty")
+    let result = saveGlobalRole(.model("gpt-5"), role: .author, path: path, accounts: accounts, bots: bots, reload: engine.reload)
+    #expect(result == .notApplied("Saved, but Carrier kept its settings: agents.author.model: must not be empty"))
+    #expect(result.isWritten && result.problem != nil)
+    #expect(try role(path, "author")["model"] as? String == "gpt-5")
 }

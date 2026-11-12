@@ -10,7 +10,7 @@ import Testing
         lastMessage: "Done: the pill has room now.", turns: 3, reportsActivity: true
     )
     let card = sessionPeek(row, now: now)
-    #expect(card.title == "A title that the row would cut" && card.name == "carrier" && card.subtitle == "Active")
+    #expect(card.title == "A title that the row would cut" && card.name == "carrier" && card.subtitle == "Idle")
     #expect(card.lastMessage == "Done: the pill has room now.")
     #expect(card.facts.map(\.label) == ["Where", "Folder", "Agent", "Turns"])
     #expect(card.facts.map(\.value) == ["Worktree · carrier/void-corsair-pylon", "/srv/wt/void-corsair-pylon", "claude", "3"])

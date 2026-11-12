@@ -5,24 +5,24 @@ import Foundation
 
 /// What the filter popover can tick: the session's status and its agent. Nothing ticked in a kind shows every value of it.
 public struct SessionFilter: Equatable {
-    public var statuses: Set<SessionState>
+    public var statuses: Set<SessionStatus>
     public var agents: Set<String>
     /// Only the row menu's "Filter by" sets it; the popover does not offer workspaces.
     public var workspaces: Set<String>
 
-    public init(statuses: Set<SessionState> = [], agents: Set<String> = [], workspaces: Set<String> = []) {
+    public init(statuses: Set<SessionStatus> = [], agents: Set<String> = [], workspaces: Set<String> = []) {
         self.statuses = statuses
         self.agents = agents
         self.workspaces = workspaces
     }
 
-    /// The statuses the popover offers: `done` is in the type but nothing produces it.
-    public static let offeredStatuses: [SessionState] = [.waiting, .working, .idle]
+    /// The statuses the popover offers.
+    public static let offeredStatuses: [SessionStatus] = SessionStatus.allCases
 
     public var count: Int { statuses.count + agents.count + workspaces.count }
 
     public func matches(_ row: SessionRow) -> Bool {
-        (statuses.isEmpty || statuses.contains(row.state)) && (agents.isEmpty || agents.contains(row.agent)) && (workspaces.isEmpty || workspaces.contains(row.workspace))
+        (statuses.isEmpty || statuses.contains(row.status)) && (agents.isEmpty || agents.contains(row.agent)) && (workspaces.isEmpty || workspaces.contains(row.workspace))
     }
 
     /// One chip per ticked value: the statuses in the popover's order, then the agents by name, then the workspaces by name.
@@ -32,7 +32,7 @@ public struct SessionFilter: Equatable {
 
     public mutating func remove(_ chip: SessionChip) {
         switch chip {
-        case .status(let state): statuses.remove(state)
+        case .status(let status): statuses.remove(status)
         case .agent(let name): agents.remove(name)
         case .workspace(let name): workspaces.remove(name)
         }
@@ -40,13 +40,13 @@ public struct SessionFilter: Equatable {
 }
 
 public enum SessionChip: Hashable {
-    case status(SessionState)
+    case status(SessionStatus)
     case agent(String)
     case workspace(String)
 
     public var title: String {
         switch self {
-        case .status(let state): state.title
+        case .status(let status): status.title
         case .agent(let name), .workspace(let name): name
         }
     }

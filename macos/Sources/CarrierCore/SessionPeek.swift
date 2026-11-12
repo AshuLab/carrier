@@ -30,7 +30,7 @@ public func sessionPeek(_ row: SessionRow, now: Date) -> SessionPeek {
     let subtitle: String = switch row.state {
     case .waiting: "Waiting for you"
     case .working: "Working…"
-    case .idle, .done: row.state.title
+    case .idle, .done: row.status.title
     }
     return SessionPeek(
         title: row.title, name: row.workspace, subtitle: subtitle, lastMessage: row.lastMessage?.isEmpty == false ? row.lastMessage : nil,

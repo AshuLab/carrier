@@ -69,8 +69,9 @@ private func byAge(_ rows: [SessionRow]) -> [SessionGroup] { sessionGroups(rows,
         at("waiting", noon, state: .waiting), at("gone", noon, state: .working, archived: true),
     ]
     let groups = sessionGroups(rows, by: .status, now: noon, calendar: utc)
-    #expect(groups.map(\.title) == ["Needs attention", "Active", "Done"])
-    #expect(groups[1].rows.map(\.id) == ["idleNew", "idleOld"])
+    // `done` is in the type but nothing produces it: it reads as idle
+    #expect(groups.map(\.title) == ["Needs you", "Idle"])
+    #expect(groups[1].rows.map(\.id) == ["done", "idleNew", "idleOld"])
     #expect(sessionGroups([], by: .status, now: noon, calendar: utc).isEmpty)
     #expect(sessionGroups([], by: .age, now: noon, calendar: utc).isEmpty)
 }

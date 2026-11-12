@@ -103,7 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Keeps the menu line current from a thread of its own; the title is set on the main queue, which also runs while the menu is open.
     private func watchCarrier(_ line: NSMenuItem) {
-        let monitor = ControlMonitor(socketPath: { controlSocketPath() }) { state in
+        let monitor = ControlMonitor(socketPath: { controlSocketPath() }, pollEvery: { PollPace.shared.seconds }) { state in
             DispatchQueue.main.async {
                 IconController.shared?.show(state)
                 line.title = state.menuLine
@@ -118,6 +118,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         watchChatSessions()
         // the app lives on with its window closed, so a timer here is enough for the reminders
         Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in NotificationWatcher.app.remind() }
+        // the pace of the asks follows whether someone is looking: the app active with its window on screen
+        for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { WindowController.shared.refreshPace() }
+            }
+        }
     }
 
     /// The chat sessions notify with the window closed, so they are read for the life of the app, beside the engine's monitor. A host
@@ -126,13 +132,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let host = SocketChatHost()
         Task.detached {
             // a host that does not answer is asked less and less often (up to every 30 s), and the first miss after an answer is logged
-            var wait = 1.0
+            var wait = PollPace.shared.seconds
             var answering = true
             while true {
                 do {
                     let rows = sessionRows(try await host.list(archived: false))
                     await MainActor.run { NotificationWatcher.app.react(toSessions: rows) }
-                    wait = 1
+                    wait = PollPace.shared.seconds
                     answering = true
                 } catch {
                     if answering { NSLog("Carrier: the chat host does not answer, asking again in a while: %@", String(describing: error)) }

@@ -227,25 +227,25 @@ private let sample = [
 }
 
 @Test func aFilterKeepsWhatMatchesAndTheSubtitleSaysHowManyOfTheActiveOnes() {
-    let page = sessionsPage(sample, filter: SessionFilter(statuses: [.waiting]), now: now)
+    let page = sessionsPage(sample, filter: SessionFilter(statuses: [.needsYou]), now: now)
     #expect(page.groups.flatMap(\.rows).map(\.id) == ["b"])
     #expect(page.subtitle == "1 of 4 · 1 waits for you")
     let codex = sessionsPage(sample, filter: SessionFilter(agents: ["codex"]), now: now)
     #expect(codex.groups.flatMap(\.rows).map(\.id) == ["b", "d"])
     // statuses and agents together both have to hold; within a kind any of the ticked ones does
-    let both = SessionFilter(statuses: [.idle, .waiting], agents: ["codex"])
+    let both = SessionFilter(statuses: [.idle, .needsYou], agents: ["codex"])
     #expect(sessionsPage(sample, filter: both, now: now).groups.flatMap(\.rows).map(\.id) == ["b", "d"])
 }
 
 @Test func theFilterCountsItsTickedValuesAndHasAChipForEachThatRemovesIt() {
-    var filter = SessionFilter(statuses: [.working, .waiting], agents: ["codex"])
+    var filter = SessionFilter(statuses: [.working, .needsYou], agents: ["codex"])
     #expect(filter.count == 3 && SessionFilter().count == 0)
-    #expect(filter.chips == [.status(.waiting), .status(.working), .agent("codex")])
-    #expect(filter.chips.map(\.title) == ["Needs attention", "Working", "codex"])
+    #expect(filter.chips == [.status(.needsYou), .status(.working), .agent("codex")])
+    #expect(filter.chips.map(\.title) == ["Needs you", "Working", "codex"])
     filter.remove(.status(.working))
-    #expect(filter.chips == [.status(.waiting), .agent("codex")])
+    #expect(filter.chips == [.status(.needsYou), .agent("codex")])
     filter.remove(.agent("codex"))
-    filter.remove(.status(.waiting))
+    filter.remove(.status(.needsYou))
     #expect(filter == SessionFilter())
 }
 
@@ -266,7 +266,7 @@ private let sample = [
 @Test func theSortsGroupByWorkspaceByAgeAndByStatus() {
     #expect(sessionsPage(sample, by: .workspace, now: now).groups.map(\.title) == ["api", "web"])
     #expect(sessionsPage(sample, by: .age, now: now).groups.map(\.title) == ["Today", "Last 7 days"])
-    #expect(sessionsPage(sample, by: .status, now: now).groups.map(\.title) == ["Needs attention", "Working", "Active"])
+    #expect(sessionsPage(sample, by: .status, now: now).groups.map(\.title) == ["Needs you", "Working", "Idle"])
 }
 
 @Test func withNoActiveSessionsThePageIsNoSessionsYetEvenWhenSomethingIsArchived() {

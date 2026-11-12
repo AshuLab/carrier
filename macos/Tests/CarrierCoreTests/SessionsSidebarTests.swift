@@ -209,6 +209,15 @@ private func archivedByAge(_ rows: [SessionRow], _ query: String = "") -> [Sessi
     #expect(groups.map(\.rows.count) == [2, 2])
 }
 
+@Test func archivedGroupsByWorkspaceHoldOnlyArchivedRowsOneGroupPerWorkspaceNewestFirst() {
+    let groups = archivedGroups([
+        row("a1", "web", minutesAgo: 30, archived: true), row("a2", "web", minutesAgo: 5, archived: true),
+        row("b1", "api", minutesAgo: 10, archived: true), row("open", "web", archived: false),
+    ], by: .workspace, now: now, calendar: utc)
+    #expect(groups.map(\.title) == ["api", "web"])
+    #expect(groups.map { $0.rows.map(\.id) } == [["b1"], ["a2", "a1"]])
+}
+
 @Test func archivedGroupsWithAQueryKeepTheBucketsWithAMatchOnTitleWorkspaceOrAgent() {
     let day = 86400.0
     let rows = [

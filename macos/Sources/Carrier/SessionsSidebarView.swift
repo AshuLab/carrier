@@ -42,13 +42,14 @@ struct SessionsRows: View {
     }
 
     var body: some View {
-        SidebarSectionRow(title: "Sessions", icon: "bubble.left.and.bubble.right", selected: selected, action: select, actions: {
+        SidebarSectionRow(title: "Sessions", icon: "bubble.left.and.bubble.right", selected: selected, keepActions: sortOpen || query != nil, action: select, actions: {
             if sessions.open > 0 {
                 Text("\(sessions.open)").font(SidebarMetrics.detail.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
                     .padding(.horizontal, 6).padding(.vertical, 1)
                     .background(Capsule().fill(Color.secondary.opacity(0.15)))
                     .accessibilityLabel(sessions.openLabel)
             }
+        }, hoverActions: {
             IconButton(
                 icon: "magnifyingglass", name: "Search sessions", enabled: sessions.open > 0, why: "No sessions to search", shortcut: "⌘F",
                 pressed: query != nil
@@ -110,7 +111,7 @@ struct SessionsRows: View {
     }
 }
 
-private extension SessionSort {
+extension SessionSort {
     var menuTitle: String {
         switch self {
         case .workspace: "By workspace"

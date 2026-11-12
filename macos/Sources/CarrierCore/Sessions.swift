@@ -124,11 +124,13 @@ private func ordered(_ listed: [SessionRow], by sort: SessionSort, now: Date, ca
     }
 }
 
-/// The archived sessions, and only those, in the age buckets of the Sessions list (Today, Yesterday, Last 7 days, Older), newest
-/// first, empty buckets left out. A non-empty `query` keeps the buckets, filtered to the rows whose title, workspace or agent contain
-/// it ignoring case.
-public func archivedGroups(_ rows: [SessionRow], query: String = "", now: Date = Date(), calendar: Calendar = .current) -> [SessionGroup] {
-    ageGroups(matching(rows.filter(\.archived), query), now: now, calendar: calendar)
+/// The archived sessions, and only those, in the age buckets of the Sessions list (Today, Yesterday, Last 7 days, Older) or, by workspace,
+/// one group per workspace, newest first, empty groups left out. A non-empty `query` keeps the groups, filtered to the rows whose
+/// title, workspace or agent contain it ignoring case.
+public func archivedGroups(
+    _ rows: [SessionRow], by sort: SessionSort = .age, query: String = "", now: Date = Date(), calendar: Calendar = .current
+) -> [SessionGroup] {
+    ordered(matching(rows.filter(\.archived), query), by: sort, now: now, calendar: calendar)
 }
 
 func matching(_ rows: [SessionRow], _ query: String) -> [SessionRow] {

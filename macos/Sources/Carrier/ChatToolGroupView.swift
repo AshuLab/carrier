@@ -183,7 +183,7 @@ private func flip(_ key: String, in flipped: Binding<Set<String>>) {
 
 /// How the steps open: the card grows from its line and the steps stay where they are, uncovered from the top as it grows (clipped at
 /// the bottom edge), instead of sliding in from above over the line.
-private struct RevealLayout: Layout {
+struct RevealLayout: Layout {
     var progress: CGFloat
     var animatableData: CGFloat {
         get { progress }
@@ -203,7 +203,7 @@ private struct RevealLayout: Layout {
     }
 }
 
-private struct Reveal: ViewModifier {
+struct Reveal: ViewModifier {
     let progress: CGFloat
 
     func body(content: Content) -> some View {
@@ -213,7 +213,7 @@ private struct Reveal: ViewModifier {
     }
 }
 
-private extension AnyTransition {
+extension AnyTransition {
     static var reveal: AnyTransition { .modifier(active: Reveal(progress: 0), identity: Reveal(progress: 1)) }
 }
 
